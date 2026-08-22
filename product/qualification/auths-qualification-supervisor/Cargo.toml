@@ -1,0 +1,35 @@
+[package]
+name = "auths-qualification-supervisor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+description = "Protected common qualification evidence ledger sealer"
+
+[dependencies]
+auths-config.workspace = true
+auths-lifecycle.workspace = true
+auths-model.workspace = true
+auths-profile-kit = { workspace = true, features = ["qualification-ledger-producer"] }
+auths-qualification-evidence-source = { path = "../auths-qualification-evidence-source" }
+auths-receipts.workspace = true
+auths-stores = { workspace = true, features = ["qualification-evidence"] }
+base64ct.workspace = true
+ed25519-dalek.workspace = true
+hex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_json_canonicalizer.workspace = true
+sha2.workspace = true
+tar.workspace = true
+toml.workspace = true
+rustix = { workspace = true, features = ["std", "thread"] }
+zeroize.workspace = true
+zstd.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

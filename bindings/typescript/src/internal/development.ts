@@ -15,6 +15,7 @@ class DevelopmentEd25519Key {
   readonly #privateKey: CryptoKey;
   readonly #descriptor: PrincipalDescriptor;
   readonly #evidence: Uint8Array;
+  readonly #publicKey: Uint8Array;
   readonly #evidenceType: string;
   readonly #mediaType: string;
   #disposed = false;
@@ -23,12 +24,14 @@ class DevelopmentEd25519Key {
     privateKey: CryptoKey,
     descriptor: PrincipalDescriptor,
     evidence: Uint8Array,
+    publicKey: Uint8Array,
     evidenceType: string,
     mediaType: string,
   ) {
     this.#privateKey = privateKey;
     this.#descriptor = Object.freeze({ ...descriptor });
     this.#evidence = evidence.slice();
+    this.#publicKey = publicKey.slice();
     this.#evidenceType = evidenceType;
     this.#mediaType = mediaType;
   }
@@ -71,6 +74,7 @@ class DevelopmentEd25519Key {
           suite: identity.suite,
         },
         identity.evidence,
+        publicKey,
         identity.principalMethod,
         identity.mediaType,
       );
@@ -91,6 +95,11 @@ class DevelopmentEd25519Key {
     return this.#evidence.slice();
   }
 
+  publicKey(): Uint8Array {
+    this.#assertActive();
+    return this.#publicKey.slice();
+  }
+
   async sign(preimage: Uint8Array): Promise<Uint8Array> {
     this.#assertActive();
     return new Uint8Array(await crypto.subtle.sign("Ed25519", this.#privateKey, preimage.slice().buffer));
@@ -107,6 +116,7 @@ class DevelopmentEd25519Key {
   dispose(): void {
     this.#disposed = true;
     this.#evidence.fill(0);
+    this.#publicKey.fill(0);
   }
 
   #assertActive(): void {
@@ -157,9 +167,11 @@ export class DevelopmentEd25519Signer implements Signer {
 export class DevelopmentReceiptAttestor implements ApplicationReceiptAttestor {
   readonly signer: ApplicationReceiptSigner;
   readonly #key: DevelopmentEd25519Key;
+  readonly publicKey: Uint8Array;
 
   private constructor(key: DevelopmentEd25519Key) {
     this.#key = key;
+    this.publicKey = key.publicKey();
     const descriptor = key.descriptor();
     this.signer = Object.freeze({
       principal: descriptor.principal,

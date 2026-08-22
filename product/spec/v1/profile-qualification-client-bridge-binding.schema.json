@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-client-bridge-binding.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "sourceContextSha256",
+    "clientUid",
+    "clientGid",
+    "clientProcessId",
+    "clientStartTimeTicks",
+    "clientExecutableSha256",
+    "fault"
+  ],
+  "properties": {
+    "schema": {"const": "auths.qualification-client-bridge-binding/1"},
+    "sourceContextSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "clientUid": {"type": "integer", "minimum": 1, "maximum": 4294967294},
+    "clientGid": {"type": "integer", "minimum": 0, "maximum": 4294967294},
+    "clientProcessId": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+    "clientStartTimeTicks": {"type": "integer", "minimum": 1, "maximum": 18446744073709551615},
+    "clientExecutableSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "fault": {
+      "type": ["string", "null"],
+      "enum": [
+        "configuration-mismatch",
+        "connection-substitution",
+        "principal-substitution",
+        "evidence-freshness-edge",
+        "stale-evidence",
+        null
+      ]
+    }
+  }
+}

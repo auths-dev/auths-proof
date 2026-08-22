@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-setup-handoff.schema.json",
+  "title": "Auths protected qualification setup handoff v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "runContext", "domain", "connectionAlias", "runReference", "vectors"],
+  "properties": {
+    "schema": {"const": "auths.profile-qualification-setup-handoff/1"},
+    "runContext": {"$ref": "#/$defs/runContext"},
+    "domain": {"$ref": "profile-qualification.schema.json#/$defs/domain"},
+    "connectionAlias": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+    "runReference": {"$ref": "#/$defs/runReference"},
+    "vectors": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "uniqueItems": true,
+      "x-auths-byteSortedBy": "id",
+      "items": {"$ref": "#/$defs/vector"}
+    }
+  },
+  "$defs": {
+    "runContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repositoryId", "candidateRevision", "target", "protectedEnvironment", "runId", "runAttempt", "providerRunId"],
+      "properties": {
+        "repositoryId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+        "candidateRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+        "target": {"$ref": "profile-qualification.schema.json#/$defs/target"},
+        "protectedEnvironment": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "runId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+        "runAttempt": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+        "providerRunId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"}
+      }
+    },
+    "runReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "domain", "target", "candidateRevision", "repositoryId", "runId", "runAttempt", "providerRunId", "providerNamespace", "connectionAliasSha256", "resourceReferences", "connectionGenerations"],
+      "properties": {
+        "schema": {"const": "auths.profile-qualification-run-reference/1"},
+        "domain": {"$ref": "profile-qualification.schema.json#/$defs/domain"},
+        "target": {"$ref": "profile-qualification.schema.json#/$defs/target"},
+        "candidateRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+        "repositoryId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+        "runId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+        "runAttempt": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+        "providerRunId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "providerNamespace": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "connectionAliasSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "resourceReferences": {"type": "array", "maxItems": 128, "uniqueItems": true, "items": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"}},
+        "connectionGenerations": {"type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true, "items": {"$ref": "profile-qualification.schema.json#/$defs/decimalToken"}}
+      }
+    },
+    "vector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "inputBase64url", "failpoint"],
+      "properties": {
+        "id": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "inputBase64url": {"type": "string", "maxLength": 22369624, "pattern": "^[A-Za-z0-9_-]*$"},
+        "failpoint": {"$ref": "profile-qualification-report-common.schema.json#/$defs/nullableFailpoint"}
+      }
+    }
+  }
+}

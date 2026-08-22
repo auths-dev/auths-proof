@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-proposal.schema.json",
+  "title": "Auths untrusted live profile qualification proposal v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "domain", "profiles", "target", "candidateRevision", "semanticClosureSha256", "packageManifestSha256", "profileRuntimeDigests", "errorRegistrySha256", "providerMatrixSha256", "toolchain", "candidateArtifacts", "environmentClass", "collectionStartedAtUnixSeconds", "collectionCompletedAtUnixSeconds", "providerRuns", "scenarios", "receiptVerification", "secretScan"],
+  "properties": {
+    "schema": {"const": "auths.profile-qualification-proposal/1"},
+    "domain": {"$ref": "profile-qualification.schema.json#/$defs/domain"},
+    "profiles": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"$ref": "profile-qualification.schema.json#/$defs/profile"}},
+    "target": {"$ref": "profile-qualification.schema.json#/$defs/target"},
+    "candidateRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+    "semanticClosureSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "packageManifestSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "profileRuntimeDigests": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"$ref": "profile-qualification.schema.json#/$defs/runtimeDigest"}},
+    "errorRegistrySha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "providerMatrixSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "toolchain": {"$ref": "profile-qualification.schema.json#/$defs/toolchain"},
+    "candidateArtifacts": {"type": "array", "minItems": 9, "maxItems": 9, "uniqueItems": true, "x-auths-byteSortedBy": "role", "items": {"$ref": "profile-qualification.schema.json#/$defs/candidateArtifact"}},
+    "environmentClass": {"const": "disposable-provider-test"},
+    "collectionStartedAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},
+    "collectionCompletedAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},
+    "providerRuns": {"type": "array", "minItems": 1, "maxItems": 16, "items": {"$ref": "profile-qualification.schema.json#/$defs/providerRun"}},
+    "scenarios": {"type": "array", "minItems": 1, "maxItems": 256, "items": {"$ref": "profile-qualification.schema.json#/$defs/scenario"}},
+    "receiptVerification": {"$ref": "profile-qualification.schema.json#/$defs/proposalReceiptVerification"},
+    "secretScan": {"$ref": "profile-qualification.schema.json#/$defs/secretScan"}
+  }
+}

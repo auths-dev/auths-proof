@@ -1,0 +1,14 @@
+{
+  "schema": "auths.generated-profile-fixture/1",
+  "generator": "auths-profile-generator/1",
+  "manifest": "product/integrations/auths-stripe/profile-package.json",
+  "sourceSha256": "22dd7af4d2d31cfc645300b5ef3fc0977c9bf27821ed04531cf21ceffa1dfa96",
+  "profiles": [
+    {
+      "id": "auths.stripe.refund",
+      "version": 1,
+      "errorProjectionSha256": "2cb029e0c02bef1d493bde4b659d00659e99b3d063248b36dcb9d09fcb84528c",
+      "runtimeContractSha256": "b839f07b9302e6aeea5a44f0a2faf2af3f06dbf8ced6b69a011b7d8c680cf6ba"
+    }
+  ]
+}

@@ -10,6 +10,7 @@
     "implementation": "CPython",
     "versions": ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"],
     "operatingSystems": ["linux", "macos", "windows"],
+    "localAgentOperatingSystems": ["linux", "macos"],
     "freeThreaded": false
   },
   "distribution": {
@@ -20,27 +21,31 @@
   "semanticSubjects": {
     "identity": "auths-identity/v1",
     "authority": "auths-proof-protocol/v1",
-    "mcpProfile": "auths.mcp/1",
+    "profileOperation": "auths.profile-operation/1",
+    "remoteVerification": "auths.remote-verification/1",
     "lifecycle": "auths.product.reservation-execution-contract/2"
   },
   "capabilities": [
-    "authority.delegate",
-    "authority.plans",
     "diagnostics.doctor",
     "identity.descriptor-v1",
     "identity.resolution",
-    "runtime.closed-execution",
+    "local-agent.session-v1",
+    "profile-operation.v1",
+    "profile-runtime.v1",
     "verification.batch-v1",
-    "verification.single-v1",
-    "workflow.approval"
+    "verification.single-v1"
   ],
   "modules": [
     "auths",
-    "auths.identity",
     "auths.verify",
-    "auths.profiles",
-    "auths.integrations",
-    "auths.framework",
+    "auths.identity",
+    "auths.identity.adapters",
+    "auths.identity.authoring",
+    "auths.protocol",
+    "auths.profile_runtime",
+    "auths.adapters",
+    "auths.adapters.custody",
+    "auths.adapters.reservations",
     "auths.testkit"
   ],
   "excludedModules": [
@@ -54,19 +59,24 @@
     "auths.errors",
     "auths.inspection",
     "auths.lifecycle",
-    "auths.mcp",
     "auths.native",
     "auths.observability",
     "auths.product_errors",
     "auths.profile_kit",
+    "auths.profiles",
     "auths.profiles.domains",
     "auths.profiles.http",
     "auths.profiles.mcp",
     "auths.receipts",
     "auths.runtime",
+    "auths.service",
+    "auths.integrations",
+    "auths.framework",
+    "auths.github",
+    "auths.mcp",
     "auths.trust",
     "auths.workflow"
   ],
   "compatibilityWindow": false,
-  "adapterContract": "auths.python-adapter-contracts/1"
+  "adapterContract": "auths.python-adapter-contracts/2"
 }

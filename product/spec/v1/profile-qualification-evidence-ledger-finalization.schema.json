@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-evidence-ledger-finalization.schema.json",
+  "x-auths-semanticValidator": "profile-qualification-evidence-ledger-finalization/1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "planSha256", "sourceContextSha256", "eventCount", "lastEventSequence", "lastEventSha256", "eventIndexSha256", "completedAtUnixSeconds"],
+  "properties": {
+    "schema": {"const": "auths.profile-qualification-evidence-ledger-finalization/1"},
+    "planSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "sourceContextSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "eventCount": {"type": "integer", "minimum": 1, "maximum": 16384},
+    "lastEventSequence": {"type": "integer", "minimum": 1, "maximum": 16384},
+    "lastEventSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "eventIndexSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "completedAtUnixSeconds": {"type": "integer", "minimum": 1, "maximum": 18446744073709551615}
+  }
+}

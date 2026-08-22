@@ -155,14 +155,14 @@ pub fn simplified_product_waist_manifest() -> ProductWaistManifest {
 #[allow(clippy::too_many_lines)]
 fn product_waist_cases() -> Vec<ProductWaistCase> {
     let command_rust = "bindings/python/src/mcp.rs";
-    let command_typescript = "bindings/typescript/test/integration/profiles/mcp.test.js";
-    let command_python = "bindings/python/tests/test_mcp_workflow.py";
+    let command_typescript = "bindings/typescript/test/contract/nonforgeability.ts";
+    let command_python = "bindings/python/tests/test_public_api_v2.py";
     let delegation_rust = "core/crates/auths-author/src/lib.rs";
     let delegation_typescript = "bindings/typescript/test/integration/workflow/delegation.test.js";
     let delegation_python = "bindings/python/tests/test_workflow.py";
     let lifecycle_rust = "product/runtime/auths-lifecycle/src/transition.rs";
     let runtime_typescript = "bindings/typescript/test/unit/runtime-contract.test.js";
-    let runtime_python = "bindings/python/tests/test_mcp_workflow.py";
+    let runtime_python = "bindings/python/tests/test_profile_runtime_v1.py";
     let receipt_rust = "product/receipts/auths-receipts/src/lib.rs";
     let fixture_rust = "bindings/wasm/auths-proof-wasm/examples/generate-node-vectors.rs";
 
@@ -212,24 +212,24 @@ fn product_waist_cases() -> Vec<ProductWaistCase> {
             "authorization",
             "action-commitment-mismatch",
             fixture_rust,
-            "bindings/typescript/test/integration/scenario-corpus.test.js",
-            "bindings/python/tests/test_api.py",
+            "bindings/typescript/test/integration/authorization-plans.test.js",
+            "bindings/python/tests/test_native_authoring.py",
         ),
         case(
             "substitution/proof",
             "authorization",
             "proof-mismatch",
             fixture_rust,
-            "bindings/typescript/test/integration/scenario-corpus.test.js",
-            "bindings/python/tests/test_api.py",
+            "bindings/typescript/test/integration/authorization-plans.test.js",
+            "bindings/python/tests/test_native_authoring.py",
         ),
         case(
             "substitution/trusted-context",
             "authorization",
             "context-commitment-mismatch",
             fixture_rust,
-            "bindings/typescript/test/integration/scenario-corpus.test.js",
-            "bindings/python/tests/test_api.py",
+            "bindings/typescript/test/integration/authorization-plans.test.js",
+            "bindings/python/tests/test_native_authoring.py",
         ),
         case(
             "substitution/profile",
@@ -412,32 +412,32 @@ fn product_waist_cases() -> Vec<ProductWaistCase> {
             "authorization",
             "transport-is-not-authority",
             "exchange/crates/auths-proof-exchange-port/src/lib.rs",
-            "bindings/typescript/test/integration/identity.test.js",
-            "bindings/python/tests/test_conformance.py",
+            "bindings/typescript/test/contract/nonforgeability.ts",
+            "bindings/python/tests/test_native_boundary_contract.py",
         ),
         case(
             "receipt/mutated-decision",
             "receipt",
             "receipt-commitment-mismatch",
             receipt_rust,
-            "bindings/typescript/test/integration/profiles/mcp.test.js",
-            "bindings/python/tests/test_mcp_workflow.py",
+            "bindings/typescript/test/unit/portable-receipt-v1.test.js",
+            "bindings/python/tests/test_portable_receipt_v1.py",
         ),
         case(
             "receipt/wrong-execution-link",
             "receipt",
             "receipt-link-mismatch",
             receipt_rust,
-            "bindings/typescript/test/integration/profiles/mcp.test.js",
-            "bindings/python/tests/test_mcp_workflow.py",
+            "bindings/typescript/test/unit/portable-receipt-v1.test.js",
+            "bindings/python/tests/test_portable_receipt_v1.py",
         ),
         case(
             "parity/cross-language-fixture",
             "fixture",
             "semantic-agreement",
             fixture_rust,
-            "bindings/typescript/test/integration/profiles/mcp.test.js",
-            "bindings/python/tests/test_mcp_workflow.py",
+            "bindings/typescript/test/unit/portable-receipt-v1.test.js",
+            "bindings/python/tests/test_portable_receipt_v1.py",
         ),
         case(
             "configuration/development-as-production",

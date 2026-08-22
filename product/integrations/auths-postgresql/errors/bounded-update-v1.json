@@ -1,0 +1,25 @@
+{
+  "schema": "auths.error-registry-fragment/1",
+  "owner": "postgresql-bounded-update",
+  "ownerVersion": 1,
+  "definitions": [
+    {
+      "code": "postgresql.update-denied",
+      "operation": "execute",
+      "stage": "profile-evaluation",
+      "effect": "not-applied",
+      "retry": "satisfy-condition",
+      "action": "inspect-input",
+      "summary": "The bounded PostgreSQL update failed its exact profile evaluation."
+    },
+    {
+      "code": "postgresql.update-outcome-unknown",
+      "operation": "execute",
+      "stage": "provider-observation",
+      "effect": "possible",
+      "retry": "recover-only",
+      "action": "recover",
+      "summary": "The PostgreSQL transaction outcome must be reconciled before another execution."
+    }
+  ]
+}

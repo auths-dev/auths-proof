@@ -329,6 +329,37 @@ ERROR_REGISTRY: Final[dict[str, Any]] = json.loads(r'''{
       "fixtureId": "core-internal-invariant"
     },
     {
+      "code": "core.terminal-receipt-integrity-failed",
+      "family": "internal",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "resume",
+      "stages": [
+        "receipt"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        },
+        {
+          "retry": "never",
+          "effect": "possible"
+        },
+        {
+          "retry": "never",
+          "effect": "applied"
+        }
+      ],
+      "recommendedAction": "contact-support",
+      "allowsExecutionReference": true,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": true,
+      "title": "core.terminal-receipt-integrity-failed",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "core.terminal-receipt-integrity-failed"
+    },
+    {
       "code": "core.authorization-denied",
       "family": "input",
       "owner": "core",
@@ -396,6 +427,2030 @@ ERROR_REGISTRY: Final[dict[str, Any]] = json.loads(r'''{
       "title": "Unauthenticated principal",
       "explanation": "The request asserts a principal the runtime cannot authenticate, so no authority is issued.",
       "fixtureId": "core-unauthenticated-principal"
+    },
+    {
+      "code": "client.agent-unavailable",
+      "family": "runtime",
+      "owner": "profile-client",
+      "ownerVersion": 1,
+      "operation": "connect",
+      "stages": [
+        "local-agent"
+      ],
+      "outcomes": [
+        {
+          "retry": "conditional",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-configuration",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Local Auths agent unavailable",
+      "explanation": "The SDK could not establish an authenticated local-agent session.",
+      "fixtureId": "client-agent-unavailable"
+    },
+    {
+      "code": "client.profile-unavailable",
+      "family": "configuration",
+      "owner": "profile-client",
+      "ownerVersion": 1,
+      "operation": "connect",
+      "stages": [
+        "negotiation"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "install-compatible-runtime",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Profile unavailable",
+      "explanation": "The local agent did not advertise the required profile and version.",
+      "fixtureId": "client-profile-unavailable"
+    },
+    {
+      "code": "client.profile-contract-mismatch",
+      "family": "configuration",
+      "owner": "profile-client",
+      "ownerVersion": 1,
+      "operation": "connect",
+      "stages": [
+        "negotiation"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "install-compatible-runtime",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Profile contract mismatch",
+      "explanation": "The generated client and runtime do not share the same profile contract digest.",
+      "fixtureId": "client-profile-contract-mismatch"
+    },
+    {
+      "code": "connection.contract-mismatch",
+      "family": "configuration",
+      "owner": "profile-client",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "connection-resolution"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "install-compatible-runtime",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Provider connection contract mismatch",
+      "explanation": "The profile runtime and selected provider connection do not share the required immutable connection contract.",
+      "fixtureId": "connection-contract-mismatch"
+    },
+    {
+      "code": "connection.credential-unavailable",
+      "family": "runtime",
+      "owner": "profile-client",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "credential"
+      ],
+      "outcomes": [
+        {
+          "retry": "safe",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "retry-execution",
+      "allowsExecutionReference": true,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": true,
+      "title": "Provider credential unavailable before entry",
+      "explanation": "The bound provider credential could not be leased and durable state proves that the provider was not entered.",
+      "fixtureId": "connection-credential-unavailable"
+    },
+    {
+      "code": "connection.unavailable",
+      "family": "configuration",
+      "owner": "profile-client",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "connection-resolution"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-configuration",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Provider connection unavailable",
+      "explanation": "No active provider connection matching the requested or default alias is authorized for this workload and profile.",
+      "fixtureId": "connection-unavailable"
+    },
+    {
+      "code": "operation.admission-exhausted",
+      "family": "state",
+      "owner": "profile-client",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "admission"
+      ],
+      "outcomes": [
+        {
+          "retry": "conditional",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "retry-execution",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Operation admission exhausted",
+      "explanation": "The bounded operation capacity was exhausted before provider entry.",
+      "fixtureId": "operation-admission-exhausted"
+    },
+    {
+      "code": "operation.idempotency-conflict",
+      "family": "state",
+      "owner": "profile-client",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "reservation"
+      ],
+      "outcomes": [
+        {
+          "retry": "unknown",
+          "effect": "possible"
+        }
+      ],
+      "recommendedAction": "resume-and-reconcile",
+      "allowsExecutionReference": true,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": true,
+      "title": "Idempotency commitment conflict",
+      "explanation": "The key names an existing operation with a different commitment; recover that operation.",
+      "fixtureId": "operation-idempotency-conflict"
+    },
+    {
+      "code": "operation.outcome-unknown",
+      "family": "state",
+      "owner": "profile-client",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "provider"
+      ],
+      "outcomes": [
+        {
+          "retry": "unknown",
+          "effect": "possible"
+        }
+      ],
+      "recommendedAction": "resume-and-reconcile",
+      "allowsExecutionReference": true,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": true,
+      "title": "Operation outcome unknown",
+      "explanation": "The provider may have applied the exact operation; recover it instead of retrying.",
+      "fixtureId": "operation-outcome-unknown"
+    },
+    {
+      "code": "operation.recovery-unavailable",
+      "family": "state",
+      "owner": "profile-client",
+      "ownerVersion": 1,
+      "operation": "recover",
+      "stages": [
+        "reconciliation"
+      ],
+      "outcomes": [
+        {
+          "retry": "unknown",
+          "effect": "possible"
+        }
+      ],
+      "recommendedAction": "resume-and-reconcile",
+      "allowsExecutionReference": true,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": true,
+      "title": "Operation recovery unavailable",
+      "explanation": "Recovery could not establish the effect and the original operation remains possible.",
+      "fixtureId": "operation-recovery-unavailable"
+    },
+    {
+      "code": "operation.timed-out",
+      "family": "runtime",
+      "owner": "profile-client",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "pre-provider"
+      ],
+      "outcomes": [
+        {
+          "retry": "safe",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "retry-execution",
+      "allowsExecutionReference": true,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": true,
+      "title": "Operation timed out before provider entry",
+      "explanation": "The bounded deadline expired and durable state proves that the provider was not entered.",
+      "fixtureId": "operation-timed-out"
+    },
+    {
+      "code": "opentofu.plan-preflight-denied",
+      "family": "profile",
+      "owner": "opentofu-plan-preflight",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "profile-evaluation"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "OpenTofu plan preflight denied",
+      "explanation": "The OpenTofu plan preflight failed its exact profile evaluation or protected-planner checks.",
+      "fixtureId": "opentofu-plan-preflight-denied"
+    },
+    {
+      "code": "opentofu.plan-preflight-outcome-unknown",
+      "family": "provider",
+      "owner": "opentofu-plan-preflight",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "provider-observation"
+      ],
+      "outcomes": [
+        {
+          "retry": "unknown",
+          "effect": "possible"
+        }
+      ],
+      "recommendedAction": "resume-and-reconcile",
+      "allowsExecutionReference": true,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "OpenTofu plan preflight outcome unknown",
+      "explanation": "Recovery must establish whether the OpenTofu prepared-plan record and artifact became ready.",
+      "fixtureId": "opentofu-plan-preflight-outcome-unknown"
+    },
+    {
+      "code": "opentofu.saved-plan-denied",
+      "family": "profile",
+      "owner": "opentofu-saved-plan",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "profile-evaluation"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "OpenTofu saved plan denied",
+      "explanation": "The saved plan failed its exact OpenTofu profile evaluation.",
+      "fixtureId": "opentofu-saved-plan-denied"
+    },
+    {
+      "code": "opentofu.apply-outcome-unknown",
+      "family": "provider",
+      "owner": "opentofu-saved-plan",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "provider-observation"
+      ],
+      "outcomes": [
+        {
+          "retry": "unknown",
+          "effect": "possible"
+        }
+      ],
+      "recommendedAction": "resume-and-reconcile",
+      "allowsExecutionReference": true,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "OpenTofu apply outcome unknown",
+      "explanation": "The OpenTofu apply must be reconciled before another execution.",
+      "fixtureId": "opentofu-apply-outcome-unknown"
+    },
+    {
+      "code": "postgresql.preflight-denied",
+      "family": "profile",
+      "owner": "postgresql-update-preflight",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "profile-evaluation"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "PostgreSQL update preflight denied",
+      "explanation": "The PostgreSQL update preflight failed its exact profile evaluation or protected discovery checks.",
+      "fixtureId": "postgresql-update-preflight-denied"
+    },
+    {
+      "code": "postgresql.preflight-outcome-unknown",
+      "family": "provider",
+      "owner": "postgresql-update-preflight",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "provider-observation"
+      ],
+      "outcomes": [
+        {
+          "retry": "unknown",
+          "effect": "possible"
+        }
+      ],
+      "recommendedAction": "resume-and-reconcile",
+      "allowsExecutionReference": true,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "PostgreSQL update preflight outcome unknown",
+      "explanation": "Recovery must establish whether the PostgreSQL prepared-update record became ready.",
+      "fixtureId": "postgresql-update-preflight-outcome-unknown"
+    },
+    {
+      "code": "postgresql.update-denied",
+      "family": "profile",
+      "owner": "postgresql-bounded-update",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "profile-evaluation"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "PostgreSQL update denied",
+      "explanation": "The bounded PostgreSQL update failed its exact profile evaluation.",
+      "fixtureId": "postgresql-update-denied"
+    },
+    {
+      "code": "postgresql.update-outcome-unknown",
+      "family": "provider",
+      "owner": "postgresql-bounded-update",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "provider-observation"
+      ],
+      "outcomes": [
+        {
+          "retry": "unknown",
+          "effect": "possible"
+        }
+      ],
+      "recommendedAction": "resume-and-reconcile",
+      "allowsExecutionReference": true,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "PostgreSQL update outcome unknown",
+      "explanation": "The PostgreSQL transaction outcome must be reconciled before another execution.",
+      "fixtureId": "postgresql-update-outcome-unknown"
+    },
+    {
+      "code": "stripe.refund-denied",
+      "family": "profile",
+      "owner": "stripe-refund",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "profile-evaluation"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Stripe refund denied",
+      "explanation": "The exact Stripe refund was not authorized by the bounded profile.",
+      "fixtureId": "stripe-refund-denied"
+    },
+    {
+      "code": "stripe.refund-outcome-unknown",
+      "family": "provider",
+      "owner": "stripe-refund",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "provider-observation"
+      ],
+      "outcomes": [
+        {
+          "retry": "unknown",
+          "effect": "possible"
+        }
+      ],
+      "recommendedAction": "resume-and-reconcile",
+      "allowsExecutionReference": true,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "Stripe refund outcome unknown",
+      "explanation": "The Stripe refund outcome requires recovery before another execution.",
+      "fixtureId": "stripe-refund-outcome-unknown"
+    },
+    {
+      "code": "core.receipt-malformed",
+      "family": "input",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "receipt"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "core.receipt-malformed",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "core.receipt-malformed"
+    },
+    {
+      "code": "core.receipt-signature-invalid",
+      "family": "input",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "receipt"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "inspect-receipt",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "core.receipt-signature-invalid",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "core.receipt-signature-invalid"
+    },
+    {
+      "code": "core.receipt-signer-untrusted",
+      "family": "profile",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "receipt"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-configuration",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "core.receipt-signer-untrusted",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "core.receipt-signer-untrusted"
+    },
+    {
+      "code": "core.receipt-profile-denied",
+      "family": "profile",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "receipt"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-configuration",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "core.receipt-profile-denied",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "core.receipt-profile-denied"
+    },
+    {
+      "code": "core.receipt-expired",
+      "family": "state",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "receipt"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "inspect-receipt",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "core.receipt-expired",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "core.receipt-expired"
+    },
+    {
+      "code": "core.receipt-trust-indeterminate",
+      "family": "runtime",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "receipt"
+      ],
+      "outcomes": [
+        {
+          "retry": "conditional",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "core.receipt-trust-indeterminate",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "core.receipt-trust-indeterminate"
+    },
+    {
+      "code": "core.verification-capacity",
+      "family": "runtime",
+      "owner": "core",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "admission"
+      ],
+      "outcomes": [
+        {
+          "retry": "safe",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "retry-execution",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "core.verification-capacity",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "core.verification-capacity"
+    },
+    {
+      "code": "remote.authentication-failed",
+      "family": "configuration",
+      "owner": "remote",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "channel-authentication"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-configuration",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "remote.authentication-failed",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "remote.authentication-failed"
+    },
+    {
+      "code": "remote.response-malformed",
+      "family": "runtime",
+      "owner": "remote",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "remote-response"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "contact-support",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "remote.response-malformed",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "remote.response-malformed"
+    },
+    {
+      "code": "remote.transport-unavailable",
+      "family": "runtime",
+      "owner": "remote",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "transport"
+      ],
+      "outcomes": [
+        {
+          "retry": "safe",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "retry-execution",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "remote.transport-unavailable",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "remote.transport-unavailable"
+    },
+    {
+      "code": "remote.timeout",
+      "family": "runtime",
+      "owner": "remote",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "transport"
+      ],
+      "outcomes": [
+        {
+          "retry": "safe",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "retry-execution",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "remote.timeout",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "remote.timeout"
+    },
+    {
+      "code": "mcp.receipt-invalid",
+      "family": "input",
+      "owner": "mcp",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "receipt-profile-payload"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "inspect-receipt",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "mcp.receipt-invalid",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "mcp.receipt-invalid"
+    },
+    {
+      "code": "mcp.admission-capacity",
+      "family": "runtime",
+      "owner": "mcp",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "admission"
+      ],
+      "outcomes": [
+        {
+          "retry": "safe",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "retry-execution",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "mcp.admission-capacity",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "mcp.admission-capacity"
+    },
+    {
+      "code": "mcp.delegation-capacity",
+      "family": "runtime",
+      "owner": "mcp",
+      "ownerVersion": 1,
+      "operation": "delegate",
+      "stages": [
+        "admission"
+      ],
+      "outcomes": [
+        {
+          "retry": "safe",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "retry-execution",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "mcp.delegation-capacity",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "mcp.delegation-capacity"
+    },
+    {
+      "code": "mcp.recovery-not-found",
+      "family": "input",
+      "owner": "mcp",
+      "ownerVersion": 1,
+      "operation": "resume",
+      "stages": [
+        "lifecycle-store"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "mcp.recovery-not-found",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "mcp.recovery-not-found"
+    },
+    {
+      "code": "mcp.recovery-kind-mismatch",
+      "family": "input",
+      "owner": "mcp",
+      "ownerVersion": 1,
+      "operation": "resume",
+      "stages": [
+        "lifecycle-store"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "mcp.recovery-kind-mismatch",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "mcp.recovery-kind-mismatch"
+    },
+    {
+      "code": "identity.packet-malformed",
+      "family": "input",
+      "owner": "identity",
+      "ownerVersion": 1,
+      "operation": "decode",
+      "stages": [
+        "identity-packet"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "identity.packet-malformed",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "identity.packet-malformed"
+    },
+    {
+      "code": "identity.method-unsupported",
+      "family": "configuration",
+      "owner": "identity",
+      "ownerVersion": 1,
+      "operation": "decode",
+      "stages": [
+        "identity-method"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-configuration",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "identity.method-unsupported",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "identity.method-unsupported"
+    },
+    {
+      "code": "identity.not-found",
+      "family": "profile",
+      "owner": "identity",
+      "ownerVersion": 1,
+      "operation": "resolve",
+      "stages": [
+        "identity-resolution"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "identity.not-found",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "identity.not-found"
+    },
+    {
+      "code": "identity.resolution-rejected",
+      "family": "profile",
+      "owner": "identity",
+      "ownerVersion": 1,
+      "operation": "resolve",
+      "stages": [
+        "identity-resolution"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "identity.resolution-rejected",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "identity.resolution-rejected"
+    },
+    {
+      "code": "identity.resolution-indeterminate",
+      "family": "runtime",
+      "owner": "identity",
+      "ownerVersion": 1,
+      "operation": "resolve",
+      "stages": [
+        "identity-resolution"
+      ],
+      "outcomes": [
+        {
+          "retry": "safe",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "retry-execution",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "identity.resolution-indeterminate",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "identity.resolution-indeterminate"
+    },
+    {
+      "code": "identity.evidence-expired",
+      "family": "state",
+      "owner": "identity",
+      "ownerVersion": 1,
+      "operation": "validate",
+      "stages": [
+        "identity-evidence"
+      ],
+      "outcomes": [
+        {
+          "retry": "conditional",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "identity.evidence-expired",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "identity.evidence-expired"
+    },
+    {
+      "code": "identity.validation-rejected",
+      "family": "profile",
+      "owner": "identity",
+      "ownerVersion": 1,
+      "operation": "validate",
+      "stages": [
+        "identity-validation"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "identity.validation-rejected",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "identity.validation-rejected"
+    },
+    {
+      "code": "identity.validation-indeterminate",
+      "family": "runtime",
+      "owner": "identity",
+      "ownerVersion": 1,
+      "operation": "validate",
+      "stages": [
+        "identity-validation"
+      ],
+      "outcomes": [
+        {
+          "retry": "safe",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "retry-execution",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "identity.validation-indeterminate",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "identity.validation-indeterminate"
+    },
+    {
+      "code": "identity.relationship-denied",
+      "family": "profile",
+      "owner": "identity",
+      "ownerVersion": 1,
+      "operation": "authenticate",
+      "stages": [
+        "identity-relationship"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "identity.relationship-denied",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "identity.relationship-denied"
+    },
+    {
+      "code": "identity.signature-invalid",
+      "family": "input",
+      "owner": "identity",
+      "ownerVersion": 1,
+      "operation": "authenticate",
+      "stages": [
+        "identity-signature"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "identity.signature-invalid",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "identity.signature-invalid"
+    },
+    {
+      "code": "identity.authentication-indeterminate",
+      "family": "runtime",
+      "owner": "identity",
+      "ownerVersion": 1,
+      "operation": "authenticate",
+      "stages": [
+        "identity-authenticator"
+      ],
+      "outcomes": [
+        {
+          "retry": "safe",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "retry-execution",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "identity.authentication-indeterminate",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "identity.authentication-indeterminate"
+    },
+    {
+      "code": "github.boundary-invalid",
+      "family": "configuration",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "create",
+      "stages": [
+        "boundary"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-configuration",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "github.boundary-invalid",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.boundary-invalid"
+    },
+    {
+      "code": "github.attenuation-denied",
+      "family": "profile",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "delegate",
+      "stages": [
+        "delegation"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "github.attenuation-denied",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.attenuation-denied"
+    },
+    {
+      "code": "github.delegation-outcome-unknown",
+      "family": "state",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "delegate",
+      "stages": [
+        "delegation"
+      ],
+      "outcomes": [
+        {
+          "retry": "unknown",
+          "effect": "possible"
+        }
+      ],
+      "recommendedAction": "resume-and-reconcile",
+      "allowsExecutionReference": true,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": false,
+      "title": "github.delegation-outcome-unknown",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.delegation-outcome-unknown"
+    },
+    {
+      "code": "github.workflow-proof-invalid",
+      "family": "input",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "workflow-proof"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": false,
+      "title": "github.workflow-proof-invalid",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.workflow-proof-invalid"
+    },
+    {
+      "code": "github.workflow-expired",
+      "family": "state",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "expiry"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": false,
+      "title": "github.workflow-expired",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.workflow-expired"
+    },
+    {
+      "code": "github.workflow-cancelled",
+      "family": "state",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "cancellation"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": false,
+      "title": "github.workflow-cancelled",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.workflow-cancelled"
+    },
+    {
+      "code": "github.executor-audience-mismatch",
+      "family": "profile",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "audience"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-configuration",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": false,
+      "title": "github.executor-audience-mismatch",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.executor-audience-mismatch"
+    },
+    {
+      "code": "github.repository-mismatch",
+      "family": "profile",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "repository-boundary"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": false,
+      "title": "github.repository-mismatch",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.repository-mismatch"
+    },
+    {
+      "code": "github.repository-renamed-or-transferred",
+      "family": "state",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "repository-boundary"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": false,
+      "title": "github.repository-renamed-or-transferred",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.repository-renamed-or-transferred"
+    },
+    {
+      "code": "github.issue-mismatch",
+      "family": "profile",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "issue-boundary"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": false,
+      "title": "github.issue-mismatch",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.issue-mismatch"
+    },
+    {
+      "code": "github.issue-not-open",
+      "family": "state",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "issue-boundary"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": false,
+      "title": "github.issue-not-open",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.issue-not-open"
+    },
+    {
+      "code": "github.base-revision-mismatch",
+      "family": "state",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "base-revision"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": false,
+      "title": "github.base-revision-mismatch",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.base-revision-mismatch"
+    },
+    {
+      "code": "github.branch-already-exists",
+      "family": "provider",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "branch-precondition"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": true,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": false,
+      "title": "github.branch-already-exists",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.branch-already-exists"
+    },
+    {
+      "code": "github.pull-request-already-exists",
+      "family": "provider",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "pull-request-precondition"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": true,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": false,
+      "title": "github.pull-request-already-exists",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.pull-request-already-exists"
+    },
+    {
+      "code": "github.candidate-bundle-malformed",
+      "family": "input",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "candidate-inspection"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "github.candidate-bundle-malformed",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.candidate-bundle-malformed"
+    },
+    {
+      "code": "github.candidate-limit-exceeded",
+      "family": "input",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "candidate-inspection"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "github.candidate-limit-exceeded",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.candidate-limit-exceeded"
+    },
+    {
+      "code": "github.candidate-not-descendant",
+      "family": "profile",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "candidate-inspection"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "github.candidate-not-descendant",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.candidate-not-descendant"
+    },
+    {
+      "code": "github.merge-commit-denied",
+      "family": "profile",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "candidate-inspection"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "github.merge-commit-denied",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.merge-commit-denied"
+    },
+    {
+      "code": "github.unsupported-git-object",
+      "family": "input",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "candidate-inspection"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "github.unsupported-git-object",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.unsupported-git-object"
+    },
+    {
+      "code": "github.path-not-allowed",
+      "family": "profile",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "candidate-inspection"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "github.path-not-allowed",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.path-not-allowed"
+    },
+    {
+      "code": "github.path-explicitly-denied",
+      "family": "profile",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "candidate-inspection"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "github.path-explicitly-denied",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.path-explicitly-denied"
+    },
+    {
+      "code": "github.file-mode-denied",
+      "family": "profile",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "candidate-inspection"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "github.file-mode-denied",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.file-mode-denied"
+    },
+    {
+      "code": "github.repository-automation-policy-mismatch",
+      "family": "runtime",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "repository-evidence"
+      ],
+      "outcomes": [
+        {
+          "retry": "conditional",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": false,
+      "title": "github.repository-automation-policy-mismatch",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.repository-automation-policy-mismatch"
+    },
+    {
+      "code": "github.branch-budget-exhausted",
+      "family": "state",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "branch-reservation"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": false,
+      "title": "github.branch-budget-exhausted",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.branch-budget-exhausted"
+    },
+    {
+      "code": "github.pull-request-budget-exhausted",
+      "family": "state",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "pull-request-reservation"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": false,
+      "title": "github.pull-request-budget-exhausted",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.pull-request-budget-exhausted"
+    },
+    {
+      "code": "github.evidence-missing",
+      "family": "runtime",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "provider-evidence"
+      ],
+      "outcomes": [
+        {
+          "retry": "conditional",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": false,
+      "title": "github.evidence-missing",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.evidence-missing"
+    },
+    {
+      "code": "github.evidence-stale",
+      "family": "runtime",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "provider-evidence"
+      ],
+      "outcomes": [
+        {
+          "retry": "conditional",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": false,
+      "title": "github.evidence-stale",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.evidence-stale"
+    },
+    {
+      "code": "github.verifier-configuration-mismatch",
+      "family": "configuration",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "required-executed"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-configuration",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": false,
+      "title": "github.verifier-configuration-mismatch",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.verifier-configuration-mismatch"
+    },
+    {
+      "code": "github.exact-action-mismatch",
+      "family": "input",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "exact-action"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": false,
+      "title": "github.exact-action-mismatch",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.exact-action-mismatch"
+    },
+    {
+      "code": "github.candidate-substituted",
+      "family": "input",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "exact-candidate-claim"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "correct-input",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "github.candidate-substituted",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.candidate-substituted"
+    },
+    {
+      "code": "github.credential-boundary-failed",
+      "family": "internal",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "credential-boundary"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "contact-support",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": false,
+      "title": "github.credential-boundary-failed",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.credential-boundary-failed"
+    },
+    {
+      "code": "github.branch-rejected",
+      "family": "provider",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "branch-result"
+      ],
+      "outcomes": [
+        {
+          "retry": "conditional",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": true,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": true,
+      "title": "github.branch-rejected",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.branch-rejected"
+    },
+    {
+      "code": "github.pull-request-rejected",
+      "family": "provider",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "pull-request-result"
+      ],
+      "outcomes": [
+        {
+          "retry": "conditional",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "satisfy-condition",
+      "allowsExecutionReference": true,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": true,
+      "title": "github.pull-request-rejected",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.pull-request-rejected"
+    },
+    {
+      "code": "github.delegation-capacity",
+      "family": "runtime",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "delegate",
+      "stages": [
+        "admission"
+      ],
+      "outcomes": [
+        {
+          "retry": "safe",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "retry-execution",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "github.delegation-capacity",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.delegation-capacity"
+    },
+    {
+      "code": "github.execution-capacity",
+      "family": "runtime",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "admission"
+      ],
+      "outcomes": [
+        {
+          "retry": "safe",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "retry-execution",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "github.execution-capacity",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.execution-capacity"
+    },
+    {
+      "code": "github.branch-outcome-unknown",
+      "family": "provider",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "branch-observation"
+      ],
+      "outcomes": [
+        {
+          "retry": "unknown",
+          "effect": "possible"
+        }
+      ],
+      "recommendedAction": "resume-and-reconcile",
+      "allowsExecutionReference": true,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": false,
+      "title": "github.branch-outcome-unknown",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.branch-outcome-unknown"
+    },
+    {
+      "code": "github.pull-request-outcome-unknown",
+      "family": "provider",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "execute",
+      "stages": [
+        "pull-request-observation"
+      ],
+      "outcomes": [
+        {
+          "retry": "unknown",
+          "effect": "possible"
+        }
+      ],
+      "recommendedAction": "resume-and-reconcile",
+      "allowsExecutionReference": true,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": false,
+      "title": "github.pull-request-outcome-unknown",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.pull-request-outcome-unknown"
+    },
+    {
+      "code": "github.workflow-terminal-applied",
+      "family": "state",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "resume",
+      "stages": [
+        "recovery"
+      ],
+      "outcomes": [
+        {
+          "retry": "conditional",
+          "effect": "applied"
+        }
+      ],
+      "recommendedAction": "inspect-receipt",
+      "allowsExecutionReference": true,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": true,
+      "title": "github.workflow-terminal-applied",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.workflow-terminal-applied"
+    },
+    {
+      "code": "github.workflow-terminal-not-applied",
+      "family": "state",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "resume",
+      "stages": [
+        "recovery"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "inspect-receipt",
+      "allowsExecutionReference": true,
+      "allowsDecisionReference": true,
+      "allowsReceiptReference": true,
+      "title": "github.workflow-terminal-not-applied",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.workflow-terminal-not-applied"
+    },
+    {
+      "code": "github.receipt-invalid",
+      "family": "input",
+      "owner": "github",
+      "ownerVersion": 1,
+      "operation": "verify",
+      "stages": [
+        "receipt-profile-payload"
+      ],
+      "outcomes": [
+        {
+          "retry": "never",
+          "effect": "not-applied"
+        }
+      ],
+      "recommendedAction": "inspect-receipt",
+      "allowsExecutionReference": false,
+      "allowsDecisionReference": false,
+      "allowsReceiptReference": false,
+      "title": "github.receipt-invalid",
+      "explanation": "The registered Auths contract rejected or classified this bounded operation.",
+      "fixtureId": "github.receipt-invalid"
     },
     {
       "code": "mcp.invalid-handler-output",

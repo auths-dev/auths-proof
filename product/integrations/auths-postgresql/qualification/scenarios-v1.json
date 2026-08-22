@@ -1,0 +1,16 @@
+{
+  "schema": "auths.profile-qualification-scenarios/1",
+  "domain": "postgresql",
+  "scenarios": [
+    "postgresql-later-drift",
+    "postgresql-preflight",
+    "postgresql-response-loss",
+    "postgresql-rls-policy",
+    "postgresql-role-equality",
+    "postgresql-row-boundary",
+    "postgresql-row-drift",
+    "postgresql-serializable-update",
+    "postgresql-transaction-kill",
+    "postgresql-value-redaction"
+  ]
+}

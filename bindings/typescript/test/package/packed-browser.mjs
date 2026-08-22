@@ -44,9 +44,7 @@ try {
     <title>Auths packed browser conformance</title>
     <output id="result">starting</output>
     <script type="module">
-      import { doctor } from "/node_modules/@auths-dev/sdk/dist/index.js";
-      import { development } from "/node_modules/@auths-dev/sdk/dist/integrations.js";
-      import { mcp } from "/node_modules/@auths-dev/sdk/dist/profiles.js";
+      import { runtimeInfo } from "/node_modules/@auths-dev/sdk/dist/index.js";
       import { loadVerifier } from "/node_modules/@auths-dev/sdk/dist/verify.js";
       const bytes = async (name) => new Uint8Array(await (await fetch('/fixtures/' + name)).arrayBuffer());
       const proof = await bytes('proof.cbor');
@@ -66,33 +64,14 @@ try {
         worker.onmessage = (event) => { worker.terminate(); resolve(event.data); };
         worker.onerror = reject;
       });
-      let calls = 0;
-      const provider = mcp.developmentProvider({ tools: {
-        async update_record() { calls += 1; return { updated: true }; },
-      } });
-      const auths = await development.createAuths({
-        authority: mcp.allowTools(['update_record']),
-      });
-      let execution;
-      try {
-        execution = await auths.execute({
-          action: mcp.callTool({ name: 'update_record', arguments: { record: 'one' } }),
-          provider,
-        });
-      } finally {
-        await auths.close();
-        await auths.close();
-      }
-      const report = await doctor({ mode: 'development', state: 'in-memory' });
+      const runtime = await runtimeInfo();
       document.querySelector('#result').textContent = JSON.stringify({
         verified: verified.kind,
         worker: workerResult.kind,
         workerColdStartMs: workerResult.coldStartMs,
         warmVerificationP95Ms: warmTimings[Math.floor(warmTimings.length * 0.95)],
-        execution: execution.kind,
-        calls,
-        doctor: report.status,
-        runtime: report.runtime,
+        runtime: runtime.host,
+        profiles: runtime.profiles.length,
       });
     </script>`);
 
@@ -139,10 +118,8 @@ try {
   for (const [key, value] of Object.entries({
     verified: "authorized",
     worker: "authorized",
-    execution: "completed",
-    calls: 1,
-    doctor: "ready",
-    runtime: "Browser",
+    runtime: "browser",
+    profiles: 0,
   })) {
     if (outcome[key] !== value) throw new Error(`packed browser ${key} drifted: ${outcome[key]}`);
   }

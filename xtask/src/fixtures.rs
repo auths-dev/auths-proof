@@ -103,7 +103,6 @@ pub(crate) fn product_fixtures(update: bool) -> Result<(), String> {
     expected.extend(postgresql_product_fixtures()?);
     expected.extend(bounded_policy_contract_fixtures()?);
     expected.extend(receipt_disclosure_fixtures()?);
-    expected.extend(production_client_fixtures()?);
     let directory = root().join("product/fixtures/v1");
     if update {
         fs::create_dir_all(&directory)
@@ -139,288 +138,6 @@ pub(crate) fn product_fixtures(update: bool) -> Result<(), String> {
     Ok(())
 }
 
-fn production_client_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
-    use auths_production_client::{
-        ClientOutcomeKind, NextCall, ProductVerb, ProductionRequest, ProductionResponse,
-        QualifiedProfile, RecoveryReference, decode_request, decode_response, encode_request,
-        encode_response,
-    };
-
-    let identity = vec![1_u8; 32];
-    let authority = vec![2_u8; 48];
-    let reference = RecoveryReference::parse("BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc")
-        .map_err(|error| error.to_string())?;
-    let requests = [
-        (
-            "create",
-            ProductionRequest::new(
-                ProductVerb::Create,
-                QualifiedProfile::GitHubIssueAddress,
-                identity.clone(),
-                None,
-                Some(vec![3; 64]),
-                None,
-            ),
-        ),
-        (
-            "delegate",
-            ProductionRequest::new(
-                ProductVerb::Delegate,
-                QualifiedProfile::GitHubIssueAddress,
-                identity.clone(),
-                Some(authority.clone()),
-                Some(vec![4; 64]),
-                None,
-            ),
-        ),
-        (
-            "execute-opentofu",
-            ProductionRequest::new(
-                ProductVerb::Execute,
-                QualifiedProfile::OpenTofuSavedPlanApply,
-                identity.clone(),
-                Some(authority.clone()),
-                Some(vec![5; 64]),
-                None,
-            ),
-        ),
-        (
-            "execute-postgresql",
-            ProductionRequest::new(
-                ProductVerb::Execute,
-                QualifiedProfile::PostgreSqlBoundedUpdate,
-                identity.clone(),
-                Some(authority.clone()),
-                Some(vec![6; 64]),
-                None,
-            ),
-        ),
-        (
-            "resume",
-            ProductionRequest::new(
-                ProductVerb::Resume,
-                QualifiedProfile::GitHubIssueAddress,
-                identity.clone(),
-                None,
-                None,
-                Some(reference.clone()),
-            ),
-        ),
-        (
-            "verify",
-            ProductionRequest::new(
-                ProductVerb::Verify,
-                QualifiedProfile::GitHubIssueAddress,
-                identity,
-                None,
-                Some(vec![7; 64]),
-                None,
-            ),
-        ),
-    ];
-    let mut request_vectors = Vec::new();
-    for (id, request) in requests {
-        let request = request.map_err(|error| error.to_string())?;
-        let bytes = encode_request(&request).map_err(|error| error.to_string())?;
-        request_vectors.push(json!({
-            "id": id,
-            "verb": request.verb().as_str(),
-            "profile": request.profile().as_str(),
-            "path": request.endpoint_path(),
-            "bytesHex": hex::encode(bytes),
-            "projection": serde_json::from_str::<Value>(&request.projection_json().map_err(|error| error.to_string())?).map_err(|error| error.to_string())?,
-        }));
-    }
-
-    let responses = [
-        (
-            "completed",
-            ProductionResponse::new(
-                ClientOutcomeKind::Completed,
-                None,
-                NextCall::Never,
-                None,
-                Some(vec![8; 32]),
-                Some(vec![9; 96]),
-            ),
-        ),
-        (
-            "denied",
-            ProductionResponse::new(
-                ClientOutcomeKind::Denied,
-                Some("authority.denied".into()),
-                NextCall::Never,
-                None,
-                None,
-                None,
-            ),
-        ),
-        (
-            "indeterminate",
-            ProductionResponse::new(
-                ClientOutcomeKind::Indeterminate,
-                Some("provider.outcome-unknown".into()),
-                NextCall::Reconcile,
-                None,
-                None,
-                None,
-            ),
-        ),
-        (
-            "recoverable",
-            ProductionResponse::new(
-                ClientOutcomeKind::Recoverable,
-                Some("workflow.recoverable".into()),
-                NextCall::Resume,
-                Some(reference),
-                None,
-                None,
-            ),
-        ),
-        (
-            "verified",
-            ProductionResponse::new(
-                ClientOutcomeKind::Verified,
-                None,
-                NextCall::Never,
-                None,
-                Some(vec![10; 32]),
-                None,
-            ),
-        ),
-        (
-            "rejected",
-            ProductionResponse::new(
-                ClientOutcomeKind::Rejected,
-                Some("verification.rejected".into()),
-                NextCall::Never,
-                None,
-                None,
-                None,
-            ),
-        ),
-    ];
-    let mut response_vectors = Vec::new();
-    for (id, response) in responses {
-        let response = response.map_err(|error| error.to_string())?;
-        let bytes = encode_response(&response).map_err(|error| error.to_string())?;
-        response_vectors.push(json!({
-            "id": id,
-            "bytesHex": hex::encode(bytes),
-            "projection": serde_json::from_str::<Value>(&response.projection_json().map_err(|error| error.to_string())?).map_err(|error| error.to_string())?,
-        }));
-    }
-
-    let valid_request = hex::decode(
-        request_vectors[0]["bytesHex"]
-            .as_str()
-            .ok_or("request fixture omitted bytes")?,
-    )
-    .map_err(|error| error.to_string())?;
-    let valid_response = hex::decode(
-        response_vectors[0]["bytesHex"]
-            .as_str()
-            .ok_or("response fixture omitted bytes")?,
-    )
-    .map_err(|error| error.to_string())?;
-    let mutations = [
-        ("request-version", mutate_byte(&valid_request, 1, 2), true),
-        ("request-trailing", append_byte(&valid_request, 0), true),
-        (
-            "request-verb",
-            mutate_ascii(&valid_request, b"create", b"xreate")?,
-            true,
-        ),
-        (
-            "request-profile",
-            mutate_ascii(&valid_request, b"auths.github", b"xuths.github")?,
-            true,
-        ),
-        (
-            "response-version",
-            mutate_byte(&valid_response, 1, 2),
-            false,
-        ),
-        ("response-trailing", append_byte(&valid_response, 0), false),
-        (
-            "response-outcome",
-            mutate_ascii(&valid_response, b"completed", b"xompleted")?,
-            false,
-        ),
-    ];
-    let adversarial = mutations
-        .into_iter()
-        .map(|(id, bytes, request)| {
-            let error = if request {
-                decode_request(&bytes)
-                    .expect_err("mutation must fail")
-                    .code()
-            } else {
-                decode_response(&bytes)
-                    .expect_err("mutation must fail")
-                    .code()
-            };
-            json!({
-                "id": id,
-                "target": if request { "request" } else { "response" },
-                "bytesHex": hex::encode(bytes),
-                "expectedCode": error,
-            })
-        })
-        .collect::<Vec<_>>();
-
-    let fixture = json!({
-        "schema": "auths.production-client-fixtures/1",
-        "contractVersion": 1,
-        "contentType": "application/auths+cbor",
-        "requests": request_vectors,
-        "responses": response_vectors,
-        "adversarial": adversarial,
-    });
-    let mut bytes = serde_json::to_vec_pretty(&fixture).map_err(|error| error.to_string())?;
-    bytes.push(b'\n');
-    let manifest = serde_json::to_vec(&json!({
-        "schema": "auths.production-client-fixture-manifest/1",
-        "contractVersion": 1,
-        "generator": "cargo xtask product-fixtures --update",
-        "files": [{
-            "path": "contract-v1.json",
-            "bytes": bytes.len(),
-            "sha256": format!("{:x}", Sha256::digest(&bytes)),
-        }],
-    }))
-    .map_err(|error| error.to_string())?;
-    Ok(BTreeMap::from([
-        (PathBuf::from("production-client/contract-v1.json"), bytes),
-        (PathBuf::from("production-client/manifest.json"), manifest),
-    ]))
-}
-
-fn mutate_byte(input: &[u8], index: usize, value: u8) -> Vec<u8> {
-    let mut output = input.to_vec();
-    output[index] = value;
-    output
-}
-
-fn append_byte(input: &[u8], value: u8) -> Vec<u8> {
-    let mut output = input.to_vec();
-    output.push(value);
-    output
-}
-
-fn mutate_ascii(input: &[u8], from: &[u8], to: &[u8]) -> Result<Vec<u8>, String> {
-    if from.len() != to.len() {
-        return Err("fixture mutation must preserve encoded length".into());
-    }
-    let start = input
-        .windows(from.len())
-        .position(|window| window == from)
-        .ok_or("fixture mutation source is absent")?;
-    let mut output = input.to_vec();
-    output[start..start + from.len()].copy_from_slice(to);
-    Ok(output)
-}
-
 fn receipt_disclosure_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
     use auths_model::{
         ContextDigest, Digest, ProfileId, ProfileRef, ReceiptId, SignatureBytes, SignatureSuiteId,
@@ -429,10 +146,10 @@ fn receipt_disclosure_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
     use auths_raw_key::{RawKeyDescriptor, RawKeyType};
     use auths_receipts::{
         AttestedDecisionReceipt, AttestedExecutionReceipt, DecisionClass, DecisionReceipt,
-        ExecutionOutcome, ReceiptDisclosure, ReceiptSigner, decision_receipt_id,
-        decision_signing_preimage, decode_execution, encode_attested_decision,
-        encode_attested_execution, encode_receipt_disclosure, execution_signing_preimage,
-        prepare_execution_receipt,
+        ExecutionOutcome, ProfileReceiptClaim, ProfileReceiptClaimPhase, ReceiptDisclosure,
+        ReceiptSigner, decision_receipt_id, decision_signing_preimage, decode_execution,
+        encode_attested_decision, encode_attested_execution, encode_profile_receipt_claims,
+        encode_receipt_disclosure, execution_signing_preimage, prepare_execution_receipt,
     };
     use ed25519_dalek::{Signer as _, SigningKey};
 
@@ -463,6 +180,13 @@ fn receipt_disclosure_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
         DecisionClass::Authorized,
         vec!["authorized".into()],
         Timestamp::new(1_786_528_700),
+        encode_profile_receipt_claims(
+            &profile,
+            ProfileReceiptClaimPhase::Decision,
+            &[ProfileReceiptClaim::new("edge.action", [2; 32])
+                .map_err(|error| error.to_string())?],
+        )
+        .map_err(|error| error.to_string())?,
     )
     .map_err(|error| error.to_string())?;
     let decision_id = decision_receipt_id(&decision).map_err(|error| error.to_string())?;
@@ -487,6 +211,15 @@ fn receipt_disclosure_fixtures() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> {
         ExecutionOutcome::Succeeded,
         Some(&result),
         Timestamp::new(1_786_528_772),
+        &encode_profile_receipt_claims(
+            &profile,
+            ProfileReceiptClaimPhase::Execution,
+            &[
+                ProfileReceiptClaim::new("edge.command", Sha256::digest(&command).into())
+                    .map_err(|error| error.to_string())?,
+            ],
+        )
+        .map_err(|error| error.to_string())?,
         &signer,
     )
     .map_err(|error| error.to_string())?;
@@ -1679,8 +1412,8 @@ fn insert_bounded_fixture_manifest(
     Ok(())
 }
 
-fn bounded_scenarios(_domain: &str) -> BTreeMap<String, Value> {
-    let names = [
+fn bounded_scenarios(domain: &str) -> BTreeMap<String, Value> {
+    let all_names = [
         "authorized",
         "exact-boundary",
         "boundary-plus-one",
@@ -1693,8 +1426,20 @@ fn bounded_scenarios(_domain: &str) -> BTreeMap<String, Value> {
         "outcome-unknown",
         "reconciliation",
     ];
+    let github_names = [
+        "authorized",
+        "exact-boundary",
+        "boundary-plus-one",
+        "malformed-input",
+    ];
+    let names: &[&str] = if domain == "github" {
+        &github_names
+    } else {
+        &all_names
+    };
     names
-        .into_iter()
+        .iter()
+        .copied()
         .map(|scenario| {
             (
                 scenario.to_owned(),

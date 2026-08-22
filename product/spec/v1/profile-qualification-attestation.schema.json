@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-attestation.schema.json",
+  "title": "Auths signed profile qualification attestation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "record", "signing"],
+  "properties": {
+    "schema": {"const": "auths.profile-qualification-attestation/1"},
+    "record": {"$ref": "profile-qualification.schema.json"},
+    "signing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "keyId", "signatureBase64url"],
+      "properties": {
+        "algorithm": {"const": "Ed25519"},
+        "keyId": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
+        "signatureBase64url": {"type": "string", "pattern": "^[A-Za-z0-9_-]{86}$"}
+      }
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/provider-connection-admin.schema.json",
+  "title": "Auths provider connection administration envelope v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "requestId", "operation", "providerKind", "alias", "expectedGeneration", "payload"],
+  "properties": {
+    "schema": {"const": "auths.provider-connection-admin/1"},
+    "requestId": {"type": "string", "pattern": "^[A-Za-z0-9_-]{22}$"},
+    "operation": {"enum": ["start", "complete", "disable", "enable", "rotate", "revoke", "inspect", "list"]},
+    "providerKind": {"type": ["string", "null"], "pattern": "^[a-z][a-z0-9-]{0,63}$"},
+    "alias": {"type": ["string", "null"], "pattern": "^[a-z][a-z0-9-]{0,63}$"},
+    "expectedGeneration": {"type": ["integer", "null"], "minimum": 1},
+    "payload": {"type": ["string", "null"], "contentEncoding": "base64", "maxLength": 87384}
+  }
+}

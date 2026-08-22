@@ -1,0 +1,16 @@
+{
+  "schema": "auths.profile-qualification-scenarios/1",
+  "domain": "opentofu",
+  "scenarios": [
+    "opentofu-applied-marker",
+    "opentofu-artifact-redaction",
+    "opentofu-destructive-denial",
+    "opentofu-lock-closure",
+    "opentofu-plan-integrity",
+    "opentofu-protected-plan",
+    "opentofu-response-loss",
+    "opentofu-sandbox",
+    "opentofu-state-drift",
+    "opentofu-tool-identity"
+  ]
+}

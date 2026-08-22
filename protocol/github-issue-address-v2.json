@@ -1,0 +1,34 @@
+{
+  "schema": "auths.route-contract/1",
+  "contract": "auths.github.issue-address/2",
+  "profile": "auths.github.issue-address/2",
+  "mediaType": "application/vnd.auths.github.issue-address.v2+cbor",
+  "errorMediaType": "application/vnd.auths.error.v1+cbor",
+  "routeSchemaSha256": "517eca168bd7740ca6fa2562dedae2c305762c85c214f8a65bcf8b2d5bc25285",
+  "authentication": {
+    "scheme": "Bearer",
+    "registryHeader": "Auths-Error-Registry-SHA256",
+    "idempotencyHeader": "Idempotency-Key"
+  },
+  "routes": [
+    {"method":"GET","path":"/v2/profiles/github/issue-address/capabilities","bodyBytes":0,"responseBytes":12582912,"mode":"recovery"},
+    {"method":"GET","path":"/v2/profiles/github/issue-address/boundary","bodyBytes":0,"responseBytes":12582912,"mode":"full"},
+    {"method":"POST","path":"/v2/profiles/github/issue-address/delegations","bodyBytes":1048576,"responseBytes":12582912,"mode":"full","idempotent":true},
+    {"method":"POST","path":"/v2/profiles/github/issue-address/delegations/recover/reference","bodyBytes":1048576,"responseBytes":12582912,"mode":"recovery"},
+    {"method":"POST","path":"/v2/profiles/github/issue-address/delegations/recover/idempotency","bodyBytes":0,"responseBytes":12582912,"mode":"recovery","idempotent":true},
+    {"method":"POST","path":"/v2/profiles/github/issue-address/workflows/{workflowId}/candidates/inspect","bodyBytes":17825792,"responseBytes":6291456,"mode":"full"},
+    {"method":"POST","path":"/v2/profiles/github/issue-address/workflows/{workflowId}/execute","bodyBytes":1048576,"responseBytes":12582912,"mode":"full","idempotent":true},
+    {"method":"POST","path":"/v2/profiles/github/issue-address/workflows/recover/reference","bodyBytes":1048576,"responseBytes":12582912,"mode":"recovery"},
+    {"method":"POST","path":"/v2/profiles/github/issue-address/workflows/recover/idempotency","bodyBytes":0,"responseBytes":12582912,"mode":"recovery","idempotent":true},
+    {"method":"GET","path":"/v2/profiles/github/issue-address/workflows/{workflowId}/receipts","bodyBytes":0,"responseBytes":12582912,"mode":"recovery"}
+  ],
+  "wire": {
+    "encoding": "deterministic-cbor",
+    "definiteLengths": true,
+    "textMapKeys": true,
+    "floats": false,
+    "tags": false,
+    "duplicateKeys": false,
+    "redirects": false
+  }
+}

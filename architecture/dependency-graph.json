@@ -92,6 +92,11 @@
       "path": "product/config/auths-config"
     },
     {
+      "name": "auths-connections",
+      "layer": "product",
+      "path": "product/runtime/auths-connections"
+    },
+    {
       "name": "auths-cross-company-incident-edgeshield-demo",
       "layer": "demos",
       "path": "demos/cross-company-incident-response/edgeshield-service"
@@ -155,11 +160,6 @@
       "name": "auths-github",
       "layer": "product",
       "path": "product/integrations/auths-github"
-    },
-    {
-      "name": "auths-github-demo",
-      "layer": "demos",
-      "path": "demos/github-issue"
     },
     {
       "name": "auths-hsm-attested",
@@ -312,6 +312,11 @@
       "path": "product/profiles/auths-profile-mcp"
     },
     {
+      "name": "auths-profile-runtime",
+      "layer": "product",
+      "path": "product/runtime/auths-profile-runtime"
+    },
+    {
       "name": "auths-proof",
       "layer": "core",
       "path": "core/crates/auths-proof"
@@ -395,6 +400,16 @@
       "name": "auths-proof-wasm",
       "layer": "bindings",
       "path": "bindings/wasm/auths-proof-wasm"
+    },
+    {
+      "name": "auths-qualification-evidence-source",
+      "layer": "product",
+      "path": "product/qualification/auths-qualification-evidence-source"
+    },
+    {
+      "name": "auths-qualification-supervisor",
+      "layer": "product",
+      "path": "product/qualification/auths-qualification-supervisor"
     },
     {
       "name": "auths-radicle",
@@ -819,7 +834,8 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "alloc"
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -1682,6 +1698,18 @@
     {
       "source": "auths-config",
       "source_layer": "product",
+      "target": "thiserror",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-config",
+      "source_layer": "product",
       "target": "toml",
       "target_layer": null,
       "scope": "external",
@@ -1690,6 +1718,108 @@
       "optional": false,
       "default_features": true,
       "features": []
+    },
+    {
+      "source": "auths-connections",
+      "source_layer": "product",
+      "target": "async-trait",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-connections",
+      "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-connections",
+      "source_layer": "product",
+      "target": "getrandom",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-connections",
+      "source_layer": "product",
+      "target": "minicbor",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-connections",
+      "source_layer": "product",
+      "target": "sha2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-connections",
+      "source_layer": "product",
+      "target": "tempfile",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-connections",
+      "source_layer": "product",
+      "target": "thiserror",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-connections",
+      "source_layer": "product",
+      "target": "zeroize",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "derive"
+      ]
     },
     {
       "source": "auths-cross-company-incident-edgeshield-demo",
@@ -1738,7 +1868,8 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "alloc"
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -2211,7 +2342,8 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "alloc"
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -2306,7 +2438,8 @@
       "default_features": false,
       "features": [
         "alloc",
-        "std"
+        "std",
+        "zeroize"
       ]
     },
     {
@@ -2371,7 +2504,8 @@
       "default_features": false,
       "features": [
         "alloc",
-        "std"
+        "std",
+        "zeroize"
       ]
     },
     {
@@ -2436,6 +2570,20 @@
       "optional": false,
       "default_features": false,
       "features": []
+    },
+    {
+      "source": "auths-errors",
+      "source_layer": "product",
+      "target": "minicbor",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
     },
     {
       "source": "auths-errors",
@@ -2523,7 +2671,8 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "alloc"
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -2930,7 +3079,9 @@
       "default_features": false,
       "features": [
         "blocking",
+        "form",
         "json",
+        "query",
         "rustls"
       ]
     },
@@ -3039,315 +3190,6 @@
       "features": []
     },
     {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "auths-author",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "auths-codec",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "auths-github",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "auths-lifecycle",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "auths-model",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "auths-ports",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "auths-profile-api",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "auths-raw-key",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "auths-registries",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "auths-runtime",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "auths-sdk",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "auths-signature",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "auths-stores",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "axum",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "base64ct",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": [
-        "alloc"
-      ]
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "ed25519-dalek",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": [
-        "alloc"
-      ]
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "getrandom",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "hex",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "serde",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": [
-        "alloc",
-        "derive"
-      ]
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "serde_json",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": [
-        "alloc",
-        "preserve_order"
-      ]
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "tempfile",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "thiserror",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "tokio",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": [
-        "fs",
-        "io-util",
-        "macros",
-        "net",
-        "rt-multi-thread",
-        "signal",
-        "sync",
-        "time"
-      ]
-    },
-    {
-      "source": "auths-github-demo",
-      "source_layer": "demos",
-      "target": "tower-http",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": [
-        "cors"
-      ]
-    },
-    {
       "source": "auths-hsm-attested",
       "source_layer": "core",
       "target": "auths-model",
@@ -3396,7 +3238,8 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "alloc"
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -3582,7 +3425,8 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "alloc"
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -3749,7 +3593,8 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "alloc"
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -4263,7 +4108,8 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "alloc"
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -4302,6 +4148,8 @@
       "default_features": false,
       "features": [
         "blocking",
+        "form",
+        "query",
         "rustls"
       ]
     },
@@ -4553,6 +4401,20 @@
       "optional": false,
       "default_features": false,
       "features": []
+    },
+    {
+      "source": "auths-lifecycle",
+      "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
     },
     {
       "source": "auths-lifecycle",
@@ -5048,7 +4910,8 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "alloc"
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -5066,6 +4929,18 @@
         "ecdsa",
         "pkcs8"
       ]
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "async-trait",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
     },
     {
       "source": "auths-node",
@@ -5091,6 +4966,30 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "auths-config",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "auths-connections",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
       "features": []
     },
     {
@@ -5160,6 +5059,18 @@
     {
       "source": "auths-node",
       "source_layer": "product",
+      "target": "auths-lifecycle",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
       "target": "auths-model",
       "target_layer": "core",
       "scope": "internal",
@@ -5167,6 +5078,18 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "auths-opentofu",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
       "features": []
     },
     {
@@ -5208,7 +5131,43 @@
     {
       "source": "auths-node",
       "source_layer": "product",
+      "target": "auths-postgresql",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
       "target": "auths-production-client",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "auths-profile-kit",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "auths-profile-runtime",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -5227,6 +5186,18 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "auths-receipts",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
       "features": []
     },
     {
@@ -5265,6 +5236,30 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "auths-stores",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "auths-stripe",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
       "features": []
     },
     {
@@ -5332,6 +5327,20 @@
     {
       "source": "auths-node",
       "source_layer": "product",
+      "target": "clap",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "derive"
+      ]
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
       "target": "ed25519-dalek",
       "target_layer": null,
       "scope": "external",
@@ -5340,7 +5349,8 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "alloc"
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -5392,6 +5402,23 @@
       "optional": false,
       "default_features": false,
       "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "rustix",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "fs",
+        "net",
+        "process",
+        "stdio"
+      ]
     },
     {
       "source": "auths-node",
@@ -5456,6 +5483,18 @@
     {
       "source": "auths-node",
       "source_layer": "product",
+      "target": "serde_json_canonicalizer",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
       "target": "sha2",
       "target_layer": null,
       "scope": "external",
@@ -5471,10 +5510,22 @@
       "target": "tempfile",
       "target_layer": null,
       "scope": "external",
-      "kind": "dev",
+      "kind": "normal",
       "target_condition": null,
       "optional": false,
       "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "thiserror",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
       "features": []
     },
     {
@@ -5557,9 +5608,71 @@
       ]
     },
     {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "zeroize",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "derive"
+      ]
+    },
+    {
+      "source": "auths-opentofu",
+      "source_layer": "product",
+      "target": "async-trait",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
       "source": "auths-opentofu",
       "source_layer": "product",
       "target": "auths-bounded-policy",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-opentofu",
+      "source_layer": "product",
+      "target": "auths-codec",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-opentofu",
+      "source_layer": "product",
+      "target": "auths-connections",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-opentofu",
+      "source_layer": "product",
+      "target": "auths-errors",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -5607,6 +5720,42 @@
     {
       "source": "auths-opentofu",
       "source_layer": "product",
+      "target": "auths-profile-kit",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": true,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-opentofu",
+      "source_layer": "product",
+      "target": "auths-profile-runtime",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-opentofu",
+      "source_layer": "product",
+      "target": "auths-receipts",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-opentofu",
+      "source_layer": "product",
       "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
@@ -5622,7 +5771,33 @@
       "target": "auths-stores",
       "target_layer": "product",
       "scope": "internal",
-      "kind": "dev",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-opentofu",
+      "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-opentofu",
+      "source_layer": "product",
+      "target": "getrandom",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
       "target_condition": null,
       "optional": false,
       "default_features": true,
@@ -5639,6 +5814,36 @@
       "optional": false,
       "default_features": true,
       "features": []
+    },
+    {
+      "source": "auths-opentofu",
+      "source_layer": "product",
+      "target": "minicbor",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-opentofu",
+      "source_layer": "product",
+      "target": "rustix",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "fs",
+        "net",
+        "process"
+      ]
     },
     {
       "source": "auths-opentofu",
@@ -5729,6 +5934,41 @@
       "optional": false,
       "default_features": false,
       "features": []
+    },
+    {
+      "source": "auths-opentofu",
+      "source_layer": "product",
+      "target": "tokio",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "fs",
+        "io-util",
+        "macros",
+        "net",
+        "rt-multi-thread",
+        "signal",
+        "sync",
+        "time"
+      ]
+    },
+    {
+      "source": "auths-opentofu",
+      "source_layer": "product",
+      "target": "zeroize",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "derive"
+      ]
     },
     {
       "source": "auths-opentofu-demo",
@@ -6166,6 +6406,42 @@
     {
       "source": "auths-postgresql",
       "source_layer": "product",
+      "target": "auths-codec",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-postgresql",
+      "source_layer": "product",
+      "target": "auths-connections",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-postgresql",
+      "source_layer": "product",
+      "target": "auths-errors",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-postgresql",
+      "source_layer": "product",
       "target": "auths-lifecycle",
       "target_layer": "product",
       "scope": "internal",
@@ -6202,6 +6478,42 @@
     {
       "source": "auths-postgresql",
       "source_layer": "product",
+      "target": "auths-profile-kit",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": true,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-postgresql",
+      "source_layer": "product",
+      "target": "auths-profile-runtime",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-postgresql",
+      "source_layer": "product",
+      "target": "auths-receipts",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-postgresql",
+      "source_layer": "product",
       "target": "auths-sdk",
       "target_layer": "product",
       "scope": "internal",
@@ -6217,7 +6529,33 @@
       "target": "auths-stores",
       "target_layer": "product",
       "scope": "internal",
-      "kind": "dev",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-postgresql",
+      "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-postgresql",
+      "source_layer": "product",
+      "target": "getrandom",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
       "target_condition": null,
       "optional": false,
       "default_features": true,
@@ -6234,6 +6572,66 @@
       "optional": false,
       "default_features": true,
       "features": []
+    },
+    {
+      "source": "auths-postgresql",
+      "source_layer": "product",
+      "target": "minicbor",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-postgresql",
+      "source_layer": "product",
+      "target": "rustix",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "fs",
+        "net",
+        "process"
+      ]
+    },
+    {
+      "source": "auths-postgresql",
+      "source_layer": "product",
+      "target": "rustls",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "ring",
+        "std",
+        "tls12"
+      ]
+    },
+    {
+      "source": "auths-postgresql",
+      "source_layer": "product",
+      "target": "rustls-pki-types",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
     },
     {
       "source": "auths-postgresql",
@@ -6328,6 +6726,55 @@
     {
       "source": "auths-postgresql",
       "source_layer": "product",
+      "target": "tokio",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "fs",
+        "io-util",
+        "macros",
+        "net",
+        "rt-multi-thread",
+        "signal",
+        "sync",
+        "time"
+      ]
+    },
+    {
+      "source": "auths-postgresql",
+      "source_layer": "product",
+      "target": "tokio-postgres",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "runtime"
+      ]
+    },
+    {
+      "source": "auths-postgresql",
+      "source_layer": "product",
+      "target": "tokio-postgres-rustls",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "ring"
+      ]
+    },
+    {
+      "source": "auths-postgresql",
+      "source_layer": "product",
       "target": "unicode-normalization",
       "target_layer": null,
       "scope": "external",
@@ -6349,6 +6796,32 @@
       "default_features": false,
       "features": [
         "serde"
+      ]
+    },
+    {
+      "source": "auths-postgresql",
+      "source_layer": "product",
+      "target": "webpki-roots",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-postgresql",
+      "source_layer": "product",
+      "target": "zeroize",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "derive"
       ]
     },
     {
@@ -6698,6 +7171,18 @@
     {
       "source": "auths-production-client",
       "source_layer": "product",
+      "target": "getrandom",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": "cfg(not(target_arch = \"wasm32\"))",
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-production-client",
+      "source_layer": "product",
       "target": "minicbor",
       "target_layer": null,
       "scope": "external",
@@ -6740,6 +7225,30 @@
         "preserve_order",
         "std"
       ]
+    },
+    {
+      "source": "auths-production-client",
+      "source_layer": "product",
+      "target": "sha2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-production-client",
+      "source_layer": "product",
+      "target": "thiserror",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
     },
     {
       "source": "auths-profile-api",
@@ -6942,6 +7451,35 @@
     {
       "source": "auths-profile-kit",
       "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-profile-kit",
+      "source_layer": "product",
+      "target": "ed25519-dalek",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "zeroize"
+      ]
+    },
+    {
+      "source": "auths-profile-kit",
+      "source_layer": "product",
       "target": "hex",
       "target_layer": null,
       "scope": "external",
@@ -6980,6 +7518,18 @@
         "alloc",
         "preserve_order"
       ]
+    },
+    {
+      "source": "auths-profile-kit",
+      "source_layer": "product",
+      "target": "serde_json_canonicalizer",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
     },
     {
       "source": "auths-profile-kit",
@@ -7147,6 +7697,81 @@
     },
     {
       "source": "auths-profile-mcp",
+      "source_layer": "product",
+      "target": "sha2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-profile-runtime",
+      "source_layer": "product",
+      "target": "auths-connections",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-profile-runtime",
+      "source_layer": "product",
+      "target": "auths-lifecycle",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-profile-runtime",
+      "source_layer": "product",
+      "target": "auths-stores",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-profile-runtime",
+      "source_layer": "product",
+      "target": "hex",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-profile-runtime",
+      "source_layer": "product",
+      "target": "serde",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "derive"
+      ]
+    },
+    {
+      "source": "auths-profile-runtime",
       "source_layer": "product",
       "target": "sha2",
       "target_layer": null,
@@ -7591,6 +8216,8 @@
       "default_features": false,
       "features": [
         "blocking",
+        "form",
+        "query",
         "rustls"
       ]
     },
@@ -8543,6 +9170,18 @@
     {
       "source": "auths-proof-python",
       "source_layer": "bindings",
+      "target": "auths-signature-core",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
       "target": "auths-signature-ed25519",
       "target_layer": "core",
       "scope": "internal",
@@ -8577,7 +9216,8 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "alloc"
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -8880,6 +9520,18 @@
     {
       "source": "auths-proof-wasm",
       "source_layer": "bindings",
+      "target": "auths-signature-core",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-proof-wasm",
+      "source_layer": "bindings",
       "target": "auths-signature-ed25519",
       "target_layer": "core",
       "scope": "internal",
@@ -8924,7 +9576,8 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "alloc"
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -9027,6 +9680,610 @@
       "target_condition": null,
       "optional": false,
       "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "auths-config",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "auths-connections",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "qualification-broker"
+      ]
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "auths-errors",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "auths-lifecycle",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "auths-model",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "auths-opentofu",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": "cfg(target_os = \"linux\")",
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "qualification"
+      ]
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "auths-postgresql",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": "cfg(target_os = \"linux\")",
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "qualification"
+      ]
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "auths-production-client",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "auths-profile-kit",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "qualification-ledger-producer"
+      ]
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "auths-profile-runtime",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": "cfg(target_os = \"linux\")",
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "auths-receipts",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "auths-stores",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "qualification-evidence"
+      ]
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "auths-stripe",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": "cfg(target_os = \"linux\")",
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "qualification"
+      ]
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "ed25519-dalek",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "zeroize"
+      ]
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "hex",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "minicbor",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "rustix",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "fs",
+        "net",
+        "process",
+        "std"
+      ]
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "serde",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "derive"
+      ]
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order"
+      ]
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "serde_json_canonicalizer",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "sha2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "tempfile",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "tokio",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": "cfg(target_os = \"linux\")",
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "fs",
+        "io-util",
+        "macros",
+        "net",
+        "rt-multi-thread",
+        "signal",
+        "sync",
+        "time"
+      ]
+    },
+    {
+      "source": "auths-qualification-evidence-source",
+      "source_layer": "product",
+      "target": "zeroize",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "derive"
+      ]
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
+      "target": "auths-config",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
+      "target": "auths-lifecycle",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
+      "target": "auths-model",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
+      "target": "auths-profile-kit",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "qualification-ledger-producer"
+      ]
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
+      "target": "auths-qualification-evidence-source",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
+      "target": "auths-receipts",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
+      "target": "auths-stores",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "qualification-evidence"
+      ]
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
+      "target": "ed25519-dalek",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "zeroize"
+      ]
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
+      "target": "hex",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
+      "target": "rustix",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "fs",
+        "net",
+        "process",
+        "std",
+        "thread"
+      ]
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
+      "target": "serde",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "derive"
+      ]
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order"
+      ]
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
+      "target": "serde_json_canonicalizer",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
+      "target": "sha2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
+      "target": "tar",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
+      "target": "tempfile",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
+      "target": "toml",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
+      "target": "zeroize",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "derive"
+      ]
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
+      "target": "zstd",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
       "features": []
     },
     {
@@ -9196,7 +10453,8 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "alloc"
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -9480,7 +10738,8 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "alloc"
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -9519,7 +10778,9 @@
       "default_features": false,
       "features": [
         "blocking",
+        "form",
         "json",
+        "query",
         "rustls"
       ]
     },
@@ -9697,7 +10958,8 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "alloc"
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -9765,6 +11027,32 @@
     {
       "source": "auths-receipts",
       "source_layer": "product",
+      "target": "auths-signature",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-receipts",
+      "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-receipts",
+      "source_layer": "product",
       "target": "minicbor",
       "target_layer": null,
       "scope": "external",
@@ -9779,7 +11067,61 @@
     {
       "source": "auths-receipts",
       "source_layer": "product",
+      "target": "serde",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "derive"
+      ]
+    },
+    {
+      "source": "auths-receipts",
+      "source_layer": "product",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order"
+      ]
+    },
+    {
+      "source": "auths-receipts",
+      "source_layer": "product",
+      "target": "serde_json_canonicalizer",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-receipts",
+      "source_layer": "product",
       "target": "sha2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-receipts",
+      "source_layer": "product",
+      "target": "thiserror",
       "target_layer": null,
       "scope": "external",
       "kind": "normal",
@@ -9883,7 +11225,8 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "alloc"
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -10266,7 +11609,8 @@
       "default_features": false,
       "features": [
         "alloc",
-        "rand_core"
+        "rand_core",
+        "zeroize"
       ]
     },
     {
@@ -10506,6 +11850,8 @@
       "default_features": false,
       "features": [
         "blocking",
+        "form",
+        "query",
         "rustls"
       ]
     },
@@ -10624,18 +11970,6 @@
       "source": "auths-runtime",
       "source_layer": "product",
       "target": "auths-operations",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-runtime",
-      "source_layer": "product",
-      "target": "auths-production-client",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -11055,7 +12389,8 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "alloc"
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -11070,7 +12405,8 @@
       "default_features": false,
       "features": [
         "alloc",
-        "rand_core"
+        "rand_core",
+        "zeroize"
       ]
     },
     {
@@ -11084,7 +12420,8 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "alloc"
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -11138,7 +12475,8 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "alloc"
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -11289,6 +12627,18 @@
     {
       "source": "auths-stores",
       "source_layer": "product",
+      "target": "auths-connections",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-stores",
+      "source_layer": "product",
       "target": "auths-lifecycle",
       "target_layer": "product",
       "scope": "internal",
@@ -11363,6 +12713,32 @@
     {
       "source": "auths-stores",
       "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-stores",
+      "source_layer": "product",
+      "target": "getrandom",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-stores",
+      "source_layer": "product",
       "target": "hex",
       "target_layer": null,
       "scope": "external",
@@ -11376,6 +12752,20 @@
       "source": "auths-stores",
       "source_layer": "product",
       "target": "minicbor",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-stores",
+      "source_layer": "product",
+      "target": "postcard",
       "target_layer": null,
       "scope": "external",
       "kind": "normal",
@@ -11425,6 +12815,22 @@
     {
       "source": "auths-stores",
       "source_layer": "product",
+      "target": "rustix",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "fs",
+        "net",
+        "process"
+      ]
+    },
+    {
+      "source": "auths-stores",
+      "source_layer": "product",
       "target": "rustls",
       "target_layer": null,
       "scope": "external",
@@ -11456,6 +12862,21 @@
     {
       "source": "auths-stores",
       "source_layer": "product",
+      "target": "serde",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "derive"
+      ]
+    },
+    {
+      "source": "auths-stores",
+      "source_layer": "product",
       "target": "sha2",
       "target_layer": null,
       "scope": "external",
@@ -11480,6 +12901,18 @@
     {
       "source": "auths-stores",
       "source_layer": "product",
+      "target": "thiserror",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-stores",
+      "source_layer": "product",
       "target": "tokio-postgres-rustls",
       "target_layer": null,
       "scope": "external",
@@ -11490,6 +12923,18 @@
       "features": [
         "ring"
       ]
+    },
+    {
+      "source": "auths-stripe",
+      "source_layer": "product",
+      "target": "async-trait",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
     },
     {
       "source": "auths-stripe",
@@ -11522,6 +12967,42 @@
       "target_layer": "core",
       "scope": "internal",
       "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-stripe",
+      "source_layer": "product",
+      "target": "auths-codec",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-stripe",
+      "source_layer": "product",
+      "target": "auths-connections",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-stripe",
+      "source_layer": "product",
+      "target": "auths-errors",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
       "target_condition": null,
       "optional": false,
       "default_features": false,
@@ -11578,6 +13059,30 @@
     {
       "source": "auths-stripe",
       "source_layer": "product",
+      "target": "auths-profile-kit",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": true,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-stripe",
+      "source_layer": "product",
+      "target": "auths-profile-runtime",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-stripe",
+      "source_layer": "product",
       "target": "auths-raw-key",
       "target_layer": "core",
       "scope": "internal",
@@ -11585,6 +13090,18 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-stripe",
+      "source_layer": "product",
+      "target": "auths-receipts",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
       "features": []
     },
     {
@@ -11638,6 +13155,32 @@
     {
       "source": "auths-stripe",
       "source_layer": "product",
+      "target": "auths-stores",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-stripe",
+      "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-stripe",
+      "source_layer": "product",
       "target": "ed25519-dalek",
       "target_layer": null,
       "scope": "external",
@@ -11646,7 +13189,23 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "alloc"
+        "alloc",
+        "zeroize"
+      ]
+    },
+    {
+      "source": "auths-stripe",
+      "source_layer": "product",
+      "target": "ed25519-dalek",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -11664,6 +13223,20 @@
     {
       "source": "auths-stripe",
       "source_layer": "product",
+      "target": "minicbor",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-stripe",
+      "source_layer": "product",
       "target": "proptest",
       "target_layer": null,
       "scope": "external",
@@ -11672,6 +13245,39 @@
       "optional": false,
       "default_features": true,
       "features": []
+    },
+    {
+      "source": "auths-stripe",
+      "source_layer": "product",
+      "target": "reqwest",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "blocking",
+        "form",
+        "query",
+        "rustls"
+      ]
+    },
+    {
+      "source": "auths-stripe",
+      "source_layer": "product",
+      "target": "rustix",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "fs",
+        "net",
+        "process"
+      ]
     },
     {
       "source": "auths-stripe",
@@ -11764,6 +13370,41 @@
       "features": []
     },
     {
+      "source": "auths-stripe",
+      "source_layer": "product",
+      "target": "tokio",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "fs",
+        "io-util",
+        "macros",
+        "net",
+        "rt-multi-thread",
+        "signal",
+        "sync",
+        "time"
+      ]
+    },
+    {
+      "source": "auths-stripe",
+      "source_layer": "product",
+      "target": "zeroize",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "derive"
+      ]
+    },
+    {
       "source": "auths-stripe-connect-transfer-demo",
       "source_layer": "demos",
       "target": "auths-stripe",
@@ -12057,7 +13698,8 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "alloc"
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -12096,7 +13738,9 @@
       "default_features": false,
       "features": [
         "blocking",
+        "form",
         "json",
+        "query",
         "rustls"
       ]
     },
@@ -12335,7 +13979,9 @@
       "default_features": false,
       "features": [
         "blocking",
+        "form",
         "json",
+        "query",
         "rustls"
       ]
     },
@@ -12538,7 +14184,9 @@
       "default_features": false,
       "features": [
         "blocking",
+        "form",
         "json",
+        "query",
         "rustls"
       ]
     },
@@ -12741,7 +14389,9 @@
       "default_features": false,
       "features": [
         "blocking",
+        "form",
         "json",
+        "query",
         "rustls"
       ]
     },
@@ -12944,7 +14594,9 @@
       "default_features": false,
       "features": [
         "blocking",
+        "form",
         "json",
+        "query",
         "rustls"
       ]
     },
@@ -13170,7 +14822,8 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "alloc"
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -13185,7 +14838,9 @@
       "default_features": false,
       "features": [
         "blocking",
+        "form",
         "json",
+        "query",
         "rustls"
       ]
     },
@@ -13339,7 +14994,9 @@
       "default_features": false,
       "features": [
         "blocking",
+        "form",
         "json",
+        "query",
         "rustls"
       ]
     },
@@ -14534,7 +16191,8 @@
       "features": [
         "alloc",
         "pkcs8",
-        "std"
+        "std",
+        "zeroize"
       ]
     },
     {
@@ -14846,7 +16504,8 @@
       "optional": false,
       "default_features": false,
       "features": [
-        "alloc"
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -15103,6 +16762,18 @@
     {
       "source": "xtask",
       "source_layer": "tooling",
+      "target": "auths-lifecycle",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
       "target": "auths-model",
       "target_layer": "core",
       "scope": "internal",
@@ -15122,7 +16793,9 @@
       "target_condition": null,
       "optional": false,
       "default_features": true,
-      "features": []
+      "features": [
+        "qualification"
+      ]
     },
     {
       "source": "xtask",
@@ -15148,12 +16821,26 @@
       "target_condition": null,
       "optional": false,
       "default_features": true,
-      "features": []
+      "features": [
+        "qualification"
+      ]
     },
     {
       "source": "xtask",
       "source_layer": "tooling",
       "target": "auths-production-client",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
+      "target": "auths-profile-kit",
       "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
@@ -15177,8 +16864,32 @@
     {
       "source": "xtask",
       "source_layer": "tooling",
+      "target": "auths-profile-runtime",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
       "target": "auths-proof-exchange-testkit",
       "target_layer": "exchange",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
+      "target": "auths-qualification-supervisor",
+      "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
       "target_condition": null,
@@ -15283,6 +16994,18 @@
     {
       "source": "xtask",
       "source_layer": "tooling",
+      "target": "auths-stores",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
       "target": "auths-stripe",
       "target_layer": "product",
       "scope": "internal",
@@ -15291,7 +17014,8 @@
       "optional": false,
       "default_features": true,
       "features": [
-        "fixture-support"
+        "fixture-support",
+        "qualification"
       ]
     },
     {
@@ -15337,7 +17061,7 @@
     {
       "source": "xtask",
       "source_layer": "tooling",
-      "target": "ed25519-dalek",
+      "target": "base64ct",
       "target_layer": null,
       "scope": "external",
       "kind": "normal",
@@ -15351,6 +17075,33 @@
     {
       "source": "xtask",
       "source_layer": "tooling",
+      "target": "ed25519-dalek",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "zeroize"
+      ]
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
+      "target": "getrandom",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
       "target": "hex",
       "target_layer": null,
       "scope": "external",
@@ -15359,6 +17110,22 @@
       "optional": false,
       "default_features": true,
       "features": []
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
+      "target": "rustix",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "fs",
+        "net",
+        "process"
+      ]
     },
     {
       "source": "xtask",
@@ -15393,6 +17160,18 @@
     {
       "source": "xtask",
       "source_layer": "tooling",
+      "target": "serde_json_canonicalizer",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
       "target": "sha2",
       "target_layer": null,
       "scope": "external",
@@ -15420,7 +17199,7 @@
       "target": "tempfile",
       "target_layer": null,
       "scope": "external",
-      "kind": "dev",
+      "kind": "normal",
       "target_condition": null,
       "optional": false,
       "default_features": true,
@@ -15458,6 +17237,20 @@
       "optional": false,
       "default_features": true,
       "features": []
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
+      "target": "zeroize",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "derive"
+      ]
     },
     {
       "source": "xtask",

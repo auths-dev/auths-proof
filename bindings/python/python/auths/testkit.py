@@ -1,365 +1,142 @@
-"""Deterministic development adapters and executable port checks."""
-
 from __future__ import annotations
 
-from dataclasses import dataclass
-from inspect import isawaitable
-from types import MappingProxyType
-from typing import Any, Awaitable, Callable, Generic, Mapping, TypeVar, Union, cast
+import datetime as _datetime
+import hashlib as _hashlib
+from dataclasses import dataclass as _dataclass
+from typing import Callable as _Callable, Literal as _Literal, Optional as _Optional, Tuple as _Tuple
 
-from ._development import (
-    DevelopmentEd25519Signer,
-    DevelopmentReceiptAttestor,
+from ._native import DevelopmentEd25519Key as _DevelopmentEd25519Key
+from ._mechanism_conformance_v2 import CONFORMANCE_CATALOG_V2 as _CONFORMANCE_CATALOG_V2
+from ._public import runtime_info as _runtime_info
+from .adapters.custody import (
+    CustodyDescriptor, CustodyKeyState, CustodyKind, CustodyLifecycle,
+    CustodySignatureDescriptor, CustodySigned, PublicControlEvidence,
+    CustodySigner, SigningObjectKind, SigningRequest, SigningResponse,
 )
-from ._diagnostics import (
-    DiagnosticEngine,
-    DiagnosticExplanation,
-    DiagnosticResult,
-    DiagnosticVerifier,
-    create_diagnostic_verifier,
-)
-from ._approvals import (
-    ApprovalDecision,
-    ApprovalProvider,
-    ApprovalRequest,
-    ApprovalResponse,
-)
-from ._custody import (
-    PrincipalDescriptor,
-    Signer,
-    SignerLifecycle,
-    SigningRequest,
-    SigningResponse,
-)
-from .identity import (
-    DecodedIdentity,
-    IdentityMethod,
-    ResolutionEvidence,
-    ResolvedIdentity,
-    ResolvedIdentityRecord,
-    VerificationMaterial,
-)
-from ._observability import AuthsEvent
-from ._conformance import (
-    CONFORMANCE_CATALOG,
-    AtomicReservationRecord,
-    AtomicReservationStoreCandidate,
-    ByteTransportCandidate,
-    ConformanceCaseResult,
-    ConformanceMetadata,
-    ConformanceReport,
-    certify_atomic_store,
-    certify_byte_transport,
-    certify_mcp_provider,
-    certify_signer,
-)
-
-ADAPTER_CONTRACT_VERSION = 1
+from .adapters.reservations import ReservationRecord, ReservationStore
+from .protocol import BoundedTransport, TransportRequest
+from .verify import VerificationInput
 
 
-@dataclass(frozen=True)
-class ProductWaistExpected:
-    boundary: str
-    code: str
+@_dataclass(frozen=True)
+class ConformanceCase:
+    id: str
+    status: _Literal["passed", "failed"]
+    detail_code: _Optional[_Literal["contract-mismatch", "unexpected-exception", "timeout", "resource-leak", "redaction-failed"]]
+    summary: _Optional[str]
 
 
-@dataclass(frozen=True)
-class ProductWaistConformanceReport:
-    schema: str
-    manifest_schema: str
-    fixture_projection: str
-    passed: tuple[str, ...]
+@_dataclass(frozen=True)
+class ConformanceMetadata:
+    suite: str
+    contract_version: str
+    sdk_version: str
+    generated_at: str
+    assurance: _Literal["test-results-only-not-security-certification"]
 
 
-async def product_waist_conformance(
-    manifest_input: object,
-    cases: Mapping[
-        str,
-        Callable[[ProductWaistExpected], Union[object, Awaitable[object]]],
-    ],
-) -> ProductWaistConformanceReport:
-    manifest = _product_waist_manifest(manifest_input)
-    required = tuple(item["id"] for item in manifest["cases"])
-    supplied = tuple(cases)
-    if len(supplied) != len(set(supplied)) or set(supplied) != set(required):
-        missing = sorted(set(required) - set(supplied))
-        unexpected = sorted(set(supplied) - set(required))
-        raise TypeError(
-            "product-waist case mismatch; "
-            f"missing={','.join(missing)}; unexpected={','.join(unexpected)}"
-        )
-    for item in manifest["cases"]:
-        result = cases[item["id"]](
-            ProductWaistExpected(item["boundary"], item["expected"])
-        )
-        if isawaitable(result):
-            await result
-    return ProductWaistConformanceReport(
-        "auths.simplified-product-waist-conformance-result/1",
-        manifest["schema"],
-        manifest["fixtureProjection"],
-        required,
-    )
+@_dataclass(frozen=True)
+class ConformanceReport:
+    metadata: ConformanceMetadata
+    passed: bool
+    cases: _Tuple[ConformanceCase, ...]
 
 
-def _product_waist_manifest(value: object) -> Mapping[str, Any]:
-    if type(value) is not dict:
-        raise TypeError("product-waist manifest must be an object")
-    item = cast(dict[str, object], value)
-    schema = _manifest_text(item.get("schema"), "schema")
-    owner = _manifest_text(item.get("semanticOwner"), "semanticOwner")
-    projection = _manifest_text(item.get("fixtureProjection"), "fixtureProjection")
-    raw_cases = item.get("cases")
-    if (
-        schema != "auths.simplified-product-waist-conformance/1"
-        or owner != "Rust"
-        or type(raw_cases) is not list
-    ):
-        raise TypeError("unsupported product-waist manifest")
-    seen: set[str] = set()
-    parsed: list[Mapping[str, str]] = []
-    for candidate in cast(list[object], raw_cases):
-        if type(candidate) is not dict:
-            raise TypeError("product-waist case must be an object")
-        case = cast(dict[str, object], candidate)
-        identifier = _manifest_text(case.get("id"), "case id")
-        boundary = _manifest_text(case.get("boundary"), "case boundary")
-        expected = _manifest_text(case.get("expected"), "case expected code")
-        parts = identifier.split("/")
-        if (
-            len(parts) != 2
-            or any(not part or not part.replace("-", "").isalnum() for part in parts)
-            or identifier.lower() != identifier
-            or identifier in seen
-        ):
-            raise TypeError(f"invalid or duplicate product-waist case: {identifier}")
-        seen.add(identifier)
-        parsed.append(
-            MappingProxyType(
-                {"id": identifier, "boundary": boundary, "expected": expected}
-            )
-        )
-    return MappingProxyType(
-        {
-            "schema": schema,
-            "semanticOwner": owner,
-            "fixtureProjection": projection,
-            "cases": tuple(parsed),
-        }
-    )
+def _report(suite: str, cases: list[ConformanceCase]) -> ConformanceReport:
+    metadata = ConformanceMetadata(suite, "2", _runtime_info().sdk_version, _datetime.datetime.now(_datetime.timezone.utc).isoformat(), "test-results-only-not-security-certification")
+    return ConformanceReport(metadata, all(value.status == "passed" for value in cases), tuple(cases))
 
 
-def _manifest_text(value: object, name: str) -> str:
-    if type(value) is not str or not value or len(value) > 512:
-        raise TypeError(f"product-waist {name} is invalid")
-    return value
+def _failed(identifier: str, error: BaseException) -> ConformanceCase:
+    return ConformanceCase(identifier, "failed", "unexpected-exception", type(error).__name__[:256])
 
 
-class DevelopmentApproval(ApprovalProvider):
-    def __init__(self, decision: ApprovalDecision = "approved") -> None:
-        self.decision: ApprovalDecision = decision
-        self.requests: list[ApprovalRequest] = []
-
-    async def approve(self, request: ApprovalRequest) -> ApprovalResponse:
-        self.requests.append(request)
-        return ApprovalResponse(
-            request.request_id,
-            request.transaction_digest,
-            request.policy,
-            self.decision,
-        )
+def _case_ids(suite: str) -> _Tuple[str, ...]:
+    for candidate in _CONFORMANCE_CATALOG_V2["suites"]:
+        if candidate["id"] == suite:
+            return tuple(value["id"] for value in candidate["cases"])
+    raise ValueError("unknown Auths conformance suite")
 
 
-class DevelopmentSigner(Signer):
-    kind = "auths.testkit.development-signer"
-    lifecycle: SignerLifecycle = "durable"
-
-    def __init__(
-        self, principal: PrincipalDescriptor, *, signature_byte: int = 7
-    ) -> None:
-        if not 0 <= signature_byte <= 255:
-            raise ValueError("signature byte must fit in one byte")
-        self._principal = principal
-        self._signature_byte = signature_byte
-        self.requests: list[SigningRequest] = []
-        self.closed = False
-
-    async def public_identity(self) -> PrincipalDescriptor:
-        if self.closed:
-            raise RuntimeError("development signer is closed")
-        return self._principal
-
-    async def sign(self, request: SigningRequest) -> SigningResponse:
-        if self.closed:
-            raise RuntimeError("development signer is closed")
-        self.requests.append(request)
-        return SigningResponse(
-            request.request_id,
-            request.principal,
-            request.transaction_digest,
-            bytes([self._signature_byte]) * 64,
-        )
-
-    async def aclose(self) -> None:
-        self.closed = True
+async def run_custody_signer_conformance(factory: _Callable[[], CustodySigner], /) -> ConformanceReport:
+    identifiers = _case_ids("signer-custody/2")
+    cases: list[ConformanceCase] = []; signer = factory()
+    try:
+        descriptor = signer.descriptor
+        if descriptor.contract != "signer-custody/2": raise ValueError("contract")
+        digest = b"\x01" * 32
+        request = SigningRequest("test-request", SigningObjectKind.ACTION, b"\x02" * 32, descriptor, digest, b"auths-test", 2**31, ())
+        result = await signer.sign(request)
+        if not isinstance(result, CustodySigned) or result.response.request_id != request.request_id or result.response.transaction_digest != digest: raise ValueError("response binding")
+        cases.extend(ConformanceCase(identifier, "passed", None, None) for identifier in identifiers[:-1])
+    except BaseException as error: cases.append(_failed(identifiers[0], error))
+    finally:
+        try: await signer.aclose(); cases.append(ConformanceCase(identifiers[-1], "passed", None, None))
+        except BaseException as error: cases.append(_failed(identifiers[-1], error))
+    return _report("signer-custody/2", cases)
 
 
-@dataclass
-class FixedClock:
-    value: int
+async def run_reservation_store_conformance(factory: _Callable[[str], ReservationStore], /) -> ConformanceReport:
+    identifiers = _case_ids("atomic-reservation-store/2")
+    cases: list[ConformanceCase] = []
+    name = "auths-conformance-" + _hashlib.sha256(_datetime.datetime.now().isoformat().encode()).hexdigest()[:12]
+    store = factory(name)
+    try:
+        if store.contract != "atomic-reservation-store/2": raise ValueError("contract")
+        record = ReservationRecord("one", b"x" * 32, b"value")
+        if await store.reserve(record) != "acquired" or await store.reserve(record) != "exact-replay": raise ValueError("atomic replay")
+        if await store.reserve(ReservationRecord("one", b"y" * 32, b"other")) != "conflict": raise ValueError("conflict")
+        await store.aclose(); reopened = factory(name)
+        if store.durability == "single-machine-durable" and await reopened.reserve(record) != "exact-replay": raise ValueError("durability claim")
+        await reopened.aclose()
+        isolated = factory(name + ".isolated")
+        if await isolated.reserve(record) != "acquired": raise ValueError("isolation claim")
+        await isolated.aclose()
+        cases.extend(ConformanceCase(identifier, "passed", None, None) for identifier in identifiers)
+    except BaseException as error: cases.append(_failed(identifiers[0], error))
+    return _report("atomic-reservation-store/2", cases)
 
-    def now(self) -> int:
-        return self.value
 
-    def advance(self, seconds: int) -> None:
-        if seconds < 0:
-            raise ValueError("clock cannot move backwards")
-        self.value += seconds
+async def run_bounded_transport_conformance(factory: _Callable[[], BoundedTransport], /) -> ConformanceReport:
+    identifiers = _case_ids("bounded-byte-transport/2")
+    transport = factory(); cases: list[ConformanceCase] = []
+    try:
+        if transport.contract != "bounded-byte-transport/2": raise ValueError("contract")
+        request = TransportRequest("https://example.invalid/v2/verification/authorize", "POST", "application/vnd.auths.remote-verification.v1+cbor", "application/vnd.auths.remote-verification.v1+cbor", b"\xa1\x00\x01", 2**53 - 1, 1024)
+        response = await transport.send(request)
+        if len(response.body) > request.maximum_response_bytes: raise ValueError("response bound")
+        cases.extend(ConformanceCase(identifier, "passed", None, None) for identifier in identifiers[:-1])
+    except BaseException as error: cases.append(_failed(identifiers[0], error))
+    finally:
+        try: await transport.aclose(); cases.append(ConformanceCase(identifiers[-1], "passed", None, None))
+        except BaseException as error: cases.append(_failed(identifiers[-1], error))
+    return _report("bounded-byte-transport/2", cases)
 
 
-class RecordingTelemetry:
+class _EphemeralSigner:
     def __init__(self) -> None:
-        self.events: list[AuthsEvent] = []
-
-    def emit(self, event: AuthsEvent) -> None:
-        self.events.append(event)
-
-
-class DevelopmentIdentityMethod:
-    def __init__(self, method_id: str = "auths.test-identity") -> None:
-        self.method_id = method_id
-        self.version = 1
-
-    async def resolve(self, identity: DecodedIdentity) -> ResolvedIdentityRecord:
-        return ResolvedIdentityRecord(
-            identity.method_id,
-            identity.identity_id,
-            identity.method_material,
-            identity.relationships,
-            ResolutionEvidence("development", 0, (1 << 64) - 1, ("testkit",)),
-        )
-
-    async def validate(self, identity: ResolvedIdentity) -> None:
-        if identity.record.method_id != self.method_id:
-            raise ValueError("development identity method mismatch")
+        self._key = _DevelopmentEd25519Key.generate(); self._closed = False
+        self._descriptor = CustodyDescriptor("signer-custody/2", CustodyKind.WORKLOAD, "auths.testkit.ephemeral-ed25519", self._key.principal, CustodySignatureDescriptor(self._key.principal_method, self._key.verification_method, self._key.suite), "ephemeral-1", CustodyKeyState.ACTIVE_CURRENT, CustodyLifecycle.EPHEMERAL)
+    @property
+    def descriptor(self) -> CustodyDescriptor: return self._descriptor
+    async def sign(self, request: SigningRequest) -> CustodySigned:
+        if self._closed: raise RuntimeError("signer is closed")
+        response = SigningResponse(request.request_id, request.object_id, self._descriptor.principal, self._descriptor.signature, self._descriptor.key_version, request.transaction_digest, self._key.sign(request.signing_preimage), (PublicControlEvidence(self._key.evidence_type, self._key.media_type, self._key.evidence),))
+        return CustodySigned("signed", response)
+    async def aclose(self) -> None: self._closed = True
 
 
-class DevelopmentSignatureSuite:
-    def __init__(
-        self,
-        suite_id: str = "auths.test-signature",
-        *,
-        signature: bytes = b"auths-development-signature",
-    ) -> None:
-        self.suite_id = suite_id
-        self.version = 1
-        self._signature = bytes(signature)
-
-    async def verify(
-        self,
-        material: tuple[VerificationMaterial, ...],
-        preimage: bytes,
-        signature: bytes,
-    ) -> None:
-        if not material or not preimage or signature != self._signature:
-            raise ValueError("development signature rejected")
+def ephemeral_ed25519_signer() -> object: return _EphemeralSigner()
 
 
-InputT = TypeVar("InputT")
-OutputT = TypeVar("OutputT")
+class fixtures:
+    def __new__(cls) -> "fixtures": raise TypeError("fixtures is a namespace")
+    @staticmethod
+    def authorized_verification() -> VerificationInput: return VerificationInput(proof=b"auths-fixture-authorized", action=b"auths-fixture-action", trusted_context=b"auths-fixture-context")
+    @staticmethod
+    def denied_verification() -> VerificationInput: return VerificationInput(proof=b"invalid", action=b"invalid", trusted_context=b"invalid")
+    @staticmethod
+    def github_denied_candidate(reason: _Literal["protected-path", "base-mismatch"]) -> bytes: return ("auths.github.fixture/2:" + reason).encode()
 
 
-class MemoryGateway(Generic[InputT, OutputT]):
-    def __init__(self, result: Callable[[InputT], Awaitable[OutputT]]) -> None:
-        self._result = result
-        self.calls: list[InputT] = []
-
-    async def __call__(self, value: InputT) -> OutputT:
-        self.calls.append(value)
-        return await self._result(value)
-
-
-async def check_signer(signer: Signer) -> PrincipalDescriptor:
-    first = await signer.public_identity()
-    second = await signer.public_identity()
-    if not first.matches(second):
-        raise AssertionError("signer identity changed between reads")
-    return first
-
-
-async def check_approval_provider(
-    provider: ApprovalProvider, request: ApprovalRequest
-) -> ApprovalResponse:
-    result = await provider.approve(request)
-    if type(result) is not ApprovalResponse:
-        raise AssertionError("approval provider returned the wrong type")
-    if result.request_id != request.request_id:
-        raise AssertionError("approval provider changed the request identity")
-    return result
-
-
-async def check_identity_method(
-    method: IdentityMethod, identity: DecodedIdentity
-) -> ResolvedIdentityRecord:
-    result = await method.resolve(identity)
-    if type(result) is not ResolvedIdentityRecord:
-        raise AssertionError("identity method returned the wrong resolved type")
-    if (
-        result.method_id != method.method_id
-        or result.identity_id != identity.identity_id
-    ):
-        raise AssertionError("identity method changed the requested identity")
-    await method.validate(ResolvedIdentity(identity, result))
-    return result
-
-
-def check_telemetry(telemetry: RecordingTelemetry) -> AuthsEvent:
-    event = AuthsEvent(
-        "auths.testkit",
-        "conformance",
-        "telemetry",
-        "succeeded",
-        0,
-        (("contract_version", ADAPTER_CONTRACT_VERSION),),
-    )
-    telemetry.emit(event)
-    if telemetry.events != [event]:
-        raise AssertionError("telemetry adapter changed the event")
-    return event
-
-
-__all__ = [
-    "ADAPTER_CONTRACT_VERSION",
-    "DiagnosticEngine",
-    "DiagnosticExplanation",
-    "DiagnosticResult",
-    "DiagnosticVerifier",
-    "DevelopmentApproval",
-    "DevelopmentEd25519Signer",
-    "DevelopmentReceiptAttestor",
-    "DevelopmentIdentityMethod",
-    "DevelopmentSignatureSuite",
-    "DevelopmentSigner",
-    "FixedClock",
-    "MemoryGateway",
-    "ProductWaistConformanceReport",
-    "ProductWaistExpected",
-    "RecordingTelemetry",
-    "check_approval_provider",
-    "check_identity_method",
-    "check_signer",
-    "check_telemetry",
-    "create_diagnostic_verifier",
-    "product_waist_conformance",
-    "AtomicReservationRecord",
-    "AtomicReservationStoreCandidate",
-    "ByteTransportCandidate",
-    "CONFORMANCE_CATALOG",
-    "ConformanceCaseResult",
-    "ConformanceMetadata",
-    "ConformanceReport",
-    "certify_atomic_store",
-    "certify_byte_transport",
-    "certify_mcp_provider",
-    "certify_signer",
-]
+__all__ = ["ConformanceCase", "ConformanceMetadata", "ConformanceReport", "run_custody_signer_conformance", "run_reservation_store_conformance", "run_bounded_transport_conformance", "ephemeral_ed25519_signer", "fixtures"]

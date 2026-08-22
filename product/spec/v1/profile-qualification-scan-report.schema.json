@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://auths.dev/spec/v1/profile-qualification-scan-report.schema.json",
+  "type": "object", "additionalProperties": false, "required": ["schema", "binding", "scanKind", "tool", "version", "status", "scannedFileCount", "findingCount", "redactedValueCount", "unredactedSensitiveValueCount"],
+  "properties": {
+    "schema": {"const": "auths.profile-qualification-scan-report/1"}, "binding": {"$ref": "profile-qualification-report-common.schema.json#/$defs/binding"},
+    "scanKind": {"enum": ["gitleaks", "typed-forbidden-field", "redaction"]}, "tool": {"type": "string", "minLength": 1, "maxLength": 128}, "version": {"type": "string", "minLength": 1, "maxLength": 32},
+    "status": {"const": "passed"}, "scannedFileCount": {"type": "integer", "minimum": 1, "maximum": 4096}, "findingCount": {"const": 0},
+    "redactedValueCount": {"type": "integer", "minimum": 0, "maximum": 4294967295}, "unredactedSensitiveValueCount": {"const": 0}
+  },
+  "allOf": [
+    {"if": {"properties": {"scanKind": {"const": "gitleaks"}}}, "then": {"properties": {"tool": {"const": "gitleaks"}, "version": {"const": "8.28.0"}}}},
+    {"if": {"properties": {"scanKind": {"const": "typed-forbidden-field"}}}, "then": {"properties": {"tool": {"const": "auths-typed-forbidden-field"}, "version": {"const": "1"}}}},
+    {"if": {"properties": {"scanKind": {"const": "redaction"}}}, "then": {"properties": {"tool": {"const": "auths-redaction-check"}, "version": {"const": "1"}}}}
+  ]
+}

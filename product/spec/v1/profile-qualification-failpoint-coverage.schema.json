@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-failpoint-coverage.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "domain", "providerTruthFields", "boundaries"],
+  "properties": {
+    "schema": {"const": "auths.profile-qualification-failpoint-coverage/1"},
+    "domain": {"$ref": "profile-qualification.schema.json#/$defs/domain"},
+    "providerTruthFields": {"type": "array", "minItems": 1, "maxItems": 128, "uniqueItems": true, "x-auths-byteSorted": true, "items": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"}},
+    "boundaries": {
+      "type": "array", "minItems": 12, "maxItems": 12,
+      "x-auths-byteSortedBy": "crashScenarioId",
+      "items": {"$ref": "#/$defs/boundary"}
+    }
+  },
+  "$defs": {
+    "nullableTransition": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/transition"}]},
+    "transition": {"enum": ["command-durable", "connection-reread", "credential-lease-attempted", "credential-lease-succeeded", "decision-durable", "execution-receipt-durable", "observation-durable", "provider-entry-durable", "provider-request-written", "provider-response-observed", "provider-result-durable", "request-received", "reservation-durable", "response-projected", "terminal-durable"]},
+    "counterAssertion": {"enum": ["connection-reread-once", "credential-lease-closed", "credential-lease-once", "decision-receipt-durable", "execution-receipt-durable", "no-provider-call", "no-second-provider-call", "observation-durable", "provider-entry-once", "provider-request-write-once", "provider-result-durable", "receipt-not-reminted", "reservation-released-after-recovery", "reservation-written", "sealed-command-durable", "stable-operation-id", "terminal-durable"]},
+    "boundary": {
+      "type": "object", "additionalProperties": false,
+      "required": ["crashScenarioId", "failpoint", "afterTransition", "beforeTransition", "applicableEffects", "counterAssertions", "recoveryCall", "providerTruthRequired"],
+      "properties": {
+        "crashScenarioId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "failpoint": {"$ref": "profile-qualification-report-common.schema.json#/$defs/failpoint"},
+        "afterTransition": {"$ref": "#/$defs/nullableTransition"},
+        "beforeTransition": {"$ref": "#/$defs/nullableTransition"},
+        "applicableEffects": {"type": "array", "minItems": 1, "maxItems": 3, "uniqueItems": true, "x-auths-byteSorted": true, "items": {"$ref": "profile-qualification-report-common.schema.json#/$defs/effect"}},
+        "counterAssertions": {"type": "array", "minItems": 1, "maxItems": 17, "uniqueItems": true, "x-auths-byteSorted": true, "items": {"$ref": "#/$defs/counterAssertion"}},
+        "recoveryCall": {"enum": ["recover", "retry-original", "status"]},
+        "providerTruthRequired": {"const": true}
+      }
+    }
+  },
+  "x-auths-semanticValidator": "profile-qualification-failpoint-coverage/1"
+}

@@ -17,6 +17,16 @@ on:
         value: ${{ jobs.build.outputs.artifact_name }}
       manifest_sha256:
         value: ${{ jobs.build.outputs.manifest_sha256 }}
+      artifact_id:
+        value: ${{ jobs.build.outputs.artifact_id }}
+      artifact_digest:
+        value: ${{ jobs.build.outputs.artifact_digest }}
+      qualification_release_build_artifact_id:
+        value: ${{ jobs.build.outputs.qualification_release_build_artifact_id }}
+      qualification_release_build_artifact_digest:
+        value: ${{ jobs.build.outputs.qualification_release_build_artifact_digest }}
+      qualification_release_build_sha256:
+        value: ${{ jobs.build.outputs.qualification_release_build_sha256 }}
 
 permissions:
   contents: read
@@ -24,9 +34,8 @@ permissions:
 jobs:
   build:
     name: isolated build, attest, and verify (${{ inputs.run_label }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 150
-    environment: release-candidate
     permissions:
       artifact-metadata: write
       attestations: write
@@ -35,6 +44,11 @@ jobs:
     outputs:
       artifact_name: ${{ steps.identity.outputs.artifact_name }}
       manifest_sha256: ${{ steps.finalize.outputs.manifest_sha256 }}
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
+      qualification_release_build_artifact_id: ${{ steps.upload_qualification_release_build.outputs.artifact-id }}
+      qualification_release_build_artifact_digest: ${{ steps.upload_qualification_release_build.outputs.artifact-digest }}
+      qualification_release_build_sha256: ${{ steps.qualification_release_build.outputs.sha256 }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -57,9 +71,9 @@ jobs:
           [[ "$CANDIDATE_TAG" == auths-v*-rc.* ]]
           [[ "$RUN_LABEL" == official || "$RUN_LABEL" == reproduction ]]
           echo "artifact_name=auths-preparation-${CANDIDATE_COMMIT}-${RUN_LABEL}" >> "$GITHUB_OUTPUT"
-      - name: Validate immutable environment-bound OIDC subject
+      - name: Validate immutable repository-ref OIDC subject
         env:
-          EXPECTED_SUBJECT: repo:auths-dev@260513770/auths-proof@1310728509:environment:release-candidate
+          EXPECTED_SUBJECT: repo:auths-dev@260513770/auths-proof@1310728509:ref:refs/heads/main
         run: |
           set -euo pipefail
           RESPONSE="$(curl --fail --silent --show-error \
@@ -195,7 +209,240 @@ jobs:
             "$CANDIDATE_COMMIT"
           MANIFEST_SHA256="$(cut -d' ' -f1 target/release-evidence/release-manifest.sha256)"
           echo "manifest_sha256=$MANIFEST_SHA256" >> "$GITHUB_OUTPUT"
+      - name: Upload exact production-agent artifact
+        if: inputs.run_label == 'official'
+        id: upload_production_agent
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-qualification-${{ inputs.candidate_commit }}-${{ inputs.run_label }}-production-agent
+          path: target/qualification-release/production-agent/auths-production-agent.tar.zst
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+      - name: Upload exact Python-native artifact
+        if: inputs.run_label == 'official'
+        id: upload_python_native
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-qualification-${{ inputs.candidate_commit }}-${{ inputs.run_label }}-python-native
+          path: target/qualification-release/python-native/auths-python-native.so
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+      - name: Upload exact Python-wheel artifact
+        if: inputs.run_label == 'official'
+        id: upload_python_wheel
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-qualification-${{ inputs.candidate_commit }}-${{ inputs.run_label }}-python-wheel
+          path: target/qualification-release/python-wheel/auths-python-wheel.whl
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+      - name: Upload exact OpenTofu generated Python profile
+        if: inputs.run_label == 'official'
+        id: upload_python_profile_opentofu
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-qualification-${{ inputs.candidate_commit }}-${{ inputs.run_label }}-python-profile-opentofu
+          path: target/qualification-release/python-profile-opentofu/auths-python-profile-opentofu.tar.zst
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+      - name: Upload exact PostgreSQL generated Python profile
+        if: inputs.run_label == 'official'
+        id: upload_python_profile_postgresql
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-qualification-${{ inputs.candidate_commit }}-${{ inputs.run_label }}-python-profile-postgresql
+          path: target/qualification-release/python-profile-postgresql/auths-python-profile-postgresql.tar.zst
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+      - name: Upload exact Stripe generated Python profile
+        if: inputs.run_label == 'official'
+        id: upload_python_profile_stripe
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-qualification-${{ inputs.candidate_commit }}-${{ inputs.run_label }}-python-profile-stripe
+          path: target/qualification-release/python-profile-stripe/auths-python-profile-stripe.tar.zst
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+      - name: Upload exact qualification-agent artifact
+        if: inputs.run_label == 'official'
+        id: upload_qualification_agent
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-qualification-${{ inputs.candidate_commit }}-${{ inputs.run_label }}-qualification-agent
+          path: target/qualification-release/qualification-agent/auths-qualification-agent.tar.zst
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+      - name: Upload exact TypeScript-native artifact
+        if: inputs.run_label == 'official'
+        id: upload_typescript_native
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-qualification-${{ inputs.candidate_commit }}-${{ inputs.run_label }}-typescript-native
+          path: target/qualification-release/typescript-native/auths-typescript-native.wasm
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+      - name: Upload exact TypeScript-package artifact
+        if: inputs.run_label == 'official'
+        id: upload_typescript_package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-qualification-${{ inputs.candidate_commit }}-${{ inputs.run_label }}-typescript-package
+          path: target/qualification-release/typescript-package/auths-typescript-package.tgz
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+      - name: Construct and validate canonical nine-role release build
+        if: inputs.run_label == 'official'
+        id: qualification_release_build
+        env:
+          CANDIDATE_COMMIT: ${{ inputs.candidate_commit }}
+          REPOSITORY_ID: ${{ github.repository_id }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          PRODUCTION_AGENT_ID: ${{ steps.upload_production_agent.outputs.artifact-id }}
+          PRODUCTION_AGENT_DIGEST: ${{ steps.upload_production_agent.outputs.artifact-digest }}
+          PYTHON_NATIVE_ID: ${{ steps.upload_python_native.outputs.artifact-id }}
+          PYTHON_NATIVE_DIGEST: ${{ steps.upload_python_native.outputs.artifact-digest }}
+          PYTHON_PROFILE_OPENTOFU_ID: ${{ steps.upload_python_profile_opentofu.outputs.artifact-id }}
+          PYTHON_PROFILE_OPENTOFU_DIGEST: ${{ steps.upload_python_profile_opentofu.outputs.artifact-digest }}
+          PYTHON_PROFILE_POSTGRESQL_ID: ${{ steps.upload_python_profile_postgresql.outputs.artifact-id }}
+          PYTHON_PROFILE_POSTGRESQL_DIGEST: ${{ steps.upload_python_profile_postgresql.outputs.artifact-digest }}
+          PYTHON_PROFILE_STRIPE_ID: ${{ steps.upload_python_profile_stripe.outputs.artifact-id }}
+          PYTHON_PROFILE_STRIPE_DIGEST: ${{ steps.upload_python_profile_stripe.outputs.artifact-digest }}
+          PYTHON_WHEEL_ID: ${{ steps.upload_python_wheel.outputs.artifact-id }}
+          PYTHON_WHEEL_DIGEST: ${{ steps.upload_python_wheel.outputs.artifact-digest }}
+          QUALIFICATION_AGENT_ID: ${{ steps.upload_qualification_agent.outputs.artifact-id }}
+          QUALIFICATION_AGENT_DIGEST: ${{ steps.upload_qualification_agent.outputs.artifact-digest }}
+          TYPESCRIPT_NATIVE_ID: ${{ steps.upload_typescript_native.outputs.artifact-id }}
+          TYPESCRIPT_NATIVE_DIGEST: ${{ steps.upload_typescript_native.outputs.artifact-digest }}
+          TYPESCRIPT_PACKAGE_ID: ${{ steps.upload_typescript_package.outputs.artifact-id }}
+          TYPESCRIPT_PACKAGE_DIGEST: ${{ steps.upload_typescript_package.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          for VALUE in "$REPOSITORY_ID" "$RUN_ID" "$RUN_ATTEMPT" \
+            "$PRODUCTION_AGENT_ID" "$PYTHON_NATIVE_ID" "$PYTHON_WHEEL_ID" \
+            "$PYTHON_PROFILE_OPENTOFU_ID" "$PYTHON_PROFILE_POSTGRESQL_ID" "$PYTHON_PROFILE_STRIPE_ID" \
+            "$QUALIFICATION_AGENT_ID" "$TYPESCRIPT_NATIVE_ID" "$TYPESCRIPT_PACKAGE_ID"; do
+            [[ "$VALUE" =~ ^(0|[1-9][0-9]{0,31})$ ]]
+          done
+          for VALUE in "$PRODUCTION_AGENT_DIGEST" "$PYTHON_NATIVE_DIGEST" \
+            "$PYTHON_PROFILE_OPENTOFU_DIGEST" "$PYTHON_PROFILE_POSTGRESQL_DIGEST" \
+            "$PYTHON_PROFILE_STRIPE_DIGEST" \
+            "$PYTHON_WHEEL_DIGEST" "$QUALIFICATION_AGENT_DIGEST" \
+            "$TYPESCRIPT_NATIVE_DIGEST" "$TYPESCRIPT_PACKAGE_DIGEST"; do
+            [[ "${VALUE#sha256:}" =~ ^[0-9a-f]{64}$ ]]
+          done
+          jq -n -cS \
+            --slurpfile members target/qualification-release/members.json \
+            --arg repositoryId "$REPOSITORY_ID" \
+            --arg workflowRevision "$CANDIDATE_COMMIT" \
+            --arg runLabel '${{ inputs.run_label }}' \
+            --arg runId "$RUN_ID" \
+            --argjson runAttempt "$RUN_ATTEMPT" \
+            --arg productionAgentId "$PRODUCTION_AGENT_ID" \
+            --arg productionAgentDigest "${PRODUCTION_AGENT_DIGEST#sha256:}" \
+            --arg pythonNativeId "$PYTHON_NATIVE_ID" \
+            --arg pythonNativeDigest "${PYTHON_NATIVE_DIGEST#sha256:}" \
+            --arg pythonProfileOpentofuId "$PYTHON_PROFILE_OPENTOFU_ID" \
+            --arg pythonProfileOpentofuDigest "${PYTHON_PROFILE_OPENTOFU_DIGEST#sha256:}" \
+            --arg pythonProfilePostgresqlId "$PYTHON_PROFILE_POSTGRESQL_ID" \
+            --arg pythonProfilePostgresqlDigest "${PYTHON_PROFILE_POSTGRESQL_DIGEST#sha256:}" \
+            --arg pythonProfileStripeId "$PYTHON_PROFILE_STRIPE_ID" \
+            --arg pythonProfileStripeDigest "${PYTHON_PROFILE_STRIPE_DIGEST#sha256:}" \
+            --arg pythonWheelId "$PYTHON_WHEEL_ID" \
+            --arg pythonWheelDigest "${PYTHON_WHEEL_DIGEST#sha256:}" \
+            --arg qualificationAgentId "$QUALIFICATION_AGENT_ID" \
+            --arg qualificationAgentDigest "${QUALIFICATION_AGENT_DIGEST#sha256:}" \
+            --arg typescriptNativeId "$TYPESCRIPT_NATIVE_ID" \
+            --arg typescriptNativeDigest "${TYPESCRIPT_NATIVE_DIGEST#sha256:}" \
+            --arg typescriptPackageId "$TYPESCRIPT_PACKAGE_ID" \
+            --arg typescriptPackageDigest "${TYPESCRIPT_PACKAGE_DIGEST#sha256:}" '
+              ($members[0]) as $manifest |
+              def row($role; $id; $digest):
+                ($manifest.artifacts[] | select(.role == $role))
+                + {artifactId: $id, uploadedArchiveSha256: $digest};
+              {
+                provider: "github-actions",
+                repositoryId: $repositoryId,
+                workflowPath: ".github/workflows/release-builder.yml",
+                workflowRevision: $workflowRevision,
+                runId: $runId,
+                runAttempt: $runAttempt,
+                runLabel: $runLabel,
+                qualificationSurfaceSha256: $manifest.qualificationSurfaceSha256,
+                artifacts: [
+                  row("production-agent"; $productionAgentId; $productionAgentDigest),
+                  row("python-native"; $pythonNativeId; $pythonNativeDigest),
+                  row("python-profile-opentofu"; $pythonProfileOpentofuId; $pythonProfileOpentofuDigest),
+                  row("python-profile-postgresql"; $pythonProfilePostgresqlId; $pythonProfilePostgresqlDigest),
+                  row("python-profile-stripe"; $pythonProfileStripeId; $pythonProfileStripeDigest),
+                  row("python-wheel"; $pythonWheelId; $pythonWheelDigest),
+                  row("qualification-agent"; $qualificationAgentId; $qualificationAgentDigest),
+                  row("typescript-native"; $typescriptNativeId; $typescriptNativeDigest),
+                  row("typescript-package"; $typescriptPackageId; $typescriptPackageDigest)
+                ]
+              }
+            ' > target/qualification-release/release-build.input.json
+          cargo xtask release-control canonicalize-qualification-build \
+            target/qualification-release/release-build.input.json \
+            target/qualification-release/release-build.json
+          cargo xtask release-control verify-qualification-release-build \
+            target/qualification-release/release-build.json \
+            target/qualification-release/qualification-surface.json \
+            target/qualification-release/members.json \
+            target/qualification-release \
+            "$CANDIDATE_COMMIT"
+          SHA256="$(sha256sum target/qualification-release/release-build.json | cut -d' ' -f1)"
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+      - name: Attest the canonical qualification release build
+        if: inputs.run_label == 'official'
+        id: attest_qualification_release_build
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
+        with:
+          subject-path: target/qualification-release/release-build.json
+      - name: Verify the qualification release-build attestation
+        if: inputs.run_label == 'official'
+        env:
+          BUNDLE_PATH: ${{ steps.attest_qualification_release_build.outputs.bundle-path }}
+          CANDIDATE_COMMIT: ${{ inputs.candidate_commit }}
+        run: |
+          set -euo pipefail
+          cp "$BUNDLE_PATH" target/qualification-release/release-build.provenance.sigstore.json
+          gh attestation verify target/qualification-release/release-build.json \
+            --repo auths-dev/auths-proof \
+            --bundle "$BUNDLE_PATH" \
+            --custom-trusted-root target/release-evidence/trusted-root.jsonl \
+            --cert-oidc-issuer https://token.actions.githubusercontent.com \
+            --signer-workflow auths-dev/auths-proof/.github/workflows/release-builder.yml \
+            --signer-digest "$CANDIDATE_COMMIT" \
+            --source-digest "$CANDIDATE_COMMIT" \
+            --deny-self-hosted-runners \
+            --format json > target/qualification-release/release-build.verification.json
+      - name: Upload canonical qualification release-build projection
+        if: inputs.run_label == 'official'
+        id: upload_qualification_release_build
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-qualification-${{ inputs.candidate_commit }}-${{ inputs.run_label }}-release-build
+          path: |
+            target/qualification-release/release-build.json
+            target/qualification-release/release-build.provenance.sigstore.json
+            target/qualification-release/release-build.verification.json
+            target/qualification-release/qualification-surface.json
+            target/qualification-release/members.json
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
       - name: Upload immutable preparation artifact
+        id: upload
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: ${{ steps.identity.outputs.artifact_name }}
@@ -205,6 +452,7 @@ jobs:
             target/python-wheels/*.whl
             bindings/typescript/wasm/auths_proof_wasm_bg.wasm
             target/release-artifacts/*.tar.zst
+            target/qualification-release/
             target/release-evidence/
             target/formal/
             target/compliance/

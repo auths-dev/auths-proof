@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-release-build-verification.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "verifiedAtUnixSeconds", "repositoryId", "workflowPath", "workflowRevision", "runId", "runAttempt", "runLabel", "retentionDays", "projectionArtifactId", "projectionArtifactName", "projectionUploadedArchiveSha256", "projectionUploadedArchiveBytes", "projectionCreatedAtUnixSeconds", "projectionExpiresAtUnixSeconds", "releaseBuildSha256", "qualificationSurfaceSha256", "qualificationSurface", "hostedMetadataSha256", "provenanceVerificationSha256", "provenanceBundleSha256", "trustedRootSha256", "provenanceVerifierSha256", "provenanceVerifierVersion", "releaseBuildVerifierSha256", "attesterTools", "artifacts"],
+  "properties": {
+    "schema": {"const": "auths.qualification-release-build-verification/1"},
+    "verifiedAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},
+    "repositoryId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+    "workflowPath": {"const": ".github/workflows/release-builder.yml"},
+    "workflowRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+    "runId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+    "runAttempt": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+    "runLabel": {"const": "official"},
+    "retentionDays": {"type": "integer", "minimum": 90, "maximum": 365},
+    "projectionArtifactId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+    "projectionArtifactName": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9._-]+$"},
+    "projectionUploadedArchiveSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "projectionUploadedArchiveBytes": {"type": "integer", "minimum": 1, "maximum": 16777216},
+    "projectionCreatedAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},
+    "projectionExpiresAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},
+    "releaseBuildSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "qualificationSurfaceSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "qualificationSurface": {"$ref": "#/$defs/qualificationSurface"},
+    "hostedMetadataSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "provenanceVerificationSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "provenanceBundleSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "trustedRootSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "provenanceVerifierSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "provenanceVerifierVersion": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "releaseBuildVerifierSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "attesterTools": {"$ref": "#/$defs/attesterTools"},
+    "artifacts": {"type": "array", "minItems": 9, "maxItems": 9, "items": {"$ref": "#/$defs/verifiedArtifact"}, "x-auths-byteSortedBy": "role"}
+  },
+  "$defs": {
+    "qualificationSurface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "candidateRevision", "policySha256", "productionFeatureSet", "qualificationFeatureSet", "productionMembers", "qualificationMembers", "reviewedDifference"],
+      "properties": {
+        "schema": {"const": "auths.qualification-release-surface/1"},
+        "candidateRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+        "policySha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "productionFeatureSet": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"type": "string", "minLength": 1, "maxLength": 128}, "x-auths-byteSorted": true},
+        "qualificationFeatureSet": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"type": "string", "minLength": 1, "maxLength": 128}, "x-auths-byteSorted": true},
+        "productionMembers": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/surfaceMember"}, "x-auths-byteSortedBy": "path"},
+        "qualificationMembers": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/surfaceMember"}, "x-auths-byteSortedBy": "path"},
+        "reviewedDifference": {"type": "array", "minItems": 1, "maxItems": 32, "items": {"type": "string", "minLength": 1, "maxLength": 512}}
+      }
+    },
+    "surfaceMember": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "bytes", "mode"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^target/release/[A-Za-z0-9][A-Za-z0-9._-]*$"},
+        "sha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "bytes": {"type": "integer", "minimum": 1, "maximum": 536870912},
+        "mode": {"const": "0755"}
+      }
+    },
+    "attesterTools": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "verifiedAtUnixSeconds", "repositoryId", "workflowPath", "workflowRevision", "runId", "runAttempt", "retentionDays", "artifactId", "artifactName", "uploadedArchiveSha256", "uploadedArchiveBytes", "createdAtUnixSeconds", "expiresAtUnixSeconds", "manifestSha256", "attesterRevision", "ghVersion", "runnerImageOs", "runnerImageVersion", "runnerLabel", "members"],
+      "properties": {
+        "schema": {"const": "auths.qualification-attester-tools-verification/1"},
+        "verifiedAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},
+        "repositoryId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+        "workflowPath": {"const": ".github/workflows/qualification-attester-tools.yml"},
+        "workflowRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+        "runId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+        "runAttempt": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+        "retentionDays": {"const": 90},
+        "artifactId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+        "artifactName": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9._-]+$"},
+        "uploadedArchiveSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "uploadedArchiveBytes": {"type": "integer", "minimum": 1, "maximum": 536870912},
+        "createdAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},
+        "expiresAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},
+        "manifestSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "attesterRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+        "ghVersion": {"type": "string", "maxLength": 64, "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "runnerImageOs": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[ -~]+$"},
+        "runnerImageVersion": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[ -~]+$"},
+        "runnerLabel": {"const": "ubuntu-24.04"},
+        "members": {"type": "array", "minItems": 18, "maxItems": 18, "items": {"$ref": "profile-qualification-attester-tools.schema.json#/$defs/member"}, "x-auths-byteSortedBy": "path"}
+      }
+    },
+    "verifiedArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "name", "artifactId", "uploadedArchiveSha256", "uploadedArchiveBytes", "createdAtUnixSeconds", "expiresAtUnixSeconds", "memberPath", "memberSha256", "bytes"],
+      "properties": {
+        "role": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-z][a-z0-9-]*$"},
+        "name": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9._-]+$"},
+        "artifactId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+        "uploadedArchiveSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "uploadedArchiveBytes": {"type": "integer", "minimum": 1, "maximum": 536870912},
+        "createdAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},
+        "expiresAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},
+        "memberPath": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+        "memberSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "bytes": {"type": "integer", "minimum": 1, "maximum": 536870912}
+      }
+    }
+  }
+}

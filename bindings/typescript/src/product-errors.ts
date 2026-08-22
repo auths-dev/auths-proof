@@ -1,8 +1,15 @@
-import { ERROR_REGISTRY, UNRECOGNIZED_CODE } from "./generated/error-registry.js";
+import type { ERROR_REGISTRY } from "./generated/error-registry.js";
+import {
+  ERROR_RUNTIME_DEFINITIONS,
+  UNRECOGNIZED_CODE,
+} from "./generated/error-registry-runtime.js";
 
 type Definition = (typeof ERROR_REGISTRY.definitions)[number];
+type RuntimeDefinition = (typeof ERROR_RUNTIME_DEFINITIONS)[number];
 
-export type AuthsErrorCode = Definition["code"] | (string & {});
+export type KnownAuthsErrorCode = Definition["code"];
+/** @internal Historical source spelling retained only for private modules. */
+export type AuthsErrorCode = KnownAuthsErrorCode;
 export type ErrorFamily = Definition["family"];
 
 /**
@@ -24,19 +31,6 @@ export type RetryClass = Definition["outcomes"][number]["retry"];
 export type EffectState = Definition["outcomes"][number]["effect"];
 export type RecommendedAction = Definition["recommendedAction"];
 export type ProductStage = Definition["stages"][number] | typeof UNRECOGNIZED_CODE.stages[number];
-
-/**
- * The five product verbs — `ProductVerb` in Rust. The wire field is `verb`.
- */
-export type ProductVerb = "create" | "delegate" | "execute" | "resume" | "verify";
-
-const PRODUCT_VERBS: readonly ProductVerb[] = Object.freeze([
-  "create", "delegate", "execute", "resume", "verify",
-]);
-
-export function isProductVerb(value: unknown): value is ProductVerb {
-  return typeof value === "string" && (PRODUCT_VERBS as readonly string[]).includes(value);
-}
 
 /**
  * Rust's classification of one stable code, projected from the generated
@@ -74,7 +68,7 @@ export function classifyErrorCode(code: string): CodeClassification {
       recommendedAction: UNRECOGNIZED_CODE.recommendedAction,
     });
   }
-  let dominant = definition.outcomes[0]!;
+  let dominant: Readonly<{ retry: RetryClass; effect: EffectState }> = definition.outcomes[0]!;
   for (const outcome of definition.outcomes) {
     if (effectRank(outcome.effect) > effectRank(dominant.effect)) dominant = outcome;
   }
@@ -110,17 +104,17 @@ export interface EnteredBoundaries {
   readonly provider: boolean;
 }
 
-export interface AuthsErrorDetails {
+export interface AuthsIssue {
   readonly schema: "auths.error/1";
   readonly family: ErrorFamily;
-  readonly code: AuthsErrorCode;
+  readonly code: KnownAuthsErrorCode;
   readonly operation: string;
   readonly stage: string;
   readonly summary: string;
   readonly correlationId: string;
   readonly retry: RetryClass;
   readonly effect: EffectState;
-  readonly entered: EnteredBoundaries;
+  readonly enteredBoundaries: EnteredBoundaries;
   readonly recommendedAction: RecommendedAction;
   readonly executionReference?: string;
   readonly decisionReference?: string;
@@ -128,10 +122,13 @@ export interface AuthsErrorDetails {
   readonly causes: readonly CauseCategory[];
 }
 
-const definitions = new Map<string, Definition>(
-  ERROR_REGISTRY.definitions.map((definition) => [definition.code, definition]),
+const definitions = new Map<string, RuntimeDefinition>(
+  ERROR_RUNTIME_DEFINITIONS.map((definition) => [definition.code, definition]),
 );
-const token = /^[a-z0-9][a-z0-9._:/-]*$/;
+// Mirrors auths_errors::parse_token exactly. References and correlation IDs
+// include base64url operation identifiers, so ASCII uppercase is valid even
+// though registered error codes themselves remain lowercase registry values.
+const token = /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/;
 const causes = new Set<CauseCategory>([
   "cancelled",
   "conflict",
@@ -143,30 +140,46 @@ const causes = new Set<CauseCategory>([
   "unknown",
 ]);
 
-export class AuthsError extends Error {
-  readonly details: AuthsErrorDetails;
+let constructAuthsError: (details: AuthsIssue) => AuthsError;
 
-  private constructor(details: AuthsErrorDetails) {
+export class AuthsError extends Error {
+  readonly issue: AuthsIssue;
+
+  protected constructor(details: AuthsIssue) {
     super(details.summary);
     this.name = "AuthsError";
-    this.details = details;
+    this.issue = details;
   }
 
-  static parse(input: unknown): AuthsError {
-    return new AuthsError(parseDetails(input));
+  static {
+    constructAuthsError = (details) => new AuthsError(details);
   }
 
-  get code(): AuthsErrorCode { return this.details.code; }
-  get family(): ErrorFamily { return this.details.family; }
-  get retry(): RetryClass { return this.details.retry; }
-  get effect(): EffectState { return this.details.effect; }
-  get recommendedAction(): RecommendedAction { return this.details.recommendedAction; }
-  get executionReference(): string | undefined { return this.details.executionReference; }
-
-  toJSON(): AuthsErrorDetails {
-    return this.details;
+  static isKnownCode(code: string): code is KnownAuthsErrorCode {
+    return definitions.has(code);
   }
+
+  get code(): KnownAuthsErrorCode { return this.issue.code; }
+  get family(): ErrorFamily { return this.issue.family; }
+  get retry(): RetryClass { return this.issue.retry; }
+  get effect(): EffectState { return this.issue.effect; }
+  get recommendedAction(): RecommendedAction { return this.issue.recommendedAction; }
+  get executionReference(): string | undefined { return this.issue.executionReference; }
+
 }
+
+/** @internal Rust-envelope decoder used only at trusted SDK boundaries. */
+export function parseAuthsErrorEnvelope(input: unknown): AuthsError {
+  return constructAuthsError(parseDetails(input));
+}
+
+/** @internal Wraps an already registry-derived host issue. */
+export function authsErrorFromIssue(details: AuthsIssue): AuthsError {
+  return constructAuthsError(details);
+}
+
+/** @internal Historical source spelling retained only for private modules. */
+export type AuthsErrorDetails = AuthsIssue;
 
 export function isAuthsError(value: unknown): value is AuthsError {
   return value instanceof AuthsError;
@@ -213,7 +226,7 @@ export interface AuthsSupportBundle {
   readonly semanticSubject: string;
   readonly profiles: readonly string[];
   readonly capabilities: readonly string[];
-  readonly errors: readonly AuthsErrorDetails[];
+  readonly errors: readonly AuthsIssue[];
 }
 
 export function createSupportBundle(input: SupportBundleInput): AuthsSupportBundle {
@@ -228,7 +241,7 @@ export function createSupportBundle(input: SupportBundleInput): AuthsSupportBund
   const errors = Object.freeze([...(input.errors ?? [])]
     .map((error) => {
       if (!isAuthsError(error)) throw new TypeError("support bundle errors must be AuthsError values");
-      return error.toJSON();
+      return error.issue;
     })
     .sort((left, right) => left.code.localeCompare(right.code) || left.correlationId.localeCompare(right.correlationId)));
   return Object.freeze({
@@ -243,12 +256,13 @@ export function createSupportBundle(input: SupportBundleInput): AuthsSupportBund
   });
 }
 
-function parseDetails(input: unknown): AuthsErrorDetails {
+function parseDetails(input: unknown): AuthsIssue {
   const value = record(input);
   if (value.schema !== "auths.error/1") throw new TypeError("unsupported Auths error schema");
   const code = parseToken(value.code);
   const definition = definitions.get(code);
-  if (definition === undefined) return parseUnknownDetails(value, code);
+  if (definition === undefined) throw new TypeError("unknown Auths error code");
+  if (parseToken(value.family) !== definition.family) throw new TypeError("Auths error family does not match its registry entry");
   const operation = parseToken(value.operation);
   const stage = parseToken(value.stage);
   const summary = parseText(value.summary);
@@ -265,7 +279,7 @@ function parseDetails(input: unknown): AuthsErrorDetails {
   if (recommendedAction !== definition.recommendedAction) {
     throw new TypeError("Auths error remediation does not match its registry entry");
   }
-  const entered = parseEntered(value.entered);
+  const enteredBoundaries = parseEntered(value.entered);
   const executionReference = parseReference(value.executionReference);
   const decisionReference = parseReference(value.decisionReference);
   const receiptReference = parseReference(value.receiptReference);
@@ -277,9 +291,12 @@ function parseDetails(input: unknown): AuthsErrorDetails {
   if (retry === "safe" && effect !== "not-applied") {
     throw new TypeError("retry-safe Auths errors must be not-applied");
   }
-  if (effect === "possible" &&
+  const terminalIntegrityFailure = value.code === "core.terminal-receipt-integrity-failed" &&
+    retry === "never" && recommendedAction === "contact-support" &&
+    executionReference !== undefined && enteredBoundaries.provider;
+  if (effect === "possible" && !terminalIntegrityFailure &&
       (retry !== "unknown" || recommendedAction !== "resume-and-reconcile" ||
-       executionReference === undefined || !entered.provider || receiptReference !== undefined)) {
+       executionReference === undefined || !enteredBoundaries.provider || receiptReference !== undefined)) {
     throw new TypeError("possible Auths effects require explicit reconciliation");
   }
   const rawCauses = array(value.causes);
@@ -298,7 +315,7 @@ function parseDetails(input: unknown): AuthsErrorDetails {
     correlationId,
     retry,
     effect,
-    entered,
+    enteredBoundaries,
     recommendedAction,
     causes: Object.freeze(parsedCauses),
   };
@@ -310,44 +327,9 @@ function parseDetails(input: unknown): AuthsErrorDetails {
   });
 }
 
-/**
- * Fails closed for a code this build's registry does not contain.
- *
- * Every classification field is the generated projection of
- * `auths_errors::classify`, so a code minted by a newer Auths reaches the caller
- * with its identity intact and with `effect: "possible"` — never swallowed,
- * never downgraded to `not-applied`, and never renamed to a fourth value.
- */
-function parseUnknownDetails(
-  value: Record<string, unknown>,
-  code: string,
-): AuthsErrorDetails {
-  parseToken(value.operation);
-  parseToken(value.stage);
-  parseText(value.summary);
-  const correlationId = parseToken(value.correlationId);
-  const rawCauses = array(value.causes);
-  if (rawCauses.length > 8) throw new TypeError("Auths error has too many cause categories");
-  const unknownCauses: readonly CauseCategory[] = rawCauses.length === 0 ? [] : ["unknown"];
-  const classification = classifyErrorCode(code);
-  return Object.freeze({
-    schema: "auths.error/1",
-    family: classification.family,
-    code,
-    operation: classification.operation,
-    stage: classification.stage,
-    summary: "Unrecognized Auths error code",
-    correlationId,
-    retry: classification.retry,
-    effect: classification.effect,
-    entered: Object.freeze({ approval: false, signer: false, state: false, credential: false, provider: false }),
-    recommendedAction: classification.recommendedAction,
-    causes: Object.freeze(unknownCauses),
-  });
-}
-
 function parseEntered(input: unknown): EnteredBoundaries {
   const value = record(input);
+  exactKeys(value, ["approval", "signer", "state", "credential", "provider"]);
   return Object.freeze({
     approval: boolean(value.approval),
     signer: boolean(value.signer),
@@ -385,6 +367,13 @@ function record(value: unknown): Record<string, unknown> {
     throw new TypeError("Auths error value must be an object");
   }
   return value as Record<string, unknown>;
+}
+
+function exactKeys(value: Record<string, unknown>, expected: readonly string[]): void {
+  const keys = Object.keys(value);
+  if (keys.length !== expected.length || expected.some((key) => !Object.hasOwn(value, key))) {
+    throw new TypeError("Auths error envelope has unknown or missing fields");
+  }
 }
 
 function array(value: unknown): readonly unknown[] {

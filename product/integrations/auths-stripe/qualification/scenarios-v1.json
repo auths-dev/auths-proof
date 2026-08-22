@@ -1,0 +1,14 @@
+{
+  "schema": "auths.profile-qualification-scenarios/1",
+  "domain": "stripe",
+  "scenarios": [
+    "stripe-account-equality",
+    "stripe-aggregate-budget",
+    "stripe-api-version",
+    "stripe-existing-refund",
+    "stripe-redaction",
+    "stripe-refund-boundary",
+    "stripe-refundable-drift",
+    "stripe-timeout-after-write"
+  ]
+}

@@ -1,4 +1,4 @@
-import { AuthsError } from "../product-errors.js";
+import { AuthsError, parseAuthsErrorEnvelope } from "../product-errors.js";
 
 /**
  * The WASM boundary guard.
@@ -27,7 +27,7 @@ export function boundaryError(thrown: unknown): unknown {
   if (thrown instanceof AuthsError) return thrown;
   if (typeof thrown !== "object" || thrown === null) return thrown;
   if ((thrown as { readonly schema?: unknown }).schema !== "auths.error/1") return thrown;
-  return AuthsError.parse(thrown);
+  return parseAuthsErrorEnvelope(thrown);
 }
 
 /**

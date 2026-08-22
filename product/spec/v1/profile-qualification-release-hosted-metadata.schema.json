@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-release-hosted-metadata.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "checkedAtUnixSeconds", "repositoryId", "workflowPath", "workflowRevision", "runId", "runAttempt", "retentionDays", "projection", "artifacts"],
+  "properties": {
+    "schema": {"const": "auths.qualification-release-hosted-metadata/1"},
+    "checkedAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},
+    "repositoryId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+    "workflowPath": {"const": ".github/workflows/release-builder.yml"},
+    "workflowRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+    "runId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+    "runAttempt": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+    "retentionDays": {"type": "integer", "minimum": 90, "maximum": 365},
+    "projection": {"$ref": "#/$defs/hostedArtifact"},
+    "artifacts": {"type": "array", "minItems": 9, "maxItems": 9, "items": {"$ref": "#/$defs/hostedArtifact"}, "x-auths-byteSortedBy": "role"}
+  },
+  "$defs": {
+    "hostedArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "name", "artifactId", "uploadedArchiveSha256", "sizeInBytes", "createdAtUnixSeconds", "expiresAtUnixSeconds", "expired"],
+      "properties": {
+        "role": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-z][a-z0-9-]*$"},
+        "name": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9._-]+$"},
+        "artifactId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+        "uploadedArchiveSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "sizeInBytes": {"type": "integer", "minimum": 1, "maximum": 536870912},
+        "createdAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},
+        "expiresAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},
+        "expired": {"type": "boolean"}
+      }
+    }
+  }
+}

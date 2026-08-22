@@ -1,1 +1,0 @@
-{"schema":"auths.production-client-fixture-manifest/1","contractVersion":1,"generator":"cargo xtask product-fixtures --update","files":[{"path":"contract-v1.json","bytes":11860,"sha256":"0a741f550288cd3314a02b908c138baff725192cf0e0c0aee8c765af3e67600d"}]}

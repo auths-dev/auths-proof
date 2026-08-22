@@ -1,0 +1,1114 @@
+name: Reusable live profile qualification
+
+on:
+  workflow_call:
+    inputs:
+      candidate_revision: {required: true, type: string}
+      domain: {required: true, type: string}
+      target: {required: true, type: string}
+      protected_environment: {required: true, type: string}
+      release_build_run_id: {required: true, type: string}
+      release_build_artifact_id: {required: true, type: string}
+      release_build_artifact_digest: {required: true, type: string}
+
+permissions: {actions: read, attestations: read, contents: read}
+
+jobs:
+  collect:
+    environment: ${{ inputs.protected_environment }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      TOOLS: ${{ github.workspace }}/attester-tools
+      MATRIX: ${{ github.workspace }}/product/integrations/auths-${{ inputs.domain }}/qualification/provider-matrix-v1.json
+      RUNTIME_ROOT: /run/auths-qualification-${{ github.run_id }}-${{ github.run_attempt }}/${{ inputs.domain }}/${{ inputs.target }}
+      POLICY_ROOT: /run/auths-qualification-policy-${{ github.run_id }}-${{ github.run_attempt }}/${{ inputs.domain }}/${{ inputs.target }}
+      CGROUP_ROOT_PREFIX: /sys/fs/cgroup/auths-q-${{ github.run_id }}-${{ github.run_attempt }}
+      PROTECTED_BIN_ROOT: /usr/local/libexec/auths-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+      AGENT_CONFIG: ${{ runner.temp }}/qualification-agent-config/${{ inputs.domain }}/${{ inputs.target }}/agent.toml
+      SOURCE_TRUST: ${{ github.workspace }}/trusted-attester/release/qualification/v1/evidence-source-trust-keys.json
+      DOMAIN: ${{ inputs.domain }}
+      AGENT_GID: ${{ vars.AUTHS_QUALIFICATION_AGENT_GID }}
+      COMMON_ROOT: ${{ github.workspace }}/target/qualification-common-evidence/${{ inputs.domain }}/${{ inputs.target }}
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
+    steps:
+      - name: Validate immutable inputs before checkout
+        shell: bash
+        env:
+          CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+          DOMAIN: ${{ inputs.domain }}
+          TARGET: ${{ inputs.target }}
+          RELEASE_RUN_ID: ${{ inputs.release_build_run_id }}
+          RELEASE_ARTIFACT_ID: ${{ inputs.release_build_artifact_id }}
+          RELEASE_ARTIFACT_DIGEST: ${{ inputs.release_build_artifact_digest }}
+        run: |
+          set -euo pipefail
+          [[ "$CANDIDATE_REVISION" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$DOMAIN" =~ ^[a-z][a-z0-9-]{0,63}$ ]]
+          [[ "$TARGET" == linux-x86_64 ]]
+          [[ "$RELEASE_RUN_ID" =~ ^(0|[1-9][0-9]{0,31})$ ]]
+          [[ "$RELEASE_ARTIFACT_ID" =~ ^(0|[1-9][0-9]{0,31})$ ]]
+          [[ "${RELEASE_ARTIFACT_DIGEST#sha256:}" =~ ^[0-9a-f]{64}$ ]]
+      - name: Checkout immutable candidate facts
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with: {ref: "${{ inputs.candidate_revision }}", persist-credentials: false}
+      - name: Checkout protected attester revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_REVISION }}
+          path: trusted-attester
+          persist-credentials: false
+      - name: Bind protected tool artifact metadata before download
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          TOOL_RUN_ID: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ID }}
+          TOOL_RUN_ATTEMPT: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ATTEMPT }}
+          TOOL_ARTIFACT_ID: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_ID }}
+          TOOL_ARTIFACT_DIGEST: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_DIGEST }}
+          TOOL_ATTESTER_REVISION: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_REVISION }}
+          TOOL_RETENTION_DAYS: "90"
+          TOOL_REPOSITORY_ID: ${{ github.repository_id }}
+          TOOL_MANIFEST_SHA256: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_MANIFEST_SHA256 }}
+          TOOL_VERIFICATION_OUTPUT: ${{ runner.temp }}/collect-attester-tools-verification.json
+        with:
+          script: |
+            const verify = require('./trusted-attester/.github/scripts/verify-qualification-attester-tools-metadata.cjs');
+            await verify({github, context});
+      - name: Download immutable protected attester tools
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          artifact-ids: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_ID }}
+          run-id: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: attester-tools
+          merge-multiple: true
+      - name: Verify exact protected tool bundle
+        id: tools
+        shell: bash
+        env:
+          ATTESTER_REVISION: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_REVISION }}
+          TOOL_MANIFEST_SHA256: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_MANIFEST_SHA256 }}
+        run: |
+          set -euo pipefail
+          trusted-attester/.github/scripts/verify-qualification-attester-tools.sh attester-tools "$ATTESTER_REVISION" "$TOOL_MANIFEST_SHA256" trusted-attester/release/qualification/v1/evidence-source-trust-keys.json
+          {
+            echo "gh_sha256=$(jq -r '.members[]|select(.path=="gh")|.sha256' attester-tools/manifest.json)"
+            echo "gitleaks_sha256=$(jq -r '.members[]|select(.path=="gitleaks")|.sha256' attester-tools/manifest.json)"
+            echo "root_sha256=$(jq -r '.members[]|select(.path=="trusted-root.jsonl")|.sha256' attester-tools/manifest.json)"
+            echo "release_verifier_sha256=$(jq -r '.members[]|select(.path=="qualification-release-build-verifier")|.sha256' attester-tools/manifest.json)"
+            echo "ledger_appender_sha256=$(jq -r '.members[]|select(.path=="auths-qualification-supervisor")|.sha256' attester-tools/manifest.json)"
+            echo "crash_controller_sha256=$(jq -r '.members[]|select(.path=="qualification-crash-controller")|.sha256' attester-tools/manifest.json)"
+            echo "agent_launcher_sha256=$(jq -r '.members[]|select(.path=="qualification-agent-launcher")|.sha256' attester-tools/manifest.json)"
+            echo "supervisor_source_sha256=$(jq -r '.members[]|select(.path=="qualification-source-supervisor")|.sha256' attester-tools/manifest.json)"
+            echo "journal_reader_sha256=$(jq -r '.members[]|select(.path=="qualification-source-journal-reader")|.sha256' attester-tools/manifest.json)"
+            echo "client_proxy_source_sha256=$(jq -r '.members[]|select(.path=="qualification-source-client-proxy")|.sha256' attester-tools/manifest.json)"
+            echo "credential_broker_source_sha256=$(jq -r '.members[]|select(.path=="qualification-source-credential-broker")|.sha256' attester-tools/manifest.json)"
+            echo "profile_state_source_sha256=$(jq -r '.members[]|select(.path=="qualification-source-profile-state-reader")|.sha256' attester-tools/manifest.json)"
+            echo "provider_proxy_source_sha256=$(jq -r '.members[]|select(.path=="qualification-source-provider-proxy")|.sha256' attester-tools/manifest.json)"
+            echo "receipt_verifier_source_sha256=$(jq -r '.members[]|select(.path=="qualification-source-receipt-verifier")|.sha256' attester-tools/manifest.json)"
+            echo "provider_observer_source_sha256=$(jq -r '.members[]|select(.path=="qualification-source-provider-observer")|.sha256' attester-tools/manifest.json)"
+          } >> "$GITHUB_OUTPUT"
+      - name: Verify and download the official nine-role release build
+        shell: bash
+        env:
+          AUTHS_QUALIFICATION_RETENTION_DAYS: ${{ vars.AUTHS_QUALIFICATION_RETENTION_DAYS }}
+          CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+          QUALIFICATION_CANDIDATE_REPOSITORY: ${{ github.workspace }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REPOSITORY_ID: ${{ github.repository_id }}
+          GITHUB_TOKEN: ${{ github.token }}
+          OFFICIAL_RELEASE_BUILD_RUN_ID: ${{ inputs.release_build_run_id }}
+          OFFICIAL_RELEASE_BUILD_ARTIFACT_ID: ${{ inputs.release_build_artifact_id }}
+          OFFICIAL_RELEASE_BUILD_ARTIFACT_DIGEST: ${{ inputs.release_build_artifact_digest }}
+          QUALIFICATION_GH_CLI: ${{ github.workspace }}/attester-tools/gh
+          QUALIFICATION_GH_CLI_SHA256: ${{ steps.tools.outputs.gh_sha256 }}
+          QUALIFICATION_GH_TRUSTED_ROOT: ${{ github.workspace }}/attester-tools/trusted-root.jsonl
+          QUALIFICATION_GH_TRUSTED_ROOT_SHA256: ${{ steps.tools.outputs.root_sha256 }}
+          QUALIFICATION_RELEASE_VERIFIER: ${{ github.workspace }}/attester-tools/qualification-release-build-verifier
+          QUALIFICATION_RELEASE_VERIFIER_SHA256: ${{ steps.tools.outputs.release_verifier_sha256 }}
+          QUALIFICATION_ATTESTER_TOOLS_VERIFICATION: ${{ runner.temp }}/collect-attester-tools-verification.json
+          QUALIFICATION_ATTESTER_TOOLS_MANIFEST: ${{ github.workspace }}/attester-tools/manifest.json
+          QUALIFICATION_RELEASE_OUTPUT: ${{ github.workspace }}/verified-release-build
+        run: trusted-attester/.github/scripts/verify-qualification-release-build.sh
+      - name: Validate checked candidate and workflow inputs
+        env:
+          CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+          QUALIFICATION_DOMAIN: ${{ inputs.domain }}
+          QUALIFICATION_TARGET: ${{ inputs.target }}
+          OFFICIAL_RELEASE_BUILD_RUN_ID: ${{ inputs.release_build_run_id }}
+          OFFICIAL_RELEASE_BUILD_ARTIFACT_ID: ${{ inputs.release_build_artifact_id }}
+          OFFICIAL_RELEASE_BUILD_ARTIFACT_DIGEST: ${{ inputs.release_build_artifact_digest }}
+        run: attester-tools/xtask profile qualification validate-workflow-inputs
+      - name: Mint protected provider-row ledger plans
+        shell: bash
+        env:
+          DOMAIN: ${{ inputs.domain }}
+          TARGET: ${{ inputs.target }}
+          PROTECTED_ENVIRONMENT: ${{ inputs.protected_environment }}
+          CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+          ATTESTER_REVISION: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_REVISION }}
+          SUPERVISOR_CONTROLLER_SHA256: ${{ steps.tools.outputs.crash_controller_sha256 }}
+          LEDGER_APPENDER_SHA256: ${{ steps.tools.outputs.ledger_appender_sha256 }}
+          AGENT_UID: ${{ vars.AUTHS_QUALIFICATION_AGENT_UID }}
+          AGENT_GID: ${{ vars.AUTHS_QUALIFICATION_AGENT_GID }}
+          WORKLOAD_ID_SHA256: ${{ vars.AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256 }}
+          RECOVERY_KEY_ID: ${{ vars.AUTHS_QUALIFICATION_RECOVERY_KEY_ID }}
+          RECOVERY_PUBLIC_KEY_BASE64URL: ${{ vars.AUTHS_QUALIFICATION_RECOVERY_PUBLIC_KEY_BASE64URL }}
+        run: |
+          set -euo pipefail
+          while read -r provider_run; do
+            env -i \
+              AUTHS_XTASK_REPOSITORY_ROOT="$GITHUB_WORKSPACE" \
+              QUALIFICATION_CANDIDATE_REVISION="$CANDIDATE_REVISION" \
+              AUTHS_QUALIFICATION_WORKFLOW_REVISION="$GITHUB_WORKFLOW_SHA" \
+              AUTHS_QUALIFICATION_ATTESTER_REVISION="$ATTESTER_REVISION" \
+              AUTHS_QUALIFICATION_SUPERVISOR_CONTROLLER_SHA256="$SUPERVISOR_CONTROLLER_SHA256" \
+              AUTHS_QUALIFICATION_LEDGER_APPENDER_SHA256="$LEDGER_APPENDER_SHA256" \
+              AUTHS_QUALIFICATION_AGENT_UID="$AGENT_UID" \
+              AUTHS_QUALIFICATION_AGENT_GID="$AGENT_GID" \
+              AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256="$WORKLOAD_ID_SHA256" \
+              AUTHS_QUALIFICATION_RECOVERY_KEY_ID="$RECOVERY_KEY_ID" \
+              AUTHS_QUALIFICATION_RECOVERY_PUBLIC_KEY_BASE64URL="$RECOVERY_PUBLIC_KEY_BASE64URL" \
+              AUTHS_QUALIFICATION_RELEASE_BUILD_BINDING="$GITHUB_WORKSPACE/verified-release-build/verified-release-build.json" \
+              GITHUB_REPOSITORY_ID="$GITHUB_REPOSITORY_ID" \
+              GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+              GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+              "$GITHUB_WORKSPACE/attester-tools/xtask" \
+              profile qualification build-ledger-plan \
+              --domain "$DOMAIN" \
+              --target "$TARGET" \
+              --environment "$PROTECTED_ENVIRONMENT" \
+              --provider-run "$provider_run" \
+              --output "target/qualification-common-evidence/$DOMAIN/$TARGET/ledger/$provider_run/ledger-plan.json"
+          done < <(jq -r '.runs[].id' "product/integrations/auths-$DOMAIN/qualification/provider-matrix-v1.json")
+      - name: Initialize every protected provider-row ledger namespace
+        shell: bash
+        env:
+          DOMAIN: ${{ inputs.domain }}
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          common_root="$GITHUB_WORKSPACE/target/qualification-common-evidence/$DOMAIN/$TARGET"
+          source_trust="$GITHUB_WORKSPACE/trusted-attester/release/qualification/v1/evidence-source-trust-keys.json"
+          ledger_trust="$GITHUB_WORKSPACE/trusted-attester/release/qualification/v1/evidence-ledger-trust-keys.json"
+          while read -r provider_run; do
+            env -i "$GITHUB_WORKSPACE/attester-tools/auths-qualification-supervisor" \
+              initialize-ledger \
+              --plan "$common_root/ledger/$provider_run/ledger-plan.json" \
+              --common-root "$common_root" \
+              --source-trust "$source_trust" \
+              --ledger-trust "$ledger_trust"
+          done < <(jq -r '.runs[].id' "product/integrations/auths-$DOMAIN/qualification/provider-matrix-v1.json")
+      - name: Stage the exercised-agent configuration and preliminary public receipt anchors
+        shell: bash
+        env:
+          AGENT_CONFIG_BASE64URL: ${{ vars.AUTHS_QUALIFICATION_AGENT_CONFIG_BASE64URL }}
+          DOMAIN: ${{ inputs.domain }}
+          TARGET: ${{ inputs.target }}
+          RECEIPT_TRUST_SHA256: ${{ vars.AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256 }}
+        run: |
+          set -euo pipefail
+          common_root="$GITHUB_WORKSPACE/target/qualification-common-evidence/$DOMAIN/$TARGET"
+          config_root="$RUNNER_TEMP/qualification-agent-config/$DOMAIN/$TARGET"
+          install -d -m 0700 "$config_root" "$common_root/anchor-snapshots"
+          printf '%s' "$AGENT_CONFIG_BASE64URL" | env -i \
+            "$GITHUB_WORKSPACE/attester-tools/auths-qualification-supervisor" \
+            export-receipt-anchors \
+            --config-output "$config_root/agent.toml" \
+            --anchors-output "$common_root/anchor-snapshots/receipt-trust-anchors.json" \
+            --expected-sha256 "$RECEIPT_TRUST_SHA256"
+      - name: Refuse non-separated qualification signing identities before provider setup
+        shell: bash
+        env:
+          DOMAIN: ${{ inputs.domain }}
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          common_root="$GITHUB_WORKSPACE/target/qualification-common-evidence/$DOMAIN/$TARGET"
+          receipt_trust="$common_root/anchor-snapshots/receipt-trust-anchors.json"
+          while read -r provider_run; do
+            env -i AUTHS_XTASK_REPOSITORY_ROOT="$GITHUB_WORKSPACE" \
+              "$GITHUB_WORKSPACE/attester-tools/xtask" \
+              profile qualification preflight-key-separation \
+              --ledger-plan "$common_root/ledger/$provider_run/ledger-plan.json" \
+              --receipt-trust "$receipt_trust"
+          done < <(jq -r '.runs[].id' \
+            "$GITHUB_WORKSPACE/product/integrations/auths-$DOMAIN/qualification/provider-matrix-v1.json")
+      - name: Create live provider resources and protected setup handoffs
+        shell: bash
+        env:
+          DOMAIN: ${{ inputs.domain }}
+          TARGET: ${{ inputs.target }}
+          PROTECTED_ENVIRONMENT: ${{ inputs.protected_environment }}
+          SETUP_CREDENTIAL: ${{ secrets.QUALIFICATION_SETUP_CREDENTIAL }}
+          CONNECTION_DESCRIPTOR_BASE64URL: ${{ vars.AUTHS_QUALIFICATION_CONNECTION_DESCRIPTOR_BASE64URL }}
+          WORKLOAD_ID_SHA256: ${{ vars.AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256 }}
+        run: |
+          set -euo pipefail
+          config="$RUNNER_TEMP/qualification-agent-config/$DOMAIN/$TARGET/agent.toml"
+          while read -r provider_run; do
+            printf '%s' "$SETUP_CREDENTIAL" | env -i \
+              AUTHS_XTASK_REPOSITORY_ROOT="$GITHUB_WORKSPACE" \
+              AUTHS_QUALIFICATION_CONNECTION_DESCRIPTOR_BASE64URL="$CONNECTION_DESCRIPTOR_BASE64URL" \
+              AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256="$WORKLOAD_ID_SHA256" \
+              QUALIFICATION_SETUP_CREDENTIAL=stdin-only \
+              QUALIFICATION_CANDIDATE_REVISION="${{ inputs.candidate_revision }}" \
+              GITHUB_ACTIONS=true \
+              GITHUB_REPOSITORY_ID="$GITHUB_REPOSITORY_ID" \
+              GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+              GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+              "$GITHUB_WORKSPACE/attester-tools/xtask" \
+              profile qualification setup-row \
+              --domain "$DOMAIN" \
+              --target "$TARGET" \
+              --environment "$PROTECTED_ENVIRONMENT" \
+              --provider-run "$provider_run" \
+              --agent-config "$config" \
+              --output "target/qualification-setup/$DOMAIN/$TARGET/$provider_run/setup-handoff.json"
+          done < <(jq -r '.runs[].id' \
+            "product/integrations/auths-$DOMAIN/qualification/provider-matrix-v1.json")
+      - name: Prepare fixed-identity row topology and CredentialBroker stores
+        shell: bash
+        env:
+          DOMAIN: ${{ inputs.domain }}
+          TARGET: ${{ inputs.target }}
+          AGENT_GID: ${{ vars.AUTHS_QUALIFICATION_AGENT_GID }}
+          CONNECTION_DESCRIPTOR_BASE64URL: ${{ vars.AUTHS_QUALIFICATION_CONNECTION_DESCRIPTOR_BASE64URL }}
+          QUALIFICATION_MUTATION_CREDENTIAL: ${{ secrets.QUALIFICATION_MUTATION_CREDENTIAL }}
+        run: |
+          set -euo pipefail
+          common_root="$GITHUB_WORKSPACE/target/qualification-common-evidence/$DOMAIN/$TARGET"
+          source_trust="$GITHUB_WORKSPACE/trusted-attester/release/qualification/v1/evidence-source-trust-keys.json"
+          receipt_trust="$common_root/anchor-snapshots/receipt-trust-anchors.json"
+          config="$RUNNER_TEMP/qualification-agent-config/$DOMAIN/$TARGET/agent.toml"
+          runtime_parent="/run/auths-qualification-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/$DOMAIN/$TARGET"
+          policy_parent="/run/auths-qualification-policy-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/$DOMAIN/$TARGET"
+          protected_bins="/usr/local/libexec/auths-qualification-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          sudo install -d -o root -g root -m 0711 "$runtime_parent" "$policy_parent"
+          sudo install -d -o root -g root -m 0755 "$protected_bins"
+          sudo install -o root -g root -m 4755 \
+            "$GITHUB_WORKSPACE/attester-tools/qualification-agent-launcher" \
+            "$protected_bins/qualification-agent-launcher"
+          sudo tar --zstd -xOf \
+            "$GITHUB_WORKSPACE/verified-release-build/artifacts/auths-qualification-agent.tar.zst" \
+            auths-qualification-agent/target/release/auths-qualification-agent \
+            | sudo install -o root -g root -m 0755 /dev/stdin "$protected_bins/auths-qualification-agent"
+          sudo install -o root -g root -m 0644 "$config" "$protected_bins/agent.toml"
+          now="$(date +%s)"
+          broker_uid="$(jq -er --arg domain "$DOMAIN" --argjson now "$now" \
+            '[.keys[] | select(.source == "credential-broker" and (.allowedDomains | index($domain)) != null and .notBeforeUnixSeconds <= $now and (.notAfterUnixSeconds == 0 or $now < .notAfterUnixSeconds))] | if length == 1 then .[0].readerUid else error("current CredentialBroker reader is not unique") end' \
+            "$source_trust")"
+          while read -r provider_run; do
+            row="$common_root/ledger/$provider_run"
+            runtime="$runtime_parent/$provider_run"
+            policy="$policy_parent/$provider_run"
+            cgroup="/sys/fs/cgroup/auths-q-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$provider_run"
+            sudo install -d -o root -g root -m 0700 "$policy"
+            sudo install -o root -g root -m 0600 "$row/ledger-plan.json" "$policy/ledger-plan.json"
+            sudo install -o root -g root -m 0600 "$source_trust" "$policy/source-trust.json"
+            sudo install -o root -g root -m 0600 "$receipt_trust" "$policy/receipt-trust.json"
+            sudo env -i "$GITHUB_WORKSPACE/attester-tools/auths-qualification-supervisor" \
+              prepare-row-runtime \
+              --plan "$policy/ledger-plan.json" \
+              --source-trust "$policy/source-trust.json" \
+              --receipt-trust "$policy/receipt-trust.json" \
+              --runtime-root "$runtime" \
+              --cgroup-root "$cgroup"
+            sudo install -o "$broker_uid" -g "$AGENT_GID" -m 0600 \
+              "$config" "$runtime/credential-broker-reader/agent.toml"
+            [[ -n "$CONNECTION_DESCRIPTOR_BASE64URL" \
+              && ${#CONNECTION_DESCRIPTOR_BASE64URL} -le 131072 \
+              && "$CONNECTION_DESCRIPTOR_BASE64URL" =~ ^[A-Za-z0-9_-]+$ ]]
+            [[ -n "$QUALIFICATION_MUTATION_CREDENTIAL" \
+              && ${#QUALIFICATION_MUTATION_CREDENTIAL} -le 131072 \
+              && "$QUALIFICATION_MUTATION_CREDENTIAL" =~ ^[A-Za-z0-9_-]+$ ]]
+            printf '{"credentialBase64url":"%s","descriptorBase64url":"%s","schema":"auths.qualification-credential-broker-initialization/1"}' \
+              "$QUALIFICATION_MUTATION_CREDENTIAL" "$CONNECTION_DESCRIPTOR_BASE64URL" | sudo setpriv \
+              --reuid "$broker_uid" --regid "$AGENT_GID" --clear-groups \
+              env -i "$GITHUB_WORKSPACE/attester-tools/qualification-source-credential-broker" \
+              initialize-stores \
+              --agent-config "$runtime/credential-broker-reader/agent.toml" \
+              --connection-store "$runtime/credential-broker-store/connections.cbor" \
+              --credential-store "$runtime/credential-broker-store/credentials.cbor" \
+              --ledger-plan "$runtime/credential-broker-reader/ledger-plan.json" \
+              --source-trust "$runtime/credential-broker-reader/source-trust.json"
+          done < <(jq -r '.runs[].id' "product/integrations/auths-$DOMAIN/qualification/provider-matrix-v1.json")
+      - name: Materialize the decision receipt signing seed
+        shell: bash
+        env:
+          QUALIFICATION_AGENT_SIGNING_SEED: ${{ secrets.QUALIFICATION_DECISION_RECEIPT_SEED }}
+          POLICY_ROOT: /run/auths-qualification-policy-${{ github.run_id }}-${{ github.run_attempt }}/${{ inputs.domain }}/${{ inputs.target }}
+          AGENT_CONFIG: /usr/local/libexec/auths-qualification-${{ github.run_id }}-${{ github.run_attempt }}/agent.toml
+        run: |
+          set -euo pipefail
+          trusted-attester/.github/scripts/qualification-row-services.sh materialize-agent-key decision
+      - name: Materialize the execution receipt signing seed
+        shell: bash
+        env:
+          QUALIFICATION_AGENT_SIGNING_SEED: ${{ secrets.QUALIFICATION_EXECUTION_RECEIPT_SEED }}
+          POLICY_ROOT: /run/auths-qualification-policy-${{ github.run_id }}-${{ github.run_attempt }}/${{ inputs.domain }}/${{ inputs.target }}
+          AGENT_CONFIG: /usr/local/libexec/auths-qualification-${{ github.run_id }}-${{ github.run_attempt }}/agent.toml
+        run: |
+          set -euo pipefail
+          trusted-attester/.github/scripts/qualification-row-services.sh materialize-agent-key execution
+      - name: Materialize the recovery signing seed
+        shell: bash
+        env:
+          QUALIFICATION_AGENT_SIGNING_SEED: ${{ secrets.QUALIFICATION_RECOVERY_SEED }}
+          POLICY_ROOT: /run/auths-qualification-policy-${{ github.run_id }}-${{ github.run_attempt }}/${{ inputs.domain }}/${{ inputs.target }}
+          AGENT_CONFIG: /usr/local/libexec/auths-qualification-${{ github.run_id }}-${{ github.run_attempt }}/agent.toml
+        run: |
+          set -euo pipefail
+          trusted-attester/.github/scripts/qualification-row-services.sh materialize-agent-key recovery
+      - name: Start the sole protected append session for every row
+        shell: bash
+        run: sudo --preserve-env=TOOLS,MATRIX,RUNTIME_ROOT,SOURCE_TRUST,DOMAIN,AGENT_GID,COMMON_ROOT bash trusted-attester/.github/scripts/qualification-row-services.sh start-appender
+      - name: Start the one-seed Supervisor source
+        shell: bash
+        env:
+          QUALIFICATION_SOURCE_SEED: ${{ secrets.QUALIFICATION_SOURCE_SUPERVISOR_SEED }}
+        run: sudo --preserve-env=TOOLS,MATRIX,RUNTIME_ROOT,SOURCE_TRUST,DOMAIN,AGENT_GID,COMMON_ROOT,QUALIFICATION_SOURCE_SEED bash trusted-attester/.github/scripts/qualification-row-services.sh start-source supervisor
+      - name: Start the one-seed ClientProxy source
+        shell: bash
+        env:
+          QUALIFICATION_SOURCE_SEED: ${{ secrets.QUALIFICATION_SOURCE_CLIENT_PROXY_SEED }}
+        run: sudo --preserve-env=TOOLS,MATRIX,RUNTIME_ROOT,SOURCE_TRUST,DOMAIN,AGENT_GID,COMMON_ROOT,QUALIFICATION_SOURCE_SEED bash trusted-attester/.github/scripts/qualification-row-services.sh start-source client-proxy
+      - name: Start the one-seed JournalReader source
+        shell: bash
+        env:
+          QUALIFICATION_SOURCE_SEED: ${{ secrets.QUALIFICATION_SOURCE_JOURNAL_READER_SEED }}
+        run: sudo --preserve-env=TOOLS,MATRIX,RUNTIME_ROOT,SOURCE_TRUST,DOMAIN,AGENT_GID,COMMON_ROOT,QUALIFICATION_SOURCE_SEED bash trusted-attester/.github/scripts/qualification-row-services.sh start-source journal-reader
+      - name: Start the one-seed CredentialBroker source
+        shell: bash
+        env:
+          QUALIFICATION_SOURCE_SEED: ${{ secrets.QUALIFICATION_SOURCE_CREDENTIAL_BROKER_SEED }}
+        run: sudo --preserve-env=TOOLS,MATRIX,RUNTIME_ROOT,SOURCE_TRUST,DOMAIN,AGENT_GID,COMMON_ROOT,QUALIFICATION_SOURCE_SEED bash trusted-attester/.github/scripts/qualification-row-services.sh start-source credential-broker
+      - name: Start the one-seed ProfileStateReader source
+        shell: bash
+        env:
+          QUALIFICATION_SOURCE_SEED: ${{ secrets.QUALIFICATION_SOURCE_PROFILE_STATE_READER_SEED }}
+        run: sudo --preserve-env=TOOLS,MATRIX,RUNTIME_ROOT,SOURCE_TRUST,DOMAIN,AGENT_GID,COMMON_ROOT,QUALIFICATION_SOURCE_SEED bash trusted-attester/.github/scripts/qualification-row-services.sh start-source profile-state-reader
+      - name: Start the one-seed ReceiptVerifier source
+        shell: bash
+        env:
+          QUALIFICATION_SOURCE_SEED: ${{ secrets.QUALIFICATION_SOURCE_RECEIPT_VERIFIER_SEED }}
+        run: sudo --preserve-env=TOOLS,MATRIX,RUNTIME_ROOT,SOURCE_TRUST,DOMAIN,AGENT_GID,COMMON_ROOT,QUALIFICATION_SOURCE_SEED bash trusted-attester/.github/scripts/qualification-row-services.sh start-source receipt-verifier
+      - name: Start the one-seed ProviderProxy source
+        shell: bash
+        env:
+          QUALIFICATION_SOURCE_SEED: ${{ secrets.QUALIFICATION_SOURCE_PROVIDER_PROXY_SEED }}
+        run: sudo --preserve-env=TOOLS,MATRIX,RUNTIME_ROOT,SOURCE_TRUST,DOMAIN,AGENT_GID,COMMON_ROOT,QUALIFICATION_SOURCE_SEED bash trusted-attester/.github/scripts/qualification-row-services.sh start-source provider-proxy
+      - name: Start the one-seed ProviderObserver source
+        shell: bash
+        env:
+          QUALIFICATION_SOURCE_SEED: ${{ secrets.QUALIFICATION_SOURCE_PROVIDER_OBSERVER_SEED }}
+        run: sudo --preserve-env=TOOLS,MATRIX,RUNTIME_ROOT,SOURCE_TRUST,DOMAIN,AGENT_GID,COMMON_ROOT,QUALIFICATION_SOURCE_SEED bash trusted-attester/.github/scripts/qualification-row-services.sh start-source provider-observer
+      - name: Start and authenticate every no-seed ordinary row reader
+        shell: bash
+        run: sudo --preserve-env=TOOLS,MATRIX,RUNTIME_ROOT,SOURCE_TRUST,DOMAIN,AGENT_GID,COMMON_ROOT bash trusted-attester/.github/scripts/qualification-row-services.sh start-readers
+      - name: Start the runtime-read ProviderObserver reader
+        shell: bash
+        env:
+          QUALIFICATION_RUNTIME_READ_CREDENTIAL: ${{ secrets.QUALIFICATION_RUNTIME_READ_CREDENTIAL }}
+        run: sudo --preserve-env=TOOLS,MATRIX,RUNTIME_ROOT,SOURCE_TRUST,DOMAIN,AGENT_GID,COMMON_ROOT,QUALIFICATION_RUNTIME_READ_CREDENTIAL bash trusted-attester/.github/scripts/qualification-row-services.sh start-provider-observer-readers
+      - name: Install the exact protected Python toolchain
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with: {python-version: "3.13.5"}
+      - name: Collect every exact provider row
+        shell: bash
+        env:
+          DOMAIN: ${{ inputs.domain }}
+          TARGET: ${{ inputs.target }}
+          PROTECTED_ENVIRONMENT: ${{ inputs.protected_environment }}
+          AGENT_GID: ${{ vars.AUTHS_QUALIFICATION_AGENT_GID }}
+          QUALIFICATION_PRINCIPAL: ${{ vars.AUTHS_QUALIFICATION_PRINCIPAL }}
+        run: |
+          set -euo pipefail
+          common_root="$GITHUB_WORKSPACE/target/qualification-common-evidence/$DOMAIN/$TARGET"
+          runtime_parent="/run/auths-qualification-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/$DOMAIN/$TARGET"
+          cgroup_prefix="/sys/fs/cgroup/auths-q-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          protected_bins="/usr/local/libexec/auths-qualification-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          while read -r provider_run; do
+            runtime="$runtime_parent/$provider_run"
+            env -i \
+              AUTHS_XTASK_REPOSITORY_ROOT="$GITHUB_WORKSPACE" \
+              AUTHS_QUALIFICATION_PHASE_CONTROLLER="$GITHUB_WORKSPACE/attester-tools/qualification-crash-controller" \
+              AUTHS_QUALIFICATION_AGENT="$protected_bins/auths-qualification-agent" \
+              AUTHS_QUALIFICATION_AGENT_CONFIG="$protected_bins/agent.toml" \
+              AUTHS_QUALIFICATION_AGENT_LAUNCHER="$protected_bins/qualification-agent-launcher" \
+              AUTHS_QUALIFICATION_LEDGER_PLAN="$common_root/ledger/$provider_run/ledger-plan.json" \
+              AUTHS_QUALIFICATION_LAUNCHER_LEDGER_PLAN="/run/auths-qualification-policy-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/$DOMAIN/$TARGET/$provider_run/ledger-plan.json" \
+              AUTHS_QUALIFICATION_SOURCE_TRUST="$GITHUB_WORKSPACE/trusted-attester/release/qualification/v1/evidence-source-trust-keys.json" \
+              AUTHS_QUALIFICATION_RECEIPT_TRUST="$common_root/anchor-snapshots/receipt-trust-anchors.json" \
+              AUTHS_QUALIFICATION_CONNECTION_STORE_TEMPLATE="$runtime/credential-broker-store/connections.cbor" \
+              AUTHS_QUALIFICATION_PHASE_RUNTIME_ROOT="$runtime" \
+              AUTHS_QUALIFICATION_CGROUP_ROOT="$cgroup_prefix-$provider_run" \
+              AUTHS_QUALIFICATION_PRINCIPAL="$QUALIFICATION_PRINCIPAL" \
+              AUTHS_QUALIFICATION_RELEASE_BUILD_BINDING="$GITHUB_WORKSPACE/verified-release-build/verified-release-build.json" \
+              AUTHS_QUALIFICATION_RELEASE_ARTIFACTS="$GITHUB_WORKSPACE/verified-release-build/artifacts" \
+              AUTHS_QUALIFICATION_PYTHON="${{ env.pythonLocation }}/bin/python" \
+              GITHUB_ACTIONS=true \
+              GITHUB_REPOSITORY_ID="$GITHUB_REPOSITORY_ID" \
+              GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+              GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+              "$GITHUB_WORKSPACE/attester-tools/xtask" \
+              profile qualification collect \
+              --domain "$DOMAIN" \
+              --target "$TARGET" \
+              --environment "$PROTECTED_ENVIRONMENT" \
+              --provider-run "$provider_run" \
+              --setup-handoff "target/qualification-setup/$DOMAIN/$TARGET/$provider_run/setup-handoff.json" \
+              --output "target/qualification-candidate/$DOMAIN/$TARGET/$provider_run"
+          done < <(jq -r '.runs[].id' "product/integrations/auths-$DOMAIN/qualification/provider-matrix-v1.json")
+      - name: Require every protected row service to finish successfully
+        shell: bash
+        run: sudo --preserve-env=TOOLS,MATRIX,RUNTIME_ROOT,SOURCE_TRUST,DOMAIN,AGENT_GID,COMMON_ROOT bash trusted-attester/.github/scripts/qualification-row-services.sh wait
+      - name: Finalize and seal every authenticated common ledger
+        shell: bash
+        env:
+          DOMAIN: ${{ inputs.domain }}
+          TARGET: ${{ inputs.target }}
+          QUALIFICATION_LEDGER_SEALER_SEED: ${{ secrets.QUALIFICATION_LEDGER_SEALER_SEED }}
+          LEDGER_KEY_ID: ${{ vars.AUTHS_QUALIFICATION_LEDGER_KEY_ID }}
+        run: |
+          set -euo pipefail
+          common_root="$GITHUB_WORKSPACE/target/qualification-common-evidence/$DOMAIN/$TARGET"
+          receipt_trust="$common_root/anchor-snapshots/receipt-trust-anchors.json"
+          while read -r provider_run; do
+            row="$common_root/ledger/$provider_run"
+            source_trust="$row/evidence-source-trust.json"
+            ledger_trust="$row/evidence-ledger-trust.json"
+            env -i "$GITHUB_WORKSPACE/attester-tools/auths-qualification-supervisor" \
+              stage-common-phases \
+              --plan "$row/ledger-plan.json" \
+              --candidate-collection "$GITHUB_WORKSPACE/target/qualification-candidate/$DOMAIN/$TARGET/$provider_run/collection.json" \
+              --common-root "$common_root" \
+              --source-trust "$source_trust" \
+              --receipt-trust "$receipt_trust"
+            env -i "$GITHUB_WORKSPACE/attester-tools/auths-qualification-supervisor" \
+              build-event-index \
+              --plan "$row/ledger-plan.json" \
+              --common-root "$common_root" \
+              --source-trust "$source_trust"
+            env -i "$GITHUB_WORKSPACE/attester-tools/auths-qualification-supervisor" \
+              assemble-ledger \
+              --plan "$row/ledger-plan.json" \
+              --event-index "$row/event-index.json" \
+              --common-root "$common_root" \
+              --source-trust "$source_trust" \
+              --output "$row/ledger-record.json"
+            printf '%s' "$QUALIFICATION_LEDGER_SEALER_SEED" | env -i \
+              "$GITHUB_WORKSPACE/attester-tools/auths-qualification-supervisor" \
+              seal-ledger \
+              --record "$row/ledger-record.json" \
+              --source-trust "$source_trust" \
+              --ledger-trust "$ledger_trust" \
+              --output "$row/ledger.json" \
+              --key-id "$LEDGER_KEY_ID"
+          done < <(jq -r '.runs[].id' "product/integrations/auths-$DOMAIN/qualification/provider-matrix-v1.json")
+      - name: Finalize the canonical secret-free candidate proposal
+        shell: bash
+        env:
+          DOMAIN: ${{ inputs.domain }}
+          TARGET: ${{ inputs.target }}
+          ATTESTER_REPOSITORY: ${{ github.workspace }}/trusted-attester
+          ATTESTER_REVISION: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_REVISION }}
+          EVIDENCE_SOURCE_TRUST_SHA256: ${{ vars.AUTHS_QUALIFICATION_EVIDENCE_SOURCE_TRUST_SHA256 }}
+          EVIDENCE_LEDGER_TRUST_SHA256: ${{ vars.AUTHS_QUALIFICATION_EVIDENCE_LEDGER_TRUST_SHA256 }}
+          RECEIPT_TRUST_SHA256: ${{ vars.AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256 }}
+          SUPERVISOR_SOURCE_UID: ${{ vars.AUTHS_QUALIFICATION_SUPERVISOR_SOURCE_UID }}
+          JOURNAL_READER_UID: ${{ vars.AUTHS_QUALIFICATION_JOURNAL_READER_UID }}
+          AGENT_UID: ${{ vars.AUTHS_QUALIFICATION_AGENT_UID }}
+          AGENT_GID: ${{ vars.AUTHS_QUALIFICATION_AGENT_GID }}
+        run: |
+          set -euo pipefail
+          env -i \
+            AUTHS_XTASK_REPOSITORY_ROOT="$GITHUB_WORKSPACE" \
+            AUTHS_QUALIFICATION_ATTESTER_REPOSITORY="$ATTESTER_REPOSITORY" \
+            AUTHS_QUALIFICATION_ATTESTER_REVISION="$ATTESTER_REVISION" \
+            AUTHS_QUALIFICATION_EVIDENCE_SOURCE_TRUST_SHA256="$EVIDENCE_SOURCE_TRUST_SHA256" \
+            AUTHS_QUALIFICATION_EVIDENCE_LEDGER_TRUST_SHA256="$EVIDENCE_LEDGER_TRUST_SHA256" \
+            AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256="$RECEIPT_TRUST_SHA256" \
+            AUTHS_QUALIFICATION_SUPERVISOR_SOURCE_UID="$SUPERVISOR_SOURCE_UID" \
+            AUTHS_QUALIFICATION_JOURNAL_READER_UID="$JOURNAL_READER_UID" \
+            AUTHS_QUALIFICATION_AGENT_UID="$AGENT_UID" \
+            AUTHS_QUALIFICATION_AGENT_GID="$AGENT_GID" \
+            AUTHS_QUALIFICATION_WORKFLOW_REVISION="$GITHUB_WORKFLOW_SHA" \
+            GITHUB_REPOSITORY_ID="$GITHUB_REPOSITORY_ID" \
+            GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+            GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+            "$GITHUB_WORKSPACE/attester-tools/xtask" \
+            profile qualification build-proposal \
+            --domain "$DOMAIN" \
+            --target "$TARGET" \
+            --collections "target/qualification-candidate/$DOMAIN/$TARGET" \
+            --common-evidence "target/qualification-common-evidence/$DOMAIN/$TARGET" \
+            --release-build verified-release-build/projection/release-build.json \
+            --output proposal.json
+      - name: Stop exact retained row processes
+        if: always()
+        shell: bash
+        run: sudo --preserve-env=TOOLS,MATRIX,RUNTIME_ROOT,POLICY_ROOT,CGROUP_ROOT_PREFIX,PROTECTED_BIN_ROOT,AGENT_CONFIG,SOURCE_TRUST,DOMAIN,AGENT_GID,COMMON_ROOT bash trusted-attester/.github/scripts/qualification-row-services.sh stop
+      - name: Upload collection and verified release handoff
+        id: upload
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: profile-qualification-collection-${{ inputs.domain }}-${{ inputs.target }}-attempt-${{ github.run_attempt }}
+          path: |
+            target/qualification-candidate/${{ inputs.domain }}/${{ inputs.target }}/
+            target/qualification-common-evidence/${{ inputs.domain }}/${{ inputs.target }}/
+            verified-release-build/
+            proposal.json
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0
+
+  installed:
+    needs: collect
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
+    steps:
+      - name: Checkout protected installed-verifier revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with: {ref: "${{ vars.AUTHS_QUALIFICATION_ATTESTER_REVISION }}", path: trusted-attester, persist-credentials: false}
+      - name: Rebind protected installed-verifier metadata
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          TOOL_RUN_ID: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ID }}
+          TOOL_RUN_ATTEMPT: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ATTEMPT }}
+          TOOL_ARTIFACT_ID: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_ID }}
+          TOOL_ARTIFACT_DIGEST: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_DIGEST }}
+          TOOL_ATTESTER_REVISION: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_REVISION }}
+          TOOL_RETENTION_DAYS: "90"
+          TOOL_REPOSITORY_ID: ${{ github.repository_id }}
+          TOOL_MANIFEST_SHA256: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_MANIFEST_SHA256 }}
+          TOOL_VERIFICATION_OUTPUT: ${{ runner.temp }}/installed-attester-tools-verification.json
+        with:
+          script: |
+            const verify = require('./trusted-attester/.github/scripts/verify-qualification-attester-tools-metadata.cjs');
+            await verify({github, context});
+      - name: Download immutable protected installed-verifier tools
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          artifact-ids: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_ID }}
+          run-id: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: attester-tools
+          merge-multiple: true
+      - name: Verify exact protected installed-verifier tools
+        shell: bash
+        env:
+          ATTESTER_REVISION: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_REVISION }}
+          TOOL_MANIFEST_SHA256: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_MANIFEST_SHA256 }}
+        run: trusted-attester/.github/scripts/verify-qualification-attester-tools.sh attester-tools "$ATTESTER_REVISION" "$TOOL_MANIFEST_SHA256" trusted-attester/release/qualification/v1/evidence-source-trust-keys.json
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with: {artifact-ids: "${{ needs.collect.outputs.artifact_id }}", path: collected}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: {node-version: 22.23.1}
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with: {python-version: "3.13.5"}
+      - name: Run the protected offline installed-consumer corpus
+        shell: bash
+        env:
+          AUTHS_XTASK_REPOSITORY_ROOT: ${{ github.workspace }}/trusted-attester
+          QUALIFICATION_PYTHON: ${{ env.pythonLocation }}/bin/python
+        run: |
+          set -euo pipefail
+          install -d -m 0700 installed-output/reports
+          attester-tools/xtask profile qualification installed-verify \
+            --proposal collected/proposal.json \
+            --packages collected/verified-release-build/artifacts \
+            --output installed-output/reports/installed-packages.json
+      - name: Upload secret-free installed result
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with: {name: "profile-qualification-installed-${{ inputs.domain }}-${{ inputs.target }}-attempt-${{ github.run_attempt }}", path: installed-output/, if-no-files-found: error, retention-days: 90}
+
+  observe_cleanup:
+    if: always()
+    needs: [collect, installed]
+    environment: ${{ inputs.protected_environment }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
+    steps:
+      - name: Checkout immutable candidate facts
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with: {ref: "${{ inputs.candidate_revision }}", path: candidate, persist-credentials: false}
+      - name: Checkout protected observer revision
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with: {ref: "${{ vars.AUTHS_QUALIFICATION_ATTESTER_REVISION }}", path: trusted-attester, persist-credentials: false}
+      - name: Rebind protected observer-tool metadata before download
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          TOOL_RUN_ID: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ID }}
+          TOOL_RUN_ATTEMPT: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ATTEMPT }}
+          TOOL_ARTIFACT_ID: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_ID }}
+          TOOL_ARTIFACT_DIGEST: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_DIGEST }}
+          TOOL_ATTESTER_REVISION: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_REVISION }}
+          TOOL_RETENTION_DAYS: "90"
+          TOOL_REPOSITORY_ID: ${{ github.repository_id }}
+          TOOL_MANIFEST_SHA256: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_MANIFEST_SHA256 }}
+          TOOL_VERIFICATION_OUTPUT: ${{ runner.temp }}/observe-attester-tools-verification.json
+        with:
+          script: |
+            const verify = require('./trusted-attester/.github/scripts/verify-qualification-attester-tools-metadata.cjs');
+            await verify({github, context});
+      - name: Download immutable protected observer tools
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          artifact-ids: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_ID }}
+          run-id: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: attester-tools
+          merge-multiple: true
+      - name: Verify exact protected observer tools
+        id: tools
+        shell: bash
+        env:
+          ATTESTER_REVISION: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_REVISION }}
+          TOOL_MANIFEST_SHA256: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_MANIFEST_SHA256 }}
+        run: |
+          set -euo pipefail
+          trusted-attester/.github/scripts/verify-qualification-attester-tools.sh attester-tools "$ATTESTER_REVISION" "$TOOL_MANIFEST_SHA256" trusted-attester/release/qualification/v1/evidence-source-trust-keys.json
+          echo "gitleaks_sha256=$(jq -r '.members[]|select(.path=="gitleaks")|.sha256' attester-tools/manifest.json)" >> "$GITHUB_OUTPUT"
+      - name: Prepare cleanup contexts independently of candidate evidence
+        shell: bash
+        env:
+          CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+          DOMAIN: ${{ inputs.domain }}
+          TARGET: ${{ inputs.target }}
+          PROTECTED_ENVIRONMENT: ${{ inputs.protected_environment }}
+        run: |
+          set -euo pipefail
+          install -d -m 0700 protected-context protected-output
+          cd candidate
+          env -i \
+            AUTHS_XTASK_REPOSITORY_ROOT="$PWD" \
+            GITHUB_REPOSITORY_ID='${{ github.repository_id }}' \
+            GITHUB_RUN_ATTEMPT='${{ github.run_attempt }}' \
+            GITHUB_RUN_ID='${{ github.run_id }}' \
+            QUALIFICATION_CANDIDATE_REVISION="$CANDIDATE_REVISION" \
+            QUALIFICATION_PROTECTED_CONTEXT_ROOT='${{ github.workspace }}/protected-context' \
+            ../attester-tools/xtask profile qualification build-cleanup-contexts \
+              --domain "$DOMAIN" \
+              --target "$TARGET" \
+              --environment "$PROTECTED_ENVIRONMENT" \
+              --output '${{ github.workspace }}/protected-context/'"$DOMAIN/$TARGET"
+      - name: Download candidate collection when available
+        if: needs.collect.outputs.artifact_id != ''
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with: {artifact-ids: "${{ needs.collect.outputs.artifact_id }}", path: collected}
+      - name: Download protected installed-consumer report when available
+        if: needs.installed.outputs.artifact_id != ''
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with: {artifact-ids: "${{ needs.installed.outputs.artifact_id }}", path: installed-result}
+      - name: Independently observe every provider row
+        if: needs.collect.result == 'success' && needs.installed.result == 'success'
+        timeout-minutes: 90
+        shell: bash
+        env:
+          QUALIFICATION_CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+          QUALIFICATION_OBSERVER_CREDENTIAL: ${{ secrets.QUALIFICATION_OBSERVER_CREDENTIAL }}
+          QUALIFICATION_PROTECTED_OUTPUT_ROOT: ${{ github.workspace }}/protected-output
+          AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256: ${{ vars.AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256 }}
+          AUTHS_QUALIFICATION_EVIDENCE_SOURCE_TRUST_SHA256: ${{ vars.AUTHS_QUALIFICATION_EVIDENCE_SOURCE_TRUST_SHA256 }}
+          AUTHS_QUALIFICATION_EVIDENCE_LEDGER_TRUST_SHA256: ${{ vars.AUTHS_QUALIFICATION_EVIDENCE_LEDGER_TRUST_SHA256 }}
+          AUTHS_QUALIFICATION_WORKFLOW_REVISION: ${{ github.workflow_sha }}
+          AUTHS_QUALIFICATION_ATTESTER_REVISION: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_REVISION }}
+          AUTHS_QUALIFICATION_ATTESTER_REPOSITORY: ${{ github.workspace }}/trusted-attester
+          DOMAIN: ${{ inputs.domain }}
+          TARGET: ${{ inputs.target }}
+          PROTECTED_ENVIRONMENT: ${{ inputs.protected_environment }}
+        run: |
+          set -euo pipefail
+          cd candidate
+          while read -r provider_run; do
+            timeout --signal=TERM --kill-after=5s 300s ../attester-tools/xtask profile qualification observe-row --domain "$DOMAIN" --target "$TARGET" --environment "$PROTECTED_ENVIRONMENT" --provider-run "$provider_run" --candidate-evidence "../collected/target/qualification-candidate/$DOMAIN/$TARGET/$provider_run" --common-evidence "../collected/target/qualification-common-evidence/$DOMAIN/$TARGET" --output "$QUALIFICATION_PROTECTED_OUTPUT_ROOT/$DOMAIN/$TARGET/$provider_run"
+          done < <(jq -r '.runs[].id' "product/integrations/auths-$DOMAIN/qualification/provider-matrix-v1.json")
+      - name: Clean every provider row independently
+        if: always()
+        timeout-minutes: 180
+        shell: bash
+        env:
+          QUALIFICATION_CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+          QUALIFICATION_CLEANUP_CREDENTIAL: ${{ secrets.QUALIFICATION_CLEANUP_CREDENTIAL }}
+          QUALIFICATION_PROTECTED_OUTPUT_ROOT: ${{ github.workspace }}/protected-output
+          DOMAIN: ${{ inputs.domain }}
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -uo pipefail
+          cd candidate
+          status=0
+          while read -r provider_run; do
+            timeout --signal=TERM --kill-after=5s 600s ../attester-tools/xtask profile qualification cleanup --domain "$DOMAIN" --target "$TARGET" --run-context "../protected-context/$DOMAIN/$TARGET/$provider_run.json" --output "$QUALIFICATION_PROTECTED_OUTPUT_ROOT/$DOMAIN/$TARGET/$provider_run" || status=1
+          done < <(jq -r '.runs[].id' "product/integrations/auths-$DOMAIN/qualification/provider-matrix-v1.json")
+          exit "$status"
+      - name: Aggregate the exact protected provider-row roster
+        shell: bash
+        env:
+          DOMAIN: ${{ inputs.domain }}
+          PROTECTED_ENVIRONMENT: ${{ inputs.protected_environment }}
+          RECEIPT_TRUST_SHA256: ${{ vars.AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256 }}
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          cd candidate
+          env -i \
+            AUTHS_XTASK_REPOSITORY_ROOT="$PWD" \
+            GITHUB_REPOSITORY_ID="$GITHUB_REPOSITORY_ID" \
+            GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+            GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+            QUALIFICATION_PROTECTED_ENVIRONMENT="$PROTECTED_ENVIRONMENT" \
+            AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256="$RECEIPT_TRUST_SHA256" \
+            ../attester-tools/xtask profile qualification observe \
+            --proposal ../collected/proposal.json \
+            --collections "../collected/target/qualification-candidate/$DOMAIN/$TARGET" \
+            --common-evidence "../protected-output/$DOMAIN/$TARGET" \
+            --receipt-trust "../collected/target/qualification-common-evidence/$DOMAIN/$TARGET/anchor-snapshots/receipt-trust-anchors.json" \
+            --output ../protected-output/aggregate
+      - name: Assemble and independently scan the exact pre-sign evidence tree
+        shell: bash
+        env:
+          DOMAIN: ${{ inputs.domain }}
+          GITLEAKS_SHA256: ${{ steps.tools.outputs.gitleaks_sha256 }}
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          cd candidate
+          env -i \
+            AUTHS_XTASK_REPOSITORY_ROOT="$PWD" \
+            AUTHS_QUALIFICATION_GITLEAKS="$GITHUB_WORKSPACE/attester-tools/gitleaks" \
+            AUTHS_QUALIFICATION_GITLEAKS_SHA256="$GITLEAKS_SHA256" \
+            QUALIFICATION_PROTECTED_OUTPUT_ROOT="$GITHUB_WORKSPACE/protected-output" \
+            ../attester-tools/xtask profile qualification assemble-evidence \
+            --proposal ../collected/proposal.json \
+            --aggregate ../protected-output/aggregate \
+            --installed ../installed-result/reports/installed-packages.json \
+            --supplemental "../collected/target/qualification-common-evidence/$DOMAIN/$TARGET" \
+            --output assembled-evidence
+      - name: Build and natively verify the bounded observation record without a seed
+        shell: bash
+        env:
+          PROTECTED_ENVIRONMENT: ${{ inputs.protected_environment }}
+          ATTESTER_REVISION: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_REVISION }}
+          ATTESTER_TOOLS_RUN_ID: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ID }}
+          ATTESTER_TOOLS_RUN_ATTEMPT: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ATTEMPT }}
+          ATTESTER_TOOLS_ARTIFACT_ID: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_ID }}
+          ATTESTER_TOOLS_ARTIFACT_DIGEST: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_DIGEST }}
+          ATTESTER_TOOLS_MANIFEST_SHA256: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_MANIFEST_SHA256 }}
+          GITLEAKS_SHA256: ${{ steps.tools.outputs.gitleaks_sha256 }}
+          RECEIPT_TRUST_SHA256: ${{ vars.AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256 }}
+          RECOVERY_KEY_ID: ${{ vars.AUTHS_QUALIFICATION_RECOVERY_KEY_ID }}
+          RECOVERY_PUBLIC_KEY_BASE64URL: ${{ vars.AUTHS_QUALIFICATION_RECOVERY_PUBLIC_KEY_BASE64URL }}
+          EVIDENCE_SOURCE_TRUST_SHA256: ${{ vars.AUTHS_QUALIFICATION_EVIDENCE_SOURCE_TRUST_SHA256 }}
+          EVIDENCE_LEDGER_TRUST_SHA256: ${{ vars.AUTHS_QUALIFICATION_EVIDENCE_LEDGER_TRUST_SHA256 }}
+          SUPERVISOR_SOURCE_UID: ${{ vars.AUTHS_QUALIFICATION_SUPERVISOR_SOURCE_UID }}
+          JOURNAL_READER_UID: ${{ vars.AUTHS_QUALIFICATION_JOURNAL_READER_UID }}
+          AGENT_UID: ${{ vars.AUTHS_QUALIFICATION_AGENT_UID }}
+          AGENT_GID: ${{ vars.AUTHS_QUALIFICATION_AGENT_GID }}
+        run: |
+          set -euo pipefail
+          cd candidate
+          env -i \
+            AUTHS_XTASK_REPOSITORY_ROOT="$PWD" \
+            AUTHS_QUALIFICATION_ATTESTER_REPOSITORY="$GITHUB_WORKSPACE/trusted-attester" \
+            AUTHS_QUALIFICATION_ATTESTER_REVISION="$ATTESTER_REVISION" \
+            AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ID="$ATTESTER_TOOLS_RUN_ID" \
+            AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ATTEMPT="$ATTESTER_TOOLS_RUN_ATTEMPT" \
+            AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_ID="$ATTESTER_TOOLS_ARTIFACT_ID" \
+            AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_DIGEST="$ATTESTER_TOOLS_ARTIFACT_DIGEST" \
+            AUTHS_QUALIFICATION_ATTESTER_TOOLS_MANIFEST_SHA256="$ATTESTER_TOOLS_MANIFEST_SHA256" \
+            AUTHS_QUALIFICATION_ATTESTER_TOOLS_VERIFICATION="$RUNNER_TEMP/observe-attester-tools-verification.json" \
+            AUTHS_QUALIFICATION_ATTESTER_TOOLS_MANIFEST="$GITHUB_WORKSPACE/attester-tools/manifest.json" \
+            AUTHS_QUALIFICATION_GITLEAKS_SHA256="$GITLEAKS_SHA256" \
+            AUTHS_QUALIFICATION_WORKFLOW_REVISION="$GITHUB_WORKFLOW_SHA" \
+            AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256="$RECEIPT_TRUST_SHA256" \
+            AUTHS_QUALIFICATION_RECOVERY_KEY_ID="$RECOVERY_KEY_ID" \
+            AUTHS_QUALIFICATION_RECOVERY_PUBLIC_KEY_BASE64URL="$RECOVERY_PUBLIC_KEY_BASE64URL" \
+            AUTHS_QUALIFICATION_EVIDENCE_SOURCE_TRUST_SHA256="$EVIDENCE_SOURCE_TRUST_SHA256" \
+            AUTHS_QUALIFICATION_EVIDENCE_LEDGER_TRUST_SHA256="$EVIDENCE_LEDGER_TRUST_SHA256" \
+            AUTHS_QUALIFICATION_SUPERVISOR_SOURCE_UID="$SUPERVISOR_SOURCE_UID" \
+            AUTHS_QUALIFICATION_JOURNAL_READER_UID="$JOURNAL_READER_UID" \
+            AUTHS_QUALIFICATION_AGENT_UID="$AGENT_UID" \
+            AUTHS_QUALIFICATION_AGENT_GID="$AGENT_GID" \
+            GITHUB_REPOSITORY_ID="$GITHUB_REPOSITORY_ID" \
+            GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+            GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+            QUALIFICATION_PROTECTED_ENVIRONMENT="$PROTECTED_ENVIRONMENT" \
+            ../attester-tools/xtask profile qualification build-observation-record \
+            --proposal ../collected/proposal.json \
+            --evidence ../protected-output/assembled-evidence \
+            --release-build ../collected/verified-release-build/projection/release-build.json \
+            --output ../protected-output/observation-record.json
+      - name: Sign only the bounded protected observation record
+        shell: bash
+        env:
+          QUALIFICATION_OBSERVER_SEED: ${{ secrets.QUALIFICATION_OBSERVER_SEED }}
+          OBSERVER_KEY_ID: ${{ vars.AUTHS_QUALIFICATION_OBSERVER_KEY_ID }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$QUALIFICATION_OBSERVER_SEED" | env -i \
+            attester-tools/qualification-observation-signer sign-observation \
+            --record protected-output/observation-record.json \
+            --trust trusted-attester/release/qualification/v1/observer-trust-keys.json \
+            --output protected-output/observation.json \
+            --key-id "$OBSERVER_KEY_ID"
+      - name: Package and reverify the same signed evidence identity
+        shell: bash
+        env:
+          PROTECTED_ENVIRONMENT: ${{ inputs.protected_environment }}
+          ATTESTER_REVISION: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_REVISION }}
+          OBSERVER_KEY_ID: ${{ vars.AUTHS_QUALIFICATION_OBSERVER_KEY_ID }}
+          RECEIPT_TRUST_SHA256: ${{ vars.AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256 }}
+          RECOVERY_KEY_ID: ${{ vars.AUTHS_QUALIFICATION_RECOVERY_KEY_ID }}
+          RECOVERY_PUBLIC_KEY_BASE64URL: ${{ vars.AUTHS_QUALIFICATION_RECOVERY_PUBLIC_KEY_BASE64URL }}
+          EVIDENCE_SOURCE_TRUST_SHA256: ${{ vars.AUTHS_QUALIFICATION_EVIDENCE_SOURCE_TRUST_SHA256 }}
+          EVIDENCE_LEDGER_TRUST_SHA256: ${{ vars.AUTHS_QUALIFICATION_EVIDENCE_LEDGER_TRUST_SHA256 }}
+          SUPERVISOR_SOURCE_UID: ${{ vars.AUTHS_QUALIFICATION_SUPERVISOR_SOURCE_UID }}
+          JOURNAL_READER_UID: ${{ vars.AUTHS_QUALIFICATION_JOURNAL_READER_UID }}
+          AGENT_UID: ${{ vars.AUTHS_QUALIFICATION_AGENT_UID }}
+          AGENT_GID: ${{ vars.AUTHS_QUALIFICATION_AGENT_GID }}
+        run: |
+          set -euo pipefail
+          cd candidate
+          env -i \
+            AUTHS_XTASK_REPOSITORY_ROOT="$PWD" \
+            AUTHS_QUALIFICATION_ATTESTER_REPOSITORY="$GITHUB_WORKSPACE/trusted-attester" \
+            AUTHS_QUALIFICATION_ATTESTER_REVISION="$ATTESTER_REVISION" \
+            AUTHS_QUALIFICATION_WORKFLOW_REVISION="$GITHUB_WORKFLOW_SHA" \
+            AUTHS_QUALIFICATION_OBSERVER_KEY_ID="$OBSERVER_KEY_ID" \
+            AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256="$RECEIPT_TRUST_SHA256" \
+            AUTHS_QUALIFICATION_RECOVERY_KEY_ID="$RECOVERY_KEY_ID" \
+            AUTHS_QUALIFICATION_RECOVERY_PUBLIC_KEY_BASE64URL="$RECOVERY_PUBLIC_KEY_BASE64URL" \
+            AUTHS_QUALIFICATION_EVIDENCE_SOURCE_TRUST_SHA256="$EVIDENCE_SOURCE_TRUST_SHA256" \
+            AUTHS_QUALIFICATION_EVIDENCE_LEDGER_TRUST_SHA256="$EVIDENCE_LEDGER_TRUST_SHA256" \
+            AUTHS_QUALIFICATION_SUPERVISOR_SOURCE_UID="$SUPERVISOR_SOURCE_UID" \
+            AUTHS_QUALIFICATION_JOURNAL_READER_UID="$JOURNAL_READER_UID" \
+            AUTHS_QUALIFICATION_AGENT_UID="$AGENT_UID" \
+            AUTHS_QUALIFICATION_AGENT_GID="$AGENT_GID" \
+            GITHUB_REPOSITORY_ID="$GITHUB_REPOSITORY_ID" \
+            GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+            GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+            QUALIFICATION_PROTECTED_ENVIRONMENT="$PROTECTED_ENVIRONMENT" \
+            ../attester-tools/xtask profile qualification package-observation \
+            --proposal ../collected/proposal.json \
+            --observation ../protected-output/observation.json \
+            --cleanup ../protected-output/assembled-evidence/reports/cleanup.json \
+            --output ../protected-output/upload
+      - name: Upload exact packaged observation
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: "profile-qualification-observation-${{ inputs.domain }}-${{ inputs.target }}-attempt-${{ github.run_attempt }}"
+          path: protected-output/upload/
+          if-no-files-found: error
+          retention-days: 90
+
+  attest:
+    needs: [collect, installed, observe_cleanup]
+    environment: ${{ inputs.protected_environment }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout immutable candidate facts
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with: {ref: "${{ inputs.candidate_revision }}", path: candidate, persist-credentials: false}
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with: {ref: "${{ vars.AUTHS_QUALIFICATION_ATTESTER_REVISION }}", path: trusted-attester, persist-credentials: false}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          artifact-ids: ${{ needs.observe_cleanup.outputs.artifact_id }}
+          path: qualification-evidence
+      - name: Bind immutable observation artifact metadata
+        id: evidence_metadata
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          EVIDENCE_ARTIFACT_ID: ${{ needs.observe_cleanup.outputs.artifact_id }}
+          EVIDENCE_ARTIFACT_DIGEST: ${{ needs.observe_cleanup.outputs.artifact_digest }}
+          EVIDENCE_ARTIFACT_NAME: profile-qualification-observation-${{ inputs.domain }}-${{ inputs.target }}-attempt-${{ github.run_attempt }}
+        with:
+          script: |
+            const artifactId = Number(process.env.EVIDENCE_ARTIFACT_ID);
+            if (!Number.isSafeInteger(artifactId) || artifactId <= 0) throw new Error('invalid evidence artifact ID');
+            const {data: artifact} = await github.rest.actions.getArtifact({owner: context.repo.owner, repo: context.repo.repo, artifact_id: artifactId});
+            const digest = String(process.env.EVIDENCE_ARTIFACT_DIGEST).replace(/^sha256:/, '');
+            if (artifact.name !== process.env.EVIDENCE_ARTIFACT_NAME || artifact.digest !== `sha256:${digest}` || artifact.expired || String(artifact.workflow_run?.id) !== String(context.runId)) throw new Error('evidence artifact metadata drifted');
+            const created = Math.floor(Date.parse(artifact.created_at) / 1000);
+            const expires = Math.floor(Date.parse(artifact.expires_at) / 1000);
+            if (!Number.isSafeInteger(created) || !Number.isSafeInteger(expires) || expires < created + 90 * 86400) throw new Error('evidence artifact retention is insufficient');
+            core.setOutput('created_at', String(created));
+            core.setOutput('expires_at', String(expires));
+      - name: Rebind protected attester-tool metadata before download
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        env:
+          TOOL_RUN_ID: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ID }}
+          TOOL_RUN_ATTEMPT: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ATTEMPT }}
+          TOOL_ARTIFACT_ID: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_ID }}
+          TOOL_ARTIFACT_DIGEST: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_DIGEST }}
+          TOOL_ATTESTER_REVISION: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_REVISION }}
+          TOOL_RETENTION_DAYS: "90"
+          TOOL_REPOSITORY_ID: ${{ github.repository_id }}
+          TOOL_MANIFEST_SHA256: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_MANIFEST_SHA256 }}
+          TOOL_VERIFICATION_OUTPUT: ${{ runner.temp }}/attest-attester-tools-verification.json
+        with:
+          script: |
+            const verify = require('./trusted-attester/.github/scripts/verify-qualification-attester-tools-metadata.cjs');
+            await verify({github, context});
+      - name: Independently download protected attester tools
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          artifact-ids: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_ID }}
+          run-id: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ID }}
+          github-token: ${{ github.token }}
+          path: attester-tools
+          merge-multiple: true
+      - name: Reverify independently downloaded attester tools
+        id: attest_tools
+        shell: bash
+        env:
+          ATTESTER_REVISION: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_REVISION }}
+          TOOL_MANIFEST_SHA256: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_MANIFEST_SHA256 }}
+        run: |
+          set -euo pipefail
+          trusted-attester/.github/scripts/verify-qualification-attester-tools.sh attester-tools "$ATTESTER_REVISION" "$TOOL_MANIFEST_SHA256" trusted-attester/release/qualification/v1/evidence-source-trust-keys.json
+          {
+            echo "gh_sha256=$(jq -r '.members[]|select(.path=="gh")|.sha256' attester-tools/manifest.json)"
+            echo "gitleaks_sha256=$(jq -r '.members[]|select(.path=="gitleaks")|.sha256' attester-tools/manifest.json)"
+            echo "root_sha256=$(jq -r '.members[]|select(.path=="trusted-root.jsonl")|.sha256' attester-tools/manifest.json)"
+            echo "release_verifier_sha256=$(jq -r '.members[]|select(.path=="qualification-release-build-verifier")|.sha256' attester-tools/manifest.json)"
+          } >> "$GITHUB_OUTPUT"
+      - name: Freshly reverify the official release build
+        shell: bash
+        env:
+          AUTHS_QUALIFICATION_RETENTION_DAYS: ${{ vars.AUTHS_QUALIFICATION_RETENTION_DAYS }}
+          CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+          QUALIFICATION_CANDIDATE_REPOSITORY: ${{ github.workspace }}/candidate
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REPOSITORY_ID: ${{ github.repository_id }}
+          GITHUB_TOKEN: ${{ github.token }}
+          OFFICIAL_RELEASE_BUILD_RUN_ID: ${{ inputs.release_build_run_id }}
+          OFFICIAL_RELEASE_BUILD_ARTIFACT_ID: ${{ inputs.release_build_artifact_id }}
+          OFFICIAL_RELEASE_BUILD_ARTIFACT_DIGEST: ${{ inputs.release_build_artifact_digest }}
+          QUALIFICATION_GH_CLI: ${{ github.workspace }}/attester-tools/gh
+          QUALIFICATION_GH_CLI_SHA256: ${{ steps.attest_tools.outputs.gh_sha256 }}
+          QUALIFICATION_GH_TRUSTED_ROOT: ${{ github.workspace }}/attester-tools/trusted-root.jsonl
+          QUALIFICATION_GH_TRUSTED_ROOT_SHA256: ${{ steps.attest_tools.outputs.root_sha256 }}
+          QUALIFICATION_RELEASE_VERIFIER: ${{ github.workspace }}/attester-tools/qualification-release-build-verifier
+          QUALIFICATION_RELEASE_VERIFIER_SHA256: ${{ steps.attest_tools.outputs.release_verifier_sha256 }}
+          QUALIFICATION_ATTESTER_TOOLS_VERIFICATION: ${{ runner.temp }}/attest-attester-tools-verification.json
+          QUALIFICATION_ATTESTER_TOOLS_MANIFEST: ${{ github.workspace }}/attester-tools/manifest.json
+          QUALIFICATION_RELEASE_OUTPUT: ${{ github.workspace }}/fresh-release-build
+        run: trusted-attester/.github/scripts/verify-qualification-release-build.sh
+      - name: Verify uploaded evidence without a signing seed
+        shell: bash
+        env:
+          QUALIFICATION_DOMAIN: ${{ inputs.domain }}
+          QUALIFICATION_TARGET: ${{ inputs.target }}
+          QUALIFICATION_CANDIDATE_REVISION: ${{ inputs.candidate_revision }}
+          QUALIFICATION_WORKFLOW_REVISION: ${{ github.workflow_sha }}
+          QUALIFICATION_CANDIDATE_REPOSITORY: ${{ github.workspace }}/candidate
+          QUALIFICATION_EVIDENCE_DIRECTORY: ${{ github.workspace }}/qualification-evidence
+          QUALIFICATION_ARTIFACT_ID: ${{ needs.observe_cleanup.outputs.artifact_id }}
+          QUALIFICATION_ARTIFACT_DIGEST: ${{ needs.observe_cleanup.outputs.artifact_digest }}
+          QUALIFICATION_ARTIFACT_CREATED_AT: ${{ steps.evidence_metadata.outputs.created_at }}
+          QUALIFICATION_ARTIFACT_EXPIRES_AT: ${{ steps.evidence_metadata.outputs.expires_at }}
+          QUALIFICATION_VERIFIED_RECORD_OUTPUT: ${{ github.workspace }}/verified/record.json
+          QUALIFICATION_VERIFIED_BINDING_OUTPUT: ${{ github.workspace }}/verified/binding.json
+          AUTHS_QUALIFICATION_VERIFIED_RELEASE_BUILD: ${{ github.workspace }}/fresh-release-build/projection/release-build.json
+          AUTHS_QUALIFICATION_VERIFIED_RELEASE_BUILD_BINDING: ${{ github.workspace }}/fresh-release-build/verified-release-build.json
+          AUTHS_QUALIFICATION_RETENTION_DAYS: ${{ vars.AUTHS_QUALIFICATION_RETENTION_DAYS }}
+          AUTHS_QUALIFICATION_RELEASE_VERIFIER_SHA256: ${{ steps.attest_tools.outputs.release_verifier_sha256 }}
+          AUTHS_QUALIFICATION_GH_CLI_SHA256: ${{ steps.attest_tools.outputs.gh_sha256 }}
+          AUTHS_QUALIFICATION_GITLEAKS_SHA256: ${{ steps.attest_tools.outputs.gitleaks_sha256 }}
+          AUTHS_QUALIFICATION_GH_TRUSTED_ROOT_SHA256: ${{ steps.attest_tools.outputs.root_sha256 }}
+          AUTHS_QUALIFICATION_EVIDENCE_SOURCE_TRUST_SHA256: ${{ vars.AUTHS_QUALIFICATION_EVIDENCE_SOURCE_TRUST_SHA256 }}
+          AUTHS_QUALIFICATION_EVIDENCE_LEDGER_TRUST_SHA256: ${{ vars.AUTHS_QUALIFICATION_EVIDENCE_LEDGER_TRUST_SHA256 }}
+          AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256: ${{ vars.AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256 }}
+          AUTHS_QUALIFICATION_RECOVERY_KEY_ID: ${{ vars.AUTHS_QUALIFICATION_RECOVERY_KEY_ID }}
+          AUTHS_QUALIFICATION_RECOVERY_PUBLIC_KEY_BASE64URL: ${{ vars.AUTHS_QUALIFICATION_RECOVERY_PUBLIC_KEY_BASE64URL }}
+          AUTHS_QUALIFICATION_OBSERVER_KEY_ID: ${{ vars.AUTHS_QUALIFICATION_OBSERVER_KEY_ID }}
+          AUTHS_QUALIFICATION_SUPERVISOR_SOURCE_UID: ${{ vars.AUTHS_QUALIFICATION_SUPERVISOR_SOURCE_UID }}
+          AUTHS_QUALIFICATION_JOURNAL_READER_UID: ${{ vars.AUTHS_QUALIFICATION_JOURNAL_READER_UID }}
+          AUTHS_QUALIFICATION_AGENT_UID: ${{ vars.AUTHS_QUALIFICATION_AGENT_UID }}
+          AUTHS_QUALIFICATION_AGENT_GID: ${{ vars.AUTHS_QUALIFICATION_AGENT_GID }}
+          AUTHS_QUALIFICATION_ATTESTER_REVISION: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_REVISION }}
+          AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ID: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ID }}
+          AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ATTEMPT: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ATTEMPT }}
+          AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_ID: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_ID }}
+          AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_DIGEST: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_DIGEST }}
+          AUTHS_QUALIFICATION_ATTESTER_TOOLS_MANIFEST_SHA256: ${{ vars.AUTHS_QUALIFICATION_ATTESTER_TOOLS_MANIFEST_SHA256 }}
+          OFFICIAL_RELEASE_BUILD_RUN_ID: ${{ inputs.release_build_run_id }}
+          OFFICIAL_RELEASE_BUILD_ARTIFACT_ID: ${{ inputs.release_build_artifact_id }}
+          OFFICIAL_RELEASE_BUILD_ARTIFACT_DIGEST: ${{ inputs.release_build_artifact_digest }}
+          QUALIFICATION_PROTECTED_ENVIRONMENT: ${{ inputs.protected_environment }}
+        run: |
+          set -euo pipefail
+          cd trusted-attester
+          env -i \
+            GITHUB_ACTIONS=true \
+            GITHUB_REPOSITORY_ID="$GITHUB_REPOSITORY_ID" \
+            GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+            GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+            QUALIFICATION_DOMAIN="$QUALIFICATION_DOMAIN" \
+            QUALIFICATION_TARGET="$QUALIFICATION_TARGET" \
+            QUALIFICATION_CANDIDATE_REVISION="$QUALIFICATION_CANDIDATE_REVISION" \
+            QUALIFICATION_WORKFLOW_REVISION="$QUALIFICATION_WORKFLOW_REVISION" \
+            QUALIFICATION_CANDIDATE_REPOSITORY="$QUALIFICATION_CANDIDATE_REPOSITORY" \
+            QUALIFICATION_EVIDENCE_DIRECTORY="$QUALIFICATION_EVIDENCE_DIRECTORY" \
+            QUALIFICATION_ARTIFACT_ID="$QUALIFICATION_ARTIFACT_ID" \
+            QUALIFICATION_ARTIFACT_DIGEST="$QUALIFICATION_ARTIFACT_DIGEST" \
+            QUALIFICATION_ARTIFACT_CREATED_AT="$QUALIFICATION_ARTIFACT_CREATED_AT" \
+            QUALIFICATION_ARTIFACT_EXPIRES_AT="$QUALIFICATION_ARTIFACT_EXPIRES_AT" \
+            QUALIFICATION_VERIFIED_RECORD_OUTPUT="$QUALIFICATION_VERIFIED_RECORD_OUTPUT" \
+            QUALIFICATION_VERIFIED_BINDING_OUTPUT="$QUALIFICATION_VERIFIED_BINDING_OUTPUT" \
+            AUTHS_QUALIFICATION_VERIFIED_RELEASE_BUILD="$AUTHS_QUALIFICATION_VERIFIED_RELEASE_BUILD" \
+            AUTHS_QUALIFICATION_VERIFIED_RELEASE_BUILD_BINDING="$AUTHS_QUALIFICATION_VERIFIED_RELEASE_BUILD_BINDING" \
+            AUTHS_QUALIFICATION_RETENTION_DAYS="$AUTHS_QUALIFICATION_RETENTION_DAYS" \
+            AUTHS_QUALIFICATION_RELEASE_VERIFIER_SHA256="$AUTHS_QUALIFICATION_RELEASE_VERIFIER_SHA256" \
+            AUTHS_QUALIFICATION_GH_CLI_SHA256="$AUTHS_QUALIFICATION_GH_CLI_SHA256" \
+            AUTHS_QUALIFICATION_GH_TRUSTED_ROOT_SHA256="$AUTHS_QUALIFICATION_GH_TRUSTED_ROOT_SHA256" \
+            AUTHS_QUALIFICATION_GITLEAKS="$GITHUB_WORKSPACE/attester-tools/gitleaks" \
+            AUTHS_QUALIFICATION_GITLEAKS_SHA256="$AUTHS_QUALIFICATION_GITLEAKS_SHA256" \
+            AUTHS_QUALIFICATION_EVIDENCE_SOURCE_TRUST_SHA256="$AUTHS_QUALIFICATION_EVIDENCE_SOURCE_TRUST_SHA256" \
+            AUTHS_QUALIFICATION_EVIDENCE_LEDGER_TRUST_SHA256="$AUTHS_QUALIFICATION_EVIDENCE_LEDGER_TRUST_SHA256" \
+            AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256="$AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256" \
+            AUTHS_QUALIFICATION_RECOVERY_KEY_ID="$AUTHS_QUALIFICATION_RECOVERY_KEY_ID" \
+            AUTHS_QUALIFICATION_RECOVERY_PUBLIC_KEY_BASE64URL="$AUTHS_QUALIFICATION_RECOVERY_PUBLIC_KEY_BASE64URL" \
+            AUTHS_QUALIFICATION_OBSERVER_KEY_ID="$AUTHS_QUALIFICATION_OBSERVER_KEY_ID" \
+            AUTHS_QUALIFICATION_SUPERVISOR_SOURCE_UID="$AUTHS_QUALIFICATION_SUPERVISOR_SOURCE_UID" \
+            AUTHS_QUALIFICATION_JOURNAL_READER_UID="$AUTHS_QUALIFICATION_JOURNAL_READER_UID" \
+            AUTHS_QUALIFICATION_AGENT_UID="$AUTHS_QUALIFICATION_AGENT_UID" \
+            AUTHS_QUALIFICATION_AGENT_GID="$AUTHS_QUALIFICATION_AGENT_GID" \
+            AUTHS_QUALIFICATION_ATTESTER_REVISION="$AUTHS_QUALIFICATION_ATTESTER_REVISION" \
+            AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ID="$AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ID" \
+            AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ATTEMPT="$AUTHS_QUALIFICATION_ATTESTER_TOOLS_RUN_ATTEMPT" \
+            AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_ID="$AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_ID" \
+            AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_DIGEST="$AUTHS_QUALIFICATION_ATTESTER_TOOLS_ARTIFACT_DIGEST" \
+            AUTHS_QUALIFICATION_ATTESTER_TOOLS_MANIFEST_SHA256="$AUTHS_QUALIFICATION_ATTESTER_TOOLS_MANIFEST_SHA256" \
+            OFFICIAL_RELEASE_BUILD_RUN_ID="$OFFICIAL_RELEASE_BUILD_RUN_ID" \
+            OFFICIAL_RELEASE_BUILD_ARTIFACT_ID="$OFFICIAL_RELEASE_BUILD_ARTIFACT_ID" \
+            OFFICIAL_RELEASE_BUILD_ARTIFACT_DIGEST="$OFFICIAL_RELEASE_BUILD_ARTIFACT_DIGEST" \
+            QUALIFICATION_PROTECTED_ENVIRONMENT="$QUALIFICATION_PROTECTED_ENVIRONMENT" \
+            ../attester-tools/xtask profile qualification verify-uploaded \
+            --artifact ../qualification-evidence \
+            --output ../verified/record.json
+      - name: Sign only the bounded verified record
+        shell: bash
+        env:
+          QUALIFICATION_ATTESTATION_SEED: ${{ secrets.QUALIFICATION_ATTESTATION_SEED }}
+          QUALIFICATION_ATTESTATION_KEY_ID: ${{ vars.AUTHS_QUALIFICATION_ATTESTATION_KEY_ID }}
+        run: |
+          set -euo pipefail
+          install -d -m 0700 signed
+          printf '%s' "$QUALIFICATION_ATTESTATION_SEED" | env -i attester-tools/qualification-attestation-signer sign-verified --record verified/record.json --binding verified/binding.json --trust trusted-attester/release/qualification/v1/trust-keys.json --output signed/attestation.json --key-id "$QUALIFICATION_ATTESTATION_KEY_ID"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with: {name: "profile-qualification-attestation-${{ inputs.domain }}-${{ inputs.target }}-attempt-${{ github.run_attempt }}", path: signed/attestation.json, if-no-files-found: error, retention-days: 90}

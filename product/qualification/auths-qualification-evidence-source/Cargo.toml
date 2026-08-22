@@ -1,0 +1,42 @@
+[package]
+name = "auths-qualification-evidence-source"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+description = "Single-role protected qualification evidence source signers"
+
+[dependencies]
+auths-config.workspace = true
+auths-lifecycle.workspace = true
+auths-connections = { workspace = true, features = ["qualification-broker"] }
+auths-errors.workspace = true
+auths-model.workspace = true
+auths-profile-kit = { workspace = true, features = ["qualification-ledger-producer"] }
+auths-production-client.workspace = true
+auths-receipts.workspace = true
+auths-stores = { workspace = true, features = ["qualification-evidence"] }
+base64ct.workspace = true
+ed25519-dalek.workspace = true
+hex.workspace = true
+minicbor.workspace = true
+rustix = { workspace = true, features = ["std"] }
+serde.workspace = true
+serde_json.workspace = true
+serde_json_canonicalizer.workspace = true
+sha2.workspace = true
+zeroize.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+auths-profile-runtime.workspace = true
+auths-opentofu = { workspace = true, features = ["qualification"] }
+auths-postgresql = { workspace = true, features = ["qualification"] }
+auths-stripe = { workspace = true, features = ["qualification"] }
+tokio.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

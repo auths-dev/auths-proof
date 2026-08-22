@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-typed-source-record-common.schema.json",
+  "$defs": {
+    "context": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sequence", "previousEventSha256", "scenarioId", "phaseIndex", "role", "profile", "failpoint", "supervisorGeneration", "operationId", "requestId", "connectionGeneration"],
+      "properties": {
+        "sequence": {"type": "integer", "minimum": 1, "maximum": 16384},
+        "previousEventSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "scenarioId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "phaseIndex": {"type": "integer", "minimum": 1, "maximum": 8},
+        "role": {"enum": ["preflight", "effect"]},
+        "profile": {"$ref": "profile-qualification.schema.json#/$defs/semanticSubject"},
+        "failpoint": {"$ref": "profile-qualification-report-common.schema.json#/$defs/nullableFailpoint"},
+        "supervisorGeneration": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+        "operationId": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"}]},
+        "requestId": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"}]},
+        "connectionGeneration": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/decimal32"}]}
+      }
+    },
+    "clientContext": {"allOf": [{"$ref": "#/$defs/context"}, {"properties": {"requestId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"}}}, {"oneOf": [{"properties": {"operationId": {"type": "null"}, "connectionGeneration": {"type": "null"}}}, {"properties": {"operationId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"}, "connectionGeneration": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"}}}]}]},
+    "operationContext": {"allOf": [{"$ref": "#/$defs/context"}, {"properties": {"operationId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"}, "connectionGeneration": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"}}}]},
+    "clientProxyObservation": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["kind", "requestInputSha256", "principalSha256", "idempotencySha256", "preparationInputSha256"], "properties": {"kind": {"const": "request-received"}, "requestInputSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"}, "principalSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"}, "idempotencySha256": {"oneOf": [{"type":"null"},{"$ref":"profile-qualification.schema.json#/$defs/digest"}]}, "preparationInputSha256": {"oneOf": [{"type":"null"},{"$ref":"profile-qualification.schema.json#/$defs/digest"}]}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "resultSha256", "journalProjectionKinds", "outcome", "completion", "recoveryId", "errorCode", "issueMetadataSha256", "receiptIds"], "properties": {"kind": {"enum": ["response-projected", "cancellation-observed"]}, "resultSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"}, "journalProjectionKinds": {"type": "array", "maxItems": 64, "items": {"enum": ["replay-observed", "status-observed", "recovery-observed"]}}, "outcome": {"enum": ["denied", "unavailable", "completed", "partial", "not-applied", "recovery-required", "conflict"]}, "completion": {"type": ["string", "null"], "enum": [null, "fresh", "replayed", "reconciled"]}, "recoveryId": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"}]}, "errorCode": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"}]}, "issueMetadataSha256": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/digest"}]}, "receiptIds": {"type": "array", "maxItems": 16, "uniqueItems": true, "items": {"$ref": "profile-qualification-receipts-report.schema.json#/$defs/receiptId"}}}}
+      ]
+    },
+    "credentialBrokerObservation": {
+      "oneOf": [
+        {"oneOf":[{"type":"object","additionalProperties":false,"required":["kind","connectionIdSha256","connectionAliasSha256","descriptorSha256","accountSha256"],"properties":{"kind":{"const":"connection-reread"},"connectionIdSha256":{"type":"null"},"connectionAliasSha256":{"type":"null"},"descriptorSha256":{"type":"null"},"accountSha256":{"type":"null"}}},{"type":"object","additionalProperties":false,"required":["kind","connectionIdSha256","connectionAliasSha256","descriptorSha256","accountSha256"],"properties":{"kind":{"const":"connection-reread"},"connectionIdSha256":{"$ref":"profile-qualification.schema.json#/$defs/digest"},"connectionAliasSha256":{"$ref":"profile-qualification.schema.json#/$defs/digest"},"descriptorSha256":{"$ref":"profile-qualification.schema.json#/$defs/digest"},"accountSha256":{"$ref":"profile-qualification.schema.json#/$defs/digest"}}}]},
+        {"type":"object","additionalProperties":false,"required":["kind","leaseSha256","requestedScopeSha256","effectiveScopeSha256"],"properties":{"kind":{"enum":["credential-lease-attempted","credential-lease-succeeded","credential-lease-closed"]},"leaseSha256":{"$ref":"profile-qualification.schema.json#/$defs/digest"},"requestedScopeSha256":{"$ref":"profile-qualification.schema.json#/$defs/digest"},"effectiveScopeSha256":{"$ref":"profile-qualification.schema.json#/$defs/digest"}}}
+      ]
+    },
+    "profileStateObservation": {"type":"object","additionalProperties":false,"required":["kind","reservationSha256"],"properties":{"kind":{"enum":["reservation-durable","reservation-released","reservation-consumed","reservation-retained"]},"reservationSha256":{"$ref":"profile-qualification.schema.json#/$defs/digest"}}},
+    "providerProxyObservation": {"oneOf":[{"type":"object","additionalProperties":false,"required":["kind","requestSha256","credentialLeaseSha256"],"properties":{"kind":{"const":"provider-request-written"},"requestSha256":{"$ref":"profile-qualification.schema.json#/$defs/digest"},"credentialLeaseSha256":{"$ref":"profile-qualification.schema.json#/$defs/digest"}}},{"type":"object","additionalProperties":false,"required":["kind","responseSha256"],"properties":{"kind":{"const":"provider-response-observed"},"responseSha256":{"$ref":"profile-qualification.schema.json#/$defs/digest"}}},{"type":"object","additionalProperties":false,"required":["kind","requestSha256","credentialLeaseSha256"],"properties":{"kind":{"const":"provider-reconciliation-requested"},"requestSha256":{"$ref":"profile-qualification.schema.json#/$defs/digest"},"credentialLeaseSha256":{"$ref":"profile-qualification.schema.json#/$defs/digest"}}},{"type":"object","additionalProperties":false,"required":["kind","responseSha256"],"properties":{"kind":{"const":"provider-reconciliation-observed"},"responseSha256":{"$ref":"profile-qualification.schema.json#/$defs/digest"}}}]}
+  }
+}

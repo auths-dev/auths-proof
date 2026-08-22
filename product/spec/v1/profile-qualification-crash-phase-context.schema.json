@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-crash-phase-context.schema.json",
+  "title": "Auths qualification crash phase context v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "sourceContextSha256", "domain", "phase", "supervisorSourceUid",
+    "agentUid", "agentGid", "supervisorSourceIdentity", "supervisorGeneration",
+    "agentGeneration", "agentLauncherArtifactSha256", "agentExecutableSha256",
+    "controlOperationId", "controllerNonceSha256"
+  ],
+  "properties": {
+    "schema": {"const": "auths.qualification-crash-phase-context/1"},
+    "sourceContextSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "domain": {"$ref": "profile-qualification.schema.json#/$defs/domain"},
+    "phase": {"$ref": "profile-qualification-evidence-ledger-plan.schema.json#/$defs/phase"},
+    "supervisorSourceUid": {"type": "integer", "minimum": 1, "maximum": 4294967294},
+    "agentUid": {"type": "integer", "minimum": 1, "maximum": 4294967294},
+    "agentGid": {"type": "integer", "minimum": 1, "maximum": 4294967294},
+    "supervisorSourceIdentity": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+    "supervisorGeneration": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+    "agentGeneration": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+    "agentLauncherArtifactSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "agentExecutableSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "controlOperationId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+    "controllerNonceSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"}
+  },
+  "x-auths-semanticValidator": "profile-qualification-crash-phase-context/1"
+}

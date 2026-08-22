@@ -394,7 +394,22 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "thiserror 2.0.19",
  "toml",
+]
+
+[[package]]
+name = "auths-connections"
+version = "1.0.0-rc.1"
+dependencies = [
+ "async-trait",
+ "base64ct",
+ "getrandom 0.3.4",
+ "minicbor",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 2.0.19",
+ "zeroize",
 ]
 
 [[package]]
@@ -503,6 +518,7 @@ dependencies = [
 name = "auths-errors"
 version = "1.0.0-rc.1"
 dependencies = [
+ "minicbor",
  "serde",
 ]
 
@@ -572,36 +588,6 @@ dependencies = [
  "subtle",
  "tempfile",
  "thiserror 2.0.19",
-]
-
-[[package]]
-name = "auths-github-demo"
-version = "1.0.0-rc.1"
-dependencies = [
- "auths-author",
- "auths-codec",
- "auths-github",
- "auths-lifecycle",
- "auths-model",
- "auths-ports",
- "auths-profile-api",
- "auths-raw-key",
- "auths-registries",
- "auths-runtime",
- "auths-sdk",
- "auths-signature",
- "auths-stores",
- "axum",
- "base64ct",
- "ed25519-dalek 2.2.0",
- "getrandom 0.3.4",
- "hex",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.19",
- "tokio",
- "tower-http 0.7.0",
 ]
 
 [[package]]
@@ -766,6 +752,7 @@ name = "auths-lifecycle"
 version = "1.0.0-rc.1"
 dependencies = [
  "auths-bounded-policy",
+ "base64ct",
  "postcard",
  "proptest",
  "serde",
@@ -840,56 +827,83 @@ dependencies = [
 name = "auths-node"
 version = "1.0.0-rc.1"
 dependencies = [
+ "async-trait",
  "auths-author",
  "auths-codec",
+ "auths-config",
+ "auths-connections",
  "auths-did-keri",
  "auths-did-key",
  "auths-did-web",
  "auths-errors",
  "auths-hsm-attested",
+ "auths-lifecycle",
  "auths-model",
+ "auths-opentofu",
  "auths-operations",
  "auths-operations-otel",
  "auths-ports",
+ "auths-postgresql",
  "auths-production-client",
+ "auths-profile-kit",
+ "auths-profile-runtime",
  "auths-raw-key",
+ "auths-receipts",
  "auths-registries",
  "auths-signature",
  "auths-spiffe-x509",
+ "auths-stores",
+ "auths-stripe",
  "auths-testkit",
  "auths-verifier",
  "auths-webauthn",
  "axum",
  "base64ct",
+ "clap",
  "ed25519-dalek 2.2.0",
  "getrandom 0.3.4",
  "hex",
  "minicbor",
  "postgres",
+ "rustix",
  "rustls",
  "rustls-pki-types",
  "serde",
  "serde_json",
+ "serde_json_canonicalizer",
  "sha2 0.10.9",
  "tempfile",
+ "thiserror 2.0.19",
  "tokio",
  "tokio-postgres-rustls",
  "toml",
  "tower",
  "tower-http 0.7.0",
+ "zeroize",
 ]
 
 [[package]]
 name = "auths-opentofu"
 version = "1.0.0-rc.1"
 dependencies = [
+ "async-trait",
  "auths-bounded-policy",
+ "auths-codec",
+ "auths-connections",
+ "auths-errors",
  "auths-lifecycle",
  "auths-model",
  "auths-profile-api",
+ "auths-profile-kit",
+ "auths-profile-runtime",
+ "auths-receipts",
  "auths-sdk",
  "auths-stores",
+ "base64ct",
+ "getrandom 0.3.4",
  "hex",
+ "minicbor",
+ "rustix",
  "serde",
  "serde_json",
  "serde_json_canonicalizer",
@@ -897,6 +911,8 @@ dependencies = [
  "subtle",
  "tempfile",
  "thiserror 2.0.19",
+ "tokio",
+ "zeroize",
 ]
 
 [[package]]
@@ -959,12 +975,24 @@ version = "1.0.0-rc.1"
 dependencies = [
  "async-trait",
  "auths-bounded-policy",
+ "auths-codec",
+ "auths-connections",
+ "auths-errors",
  "auths-lifecycle",
  "auths-model",
  "auths-profile-api",
+ "auths-profile-kit",
+ "auths-profile-runtime",
+ "auths-receipts",
  "auths-sdk",
  "auths-stores",
+ "base64ct",
+ "getrandom 0.3.4",
  "hex",
+ "minicbor",
+ "rustix",
+ "rustls",
+ "rustls-pki-types",
  "serde",
  "serde_json",
  "serde_json_canonicalizer",
@@ -972,8 +1000,13 @@ dependencies = [
  "subtle",
  "tempfile",
  "thiserror 2.0.19",
+ "tokio",
+ "tokio-postgres",
+ "tokio-postgres-rustls",
  "unicode-normalization",
  "uuid",
+ "webpki-roots",
+ "zeroize",
 ]
 
 [[package]]
@@ -1012,9 +1045,12 @@ name = "auths-production-client"
 version = "1.0.0-rc.1"
 dependencies = [
  "base64ct",
+ "getrandom 0.3.4",
  "minicbor",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -1049,9 +1085,12 @@ dependencies = [
  "auths-model",
  "auths-profile-api",
  "auths-verifier",
+ "base64ct",
+ "ed25519-dalek 2.2.0",
  "hex",
  "serde",
  "serde_json",
+ "serde_json_canonicalizer",
  "sha2 0.10.9",
  "thiserror 2.0.19",
 ]
@@ -1071,6 +1110,18 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_json_canonicalizer",
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "auths-profile-runtime"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-connections",
+ "auths-lifecycle",
+ "auths-stores",
+ "hex",
+ "serde",
  "sha2 0.10.9",
 ]
 
@@ -1273,6 +1324,7 @@ dependencies = [
  "auths-registries",
  "auths-sdk",
  "auths-signature",
+ "auths-signature-core",
  "auths-signature-ed25519",
  "auths-verifier",
  "ed25519-dalek 2.2.0",
@@ -1306,6 +1358,7 @@ dependencies = [
  "auths-receipts",
  "auths-registries",
  "auths-signature",
+ "auths-signature-core",
  "auths-signature-ed25519",
  "auths-testkit",
  "auths-verifier",
@@ -1318,6 +1371,63 @@ dependencies = [
  "serde_json_canonicalizer",
  "sha2 0.10.9",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "auths-qualification-evidence-source"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-config",
+ "auths-connections",
+ "auths-errors",
+ "auths-lifecycle",
+ "auths-model",
+ "auths-opentofu",
+ "auths-postgresql",
+ "auths-production-client",
+ "auths-profile-kit",
+ "auths-profile-runtime",
+ "auths-receipts",
+ "auths-stores",
+ "auths-stripe",
+ "base64ct",
+ "ed25519-dalek 2.2.0",
+ "hex",
+ "minicbor",
+ "rustix",
+ "serde",
+ "serde_json",
+ "serde_json_canonicalizer",
+ "sha2 0.10.9",
+ "tempfile",
+ "tokio",
+ "zeroize",
+]
+
+[[package]]
+name = "auths-qualification-supervisor"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-config",
+ "auths-lifecycle",
+ "auths-model",
+ "auths-profile-kit",
+ "auths-qualification-evidence-source",
+ "auths-receipts",
+ "auths-stores",
+ "base64ct",
+ "ed25519-dalek 2.2.0",
+ "hex",
+ "rustix",
+ "serde",
+ "serde_json",
+ "serde_json_canonicalizer",
+ "sha2 0.10.9",
+ "tar",
+ "tempfile",
+ "toml",
+ "zeroize",
+ "zstd",
 ]
 
 [[package]]
@@ -1406,8 +1516,14 @@ dependencies = [
  "auths-codec",
  "auths-model",
  "auths-ports",
+ "auths-signature",
+ "base64ct",
  "minicbor",
+ "serde",
+ "serde_json",
+ "serde_json_canonicalizer",
  "sha2 0.10.9",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -1505,7 +1621,6 @@ dependencies = [
  "auths-lifecycle",
  "auths-model",
  "auths-operations",
- "auths-production-client",
  "auths-profile-api",
  "auths-profile-mcp",
  "auths-proof-exchange-model",
@@ -1592,20 +1707,27 @@ name = "auths-stores"
 version = "1.0.0-rc.1"
 dependencies = [
  "auths-bounded-policy",
+ "auths-connections",
  "auths-lifecycle",
  "auths-model",
  "auths-proof-exchange-model",
  "auths-receipts",
  "auths-runtime",
+ "base64ct",
+ "getrandom 0.3.4",
  "hex",
  "minicbor",
+ "postcard",
  "postgres",
  "r2d2",
  "r2d2_postgres",
+ "rustix",
  "rustls",
  "rustls-pki-types",
+ "serde",
  "sha2 0.10.9",
  "tempfile",
+ "thiserror 2.0.19",
  "tokio-postgres-rustls",
 ]
 
@@ -1613,21 +1735,32 @@ dependencies = [
 name = "auths-stripe"
 version = "1.0.0-rc.1"
 dependencies = [
+ "async-trait",
  "auths-author",
  "auths-bounded-policy",
  "auths-codec",
+ "auths-connections",
+ "auths-errors",
  "auths-lifecycle",
  "auths-model",
  "auths-ports",
  "auths-profile-api",
+ "auths-profile-kit",
+ "auths-profile-runtime",
  "auths-raw-key",
+ "auths-receipts",
  "auths-registries",
  "auths-runtime",
  "auths-sdk",
  "auths-signature",
+ "auths-stores",
+ "base64ct",
  "ed25519-dalek 2.2.0",
  "hex",
+ "minicbor",
  "proptest",
+ "reqwest",
+ "rustix",
  "serde",
  "serde_json",
  "serde_json_canonicalizer",
@@ -1635,6 +1768,8 @@ dependencies = [
  "subtle",
  "tempfile",
  "thiserror 2.0.19",
+ "tokio",
+ "zeroize",
 ]
 
 [[package]]
@@ -5148,6 +5283,7 @@ dependencies = [
  "rustls-platform-verifier",
  "serde",
  "serde_json",
+ "serde_urlencoded",
  "sync_wrapper",
  "tokio",
  "tokio-rustls",
@@ -7121,13 +7257,17 @@ dependencies = [
  "auths-hsm-attested",
  "auths-kubernetes",
  "auths-lab-matrix",
+ "auths-lifecycle",
  "auths-model",
  "auths-opentofu",
  "auths-ports",
  "auths-postgresql",
  "auths-production-client",
+ "auths-profile-kit",
  "auths-profile-mcp",
+ "auths-profile-runtime",
  "auths-proof-exchange-testkit",
+ "auths-qualification-supervisor",
  "auths-radicle",
  "auths-raw-key",
  "auths-receipts",
@@ -7135,19 +7275,25 @@ dependencies = [
  "auths-registries",
  "auths-signature",
  "auths-spiffe-x509",
+ "auths-stores",
  "auths-stripe",
  "auths-testkit",
  "auths-verifier",
  "auths-webauthn",
+ "base64ct",
  "ed25519-dalek 2.2.0",
+ "getrandom 0.3.4",
  "hex",
+ "rustix",
  "serde",
  "serde_json",
+ "serde_json_canonicalizer",
  "sha2 0.10.9",
  "tar",
  "tempfile",
  "tokio",
  "toml",
+ "zeroize",
  "zstd",
 ]
 

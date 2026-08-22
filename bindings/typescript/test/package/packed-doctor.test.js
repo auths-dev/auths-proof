@@ -15,7 +15,7 @@ test("packed package runs the bounded doctor command", async () => {
     );
     assert.match(output, /Auths SDK\s+1\.0\.0-rc\.1/);
     assert.match(output, /Portable ABI\s+compatible/);
-    assert.match(output, /Profiles\s+mcp\/1/);
+    assert.match(output, /Profiles\s+opentofu\.saved-plan-apply\/1, postgresql\.bounded-update\/1, stripe\.refund\/1/);
     assert.doesNotMatch(output, /credential|private.?key|signature|proof.?bytes|command.?bytes/i);
   } finally {
     await rm(directory, { recursive: true, force: true });

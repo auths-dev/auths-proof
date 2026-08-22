@@ -1,0 +1,30 @@
+{
+  "schema": "auths.profile-qualification-scenarios/1",
+  "domain": "common",
+  "scenarios": [
+    "boundary-plus-one",
+    "changed-input-conflict",
+    "configuration-mismatch",
+    "connection-substitution",
+    "crash-after-command",
+    "crash-after-decision",
+    "crash-after-entry-marker",
+    "crash-after-execution-receipt",
+    "crash-after-lease",
+    "crash-after-observation",
+    "crash-after-provider-result",
+    "crash-after-request-write",
+    "crash-after-reread",
+    "crash-after-reservation",
+    "crash-after-terminal",
+    "crash-before-decision",
+    "exact-boundary",
+    "happy-path",
+    "malformed-input",
+    "principal-substitution",
+    "provider-denial",
+    "quota-final-capacity",
+    "replay",
+    "stale-evidence"
+  ]
+}

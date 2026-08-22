@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-common-phase-evidence.schema.json",
+  "x-auths-semanticValidator": "profile-qualification-common-phase-evidence/1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "repositoryId", "workflowRunId", "workflowRunAttempt", "candidateRevision", "domain", "target", "protectedEnvironment", "providerRunId", "scenarioId", "phaseIndex", "role", "profile", "failpoint", "operationPlanSha256", "ledgerId", "sessionNonceSha256", "supervisorGeneration", "firstEventSequence", "lastEventSequence", "instances", "attempts"],
+  "properties": {
+    "schema": {"const": "auths.profile-qualification-common-phase-evidence/1"},
+    "repositoryId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+    "workflowRunId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+    "workflowRunAttempt": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+    "candidateRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+    "domain": {"$ref": "profile-qualification.schema.json#/$defs/domain"},
+    "target": {"$ref": "profile-qualification.schema.json#/$defs/target"},
+    "protectedEnvironment": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+    "providerRunId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+    "scenarioId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+    "phaseIndex": {"type": "integer", "minimum": 1, "maximum": 8},
+    "role": {"enum": ["preflight", "effect"]},
+    "profile": {"$ref": "profile-qualification.schema.json#/$defs/semanticSubject"},
+    "failpoint": {"$ref": "profile-qualification-report-common.schema.json#/$defs/nullableFailpoint"},
+    "operationPlanSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "ledgerId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+    "sessionNonceSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "supervisorGeneration": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+    "firstEventSequence": {"type": "integer", "minimum": 1, "maximum": 16384},
+    "lastEventSequence": {"type": "integer", "minimum": 1, "maximum": 16384},
+    "instances": {"type": "array", "maxItems": 8, "items": {"$ref": "#/$defs/operation"}},
+    "attempts": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"$ref": "profile-qualification-scenario-report.schema.json#/$defs/attempt"}}
+  },
+  "$defs": {
+    "operation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["projection", "receiptClaims"],
+      "properties": {
+        "projection": {"$ref": "#/$defs/projection"},
+        "receiptClaims": {"type": "array", "minItems": 1, "maxItems": 16, "items": {"$ref": "#/$defs/receiptClaim"}}
+      }
+    },
+    "projection": {
+      "type": "object", "additionalProperties": false,
+      "required": ["operationId", "connectionGeneration", "principalSha256", "connectionAliasSha256", "connectionIdSha256", "connectionDescriptorSha256", "connectionAccountSha256", "credentialScopeSha256", "canonicalInputSha256", "idempotencySha256", "canonicalActionSha256", "receiptActionSha256", "receiptContextSha256", "authoritySha256", "configurationSha256", "runtimeContractSha256", "preparationSha256", "decisionClass", "reconciled", "effect", "counters", "sealedCommandSha256", "providerResultSha256", "executionResultSha256"],
+      "properties": {
+        "operationId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "connectionGeneration": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+        "principalSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "connectionAliasSha256": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/digest"}]},
+        "connectionIdSha256": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/digest"}]},
+        "connectionDescriptorSha256": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/digest"}]},
+        "connectionAccountSha256": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/digest"}]},
+        "credentialScopeSha256": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/digest"}]},
+        "canonicalInputSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "idempotencySha256": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/digest"}]},
+        "canonicalActionSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "receiptActionSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "receiptContextSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "authoritySha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "configurationSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "runtimeContractSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "preparationSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "decisionClass": {"enum": ["authorized", "denied", "indeterminate"]},
+        "reconciled": {"type": "boolean"},
+        "effect": {"$ref": "profile-qualification-report-common.schema.json#/$defs/effect"},
+        "counters": {"$ref": "profile-qualification-report-common.schema.json#/$defs/counters"},
+        "sealedCommandSha256": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/digest"}]},
+        "providerResultSha256": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/digest"}]},
+        "executionResultSha256": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/digest"}]}
+      }
+    },
+    "receiptClaim": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sequence", "attemptSequence", "requestId", "operationId", "profile", "connectionGeneration", "state", "decisionReceiptId", "executionReceiptId", "decisionActionSha256", "decisionContextSha256", "decisionClass", "executionCommandSha256", "executionResultSha256", "executionOutcome"],
+      "properties": {
+        "sequence": {"type": "integer", "minimum": 1, "maximum": 16},
+        "attemptSequence": {"type": "integer", "minimum": 1, "maximum": 8},
+        "requestId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "operationId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "profile": {"$ref": "profile-qualification.schema.json#/$defs/semanticSubject"},
+        "connectionGeneration": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+        "state": {"enum": ["none", "decision-only", "linked-execution"]},
+        "decisionReceiptId": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification-receipts-report.schema.json#/$defs/receiptId"}]},
+        "executionReceiptId": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification-receipts-report.schema.json#/$defs/receiptId"}]},
+        "decisionActionSha256": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/digest"}]},
+        "decisionContextSha256": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/digest"}]},
+        "decisionClass": {"type": ["string", "null"], "enum": [null, "authorized", "denied", "indeterminate"]},
+        "executionCommandSha256": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/digest"}]},
+        "executionResultSha256": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/digest"}]},
+        "executionOutcome": {"type": ["string", "null"], "enum": [null, "succeeded", "failed", "indeterminate"]}
+      }
+    }
+  }
+}

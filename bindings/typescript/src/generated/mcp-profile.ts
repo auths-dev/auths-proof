@@ -1,8 +1,8 @@
 export const MCP_PROFILE = {
-  "schema": "auths.mcp-session-contract/1",
+  "schema": "auths.mcp-session-contract/2",
   "profile": "auths.mcp",
-  "profileVersion": 1,
-  "semanticSubject": "auths.mcp-session/1",
+  "profileVersion": 2,
+  "semanticSubject": "auths.mcp-session/2",
   "limits": {
     "toolCount": 128,
     "toolNameBytes": 128,
@@ -18,15 +18,20 @@ export const MCP_PROFILE = {
     "reserve",
     "mark-provider-entry",
     "invoke",
+    "persist-provider-result",
     "persist-receipt",
     "reconcile"
   ],
   "handlerEffects": [
-    "not-applied",
     "applied",
     "possible"
   ],
   "errorCodes": [
+    "mcp.receipt-invalid",
+    "mcp.admission-capacity",
+    "mcp.delegation-capacity",
+    "mcp.recovery-not-found",
+    "mcp.recovery-kind-mismatch",
     "mcp.invalid-handler-output",
     "mcp.handler-failed",
     "mcp.handler-timeout",

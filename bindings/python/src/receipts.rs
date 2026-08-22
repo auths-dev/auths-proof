@@ -2,19 +2,44 @@ use auths_model::{
     Digest, PrincipalId, ProfileId, ProfileRef, ReceiptId, SignatureBytes, SignatureSuiteId,
     Timestamp, VerificationMethod,
 };
+use auths_ports::SignatureSuite;
 use auths_profile_domains::DomainReceiptInspector;
 use auths_raw_key::RawKeyDescriptor;
 use auths_receipts::{
     AttestedDecisionReceipt, AttestedExecutionReceipt, ConfiguredReceiptVerifier, DecisionClass,
-    ExecutionOutcome, ReceiptDisclosure, ReceiptInspection, ReceiptSigner, ReceiptViewMode,
-    VerifiedReceiptMetadata, application_execution_lease_digest, decode_attested_decision,
-    decode_attested_execution, decode_decision, decode_execution, encode_attested_decision,
-    encode_attested_execution, encode_receipt_disclosure, inspect_attested_execution_receipt,
-    prepare_decision_receipt, prepare_execution_receipt, verify_attested_decision_bytes,
-    verify_attested_execution_bytes, verify_decision_attestation, verify_execution_attestation,
+    ExecutionOutcome, ProfileReceiptClaim, ProfileReceiptClaimPhase, ReceiptDisclosure,
+    ReceiptInspection, ReceiptSigner, ReceiptViewMode, VerifiedReceiptMetadata,
+    decision_receipt_id, decode_attested_decision, decode_attested_execution, decode_decision,
+    decode_execution, decode_portable_receipt, encode_attested_decision, encode_attested_execution,
+    encode_profile_receipt_claims, encode_receipt_disclosure, execution_receipt_id,
+    inspect_attested_execution_receipt, portable_receipt_id, prepare_decision_receipt,
+    verify_attested_decision_bytes, verify_attested_execution_bytes, verify_decision_attestation,
+    verify_execution_attestation,
 };
 use pyo3::{prelude::*, types::PyBytes};
 use serde_json::{Value, json};
+use sha2::{Digest as _, Sha256};
+
+fn validate_receipt_anchor(suite: &str, public_key: &[u8]) -> Result<(), &'static str> {
+    match suite {
+        auths_signature_core::ED25519_V1 => auths_signature_core::verify_ed25519(
+            public_key,
+            b"auths.receipt-anchor-validation/1",
+            &[0; 64],
+        )
+        .map_or_else(
+            |error| match error {
+                auths_signature_core::Ed25519Error::InvalidKey => Err("invalid receipt key"),
+                _ => Ok(()),
+            },
+            |()| Ok(()),
+        ),
+        auths_signature_core::P256_SHA256_V1 => {
+            auths_signature_core::validate_p256_key(public_key).map_err(|_| "invalid receipt key")
+        }
+        _ => Err("unsupported receipt suite"),
+    }
+}
 
 #[derive(Clone)]
 #[pyclass(
@@ -27,6 +52,86 @@ pub struct PyReceiptPreparation {
     id: ReceiptId,
     canonical: Vec<u8>,
     signing_preimage: Vec<u8>,
+}
+
+#[derive(Clone)]
+#[pyclass(
+    name = "PortableReceiptProjection",
+    frozen,
+    module = "auths._native",
+    skip_from_py_object
+)]
+pub struct PyPortableReceiptProjection {
+    portable_receipt_id: String,
+    kind: &'static str,
+    decision_receipt_id: ReceiptId,
+    execution_receipt_id: Option<ReceiptId>,
+    attested_decision: Vec<u8>,
+    attested_execution: Option<Vec<u8>>,
+}
+
+#[pymethods]
+impl PyPortableReceiptProjection {
+    #[getter]
+    fn portable_receipt_id(&self) -> &str {
+        &self.portable_receipt_id
+    }
+
+    #[getter]
+    fn kind(&self) -> &'static str {
+        self.kind
+    }
+
+    #[getter]
+    fn decision_receipt_id<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.decision_receipt_id.as_bytes())
+    }
+
+    #[getter]
+    fn execution_receipt_id<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyBytes>> {
+        self.execution_receipt_id
+            .as_ref()
+            .map(|value| PyBytes::new(py, value.as_bytes()))
+    }
+
+    #[getter]
+    fn attested_decision<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, &self.attested_decision)
+    }
+
+    #[getter]
+    fn attested_execution<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyBytes>> {
+        self.attested_execution
+            .as_ref()
+            .map(|value| PyBytes::new(py, value))
+    }
+}
+
+#[pyfunction]
+fn decode_portable_receipt_v1(input: &[u8]) -> PyResult<PyPortableReceiptProjection> {
+    let decoded = decode_portable_receipt(input).map_err(value_error)?;
+    let decision = decode_attested_decision(decoded.attested_decision()).map_err(value_error)?;
+    let decision_id = decision_receipt_id(decision.receipt()).map_err(value_error)?;
+    let execution = decoded
+        .attested_execution()
+        .map(|value| {
+            let attested = decode_attested_execution(value)?;
+            execution_receipt_id(attested.receipt())
+        })
+        .transpose()
+        .map_err(value_error)?;
+    Ok(PyPortableReceiptProjection {
+        portable_receipt_id: portable_receipt_id(input).map_err(value_error)?,
+        kind: if decoded.attested_execution().is_some() {
+            "execution"
+        } else {
+            "decision"
+        },
+        decision_receipt_id: decision_id,
+        execution_receipt_id: execution,
+        attested_decision: decoded.attested_decision().to_vec(),
+        attested_execution: decoded.attested_execution().map(<[u8]>::to_vec),
+    })
 }
 
 #[pymethods]
@@ -87,6 +192,19 @@ pub(crate) fn prepare_decision(
     }
     let signer = receipt_signer(verifier, verification_method, suite)?;
     let authority_commitment = auths_codec::proof_digest(&proof).map_err(value_error)?;
+    // This helper is retained only for the legacy MCP module until that
+    // non-profile production path is removed.  It constructs one fixed,
+    // Rust-owned claim envelope; no SDK caller may supply receipt claims.
+    let profile_claims = encode_profile_receipt_claims(
+        action.profile(),
+        ProfileReceiptClaimPhase::Decision,
+        &[ProfileReceiptClaim::new(
+            "auths.mcp.action",
+            Sha256::digest(canonical_action_cbor).into(),
+        )
+        .map_err(value_error)?],
+    )
+    .map_err(value_error)?;
     let prepared = prepare_decision_receipt(
         authority_commitment,
         &action,
@@ -94,91 +212,7 @@ pub(crate) fn prepare_decision(
         DecisionClass::Authorized,
         vec!["authorized".to_owned()],
         Timestamp::new(decided_at),
-        &signer,
-    )
-    .map_err(value_error)?;
-    Ok(PyReceiptPreparation {
-        id: prepared.id(),
-        canonical: prepared.canonical().to_vec(),
-        signing_preimage: prepared.signing_preimage().to_vec(),
-    })
-}
-
-#[pyfunction]
-fn prepare_authorized_decision_receipt_v1(
-    proof_cbor: &[u8],
-    canonical_action_cbor: &[u8],
-    trusted_context_cbor: &[u8],
-    decided_at: u64,
-    verifier: &str,
-    verification_method: &str,
-    suite: &str,
-) -> PyResult<PyReceiptPreparation> {
-    prepare_decision(
-        proof_cbor,
-        canonical_action_cbor,
-        trusted_context_cbor,
-        decided_at,
-        verifier,
-        verification_method,
-        suite,
-    )
-}
-
-#[pyfunction]
-#[allow(clippy::too_many_arguments)]
-fn prepare_application_execution_receipt_v1(
-    decision_receipt_id_bytes: &[u8],
-    idempotency_key: &str,
-    plan_commitment: Option<&[u8]>,
-    member_index: Option<u16>,
-    member_count: Option<u16>,
-    command_bytes: &[u8],
-    outcome: &str,
-    result: Option<&[u8]>,
-    completed_at: u64,
-    verifier: &str,
-    verification_method: &str,
-    suite: &str,
-) -> PyResult<PyReceiptPreparation> {
-    if command_bytes.is_empty() || command_bytes.len() > auths_model::HARD_MAX_ACTION_BYTES {
-        return Err(crate::errors::malformed_input(
-            "command bytes are outside bounds",
-        ));
-    }
-    let decision = ReceiptId::new(array32(decision_receipt_id_bytes, "decision receipt id")?);
-    let plan = plan_commitment
-        .map(|value| array32(value, "plan commitment").map(Digest::new))
-        .transpose()?;
-    let member = match (member_index, member_count) {
-        (Some(index), Some(count)) => Some((index, count)),
-        (None, None) => None,
-        _ => {
-            return Err(crate::errors::malformed_input(
-                "plan member position is incomplete",
-            ));
-        }
-    };
-    application_execution_lease_digest(idempotency_key, plan, member).map_err(value_error)?;
-    let signer = receipt_signer(verifier, verification_method, suite)?;
-    let prepared = prepare_execution_receipt(
-        decision,
-        idempotency_key,
-        plan,
-        member,
-        command_bytes,
-        match outcome {
-            "succeeded" => ExecutionOutcome::Succeeded,
-            "failed" => ExecutionOutcome::Failed,
-            "indeterminate" => ExecutionOutcome::Indeterminate,
-            _ => {
-                return Err(crate::errors::malformed_input(
-                    "execution outcome cannot be attested",
-                ));
-            }
-        },
-        result,
-        Timestamp::new(completed_at),
+        &profile_claims,
         &signer,
     )
     .map_err(value_error)?;
@@ -270,6 +304,138 @@ fn verify_raw_key_receipt_v1(
         _ => return Err(crate::errors::malformed_input("unsupported receipt kind")),
     }
     Ok(())
+}
+
+#[pyfunction]
+fn validate_receipt_anchor_v1(suite: &str, public_key: &[u8]) -> PyResult<()> {
+    validate_receipt_anchor(suite, public_key).map_err(crate::errors::malformed_input)
+}
+
+#[pyfunction]
+fn profile_receipt_payload_commitment_v2<'py>(
+    py: Python<'py>,
+    kind: &str,
+    payload: &[u8],
+) -> PyResult<Bound<'py, PyBytes>> {
+    if payload.is_empty() || payload.len() > 16 * 1024 * 1024 {
+        return Err(crate::errors::malformed_input(
+            "receipt profile payload is outside bounds",
+        ));
+    }
+    let digest = match kind {
+        "decision" => auths_codec::domain_commitment("auths.profile-action.v2", payload)
+            .map_err(value_error)?,
+        "execution" => Digest::new(Sha256::digest(payload).into()),
+        _ => return Err(crate::errors::malformed_input("unsupported receipt kind")),
+    };
+    Ok(PyBytes::new(py, digest.as_bytes()))
+}
+
+#[pyfunction]
+#[allow(clippy::too_many_arguments)]
+fn verify_pinned_receipt_v1<'py>(
+    py: Python<'py>,
+    kind: &str,
+    attested: &[u8],
+    expected_id: &[u8],
+    verifier: &str,
+    verification_method: &str,
+    suite: &str,
+    public_key: &[u8],
+) -> PyResult<Bound<'py, PyBytes>> {
+    validate_receipt_anchor(suite, public_key).map_err(crate::errors::malformed_input)?;
+    let expected_verifier = PrincipalId::parse(verifier).map_err(value_error)?;
+    let signer = ReceiptSigner::new(
+        expected_verifier.clone(),
+        VerificationMethod::parse(verification_method).map_err(value_error)?,
+        SignatureSuiteId::parse(suite).map_err(value_error)?,
+    );
+    let expected = ReceiptId::new(array32(expected_id, "receipt id")?);
+    let metadata = match suite {
+        auths_signature_core::ED25519_V1 => {
+            let implementation = auths_signature::Ed25519Suite::new().map_err(value_error)?;
+            verify_pinned_metadata(
+                kind,
+                attested,
+                expected,
+                &expected_verifier,
+                signer,
+                public_key,
+                &implementation,
+            )?
+        }
+        auths_signature_core::P256_SHA256_V1 => {
+            let implementation = auths_signature::P256Sha256Suite::new().map_err(value_error)?;
+            verify_pinned_metadata(
+                kind,
+                attested,
+                expected,
+                &expected_verifier,
+                signer,
+                public_key,
+                &implementation,
+            )?
+        }
+        _ => return Err(crate::errors::malformed_input("unsupported receipt suite")),
+    };
+    let encoded = serde_json::to_vec(&metadata).map_err(value_error)?;
+    Ok(PyBytes::new(py, &encoded))
+}
+
+fn verify_pinned_metadata(
+    kind: &str,
+    attested: &[u8],
+    expected: ReceiptId,
+    expected_verifier: &PrincipalId,
+    signer: ReceiptSigner,
+    public_key: &[u8],
+    implementation: &dyn SignatureSuite,
+) -> PyResult<Value> {
+    let configured = ConfiguredReceiptVerifier::new(signer, public_key, implementation);
+    match kind {
+        "decision" => {
+            let verified =
+                verify_decision_attestation(attested, expected, expected_verifier, &configured)
+                    .map_err(value_error)?;
+            let receipt = verified.receipt();
+            Ok(json!({
+                "kind": "decision",
+                "receiptId": hex::encode(expected.as_bytes()),
+                "profile": { "id": receipt.profile().id().as_str(), "version": receipt.profile().version() },
+                "decision": match receipt.decision() { DecisionClass::Authorized => "authorized", DecisionClass::Denied => "denied", DecisionClass::Indeterminate => "indeterminate" },
+                "reasons": receipt.reasons(),
+                "decidedAtUnixSeconds": receipt.decided_at().get().to_string(),
+                "decisionSigner": signer_json(verified.signer()),
+                "commitments": {
+                    "proof": hex::encode(receipt.proof_digest().as_bytes()),
+                    "action": hex::encode(receipt.action_digest().as_bytes()),
+                    "context": hex::encode(receipt.context_digest().as_bytes()),
+                    "principalStatus": hex::encode(receipt.principal_status().as_bytes()),
+                    "grantStatus": hex::encode(receipt.grant_status().as_bytes()),
+                },
+            }))
+        }
+        "execution" => {
+            let verified =
+                verify_execution_attestation(attested, expected, expected_verifier, &configured)
+                    .map_err(value_error)?;
+            let receipt = verified.receipt();
+            Ok(json!({
+                "kind": "execution",
+                "decisionReceiptId": hex::encode(receipt.decision_receipt().as_bytes()),
+                "executionReceiptId": hex::encode(expected.as_bytes()),
+                "outcome": match receipt.outcome() { ExecutionOutcome::Succeeded => "succeeded", ExecutionOutcome::Failed => "failed", ExecutionOutcome::Indeterminate => "indeterminate" },
+                "completedAtUnixSeconds": receipt.completed_at().get().to_string(),
+                "executionSigner": signer_json(verified.signer()),
+                "commitments": {
+                    "executionLease": hex::encode(receipt.execution_lease().as_bytes()),
+                    "command": hex::encode(receipt.command_digest().as_bytes()),
+                    "result": receipt.result_digest().map(|value| hex::encode(value.as_bytes())),
+                },
+            }))
+        }
+        _ => Err(crate::errors::malformed_input("unsupported receipt kind")),
+    }
 }
 
 #[pyfunction]
@@ -527,17 +693,17 @@ fn value_error(error: impl core::fmt::Display) -> PyErr {
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyReceiptPreparation>()?;
-    module.add_function(wrap_pyfunction!(
-        prepare_authorized_decision_receipt_v1,
-        module
-    )?)?;
-    module.add_function(wrap_pyfunction!(
-        prepare_application_execution_receipt_v1,
-        module
-    )?)?;
+    module.add_class::<PyPortableReceiptProjection>()?;
     module.add_function(wrap_pyfunction!(attest_decision_receipt_v1, module)?)?;
     module.add_function(wrap_pyfunction!(attest_execution_receipt_v1, module)?)?;
     module.add_function(wrap_pyfunction!(verify_raw_key_receipt_v1, module)?)?;
+    module.add_function(wrap_pyfunction!(validate_receipt_anchor_v1, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        profile_receipt_payload_commitment_v2,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(verify_pinned_receipt_v1, module)?)?;
+    module.add_function(wrap_pyfunction!(decode_portable_receipt_v1, module)?)?;
     module.add_function(wrap_pyfunction!(verify_receipt_link_v1, module)?)?;
     module.add_function(wrap_pyfunction!(prepare_receipt_disclosure_v1, module)?)?;
     module.add_function(wrap_pyfunction!(inspect_raw_key_receipt_v1, module)?)?;

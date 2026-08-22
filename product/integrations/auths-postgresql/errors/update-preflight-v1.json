@@ -1,0 +1,25 @@
+{
+  "schema": "auths.error-registry-fragment/1",
+  "owner": "postgresql-update-preflight",
+  "ownerVersion": 1,
+  "definitions": [
+    {
+      "code": "postgresql.preflight-denied",
+      "operation": "execute",
+      "stage": "profile-evaluation",
+      "effect": "not-applied",
+      "retry": "satisfy-condition",
+      "action": "inspect-input",
+      "summary": "The PostgreSQL update preflight failed its exact profile evaluation or protected discovery checks."
+    },
+    {
+      "code": "postgresql.preflight-outcome-unknown",
+      "operation": "execute",
+      "stage": "provider-observation",
+      "effect": "possible",
+      "retry": "recover-only",
+      "action": "recover",
+      "summary": "Recovery must establish whether the PostgreSQL prepared-update record became ready."
+    }
+  ]
+}

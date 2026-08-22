@@ -7,13 +7,19 @@ rust-version.workspace = true
 publish = false
 description = "Conformance and fixture kit for Auths V1 application profiles"
 
+[features]
+qualification-ledger-producer = []
+
 [dependencies]
 auths-codec.workspace = true
 auths-model.workspace = true
 auths-profile-api.workspace = true
+base64ct.workspace = true
+ed25519-dalek.workspace = true
 hex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+serde_json_canonicalizer.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 

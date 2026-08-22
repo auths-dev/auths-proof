@@ -1,9 +1,9 @@
 {
-  "schema": "auths.python-performance-baseline/1",
-  "capturedAt": "2026-08-11",
+  "schema": "auths.python-performance-baseline/2",
+  "capturedAt": "2026-08-19",
   "environment": {
     "implementation": "CPython",
-    "python": "3.10",
+    "python": "3.13",
     "operatingSystem": "darwin",
     "architecture": "arm64",
     "build": "release abi3 wheel",
@@ -16,16 +16,15 @@
     "maximumBoundedBytes": 65536
   },
   "measurements": {
-    "coldInitializeMs": 33.515,
-    "singleVerifyMsP95": 0.244,
-    "pyO3BoundarySerializeSmallP95Ms": 0.015,
-    "pyO3BoundarySerializeMediumP95Ms": 0.215,
-    "pyO3BoundarySerializeMaximumP95Ms": 3.156,
-    "batch32MsP95": 6.601,
-    "plan64MsP95": 1.72,
-    "verifyPeakBytes": 87099,
-    "eventLoopYieldMsP95": 0.036,
-    "wheelBytes": 1080134
+    "coldInitializeMs": 150,
+    "singleVerifyMsP95": 0.3,
+    "pyO3BoundarySerializeSmallP95Ms": 0.003,
+    "pyO3BoundarySerializeMediumP95Ms": 0.025,
+    "pyO3BoundarySerializeMaximumP95Ms": 0.35,
+    "batch32MsP95": 9,
+    "verifyPeakBytes": 83670,
+    "eventLoopYieldMsP95": 0.04,
+    "wheelBytes": 1550928
   },
   "hardLimits": {
     "coldInitializeMs": 2000,
@@ -34,7 +33,6 @@
     "pyO3BoundarySerializeMediumP95Ms": 100,
     "pyO3BoundarySerializeMaximumP95Ms": 100,
     "batch32MsP95": 3000,
-    "plan64MsP95": 500,
     "verifyPeakBytes": 50000000,
     "eventLoopYieldMsP95": 20,
     "wheelBytes": 25000000

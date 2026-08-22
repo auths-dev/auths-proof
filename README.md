@@ -6,6 +6,33 @@ kernel for Auths Proof Protocol V1.
 
 > Auths owns authority. Adapters establish bounded facts.
 
+## Application SDK
+
+Applications call a generated profile client through one local Auths agent.
+They never receive an Auths access token or provider credential. For example:
+
+```python
+import auths
+from auths_profiles.stripe import Stripe
+
+async with auths.connect() as session:
+    stripe = Stripe(session, connection="billing")
+    refund = await stripe.refunds.create(
+        payment_intent="pi_123", amount=2_000, currency="usd"
+    )
+```
+
+The operator starts `auths agent serve`, maps the observed workload to sealed
+authority, and provisions the non-secret connection alias separately. Real
+Stripe, PostgreSQL, and OpenTofu routes remain unavailable until their exact
+live-provider qualification records are imported; the disposable testkit is
+not production qualification.
+
+Start with the [production SDK quickstart](docs/product/PRODUCTION_SDK_QUICKSTART.md),
+then use the [local-agent operator guide](docs/product/LOCAL_AGENT_SDK_QUICKSTART.md)
+or [profile authoring guide](docs/product/PROFILE_AUTHORING.md). The offline
+proof kernel described below is the verification subsystem behind that SDK.
+
 The workspace contains only the target V1 model, deterministic codec,
 effect-free ports and registries, mandatory Ed25519 and P-256/SHA-256 suites,
 authority attenuation, authorization-plan composition, assurance, status,

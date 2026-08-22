@@ -73,6 +73,8 @@ members = [
     "product/runtime/auths-lifecycle",
     "product/runtime/auths-kernel-runtime",
     "product/runtime/auths-production-client",
+    "product/runtime/auths-profile-runtime",
+    "product/runtime/auths-connections",
     "product/runtime/auths-node",
     "product/runtime/auths-runtime",
     "product/receipts/auths-receipts",
@@ -81,6 +83,8 @@ members = [
     "product/cache/auths-cache",
     "product/operations/auths-operations",
     "product/operations/auths-operations-otel",
+    "product/qualification/auths-qualification-supervisor",
+    "product/qualification/auths-qualification-evidence-source",
     "product/tools/auths-explain",
     "demos/testkit/auths-apps-testkit",
     "demos/live-lab",
@@ -92,7 +96,6 @@ members = [
     "demos/benchmarks/auths-bench-wasm",
     "demos/mcp/auths-mcp-demo",
     "demos/radicle-issue",
-    "demos/github-issue",
     "demos/stripe-refund",
     "demos/stripe-payment-common",
     "demos/stripe-payment-authorize",
@@ -173,6 +176,8 @@ auths-profile-domains = { version = "1.0.0-rc.1", path = "product/profiles/auths
 auths-lifecycle = { version = "1.0.0-rc.1", path = "product/runtime/auths-lifecycle", default-features = false }
 auths-kernel-runtime = { version = "1.0.0-rc.1", path = "product/runtime/auths-kernel-runtime" }
 auths-production-client = { version = "1.0.0-rc.1", path = "product/runtime/auths-production-client" }
+auths-profile-runtime = { version = "1.0.0-rc.1", path = "product/runtime/auths-profile-runtime" }
+auths-connections = { version = "1.0.0-rc.1", path = "product/runtime/auths-connections" }
 auths-node = { version = "1.0.0-rc.1", path = "product/runtime/auths-node" }
 auths-runtime = { version = "1.0.0-rc.1", path = "product/runtime/auths-runtime" }
 auths-receipts = { version = "1.0.0-rc.1", path = "product/receipts/auths-receipts" }
@@ -223,11 +228,13 @@ dotenvy = "0.15.7"
 getrandom = "0.3.4"
 hmac = "0.12.1"
 iroh = { version = "1.0.3", default-features = false, features = ["tls-ring"] }
-reqwest = { version = "0.13.4", default-features = false, features = ["blocking", "rustls"] }
+reqwest = { version = "0.13.4", default-features = false, features = ["blocking", "form", "query", "rustls"] }
 postgres = { version = "0.19.12", default-features = false }
 r2d2 = "0.8.10"
 r2d2_postgres = "0.18.2"
 rustls = { version = "0.23.42", default-features = false, features = ["ring", "std", "tls12"] }
+rustix = { version = "1.1.4", default-features = false, features = ["fs", "net", "process"] }
+zeroize = { version = "1.9.0", features = ["derive"] }
 rmcp = { version = "1.8.0", default-features = false, features = ["server"] }
 serde_json_canonicalizer = "0.3.2"
 tempfile = "3.27.0"
@@ -245,7 +252,7 @@ base64ct = { version = "1.8.3", default-features = false, features = ["alloc"] }
 blake3 = { version = "1.8.4", default-features = false, features = ["pure"] }
 bs58 = { version = "0.5.1", default-features = false, features = ["alloc"] }
 clap = { version = "4.5.60", features = ["derive"] }
-ed25519-dalek = { version = "2.2.0", default-features = false, features = ["alloc"] }
+ed25519-dalek = { version = "2.2.0", default-features = false, features = ["alloc", "zeroize"] }
 hex = "0.4.3"
 p256 = { version = "0.13.2", default-features = false, features = ["alloc", "ecdsa", "pkcs8"] }
 pyo3 = { version = "0.29.0", features = ["abi3-py39"] }
@@ -289,3 +296,8 @@ panic = "abort"
 [profile.python-extension]
 inherits = "release"
 panic = "unwind"
+# The extension is loaded into a long-lived host process, so retain Rust's
+# internal invariant checks even in optimized wheels. This also avoids an
+# Xcode 27 arm64 linker layout that emits a four-byte-aligned LINKEDIT string
+# table which the macOS loader correctly rejects.
+debug-assertions = true

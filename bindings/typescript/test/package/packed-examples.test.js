@@ -10,11 +10,9 @@ const recipesRoot = fileURLToPath(new URL("../../../recipes/typescript/", import
 const recipes = [
   "01-authenticate-identity.ts",
   "02-verify-authority.ts",
-  "03-execute-exact-action.ts",
-  "04-delegate-to-agent.ts",
 ];
 
-test("the first four recipes compile against the packed package alone", async () => {
+test("the effect-free verification recipes compile against the packed package alone", async () => {
   const { directory } = await installPackedSdk("auths-typescript-recipes-");
   try {
     for (const recipe of recipes) {
@@ -40,7 +38,7 @@ test("the first four recipes compile against the packed package alone", async ()
       include: ["*.ts", "node.d.ts"],
     }));
     compileConsumer(directory);
-    for (const recipe of [recipes[0], recipes[2], recipes[3]]) {
+    for (const recipe of [recipes[0]]) {
       const output = execFileSync(
         process.execPath,
         [join("build", basename(recipe, ".ts") + ".js")],

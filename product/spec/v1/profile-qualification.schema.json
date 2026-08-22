@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification.schema.json",
+  "title": "Auths live profile qualification record v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "qualificationId", "domain", "profiles", "target", "candidateRevision", "semanticClosureSha256", "packageManifestSha256", "profileRuntimeDigests", "errorRegistrySha256", "providerMatrixSha256", "proposalSha256", "toolchain", "environmentClass", "startedAtUnixSeconds", "completedAtUnixSeconds", "workflow", "releaseBuild", "artifact", "providerRuns", "protectedObservation", "scenarios", "receiptVerification", "secretScan"],
+  "properties": {
+    "schema": {"const": "auths.profile-qualification/1"},
+    "qualificationId": {"type": "string", "pattern": "^qlf_[A-Za-z0-9_-]{43}$"},
+    "domain": {"$ref": "#/$defs/domain"},
+    "profiles": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"$ref": "#/$defs/profile"}},
+    "target": {"$ref": "#/$defs/target"},
+    "candidateRevision": {"$ref": "#/$defs/revision"},
+    "semanticClosureSha256": {"$ref": "#/$defs/digest"},
+    "packageManifestSha256": {"$ref": "#/$defs/digest"},
+    "profileRuntimeDigests": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"$ref": "#/$defs/runtimeDigest"}},
+    "errorRegistrySha256": {"$ref": "#/$defs/digest"},
+    "providerMatrixSha256": {"$ref": "#/$defs/digest"},
+    "proposalSha256": {"$ref": "#/$defs/digest"},
+    "toolchain": {"$ref": "#/$defs/toolchain"},
+    "environmentClass": {"const": "disposable-provider-test"},
+    "startedAtUnixSeconds": {"$ref": "#/$defs/unixSeconds"},
+    "completedAtUnixSeconds": {"$ref": "#/$defs/unixSeconds"},
+    "workflow": {"$ref": "#/$defs/workflow"},
+    "releaseBuild": {"$ref": "#/$defs/releaseBuild"},
+    "artifact": {"$ref": "#/$defs/artifact"},
+    "providerRuns": {"type": "array", "minItems": 1, "maxItems": 16, "items": {"$ref": "#/$defs/providerRun"}},
+    "protectedObservation": {"$ref": "#/$defs/protectedObservation"},
+    "scenarios": {"type": "array", "minItems": 1, "maxItems": 256, "items": {"$ref": "#/$defs/scenario"}},
+    "receiptVerification": {"$ref": "#/$defs/receiptVerification"},
+    "secretScan": {"$ref": "#/$defs/secretScan"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "registeredToken": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
+    "semanticSubject": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}/[1-9][0-9]{0,4}$"},
+    "decimalToken": {"type": "string", "pattern": "^(0|[1-9][0-9]{0,31})$"},
+    "domain": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$"},
+    "target": {"enum": ["linux-x86_64", "linux-aarch64", "macos-x86_64", "macos-aarch64"]},
+    "unixSeconds": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
+    "profile": {"type": "object", "additionalProperties": false, "required": ["id", "version"], "properties": {"id": {"type": "string", "minLength": 1, "maxLength": 128}, "version": {"type": "integer", "minimum": 1, "maximum": 65535}}},
+    "runtimeDigest": {"type": "object", "additionalProperties": false, "required": ["profile", "sha256"], "properties": {"profile": {"type": "string", "minLength": 3, "maxLength": 134}, "sha256": {"$ref": "#/$defs/digest"}}},
+    "toolchain": {"type": "object", "additionalProperties": false, "required": ["rust", "node", "python"], "properties": {"rust": {"$ref": "#/$defs/toolchainValue"}, "node": {"$ref": "#/$defs/toolchainValue"}, "python": {"$ref": "#/$defs/toolchainValue"}}},
+    "toolchainValue": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[ -~]+$"},
+    "workflow": {
+      "type": "object", "additionalProperties": false,
+      "required": ["provider", "repositoryId", "workflowPath", "workflowRevision", "attesterRevision", "runId", "runAttempt", "protectedEnvironment"],
+      "properties": {
+        "provider": {"const": "github-actions"}, "repositoryId": {"$ref": "#/$defs/decimal32"},
+        "workflowPath": {"type": "string", "pattern": "^\\.github/workflows/profile-qualification-[A-Za-z0-9._-]+\\.yml$", "maxLength": 512},
+        "workflowRevision": {"$ref": "#/$defs/revision"}, "attesterRevision": {"$ref": "#/$defs/revision"},
+        "runId": {"$ref": "#/$defs/decimal32"}, "runAttempt": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+        "protectedEnvironment": {"$ref": "#/$defs/registeredToken"}
+      }
+    },
+    "decimal32": {"type": "string", "pattern": "^(0|[1-9][0-9]{0,31})$"},
+    "releaseBuild": {
+      "type": "object", "additionalProperties": false,
+      "required": ["provider", "repositoryId", "workflowPath", "workflowRevision", "runId", "runAttempt", "runLabel", "qualificationSurfaceSha256", "artifacts"],
+      "properties": {
+        "provider": {"const": "github-actions"}, "repositoryId": {"$ref": "#/$defs/decimal32"},
+        "workflowPath": {"const": ".github/workflows/release-builder.yml"}, "workflowRevision": {"$ref": "#/$defs/revision"},
+        "runId": {"$ref": "#/$defs/decimal32"}, "runAttempt": {"type": "integer", "minimum": 1, "maximum": 4294967295}, "runLabel": {"const": "official"},
+        "qualificationSurfaceSha256": {"$ref": "#/$defs/digest"},
+        "artifacts": {"type": "array", "minItems": 9, "maxItems": 9, "uniqueItems": true, "x-auths-byteSortedBy": "role", "items": {"$ref": "#/$defs/releaseBuildArtifact"}}
+      }
+    },
+    "releaseBuildArtifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["role", "artifactId", "uploadedArchiveSha256", "memberPath", "memberSha256", "bytes"],
+      "properties": {
+        "role": {"enum": ["production-agent", "python-native", "python-profile-opentofu", "python-profile-postgresql", "python-profile-stripe", "python-wheel", "qualification-agent", "typescript-native", "typescript-package"]},
+        "artifactId": {"$ref": "#/$defs/decimal32"}, "uploadedArchiveSha256": {"$ref": "#/$defs/digest"},
+        "memberPath": {"type": "string", "minLength": 1, "maxLength": 512, "pattern": "^[A-Za-z0-9._:-]+(?:/[A-Za-z0-9._:-]+)*$"},
+        "memberSha256": {"$ref": "#/$defs/digest"}, "bytes": {"type": "integer", "minimum": 1, "maximum": 536870912}
+      }
+    },
+    "candidateArtifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["role", "memberSha256", "bytes"],
+      "properties": {"role": {"enum": ["production-agent", "python-native", "python-profile-opentofu", "python-profile-postgresql", "python-profile-stripe", "python-wheel", "qualification-agent", "typescript-native", "typescript-package"]}, "memberSha256": {"$ref": "#/$defs/digest"}, "bytes": {"type": "integer", "minimum": 1, "maximum": 536870912}}
+    },
+    "artifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["evidenceTarSha256", "evidenceTarBytes", "retentionDays", "createdAtUnixSeconds", "expiresAtUnixSeconds", "redactionReportSha256", "storageProvider", "artifactId", "uploadedArchiveSha256"],
+      "properties": {
+        "evidenceTarSha256": {"$ref": "#/$defs/digest"}, "evidenceTarBytes": {"type": "integer", "minimum": 1, "maximum": 536870912},
+        "retentionDays": {"type": "integer", "minimum": 90, "maximum": 365}, "createdAtUnixSeconds": {"$ref": "#/$defs/unixSeconds"},
+        "expiresAtUnixSeconds": {"$ref": "#/$defs/unixSeconds"}, "redactionReportSha256": {"$ref": "#/$defs/digest"},
+        "storageProvider": {"const": "github-actions"}, "artifactId": {"$ref": "#/$defs/decimal32"}, "uploadedArchiveSha256": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "providerRun": {
+      "type": "object", "additionalProperties": false, "required": ["id", "providerVersion", "providerArtifactSha256", "scenarioSetSha256", "status"],
+      "properties": {"id": {"$ref": "#/$defs/registeredToken"}, "providerVersion": {"$ref": "#/$defs/toolchainValue"}, "providerArtifactSha256": {"$ref": "#/$defs/digest"}, "scenarioSetSha256": {"$ref": "#/$defs/digest"}, "status": {"const": "passed"}}
+    },
+    "protectedObservation": {"type": "object", "additionalProperties": false, "required": ["schema", "keyId", "sha256"], "properties": {"schema": {"const": "auths.profile-qualification-observation/1"}, "keyId": {"$ref": "#/$defs/registeredToken"}, "sha256": {"$ref": "#/$defs/digest"}}},
+    "scenario": {
+      "type": "object", "additionalProperties": false, "required": ["id", "status", "assertions", "reportSha256", "providerRunIds"],
+      "properties": {"id": {"$ref": "#/$defs/registeredToken"}, "status": {"const": "passed"}, "assertions": {"type": "integer", "minimum": 1, "maximum": 100000}, "reportSha256": {"$ref": "#/$defs/digest"}, "providerRunIds": {"type": "array", "minItems": 1, "maxItems": 16, "items": {"$ref": "#/$defs/registeredToken"}}}
+    },
+    "receiptVerification": {
+      "type": "object", "additionalProperties": false,
+      "required": ["rust", "python", "typescript", "portableReceiptSchema", "receiptTrustAnchorSha256", "decisionVerificationMethod", "executionVerificationMethod"],
+      "properties": {"rust": {"const": "passed"}, "python": {"const": "passed"}, "typescript": {"const": "passed"}, "portableReceiptSchema": {"const": "auths.portable-receipt/1"}, "receiptTrustAnchorSha256": {"$ref": "#/$defs/digest"}, "decisionVerificationMethod": {"$ref": "#/$defs/verificationMethod"}, "executionVerificationMethod": {"$ref": "#/$defs/verificationMethod"}}
+    },
+    "proposalReceiptVerification": {"type": "object", "additionalProperties": false, "required": ["rust", "python", "typescript", "portableReceiptSchema"], "properties": {"rust": {"const": "passed"}, "python": {"const": "passed"}, "typescript": {"const": "passed"}, "portableReceiptSchema": {"const": "auths.portable-receipt/1"}}},
+    "verificationMethod": {"type": "string", "minLength": 1, "maxLength": 512, "pattern": "^[ -~]+$"},
+    "secretScan": {"type": "object", "additionalProperties": false, "required": ["tool", "status", "reportSha256"], "properties": {"tool": {"const": "gitleaks-8.28.0"}, "status": {"const": "passed"}, "reportSha256": {"$ref": "#/$defs/digest"}}}
+  }
+}

@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-evidence-ledger.schema.json",
+  "type": "object",
+  "x-auths-semanticValidator": "profile-qualification-evidence-ledger/1",
+  "additionalProperties": false,
+  "required": ["schema", "record", "signing"],
+  "properties": {
+    "schema": {"const": "auths.profile-qualification-evidence-ledger/1"},
+    "record": {"$ref": "#/$defs/record"},
+    "signing": {
+      "type": "object", "additionalProperties": false,
+      "required": ["algorithm", "keyId", "signatureBase64url"],
+      "properties": {
+        "algorithm": {"const": "Ed25519"},
+        "keyId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "signatureBase64url": {"type": "string", "pattern": "^[A-Za-z0-9_-]{86}$"}
+      }
+    }
+  },
+  "$defs": {
+    "record": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema", "repositoryId", "workflowPath", "workflowRevision", "candidateRevision", "attesterRevision", "runId", "runAttempt", "domain", "target", "protectedEnvironment", "providerRunId", "ledgerId", "sessionNonceSha256", "supervisorControllerUid", "supervisorControllerArtifactSha256", "ledgerAppenderArtifactSha256", "agentUid", "agentGid", "agentExecutableSha256", "recoveryKeyId", "recoveryPublicKeyBase64url", "phaseCommitments", "events", "startedAtUnixSeconds", "deadlineAtUnixSeconds", "completedAtUnixSeconds"],
+      "properties": {
+        "schema": {"const": "auths.profile-qualification-evidence-ledger-record/1"},
+        "repositoryId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+        "workflowPath": {"type": "string", "pattern": "^\\.github/workflows/profile-qualification-[a-z0-9-]+\\.yml$", "maxLength": 256},
+        "workflowRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+        "candidateRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+        "attesterRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+        "runId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+        "runAttempt": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+        "domain": {"$ref": "profile-qualification.schema.json#/$defs/domain"},
+        "target": {"$ref": "profile-qualification.schema.json#/$defs/target"},
+        "protectedEnvironment": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "providerRunId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "ledgerId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "sessionNonceSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "supervisorControllerUid": {"type": "integer", "minimum": 1, "maximum": 4294967294},
+        "supervisorControllerArtifactSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "ledgerAppenderArtifactSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "agentUid": {"type": "integer", "minimum": 1, "maximum": 4294967294},
+        "agentGid": {"type": "integer", "minimum": 1, "maximum": 4294967294},
+        "agentExecutableSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "recoveryKeyId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "recoveryPublicKeyBase64url": {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"},
+        "phaseCommitments": {"type": "array", "minItems": 1, "maxItems": 2048, "items": {"$ref": "#/$defs/phase"}},
+        "events": {"type": "array", "minItems": 1, "maxItems": 16384, "items": {"$ref": "#/$defs/event"}},
+        "startedAtUnixSeconds": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
+        "deadlineAtUnixSeconds": {"type": "integer", "minimum": 1, "maximum": 18446744073709551615},
+        "completedAtUnixSeconds": {"type": "integer", "minimum": 1, "maximum": 18446744073709551615}
+      }
+    },
+    "phase": {
+      "type": "object", "additionalProperties": false,
+      "required": ["scenarioId", "phaseIndex", "role", "profile", "failpoint", "operationPlanSha256", "credentialRequirement", "commonPhaseEvidenceSha256", "firstEventSequence", "lastEventSequence"],
+      "properties": {
+        "scenarioId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "phaseIndex": {"type": "integer", "minimum": 1, "maximum": 8},
+        "role": {"enum": ["preflight", "effect"]},
+        "profile": {"$ref": "profile-qualification.schema.json#/$defs/semanticSubject"},
+        "failpoint": {"$ref": "profile-qualification-report-common.schema.json#/$defs/nullableFailpoint"},
+        "operationPlanSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "credentialRequirement": {"$ref": "#/$defs/credentialRequirement"},
+        "commonPhaseEvidenceSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "firstEventSequence": {"type": "integer", "minimum": 1, "maximum": 16384},
+        "lastEventSequence": {"type": "integer", "minimum": 1, "maximum": 16384}
+      }
+    },
+    "credentialRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workloadIdSha256", "providerKind", "contract", "descriptorSchema", "credentialScope"],
+      "properties": {
+        "workloadIdSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "providerKind": {"$ref": "profile-qualification.schema.json#/$defs/domain"},
+        "contract": {"$ref": "profile-qualification.schema.json#/$defs/semanticSubject"},
+        "descriptorSchema": {"$ref": "profile-qualification.schema.json#/$defs/semanticSubject"},
+        "credentialScope": {"$ref": "profile-qualification.schema.json#/$defs/semanticSubject"}
+      }
+    },
+    "event": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sequence", "previousEventSha256", "scenarioId", "phaseIndex", "role", "profile", "failpoint", "source", "sourceIdentity", "sourceArtifactSha256", "sourceUid", "readerIdentity", "readerArtifactSha256", "readerUid", "sourceContextSha256", "sourceKeyId", "sourceSignatureBase64url", "supervisorGeneration", "agentGeneration", "agentProcessId", "agentBootSha256", "operationId", "controlOperationId", "requestId", "clientResultSha256", "receiptId", "connectionGeneration", "journalRevision", "kind", "payload", "durableAckSha256"],
+      "properties": {
+        "sequence": {"type": "integer", "minimum": 1, "maximum": 16384},
+        "previousEventSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "scenarioId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "phaseIndex": {"type": "integer", "minimum": 1, "maximum": 8},
+        "role": {"enum": ["preflight", "effect"]},
+        "profile": {"$ref": "profile-qualification.schema.json#/$defs/semanticSubject"},
+        "failpoint": {"$ref": "profile-qualification-report-common.schema.json#/$defs/nullableFailpoint"},
+        "source": {"enum": ["supervisor", "client-proxy", "journal-reader", "credential-broker", "profile-state-reader", "provider-proxy", "receipt-verifier", "provider-observer"]},
+        "sourceIdentity": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "sourceArtifactSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "sourceUid": {"type": "integer", "minimum": 1, "maximum": 4294967294},
+        "readerIdentity": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"}]},
+        "readerArtifactSha256": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/digest"}]},
+        "readerUid": {"type": ["integer", "null"], "minimum": 1, "maximum": 4294967294},
+        "sourceContextSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "sourceKeyId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "sourceSignatureBase64url": {"type": "string", "pattern": "^[A-Za-z0-9_-]{86}$"},
+        "supervisorGeneration": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+        "agentGeneration": {"type": ["integer", "null"], "minimum": 1, "maximum": 4294967295},
+        "agentProcessId": {"type": ["integer", "null"], "minimum": 1, "maximum": 4294967295},
+        "agentBootSha256": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/digest"}]},
+        "operationId": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"}]},
+        "controlOperationId": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"}]},
+        "requestId": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"}]},
+        "clientResultSha256": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/digest"}]},
+        "receiptId": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification-receipts-report.schema.json#/$defs/receiptId"}]},
+        "connectionGeneration": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/decimal32"}]},
+        "journalRevision": {"type": ["integer", "null"], "minimum": 1, "maximum": 18446744073709551615},
+        "kind": {"enum": ["scenario-started", "request-received", "decision-durable", "reservation-durable", "reservation-released", "reservation-consumed", "reservation-retained", "command-durable", "connection-reread", "credential-lease-attempted", "credential-lease-succeeded", "credential-lease-closed", "provider-entry-durable", "provider-request-written", "provider-response-observed", "provider-reconciliation-requested", "provider-reconciliation-observed", "provider-result-durable", "observation-durable", "execution-receipt-durable", "recovery-required-durable", "terminal-durable", "native-receipt-verified", "response-projected", "replay-observed", "status-observed", "recovery-observed", "cancellation-observed", "failpoint-acknowledged", "process-killed", "process-restarted", "provider-truth-observed", "scenario-completed"]},
+        "payload": {"type": "object", "minProperties": 2, "maxProperties": 18},
+        "durableAckSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"}
+      },
+      "allOf": [{
+        "if": {"properties": {"source": {"enum": ["client-proxy", "credential-broker", "profile-state-reader", "provider-proxy", "receipt-verifier", "provider-observer"]}}},
+        "then": {"properties": {"readerIdentity": {"type": "string"}, "readerArtifactSha256": {"type": "string"}, "readerUid": {"type": "integer"}}},
+        "else": {"properties": {"readerIdentity": {"type": "null"}, "readerArtifactSha256": {"type": "null"}, "readerUid": {"type": "null"}}}
+      }]
+    }
+  }
+}

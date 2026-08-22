@@ -19,10 +19,20 @@ const expectedSubpaths = expectedPackages.map((value) => value === packageJson.n
 if (JSON.stringify(Object.keys(packageJson.exports)) !== JSON.stringify(expectedSubpaths)) {
   throw new Error("TypeScript package exports drifted from bindings/public-topology-v1.json");
 }
-const entries = new Map(Object.entries(packageJson.exports).map(([subpath, value]) => [
-  subpath,
-  value.types.replace(/^\.\//, ""),
-]));
+const declarationPath = (value) => {
+  if (typeof value === "string") return undefined;
+  if (typeof value.types === "string") return value.types;
+  for (const nested of Object.values(value)) {
+    const found = declarationPath(nested);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+};
+const entries = new Map(Object.entries(packageJson.exports).map(([subpath, value]) => {
+  const types = declarationPath(value);
+  if (types === undefined) throw new Error(`package export ${subpath} has no types condition`);
+  return [subpath, types.replace(/^\.\//, "")];
+}));
 
 const program = ts.createProgram([...entries.values()], {
   module: ts.ModuleKind.NodeNext,

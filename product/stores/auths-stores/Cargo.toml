@@ -7,22 +7,32 @@ rust-version.workspace = true
 publish = false
 description = "Concrete replay-adjacent budget and canonical receipt stores for Auths applications"
 
+[features]
+qualification-evidence = []
+
 [dependencies]
 auths-bounded-policy.workspace = true
+auths-connections.workspace = true
 auths-model.workspace = true
 auths-lifecycle.workspace = true
 auths-proof-exchange-model.workspace = true
 auths-receipts.workspace = true
 auths-runtime.workspace = true
+base64ct.workspace = true
+getrandom.workspace = true
 hex.workspace = true
 minicbor.workspace = true
+postcard.workspace = true
 postgres.workspace = true
 r2d2.workspace = true
 r2d2_postgres.workspace = true
 rustls.workspace = true
 rustls-pki-types = { workspace = true, features = ["std"] }
+rustix.workspace = true
+serde.workspace = true
 sha2.workspace = true
 tempfile.workspace = true
+thiserror.workspace = true
 tokio-postgres-rustls.workspace = true
 
 [lints]

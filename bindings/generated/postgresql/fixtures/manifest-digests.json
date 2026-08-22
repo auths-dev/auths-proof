@@ -1,0 +1,20 @@
+{
+  "schema": "auths.generated-profile-fixture/1",
+  "generator": "auths-profile-generator/1",
+  "manifest": "product/integrations/auths-postgresql/profile-package.json",
+  "sourceSha256": "6c23a46988eb7eeb72db805e5fe0d032e4d1c6684b727d4d8f436068b9c01b12",
+  "profiles": [
+    {
+      "id": "auths.postgresql.bounded-update",
+      "version": 1,
+      "errorProjectionSha256": "0faeee9aae6c30a20d71f50898f4ed838615e5039f0185bb132b37c92fcac6cb",
+      "runtimeContractSha256": "0094f7036e29f68f7d9d5fdca47b7316e599c7c6d7c8cc2ac1aac983e087c647"
+    },
+    {
+      "id": "auths.postgresql.update-preflight",
+      "version": 1,
+      "errorProjectionSha256": "06894a3b27b27c77bf1c420294d3c0a37c55ad91de952d8d1893071969e269c4",
+      "runtimeContractSha256": "4dce64379ffda13e4df70946bd5454706ffeb028b0734efde612c10ee5f24113"
+    }
+  ]
+}

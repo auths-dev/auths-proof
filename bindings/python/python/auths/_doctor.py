@@ -39,7 +39,9 @@ def doctor(
         native_abi=abi,
         native_abi_compatible=compatible,
         semantic_subject="packaged-exact" if compatible else "incompatible",
-        profiles=("mcp/1",),
+        # Concrete profiles are supplied by generated domain distributions and
+        # authenticated agent negotiation, not a root-SDK inventory.
+        profiles=(),
         mode=mode,
         state=state,
         status="ready" if compatible else "incompatible",

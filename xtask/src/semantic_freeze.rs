@@ -17,7 +17,7 @@ const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths-sdk",
     "auths-signature-ed25519",
 ];
-const PUBLIC_RUST_CLOSURE: [&str; 42] = [
+const PUBLIC_RUST_CLOSURE: [&str; 41] = [
     "auths",
     "auths-algebra-kernel",
     "auths-assurance",
@@ -46,7 +46,6 @@ const PUBLIC_RUST_CLOSURE: [&str; 42] = [
     "auths-profile-api",
     "auths-profile-domains",
     "auths-profile-mcp",
-    "auths-production-client",
     "auths-proof",
     "auths-proof-exchange-model",
     "auths-proof-exchange-port",
@@ -334,14 +333,29 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
             ],
             vec![
                 "product/profiles/auths-profile-mcp/src/session.rs".to_owned(),
-                "product/profiles/auths-profile-mcp/profile-v1.json".to_owned(),
+                "product/profiles/auths-profile-mcp/profile-v2.json".to_owned(),
                 "bindings/typescript/src/generated/mcp-profile.ts".to_owned(),
-                "bindings/typescript/src/profiles/mcp/index.ts".to_owned(),
                 "bindings/python/python/auths/_mcp_profile.py".to_owned(),
-                "bindings/python/python/auths/profiles/_mcp.py".to_owned(),
                 "bindings/python/src/mcp.rs".to_owned(),
                 "bindings/wasm/auths-proof-wasm/src/lib.rs".to_owned(),
                 "xtask/src/mcp_session_contract.rs".to_owned(),
+            ],
+        )?,
+        freeze_entry(
+            "auths.product.github-issue-address-v2",
+            versions.entry("auths.product.github-issue-address-v2")?,
+            FreezeClassification::FrozenMeaning,
+            &[
+                "profile-v2",
+                "authenticated-route-family",
+                "candidate-containment",
+                "durable-recovery",
+                "linked-receipts",
+            ],
+            vec![
+                "product/integrations/auths-github/profile-v2.json".to_owned(),
+                "product/integrations/auths-github/src".to_owned(),
+                "protocol/github-issue-address-v2.json".to_owned(),
             ],
         )?,
         freeze_entry(
@@ -368,21 +382,21 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
             versions.entry("auths.product.facade")?,
             FreezeClassification::FrozenMeaning,
             &[
-                "create",
-                "delegate",
-                "execute",
-                "resume",
-                "opaque-recovery-reference",
+                "small-shared-root",
+                "ambient-local-agent-session",
+                "generated-profile-clients",
+                "sealed-recovery-locators",
+                "closed-profile-outcomes",
             ],
             vec![
-                "bindings/typescript/src/product.ts".to_owned(),
-                "bindings/python/python/auths/_product.py".to_owned(),
-                "bindings/typescript/src/profiles/mcp/index.ts".to_owned(),
-                "bindings/python/python/auths/profiles/_mcp.py".to_owned(),
-                "bindings/typescript/src/service.ts".to_owned(),
-                "bindings/typescript/src/profiles.ts".to_owned(),
-                "bindings/python/python/auths/_service.py".to_owned(),
-                "bindings/python/python/auths/profiles/__init__.py".to_owned(),
+                "bindings/public-topology-v1.json".to_owned(),
+                "bindings/typescript/src/index.ts".to_owned(),
+                "bindings/typescript/src/session.ts".to_owned(),
+                "bindings/typescript/src/profile-runtime.ts".to_owned(),
+                "bindings/python/python/auths/__init__.py".to_owned(),
+                "bindings/python/python/auths/_session.py".to_owned(),
+                "bindings/python/python/auths/profile_runtime.py".to_owned(),
+                "bindings/generated".to_owned(),
             ],
         )?,
         freeze_entry(
@@ -396,10 +410,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
                 "recoverable-single-machine-state",
             ],
             vec![
-                "bindings/typescript/src/integrations.ts".to_owned(),
                 "bindings/typescript/src/internal/development.ts".to_owned(),
-                "bindings/typescript/src/internal/development-store-node.ts".to_owned(),
-                "bindings/python/python/auths/integrations.py".to_owned(),
                 "bindings/python/python/auths/_development.py".to_owned(),
             ],
         )?,
@@ -416,8 +427,11 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
             vec![
                 "core/testkit/auths-testkit/src/mechanism_conformance.rs".to_owned(),
                 "product/conformance/v1/mechanism-profile-conformance.json".to_owned(),
-                "bindings/typescript/src/testkit/conformance.ts".to_owned(),
-                "bindings/python/python/auths/_conformance.py".to_owned(),
+                "product/conformance/v2/mechanism-profile-conformance.json".to_owned(),
+                "bindings/typescript/src/generated/mechanism-conformance-v2.ts".to_owned(),
+                "bindings/typescript/src/testkit/index.ts".to_owned(),
+                "bindings/python/python/auths/_mechanism_conformance_v2.py".to_owned(),
+                "bindings/python/python/auths/testkit.py".to_owned(),
                 "xtask/src/mechanism_conformance.rs".to_owned(),
             ],
         )?,
@@ -538,32 +552,6 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
             ],
         )?,
         freeze_entry(
-            "auths.product.open-production-contract",
-            versions.entry("auths.product.open-production-contract")?,
-            FreezeClassification::FrozenMeaning,
-            &[
-                "production-topology",
-                "qualified-profiles",
-                "sdk-parity",
-                "operations-objectives",
-                "evidence-requirements",
-                "production-exclusions",
-            ],
-            vec![
-                "docs/specs/0038-production-runtime-custody-observability-and-assurance.md"
-                    .to_owned(),
-                "docs/specs/0038/epic_1.md".to_owned(),
-                "docs/specs/0038/epic_7.md".to_owned(),
-                "product/fixtures/v1/production-client".to_owned(),
-                "product/runtime/auths-production-client/src".to_owned(),
-                "product/config/auths-config/src/production.rs".to_owned(),
-                "product/spec/v1/open-production-candidate.schema.json".to_owned(),
-                "release/open-production-candidate.json".to_owned(),
-                "release/open-production-candidate.toml".to_owned(),
-                "xtask/src/production_contract.rs".to_owned(),
-            ],
-        )?,
-        freeze_entry(
             "auths.product.release-assurance",
             versions.entry("auths.product.release-assurance")?,
             FreezeClassification::FrozenMeaning,
@@ -580,7 +568,6 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
                 "product/spec/v1/assurance-record.schema.json".to_owned(),
                 "product/spec/v1/assurance-signers.schema.json".to_owned(),
                 "release/assurance".to_owned(),
-                "xtask/src/assurance.rs".to_owned(),
             ],
         )?,
         freeze_entry(
@@ -665,6 +652,28 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
                     .to_owned(),
             ],
         )?,
+        freeze_entry(
+            "auths.product.profile-qualification-launch",
+            versions.entry("auths.product.profile-qualification-launch")?,
+            FreezeClassification::FrozenMeaning,
+            &[
+                "profile-roster-v2",
+                "production-qualification-state",
+                "testkit-availability-isolation",
+                "launch-projection-v1",
+                "transactional-qualification-import",
+            ],
+            vec![
+                "docs/specs/0040-generic-profile-sdk-and-contributor-system.md".to_owned(),
+                "docs/specs/0044-live-provider-qualification-and-recovery-evidence.md".to_owned(),
+                "product/runtime/auths-node/src/profile_launch.rs".to_owned(),
+                "product/sdk/auths-profile-kit/src/roster.rs".to_owned(),
+                "product/spec/v1/profile-launch-projection.schema.json".to_owned(),
+                "product/spec/v1/profile-roster.schema.json".to_owned(),
+                "xtask/src/profile_codegen.rs".to_owned(),
+                "xtask/src/profile_qualification.rs".to_owned(),
+            ],
+        )?,
     ];
 
     for (id, path) in frozen_byte_inventories()? {
@@ -705,9 +714,6 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         "release/release-manifest.contract-fixture.json".to_owned(),
         "release/release-manifest.schema.json".to_owned(),
         "release/release-subjects.toml".to_owned(),
-        "release/open-production-candidate.json".to_owned(),
-        "release/open-production-candidate.toml".to_owned(),
-        "product/spec/v1/open-production-candidate.schema.json".to_owned(),
         "release/owner-authorization.schema.json".to_owned(),
         "xtask/src/architecture.rs".to_owned(),
         "xtask/src/checks.rs".to_owned(),
@@ -715,7 +721,6 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
         "xtask/src/fixtures.rs".to_owned(),
         "xtask/src/main.rs".to_owned(),
         "xtask/src/public_naming.rs".to_owned(),
-        "xtask/src/production_contract.rs".to_owned(),
         "xtask/src/release.rs".to_owned(),
         "xtask/src/release_control.rs".to_owned(),
         "xtask/src/semantic_freeze.rs".to_owned(),
@@ -1078,7 +1083,15 @@ fn tracked_files_under(directory: &Path) -> Result<Vec<PathBuf>, String> {
 fn tracked_files_under_in(repository: &Path, directory: &Path) -> Result<Vec<PathBuf>, String> {
     let relative = repository_relative_to(repository, directory)?;
     let output = Command::new("git")
-        .args(["ls-files", "--cached", "-z", "--", &relative])
+        .args([
+            "ls-files",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+            "-z",
+            "--",
+            &relative,
+        ])
         .current_dir(repository)
         .output()
         .map_err(|error| format!("could not inspect tracked semantic owners: {error}"))?;
@@ -1094,6 +1107,13 @@ fn tracked_files_under_in(repository: &Path, directory: &Path) -> Result<Vec<Pat
             .map_err(|_| "tracked semantic owner path is not UTF-8".to_owned())?;
         validate_relative_path(tracked)?;
         let path = repository.join(tracked);
+        if !path.exists() {
+            // A clean prelaunch cut can delete an indexed owner and add its
+            // replacement in the same working tree before the update is
+            // committed. The frozen directory represents the resulting tree,
+            // not the stale index entry.
+            continue;
+        }
         let metadata = fs::symlink_metadata(&path)
             .map_err(|error| format!("tracked semantic owner is absent {tracked}: {error}"))?;
         if metadata.file_type().is_symlink() || !metadata.is_file() {
@@ -1219,16 +1239,20 @@ fn validate_evolution(
         .iter()
         .map(|entry| (entry.id.as_str(), entry))
         .collect::<BTreeMap<_, _>>();
+    let mut changed_without_version = Vec::new();
     for old in &previous.entries {
         if let Some(new) = proposed_entries.get(old.id.as_str())
             && (old.sha256 != new.sha256 || old.owners != new.owners)
             && old.version == new.version
         {
-            return Err(format!(
-                "{} changed under frozen identity version {}; assign a new version",
-                old.id, old.version
-            ));
+            changed_without_version.push(format!("{}@{}", old.id, old.version));
         }
+    }
+    if !changed_without_version.is_empty() {
+        return Err(format!(
+            "semantic identities changed without new versions: {}; assign new versions",
+            changed_without_version.join(", ")
+        ));
     }
     Ok(())
 }
@@ -1373,7 +1397,7 @@ mod tests {
     }
 
     #[test]
-    fn tracked_inventory_is_exact_and_fails_closed() {
+    fn working_tree_inventory_is_exact_and_fails_closed() {
         fn git(repository: &Path, arguments: &[&str]) {
             let status = Command::new("git")
                 .args(arguments)
@@ -1427,14 +1451,21 @@ mod tests {
             repository,
             &["rm", "--cached", "--quiet", "owner/staged.txt"],
         );
-        assert_eq!(tracked_digest(repository, &owner), baseline);
+        assert_ne!(tracked_digest(repository, &owner), baseline);
+        assert!(
+            tracked_files_under_in(repository, &owner)
+                .expect("untracked replacement inventory")
+                .contains(&owner.join("staged.txt"))
+        );
 
         fs::write(owner.join("missing.txt"), b"missing").expect("missing owner");
         git(repository, &["add", "owner/missing.txt"]);
         fs::remove_file(owner.join("missing.txt")).expect("remove tracked owner");
-        let error = tracked_files_under_in(repository, &owner)
-            .expect_err("a tracked-but-missing owner must fail closed");
-        assert!(error.contains("tracked semantic owner is absent"));
+        assert!(
+            !tracked_files_under_in(repository, &owner)
+                .expect("deleted indexed owners describe the resulting working tree")
+                .contains(&owner.join("missing.txt"))
+        );
 
         let not_a_repository = tempfile::tempdir().expect("non-repository directory");
         let untracked_owner = not_a_repository.path().join("owner");

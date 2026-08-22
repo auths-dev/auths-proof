@@ -3,54 +3,48 @@
   "package": "@auths-dev/sdk",
   "language": "typescript",
   "implementationTier": "full-workflow-sdk",
-  "evidenceStatus": "repository-local-complete",
+  "evidenceStatus": "repository-local-in-progress",
   "promotedTier": "verifier-binding",
   "targetTier": "full-workflow-sdk",
-  "governingSpec": "AP-SPEC-027",
-  "implementationStatus": "authorized-pre-review",
+  "governingSpec": "AP-SPEC-040",
+  "implementationStatus": "prelaunch-ap-spec-040-cutover",
   "publicationStatus": "blocked",
   "promotionStatus": "blocked",
   "blockingIssues": [
-    "https://github.com/auths-dev/auths-proof/issues/74",
-    "https://github.com/auths-dev/auths-proof/issues/76"
+    "AP-SPEC-040 qualification and independent review remain incomplete"
   ],
   "claims": {
     "supported": [
-      "bounded three-input local verification",
-      "three-valued result projection",
-      "stable code and configuration commitment projection",
-      "closed create, delegate, execute, resume, and verify product workflow",
-      "qualified MCP profile with opaque one-use execution sessions",
-      "evidence-gated signer and atomic reservation framework contracts",
-      "development and recoverable local compositions",
-      "bounded native batch verification with single-item equivalence",
-      "bounded trust evidence acquisition and offline bundles",
-      "versioned adapter conformance and an exact runtime contract",
-      "bounded auths doctor diagnostics for runtime and configuration readiness",
-      "idempotent closed runtime with reconciliation and durable reference state",
-      "typed GitHub issue-agent task, candidate-file, denial, replay, reconciliation and receipt flow",
-      "exact purpose-labelled root, identity, verify, service, profiles, integrations, framework, and testkit entry points"
+      "ambient local-agent session establishment without an application token",
+      "non-secret provider connection aliases selected on generated domain clients",
+      "generated Stripe, PostgreSQL, and OpenTofu domain packages",
+      "typed success, refusal, conflict, partial, and recovery outcomes",
+      "opaque durable recovery handles and portable receipts",
+      "public versioned profile-runtime compatibility surface for generated packages",
+      "generated error-registry digest without root-load registry hashing",
+      "effect-free identity and verification utilities"
     ],
     "excluded": [
-      "promoted full workflow SDK release claim",
-      "independent review of workflow surfaces",
-      "production readiness",
-      "package publication authorization"
+      "backward compatibility or migration shims for prelaunch APIs",
+      "Auths application access tokens",
+      "provider credentials in application code or SDK configuration",
+      "caller-defined profile callbacks or dynamic runtime plugins",
+      "independent review, production readiness, and package publication authorization"
     ]
   },
   "eliteScorecard": {
-    "timeToValue": { "status": "verified", "evidence": ["../recipes/typescript/01-authenticate-identity.ts", "../recipes/typescript/03-execute-exact-action.ts", "test/package/packed-consumer.test.js", "test/package/packed-node.test.js"] },
-    "progressiveAdoption": { "status": "verified", "evidence": ["package.json", "test/package/package.test.js"] },
-    "semanticSafety": { "status": "verified", "evidence": ["test/contract/nonforgeability.ts", "test/integration/non-forgeability.test.js", "test/integration/scenario-corpus.test.js"] },
-    "typeSafety": { "status": "verified", "evidence": ["test/contract/nonforgeability.ts", "src/workflow/errors.ts"] },
-    "productionIntegration": { "status": "verified", "evidence": ["src/framework.ts", "src/testkit/conformance.ts"] },
-    "operationalCompleteness": { "status": "verified", "evidence": ["src/product.ts", "src/integrations.ts", "test/unit/product.test.js"] },
-    "debuggability": { "status": "verified", "evidence": ["src/verify.ts", "src/testkit/index.ts", "test/integration/inspection.test.js"] },
-    "extensibility": { "status": "verified", "evidence": ["src/framework.ts", "src/testkit/conformance.ts"] },
-    "portability": { "status": "verified", "evidence": ["../../.github/workflows/typescript-sdk.yml", "test/package/packed-browser.mjs"] },
-    "runtimeContract": { "status": "verified", "evidence": ["sdk-runtime-contract.json", "tools/runtime-contract.mjs", "docs/support-matrix.md"] },
-    "securityEvidence": { "status": "external-review-required", "evidence": ["docs/threat-model.md", "test/integration/scenario-corpus.test.js"] },
-    "documentation": { "status": "verified", "evidence": ["README.md", "docs/support-matrix.md", "docs/production-integration.md", "docs/errors-and-recovery.md"] },
+    "timeToValue": { "status": "verified", "evidence": ["README.md", "../../docs/product/LOCAL_AGENT_SDK_QUICKSTART.md"] },
+    "progressiveAdoption": { "status": "verified", "evidence": ["package.json", "../../bindings/public-topology-v1.json"] },
+    "semanticSafety": { "status": "verified", "evidence": ["test/contract/nonforgeability.ts", "test/contract/effect-axis.ts"] },
+    "typeSafety": { "status": "verified", "evidence": ["test/contract/nonforgeability.ts", "src/profile-runtime.ts"] },
+    "productionIntegration": { "status": "external-review-required", "evidence": ["../../docs/specs/0040-generic-profile-sdk-and-contributor-system.md"] },
+    "operationalCompleteness": { "status": "external-review-required", "evidence": ["test/contract/profile-runtime.ts", "../../product/runtime/auths-node/src/journal_executor.rs"] },
+    "debuggability": { "status": "verified", "evidence": ["src/doctor.ts", "README.md"] },
+    "extensibility": { "status": "verified", "evidence": ["src/profile-runtime.ts", "../../bindings/generated/stripe/typescript/src/index.ts"] },
+    "portability": { "status": "verified", "evidence": ["test/package/packed-node.test.js", "test/package/packed-browser.mjs"] },
+    "runtimeContract": { "status": "verified", "evidence": ["sdk-runtime-contract.json", "tools/runtime-contract.mjs"] },
+    "securityEvidence": { "status": "external-review-required", "evidence": ["test/contract/nonforgeability.ts", "../../bindings/security-evidence-cutover-v1.json"] },
+    "documentation": { "status": "verified", "evidence": ["README.md", "../../docs/product/LOCAL_AGENT_SDK_QUICKSTART.md"] },
     "crossSdkParity": { "status": "verified", "evidence": ["../customer-journey-matrix-v1.json", "../public-topology-v1.json"] }
   }
 }

@@ -44,10 +44,16 @@ def main() -> None:
     for native_type in abi["types"]:
         if native_type in abi["operations"] or native_type in abi["inspection"]:
             raise SystemExit(f"native ABI symbol is declared twice: {native_type}")
-    if capability["implementationStatus"] != "elite-repository-implementation-complete":
+    if capability["governingSpec"] != "AP-SPEC-040":
+        raise SystemExit("capability evidence is not governed by the relaunch specification")
+    if capability["implementationStatus"] != "prelaunch-ap-spec-040-cutover":
         raise SystemExit("capability evidence does not describe the implemented SDK")
     for module in runtime["excludedModules"]:
-        if importlib.util.find_spec(module) is not None:
+        try:
+            available = importlib.util.find_spec(module) is not None
+        except ModuleNotFoundError:
+            available = False
+        if available:
             raise SystemExit(f"superseded public module remains importable: {module}")
     if runtime["compatibilityWindow"] is not False:
         raise SystemExit("prelaunch runtime contract must not declare a compatibility window")

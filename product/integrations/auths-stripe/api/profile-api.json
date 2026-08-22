@@ -1,0 +1,44 @@
+{
+  "schema": "auths.profile-api/1",
+  "types": {
+    "Currency": {
+      "kind": "enum",
+      "values": ["eur", "gbp", "usd"]
+    },
+    "Refund": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "id",
+          "value": {"kind": "string", "minimumBytes": 1, "maximumBytes": 128, "alphabet": "registered-token"},
+          "sensitive": false
+        },
+        {
+          "name": "status",
+          "value": {"kind": "enum", "values": ["pending", "succeeded"]},
+          "sensitive": false
+        }
+      ]
+    },
+    "RefundInput": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "paymentIntent",
+          "value": {"kind": "string", "minimumBytes": 1, "maximumBytes": 128, "alphabet": "registered-token"},
+          "sensitive": false
+        },
+        {
+          "name": "amount",
+          "value": {"kind": "uint", "bits": 64, "minimum": "1", "maximum": "100000000"},
+          "sensitive": false
+        },
+        {
+          "name": "currency",
+          "value": {"kind": "ref", "name": "Currency"},
+          "sensitive": false
+        }
+      ]
+    }
+  }
+}

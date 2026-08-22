@@ -1,0 +1,1 @@
+{"allowedScopes":["postgresql.bounded-update.execute/1","postgresql.update-preflight.create/1"],"database":"app","executorRole":"auths_executor","schema":"auths.postgresql.connection-descriptor/1","serverIdentity":"postgresql://database.internal:5432","tlsServerName":"database.internal"}

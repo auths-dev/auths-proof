@@ -73,6 +73,15 @@ pub(crate) fn path_text(path: &Path) -> Result<&str, String> {
 }
 
 pub(crate) fn root() -> PathBuf {
+    if let Some(root) = std::env::var_os("AUTHS_XTASK_REPOSITORY_ROOT") {
+        return PathBuf::from(root);
+    }
+    let current = std::env::current_dir().expect("xtask current directory is available");
+    for candidate in current.ancestors() {
+        if candidate.join("Cargo.toml").is_file() && candidate.join("xtask/Cargo.toml").is_file() {
+            return candidate.to_path_buf();
+        }
+    }
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("xtask is inside repository root")

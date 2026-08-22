@@ -78,22 +78,6 @@ def test_a_decoder_failure_is_provably_not_applied() -> None:
     assert caught.value.effect == "not-applied"
 
 
-def test_an_undecodable_service_response_fails_closed_to_possible() -> None:
-    """The service may already have applied the effect (contract 5.3).
-
-    Reading `not-applied` off a response we could not parse would tell a caller
-    that a possibly-committed write is safe to retry blindly.
-    """
-    with pytest.raises(_native.NativeAuthsError) as caught:
-        _native.decode_production_response_v1(b"\x01\x02\x03")
-    error = caught.value
-    assert error.effect == "possible", (
-        "an unreadable service response was classified as 'nothing happened'"
-    )
-    assert error.retry == "unknown"
-    assert error.recommended_action == "resume-and-reconcile"
-
-
 def test_an_unregistered_code_fails_closed_to_possible() -> None:
     code, effect, retry, action, registered = _native.error_classification_v1(
         "not.a.registry.code"

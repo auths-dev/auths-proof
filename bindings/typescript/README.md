@@ -1,132 +1,107 @@
 # `@auths-dev/sdk`
 
-Auths proves what software may do, executes the exact protected action through
-a closed profile, and leaves a verifiable receipt.
+Auths lets an application call a protected provider operation through a local
+agent. The application selects a non-secret connection alias; the agent owns
+authorization, provider credentials, durable execution, recovery, and
+receipts.
 
 ## Install
 
 ```bash
-npm install @auths-dev/sdk
+npm install @auths-dev/sdk @auths-dev/profile-stripe
 ```
 
 The package includes its WASM implementation. Consumers do not need Rust.
 
-## Protect one MCP action
+## Application API shape
+
+The generated clients below are the intended Stripe-like application surface.
+In this revision the real Stripe, PostgreSQL, and OpenTofu routes remain
+unqualified and are therefore not advertised by a production agent. Only the
+separately built synthetic testkit agent exposes the Stripe-shaped route.
 
 ```ts
-import { development } from "@auths-dev/sdk/integrations";
-import { mcp } from "@auths-dev/sdk/profiles";
+import { connect } from "@auths-dev/sdk";
+import { Stripe } from "@auths-dev/profile-stripe";
 
-const provider = mcp.developmentProvider({
-  tools: {
-    async publish_report(arguments_) {
-      return { published: true, arguments: arguments_ };
-    },
-  },
+await using session = await connect();
+const stripe = new Stripe(session, { connection: "billing" });
+const refund = await stripe.refunds.create({
+  paymentIntent: "pi_123",
+  amount: 2_000,
+  currency: "usd",
 });
+console.log(refund.id, refund.auths.receiptIds);
+```
 
-const auths = await development.createAuths({
-  authority: mcp.allowTools(["publish_report"]),
+That is the application contract: connect to the local Auths agent, choose
+a generated domain client and optional connection alias, then call the domain
+method. There is no Auths application token, remote executor URL, or provider
+credential in application code. `AUTHS_AGENT_SOCKET` is optional non-secret
+local discovery configuration.
+
+The same open session can be shared by generated Stripe, PostgreSQL, OpenTofu,
+and future domain packages. Each package owns its domain vocabulary and typed
+results; the root SDK stays domain-neutral.
+
+For operator provisioning and clean-machine setup, see the
+[local-agent quickstart](../../docs/product/LOCAL_AGENT_SDK_QUICKSTART.md).
+For a new domain or provider kind, follow the
+[profile authoring guide](../../docs/product/PROFILE_AUTHORING.md).
+
+## Outcomes and recovery
+
+The ordinary domain method returns its success DTO directly. Use the adjacent
+`*Outcome` method when the application needs exhaustive handling of denial,
+conflict, partial completion, or durable recovery. Recovery handles and
+receipts are opaque SDK values. Each execution receipt is one canonical,
+self-contained container with its linked signed decision embedded; offline
+verification never needs a separate companion receipt argument.
+
+```ts
+const outcome = await stripe.refunds.createOutcome({
+  paymentIntent: "pi_123",
+  amount: 2_000,
+  currency: "usd",
 });
-try {
-  const result = await auths.execute({
-    action: mcp.callTool({
-      name: "publish_report",
-      arguments: { period: "weekly" },
-    }),
-    provider,
-  });
-  console.log(result);
-} finally {
-  await auths.close();
+if (outcome.kind === "completed") {
+  console.log(outcome.value.id);
+} else if (outcome.kind === "recovery-required") {
+  await stripe.refunds.recover(outcome.recovery);
 }
 ```
 
-On runtimes that support explicit resource management, `await using` may be
-used instead of the `try`/`finally` form.
+## Public compatibility surfaces
 
-## Use a production runtime
+`@auths-dev/sdk` contains the stable application session, operation, error,
+receipt, and recovery types. `@auths-dev/sdk/profile-runtime` is also public
+and versioned, but it is an extension compatibility surface for generated
+domain packages, not a generic caller-defined execution API. Applications
+normally import only the root SDK and one or more
+`@auths-dev/profile-<domain>` packages.
 
-```ts
-import { createGitHubAgentClient } from "@auths-dev/sdk/service";
+Effect-free verification and identity helpers remain available at
+`@auths-dev/sdk/verify` and `@auths-dev/sdk/identity`. The exact installed
+entry-point inventory is frozen in `api/public-api.txt` and
+`bindings/public-topology-v1.json`.
 
-const auths = createGitHubAgentClient({ endpoint: "https://executor.example" });
-const boundary = await auths.boundary();
-const task = await auths.delegate({
-  repository: boundary.repository,
-  issueNumber: boundary.issueNumber,
-  baseRef: boundary.baseRef,
-  baseRevision: boundary.baseRevision,
-  allowedPaths: boundary.allowedPaths,
-  protectedPaths: boundary.protectedPaths,
-  expiresInSeconds: boundary.maximumExpirySeconds,
-  branchBudget: 1,
-  draftPullRequestBudget: 1,
-  agentLabel: "issue-agent",
-});
-```
-
-Continue with a candidate bundle file using the maintained
-[GitHub quickstart](../../docs/product/PRODUCTION_SDK_QUICKSTART.md). No
-protocol bytes or GitHub credential enter application code.
-
-## Public entry points
-
-One npm package provides a progressively disclosed API:
-
-| Import | Purpose |
-| --- | --- |
-| `@auths-dev/sdk` | create, delegate, execute, resume, product results and errors |
-| `@auths-dev/sdk/identity` | standalone identity decoding and authentication |
-| `@auths-dev/sdk/verify` | effect-free proof, decision and receipt verification |
-| `@auths-dev/sdk/service` | generic five-verb operator-runtime transport |
-| `@auths-dev/sdk/profiles` | qualified MCP, OpenTofu, PostgreSQL and GitHub effect domains |
-| `@auths-dev/sdk/integrations` | maintained compositions and mechanism adapters |
-| `@auths-dev/sdk/framework` | proven signer and atomic-reservation contracts |
-| `@auths-dev/sdk/testkit` | deterministic fixtures and conformance suites |
-
-The root does not re-export the other entry points. Internal security machinery
-remains private.
-
-## Identity without capabilities
-
-`@auths-dev/sdk/identity` is independent of grants, approvals and execution.
-It supports method- and suite-labelled public identities without forcing an
-application into the protected workflow.
-
-## Verification without effects
-
-`@auths-dev/sdk/verify` is deterministic and effect-free. Verification never
-becomes authorization and returns no executable handle. Differential tools
-belong to `@auths-dev/sdk/testkit`.
-
-## Production boundary
-
-The development composition uses ephemeral keys and in-memory state. The
-generic remote client and the profile-specific GitHub launch path live at
-`@auths-dev/sdk/service`. Provider credentials
-remain behind the Rust profile gateway and are acquired only after Auths has
-authorized and durably claimed the exact action.
-
-## Support
-
-Supported Node, browser, package, ABI and semantic-subject claims are recorded
-in `sdk-runtime-contract.json`. Public declarations are frozen in
-`api/public-api.txt`, and packed-artifact tests prove that removed prelaunch
-subpaths do not resolve.
-
-Run `npx --package @auths-dev/sdk auths doctor` to inspect bounded installed
-runtime, ABI and profile facts. The report never reads application secrets or
+The minimum consumer toolchain is TypeScript 5.2 with `ES2022` and
+`ESNext.Disposable`, on Node 20.6.0 or newer. The stateful Unix-socket
+transport is implemented on macOS and Linux, while real provider profiles
+remain qualification-gated. Windows fails closed pending its named-pipe
+security implementation. Run
+`npx --package @auths-dev/sdk auths doctor` to inspect bounded installed
+runtime, ABI, and profile facts. The report never reads application secrets or
 prints protocol payloads.
 
 ## Capability status
 
-The closed product workflow and its installed-artifact evidence are complete
-in this repository. This README does not promote those repository-local claims
-to an independently reviewed or published release.
+The closed product workflow is being relaunched under AP-SPEC-040. This README
+does not promote repository-local claims to an independently reviewed or
+published release.
 
 - Implementation tier: `full-workflow-sdk`
-- Evidence status: `repository-local-complete`
+- Evidence status: `repository-local-in-progress`
 - Promoted tier: `verifier-binding`
 - Publication status: `blocked`
 - Promotion status: `blocked`

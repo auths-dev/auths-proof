@@ -1,4 +1,5 @@
 use crate::*;
+use auths_profile_kit::QualificationReleaseBuild;
 
 const PREPARATION_COMPARISON_SCHEMA: &str = "auths.preparation-comparison/1";
 const PROMOTION_REQUEST_SCHEMA: &str = "auths.promotion-request/1";
@@ -7,7 +8,7 @@ const OWNER_AUTHORIZATION_STATEMENT: &str =
     "I authorize promotion of these exact prepared bytes to a GitHub prerelease.";
 const EXPECTED_OIDC_ISSUER: &str = "https://token.actions.githubusercontent.com";
 const EXPECTED_OIDC_SUBJECT: &str =
-    "repo:auths-dev@260513770/auths-proof@1310728509:environment:release-candidate";
+    "repo:auths-dev@260513770/auths-proof@1310728509:ref:refs/heads/main";
 const EXPECTED_BUILDER_WORKFLOW: &str =
     "auths-dev/auths-proof/.github/workflows/release-builder.yml";
 const SLSA_ASSESSMENT_PATH: &str = "release/slsa-build-level-3-assessment.json";
@@ -70,11 +71,63 @@ pub(crate) fn release_control(arguments: Vec<String>) -> Result<(), String> {
                 Path::new(authorization),
             )
         }
+        [command, input, output] if command == "canonicalize-qualification-build" => {
+            canonicalize_qualification_build(Path::new(input), Path::new(output))
+        }
+        [command, release_build, surface, members, artifact_root, commit]
+            if command == "verify-qualification-release-build" =>
+        {
+            verify_qualification_release_build_files(
+                Path::new(release_build),
+                Path::new(surface),
+                Path::new(members),
+                Path::new(artifact_root),
+                commit,
+            )
+        }
         _ => Err(
-            "usage: cargo xtask release-control <finalize TAG COMMIT PROVENANCE TRUSTED_ROOT VERIFICATION BUILDER_WORKFLOW BUILDER_DIGEST|compare FIRST SECOND OUTPUT|verify-promotion STAGED REQUEST AUTHORIZATION>"
+            "usage: cargo xtask release-control <finalize TAG COMMIT PROVENANCE TRUSTED_ROOT VERIFICATION BUILDER_WORKFLOW BUILDER_DIGEST|compare FIRST SECOND OUTPUT|verify-promotion STAGED REQUEST AUTHORIZATION|canonicalize-qualification-build INPUT OUTPUT|verify-qualification-release-build RELEASE_BUILD SURFACE MEMBERS ARTIFACT_ROOT COMMIT>"
                 .to_owned(),
         ),
     }
+}
+
+fn canonicalize_qualification_build(input: &Path, output: &Path) -> Result<(), String> {
+    let metadata = fs::symlink_metadata(input)
+        .map_err(|error| format!("could not inspect qualification release build: {error}"))?;
+    if !metadata.is_file()
+        || metadata.file_type().is_symlink()
+        || metadata.len() == 0
+        || metadata.len() > 262_144
+    {
+        return Err("qualification release build input is not a bounded regular file".to_owned());
+    }
+    let bytes = fs::read(input)
+        .map_err(|error| format!("could not read qualification release build: {error}"))?;
+    let value: Value = serde_json::from_slice(&bytes)
+        .map_err(|error| format!("qualification release build is not JSON: {error}"))?;
+    let canonical = serde_json_canonicalizer::to_vec(&value)
+        .map_err(|error| format!("could not canonicalize qualification release build: {error}"))?;
+    let build = QualificationReleaseBuild::from_json(&canonical)
+        .map_err(|error| format!("qualification release build is invalid: {error}"))?;
+    let verified = build
+        .canonical_json()
+        .map_err(|error| format!("could not encode qualification release build: {error}"))?;
+    if canonical != verified {
+        return Err("qualification release build canonical projection drifted".to_owned());
+    }
+    if output.exists() {
+        return Err(format!(
+            "qualification release build output already exists: {}",
+            output.display()
+        ));
+    }
+    if let Some(parent) = output.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("could not create qualification release output: {error}"))?;
+    }
+    fs::write(output, verified)
+        .map_err(|error| format!("could not write qualification release build: {error}"))
 }
 
 fn finalize_preparation(
@@ -163,7 +216,7 @@ fn finalize_preparation(
         "builder": {
             "workflow": builder_workflow,
             "workflowDigest": builder_digest,
-            "environment": "release-candidate",
+            "environment": null,
             "oidcIssuer": EXPECTED_OIDC_ISSUER,
             "oidcSubject": EXPECTED_OIDC_SUBJECT,
             "slsaTarget": SLSA_TARGET,
@@ -730,7 +783,7 @@ mod tests {
     fn immutable_builder_identity_is_exact() {
         assert_eq!(
             EXPECTED_OIDC_SUBJECT,
-            "repo:auths-dev@260513770/auths-proof@1310728509:environment:release-candidate"
+            "repo:auths-dev@260513770/auths-proof@1310728509:ref:refs/heads/main"
         );
         assert_eq!(
             EXPECTED_BUILDER_WORKFLOW,

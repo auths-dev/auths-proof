@@ -10,9 +10,6 @@
   },
   "recipes": [
     { "id": "01-authenticate-identity", "typescript": "typescript/01-authenticate-identity.ts", "python": "python/01_authenticate_identity.py", "expected": "authenticated" },
-    { "id": "02-verify-authority", "typescript": "typescript/02-verify-authority.ts", "python": "python/02_verify_authority.py", "expected": "authorized" },
-    { "id": "03-execute-exact-action", "typescript": "typescript/03-execute-exact-action.ts", "python": "python/03_execute_exact_action.py", "expected": "completed" },
-    { "id": "04-delegate-to-agent", "typescript": "typescript/04-delegate-to-agent.ts", "python": "python/04_delegate_to_agent.py", "expected": "completed,exact-replay,denied" },
-    { "id": "05-cross-organization-plan", "typescript": "typescript/05-cross-organization-plan.ts", "python": "python/05_cross_organization_plan.py", "expected": "completed-after-restart" }
+    { "id": "02-verify-authority", "typescript": "typescript/02-verify-authority.ts", "python": "python/02_verify_authority.py", "expected": "authorized" }
   ]
 }

@@ -147,15 +147,141 @@ pub fn mechanism_profile_conformance_catalog() -> ConformanceCatalog {
     }
 }
 
+/// Returns the immutable v2 adapter-contract catalog used by the rewritten SDKs.
+///
+/// V1 is deliberately retained above: the v2 signer, reservation, and transport
+/// shapes add observable bindings and lifecycle rules and are not aliases for it.
+#[must_use]
+pub fn mechanism_profile_conformance_catalog_v2() -> ConformanceCatalog {
+    ConformanceCatalog {
+        schema: "auths.mechanism-profile-conformance/2",
+        suite_version: 2,
+        semantic_subject: "auths.mechanism-profile-conformance/2",
+        contracts: v2_contracts(),
+        suites: v2_suites(),
+    }
+}
+
+fn v2_contracts() -> Vec<ContractInventory> {
+    vec![
+        contract(
+            "signer-custody",
+            "candidate-mechanism",
+            &["auths.mcp/2", "auths.records/1"],
+            "publish-framework",
+        ),
+        contract(
+            "atomic-reservation-store",
+            "candidate-mechanism",
+            &["auths.mcp/2", "auths.records/1"],
+            "publish-framework",
+        ),
+        contract(
+            "bounded-byte-transport",
+            "candidate-mechanism",
+            &[
+                "auths.remote-verification/1",
+                "auths.github.issue-address/2",
+            ],
+            "retain-integrations",
+        ),
+        contract(
+            "approval-transaction",
+            "candidate-mechanism",
+            &["auths.mcp/2"],
+            "retain-internal",
+        ),
+        contract(
+            "provider-gateway",
+            "profile-owned",
+            &["auths.mcp/2", "auths.github.issue-address/2"],
+            "retain-profile",
+        ),
+        contract(
+            "provider-result",
+            "profile-owned",
+            &["auths.mcp/2", "auths.github.issue-address/2"],
+            "retain-profile",
+        ),
+        contract(
+            "reconciliation",
+            "profile-owned",
+            &["auths.mcp/2", "auths.github.issue-address/2"],
+            "retain-profile",
+        ),
+    ]
+}
+
+fn v2_suites() -> Vec<ConformanceSuite> {
+    vec![
+        suite(
+            "signer-custody/2",
+            "mechanism",
+            &[
+                "signer/transaction-binding",
+                "signer/principal-binding",
+                "signer/descriptor-binding",
+                "signer/key-version-binding",
+                "signer/object-binding",
+                "signer/request-binding",
+                "signer/expiry",
+                "signer/duplicate",
+                "signer/canonical-signature",
+                "signer/evidence-binding",
+                "signer/denied",
+                "signer/cancelled",
+                "signer/throttled",
+                "signer/unavailable",
+                "signer/revoked-key",
+                "signer/disabled-key",
+                "signer/provider-unknown",
+                "signer/invalid-response",
+                "signer/concurrent-reordering",
+                "signer/disposal",
+                "signer/redaction",
+            ],
+        ),
+        suite(
+            "atomic-reservation-store/2",
+            "mechanism",
+            &[
+                "atomic-store/acquire",
+                "atomic-store/exact-replay",
+                "atomic-store/conflict",
+                "atomic-store/concurrent-single-winner",
+                "atomic-store/bounded-record",
+                "atomic-store/isolated-instances",
+                "atomic-store/reopen-durability-claim",
+                "atomic-store/cancel-after-acquire",
+                "atomic-store/disposal",
+            ],
+        ),
+        suite(
+            "bounded-byte-transport/2",
+            "mechanism",
+            &[
+                "byte-transport/exact-route-and-bytes",
+                "byte-transport/bounded-input",
+                "byte-transport/bounded-output",
+                "byte-transport/deadline",
+                "byte-transport/cancellation",
+                "byte-transport/disposal",
+            ],
+        ),
+    ]
+}
+
 impl ConformanceCatalog {
     /// # Errors
     ///
     /// Returns an error when the catalog identity, contracts, suites, or cases are invalid.
     pub fn validate(&self) -> Result<(), String> {
-        if self.schema != "auths.mechanism-profile-conformance/1"
-            || self.suite_version != 1
-            || self.semantic_subject != "auths.mechanism-profile-conformance/1"
-        {
+        let identity = match self.suite_version {
+            1 => "auths.mechanism-profile-conformance/1",
+            2 => "auths.mechanism-profile-conformance/2",
+            _ => return Err("invalid mechanism/profile conformance catalog identity".to_owned()),
+        };
+        if self.schema != identity || self.semantic_subject != identity {
             return Err("invalid mechanism/profile conformance catalog identity".to_owned());
         }
         let mut contracts = std::collections::BTreeSet::new();
@@ -238,5 +364,8 @@ mod tests {
     #[test]
     fn catalog_is_complete_and_unique() {
         mechanism_profile_conformance_catalog().validate().unwrap();
+        mechanism_profile_conformance_catalog_v2()
+            .validate()
+            .unwrap();
     }
 }

@@ -328,6 +328,8 @@ export interface DelegationReview {
 
 export interface WorkflowWasmEngine {
   authoringAbiVersionV1(): number;
+  qualificationClientCancellationResultV1(requestId: Uint8Array): Uint8Array;
+  encodeQualificationClientResultFrameV1(mode: number, requestId: Uint8Array, result: Uint8Array): Uint8Array;
   canonicalPrincipalV1(principal: string): string;
   encodePrincipalStatusStatementV1(
     method: string,
@@ -438,6 +440,19 @@ export interface WorkflowWasmEngine {
     verificationMethod: string,
     suite: string,
   ): WorkflowReceiptPreparation;
+  prepareProfileDecisionReceiptV2(
+    profileId: string,
+    profileVersion: number,
+    proof: Uint8Array,
+    action: Uint8Array,
+    context: Uint8Array,
+    decision: "authorized" | "denied" | "indeterminate",
+    reasons: readonly string[],
+    decidedAt: bigint,
+    verifier: string,
+    verificationMethod: string,
+    suite: string,
+  ): WorkflowReceiptPreparation;
   prepareApplicationExecutionReceiptV1(
     decisionReceiptId: Uint8Array,
     idempotencyKey: string,
@@ -477,6 +492,29 @@ export interface WorkflowWasmEngine {
     suite: string,
     rawKeyEvidence: Uint8Array,
   ): void;
+  validateReceiptAnchorV1(suite: string, publicKey: Uint8Array): void;
+  profileReceiptPayloadCommitmentV2(
+    kind: "decision" | "execution",
+    payload: Uint8Array,
+  ): Uint8Array;
+  decodePortableReceiptV1(value: Uint8Array): Readonly<{
+    free?(): void;
+    readonly portableReceiptId: string;
+    readonly kind: string;
+    readonly decisionReceiptId: Uint8Array;
+    readonly executionReceiptId?: Uint8Array;
+    readonly attestedDecision: Uint8Array;
+    readonly attestedExecution?: Uint8Array;
+  }>;
+  verifyPinnedReceiptV1(
+    kind: "decision" | "execution",
+    attested: Uint8Array,
+    expectedId: Uint8Array,
+    verifier: string,
+    verificationMethod: string,
+    suite: string,
+    publicKey: Uint8Array,
+  ): Uint8Array;
   verifyReceiptLinkV1(
     decision: Uint8Array,
     decisionId: Uint8Array,

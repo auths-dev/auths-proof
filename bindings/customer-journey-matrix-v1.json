@@ -6,30 +6,30 @@
     "schema": "auths.sdk-experience-metadata/1",
     "enforcement": "baseline",
     "baseline": {
-      "typescriptEntryPoints": 8,
-      "typescriptPublicSymbols": 203,
-      "pythonModules": 8,
-      "pythonPublicSymbols": 180,
-      "maintainedTypescriptRecipes": 5,
-      "maintainedPythonRecipes": 5
+      "typescriptEntryPoints": 9,
+      "typescriptPublicSymbols": 113,
+      "pythonModules": 11,
+      "pythonPublicSymbols": 126,
+      "maintainedTypescriptRecipes": 2,
+      "maintainedPythonRecipes": 2
     },
     "targetBudgets": {
       "primaryStatefulRootOperations": 3,
-      "recipeThreeSecurityConcepts": 3,
-      "recipeThreeDomainConcepts": 2,
-      "recipeThreeSetupDecisions": 1,
+      "launchSecurityConcepts": 3,
+      "launchDomainConcepts": 2,
+      "launchSetupDecisions": 1,
       "applicationOrchestratedSecurityTransitions": 0,
-      "recipeThreeRequiredInputs": 3,
+      "launchRequiredInputs": 3,
       "purposeLabelledPublicLayers": 4,
-      "maintainedGoldenPathRecipesPerLanguage": 5,
+      "maintainedEffectFreeRecipesPerLanguage": 2,
       "newDeveloperPasses": 4,
       "newDeveloperCohort": 5,
       "newDeveloperMinutes": 15,
       "consumerRustToolchain": 0,
       "semanticParityPercent": 100
     },
-    "moderatedRecipeThreeCohort": {
-      "status": "awaiting-independent-cohort",
+    "cleanMachineLaunchCohort": {
+      "status": "awaiting-operator-provisioned-agent",
       "cleanMachineDefinition": "supported runtime with an empty package cache and no Rust toolchain",
       "cohortSize": 0,
       "completions": [],
@@ -48,21 +48,6 @@
         "path": "bindings/recipes/typescript/02-verify-authority.ts"
       },
       {
-        "id": "typescript-03-execute-exact-action",
-        "language": "typescript",
-        "path": "bindings/recipes/typescript/03-execute-exact-action.ts"
-      },
-      {
-        "id": "typescript-04-delegate-to-agent",
-        "language": "typescript",
-        "path": "bindings/recipes/typescript/04-delegate-to-agent.ts"
-      },
-      {
-        "id": "typescript-05-cross-organization-plan",
-        "language": "typescript",
-        "path": "bindings/recipes/typescript/05-cross-organization-plan.ts"
-      },
-      {
         "id": "python-01-authenticate-identity",
         "language": "python",
         "path": "bindings/recipes/python/01_authenticate_identity.py"
@@ -71,21 +56,6 @@
         "id": "python-02-verify-authority",
         "language": "python",
         "path": "bindings/recipes/python/02_verify_authority.py"
-      },
-      {
-        "id": "python-03-execute-exact-action",
-        "language": "python",
-        "path": "bindings/recipes/python/03_execute_exact_action.py"
-      },
-      {
-        "id": "python-04-delegate-to-agent",
-        "language": "python",
-        "path": "bindings/recipes/python/04_delegate_to_agent.py"
-      },
-      {
-        "id": "python-05-cross-organization-plan",
-        "language": "python",
-        "path": "bindings/recipes/python/05_cross_organization_plan.py"
       }
     ]
   },
@@ -93,8 +63,8 @@
     {
       "id": "identity-shapes-and-authentication",
       "rust": "core/crates/auths-identity/src/lib.rs",
-      "typescript": "bindings/typescript/test/integration/identity.test.js",
-      "python": "bindings/python/tests/test_api.py",
+      "typescript": "bindings/typescript/test/unit/public-api-v2.test.js",
+      "python": "bindings/python/tests/test_public_api_v2.py",
       "experience": {
         "targetJourney": "exchange-and-authenticate-identity-bytes",
         "imports": [
@@ -131,8 +101,8 @@
     {
       "id": "verification-three-valued-and-mutation",
       "rust": "core/fixtures/v1",
-      "typescript": "bindings/typescript/test/integration/scenario-corpus.test.js",
-      "python": "bindings/python/tests/test_api.py",
+      "typescript": "bindings/typescript/test/unit/public-api-v2.test.js",
+      "python": "bindings/python/tests/test_public_api_v2.py",
       "experience": {
         "targetJourney": "verify-an-existing-proof-without-executing",
         "imports": [
@@ -166,112 +136,15 @@
       }
     },
     {
-      "id": "attach-delegate-and-attenuate",
-      "rust": "core/crates/auths-author/src/lib.rs",
-      "typescript": "bindings/typescript/test/integration/workflow/delegation.test.js",
-      "python": "bindings/python/tests/test_workflow.py",
-      "experience": {
-        "targetJourney": "delegate-narrower-authority-and-execute",
-        "imports": [
-          "root",
-          "profile"
-        ],
-        "securityNouns": [
-          "Identity",
-          "Authority",
-          "Action",
-          "Receipt"
-        ],
-        "domainConcepts": [
-          "profile action"
-        ],
-        "setupDecisions": [
-          "signer",
-          "trusted context",
-          "runtime store"
-        ],
-        "apiMechanics": [
-          "attach",
-          "review",
-          "delegate",
-          "execute"
-        ],
-        "requiredApplicationComponents": [
-          "parent authority",
-          "child identity",
-          "narrowing request",
-          "provider"
-        ],
-        "executableStatements": 24,
-        "applicationOrchestratedSecurityTransitions": 4,
-        "terminalOutcomes": [
-          "delegated",
-          "denied",
-          "indeterminate",
-          "executed",
-          "failed"
-        ],
-        "consumerRequiresRust": false
-      }
-    },
-    {
-      "id": "proof-plan-composition",
-      "rust": "core/crates/auths-author/src/lib.rs",
-      "typescript": "bindings/typescript/test/integration/authorization-plans.test.js",
-      "python": "bindings/python/tests/test_mcp_workflow.py",
-      "experience": {
-        "targetJourney": "authorize-and-execute-an-ordered-plan",
-        "imports": [
-          "root",
-          "profile"
-        ],
-        "securityNouns": [
-          "Authority",
-          "Action",
-          "Approval",
-          "Receipt"
-        ],
-        "domainConcepts": [
-          "ordered plan",
-          "profile provider"
-        ],
-        "setupDecisions": [
-          "approval policy",
-          "runtime store"
-        ],
-        "apiMechanics": [
-          "plan",
-          "approve",
-          "authorize",
-          "execute"
-        ],
-        "requiredApplicationComponents": [
-          "authority",
-          "ordered actions",
-          "provider"
-        ],
-        "executableStatements": 31,
-        "applicationOrchestratedSecurityTransitions": 5,
-        "terminalOutcomes": [
-          "executed",
-          "denied",
-          "indeterminate",
-          "cancelled",
-          "outcome-unknown"
-        ],
-        "consumerRequiresRust": false
-      }
-    },
-    {
-      "id": "closed-profile-command-and-plan",
-      "rust": "product/profiles",
-      "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
-      "python": "bindings/python/tests/test_mcp_workflow.py",
+      "id": "local-agent-generated-domain-call",
+      "rust": "product/runtime/auths-node/src/local_deployment.rs",
+      "typescript": "bindings/typescript/test/contract/profile-runtime.ts",
+      "python": "bindings/python/tests/test_profile_runtime_v1.py",
       "experience": {
         "targetJourney": "execute-one-exact-protected-action",
         "imports": [
           "root",
-          "profiles/mcp"
+          "generated-domain"
         ],
         "securityNouns": [
           "Authority",
@@ -279,25 +152,25 @@
           "Receipt"
         ],
         "domainConcepts": [
-          "MCP tool",
-          "typed provider"
+          "domain method",
+          "connection alias"
         ],
         "setupDecisions": [
-          "development composition"
+          "connection alias"
         ],
         "apiMechanics": [
-          "create",
-          "execute"
+          "connect",
+          "call generated method"
         ],
         "requiredApplicationComponents": [
-          "bounded authority",
-          "action",
-          "typed handler/provider"
+          "local agent socket",
+          "generated domain package",
+          "domain input"
         ],
-        "executableStatements": 12,
+        "executableStatements": 6,
         "applicationOrchestratedSecurityTransitions": 0,
         "terminalOutcomes": [
-          "executed",
+          "completed",
           "denied",
           "indeterminate",
           "failed",
@@ -307,59 +180,14 @@
       }
     },
     {
-      "id": "trust-status-and-lifecycle",
-      "rust": "product/runtime/auths-lifecycle",
-      "typescript": "bindings/typescript/test/integration/workflow/client.test.js",
-      "python": "bindings/python/tests/test_native_authoring.py",
-      "experience": {
-        "targetJourney": "define-and-qualify-an-application-owned-effect-vertical",
-        "imports": [
-          "framework",
-          "testkit"
-        ],
-        "securityNouns": [
-          "Identity",
-          "Authority",
-          "Action",
-          "Receipt"
-        ],
-        "domainConcepts": [
-          "profile state",
-          "domain outcome",
-          "reconciliation"
-        ],
-        "setupDecisions": [
-          "trust source",
-          "status source",
-          "state store"
-        ],
-        "apiMechanics": [
-          "define profile",
-          "qualify transitions"
-        ],
-        "requiredApplicationComponents": [
-          "profile implementation",
-          "provider",
-          "fixtures"
-        ],
-        "executableStatements": 40,
-        "applicationOrchestratedSecurityTransitions": 0,
-        "terminalOutcomes": [
-          "qualified",
-          "rejected"
-        ],
-        "consumerRequiresRust": true
-      }
-    },
-    {
       "id": "replay-budget-and-outcome-unknown",
       "rust": "product/runtime/auths-lifecycle/src/kernel.rs",
       "typescript": "bindings/typescript/test/unit/runtime-contract.test.js",
-      "python": "bindings/python/tests/test_mcp_workflow.py",
+      "python": "bindings/python/tests/test_public_api_v2.py",
       "experience": {
         "targetJourney": "verify-a-signed-receipt-offline",
         "imports": [
-          "receipts",
+          "root",
           "verify"
         ],
         "securityNouns": [
@@ -392,7 +220,7 @@
       "id": "errors-observability-and-redaction",
       "rust": "core/crates/auths-verifier/src/lib.rs",
       "typescript": "bindings/typescript/test/unit/errors.test.js",
-      "python": "bindings/python/tests/test_product_errors.py",
+      "python": "bindings/python/tests/test_registry_code_inventory.py",
       "experience": {
         "targetJourney": "execute-one-exact-protected-action",
         "imports": [
@@ -426,15 +254,14 @@
       }
     },
     {
-      "id": "production-five-verb-workflow",
-      "rust": "product/runtime/auths-production-client/src/lib.rs",
-      "typescript": "bindings/typescript/test/integration/production-client.test.js",
-      "python": "bindings/python/tests/test_production_client.py",
+      "id": "ambient-local-session-negotiation",
+      "rust": "product/runtime/auths-node/src/local_deployment.rs",
+      "typescript": "bindings/typescript/test/contract/profile-runtime.ts",
+      "python": "bindings/python/tests/test_profile_runtime_v1.py",
       "experience": {
-        "targetJourney": "create-delegate-execute-resume-and-verify-through-a-production-runtime",
+        "targetJourney": "connect-an-observed-workload-without-an-application-token",
         "imports": [
-          "root",
-          "profiles"
+          "root"
         ],
         "securityNouns": [
           "Identity",
@@ -443,45 +270,38 @@
           "Receipt"
         ],
         "domainConcepts": [
-          "qualified profile"
+          "advertised profile"
         ],
         "setupDecisions": [
-          "runtime endpoint"
+          "local socket discovery"
         ],
         "apiMechanics": [
-          "create",
-          "delegate",
-          "execute",
-          "resume",
-          "verify"
+          "connect",
+          "negotiate"
         ],
         "requiredApplicationComponents": [
-          "public identity bytes",
-          "profile request bytes",
-          "runtime endpoint"
+          "local socket access"
         ],
-        "executableStatements": 10,
+        "executableStatements": 2,
         "applicationOrchestratedSecurityTransitions": 0,
         "terminalOutcomes": [
-          "completed",
-          "denied",
-          "indeterminate",
-          "recoverable",
-          "verified",
-          "rejected"
+          "connected",
+          "unavailable",
+          "incompatible"
         ],
         "consumerRequiresRust": false
       }
     },
     {
-      "id": "github-agent-one-issue-one-draft-pr",
-      "rust": "product/integrations/auths-github/src/service.rs",
-      "typescript": "bindings/typescript/test/unit/github-agent.test.js",
-      "python": "bindings/python/tests/test_github_agent.py",
+      "id": "one-session-multiple-generated-domains",
+      "rust": "xtask/src/profile_codegen.rs",
+      "typescript": "bindings/generated/stripe/typescript/src/index.ts",
+      "python": "bindings/generated/postgresql/python/src/auths_profiles/postgresql/__init__.py",
       "experience": {
-        "targetJourney": "delegate-one-bounded-github-issue-task-and-open-one-draft-pull-request",
+        "targetJourney": "borrow-one-session-across-generated-domain-clients",
         "imports": [
-          "service"
+          "root",
+          "generated-domain"
         ],
         "securityNouns": [
           "Authority",
@@ -489,34 +309,29 @@
           "Receipt"
         ],
         "domainConcepts": [
-          "GitHub issue",
-          "candidate bundle"
+          "Stripe refund",
+          "PostgreSQL update"
         ],
         "setupDecisions": [
-          "operator endpoint"
+          "connection aliases"
         ],
         "apiMechanics": [
-          "discover boundary",
-          "delegate",
-          "inspect candidate",
-          "execute",
-          "reconcile",
-          "verify receipts"
+          "connect",
+          "construct domain clients",
+          "call typed methods"
         ],
         "requiredApplicationComponents": [
-          "candidate bundle path",
-          "candidate revision",
-          "operator endpoint"
+          "generated packages",
+          "domain inputs"
         ],
-        "executableStatements": 20,
+        "executableStatements": 9,
         "applicationOrchestratedSecurityTransitions": 0,
         "terminalOutcomes": [
           "completed",
-          "denied",
-          "indeterminate",
+          "unavailable",
+          "recovery-required",
           "replayed",
-          "reconciled",
-          "verified"
+          "reconciled"
         ],
         "consumerRequiresRust": false
       }
@@ -529,7 +344,7 @@
       "experience": {
         "targetJourney": "implement-and-certify-a-cross-domain-mechanism-adapter",
         "imports": [
-          "framework",
+          "adapters",
           "testkit"
         ],
         "securityNouns": [],

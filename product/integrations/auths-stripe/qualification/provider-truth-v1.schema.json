@@ -1,0 +1,5 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://auths.dev/spec/v1/stripe-qualification-provider-truth.schema.json",
+  "type":"object","additionalProperties":false,"required":["accountSha256","paymentIntentSha256","refundSha256","amount","currency","applied"],
+  "properties":{"accountSha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},"paymentIntentSha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},"refundSha256":{"type":["string","null"],"pattern":"^[0-9a-f]{64}$"},"amount":{"type":"integer","minimum":1,"maximum":100000000},"currency":{"type":"string","pattern":"^[a-z]{3}$"},"applied":{"type":"boolean"}}
+}

@@ -1,6 +1,6 @@
 {
-  "schema": "auths.performance/1",
-  "recordedAt": "2026-08-14",
+  "schema": "auths.performance/2",
+  "recordedAt": "2026-08-19",
   "environment": {
     "platform": "darwin",
     "architecture": "arm64",
@@ -13,18 +13,17 @@
     "maximumBoundedBytes": 65536
   },
   "measurements": {
-    "coldStartMs": 45.5,
-    "warmVerificationP95Ms": 0.93,
-    "wasmBoundarySerializeSmallP95Ms": 0.006,
-    "wasmBoundarySerializeMediumP95Ms": 0.024,
-    "wasmBoundarySerializeMaximumP95Ms": 0.26,
-    "batch64Ms": 111,
-    "plan64Ms": 4.2,
+    "coldStartMs": 53,
+    "warmVerificationP95Ms": 1.4,
+    "wasmBoundarySerializeSmallP95Ms": 0.005,
+    "wasmBoundarySerializeMediumP95Ms": 0.036,
+    "wasmBoundarySerializeMaximumP95Ms": 0.42,
+    "batch64Ms": 90,
     "chromiumWarmVerificationP95Ms": 15,
     "chromiumWorkerColdStartMs": 150,
-    "residentMemoryBytes": 103000000,
-    "wasmBytes": 2311312,
-    "compressedWasmBytes": 610434,
-    "distBytes": 543318
+    "residentMemoryBytes": 89000000,
+    "wasmBytes": 2254889,
+    "compressedWasmBytes": 603462,
+    "distBytes": 923668
   }
 }

@@ -5,49 +5,39 @@
       "name": "product",
       "typescript": [
         "@auths-dev/sdk",
+        "@auths-dev/sdk/verify",
         "@auths-dev/sdk/identity",
-        "@auths-dev/sdk/verify"
+        "@auths-dev/sdk/identity/authoring"
       ],
       "python": [
         "auths",
+        "auths.verify",
         "auths.identity",
-        "auths.verify"
-      ]
-    },
-    {
-      "name": "service",
-      "typescript": [
-        "@auths-dev/sdk/service"
-      ],
-      "python": [
-        "auths.service"
-      ]
-    },
-    {
-      "name": "vertical",
-      "typescript": [
-        "@auths-dev/sdk/profiles"
-      ],
-      "python": [
-        "auths.profiles"
+        "auths.identity.authoring"
       ]
     },
     {
       "name": "mechanism",
       "typescript": [
-        "@auths-dev/sdk/integrations"
+        "@auths-dev/sdk/identity/adapters",
+        "@auths-dev/sdk/adapters"
       ],
       "python": [
-        "auths.integrations"
+        "auths.identity.adapters",
+        "auths.adapters",
+        "auths.adapters.custody",
+        "auths.adapters.reservations"
       ]
     },
     {
       "name": "extension",
       "typescript": [
-        "@auths-dev/sdk/framework"
+        "@auths-dev/sdk/protocol",
+        "@auths-dev/sdk/profile-runtime"
       ],
       "python": [
-        "auths.framework"
+        "auths.protocol",
+        "auths.profile_runtime"
       ]
     },
     {
@@ -64,10 +54,5 @@
     "atomic-reservation-store",
     "signer-custody"
   ],
-  "qualifiedProfiles": [
-    "auths.github.issue-address/1",
-    "auths.mcp/1",
-    "auths.opentofu.saved-plan-apply/1",
-    "auths.postgresql.bounded-update/1"
-  ]
+  "qualifiedProfiles": []
 }

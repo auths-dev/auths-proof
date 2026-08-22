@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-journal-decision-context.schema.json",
+  "title": "Auths supervisor-authenticated qualification journal decision context v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "record", "signing"],
+  "properties": {
+    "schema": {"const": "auths.qualification-journal-decision-context/1"},
+    "record": {"$ref": "#/$defs/record"},
+    "signing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "keyId", "signatureBase64url"],
+      "properties": {
+        "algorithm": {"const": "Ed25519"},
+        "keyId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "signatureBase64url": {"type": "string", "pattern": "^[A-Za-z0-9_-]{86}$"}
+      }
+    }
+  },
+  "$defs": {
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema", "repositoryId", "workflowPath", "workflowRevision", "candidateRevision",
+        "attesterRevision", "runId", "runAttempt", "domain", "target",
+        "protectedEnvironment", "providerRunId", "ledgerId", "sessionNonceSha256",
+        "scenarioId", "phaseIndex", "role", "profile", "operationPlanSha256", "failpoint",
+        "supervisorControllerUid", "supervisorSourceUid", "journalReaderUid", "agentUid", "agentGid", "supervisorSourceIdentity", "supervisorSourceArtifactSha256", "supervisorControllerArtifactSha256",
+        "journalReaderSourceIdentity", "journalReaderSourceArtifactSha256", "journalReaderKeyId",
+        "sourceContextSha256", "supervisorGeneration", "agentGeneration", "agentProcessId",
+        "agentBootSha256", "agentStartTimeTicks", "agentLauncherArtifactSha256", "agentExecutableSha256", "agentConfigurationSha256",
+        "agentStateDirectorySha256", "agentCgroupSha256", "journalPathSha256", "journalDevice",
+        "journalInode", "journalOwnerUid", "journalMode", "journalLength", "boundaryOrdinal", "boundaryProjectionSha256", "operationId",
+        "controlOperationId", "controllerNonceSha256", "journalRevision", "journalRecordSha256",
+        "decisionSnapshotSha256", "durableAckSha256"
+      ],
+      "properties": {
+        "schema": {"const": "auths.qualification-journal-decision-context-record/1"},
+        "repositoryId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+        "workflowPath": {"type": "string", "pattern": "^\\.github/workflows/profile-qualification-[a-z0-9-]+\\.yml$", "maxLength": 256},
+        "workflowRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+        "candidateRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+        "attesterRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+        "runId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+        "runAttempt": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+        "domain": {"$ref": "profile-qualification.schema.json#/$defs/domain"},
+        "target": {"$ref": "profile-qualification.schema.json#/$defs/target"},
+        "protectedEnvironment": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "providerRunId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "ledgerId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "sessionNonceSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "scenarioId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "phaseIndex": {"type": "integer", "minimum": 1, "maximum": 8},
+        "role": {"enum": ["preflight", "effect"]},
+        "profile": {"$ref": "profile-qualification.schema.json#/$defs/semanticSubject"},
+        "operationPlanSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "failpoint": {"$ref": "profile-qualification-report-common.schema.json#/$defs/nullableFailpoint"},
+        "supervisorControllerUid": {"type": "integer", "minimum": 0, "maximum": 4294967294},
+        "supervisorSourceUid": {"type": "integer", "minimum": 1, "maximum": 4294967294},
+        "journalReaderUid": {"type": "integer", "minimum": 1, "maximum": 4294967294},
+        "agentUid": {"type": "integer", "minimum": 1, "maximum": 4294967294},
+        "agentGid": {"type": "integer", "minimum": 1, "maximum": 4294967294},
+        "supervisorSourceIdentity": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "supervisorSourceArtifactSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "supervisorControllerArtifactSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "journalReaderSourceIdentity": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "journalReaderSourceArtifactSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "journalReaderKeyId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "sourceContextSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "supervisorGeneration": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+        "agentGeneration": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+        "agentProcessId": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+        "agentBootSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "agentStartTimeTicks": {"type": "integer", "minimum": 1, "maximum": 18446744073709551615},
+        "agentLauncherArtifactSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "agentExecutableSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "agentConfigurationSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "agentStateDirectorySha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "agentCgroupSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "journalPathSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "journalDevice": {"type": "integer", "minimum": 1, "maximum": 18446744073709551615},
+        "journalInode": {"type": "integer", "minimum": 1, "maximum": 18446744073709551615},
+        "journalOwnerUid": {"type": "integer", "minimum": 0, "maximum": 4294967294},
+        "journalMode": {"const": 384},
+        "journalLength": {"type": "integer", "minimum": 1, "maximum": 67108864},
+        "boundaryOrdinal": {"type": "integer", "minimum": 1, "maximum": 16384},
+        "boundaryProjectionSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "operationId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "controlOperationId": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"}]},
+        "controllerNonceSha256": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/digest"}]},
+        "journalRevision": {"const": 1},
+        "journalRecordSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "decisionSnapshotSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "durableAckSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"}
+      },
+      "allOf": [{
+        "if": {"properties": {"failpoint": {"const": "after-decision"}}, "required": ["failpoint"]},
+        "then": {
+          "properties": {
+            "controlOperationId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+            "controllerNonceSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"}
+          }
+        },
+        "else": {
+          "properties": {
+            "controlOperationId": {"type": "null"},
+            "controllerNonceSha256": {"type": "null"}
+          }
+        }
+      }]
+    }
+  }
+}

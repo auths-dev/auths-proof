@@ -1,0 +1,160 @@
+{
+  "schema": "auths.profile-api/1",
+  "types": {
+    "ApplyPreparedPlanInput": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "preparedPlan",
+          "value": {"kind": "string", "minimumBytes": 49, "maximumBytes": 96, "alphabet": "registered-token"},
+          "sensitive": true
+        }
+      ]
+    },
+    "ApplyResult": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "workspace",
+          "value": {"kind": "string", "minimumBytes": 1, "maximumBytes": 128, "alphabet": "utf8"},
+          "sensitive": false
+        },
+        {
+          "name": "stateSerial",
+          "value": {"kind": "uint", "bits": 64, "minimum": "1", "maximum": "18446744073709551615"},
+          "sensitive": false
+        }
+      ]
+    },
+    "ModulePin": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "source",
+          "value": {"kind": "string", "minimumBytes": 1, "maximumBytes": 512, "alphabet": "ascii-graphic"},
+          "sensitive": false
+        },
+        {
+          "name": "version",
+          "value": {"kind": "string", "minimumBytes": 1, "maximumBytes": 128, "alphabet": "ascii-graphic"},
+          "sensitive": false
+        },
+        {
+          "name": "digest",
+          "value": {"kind": "string", "minimumBytes": 64, "maximumBytes": 64, "alphabet": "lower-hex"},
+          "sensitive": false
+        }
+      ]
+    },
+    "PlanPreflightInput": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "sourceFiles",
+          "value": {"kind": "list", "value": {"kind": "ref", "name": "SourceFile"}, "minimumItems": 1, "maximumItems": 32},
+          "sensitive": true
+        },
+        {
+          "name": "variables",
+          "value": {"kind": "list", "value": {"kind": "ref", "name": "Variable"}, "minimumItems": 0, "maximumItems": 64},
+          "sensitive": true
+        },
+        {
+          "name": "dependencyLock",
+          "value": {"kind": "string", "minimumBytes": 1, "maximumBytes": 65536, "alphabet": "utf8"},
+          "sensitive": false
+        },
+        {
+          "name": "modules",
+          "value": {"kind": "list", "value": {"kind": "ref", "name": "ModulePin"}, "minimumItems": 0, "maximumItems": 64},
+          "sensitive": false
+        },
+        {
+          "name": "workspace",
+          "value": {"kind": "string", "minimumBytes": 1, "maximumBytes": 128, "alphabet": "utf8"},
+          "sensitive": false
+        }
+      ]
+    },
+    "PreparedPlan": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "preparedPlan",
+          "value": {"kind": "string", "minimumBytes": 49, "maximumBytes": 96, "alphabet": "registered-token"},
+          "sensitive": true
+        },
+        {
+          "name": "actionDigest",
+          "value": {"kind": "string", "minimumBytes": 64, "maximumBytes": 64, "alphabet": "lower-hex"},
+          "sensitive": false
+        },
+        {
+          "name": "workspace",
+          "value": {"kind": "string", "minimumBytes": 1, "maximumBytes": 128, "alphabet": "utf8"},
+          "sensitive": false
+        },
+        {
+          "name": "priorStateSerial",
+          "value": {"kind": "uint", "bits": 64, "minimum": "0", "maximum": "18446744073709551615"},
+          "sensitive": false
+        },
+        {
+          "name": "creates",
+          "value": {"kind": "uint", "bits": 32, "minimum": "0", "maximum": "10000"},
+          "sensitive": false
+        },
+        {
+          "name": "updates",
+          "value": {"kind": "uint", "bits": 32, "minimum": "0", "maximum": "10000"},
+          "sensitive": false
+        },
+        {
+          "name": "reads",
+          "value": {"kind": "uint", "bits": 32, "minimum": "0", "maximum": "10000"},
+          "sensitive": false
+        },
+        {
+          "name": "noOps",
+          "value": {"kind": "uint", "bits": 32, "minimum": "0", "maximum": "10000"},
+          "sensitive": false
+        },
+        {
+          "name": "expiresAt",
+          "value": {"kind": "uint", "bits": 64, "minimum": "1", "maximum": "18446744073709551615"},
+          "sensitive": false
+        }
+      ]
+    },
+    "SourceFile": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "path",
+          "value": {"kind": "string", "minimumBytes": 3, "maximumBytes": 512, "alphabet": "ascii-graphic"},
+          "sensitive": false
+        },
+        {
+          "name": "contents",
+          "value": {"kind": "string", "minimumBytes": 1, "maximumBytes": 65536, "alphabet": "utf8"},
+          "sensitive": true
+        }
+      ]
+    },
+    "Variable": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "name",
+          "value": {"kind": "string", "minimumBytes": 1, "maximumBytes": 128, "alphabet": "utf8"},
+          "sensitive": false
+        },
+        {
+          "name": "value",
+          "value": {"kind": "string", "minimumBytes": 0, "maximumBytes": 16384, "alphabet": "utf8"},
+          "sensitive": true
+        }
+      ]
+    }
+  }
+}

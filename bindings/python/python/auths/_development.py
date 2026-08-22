@@ -81,6 +81,7 @@ class DevelopmentReceiptAttestor:
             key.suite,
             bytes(key.evidence),
         )
+        self.public_key = bytes(key.public_key)
 
     async def sign(self, preimage: bytes) -> bytes:
         if self._key is None:

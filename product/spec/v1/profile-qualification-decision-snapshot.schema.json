@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-decision-snapshot.schema.json",
+  "title": "Auths capability-free qualification decision snapshot v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "operationId", "profile", "connectionGeneration", "journalRevision",
+    "state", "decisionClass", "canonicalInputSha256", "idempotencySha256",
+    "canonicalActionSha256", "receiptActionSha256", "receiptContextSha256",
+    "authoritySha256", "configurationSha256", "runtimeContractSha256",
+    "preparationSha256", "decisionReceiptId", "decisionReceiptBytesSha256",
+    "decodedClaimsSha256", "recoveryKeyId", "recoveryPublicKeyBase64url",
+    "receiptTrustAnchorSha256"
+  ],
+  "properties": {
+    "schema": {"const": "auths.qualification-decision-snapshot/1"},
+    "operationId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+    "profile": {"$ref": "profile-qualification.schema.json#/$defs/semanticSubject"},
+    "connectionGeneration": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+    "journalRevision": {"const": 1},
+    "state": {"enum": ["ready", "denied", "unavailable"]},
+    "decisionClass": {"enum": ["authorized", "denied", "indeterminate"]},
+    "canonicalInputSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "idempotencySha256": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/digest"}]},
+    "canonicalActionSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "receiptActionSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "receiptContextSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "authoritySha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "configurationSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "runtimeContractSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "preparationSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "decisionReceiptId": {"$ref": "profile-qualification-receipts-report.schema.json#/$defs/receiptId"},
+    "decisionReceiptBytesSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "decodedClaimsSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "recoveryKeyId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+    "recoveryPublicKeyBase64url": {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"},
+    "receiptTrustAnchorSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"state": {"const": "ready"}}},
+      "then": {"properties": {"decisionClass": {"const": "authorized"}}}
+    },
+    {
+      "if": {"properties": {"state": {"const": "denied"}}},
+      "then": {"properties": {"decisionClass": {"const": "denied"}}}
+    },
+    {
+      "if": {"properties": {"state": {"const": "unavailable"}}},
+      "then": {"properties": {"decisionClass": {"const": "indeterminate"}}}
+    }
+  ]
+}

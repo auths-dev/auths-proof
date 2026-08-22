@@ -471,6 +471,20 @@ impl PostgresVerifierConfigurationV1 {
     }
 
     #[must_use]
+    pub fn first_database(&self) -> Option<&PgIdentifier> {
+        (self.allowed_databases.len() == 1)
+            .then(|| self.allowed_databases.first())
+            .flatten()
+    }
+
+    #[must_use]
+    pub fn first_database_audience(&self) -> Option<&str> {
+        (self.allowed_database_audiences.len() == 1)
+            .then(|| self.allowed_database_audiences.first().map(String::as_str))
+            .flatten()
+    }
+
+    #[must_use]
     pub fn relation(
         &self,
         database: &PgIdentifier,

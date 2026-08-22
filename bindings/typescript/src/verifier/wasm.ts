@@ -37,12 +37,8 @@ async function loadPackagedWorkflowEngineOnce(): Promise<PackagedWorkflowEngine>
   const untyped = loaded as unknown as Record<string, unknown>;
   if (
     typeof loaded.authoringAbiVersionV1 !== "function" ||
-    typeof untyped.productionClientContractVersionV1 !== "function" ||
-    typeof untyped.encodeProductionRequestV1 !== "function" ||
-    typeof untyped.decodeProductionResponseV1 !== "function" ||
-    typeof untyped.productionTransportFailureV1 !== "function" ||
-    typeof untyped.decodeProductionRequestV1 !== "function" ||
-    typeof untyped.encodeProductionDelegationV1 !== "function" ||
+    typeof loaded.qualificationClientCancellationResultV1 !== "function" ||
+    typeof loaded.encodeQualificationClientResultFrameV1 !== "function" ||
     typeof untyped.projectSdkEventV2 !== "function" ||
     typeof untyped.identityAbiVersionV1 !== "function" ||
     typeof untyped.encodeIdentityDescriptorV1 !== "function" ||
@@ -64,10 +60,15 @@ async function loadPackagedWorkflowEngineOnce(): Promise<PackagedWorkflowEngine>
     typeof loaded.prepareProfileActionV1 !== "function" ||
     typeof loaded.profileReceiptBindingsV1 !== "function" ||
     typeof loaded.prepareAuthorizedDecisionReceiptV1 !== "function" ||
+    typeof loaded.prepareProfileDecisionReceiptV2 !== "function" ||
     typeof loaded.prepareApplicationExecutionReceiptV1 !== "function" ||
     typeof loaded.attestDecisionReceiptV1 !== "function" ||
     typeof loaded.attestExecutionReceiptV1 !== "function" ||
     typeof loaded.verifyRawKeyReceiptV1 !== "function" ||
+    typeof loaded.validateReceiptAnchorV1 !== "function" ||
+    typeof loaded.profileReceiptPayloadCommitmentV2 !== "function" ||
+    typeof loaded.decodePortableReceiptV1 !== "function" ||
+    typeof loaded.verifyPinnedReceiptV1 !== "function" ||
     typeof loaded.verifyReceiptLinkV1 !== "function" ||
     typeof loaded.prepareReceiptDisclosureV1 !== "function" ||
     typeof loaded.inspectRawKeyReceiptV1 !== "function" ||

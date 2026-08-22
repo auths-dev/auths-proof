@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-release-surface-policy.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "productionFeatureSet", "qualificationFeatureSet", "productionMemberPaths", "qualificationMemberPaths", "reviewedDifference"],
+  "properties": {
+    "schema": {"const": "auths.qualification-release-surface-policy/1"},
+    "productionFeatureSet": {"type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 128}},
+    "qualificationFeatureSet": {"type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 128}},
+    "productionMemberPaths": {"type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 256}},
+    "qualificationMemberPaths": {"type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 256}},
+    "reviewedDifference": {"type": "array", "minItems": 1, "maxItems": 16, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 512}}
+  }
+}

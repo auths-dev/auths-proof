@@ -9,21 +9,41 @@ description = "Exact, replay-safe Auths authorization for Stripe domain effects"
 
 [features]
 fixture-support = []
+testkit-agent = []
+qualification = [
+  "dep:auths-profile-kit",
+  "auths-connections/qualification-broker",
+]
 
 [dependencies]
+async-trait.workspace = true
 auths-bounded-policy.workspace = true
+auths-codec.workspace = true
+auths-connections.workspace = true
+auths-errors.workspace = true
 auths-lifecycle.workspace = true
 auths-model.workspace = true
 auths-profile-api.workspace = true
+auths-profile-runtime.workspace = true
+auths-receipts.workspace = true
+auths-profile-kit = { workspace = true, optional = true }
+auths-stores.workspace = true
 auths-sdk.workspace = true
+base64ct.workspace = true
+ed25519-dalek.workspace = true
 hex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_json_canonicalizer.workspace = true
+minicbor.workspace = true
+reqwest.workspace = true
+rustix.workspace = true
 sha2.workspace = true
 subtle.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
+zeroize.workspace = true
 
 [dev-dependencies]
 auths-author.workspace = true

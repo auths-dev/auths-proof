@@ -58,14 +58,11 @@ test("packed contents carry the published artifacts and no source or tests", asy
     "package.json",
     "dist/index.js",
     "dist/index.d.ts",
-    "dist/framework.js",
-    "dist/github-agent.js",
-    "dist/github-agent.d.ts",
     "dist/doctor-cli.js",
     "dist/doctor.js",
     "dist/identity.js",
-    "dist/integrations.js",
-    "dist/profiles.js",
+    "dist/profile-runtime.js",
+    "dist/profile-runtime.d.ts",
     "dist/testkit/index.js",
     "dist/verify.js",
     "wasm/auths_proof_wasm.js",
@@ -76,6 +73,27 @@ test("packed contents carry the published artifacts and no source or tests", asy
     "sdk-runtime-contract.json",
   ]) {
     assert.ok(entries.includes(required), `packed artifact omitted ${required}`);
+  }
+
+  for (const removed of [
+    "dist/github.js",
+    "dist/github.d.ts",
+    "dist/mcp.js",
+    "dist/mcp.d.ts",
+    "dist/mcp/node.js",
+    "dist/mcp/node.d.ts",
+    "dist/integrations.js",
+    "dist/integrations.d.ts",
+    "dist/product.js",
+    "dist/product.d.ts",
+    "dist/profiles/mcp/index.js",
+    "dist/profiles/mcp/index.d.ts",
+    "dist/testkit/conformance.js",
+    "dist/testkit/conformance.d.ts",
+    "dist/internal/development-store-node.js",
+    "dist/internal/development-store-node.d.ts",
+  ]) {
+    assert.equal(entries.includes(removed), false, `packed artifact retained ${removed}`);
   }
 
   // The published subject is the built wrapper plus its WASM bytes. Source,
@@ -92,7 +110,7 @@ test("packed contents carry the published artifacts and no source or tests", asy
 });
 
 test("public facade barrels contain exports only", async () => {
-  for (const name of ["framework.ts", "profiles.ts"]) {
+  for (const name of ["framework.ts"]) {
     const source = await readFile(new URL(`../../src/${name}`, import.meta.url), "utf8");
     assert.doesNotMatch(
       source,
@@ -110,15 +128,19 @@ test("identity entry point has no higher-layer imports", async () => {
   );
 });
 
-test("launch examples stay typed and make live GitHub mutation explicitly opt-in", async () => {
+test("launch examples use only the local agent and generated domain clients", async () => {
   const examples = [
-    new URL("../../../../demos/github-issue/examples/typescript/agent.mjs", import.meta.url),
-    new URL("../../../../demos/github-issue/examples/python/agent.py", import.meta.url),
+    new URL("../../../../examples/local-agent/typescript/refund.mjs", import.meta.url),
+    new URL("../../../../examples/local-agent/typescript/refund-outcomes.mjs", import.meta.url),
+    new URL("../../../../examples/local-agent/python/refund.py", import.meta.url),
+    new URL("../../../../examples/local-agent/python/refund_outcomes.py", import.meta.url),
   ];
   const forbiddenProtocolMechanics = /(?:authorityBytes|actionBytes|proofBytes|Uint8Array|canonical(?:ize|Bytes)|cbor)/iu;
   for (const example of examples) {
     const source = await readFile(example, "utf8");
-    assert.match(source, /AUTHS_GITHUB_LIVE/);
+    assert.match(source, /Stripe/);
+    assert.match(source, /connect/);
+    assert.doesNotMatch(source, /(?:CONTROL_PLANE|ACCESS_TOKEN|API_KEY|executor\.example|connectGitHub)/iu);
     assert.doesNotMatch(source, forbiddenProtocolMechanics);
   }
 });
@@ -133,6 +155,12 @@ test("identity and verification dependency closures exclude effect workflow code
       `${entry} loaded an effect workflow module: ${closure.join(", ")}`,
     );
   }
+});
+
+test("root runtime facts do not eagerly load the complete error registry", async () => {
+  const closure = await sourceClosure(new URL("../../dist/index.js", import.meta.url));
+  assert.equal(closure.some((path) => path.endsWith("/generated/error-registry.js")), false);
+  assert.equal(closure.some((path) => path.endsWith("/generated/error-registry-digest.js")), true);
 });
 
 test("published entry points omit package coordination hooks", async () => {

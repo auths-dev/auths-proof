@@ -58,24 +58,6 @@
         "demos/postgresql-data-change/tests/live-recovery.mjs"
       ],
       "runbook": "docs/operations/EXACT_EFFECT_VERTICALS_RUNBOOK.md"
-    },
-    {
-      "id": "github-issue-address-v1",
-      "providerContracts": [
-        "auths.github.fixed-refspec-branch-publish/1",
-        "auths.github.rest-draft-pull-request-create/1"
-      ],
-      "requestFixtures": [
-        "product/fixtures/v1/github/branch-provider-request.json",
-        "product/fixtures/v1/github/pull-request-provider-request.json"
-      ],
-      "liveContracts": [
-        "demos/github-issue/src/tests.rs"
-      ],
-      "recoveryEvidence": [
-        "demos/github-issue/src/tests.rs"
-      ],
-      "runbook": "docs/operations/EXACT_EFFECT_VERTICALS_RUNBOOK.md"
     }
   ],
   "externalDesignPartnerPilot": "required-before-production-claim"

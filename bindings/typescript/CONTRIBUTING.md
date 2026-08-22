@@ -37,9 +37,9 @@ the final check.
 
 ## Public API
 
-Only documented package exports are public. `src/index.ts`, `src/mcp.ts`, and
-`src/profile-kit.ts` are public facade barrels and should contain no runtime
-implementation. Advanced inspection must never mint an effect capability.
+Only documented package exports are public. `src/index.ts` is the application
+facade; `src/profile-runtime.ts` is the explicit generated-package extension
+surface. Advanced inspection must never mint an effect capability.
 
 Every public change needs documentation, a misuse test, an external-consumer
 example where applicable, and an explicit statement of the assurance claim it

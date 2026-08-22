@@ -1,0 +1,33 @@
+import { bindProfile } from "@auths-dev/sdk/profile-runtime";
+export * from "./generated.js";
+const PROFILE_API = { "schema": "auths.profile-api/1", "types": { "ApplyPreparedPlanInput": { "kind": "record", "fields": [{ "name": "preparedPlan", "value": { "kind": "string", "minimumBytes": 49, "maximumBytes": 96, "alphabet": "registered-token" }, "sensitive": true }] }, "ApplyResult": { "kind": "record", "fields": [{ "name": "workspace", "value": { "kind": "string", "minimumBytes": 1, "maximumBytes": 128, "alphabet": "utf8" }, "sensitive": false }, { "name": "stateSerial", "value": { "kind": "uint", "bits": 64, "minimum": "1", "maximum": "18446744073709551615" }, "sensitive": false }] }, "ModulePin": { "kind": "record", "fields": [{ "name": "source", "value": { "kind": "string", "minimumBytes": 1, "maximumBytes": 512, "alphabet": "ascii-graphic" }, "sensitive": false }, { "name": "version", "value": { "kind": "string", "minimumBytes": 1, "maximumBytes": 128, "alphabet": "ascii-graphic" }, "sensitive": false }, { "name": "digest", "value": { "kind": "string", "minimumBytes": 64, "maximumBytes": 64, "alphabet": "lower-hex" }, "sensitive": false }] }, "PlanPreflightInput": { "kind": "record", "fields": [{ "name": "sourceFiles", "value": { "kind": "list", "value": { "kind": "ref", "name": "SourceFile" }, "minimumItems": 1, "maximumItems": 32 }, "sensitive": true }, { "name": "variables", "value": { "kind": "list", "value": { "kind": "ref", "name": "Variable" }, "minimumItems": 0, "maximumItems": 64 }, "sensitive": true }, { "name": "dependencyLock", "value": { "kind": "string", "minimumBytes": 1, "maximumBytes": 65536, "alphabet": "utf8" }, "sensitive": false }, { "name": "modules", "value": { "kind": "list", "value": { "kind": "ref", "name": "ModulePin" }, "minimumItems": 0, "maximumItems": 64 }, "sensitive": false }, { "name": "workspace", "value": { "kind": "string", "minimumBytes": 1, "maximumBytes": 128, "alphabet": "utf8" }, "sensitive": false }] }, "PreparedPlan": { "kind": "record", "fields": [{ "name": "preparedPlan", "value": { "kind": "string", "minimumBytes": 49, "maximumBytes": 96, "alphabet": "registered-token" }, "sensitive": true }, { "name": "actionDigest", "value": { "kind": "string", "minimumBytes": 64, "maximumBytes": 64, "alphabet": "lower-hex" }, "sensitive": false }, { "name": "workspace", "value": { "kind": "string", "minimumBytes": 1, "maximumBytes": 128, "alphabet": "utf8" }, "sensitive": false }, { "name": "priorStateSerial", "value": { "kind": "uint", "bits": 64, "minimum": "0", "maximum": "18446744073709551615" }, "sensitive": false }, { "name": "creates", "value": { "kind": "uint", "bits": 32, "minimum": "0", "maximum": "10000" }, "sensitive": false }, { "name": "updates", "value": { "kind": "uint", "bits": 32, "minimum": "0", "maximum": "10000" }, "sensitive": false }, { "name": "reads", "value": { "kind": "uint", "bits": 32, "minimum": "0", "maximum": "10000" }, "sensitive": false }, { "name": "noOps", "value": { "kind": "uint", "bits": 32, "minimum": "0", "maximum": "10000" }, "sensitive": false }, { "name": "expiresAt", "value": { "kind": "uint", "bits": 64, "minimum": "1", "maximum": "18446744073709551615" }, "sensitive": false }] }, "SourceFile": { "kind": "record", "fields": [{ "name": "path", "value": { "kind": "string", "minimumBytes": 3, "maximumBytes": 512, "alphabet": "ascii-graphic" }, "sensitive": false }, { "name": "contents", "value": { "kind": "string", "minimumBytes": 1, "maximumBytes": 65536, "alphabet": "utf8" }, "sensitive": true }] }, "Variable": { "kind": "record", "fields": [{ "name": "name", "value": { "kind": "string", "minimumBytes": 1, "maximumBytes": 128, "alphabet": "utf8" }, "sensitive": false }, { "name": "value", "value": { "kind": "string", "minimumBytes": 0, "maximumBytes": 16384, "alphabet": "utf8" }, "sensitive": true }] } } };
+export const PROFILE_CLIENT_RUNTIME = "auths.profile-client-runtime/1";
+export class Plans {
+    #profile;
+    constructor(session, connection) {
+        this.#profile = bindProfile(session, Object.freeze({ profileClientRuntime: PROFILE_CLIENT_RUNTIME, profileId: "auths.opentofu.plan-preflight", version: 1, collectionRoute: "/v1/profiles/opentofu/plan-preflight/1/operations", runtimeContractDigest: "6a0498dc412aa721015744801b80f5fcc69074f7933445261524cd32e247a082", errorProjectionDigest: "74348d06191887fe693d964c818319b35d1d6c66e98b0870f84323e9e4207df9", preparationEvidence: null, requestBytes: 4194304, responseBytes: 262144, executionMilliseconds: 300000, receiptCount: 4, receiptBytes: 65536, profileApi: PROFILE_API, inputType: "PlanPreflightInput", successType: "PreparedPlan" }), connection);
+    }
+    async create(input, options) { return this.#profile.invoke(input, options); }
+    async createOutcome(input, options) { return this.#profile.invokeOutcome(input, options); }
+    async recover(recovery, options) { return this.#profile.recover(recovery, options); }
+    async recoverOutcome(recovery, options) { return this.#profile.recoverOutcome(recovery, options); }
+}
+export class SavedPlans {
+    #profile;
+    constructor(session, connection) {
+        this.#profile = bindProfile(session, Object.freeze({ profileClientRuntime: PROFILE_CLIENT_RUNTIME, profileId: "auths.opentofu.saved-plan-apply", version: 1, collectionRoute: "/v1/profiles/opentofu/saved-plan-apply/1/operations", runtimeContractDigest: "61f75fb80f60f97178e711cdb7020ab92e8765c64df90ab0140cbab8de733ba2", errorProjectionDigest: "882137f1141fa937afa3314412b4259c9e5e21c3e1b4a745349a61d077a0ae37", preparationEvidence: null, requestBytes: 4096, responseBytes: 262144, executionMilliseconds: 300000, receiptCount: 4, receiptBytes: 65536, profileApi: PROFILE_API, inputType: "ApplyPreparedPlanInput", successType: "ApplyResult" }), connection);
+    }
+    async apply(input, options) { return this.#profile.invoke(input, options); }
+    async applyOutcome(input, options) { return this.#profile.invokeOutcome(input, options); }
+    async recover(recovery, options) { return this.#profile.recover(recovery, options); }
+    async recoverOutcome(recovery, options) { return this.#profile.recoverOutcome(recovery, options); }
+}
+export class OpenTofu {
+    plans;
+    savedPlans;
+    constructor(session, options = {}) {
+        this.plans = new Plans(session, options.connection);
+        this.savedPlans = new SavedPlans(session, options.connection);
+        Object.freeze(this);
+    }
+}

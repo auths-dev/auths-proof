@@ -494,6 +494,12 @@ impl StripeBoundedRefundPolicyV1 {
         &self.relative_limit
     }
 
+    /// Exact Stripe Connect restriction.
+    #[must_use]
+    pub const fn connect_scope(&self) -> &ConnectScope {
+        &self.connect_scope
+    }
+
     /// Aggregate budgets.
     #[must_use]
     pub fn aggregate_budgets(&self) -> &[AggregateRefundBudget] {
@@ -1636,30 +1642,10 @@ mod tests {
             disputed: false,
             observed_at: NOW - 5,
             response_commitment: crate::canonical::sha256(b"live evidence"),
-        })
-        .unwrap();
+        });
+        assert_eq!(live, Err(crate::types::ValidationError::InvalidEvidence));
+
         let exact = configuration(2_000);
-        let policy = bounded_policy(
-            &live,
-            2_000,
-            10_000,
-            RefundDenominator::OriginalChargeAmount,
-            5_000,
-        );
-        let bounded = bounded_configuration(&policy);
-        let action = bounded_action(&exact, &policy, &base, 1_000, "bounded-live-01");
-        assert_eq!(
-            evaluate_bounded_refund(&context(
-                &policy,
-                &action,
-                &live,
-                &exact,
-                &bounded,
-                &AggregateBudgetSnapshot::default(),
-            ))
-            .code,
-            BoundedDecisionCode::TestModeRequired
-        );
 
         let huge = RefundEvidenceV1::new(crate::types::RefundEvidenceInput {
             stripe_account_id: base.stripe_account_id().clone(),

@@ -1,0 +1,90 @@
+{
+  "schema": "auths.profile-api/1",
+  "types": {
+    "Assignment": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "column",
+          "value": {"kind": "string", "minimumBytes": 1, "maximumBytes": 63, "alphabet": "utf8"},
+          "sensitive": false
+        },
+        {
+          "name": "value",
+          "value": {"kind": "string", "minimumBytes": 0, "maximumBytes": 4096, "alphabet": "utf8"},
+          "sensitive": true
+        }
+      ]
+    },
+    "PreparedUpdate": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "preparedUpdate",
+          "value": {"kind": "string", "minimumBytes": 48, "maximumBytes": 96, "alphabet": "registered-token"},
+          "sensitive": true
+        },
+        {
+          "name": "actionDigest",
+          "value": {"kind": "string", "minimumBytes": 64, "maximumBytes": 64, "alphabet": "lower-hex"},
+          "sensitive": false
+        },
+        {
+          "name": "matchedRows",
+          "value": {"kind": "uint", "bits": 32, "minimum": "1", "maximum": "256"},
+          "sensitive": false
+        },
+        {
+          "name": "expiresAt",
+          "value": {"kind": "uint", "bits": 64, "minimum": "1", "maximum": "18446744073709551615"},
+          "sensitive": false
+        }
+      ]
+    },
+    "PreparedUpdateInput": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "preparedUpdate",
+          "value": {"kind": "string", "minimumBytes": 48, "maximumBytes": 96, "alphabet": "registered-token"},
+          "sensitive": true
+        }
+      ]
+    },
+    "UpdatePreflightInput": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "relation",
+          "value": {"kind": "string", "minimumBytes": 3, "maximumBytes": 127, "alphabet": "utf8"},
+          "sensitive": false
+        },
+        {
+          "name": "tenantKey",
+          "value": {"kind": "string", "minimumBytes": 1, "maximumBytes": 256, "alphabet": "utf8"},
+          "sensitive": true
+        },
+        {
+          "name": "assignments",
+          "value": {"kind": "list", "value": {"kind": "ref", "name": "Assignment"}, "minimumItems": 1, "maximumItems": 32},
+          "sensitive": true
+        }
+      ]
+    },
+    "UpdateResult": {
+      "kind": "record",
+      "fields": [
+        {
+          "name": "affectedRows",
+          "value": {"kind": "uint", "bits": 32, "minimum": "1", "maximum": "256"},
+          "sensitive": false
+        },
+        {
+          "name": "afterStateDigest",
+          "value": {"kind": "string", "minimumBytes": 64, "maximumBytes": 64, "alphabet": "lower-hex"},
+          "sensitive": false
+        }
+      ]
+    }
+  }
+}

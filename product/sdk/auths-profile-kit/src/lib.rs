@@ -2,6 +2,77 @@
 
 #![forbid(unsafe_code)]
 
+mod api;
+mod manifest;
+mod qualification;
+mod qualification_harness;
+mod qualification_ledger;
+mod roster;
+
+pub use api::{ProfileApi, ProfileApiError, ProfileType};
+pub use manifest::{
+    ConnectionContract, DomainManifest, ProfileClient, ProfileContracts, ProfileEvidence,
+    ProfileLimits, ProfileManifest, ProfilePackage, ProfilePackageError, ProfileSources,
+    QualificationManifest,
+};
+pub use qualification::{
+    QualificationArtifact, QualificationAttestation, QualificationCandidateArtifact,
+    QualificationError, QualificationEvidenceLedgerReference, QualificationIndex,
+    QualificationIndexEntry, QualificationNamedDigest, QualificationObservation,
+    QualificationObservationRecord, QualificationObserverTrustRegistry, QualificationProfile,
+    QualificationProposal, QualificationProtectedObservation, QualificationProviderCallCount,
+    QualificationProviderRun, QualificationRecord, QualificationReleaseBuild,
+    QualificationReleaseBuildArtifact, QualificationScenario, QualificationScenarioManifest,
+    QualificationTarget, QualificationTrustIdentity, QualificationTrustKey,
+    QualificationTrustRegistry, QualificationVerifiedRecordBinding, VerifiedQualification,
+    VerifiedQualificationObservation, validate_qualification_key_separation,
+    validate_qualification_trust_separation,
+};
+pub use qualification_harness::{
+    QualificationAdapterMetadata, QualificationAttemptKind, QualificationCandidateCollectionV1,
+    QualificationCleanupEvidence, QualificationCollectedOperation, QualificationCollectedScenario,
+    QualificationCollectionAdapter, QualificationCommonOperationEvidence,
+    QualificationCommonOperationInstanceEvidence, QualificationCommonPhaseEvidence,
+    QualificationCommonReceiptClaims, QualificationCompletion, QualificationCounters,
+    QualificationEffect, QualificationFailpoint, QualificationHarnessError,
+    QualificationInstalledClient, QualificationInstalledClientOutcome, QualificationOperationRole,
+    QualificationOutcomeKind, QualificationPhaseClient, QualificationProtectedObserver,
+    QualificationProtectedSetup, QualificationProtectedSetupInput, QualificationProviderTruth,
+    QualificationReceiptDecisionClass, QualificationReceiptExecutionOutcome,
+    QualificationReceiptState, QualificationRedactedAttempt, QualificationRedactedOperation,
+    QualificationRedactedOperationInstance, QualificationRunContext, QualificationRunReference,
+    QualificationSetupHandoffV1, QualificationSetupVectorV1, QualificationVector,
+    qualification_pre_admission_attempt_count,
+};
+pub use qualification_ledger::{
+    QualificationAdmissionFaultV1, QualificationAgentTrust, QualificationClientBridgeBindingV1,
+    QualificationClientProxyObservationV1, QualificationClientProxyRecordV1,
+    QualificationCrashActionContextV1, QualificationCrashActionFactsV1,
+    QualificationCrashActionRecordV1, QualificationCrashPhaseContextV1,
+    QualificationCrashProcessIdentityV1, QualificationCredentialBrokerObservationV1,
+    QualificationCredentialBrokerRecordV1, QualificationCredentialRequirementV1,
+    QualificationDecisionSnapshotState, QualificationDecisionSnapshotV1,
+    QualificationDurableDecisionAckV1, QualificationEvidenceEvent, QualificationEvidenceEventKind,
+    QualificationEvidenceEventPayload, QualificationEvidenceLedger,
+    QualificationEvidenceLedgerError, QualificationEvidenceLedgerPlanV1,
+    QualificationEvidenceLedgerRecord, QualificationEvidenceLedgerTrustRegistry,
+    QualificationEvidencePhaseCommitment, QualificationEvidencePhasePlanV1,
+    QualificationEvidenceSource, QualificationEvidenceSourceTrustRegistry,
+    QualificationJournalDecisionContext, QualificationJournalDecisionContextRecord,
+    QualificationJournalState, QualificationProfileStateFactV1,
+    QualificationProfileStateObservationV1, QualificationProfileStateRecordV1,
+    QualificationProviderObserverRecordV1, QualificationProviderProxyObservationV1,
+    QualificationProviderProxyRecordV1, QualificationReceiptVerifierRecordV1,
+    QualificationSourceEventContextV1, QualificationSourceProcessBindingV1,
+    QualificationSupervisorPhaseRequestV1, qualification_common_phase_matches_ledger,
+    qualification_event_marker_sha256, qualification_evidence_event_chain_valid,
+    qualification_state_directory_commitment, qualification_supervisor_phase_context_sha256,
+};
+pub use roster::{
+    ProfileQualification, ProfileRoster, ProfileRosterEntry, ProfileRosterError,
+    ProfileRosterProfile,
+};
+
 use auths_profile_api::{ActionProfile, ProfileContractError, ReviewDisplay};
 use serde::Serialize;
 use sha2::{Digest as _, Sha256};
@@ -112,11 +183,17 @@ pub enum ProfileKitError {
     #[error("review display digest does not bind the canonical action body")]
     DisplayDigestMismatch,
     /// Canonical action CBOR encoding failed.
-    #[error("canonical action encoding failed: {0}")]
-    Codec(#[from] auths_codec::CodecError),
+    #[error("canonical action encoding failed: {0:?}")]
+    Codec(auths_codec::CodecError),
     /// Cross-language fixture JSON encoding failed.
     #[error("profile fixture JSON encoding failed: {0}")]
     Json(#[from] serde_json::Error),
+}
+
+impl From<auths_codec::CodecError> for ProfileKitError {
+    fn from(error: auths_codec::CodecError) -> Self {
+        Self::Codec(error)
+    }
 }
 
 #[cfg(test)]

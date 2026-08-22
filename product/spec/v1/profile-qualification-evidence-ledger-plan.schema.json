@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-evidence-ledger-plan.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "repositoryId", "workflowPath", "workflowRevision", "candidateRevision", "attesterRevision", "runId", "runAttempt", "domain", "target", "protectedEnvironment", "providerRunId", "ledgerId", "sessionNonceSha256", "supervisorControllerUid", "supervisorControllerArtifactSha256", "ledgerAppenderArtifactSha256", "agentUid", "agentGid", "agentExecutableSha256", "recoveryKeyId", "recoveryPublicKeyBase64url", "phases", "startedAtUnixSeconds", "deadlineAtUnixSeconds"],
+  "properties": {
+    "schema": {"const": "auths.profile-qualification-evidence-ledger-plan/1"},
+    "repositoryId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+    "workflowPath": {"type": "string", "pattern": "^\\.github/workflows/profile-qualification-[a-z0-9-]+\\.yml$", "maxLength": 256},
+    "workflowRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+    "candidateRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+    "attesterRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+    "runId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+    "runAttempt": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+    "domain": {"$ref": "profile-qualification.schema.json#/$defs/domain"},
+    "target": {"$ref": "profile-qualification.schema.json#/$defs/target"},
+    "protectedEnvironment": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+    "providerRunId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+    "ledgerId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+    "sessionNonceSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "supervisorControllerUid": {"type": "integer", "minimum": 1, "maximum": 4294967294},
+    "supervisorControllerArtifactSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "ledgerAppenderArtifactSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "agentUid": {"type": "integer", "minimum": 1, "maximum": 4294967294},
+    "agentGid": {"type": "integer", "minimum": 1, "maximum": 4294967294},
+    "agentExecutableSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "recoveryKeyId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+    "recoveryPublicKeyBase64url": {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"},
+    "phases": {"type": "array", "minItems": 1, "maxItems": 2048, "x-auths-byteSortedBy": ["scenarioId", "phaseIndex"], "items": {"$ref": "#/$defs/phase"}},
+    "startedAtUnixSeconds": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
+    "deadlineAtUnixSeconds": {"type": "integer", "minimum": 1, "maximum": 18446744073709551615}
+  },
+  "$defs": {
+    "phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scenarioId", "phaseIndex", "role", "profile", "failpoint", "operationPlanSha256", "credentialRequirement"],
+      "properties": {
+        "scenarioId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "phaseIndex": {"type": "integer", "minimum": 1, "maximum": 8},
+        "role": {"enum": ["preflight", "effect"]},
+        "profile": {"$ref": "profile-qualification.schema.json#/$defs/semanticSubject"},
+        "failpoint": {"$ref": "profile-qualification-report-common.schema.json#/$defs/nullableFailpoint"},
+        "operationPlanSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "credentialRequirement": {"$ref": "#/$defs/credentialRequirement"}
+      }
+    },
+    "credentialRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workloadIdSha256", "providerKind", "contract", "descriptorSchema", "credentialScope"],
+      "properties": {
+        "workloadIdSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "providerKind": {"$ref": "profile-qualification.schema.json#/$defs/domain"},
+        "contract": {"$ref": "profile-qualification.schema.json#/$defs/semanticSubject"},
+        "descriptorSchema": {"$ref": "profile-qualification.schema.json#/$defs/semanticSubject"},
+        "credentialScope": {"$ref": "profile-qualification.schema.json#/$defs/semanticSubject"}
+      }
+    }
+  },
+  "x-auths-semanticValidator": "profile-qualification-evidence-ledger-plan/1"
+}

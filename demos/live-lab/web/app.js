@@ -1,4 +1,4 @@
-import { loadVerifier } from "./vendor/dist/verify.js";
+import { createVerifier } from "./vendor/dist/verify.js";
 import {
   configurationState,
   formatNumber,
@@ -175,9 +175,9 @@ async function verify() {
     throw new Error(`variant ${variant.id} was not preloaded`);
   }
   const { proof, action, context } = inputs;
-  const result = state.auths.verify(proof, action, context);
+  const result = state.auths.verify({ proof, action, trustedContext: context });
   const [digest, actionDigest, proofDigest] = await Promise.all([
-    sha256(result.resultCbor),
+    sha256(result.decisionBytes),
     sha256(action),
     sha256(proof),
   ]);
@@ -221,7 +221,7 @@ function renderResult({
   const required = result.requiredConfiguration
     ? hex(result.requiredConfiguration)
     : undefined;
-  const executed = hex(result.localConfiguration);
+  const executed = hex(result.executedConfiguration);
   elements.requiredConfig.textContent = short(required, 18);
   elements.requiredConfig.title = required ?? "unavailable";
   elements.executedConfig.textContent = short(executed, 18);
@@ -252,7 +252,7 @@ function renderResult({
       native_result_sha256: native.result_sha256,
       required_configuration: required,
       executed_configuration: executed,
-      result_cbor_prefix: hex(result.resultCbor.slice(0, 48)),
+      result_cbor_prefix: hex(result.decisionBytes.slice(0, 48)),
     },
     null,
     2,
@@ -548,7 +548,7 @@ async function boot() {
     ),
     // The verifier resolves only the WASM subject vendored beside it; the SDK
     // accepts no caller-selected module or bytes on this path.
-    loadVerifier(),
+    createVerifier(),
   ]);
   state.scenario = scenario;
   state.auths = auths;

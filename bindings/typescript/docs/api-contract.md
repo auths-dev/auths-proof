@@ -1,97 +1,54 @@
 # TypeScript public API contract
 
-## Product boundary
+## Application path
 
-`@auths-dev/sdk` is one package with seven purpose-labelled entry points. The
-root is the closed product workflow; the other paths are imported only when an
-application needs their purpose.
+The AP-SPEC-040 application surface is deliberately small:
 
 ```text
-@auths-dev/sdk               protected workflow
-@auths-dev/sdk/identity      standalone identity and authentication
-@auths-dev/sdk/verify        deterministic effect-free verification
-@auths-dev/sdk/profiles      qualified effect domains
-@auths-dev/sdk/integrations  maintained compositions and adapters
-@auths-dev/sdk/framework     proven mechanism contracts
-@auths-dev/sdk/testkit       fixtures and conformance
+@auths-dev/sdk                    local session, operations, errors, receipts
+@auths-dev/profile-stripe         generated Stripe domain client
+@auths-dev/profile-postgresql     generated PostgreSQL domain client
+@auths-dev/profile-opentofu       generated OpenTofu domain client
 ```
 
-There is no `advanced` path and no public path for authority construction,
-trust compilation, lifecycle transitions, raw workflow coordination,
-diagnostics, inspection, custody, runtime kernels or approval sessions.
+An application calls `connect()`, constructs one or more generated domain
+clients with non-secret connection aliases, and calls typed domain methods.
+The root does not choose domain semantics. It accepts no Auths application
+token, remote executor URL, provider credential, profile callback, or dynamic
+plugin.
 
-## Root workflow
+## Generated-package extension surface
 
-The root owns five verbs:
+`@auths-dev/sdk/profile-runtime` is a public, versioned compatibility surface
+between the root SDK and generated domain packages. Its exported descriptor,
+binding, and outcome types may be used by Auths-generated distributions. It is
+not an application-facing generic effect API and does not authorize a caller
+to define runtime semantics.
 
-```text
-create -> delegate -> execute -> resume -> verify
-```
+Generated packages expose direct success methods and adjacent discriminated
+outcome methods. One session can be borrowed by multiple domain clients. A
+domain client binds at construction to one provider connection alias for its
+entire lifetime.
 
-`createAuths` accepts a parsed configuration and returns an `Auths` resource.
-`Auths.execute` accepts a qualified profile action/provider pair and returns an
-exhaustive completed, denied or indeterminate result. Only an indeterminate
-result can carry an `ExecutionReference`, and only `resume` consumes it.
+## Durable operations
 
-Root exports are intentionally exact. They contain the factory, approval
-policy builder, product resource/results, receipts and stable product error.
-They contain no native command, profile step, signer, store, gateway, trust
-compiler or canonical projection.
+Effect requests use the agent's prepare, execute, status, and recovery
+protocol. Opaque recovery handles identify durable operations; applications
+do not reconstruct them. `client.operations` exposes domain-neutral pending,
+recovery, and receipt tooling, while generated methods regain typed domain
+results.
 
-## Identity
+## Other public utilities
 
-The identity path decodes and authenticates method- and suite-labelled public
-identity data. Its dependency closure excludes effect profiles and workflow
-coordination. Identity transport proves delivery only; it never grants
-authority.
+Effect-free identity and verification have explicit subpaths. Mechanism and
+testkit subpaths remain purpose-labelled. They do not provide a second effect
+launch path. The exact export inventory and layer ownership are frozen in
+`package.json`, `api/public-api.txt`, and
+`bindings/public-topology-v1.json`.
 
-## Verify
+## Clean prelaunch cutover
 
-The verify path owns local proof, decision and receipt verification and safe
-inspection. Every operation is deterministic and effect-free. It exposes no
-opaque execution command and cannot invoke a provider.
-
-## Profiles
-
-Profiles are concrete effect-domain contracts. MCP version 1 is the only
-initially qualified public profile. Each profile owns its actions, authority
-projection, provider session, outcome classification, recovery and receipt
-meaning. Generic HTTP, Git, deployment, supply-chain and edge categories are
-not public profiles.
-
-## Integrations
-
-Integrations compose maintained mechanisms. `development` supplies ephemeral
-local custody, local trust, no approval and in-memory state. Its diagnostics
-explicitly say that it is not production durable. `production` rejects
-development capabilities.
-
-## Framework
-
-Framework contracts are evidence-gated. The initial framework contains only
-signer/custody and atomic reservation contracts proven across independent
-consumers. It does not define a generic effect provider, result,
-reconciliation or transition model.
-
-## Testkit
-
-The testkit owns deterministic fixtures, differential verification and
-Auths-owned conformance suites. Passing a mechanism suite proves the named
-contract only; it does not qualify an effect-domain profile or production
-composition.
-
-## Resources and failures
-
-Every resource-owning object supports explicit `close()` and
-`Symbol.asyncDispose`. Close is idempotent. Cancellation and ambiguous remote
-outcomes fail closed and return a bounded recovery reference when recovery is
-possible. Stable `AuthsError` values carry stage, retry, effect and remediation
-classification without secrets or raw protocol bytes.
-
-## Artifact contract
-
-The npm export map is the public topology. Declarations, packaged WASM,
-runtime-contract metadata and semantic identities ship together. Packed
-consumer tests import all supported paths, reject every removed prelaunch
-path, compile maintained recipes, and prove that identity/verify do not load
-effect workflow code.
+This is a relaunch. There is no backward-compatibility window, deprecation
+shim, old/new execution branch, or migration alias. Removed token-and-endpoint
+and callback-based launch claims are inventoried in
+`bindings/security-evidence-cutover-v1.json` with their AP-SPEC-040 evidence.

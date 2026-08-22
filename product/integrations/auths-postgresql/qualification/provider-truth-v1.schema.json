@@ -1,0 +1,5 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://auths.dev/spec/v1/postgresql-qualification-provider-truth.schema.json",
+  "type":"object","additionalProperties":false,"required":["serverIdentitySha256","databaseSha256","transactionSha256","ledgerOperationSha256","rows","applied"],
+  "properties":{"serverIdentitySha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},"databaseSha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},"transactionSha256":{"type":["string","null"],"pattern":"^[0-9a-f]{64}$"},"ledgerOperationSha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},"rows":{"type":"array","maxItems":10000,"items":{"type":"object","additionalProperties":false,"required":["primaryKeySha256","beforeVersion","afterVersion"],"properties":{"primaryKeySha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},"beforeVersion":{"type":"integer","minimum":0},"afterVersion":{"type":"integer","minimum":0}}}},"applied":{"type":"boolean"}}
+}

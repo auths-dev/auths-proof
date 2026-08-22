@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-crash-action-context.schema.json",
+  "title": "Auths supervisor-authenticated qualification crash action context v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "record", "signing"],
+  "properties": {
+    "schema": {"const": "auths.qualification-crash-action-context/1"},
+    "record": {"$ref": "#/$defs/record"},
+    "signing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "keyId", "signatureBase64url"],
+      "properties": {
+        "algorithm": {"const": "Ed25519"},
+        "keyId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "signatureBase64url": {"type": "string", "pattern": "^[A-Za-z0-9_-]{86}$"}
+      }
+    }
+  },
+  "$defs": {
+    "process": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agentGeneration", "agentProcessId", "agentBootSha256", "agentStartTimeTicks",
+        "agentLauncherArtifactSha256", "agentExecutableSha256", "agentConfigurationSha256",
+        "agentStateDirectorySha256", "agentCgroupSha256"
+      ],
+      "properties": {
+        "agentGeneration": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+        "agentProcessId": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+        "agentBootSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "agentStartTimeTicks": {"type": "integer", "minimum": 1, "maximum": 18446744073709551615},
+        "agentLauncherArtifactSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "agentExecutableSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "agentConfigurationSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "agentStateDirectorySha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "agentCgroupSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"}
+      }
+    },
+    "facts": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "process", "durableAckSha256", "boundaryEventSha256"],
+          "properties": {
+            "kind": {"const": "failpoint-acknowledged"},
+            "process": {"$ref": "#/$defs/process"},
+            "durableAckSha256": {"anyOf": [{"$ref": "profile-qualification.schema.json#/$defs/digest"}, {"type": "null"}]},
+            "boundaryEventSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "process", "acknowledgementEventSha256", "signal", "cgroupEmptyAfterKill"],
+          "properties": {
+            "kind": {"const": "process-killed"},
+            "process": {"$ref": "#/$defs/process"},
+            "acknowledgementEventSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+            "signal": {"const": "SIGKILL"},
+            "cgroupEmptyAfterKill": {"const": true}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "killedProcess", "restartedProcess", "killEventSha256", "controlPlaneReady"],
+          "properties": {
+            "kind": {"const": "process-restarted"},
+            "killedProcess": {"$ref": "#/$defs/process"},
+            "restartedProcess": {"$ref": "#/$defs/process"},
+            "killEventSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+            "controlPlaneReady": {"const": true}
+          }
+        }
+      ]
+    },
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema", "crashContext", "sequence", "previousEventSha256", "profile",
+        "supervisorControllerUid", "supervisorSourceArtifactSha256",
+        "supervisorControllerArtifactSha256", "operationId", "connectionGeneration", "durableAckSha256", "facts"
+      ],
+      "properties": {
+        "schema": {"const": "auths.qualification-crash-action-record/1"},
+        "crashContext": {"$ref": "profile-qualification-crash-phase-context.schema.json"},
+        "sequence": {"type": "integer", "minimum": 1, "maximum": 16384},
+        "previousEventSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "profile": {"type": "string", "minLength": 3, "maxLength": 160, "pattern": "^auths\\.[a-z0-9.-]+/[1-9][0-9]*$"},
+        "supervisorControllerUid": {"type": "integer", "minimum": 0, "maximum": 4294967294},
+        "supervisorSourceArtifactSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "supervisorControllerArtifactSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "operationId": {"anyOf": [{"$ref": "profile-qualification.schema.json#/$defs/registeredToken"}, {"type": "null"}]},
+        "connectionGeneration": {"anyOf": [{"$ref": "profile-qualification.schema.json#/$defs/decimal32"}, {"type": "null"}]},
+        "durableAckSha256": {"anyOf": [{"$ref": "profile-qualification.schema.json#/$defs/digest"}, {"type": "null"}]},
+        "facts": {"$ref": "#/$defs/facts"}
+      }
+    }
+  }
+}

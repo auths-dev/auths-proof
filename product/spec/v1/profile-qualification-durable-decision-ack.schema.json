@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-durable-decision-ack.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "operationId", "journalRevision", "journalRecordSha256", "agentGeneration", "controlOperationId", "controllerNonceSha256"],
+  "properties": {
+    "schema": {"const": "auths.qualification-durable-decision-ack/1"},
+    "operationId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+    "journalRevision": {"const": 1},
+    "journalRecordSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "agentGeneration": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+    "controlOperationId": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"}]},
+    "controllerNonceSha256": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/digest"}]}
+  },
+  "allOf": [{
+    "if": {"properties": {"controlOperationId": {"type": "null"}}, "required": ["controlOperationId"]},
+    "then": {"properties": {"controllerNonceSha256": {"type": "null"}}},
+    "else": {"properties": {"controllerNonceSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"}}}
+  }]
+}

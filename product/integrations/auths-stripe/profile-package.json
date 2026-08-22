@@ -1,0 +1,107 @@
+{
+  "schema": "auths.profile-package/1",
+  "domain": {
+    "id": "stripe",
+    "clientClass": "Stripe",
+    "rustPackage": "auths-stripe",
+    "typescriptPackage": "@auths-dev/profile-stripe",
+    "pythonDistribution": "auths-profile-stripe",
+    "pythonModule": "auths_profiles.stripe",
+    "connection": {
+      "providerKind": "stripe",
+      "contract": "auths.stripe.connection/1",
+      "descriptorSchema": "auths.stripe.connection-descriptor/1",
+      "sources": {
+        "specification": "docs/specs/0041-stripe-connection.md",
+        "descriptor": "product/integrations/auths-stripe/src/connection/descriptor.rs",
+        "onboarding": "product/integrations/auths-stripe/src/connection/onboarding.rs",
+        "credentials": "product/integrations/auths-stripe/src/connection/credentials.rs",
+        "adminRoutes": "product/integrations/auths-stripe/src/connection/admin_routes.rs"
+      },
+      "evidence": {
+        "fixtures": "product/integrations/auths-stripe/fixtures/connection/v1",
+        "conformance": "product/integrations/auths-stripe/tests/connection_conformance.rs"
+      }
+    }
+  },
+  "api": "api/profile-api.json",
+  "qualification": {
+    "family": [
+      "auths.stripe.refund/1"
+    ],
+    "adapter": "stripe",
+    "targets": [
+      "linux-x86_64"
+    ],
+    "protectedEnvironment": "qualification-stripe",
+    "commonScenarios": "auths.profile-qualification-common/1",
+    "domainScenarios": "qualification/scenarios-v1.json",
+    "requirements": "qualification/requirements-v1.json",
+    "providerMatrix": "qualification/provider-matrix-v1.json",
+    "operationPlans": "qualification/operation-plans-v1.json",
+    "failpointCoverage": "qualification/failpoint-coverage-v1.json",
+    "providerTruthSchema": "qualification/provider-truth-v1.schema.json",
+    "profileStateSnapshot": "profiles/stripe-refund-reservations-v1/state.json"
+  },
+  "profiles": [
+    {
+      "id": "auths.stripe.refund",
+      "version": 1,
+      "semanticSubject": "auths.stripe.refund/1",
+      "effectId": "stripe.refund.create",
+      "client": {
+        "group": "refunds",
+        "method": "create",
+        "inputType": "RefundInput",
+        "successType": "Refund",
+        "partialType": null,
+        "progressType": null
+      },
+      "contracts": {
+        "canonicalAction": "auths.stripe.refund-action/1",
+        "evaluator": "auths.stripe.refund-evaluator/1",
+        "lifecycle": "auths.stripe.refund-lifecycle/1",
+        "provider": "auths.stripe.refund-provider/1",
+        "receipt": "auths.stripe.refund-receipt/1",
+        "credentialScope": "stripe.refunds.write/1",
+        "configurationFormat": "auths.stripe.refund-verifier-configuration/1",
+        "preparationEvidence": "protected-lease",
+        "errorOwner": "stripe-refund",
+        "errorOwnerVersion": 1
+      },
+      "limits": {
+        "requestBytes": 262144,
+        "responseBytes": 262144,
+        "receiptCount": 4,
+        "receiptBytes": 65536,
+        "executionMilliseconds": 30000,
+        "admissionsPerMinute": 600,
+        "activePerPrincipal": 64,
+        "unresolvedPerPrincipal": 16,
+        "durableBytesPerPrincipal": 67108864,
+        "tombstonesPerPrincipal": 100000,
+        "terminalRetentionSeconds": 2592000,
+        "idempotencyRetentionSeconds": 2592000
+      },
+      "sources": {
+        "specification": "docs/specs/0012-stripe-bounded-refunds.md",
+        "action": "product/integrations/auths-stripe/src/types.rs",
+        "evaluator": "product/integrations/auths-stripe/src/decision.rs",
+        "command": "product/integrations/auths-stripe/src/executor.rs",
+        "lifecycle": "product/integrations/auths-stripe/src/lifecycle.rs",
+        "gateway": "product/integrations/auths-stripe/src/ports.rs",
+        "reconciliation": "product/integrations/auths-stripe/src/service.rs",
+        "receipt": "product/integrations/auths-stripe/src/receipts.rs",
+        "errors": "product/integrations/auths-stripe/errors/refund-v1.json",
+        "errorMapping": "product/integrations/auths-stripe/src/decision.rs"
+      },
+      "evidence": {
+        "fixtures": "product/integrations/auths-stripe/fixtures/v1",
+        "mutationCorpus": "product/integrations/auths-stripe/tests/bounded_fixtures.rs",
+        "providerRequests": "product/integrations/auths-stripe/fixtures/v1",
+        "demo": "demos/stripe-refund",
+        "liveContract": "demos/stripe-refund/tests/web-smoke.mjs"
+      }
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-attester-tools-verification.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "verifiedAtUnixSeconds", "repositoryId", "workflowPath", "workflowRevision", "runId", "runAttempt", "retentionDays", "artifactId", "artifactName", "uploadedArchiveSha256", "uploadedArchiveBytes", "createdAtUnixSeconds", "expiresAtUnixSeconds", "manifestSha256"],
+  "properties": {
+    "schema": {"const": "auths.qualification-attester-tools-verification/1"},
+    "verifiedAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},
+    "repositoryId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+    "workflowPath": {"const": ".github/workflows/qualification-attester-tools.yml"},
+    "workflowRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+    "runId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+    "runAttempt": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+    "retentionDays": {"const": 90},
+    "artifactId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+    "artifactName": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9._-]+$"},
+    "uploadedArchiveSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "uploadedArchiveBytes": {"type": "integer", "minimum": 1, "maximum": 536870912},
+    "createdAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},
+    "expiresAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"},
+    "manifestSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"}
+  }
+}

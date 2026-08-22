@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://auths.dev/spec/v1/profile-qualification-cleanup-report.schema.json",
+  "type": "object", "additionalProperties": false, "required": ["schema", "binding", "status", "providerResourcesDestroyed", "connectionDisabled", "credentialsRevoked", "residualResourceCount", "completedAtUnixSeconds"],
+  "properties": {
+    "schema": {"const": "auths.profile-qualification-cleanup-report/1"}, "binding": {"$ref": "profile-qualification-report-common.schema.json#/$defs/binding"},
+    "status": {"const": "passed"}, "providerResourcesDestroyed": {"const": true}, "connectionDisabled": {"const": true}, "credentialsRevoked": {"const": true},
+    "residualResourceCount": {"const": 0}, "completedAtUnixSeconds": {"$ref": "profile-qualification.schema.json#/$defs/unixSeconds"}
+  }
+}

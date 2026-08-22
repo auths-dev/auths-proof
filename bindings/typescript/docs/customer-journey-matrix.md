@@ -1,20 +1,25 @@
 # Customer journey matrix
 
-This matrix records which semantic owner and language surface is responsible
-for each end-to-end journey. TypeScript consumes the Rust-owned meaning. Python
-consumption is tracked separately and is not implemented by the TypeScript SDK.
+The machine-readable source is
+`bindings/customer-journey-matrix-v1.json`. Rust owns operation and security
+meaning; Python and TypeScript project the same local-agent and generated
+profile contracts.
 
-| Journey | Rust semantic owner | TypeScript package evidence | Python dependency |
+| Journey | Semantic owner | TypeScript evidence | Python evidence |
 | --- | --- | --- | --- |
-| Exchange and authenticate an identity | General and compact identity descriptors, signing preimages | `identity` quickstart and identity integration tests | Consume the same descriptor ABI and fixtures |
-| Verify one action without effects | Three-valued verifier | `verify`, `inspection`, and hostile diagnostic tests | Consume the same result corpus |
-| Attach, delegate, and authorize | Native authoring, attenuation, approval commitments, proof construction | Packed protected-action quickstart and workflow tests | Consume the same workflow operations |
-| Authorize exact plans | Native plan commitments and proof composition | MCP and application profile plan tests | Consume the same plan fixtures |
-| Operate trust and lifecycle evidence | Trusted-context and status semantics | Trust evidence ports, offline bundles, lifecycle recipes | Consume the same lifecycle fixtures |
-| Execute a sealed command safely | Command minting and runtime state transitions | Closed runtime, durable reference store, gateway tests | Bind the same runtime state machine |
-| Diagnose and support | Stable decision/error projections | Diagnostics, telemetry, support bundle tests | Emit the same stable schemas |
-| Deploy one coherent release | Exact ABI identities and runtime contract | Runtime contract, public API, and packed-package tests | Enforce the same exact artifact agreement |
+| Connect an observed workload without an application token | Local agent/session runtime | `test/contract/profile-runtime.ts` | `tests/test_profile_runtime_v1.py` |
+| Execute one typed provider operation | Concrete profile vertical plus generated client | generated Stripe client and launch example | generated Stripe client and launch example |
+| Share one session across domains | Local session protocol plus each concrete vertical | generated Stripe, PostgreSQL, and OpenTofu packages | generated Stripe, PostgreSQL, and OpenTofu packages |
+| Recover a possible effect without blind retry | Durable journal plus concrete reconciliation | profile-runtime contract and exhaustive outcomes | profile-runtime recovery test and sealed outcomes |
+| Verify existing evidence without an effect | Rust verifier | `@auths-dev/sdk/verify` | `auths.verify` |
+| Extend the generated package ecosystem | Manifest, generator, and public profile-runtime ABI | `@auths-dev/sdk/profile-runtime` | `auths.profile_runtime` |
+| Install one coherent release | Runtime contract, topology, API inventory, and package tests | packed npm consumer | wheel-content and public-API checks |
 
-The Rust/TypeScript differential corpus is a release gate. Adding Python to
-that corpus remains a Python SDK deliverable and is not a reason to duplicate
-protocol meaning in TypeScript.
+Provider credentials, arbitrary provider requests, domain policy, and dynamic
+runtime callbacks are not application journeys. Provider onboarding uses the
+separate privileged administration surface and is documented in the
+[local-agent quickstart](../../../docs/product/LOCAL_AGENT_SDK_QUICKSTART.md).
+
+The exact evidence paths, experience budgets, and current qualification state
+remain in the machine-readable matrix; repository-local passing checks do not
+imply publication or independent review.

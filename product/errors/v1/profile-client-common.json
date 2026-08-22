@@ -1,0 +1,19 @@
+{
+  "schema": "auths.error-projection/1",
+  "id": "profile-client-common",
+  "codes": [
+    "client.agent-unavailable",
+    "client.profile-contract-mismatch",
+    "client.profile-unavailable",
+    "connection.contract-mismatch",
+    "connection.credential-unavailable",
+    "connection.unavailable",
+    "core.malformed-input",
+    "core.runtime-unavailable",
+    "operation.admission-exhausted",
+    "operation.idempotency-conflict",
+    "operation.outcome-unknown",
+    "operation.recovery-unavailable",
+    "operation.timed-out"
+  ]
+}

@@ -6,12 +6,13 @@
   "identityAbi": 1,
   "requiredSubpaths": [
     ".",
-    "./identity",
     "./verify",
-    "./service",
-    "./profiles",
-    "./integrations",
-    "./framework",
+    "./identity",
+    "./identity/authoring",
+    "./identity/adapters",
+    "./adapters",
+    "./protocol",
+    "./profile-runtime",
     "./testkit"
   ],
   "requiredWasmExports": [
@@ -19,20 +20,20 @@
     "identityAbiVersionV1",
     "verifyV1",
     "verifyBatchV1",
-    "productionTransportFailureV1"
+    "prepareProfileDecisionReceiptV2",
+    "profileReceiptPayloadCommitmentV2",
+    "validateReceiptAnchorV1",
+    "verifyPinnedReceiptV1",
+    "verifyReceiptLinkV1"
   ],
-  "profiles": {
-    "auths.mcp": 1
-  },
+  "profiles": {},
   "capabilities": [
-    "authority.delegate",
-    "authority.plans",
     "diagnostics.doctor",
     "identity.compact-v2",
-    "inspection.safe-projection",
-    "runtime.closed-execution",
+    "local-agent.session-v1",
+    "profile-operation.v1",
+    "profile-runtime.v1",
     "verification.batch-v1",
-    "verification.single-v1",
-    "workflow.approval"
+    "verification.single-v1"
   ]
 }

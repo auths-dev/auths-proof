@@ -3,6 +3,9 @@
 //! The state machine is intentionally concrete: its key and capacity unit are
 //! Stripe refund minor units under one configured policy and account.
 
+// Reservation persistence exposes one closed storage/state-machine error.
+#![allow(clippy::missing_errors_doc)]
+
 use std::{
     collections::BTreeMap,
     fs::{self, File, OpenOptions},
@@ -138,6 +141,48 @@ impl RefundReservationRecord {
     #[must_use]
     pub const fn refund_id(&self) -> Option<&RefundId> {
         self.refund_id.as_ref()
+    }
+
+    /// Exact normalized provider-result commitment, when terminally known.
+    #[must_use]
+    pub const fn result_digest(&self) -> Option<&DigestHex> {
+        self.result_digest.as_ref()
+    }
+
+    /// Fresh evidence commitment used by the pure evaluator.
+    #[must_use]
+    pub const fn evidence_digest(&self) -> &DigestHex {
+        &self.evidence_digest
+    }
+
+    /// Required bounded-evaluator configuration commitment.
+    #[must_use]
+    pub const fn required_configuration_digest(&self) -> &DigestHex {
+        &self.required_configuration_digest
+    }
+
+    /// Executed bounded-evaluator configuration commitment.
+    #[must_use]
+    pub const fn executed_configuration_digest(&self) -> &DigestHex {
+        &self.executed_configuration_digest
+    }
+
+    /// Stripe account whose aggregate capacity is held.
+    #[must_use]
+    pub const fn stripe_account_id(&self) -> &StripeAccountId {
+        &self.stripe_account_id
+    }
+
+    /// Stripe idempotency-key commitment.
+    #[must_use]
+    pub const fn idempotency_key_digest(&self) -> &DigestHex {
+        &self.idempotency_key_digest
+    }
+
+    /// Last durable domain transition time.
+    #[must_use]
+    pub const fn updated_at(&self) -> u64 {
+        self.updated_at
     }
 }
 
@@ -777,6 +822,38 @@ impl PersistentRefundReservationStore {
         Ok(store)
     }
 
+    /// Atomically rederives the complete policy-owned capacity intent roster
+    /// before reserving. No caller-supplied budget ID, window, or limit is
+    /// trusted at this boundary.
+    #[must_use]
+    pub fn reserve_checked(
+        &self,
+        policy: &StripeBoundedRefundPolicyV1,
+        request: ReserveRefundRequest,
+    ) -> ReserveRefundResult {
+        self.with_locked_database(|database| {
+            let policy_digest = policy.digest().map_err(|_| ReservationError::Corrupt)?;
+            let snapshot = snapshot_in(
+                &database.records,
+                policy,
+                &request.stripe_account_id,
+                request.now,
+            )?;
+            let expected = exact_policy_reservation_intents(
+                policy,
+                &request.currency,
+                request.amount_minor,
+                request.now,
+                &snapshot,
+            )?;
+            if request.policy_digest != policy_digest || request.intents != expected {
+                return Ok::<_, ReservationError>(ReserveRefundResult::Unavailable);
+            }
+            Ok::<_, ReservationError>(reserve_in(&mut database.records, request))
+        })
+        .unwrap_or(ReserveRefundResult::Unavailable)
+    }
+
     fn with_locked_database<T, E>(
         &self,
         operation: impl FnOnce(&mut ReservationDatabase) -> Result<T, E>,
@@ -804,6 +881,73 @@ impl PersistentRefundReservationStore {
             .map_err(|_| E::from(ReservationError::Unavailable))?;
         Ok(output)
     }
+}
+
+fn exact_policy_reservation_intents(
+    policy: &StripeBoundedRefundPolicyV1,
+    currency: &Currency,
+    amount_minor: u64,
+    now: u64,
+    snapshot: &AggregateBudgetSnapshot,
+) -> Result<Vec<RefundReservationIntent>, ReservationError> {
+    let mut intents = Vec::new();
+    for budget in policy
+        .aggregate_budgets()
+        .iter()
+        .filter(|budget| budget.currency() == currency)
+    {
+        let usage = snapshot
+            .usages
+            .iter()
+            .find(|usage| usage.budget_id == budget.budget_id())
+            .ok_or(ReservationError::Corrupt)?;
+        let used = usage
+            .committed_minor
+            .checked_add(usage.reserved_minor)
+            .and_then(|value| value.checked_add(usage.outcome_unknown_minor))
+            .ok_or(ReservationError::Corrupt)?;
+        let available_before_minor = budget
+            .limit_minor()
+            .checked_sub(used)
+            .ok_or(ReservationError::Corrupt)?;
+        intents.push(RefundReservationIntent {
+            budget_id: budget.budget_id().into(),
+            currency: currency.clone(),
+            window: budget
+                .window()
+                .identity(now)
+                .map_err(|_| ReservationError::InvalidTransition)?,
+            limit_minor: budget.limit_minor(),
+            amount_minor,
+            available_before_minor,
+        });
+    }
+    if intents.is_empty() {
+        return Err(ReservationError::Corrupt);
+    }
+    Ok(intents)
+}
+
+/// Reads the advisory aggregate view without creating or rewriting any state.
+/// Deployment provisioning must create the store and lock before the agent can
+/// prepare a refund; preparation itself remains effect-free.
+pub fn read_persistent_refund_snapshot(
+    path: &Path,
+    policy: &StripeBoundedRefundPolicyV1,
+    account: &StripeAccountId,
+    now: u64,
+) -> Result<AggregateBudgetSnapshot, ReservationError> {
+    let lock_path = path.with_extension("lock");
+    let lock = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(lock_path)
+        .map_err(|_| ReservationError::Unavailable)?;
+    lock.lock().map_err(|_| ReservationError::Unavailable)?;
+    let database = load_database(path)?;
+    let output = snapshot_in(&database.records, policy, account, now);
+    lock.unlock().map_err(|_| ReservationError::Unavailable)?;
+    output
 }
 
 impl RefundReservationStore for PersistentRefundReservationStore {
@@ -1118,6 +1262,19 @@ fn load_database(path: &Path) -> Result<ReservationDatabase, ReservationError> {
     })
 }
 
+#[cfg(feature = "qualification")]
+pub(crate) fn decode_qualification_records(
+    bytes: &[u8],
+) -> Result<Vec<RefundReservationRecord>, ReservationError> {
+    if bytes.is_empty() || bytes.len() > MAX_STATE_BYTES {
+        return Err(ReservationError::Corrupt);
+    }
+    let state: ReservationStateFile =
+        serde_json::from_slice(bytes).map_err(|_| ReservationError::Corrupt)?;
+    validate_database_state(&state, bytes)?;
+    Ok(state.records.into_values().collect())
+}
+
 fn validate_database_state(
     state: &ReservationStateFile,
     canonical_bytes: &[u8],
@@ -1402,6 +1559,14 @@ fn commit_in(
     now: u64,
 ) -> Result<RefundReservationRecord, ReservationError> {
     let record = record_for_lease(records, lease)?;
+    if matches!(
+        record.state,
+        RefundReservationState::Committed | RefundReservationState::ReconciledCommitted
+    ) && record.refund_id.as_ref() == Some(refund_id)
+        && record.result_digest.as_ref() == Some(result_digest)
+    {
+        return Ok(record.clone());
+    }
     if !matches!(
         record.state,
         RefundReservationState::Reserved | RefundReservationState::OutcomeUnknown
@@ -1422,6 +1587,9 @@ fn transition_in(
     now: u64,
 ) -> Result<RefundReservationRecord, ReservationError> {
     let record = record_for_lease(records, lease)?;
+    if record.state == next {
+        return Ok(record.clone());
+    }
     let valid = matches!(
         (record.state, next),
         (
@@ -1447,12 +1615,30 @@ fn reconcile_in(
     let record = records
         .get_mut(workflow_id)
         .ok_or(ReservationError::Missing)?;
-    if record.action_digest != *action_digest
-        || !matches!(
-            record.state,
-            RefundReservationState::Reserved | RefundReservationState::OutcomeUnknown
-        )
-    {
+    if record.action_digest != *action_digest {
+        return Err(ReservationError::InvalidTransition);
+    }
+    match (&outcome, record.state) {
+        (
+            ReconciledRefundOutcome::Committed {
+                refund_id,
+                result_digest,
+            },
+            RefundReservationState::ReconciledCommitted,
+        ) if record.refund_id.as_ref() == Some(refund_id)
+            && record.result_digest.as_ref() == Some(result_digest) =>
+        {
+            return Ok(record.clone());
+        }
+        (ReconciledRefundOutcome::Released, RefundReservationState::ReconciledReleased) => {
+            return Ok(record.clone());
+        }
+        _ => {}
+    }
+    if !matches!(
+        record.state,
+        RefundReservationState::Reserved | RefundReservationState::OutcomeUnknown
+    ) {
         return Err(ReservationError::InvalidTransition);
     }
     match outcome {
@@ -1598,6 +1784,44 @@ mod tests {
             idempotency_key_digest: sha256(action.idempotency_key().as_bytes()),
             now: NOW,
         }
+    }
+
+    #[test]
+    fn policy_checked_reservation_rejects_caller_widened_capacity() {
+        let directory = tempfile::tempdir().unwrap();
+        let store =
+            PersistentRefundReservationStore::open(directory.path().join("refunds.json")).unwrap();
+        let evidence = evidence(2_000, 0);
+        let policy = bounded_policy(
+            &evidence,
+            2_000,
+            10_000,
+            RefundDenominator::OriginalChargeAmount,
+            1_000,
+        );
+        let exact = configuration(2_000);
+        let mut request = request_for_policy(
+            &store,
+            "bounded-policy-widening-01",
+            1_000,
+            &evidence,
+            &exact,
+            &policy,
+        );
+        request.intents[0].limit_minor += 1;
+
+        assert!(matches!(
+            store.reserve_checked(&policy, request),
+            ReserveRefundResult::Unavailable,
+        ));
+        let snapshot = store
+            .snapshot(&policy, evidence.stripe_account_id(), NOW)
+            .unwrap();
+        assert!(snapshot.usages.iter().all(|usage| {
+            usage.committed_minor == 0
+                && usage.reserved_minor == 0
+                && usage.outcome_unknown_minor == 0
+        }));
     }
 
     #[test]
@@ -1838,6 +2062,16 @@ mod tests {
             reconciled.state(),
             RefundReservationState::ReconciledReleased
         );
+        #[cfg(feature = "qualification")]
+        {
+            let bytes = fs::read(&path).unwrap();
+            let decoded = decode_qualification_records(&bytes).unwrap();
+            assert_eq!(decoded.len(), 1);
+            assert_eq!(decoded[0].workflow_id(), "bounded-restart-01");
+            let mut noncanonical = bytes;
+            noncanonical.push(b'\n');
+            assert!(decode_qualification_records(&noncanonical).is_err());
+        }
     }
 
     #[test]

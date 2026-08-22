@@ -1,0 +1,164 @@
+name: Build protected qualification attester tools
+
+on:
+  workflow_dispatch:
+    inputs:
+      attester_revision:
+        description: Exact protected main-branch attester revision
+        required: true
+        type: string
+
+permissions:
+  attestations: write
+  contents: read
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
+      manifest_sha256: ${{ steps.bundle.outputs.manifest_sha256 }}
+    steps:
+      - name: Validate protected main revision
+        shell: bash
+        env:
+          ATTESTER_REVISION: ${{ inputs.attester_revision }}
+          WORKFLOW_REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$ATTESTER_REVISION" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$ATTESTER_REVISION" == "$WORKFLOW_REVISION" ]]
+          [[ "${{ github.ref }}" == refs/heads/main ]]
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.attester_revision }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+          compiler-cache: "false"
+      - name: Build the provider-free protected verifiers and signer
+        run: |
+          cargo build --locked --release -p auths-qualification-supervisor --bins
+          cargo build --locked --release -p auths-qualification-evidence-source \
+            --bin qualification-source-client-proxy \
+            --bin qualification-source-credential-broker \
+            --bin qualification-source-journal-reader \
+            --bin qualification-source-profile-state-reader \
+            --bin qualification-source-provider-observer \
+            --bin qualification-source-provider-proxy \
+            --bin qualification-source-receipt-verifier \
+            --bin qualification-source-supervisor
+          cargo build --locked --release -p xtask
+      - name: Assemble exact protected tool bundle
+        id: bundle
+        shell: bash
+        env:
+          ATTESTER_REVISION: ${{ inputs.attester_revision }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p target/qualification-attester-tools
+          GITLEAKS_ARCHIVE="$RUNNER_TEMP/gitleaks-8.28.0-linux-x64.tar.gz"
+          curl --proto '=https' --tlsv1.2 --fail --location --silent --show-error \
+            --max-filesize 16777216 \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz \
+            --output "$GITLEAKS_ARCHIVE"
+          echo 'a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb  '"$GITLEAKS_ARCHIVE" | sha256sum --check --strict
+          [[ "$(tar -tzf "$GITLEAKS_ARCHIVE")" == $'LICENSE\nREADME.md\ngitleaks' ]]
+          [[ "$(tar -tvzf "$GITLEAKS_ARCHIVE" gitleaks | cut -c1)" == - ]]
+          ulimit -f 131072
+          tar -xOzf "$GITLEAKS_ARCHIVE" gitleaks > "$RUNNER_TEMP/gitleaks"
+          install -m 0755 "$RUNNER_TEMP/gitleaks" target/qualification-attester-tools/gitleaks
+          [[ "$(target/qualification-attester-tools/gitleaks version)" == '8.28.0' ]]
+          install -m 0755 target/release/qualification-release-build-verifier \
+            target/qualification-attester-tools/qualification-release-build-verifier
+          install -m 0755 target/release/qualification-source-client-proxy \
+            target/qualification-attester-tools/qualification-source-client-proxy
+          install -m 0755 target/release/qualification-source-credential-broker \
+            target/qualification-attester-tools/qualification-source-credential-broker
+          install -m 0755 target/release/qualification-source-journal-reader \
+            target/qualification-attester-tools/qualification-source-journal-reader
+          install -m 0755 target/release/qualification-source-profile-state-reader \
+            target/qualification-attester-tools/qualification-source-profile-state-reader
+          install -m 0755 target/release/qualification-source-provider-observer \
+            target/qualification-attester-tools/qualification-source-provider-observer
+          install -m 0755 target/release/qualification-source-provider-proxy \
+            target/qualification-attester-tools/qualification-source-provider-proxy
+          install -m 0755 target/release/qualification-source-receipt-verifier \
+            target/qualification-attester-tools/qualification-source-receipt-verifier
+          install -m 0755 target/release/qualification-source-supervisor \
+            target/qualification-attester-tools/qualification-source-supervisor
+          install -m 0755 target/release/auths-qualification-supervisor \
+            target/qualification-attester-tools/auths-qualification-supervisor
+          install -m 0755 target/release/qualification-attestation-signer \
+            target/qualification-attester-tools/qualification-attestation-signer
+          install -m 0755 target/release/qualification-agent-launcher \
+            target/qualification-attester-tools/qualification-agent-launcher
+          install -m 0755 target/release/qualification-crash-controller \
+            target/qualification-attester-tools/qualification-crash-controller
+          install -m 0755 target/release/qualification-observation-signer \
+            target/qualification-attester-tools/qualification-observation-signer
+          install -m 0755 target/release/xtask \
+            target/qualification-attester-tools/xtask
+          GH_PATH="$(readlink -f "$(command -v gh)")"
+          [[ -f "$GH_PATH" && ! -L "$GH_PATH" ]]
+          install -m 0755 "$GH_PATH" target/qualification-attester-tools/gh
+          target/qualification-attester-tools/gh attestation trusted-root \
+            > target/qualification-attester-tools/trusted-root.jsonl
+          [[ -s target/qualification-attester-tools/trusted-root.jsonl ]]
+          jq -n -cS \
+            --arg revision "$ATTESTER_REVISION" \
+            --arg ledgerSealer "$(sha256sum target/qualification-attester-tools/auths-qualification-supervisor | cut -d' ' -f1)" \
+            --arg releaseVerifier "$(sha256sum target/qualification-attester-tools/qualification-release-build-verifier | cut -d' ' -f1)" \
+            --arg signer "$(sha256sum target/qualification-attester-tools/qualification-attestation-signer | cut -d' ' -f1)" \
+            --arg agentLauncher "$(sha256sum target/qualification-attester-tools/qualification-agent-launcher | cut -d' ' -f1)" \
+            --arg crashController "$(sha256sum target/qualification-attester-tools/qualification-crash-controller | cut -d' ' -f1)" \
+            --arg observerSigner "$(sha256sum target/qualification-attester-tools/qualification-observation-signer | cut -d' ' -f1)" \
+            --arg clientProxy "$(sha256sum target/qualification-attester-tools/qualification-source-client-proxy | cut -d' ' -f1)" \
+            --arg credentialBroker "$(sha256sum target/qualification-attester-tools/qualification-source-credential-broker | cut -d' ' -f1)" \
+            --arg journalReader "$(sha256sum target/qualification-attester-tools/qualification-source-journal-reader | cut -d' ' -f1)" \
+            --arg profileStateReader "$(sha256sum target/qualification-attester-tools/qualification-source-profile-state-reader | cut -d' ' -f1)" \
+            --arg providerObserver "$(sha256sum target/qualification-attester-tools/qualification-source-provider-observer | cut -d' ' -f1)" \
+            --arg providerProxy "$(sha256sum target/qualification-attester-tools/qualification-source-provider-proxy | cut -d' ' -f1)" \
+            --arg receiptVerifier "$(sha256sum target/qualification-attester-tools/qualification-source-receipt-verifier | cut -d' ' -f1)" \
+            --arg supervisorSource "$(sha256sum target/qualification-attester-tools/qualification-source-supervisor | cut -d' ' -f1)" \
+            --arg gitleaks "$(sha256sum target/qualification-attester-tools/gitleaks | cut -d' ' -f1)" \
+            --arg gh "$(sha256sum target/qualification-attester-tools/gh | cut -d' ' -f1)" \
+            --arg ghVersion "$(target/qualification-attester-tools/gh version | sed -n '1s/^gh version \([^ ]*\).*/\1/p')" \
+            --arg runnerImageOs "${ImageOS:?missing GitHub runner ImageOS}" \
+            --arg runnerImageVersion "${ImageVersion:?missing GitHub runner ImageVersion}" \
+            --arg root "$(sha256sum target/qualification-attester-tools/trusted-root.jsonl | cut -d' ' -f1)" \
+            --arg xtask "$(sha256sum target/qualification-attester-tools/xtask | cut -d' ' -f1)" \
+            '{schema:"auths.qualification-attester-tools/1",attesterRevision:$revision,ghVersion:$ghVersion,members:[{path:"auths-qualification-supervisor",sha256:$ledgerSealer,mode:"0755"},{path:"gh",sha256:$gh,mode:"0755"},{path:"gitleaks",sha256:$gitleaks,mode:"0755"},{path:"qualification-agent-launcher",sha256:$agentLauncher,mode:"0755"},{path:"qualification-attestation-signer",sha256:$signer,mode:"0755"},{path:"qualification-crash-controller",sha256:$crashController,mode:"0755"},{path:"qualification-observation-signer",sha256:$observerSigner,mode:"0755"},{path:"qualification-release-build-verifier",sha256:$releaseVerifier,mode:"0755"},{path:"qualification-source-client-proxy",sha256:$clientProxy,mode:"0755"},{path:"qualification-source-credential-broker",sha256:$credentialBroker,mode:"0755"},{path:"qualification-source-journal-reader",sha256:$journalReader,mode:"0755"},{path:"qualification-source-profile-state-reader",sha256:$profileStateReader,mode:"0755"},{path:"qualification-source-provider-observer",sha256:$providerObserver,mode:"0755"},{path:"qualification-source-provider-proxy",sha256:$providerProxy,mode:"0755"},{path:"qualification-source-receipt-verifier",sha256:$receiptVerifier,mode:"0755"},{path:"qualification-source-supervisor",sha256:$supervisorSource,mode:"0755"},{path:"trusted-root.jsonl",sha256:$root,mode:"0600"},{path:"xtask",sha256:$xtask,mode:"0755"}],retentionDays:90,runnerImageOs:$runnerImageOs,runnerImageVersion:$runnerImageVersion,runnerLabel:"ubuntu-24.04"}' \
+            > target/qualification-attester-tools/manifest.json
+          truncate -s -1 target/qualification-attester-tools/manifest.json
+          MANIFEST_SHA256="$(sha256sum target/qualification-attester-tools/manifest.json | cut -d' ' -f1)"
+          echo "manifest_sha256=$MANIFEST_SHA256" >> "$GITHUB_OUTPUT"
+      - name: Verify the exact tool bundle before attestation
+        shell: bash
+        env:
+          ATTESTER_REVISION: ${{ inputs.attester_revision }}
+          TOOL_MANIFEST_SHA256: ${{ steps.bundle.outputs.manifest_sha256 }}
+        run: >-
+          .github/scripts/verify-qualification-attester-tools.sh
+          target/qualification-attester-tools
+          "$ATTESTER_REVISION"
+          "$TOOL_MANIFEST_SHA256"
+          release/qualification/v1/evidence-source-trust-keys.json
+      - name: Attest every exact tool-bundle member
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
+        with:
+          subject-path: target/qualification-attester-tools/*
+      - name: Upload immutable tool bundle
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-qualification-attester-tools-${{ inputs.attester_revision }}-attempt-${{ github.run_attempt }}
+          path: target/qualification-attester-tools/
+          if-no-files-found: error
+          retention-days: 90
+          compression-level: 0

@@ -28,7 +28,7 @@ struct ExperienceContract {
     enforcement: String,
     baseline: ExperienceBaseline,
     target_budgets: Value,
-    moderated_recipe_three_cohort: Value,
+    clean_machine_launch_cohort: Value,
     maintained_recipes: Vec<MaintainedRecipe>,
 }
 
@@ -175,7 +175,7 @@ pub(crate) fn sdk_experience(update: bool) -> Result<(), String> {
         },
         "journeys": journey_projection,
         "recipes": matrix.experience.maintained_recipes,
-        "moderatedRecipeThreeCohort": matrix.experience.moderated_recipe_three_cohort,
+        "cleanMachineLaunchCohort": matrix.experience.clean_machine_launch_cohort,
         "budgets": matrix.experience.target_budgets,
         "semanticFreezeSchema": semantic_freeze["schema"],
     });
@@ -252,26 +252,23 @@ fn python_surface() -> Result<PublicSurface, String> {
 
 pub(crate) fn classify_typescript_entry(entry: &str) -> &'static str {
     match entry {
-        "." => "product",
-        "./identity" | "./verify" => "component",
-        "./service" => "service",
-        "./profiles" => "profile",
-        "./integrations" => "integration",
-        "./framework" => "framework",
-        "./testkit" => "testkit",
+        "." | "./verify" | "./identity" | "./identity/authoring" => "product",
+        "./identity/adapters" | "./adapters" => "mechanism",
+        "./protocol" | "./profile-runtime" => "extension",
+        "./testkit" => "test",
         _ => "internal-leak",
     }
 }
 
 pub(crate) fn classify_python_module(module: &str) -> &'static str {
     match module {
-        "auths" => "product",
-        "auths.identity" | "auths.verify" => "component",
-        "auths.service" => "service",
-        "auths.profiles" => "profile",
-        "auths.testkit" => "testkit",
-        "auths.framework" => "framework",
-        "auths.integrations" => "integration",
+        "auths" | "auths.verify" | "auths.identity" | "auths.identity.authoring" => "product",
+        "auths.identity.adapters"
+        | "auths.adapters"
+        | "auths.adapters.custody"
+        | "auths.adapters.reservations" => "mechanism",
+        "auths.protocol" | "auths.profile_runtime" => "extension",
+        "auths.testkit" => "test",
         _ => "internal-leak",
     }
 }
@@ -378,13 +375,18 @@ mod tests {
     #[test]
     fn ownership_classification_is_explicit() {
         assert_eq!(classify_typescript_entry("."), "product");
-        assert_eq!(classify_typescript_entry("./profiles"), "profile");
-        assert_eq!(classify_typescript_entry("./framework"), "framework");
-        assert_eq!(classify_typescript_entry("./service"), "service");
+        assert_eq!(classify_typescript_entry("./mcp"), "internal-leak");
+        assert_eq!(classify_typescript_entry("./adapters"), "mechanism");
+        assert_eq!(classify_typescript_entry("./protocol"), "extension");
+        assert_eq!(classify_typescript_entry("./profile-runtime"), "extension");
         assert_eq!(classify_typescript_entry("./authority"), "internal-leak");
-        assert_eq!(classify_python_module("auths.integrations"), "integration");
-        assert_eq!(classify_python_module("auths.framework"), "framework");
-        assert_eq!(classify_python_module("auths.service"), "service");
+        assert_eq!(classify_python_module("auths.mcp"), "internal-leak");
+        assert_eq!(
+            classify_python_module("auths.adapters.custody"),
+            "mechanism"
+        );
+        assert_eq!(classify_python_module("auths.protocol"), "extension");
+        assert_eq!(classify_python_module("auths.profile_runtime"), "extension");
         assert_eq!(classify_python_module("auths.authority"), "internal-leak");
     }
 

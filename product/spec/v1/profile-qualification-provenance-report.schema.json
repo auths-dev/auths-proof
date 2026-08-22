@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://auths.dev/spec/v1/profile-qualification-provenance-report.schema.json",
+  "type": "object", "additionalProperties": false, "required": ["schema", "binding", "workflowPath", "workflowRevision", "collectorRevision", "observerRevision", "attesterRevision", "runnerLabel", "runnerImageRelease", "pinnedActions", "installedArtifacts", "failpointBuildSha256", "productionBuildSha256"],
+  "properties": {
+    "schema": {"const": "auths.profile-qualification-provenance-report/1"}, "binding": {"$ref": "profile-qualification-report-common.schema.json#/$defs/binding"},
+    "workflowPath": {"type": "string", "minLength": 1, "maxLength": 512}, "workflowRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+    "collectorRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"}, "observerRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+    "attesterRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+    "runnerLabel": {"type": "string", "minLength": 1, "maxLength": 128}, "runnerImageRelease": {"type": "string", "minLength": 1, "maxLength": 128},
+    "pinnedActions": {"type": "array", "minItems": 3, "maxItems": 32, "items": {"type": "object", "additionalProperties": false, "required": ["name", "revision"], "properties": {"name": {"type": "string", "minLength": 1, "maxLength": 128}, "revision": {"$ref": "profile-qualification.schema.json#/$defs/revision"}}}},
+    "installedArtifacts": {"type": "array", "minItems": 3, "maxItems": 64, "items": {"type": "object", "additionalProperties": false, "required": ["name", "sha256"], "properties": {"name": {"type": "string", "minLength": 1, "maxLength": 128}, "sha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"}}}},
+    "failpointBuildSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "productionBuildSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"}
+  }
+}

@@ -7,6 +7,7 @@ pub(crate) use std::{
     env,
     fmt::Write as FmtWrite,
     fs,
+    io::Write as IoWrite,
     path::{Path, PathBuf},
     process::{Command, ExitCode},
 };

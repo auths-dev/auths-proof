@@ -1,10 +1,25 @@
 #![allow(clippy::too_many_lines)]
 
 use crate::*;
+#[cfg(test)]
+use std::io::Read as _;
 
 pub(crate) const RELEASE_MANIFEST_SCHEMA: &str = "auths.release-manifest/1";
 const RELEASE_MANIFEST_INPUT_SCHEMA: &str = "auths.release-manifest-input/1";
 const RELEASE_SUBJECTS_SCHEMA: &str = "auths.release-subjects/1";
+const QUALIFICATION_RELEASE_SURFACE_SCHEMA: &str = "auths.qualification-release-surface/1";
+const QUALIFICATION_RELEASE_MEMBERS_SCHEMA: &str = "auths.qualification-release-members/1";
+const QUALIFICATION_ARTIFACT_ROLES: [&str; 9] = [
+    "production-agent",
+    "python-native",
+    "python-profile-opentofu",
+    "python-profile-postgresql",
+    "python-profile-stripe",
+    "python-wheel",
+    "qualification-agent",
+    "typescript-native",
+    "typescript-package",
+];
 pub(crate) const RELEASE_REPOSITORY: &str = "auths-dev/auths-proof";
 const REPRODUCIBILITY_CLASSES: [&str; 4] = [
     "byte-identical",
@@ -21,9 +36,9 @@ struct ReleaseSubjectCatalogue {
     repository: String,
     first_rc_tag: String,
     policy: String,
-    production_candidate_manifest: String,
-    production_candidate_schema: String,
-    assurance_manifest: String,
+    qualification_index: String,
+    qualification_trust_registry: String,
+    qualification_closure_manifest: String,
     assurance_candidate_schema: String,
     assurance_manifest_schema: String,
     assurance_record_schema: String,
@@ -47,6 +62,50 @@ struct ReleaseSubjectFamily {
 struct ReleaseSubjectExclusion {
     id: String,
     reason: String,
+}
+
+#[cfg(test)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct QualificationReleaseSurface {
+    schema: String,
+    candidate_revision: String,
+    policy_sha256: String,
+    production_feature_set: Vec<String>,
+    qualification_feature_set: Vec<String>,
+    production_members: Vec<QualificationReleaseSurfaceMember>,
+    qualification_members: Vec<QualificationReleaseSurfaceMember>,
+    reviewed_difference: Vec<String>,
+}
+
+#[cfg(test)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct QualificationReleaseSurfaceMember {
+    path: String,
+    sha256: String,
+    bytes: u64,
+    mode: String,
+}
+
+#[cfg(test)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct QualificationReleaseMembers {
+    schema: String,
+    candidate_revision: String,
+    qualification_surface_sha256: String,
+    artifacts: Vec<QualificationReleaseMember>,
+}
+
+#[cfg(test)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct QualificationReleaseMember {
+    role: String,
+    member_path: String,
+    member_sha256: String,
+    bytes: u64,
 }
 
 pub(crate) fn release_contract() -> Result<(), String> {
@@ -75,7 +134,7 @@ fn validate_release_workflow_contract() -> Result<(), String> {
         "overwrite: false",
         "environment: release-promotion",
         "cargo xtask release-control verify-promotion",
-        "cargo xtask assurance verify",
+        "cargo xtask profile qualification release-check",
         "owner_authorization_base64:",
         "target/owner-authorization.json",
         "--notes-file",
@@ -90,17 +149,31 @@ fn validate_release_workflow_contract() -> Result<(), String> {
     }
     for required in [
         "workflow_call:",
-        "environment: release-candidate",
         "actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6",
         "subject-checksums: target/release-evidence/attestation-subjects.txt",
-        "repo:auths-dev@260513770/auths-proof@1310728509:environment:release-candidate",
+        "repo:auths-dev@260513770/auths-proof@1310728509:ref:refs/heads/main",
         "--deny-self-hosted-runners",
         "--signer-digest \"$CANDIDATE_COMMIT\"",
         "cargo xtask release-control finalize",
+        "cargo xtask release-control canonicalize-qualification-build",
+        "qualification_release_build_artifact_id:",
+        "target/qualification-release/release-build.json",
+        "auths-production-agent.tar.zst",
+        "auths-python-native.so",
+        "auths-python-wheel.whl",
+        "auths-qualification-agent.tar.zst",
+        "auths-typescript-native.wasm",
+        "auths-typescript-package.tgz",
     ] {
         if !builder.contains(required) {
             return Err(format!("reusable release builder is missing: {required}"));
         }
+    }
+    if builder
+        .lines()
+        .any(|line| line.trim_start().starts_with("environment:"))
+    {
+        return Err("reusable release builder must not use a protected environment".into());
     }
     let promotion = controller
         .split("  promote-github-prerelease:")
@@ -161,6 +234,7 @@ pub(crate) fn release_check() -> Result<(), String> {
 
 pub(crate) fn release_evidence() -> Result<(), String> {
     validate_release_contract_sources()?;
+    build_qualification_release_binaries()?;
     let metadata = Command::new("cargo")
         .args(["metadata", "--format-version", "1", "--locked"])
         .current_dir(root())
@@ -288,6 +362,9 @@ pub(crate) fn release_evidence() -> Result<(), String> {
         evidence_checksums.insert(relative.to_owned(), sha256_file(&root().join(relative))?);
     }
     for (relative, digest) in prepare_release_archives(&commit)? {
+        subject_checksums.insert(relative, digest);
+    }
+    for (relative, digest) in prepare_qualification_release_artifacts(&commit)? {
         subject_checksums.insert(relative, digest);
     }
     let cyclone_dx = serde_json::to_vec_pretty(&json!({
@@ -420,7 +497,6 @@ pub(crate) fn release_evidence() -> Result<(), String> {
 }
 
 fn validate_release_contract_sources() -> Result<(), String> {
-    validate_checked_in_assurance_candidate()?;
     let schema: Value = serde_json::from_slice(
         &fs::read(root().join("release/release-manifest.schema.json"))
             .map_err(|error| format!("could not read release-manifest schema: {error}"))?,
@@ -461,11 +537,10 @@ fn validate_release_subject_catalogue(catalogue: &ReleaseSubjectCatalogue) -> Re
         || catalogue.repository != RELEASE_REPOSITORY
         || catalogue.first_rc_tag != "auths-v1.0.0-rc.1"
         || catalogue.policy.trim().is_empty()
-        || catalogue.production_candidate_manifest != "release/open-production-candidate.json"
-        || catalogue.production_candidate_schema
-            != "product/spec/v1/open-production-candidate.schema.json"
-        || catalogue.assurance_manifest
-            != "release/assurance/open-production-candidate-1/manifest.json"
+        || catalogue.qualification_index != "release/qualification/v1/index.json"
+        || catalogue.qualification_trust_registry != "release/qualification/v1/trust-keys.json"
+        || catalogue.qualification_closure_manifest
+            != "release/qualification/v1/closure-manifest.json"
         || catalogue.assurance_candidate_schema != "product/spec/v1/assurance-candidate.schema.json"
         || catalogue.assurance_manifest_schema != "product/spec/v1/assurance-manifest.schema.json"
         || catalogue.assurance_record_schema != "product/spec/v1/assurance-record.schema.json"
@@ -560,6 +635,537 @@ fn insert_single_artifact(
     let relative = path_text(relative)?;
     checksums.insert(relative.to_owned(), sha256_file(&matches[0])?);
     Ok(())
+}
+
+fn single_artifact_path(
+    relative_directory: &str,
+    extension: &str,
+    label: &str,
+) -> Result<PathBuf, String> {
+    let directory = root().join(relative_directory);
+    let mut matches = fs::read_dir(&directory)
+        .map_err(|error| {
+            format!(
+                "could not list {label} directory {}: {error}",
+                directory.display()
+            )
+        })?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("could not enumerate {label} directory: {error}"))?
+        .into_iter()
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().and_then(|value| value.to_str()) == Some(extension))
+        .collect::<Vec<_>>();
+    matches.sort();
+    if matches.len() != 1 {
+        return Err(format!(
+            "expected exactly one {label} in {}, found {}",
+            directory.display(),
+            matches.len()
+        ));
+    }
+    Ok(matches.remove(0))
+}
+
+fn build_qualification_release_binaries() -> Result<(), String> {
+    cargo(&[
+        "build",
+        "--locked",
+        "--release",
+        "-p",
+        "auths-node",
+        "--no-default-features",
+        "--bin",
+        "auths",
+    ])?;
+    cargo(&[
+        "build",
+        "--locked",
+        "--release",
+        "-p",
+        "auths-stripe",
+        "--no-default-features",
+        "--bin",
+        "stripe-refund-evidence-reader",
+    ])?;
+    cargo(&[
+        "build",
+        "--locked",
+        "--release",
+        "-p",
+        "auths-node",
+        "--no-default-features",
+        "--features",
+        "qualification-failpoints",
+        "--bin",
+        "auths-qualification-agent",
+    ])?;
+    cargo(&[
+        "build",
+        "--locked",
+        "--release",
+        "-p",
+        "auths-node",
+        "--features",
+        "testkit-agent",
+        "--bin",
+        "auths-testkit-agent",
+    ])
+}
+
+fn prepare_qualification_release_artifacts(
+    commit: &str,
+) -> Result<BTreeMap<String, String>, String> {
+    validate_full_commit(commit)?;
+    let timestamp = commit_timestamp_epoch(commit)?;
+    let directory = root().join("target/qualification-release");
+    if directory.exists() {
+        fs::remove_dir_all(&directory)
+            .map_err(|error| format!("could not clear qualification release directory: {error}"))?;
+    }
+    for role in QUALIFICATION_ARTIFACT_ROLES {
+        fs::create_dir_all(directory.join(role)).map_err(|error| {
+            format!("could not create qualification role directory {role}: {error}")
+        })?;
+    }
+
+    let production_archive = directory.join("production-agent/auths-production-agent.tar.zst");
+    let production_files = BTreeMap::from([
+        ("target/release/auths".to_owned(), 0o755),
+        (
+            "target/release/stripe-refund-evidence-reader".to_owned(),
+            0o755,
+        ),
+    ]);
+    validate_closed_release_files(&production_files)?;
+    write_deterministic_archive(
+        &production_archive,
+        "auths-production-agent",
+        &production_files,
+        timestamp,
+    )?;
+
+    let qualification_archive =
+        directory.join("qualification-agent/auths-qualification-agent.tar.zst");
+    let qualification_files = BTreeMap::from([
+        ("target/release/auths-qualification-agent".to_owned(), 0o755),
+        ("target/release/auths-testkit-agent".to_owned(), 0o755),
+    ]);
+    validate_closed_release_files(&qualification_files)?;
+    write_deterministic_archive(
+        &qualification_archive,
+        "auths-qualification-agent",
+        &qualification_files,
+        timestamp,
+    )?;
+
+    let wheel = single_artifact_path("target/python-wheels", "whl", "Python SDK wheel")?;
+    let python_wheel = directory.join("python-wheel/auths-python-wheel.whl");
+    copy_bounded_release_member(&wheel, &python_wheel, "Python wheel")?;
+    let python_native = directory.join("python-native/auths-python-native.so");
+    extract_python_native(&wheel, &python_native)?;
+    let mut generated_profile_archives = BTreeMap::new();
+    for domain in ["opentofu", "postgresql", "stripe"] {
+        let role = format!("python-profile-{domain}");
+        let member = format!("auths-python-profile-{domain}.tar.zst");
+        let archive = directory.join(&role).join(&member);
+        let source_root = format!("bindings/generated/{domain}/python");
+        let mut files = BTreeMap::new();
+        for relative in [
+            "pyproject.toml",
+            "README.md",
+            &format!("src/auths_profiles/{domain}/__init__.py"),
+            &format!("src/auths_profiles/{domain}/generated.py"),
+            &format!("src/auths_profiles/{domain}/py.typed"),
+        ] {
+            let path = format!("{source_root}/{relative}");
+            let metadata = fs::symlink_metadata(root().join(&path)).map_err(|error| {
+                format!("could not inspect generated profile member {path}: {error}")
+            })?;
+            if !metadata.is_file() || metadata.file_type().is_symlink() {
+                return Err(format!("generated profile member is not regular: {path}"));
+            }
+            files.insert(path, 0o644);
+        }
+        write_deterministic_archive(
+            &archive,
+            &format!("auths-profile-{domain}"),
+            &files,
+            timestamp,
+        )?;
+        generated_profile_archives.insert(role, (member, archive));
+    }
+    let typescript_package_source =
+        single_artifact_path("target/npm-package", "tgz", "npm SDK archive")?;
+    let typescript_package = directory.join("typescript-package/auths-typescript-package.tgz");
+    copy_bounded_release_member(
+        &typescript_package_source,
+        &typescript_package,
+        "TypeScript package",
+    )?;
+    let typescript_native = directory.join("typescript-native/auths-typescript-native.wasm");
+    extract_typescript_native(&typescript_package_source, &typescript_native)?;
+
+    let production_rows = qualification_surface_rows(&production_files)?;
+    let qualification_rows = qualification_surface_rows(&qualification_files)?;
+    let policy_bytes = fs::read(
+        root().join("product/qualification/v1/release-surface-policy.json"),
+    )
+    .map_err(|error| format!("could not read qualification release-surface policy: {error}"))?;
+    let policy: Value = serde_json::from_slice(&policy_bytes)
+        .map_err(|error| format!("qualification release-surface policy is invalid: {error}"))?;
+    if serde_json_canonicalizer::to_vec(&policy).map_err(|error| error.to_string())? != policy_bytes
+    {
+        return Err("qualification release-surface policy is not canonical JSON".into());
+    }
+    let surface = json!({
+        "schema": QUALIFICATION_RELEASE_SURFACE_SCHEMA,
+        "candidateRevision": commit,
+        "policySha256": hex::encode(Sha256::digest(&policy_bytes)),
+        "productionFeatureSet": policy["productionFeatureSet"],
+        "qualificationFeatureSet": policy["qualificationFeatureSet"],
+        "productionMembers": production_rows,
+        "qualificationMembers": qualification_rows,
+        "reviewedDifference": policy["reviewedDifference"]
+    });
+    let surface_bytes = serde_json_canonicalizer::to_vec(&surface)
+        .map_err(|error| format!("could not canonicalize qualification surface: {error}"))?;
+    let surface_path = directory.join("qualification-surface.json");
+    fs::write(&surface_path, &surface_bytes)
+        .map_err(|error| format!("could not write qualification surface: {error}"))?;
+
+    let members = [
+        (
+            "production-agent",
+            "auths-production-agent.tar.zst",
+            production_archive,
+        ),
+        ("python-native", "auths-python-native.so", python_native),
+        (
+            "python-profile-opentofu",
+            generated_profile_archives["python-profile-opentofu"]
+                .0
+                .as_str(),
+            generated_profile_archives["python-profile-opentofu"]
+                .1
+                .clone(),
+        ),
+        (
+            "python-profile-postgresql",
+            generated_profile_archives["python-profile-postgresql"]
+                .0
+                .as_str(),
+            generated_profile_archives["python-profile-postgresql"]
+                .1
+                .clone(),
+        ),
+        (
+            "python-profile-stripe",
+            generated_profile_archives["python-profile-stripe"]
+                .0
+                .as_str(),
+            generated_profile_archives["python-profile-stripe"]
+                .1
+                .clone(),
+        ),
+        ("python-wheel", "auths-python-wheel.whl", python_wheel),
+        (
+            "qualification-agent",
+            "auths-qualification-agent.tar.zst",
+            qualification_archive,
+        ),
+        (
+            "typescript-native",
+            "auths-typescript-native.wasm",
+            typescript_native,
+        ),
+        (
+            "typescript-package",
+            "auths-typescript-package.tgz",
+            typescript_package,
+        ),
+    ];
+    let mut member_rows = Vec::with_capacity(members.len());
+    let mut checksums = BTreeMap::new();
+    for (role, member_path, path) in members {
+        let metadata = fs::symlink_metadata(&path)
+            .map_err(|error| format!("could not inspect {role} artifact: {error}"))?;
+        if !metadata.is_file()
+            || metadata.file_type().is_symlink()
+            || metadata.len() == 0
+            || metadata.len() > 536_870_912
+        {
+            return Err(format!(
+                "invalid qualification release member: {}",
+                path.display()
+            ));
+        }
+        let relative = path.strip_prefix(root()).map_err(|_| {
+            format!(
+                "qualification member escaped repository: {}",
+                path.display()
+            )
+        })?;
+        let relative = path_text(relative)?.replace('\\', "/");
+        let digest = sha256_file(&path)?;
+        checksums.insert(relative, digest.clone());
+        member_rows.push(json!({
+            "role": role,
+            "memberPath": member_path,
+            "memberSha256": digest,
+            "bytes": metadata.len()
+        }));
+    }
+    let member_manifest = json!({
+        "schema": QUALIFICATION_RELEASE_MEMBERS_SCHEMA,
+        "candidateRevision": commit,
+        "qualificationSurfaceSha256": hex::encode(Sha256::digest(&surface_bytes)),
+        "artifacts": member_rows
+    });
+    let member_manifest_bytes = serde_json_canonicalizer::to_vec(&member_manifest)
+        .map_err(|error| format!("could not canonicalize qualification members: {error}"))?;
+    let member_manifest_path = directory.join("members.json");
+    fs::write(&member_manifest_path, &member_manifest_bytes)
+        .map_err(|error| format!("could not write qualification member manifest: {error}"))?;
+    verify_qualification_release_surface(&surface_path, &member_manifest_path, &directory, commit)?;
+    checksums.insert(
+        "target/qualification-release/qualification-surface.json".to_owned(),
+        sha256_file(&surface_path)?,
+    );
+    checksums.insert(
+        "target/qualification-release/members.json".to_owned(),
+        sha256_file(&member_manifest_path)?,
+    );
+    Ok(checksums)
+}
+
+fn validate_closed_release_files(files: &BTreeMap<String, u32>) -> Result<(), String> {
+    for (relative, mode) in files {
+        validate_safe_relative_path(relative)?;
+        if *mode != 0o755 {
+            return Err(format!("qualification executable mode drifted: {relative}"));
+        }
+        let metadata = fs::symlink_metadata(root().join(relative))
+            .map_err(|error| format!("missing qualification executable {relative}: {error}"))?;
+        if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len() == 0 {
+            return Err(format!("invalid qualification executable: {relative}"));
+        }
+    }
+    Ok(())
+}
+
+fn qualification_surface_rows(files: &BTreeMap<String, u32>) -> Result<Vec<Value>, String> {
+    files
+        .iter()
+        .map(|(path, mode)| {
+            let metadata = fs::metadata(root().join(path)).map_err(|error| {
+                format!("could not inspect qualification surface {path}: {error}")
+            })?;
+            Ok(json!({
+                "path": path,
+                "sha256": sha256_file(&root().join(path))?,
+                "bytes": metadata.len(),
+                "mode": format!("{mode:04o}")
+            }))
+        })
+        .collect()
+}
+
+fn copy_bounded_release_member(
+    source: &Path,
+    destination: &Path,
+    label: &str,
+) -> Result<(), String> {
+    let metadata = fs::symlink_metadata(source)
+        .map_err(|error| format!("could not inspect {label} {}: {error}", source.display()))?;
+    if !metadata.is_file()
+        || metadata.file_type().is_symlink()
+        || metadata.len() == 0
+        || metadata.len() > 536_870_912
+    {
+        return Err(format!("invalid {label}: {}", source.display()));
+    }
+    fs::copy(source, destination).map_err(|error| format!("could not stage {label}: {error}"))?;
+    Ok(())
+}
+
+fn extract_python_native(wheel: &Path, destination: &Path) -> Result<(), String> {
+    let script = r#"import re, stat, sys, zipfile
+wheel = sys.argv[1]
+with zipfile.ZipFile(wheel, 'r') as archive:
+    matches = [item for item in archive.infolist()
+               if re.fullmatch(r'auths/_native(?:\.[A-Za-z0-9_]+)*\.(?:so|pyd|dylib)', item.filename)]
+    if len(matches) != 1:
+        raise SystemExit(f'expected one auths native member, found {len(matches)}')
+    item = matches[0]
+    mode = (item.external_attr >> 16) & 0o170000
+    if item.file_size < 1 or item.file_size > 536870912 or mode not in (0, stat.S_IFREG):
+        raise SystemExit('invalid auths native wheel member')
+    sys.stdout.buffer.write(archive.read(item))
+"#;
+    let output = Command::new("python3")
+        .args(["-c", script])
+        .arg(wheel)
+        .current_dir(root())
+        .output()
+        .map_err(|error| format!("could not extract Python native artifact: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "could not extract Python native artifact: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    if output.stdout.is_empty() || output.stdout.len() > 536_870_912 {
+        return Err("Python native artifact is outside release bounds".to_owned());
+    }
+    fs::write(destination, output.stdout)
+        .map_err(|error| format!("could not stage Python native artifact: {error}"))
+}
+
+fn extract_typescript_native(package: &Path, destination: &Path) -> Result<(), String> {
+    let script = r#"import sys, tarfile
+package = sys.argv[1]
+expected = 'package/wasm/auths_proof_wasm_bg.wasm'
+with tarfile.open(package, 'r:gz') as archive:
+    matches = [item for item in archive.getmembers() if item.name == expected]
+    if len(matches) != 1:
+        raise SystemExit(f'expected one TypeScript native member, found {len(matches)}')
+    item = matches[0]
+    if not item.isfile() or item.size < 1 or item.size > 536870912:
+        raise SystemExit('invalid TypeScript native package member')
+    source = archive.extractfile(item)
+    if source is None:
+        raise SystemExit('TypeScript native package member is unreadable')
+    sys.stdout.buffer.write(source.read())
+"#;
+    let output = Command::new("python3")
+        .args(["-c", script])
+        .arg(package)
+        .current_dir(root())
+        .output()
+        .map_err(|error| format!("could not extract TypeScript native artifact: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "could not extract TypeScript native artifact: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    if output.stdout.is_empty() || output.stdout.len() > 536_870_912 {
+        return Err("TypeScript native artifact is outside release bounds".to_owned());
+    }
+    fs::write(destination, output.stdout)
+        .map_err(|error| format!("could not stage TypeScript native artifact: {error}"))
+}
+
+pub(crate) fn verify_qualification_release_surface(
+    surface_path: &Path,
+    members_path: &Path,
+    artifact_root: &Path,
+    expected_commit: &str,
+) -> Result<(), String> {
+    auths_qualification_supervisor::verify_release_surface(
+        surface_path,
+        members_path,
+        artifact_root,
+        &root(),
+        expected_commit,
+    )
+}
+
+pub(crate) fn verify_qualification_release_build_files(
+    release_build_path: &Path,
+    surface_path: &Path,
+    members_path: &Path,
+    artifact_root: &Path,
+    expected_commit: &str,
+) -> Result<(), String> {
+    auths_qualification_supervisor::verify_release_build(
+        release_build_path,
+        surface_path,
+        members_path,
+        artifact_root,
+        &root(),
+        expected_commit,
+    )
+}
+
+#[cfg(test)]
+fn read_exact_agent_archive_with_limit(
+    path: &Path,
+    prefix: &str,
+    expected: &[QualificationReleaseSurfaceMember],
+    maximum_expanded_bytes: u64,
+) -> Result<BTreeMap<String, Vec<u8>>, String> {
+    let file = fs::File::open(path)
+        .map_err(|error| format!("could not open qualification agent archive: {error}"))?;
+    let decoder = zstd::Decoder::new(file)
+        .map_err(|error| format!("could not decode qualification agent archive: {error}"))?;
+    let mut archive = tar::Archive::new(decoder);
+    let mut contents = BTreeMap::new();
+    let mut expanded_bytes = 0_u64;
+    for entry in archive
+        .entries()
+        .map_err(|error| format!("could not enumerate qualification agent archive: {error}"))?
+    {
+        let entry =
+            entry.map_err(|error| format!("could not read qualification agent entry: {error}"))?;
+        if !entry.header().entry_type().is_file() {
+            return Err("qualification agent archive contains a non-file entry".to_owned());
+        }
+        let encoded = entry
+            .path()
+            .map_err(|error| format!("qualification agent archive path is invalid: {error}"))?;
+        let relative = encoded
+            .strip_prefix(prefix)
+            .map_err(|_| "qualification agent archive prefix drifted".to_owned())?;
+        let relative = path_text(relative)?.replace('\\', "/");
+        validate_safe_relative_path(&relative)?;
+        let projected = expected
+            .iter()
+            .find(|member| member.path == relative)
+            .ok_or_else(|| {
+                format!("qualification agent archive has an extra member: {relative}")
+            })?;
+        if entry
+            .header()
+            .mode()
+            .map_err(|error| format!("archive mode is invalid: {error}"))?
+            != 0o755
+            || entry.size() != projected.bytes
+            || entry.size() > maximum_expanded_bytes
+        {
+            return Err(format!(
+                "qualification agent archive metadata drifted: {relative}"
+            ));
+        }
+        expanded_bytes = expanded_bytes
+            .checked_add(entry.size())
+            .ok_or("qualification agent archive expanded-byte total overflowed")?;
+        if expanded_bytes > maximum_expanded_bytes {
+            return Err(
+                "qualification agent archive exceeds the aggregate expanded-byte bound".to_owned(),
+            );
+        }
+        let capacity = usize::try_from(entry.size())
+            .map_err(|_| format!("qualification archive member is too large: {relative}"))?;
+        let mut bytes = Vec::with_capacity(capacity);
+        entry
+            .take(projected.bytes.saturating_add(1))
+            .read_to_end(&mut bytes)
+            .map_err(|error| format!("could not read qualification archive member: {error}"))?;
+        if bytes.len() != capacity
+            || hex::encode(Sha256::digest(&bytes)) != projected.sha256
+            || contents.insert(relative.clone(), bytes).is_some()
+        {
+            return Err(format!(
+                "qualification archive member digest/identity drifted: {relative}"
+            ));
+        }
+    }
+    if contents.len() != expected.len() {
+        return Err("qualification agent archive omitted a projected member".to_owned());
+    }
+    Ok(contents)
 }
 
 fn release_subject_record(name: &str, sha256: &str) -> Result<Value, String> {
@@ -1441,11 +2047,12 @@ pub(crate) fn validate_release_manifest_value(manifest: &Value) -> Result<(), St
     )?;
     validate_digest_reference(&manifest["semanticFreeze"])?;
     let builder = &manifest["builder"];
-    if builder["workflow"].as_str().is_none_or(str::is_empty)
+    if builder["workflow"] != "auths-dev/auths-proof/.github/workflows/release-builder.yml"
         || builder["workflowDigest"].as_str().is_none_or(str::is_empty)
-        || builder["environment"].as_str().is_none_or(str::is_empty)
-        || builder["oidcIssuer"].as_str().is_none_or(str::is_empty)
-        || builder["oidcSubject"].as_str().is_none_or(str::is_empty)
+        || !builder["environment"].is_null()
+        || builder["oidcIssuer"] != "https://token.actions.githubusercontent.com"
+        || builder["oidcSubject"]
+            != "repo:auths-dev@260513770/auths-proof@1310728509:ref:refs/heads/main"
         || builder["slsaTarget"] != "SLSA 1.2 Build Level 3"
         || builder["slsaAssessmentStatus"] != "passed"
     {
@@ -1602,6 +2209,351 @@ fn validate_release_candidate_tag(tag: &str) -> Result<(), String> {
 mod tests {
     use super::*;
 
+    const QUALIFICATION_TEST_COMMIT: &str = "1414141414141414141414141414141414141414";
+
+    struct QualificationReleaseFixture {
+        _temporary: tempfile::TempDir,
+        artifact_root: PathBuf,
+        surface_path: PathBuf,
+        members_path: PathBuf,
+        surface: QualificationReleaseSurface,
+        members: QualificationReleaseMembers,
+    }
+
+    impl QualificationReleaseFixture {
+        fn new() -> Self {
+            let temporary = tempfile::tempdir().expect("qualification fixture directory");
+            let artifact_root = temporary.path().join("artifacts");
+            for role in QUALIFICATION_ARTIFACT_ROLES {
+                fs::create_dir_all(artifact_root.join(role)).expect("qualification role directory");
+            }
+            let production_entries = vec![
+                (
+                    "target/release/auths".to_owned(),
+                    b"local-agent-production-binary".to_vec(),
+                ),
+                (
+                    "target/release/stripe-refund-evidence-reader".to_owned(),
+                    b"protected-stripe-reader".to_vec(),
+                ),
+            ];
+            let qualification_entries = qualification_fixture_entries();
+            let production_archive =
+                artifact_root.join("production-agent/auths-production-agent.tar.zst");
+            write_test_archive(
+                &production_archive,
+                "auths-production-agent",
+                &production_entries,
+            );
+            let qualification_archive =
+                artifact_root.join("qualification-agent/auths-qualification-agent.tar.zst");
+            write_test_archive(
+                &qualification_archive,
+                "auths-qualification-agent",
+                &qualification_entries,
+            );
+            for (role, member, bytes) in [
+                (
+                    "python-native",
+                    "auths-python-native.so",
+                    b"python-native".as_slice(),
+                ),
+                (
+                    "python-profile-opentofu",
+                    "auths-python-profile-opentofu.tar.zst",
+                    b"python-profile-opentofu".as_slice(),
+                ),
+                (
+                    "python-profile-postgresql",
+                    "auths-python-profile-postgresql.tar.zst",
+                    b"python-profile-postgresql".as_slice(),
+                ),
+                (
+                    "python-profile-stripe",
+                    "auths-python-profile-stripe.tar.zst",
+                    b"python-profile-stripe".as_slice(),
+                ),
+                (
+                    "python-wheel",
+                    "auths-python-wheel.whl",
+                    b"python-wheel".as_slice(),
+                ),
+                (
+                    "typescript-native",
+                    "auths-typescript-native.wasm",
+                    b"typescript-native".as_slice(),
+                ),
+                (
+                    "typescript-package",
+                    "auths-typescript-package.tgz",
+                    b"typescript-package".as_slice(),
+                ),
+            ] {
+                fs::write(artifact_root.join(role).join(member), bytes)
+                    .expect("write qualification fixture member");
+            }
+            let surface = QualificationReleaseSurface {
+                schema: QUALIFICATION_RELEASE_SURFACE_SCHEMA.to_owned(),
+                candidate_revision: QUALIFICATION_TEST_COMMIT.to_owned(),
+                policy_sha256: hex::encode(Sha256::digest(include_bytes!(
+                    "../../product/qualification/v1/release-surface-policy.json"
+                ))),
+                production_feature_set: vec![
+                    "auths-node:no-default-features".to_owned(),
+                    "auths-stripe:no-default-features".to_owned(),
+                ],
+                qualification_feature_set: vec![
+                    "auths-node:qualification-failpoints".to_owned(),
+                    "auths-node:testkit-agent".to_owned(),
+                ],
+                production_members: test_surface_members(&production_entries),
+                qualification_members: test_surface_members(&qualification_entries),
+                reviewed_difference: vec![
+                    "the production bundle contains only the local agent and separately credentialed Stripe evidence reader".to_owned(),
+                    "the qualification bundle contains only the exact-source unqualified five-profile agent and isolated synthetic testkit agent".to_owned(),
+                    "protected qualification tools are independently built from the attester revision and are absent from every candidate archive".to_owned(),
+                    "testkit, qualification-only profile routes, and qualification crash hooks are absent from the production bundle".to_owned(),
+                ],
+            };
+            let surface_path = temporary.path().join("qualification-surface.json");
+            write_test_canonical(&surface_path, &surface);
+            let artifacts = [
+                ("production-agent", "auths-production-agent.tar.zst"),
+                ("python-native", "auths-python-native.so"),
+                (
+                    "python-profile-opentofu",
+                    "auths-python-profile-opentofu.tar.zst",
+                ),
+                (
+                    "python-profile-postgresql",
+                    "auths-python-profile-postgresql.tar.zst",
+                ),
+                (
+                    "python-profile-stripe",
+                    "auths-python-profile-stripe.tar.zst",
+                ),
+                ("python-wheel", "auths-python-wheel.whl"),
+                ("qualification-agent", "auths-qualification-agent.tar.zst"),
+                ("typescript-native", "auths-typescript-native.wasm"),
+                ("typescript-package", "auths-typescript-package.tgz"),
+            ]
+            .into_iter()
+            .map(|(role, member_path)| {
+                let path = artifact_root.join(role).join(member_path);
+                QualificationReleaseMember {
+                    role: role.to_owned(),
+                    member_path: member_path.to_owned(),
+                    member_sha256: sha256_file(&path).expect("fixture member digest"),
+                    bytes: fs::metadata(path).expect("fixture member metadata").len(),
+                }
+            })
+            .collect();
+            let members = QualificationReleaseMembers {
+                schema: QUALIFICATION_RELEASE_MEMBERS_SCHEMA.to_owned(),
+                candidate_revision: QUALIFICATION_TEST_COMMIT.to_owned(),
+                qualification_surface_sha256: sha256_file(&surface_path)
+                    .expect("fixture surface digest"),
+                artifacts,
+            };
+            let members_path = temporary.path().join("members.json");
+            write_test_canonical(&members_path, &members);
+            Self {
+                _temporary: temporary,
+                artifact_root,
+                surface_path,
+                members_path,
+                surface,
+                members,
+            }
+        }
+
+        fn verify(&self) -> Result<(), String> {
+            verify_qualification_release_surface(
+                &self.surface_path,
+                &self.members_path,
+                &self.artifact_root,
+                QUALIFICATION_TEST_COMMIT,
+            )
+        }
+
+        fn write_surface(&self, surface: &QualificationReleaseSurface) {
+            write_test_canonical(&self.surface_path, surface);
+        }
+
+        fn write_members(&self, members: &QualificationReleaseMembers) {
+            write_test_canonical(&self.members_path, members);
+        }
+
+        fn replace_production_archive(&mut self, entries: &[(String, Vec<u8>)]) {
+            let path = self
+                .artifact_root
+                .join("production-agent/auths-production-agent.tar.zst");
+            write_test_archive(&path, "auths-production-agent", entries);
+            self.surface.production_members = test_surface_members(entries);
+            self.write_surface(&self.surface);
+            self.members.qualification_surface_sha256 =
+                sha256_file(&self.surface_path).expect("mutated surface digest");
+            self.members.artifacts[0].member_sha256 =
+                sha256_file(&path).expect("mutated production archive digest");
+            self.members.artifacts[0].bytes = fs::metadata(path)
+                .expect("mutated production archive")
+                .len();
+            self.write_members(&self.members);
+        }
+
+        fn replace_qualification_archive(&mut self, entries: &[(String, Vec<u8>)]) {
+            let path = self
+                .artifact_root
+                .join("qualification-agent/auths-qualification-agent.tar.zst");
+            write_test_archive(&path, "auths-qualification-agent", entries);
+            self.surface.qualification_members = test_surface_members(entries);
+            self.write_surface(&self.surface);
+            self.members.qualification_surface_sha256 =
+                sha256_file(&self.surface_path).expect("mutated surface digest");
+            self.members.artifacts[3].member_sha256 =
+                sha256_file(&path).expect("mutated qualification archive digest");
+            self.members.artifacts[3].bytes = fs::metadata(path)
+                .expect("mutated qualification archive")
+                .len();
+            self.write_members(&self.members);
+        }
+
+        fn refresh_production_archive_projection(&mut self) {
+            let path = self
+                .artifact_root
+                .join("production-agent/auths-production-agent.tar.zst");
+            self.members.artifacts[0].member_sha256 =
+                sha256_file(&path).expect("mutated production archive digest");
+            self.members.artifacts[0].bytes = fs::metadata(path)
+                .expect("mutated production archive")
+                .len();
+            self.write_members(&self.members);
+        }
+    }
+
+    fn test_surface_members(
+        entries: &[(String, Vec<u8>)],
+    ) -> Vec<QualificationReleaseSurfaceMember> {
+        entries
+            .iter()
+            .map(|(path, bytes)| QualificationReleaseSurfaceMember {
+                path: path.clone(),
+                sha256: hex::encode(Sha256::digest(bytes)),
+                bytes: u64::try_from(bytes.len()).expect("fixture byte length"),
+                mode: "0755".to_owned(),
+            })
+            .collect()
+    }
+
+    fn qualification_fixture_entries() -> Vec<(String, Vec<u8>)> {
+        [
+            "target/release/auths-qualification-agent",
+            "target/release/auths-testkit-agent",
+        ]
+        .into_iter()
+        .map(|path| {
+            let bytes = if path == "target/release/auths-qualification-agent" {
+                [
+                    "fixture:auths-qualification-agent",
+                    "qualification-failpoint",
+                    "qualification-after-decision-fd",
+                    "auths.qualification-durable-decision-ack/1",
+                    "qualification failpoint selection is incomplete or unsupported",
+                ]
+                .join("\0")
+                .into_bytes()
+            } else {
+                format!("fixture:{path}").into_bytes()
+            };
+            (path.to_owned(), bytes)
+        })
+        .collect()
+    }
+
+    fn write_test_canonical(path: &Path, value: &impl Serialize) {
+        let bytes = serde_json_canonicalizer::to_vec(value).expect("canonical fixture JSON");
+        fs::write(path, bytes).expect("write canonical fixture JSON");
+    }
+
+    fn write_test_archive(path: &Path, prefix: &str, entries: &[(String, Vec<u8>)]) {
+        let file = fs::File::create(path).expect("create fixture archive");
+        let encoder = zstd::Encoder::new(file, 1).expect("create fixture encoder");
+        let mut archive = tar::Builder::new(encoder);
+        for (relative, bytes) in entries {
+            append_test_archive_entry(
+                &mut archive,
+                &format!("{prefix}/{relative}"),
+                bytes,
+                tar::EntryType::Regular,
+                false,
+            );
+        }
+        let encoder = archive.into_inner().expect("finish fixture tar");
+        encoder.finish().expect("finish fixture zstd");
+    }
+
+    fn write_hostile_test_archive(path: &Path, entries: &[(&str, &[u8], tar::EntryType, bool)]) {
+        let file = fs::File::create(path).expect("create hostile fixture archive");
+        let encoder = zstd::Encoder::new(file, 1).expect("create hostile fixture encoder");
+        let mut archive = tar::Builder::new(encoder);
+        for (path, bytes, kind, raw_path) in entries {
+            append_test_archive_entry(&mut archive, path, bytes, *kind, *raw_path);
+        }
+        let encoder = archive.into_inner().expect("finish hostile fixture tar");
+        encoder.finish().expect("finish hostile fixture zstd");
+    }
+
+    fn append_test_archive_entry<W: std::io::Write>(
+        archive: &mut tar::Builder<W>,
+        path: &str,
+        bytes: &[u8],
+        kind: tar::EntryType,
+        raw_path: bool,
+    ) {
+        let mut header = tar::Header::new_ustar();
+        if raw_path {
+            let encoded = path.as_bytes();
+            assert!(
+                encoded.len() < 100,
+                "raw hostile path fits UStar name field"
+            );
+            header.as_mut_bytes()[..encoded.len()].copy_from_slice(encoded);
+        } else {
+            header.set_path(path).expect("fixture archive path");
+        }
+        header.set_size(u64::try_from(bytes.len()).expect("fixture archive length"));
+        header.set_mode(0o755);
+        header.set_uid(0);
+        header.set_gid(0);
+        header.set_mtime(0);
+        header.set_entry_type(kind);
+        header.set_cksum();
+        archive
+            .append(&header, std::io::Cursor::new(bytes))
+            .expect("append fixture archive entry");
+    }
+
+    fn qualification_release_build_value(fixture: &QualificationReleaseFixture) -> Value {
+        json!({
+            "provider": "github-actions",
+            "repositoryId": "1310728509",
+            "workflowPath": ".github/workflows/release-builder.yml",
+            "workflowRevision": QUALIFICATION_TEST_COMMIT,
+            "runId": "1234",
+            "runAttempt": 1,
+            "runLabel": "official",
+            "qualificationSurfaceSha256": sha256_file(&fixture.surface_path).expect("surface digest"),
+            "artifacts": fixture.members.artifacts.iter().enumerate().map(|(index, member)| json!({
+                "role": member.role,
+                "artifactId": format!("{}", 1000 + index),
+                "uploadedArchiveSha256": format!("{:064x}", index + 1),
+                "memberPath": member.member_path,
+                "memberSha256": member.member_sha256,
+                "bytes": member.bytes,
+            })).collect::<Vec<_>>(),
+        })
+    }
+
     fn digest_reference(path: &str) -> Value {
         json!({ "path": path, "sha256": "a".repeat(64) })
     }
@@ -1621,9 +2573,9 @@ mod tests {
             "builder": {
                 "workflow": "auths-dev/auths-proof/.github/workflows/release-builder.yml",
                 "workflowDigest": "b".repeat(40),
-                "environment": "release-candidate",
+                "environment": null,
                 "oidcIssuer": "https://token.actions.githubusercontent.com",
-                "oidcSubject": "repo:auths-dev@260513770/auths-proof@1310728509:environment:release-candidate",
+                "oidcSubject": "repo:auths-dev@260513770/auths-proof@1310728509:ref:refs/heads/main",
                 "slsaTarget": "SLSA 1.2 Build Level 3",
                 "slsaAssessmentStatus": "passed",
                 "slsaAssessment": digest_reference("target/release-evidence/slsa-build-level-3-assessment.json"),
@@ -1818,6 +2770,689 @@ mod tests {
         )
         .expect_err("promotion rebuild must fail closed");
         assert!(error.contains("forbidden build"));
+    }
+
+    #[test]
+    fn qualification_release_verifier_accepts_exact_nine_role_fixture() {
+        let fixture = QualificationReleaseFixture::new();
+        fixture.verify().expect("exact nine-role release fixture");
+
+        let release_build_path = fixture._temporary.path().join("release-build.json");
+        write_test_canonical(
+            &release_build_path,
+            &qualification_release_build_value(&fixture),
+        );
+        verify_qualification_release_build_files(
+            &release_build_path,
+            &fixture.surface_path,
+            &fixture.members_path,
+            &fixture.artifact_root,
+            QUALIFICATION_TEST_COMMIT,
+        )
+        .expect("release-build projection binds the exact nine members");
+    }
+
+    #[test]
+    fn qualification_release_verifier_binds_hosted_identity_and_retention() {
+        let fixture = QualificationReleaseFixture::new();
+        let release_build = qualification_release_build_value(&fixture);
+        let release_build_path = fixture._temporary.path().join("release-build.json");
+        write_test_canonical(&release_build_path, &release_build);
+        let hosted_path = fixture._temporary.path().join("hosted.json");
+        let hosted_artifacts = release_build["artifacts"]
+            .as_array()
+            .expect("release artifacts")
+            .iter()
+            .map(|artifact| {
+                json!({
+                    "role": artifact["role"],
+                    "name": format!("auths-qualification-{}-official-{}", QUALIFICATION_TEST_COMMIT, artifact["role"].as_str().expect("role")),
+                    "artifactId": artifact["artifactId"],
+                    "uploadedArchiveSha256": artifact["uploadedArchiveSha256"],
+                    "sizeInBytes": 1024,
+                    "createdAtUnixSeconds": 1,
+                    "expiresAtUnixSeconds": 7_776_001,
+                    "expired": false,
+                })
+            })
+            .collect::<Vec<_>>();
+        let hosted = json!({
+            "schema": "auths.qualification-release-hosted-metadata/1",
+            "checkedAtUnixSeconds": 100,
+            "repositoryId": release_build["repositoryId"],
+            "workflowPath": release_build["workflowPath"],
+            "workflowRevision": release_build["workflowRevision"],
+            "runId": release_build["runId"],
+            "runAttempt": release_build["runAttempt"],
+            "retentionDays": 90,
+            "projection": {
+                "role": "release-build",
+                "name": format!("auths-qualification-{}-official-release-build", QUALIFICATION_TEST_COMMIT),
+                "artifactId": "2000",
+                "uploadedArchiveSha256": "d".repeat(64),
+                "sizeInBytes": 1024,
+                "createdAtUnixSeconds": 1,
+                "expiresAtUnixSeconds": 7_776_001,
+                "expired": false,
+            },
+            "artifacts": hosted_artifacts,
+        });
+        write_test_canonical(&hosted_path, &hosted);
+        let provenance_path = fixture
+            ._temporary
+            .path()
+            .join("provenance-verification.json");
+        write_test_canonical(
+            &provenance_path,
+            &json!({
+                "schema": "auths.qualification-release-provenance-verification/1",
+                "verificationTool": "gh-attestation-verify",
+                "repositoryId": release_build["repositoryId"],
+                "sourceRepositoryUri": "https://github.com/auths-dev/auths-proof",
+                "sourceRepositoryDigest": QUALIFICATION_TEST_COMMIT,
+                "sourceRepositoryRef": "refs/heads/main",
+                "signerWorkflowUri": "https://github.com/auths-dev/auths-proof/.github/workflows/release-builder.yml@refs/heads/main",
+                "signerWorkflowDigest": QUALIFICATION_TEST_COMMIT,
+                "oidcIssuer": "https://token.actions.githubusercontent.com",
+                "runnerEnvironment": "github-hosted",
+                "runnerInvocationUri": format!("https://github.com/auths-dev/auths-proof/actions/runs/{}/attempts/{}", release_build["runId"].as_str().expect("run id"), release_build["runAttempt"].as_u64().expect("attempt")),
+                "predicateType": "https://slsa.dev/provenance/v1",
+                "subjectName": "release-build.json",
+                "subjectSha256": hex::encode(Sha256::digest(fs::read(&release_build_path).expect("release build bytes"))),
+                "verifiedTimestampsSha256": "a".repeat(64),
+                "rawVerificationSha256": "b".repeat(64),
+                "provenanceBundleSha256": "c".repeat(64),
+                "trustedRootSha256": "d".repeat(64),
+                "verifierSha256": "e".repeat(64),
+                "verifierVersion": "2.93.0",
+                "releaseBuildVerifierSha256": "f".repeat(64),
+            }),
+        );
+        let tools_manifest_path = fixture
+            ._temporary
+            .path()
+            .join("attester-tools-manifest.json");
+        let tools_manifest = json!({
+            "schema":"auths.qualification-attester-tools/1",
+            "attesterRevision":QUALIFICATION_TEST_COMMIT,
+            "ghVersion":"2.93.0",
+            "members":[
+                {"path":"auths-qualification-supervisor","sha256":"9".repeat(64),"mode":"0755"},
+                {"path":"gh","sha256":"e".repeat(64),"mode":"0755"},
+                {"path":"gitleaks","sha256":"4".repeat(64),"mode":"0755"},
+                {"path":"qualification-agent-launcher","sha256":"8".repeat(64),"mode":"0755"},
+                {"path":"qualification-attestation-signer","sha256":"1".repeat(64),"mode":"0755"},
+                {"path":"qualification-crash-controller","sha256":"5".repeat(64),"mode":"0755"},
+                {"path":"qualification-observation-signer","sha256":"2".repeat(64),"mode":"0755"},
+                {"path":"qualification-release-build-verifier","sha256":"f".repeat(64),"mode":"0755"},
+                {"path":"qualification-source-client-proxy","sha256":"ab".repeat(32),"mode":"0755"},
+                {"path":"qualification-source-credential-broker","sha256":"bc".repeat(32),"mode":"0755"},
+                {"path":"qualification-source-journal-reader","sha256":"6".repeat(64),"mode":"0755"},
+                {"path":"qualification-source-profile-state-reader","sha256":"cd".repeat(32),"mode":"0755"},
+                {"path":"qualification-source-provider-observer","sha256":"de".repeat(32),"mode":"0755"},
+                {"path":"qualification-source-provider-proxy","sha256":"ef".repeat(32),"mode":"0755"},
+                {"path":"qualification-source-receipt-verifier","sha256":"fa".repeat(32),"mode":"0755"},
+                {"path":"qualification-source-supervisor","sha256":"7".repeat(64),"mode":"0755"},
+                {"path":"trusted-root.jsonl","sha256":"d".repeat(64),"mode":"0600"},
+                {"path":"xtask","sha256":"3".repeat(64),"mode":"0755"},
+            ],
+            "retentionDays":90,
+            "runnerImageOs":"ubuntu24",
+            "runnerImageVersion":"20260801.1",
+            "runnerLabel":"ubuntu-24.04",
+        });
+        write_test_canonical(&tools_manifest_path, &tools_manifest);
+        let tools_verification_path = fixture
+            ._temporary
+            .path()
+            .join("attester-tools-verification.json");
+        write_test_canonical(
+            &tools_verification_path,
+            &json!({
+                "schema":"auths.qualification-attester-tools-verification/1",
+                "verifiedAtUnixSeconds":100,
+                "repositoryId":release_build["repositoryId"],
+                "workflowPath":".github/workflows/qualification-attester-tools.yml",
+                "workflowRevision":QUALIFICATION_TEST_COMMIT,
+                "runId":"3000",
+                "runAttempt":1,
+                "retentionDays":90,
+                "artifactId":"4000",
+                "artifactName":format!("auths-qualification-attester-tools-{QUALIFICATION_TEST_COMMIT}-attempt-1"),
+                "uploadedArchiveSha256":"4".repeat(64),
+                "uploadedArchiveBytes":4096,
+                "createdAtUnixSeconds":1,
+                "expiresAtUnixSeconds":7_776_001,
+                "manifestSha256":hex::encode(Sha256::digest(fs::read(&tools_manifest_path).expect("tool manifest bytes"))),
+            }),
+        );
+        let binding = auths_qualification_supervisor::verify_hosted_release_build(
+            &release_build_path,
+            &fixture.surface_path,
+            &fixture.members_path,
+            &fixture.artifact_root,
+            &root(),
+            &hosted_path,
+            &provenance_path,
+            &tools_verification_path,
+            &tools_manifest_path,
+            QUALIFICATION_TEST_COMMIT,
+            100,
+        )
+        .expect("hosted release build verifies");
+        let binding: Value = serde_json::from_slice(&binding).expect("verified binding JSON");
+        assert_eq!(
+            binding["schema"],
+            "auths.qualification-release-build-verification/1"
+        );
+        assert_eq!(binding["artifacts"].as_array().map(Vec::len), Some(9));
+
+        let mut expired = hosted;
+        expired["artifacts"][0]["expired"] = json!(true);
+        write_test_canonical(&hosted_path, &expired);
+        let error = auths_qualification_supervisor::verify_hosted_release_build(
+            &release_build_path,
+            &fixture.surface_path,
+            &fixture.members_path,
+            &fixture.artifact_root,
+            &root(),
+            &hosted_path,
+            &provenance_path,
+            &tools_verification_path,
+            &tools_manifest_path,
+            QUALIFICATION_TEST_COMMIT,
+            100,
+        )
+        .expect_err("expired hosted artifact must fail");
+        assert!(error.contains("outside retention"));
+    }
+
+    #[test]
+    fn hosted_attester_tool_metadata_script_emits_exact_canonical_bytes() {
+        let temporary = tempfile::tempdir().expect("tool metadata fixture");
+        let output = temporary.path().join("verified-tools.json");
+        let script =
+            root().join(".github/scripts/verify-qualification-attester-tools-metadata.cjs");
+        let revision = QUALIFICATION_TEST_COMMIT;
+        let digest = "a".repeat(64);
+        let manifest = "b".repeat(64);
+        let node_program = r#"
+const verify = require(process.argv[1]);
+const revision = process.env.TOOL_ATTESTER_REVISION;
+const github = {rest:{actions:{
+  getArtifact: async () => ({data:{id:4000,name:`auths-qualification-attester-tools-${revision}-attempt-1`,digest:`sha256:${process.env.TOOL_ARTIFACT_DIGEST}`,expired:false,workflow_run:{id:3000},size_in_bytes:4096,created_at:'2026-01-01T00:00:00Z',expires_at:'2026-04-01T00:00:00Z'}}),
+  getWorkflowRun: async () => ({data:{path:'.github/workflows/qualification-attester-tools.yml',head_sha:revision,head_branch:'main',event:'workflow_dispatch',status:'completed',conclusion:'success',run_attempt:1}}),
+}}};
+verify({github,context:{repo:{owner:'auths-dev',repo:'auths-proof'}}}).catch((error) => { console.error(error); process.exit(1); });
+"#;
+        let status = Command::new("node")
+            .arg("-e")
+            .arg(node_program)
+            .arg(&script)
+            .env("TOOL_ATTESTER_REVISION", revision)
+            .env("TOOL_RUN_ID", "3000")
+            .env("TOOL_RUN_ATTEMPT", "1")
+            .env("TOOL_ARTIFACT_ID", "4000")
+            .env("TOOL_ARTIFACT_DIGEST", &digest)
+            .env("TOOL_RETENTION_DAYS", "90")
+            .env("TOOL_REPOSITORY_ID", "260513770")
+            .env("TOOL_MANIFEST_SHA256", &manifest)
+            .env("TOOL_VERIFICATION_OUTPUT", &output)
+            .status()
+            .expect("run hosted metadata verifier");
+        assert!(status.success());
+        let bytes = fs::read(output).expect("hosted tool verification bytes");
+        assert!(!bytes.ends_with(b"\n"));
+        let value: Value = serde_json::from_slice(&bytes).expect("hosted tool verification JSON");
+        assert_eq!(
+            serde_json_canonicalizer::to_vec(&value).expect("canonical hosted tool verification"),
+            bytes
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn attester_tool_verifier_restores_download_normalized_modes() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        if !cfg!(target_os = "linux") {
+            return;
+        }
+
+        let temporary = tempfile::tempdir().expect("download-normalized tool fixture");
+        let root = temporary.path().join("tools");
+        fs::create_dir(&root).expect("tool fixture directory");
+        let members = [
+            ("auths-qualification-supervisor", "0755"),
+            ("gh", "0755"),
+            ("gitleaks", "0755"),
+            ("qualification-agent-launcher", "0755"),
+            ("qualification-attestation-signer", "0755"),
+            ("qualification-crash-controller", "0755"),
+            ("qualification-observation-signer", "0755"),
+            ("qualification-release-build-verifier", "0755"),
+            ("qualification-source-client-proxy", "0755"),
+            ("qualification-source-credential-broker", "0755"),
+            ("qualification-source-journal-reader", "0755"),
+            ("qualification-source-profile-state-reader", "0755"),
+            ("qualification-source-provider-observer", "0755"),
+            ("qualification-source-provider-proxy", "0755"),
+            ("qualification-source-receipt-verifier", "0755"),
+            ("qualification-source-supervisor", "0755"),
+            ("trusted-root.jsonl", "0600"),
+            ("xtask", "0755"),
+        ];
+        let rows = members
+            .iter()
+            .map(|(path, mode)| {
+                let bytes = if *path == "gitleaks" {
+                    "#!/bin/sh\nprintf '8.28.0\\n'\n".to_owned()
+                } else {
+                    format!("fixture:{path}")
+                };
+                let file = root.join(path);
+                fs::write(&file, bytes.as_bytes()).expect("write tool member");
+                fs::set_permissions(&file, fs::Permissions::from_mode(0o644))
+                    .expect("normalize downloaded mode");
+                json!({"path":path,"sha256":hex::encode(Sha256::digest(bytes)),"mode":mode})
+            })
+            .collect::<Vec<_>>();
+        let manifest = json!({
+            "schema":"auths.qualification-attester-tools/1",
+            "attesterRevision":QUALIFICATION_TEST_COMMIT,
+            "ghVersion":"2.93.0",
+            "members":rows.clone(),
+            "retentionDays":90,
+            "runnerImageOs":"ubuntu24",
+            "runnerImageVersion":"20260801.1",
+            "runnerLabel":"ubuntu-24.04",
+        });
+        let manifest_bytes = serde_json_canonicalizer::to_vec(&manifest).expect("tool manifest");
+        fs::write(root.join("manifest.json"), &manifest_bytes).expect("write manifest");
+        let source_rows = [
+            ("client-proxy", "qualification-source-client-proxy", true),
+            (
+                "credential-broker",
+                "qualification-source-credential-broker",
+                true,
+            ),
+            (
+                "journal-reader",
+                "qualification-source-journal-reader",
+                false,
+            ),
+            (
+                "profile-state-reader",
+                "qualification-source-profile-state-reader",
+                true,
+            ),
+            (
+                "provider-observer",
+                "qualification-source-provider-observer",
+                true,
+            ),
+            (
+                "provider-proxy",
+                "qualification-source-provider-proxy",
+                true,
+            ),
+            (
+                "receipt-verifier",
+                "qualification-source-receipt-verifier",
+                true,
+            ),
+            ("supervisor", "qualification-source-supervisor", false),
+        ];
+        let mut source_trust = json!({
+            "schema":"auths.profile-qualification-evidence-source-trust/1",
+            "keys":source_rows.iter().enumerate().map(|(index, (source, path, has_reader))| {
+                let digest = rows.iter()
+                    .find(|row| row["path"] == *path)
+                    .and_then(|row| row["sha256"].as_str())
+                    .expect("source tool digest");
+                let source_uid = 2_000_u64 + u64::try_from(index * 2).unwrap();
+                json!({
+                    "source":source,
+                    "keyId":format!("{source}-test"),
+                    "algorithm":"Ed25519",
+                    "publicKeyBase64url":format!("{source:x<43}"),
+                    "sourceIdentity":format!("{source}-signer"),
+                    "sourceArtifactSha256":digest,
+                    "sourceUid":source_uid,
+                    "readerIdentity":has_reader.then(|| format!("{source}-reader")),
+                    "readerArtifactSha256":has_reader.then_some(digest),
+                    "readerUid":has_reader.then_some(source_uid + 1),
+                    "allowedDomains":["stripe"],
+                    "notBeforeUnixSeconds":0,
+                    "notAfterUnixSeconds":0,
+                })
+            }).collect::<Vec<_>>()
+        });
+        let source_trust_path = temporary.path().join("source-trust.json");
+        write_test_canonical(&source_trust_path, &source_trust);
+        let status = Command::new("bash")
+            .arg(crate::root().join(".github/scripts/verify-qualification-attester-tools.sh"))
+            .arg(&root)
+            .arg(QUALIFICATION_TEST_COMMIT)
+            .arg(hex::encode(Sha256::digest(&manifest_bytes)))
+            .arg(&source_trust_path)
+            .status()
+            .expect("run exact tool verifier");
+        assert!(status.success());
+        for (path, mode) in members {
+            let actual = fs::metadata(root.join(path))
+                .expect("normalized member metadata")
+                .permissions()
+                .mode()
+                & 0o777;
+            assert_eq!(actual, u32::from_str_radix(mode, 8).expect("manifest mode"));
+        }
+
+        source_trust["keys"][0]["sourceArtifactSha256"] = json!("0".repeat(64));
+        write_test_canonical(&source_trust_path, &source_trust);
+        let status = Command::new("bash")
+            .arg(crate::root().join(".github/scripts/verify-qualification-attester-tools.sh"))
+            .arg(&root)
+            .arg(QUALIFICATION_TEST_COMMIT)
+            .arg(hex::encode(Sha256::digest(&manifest_bytes)))
+            .arg(&source_trust_path)
+            .status()
+            .expect("rerun exact tool verifier with mismatched source trust");
+        assert!(!status.success());
+    }
+
+    #[test]
+    fn qualification_release_verifier_rejects_role_roster_mutations() {
+        let fixture = QualificationReleaseFixture::new();
+        let mut unknown = fixture.members.clone();
+        unknown.artifacts[0].role = "unknown-role".to_owned();
+        fixture.write_members(&unknown);
+        assert!(
+            fixture
+                .verify()
+                .expect_err("unknown role must fail")
+                .contains("member row")
+        );
+
+        let fixture = QualificationReleaseFixture::new();
+        let mut missing = fixture.members.clone();
+        missing.artifacts.pop();
+        fixture.write_members(&missing);
+        assert!(
+            fixture
+                .verify()
+                .expect_err("missing role must fail")
+                .contains("roster is not exact")
+        );
+
+        let fixture = QualificationReleaseFixture::new();
+        let mut duplicate = fixture.members.clone();
+        duplicate.artifacts[1].role = duplicate.artifacts[0].role.clone();
+        fixture.write_members(&duplicate);
+        assert!(
+            fixture
+                .verify()
+                .expect_err("duplicate role must fail")
+                .contains("member row")
+        );
+
+        let fixture = QualificationReleaseFixture::new();
+        let mut reordered = fixture.members.clone();
+        reordered.artifacts.swap(0, 1);
+        fixture.write_members(&reordered);
+        assert!(
+            fixture
+                .verify()
+                .expect_err("reordered roles must fail")
+                .contains("member row")
+        );
+    }
+
+    #[test]
+    fn qualification_release_verifier_rejects_projection_and_canonicality_drift() {
+        let fixture = QualificationReleaseFixture::new();
+        let mut wrong_candidate = fixture.surface.clone();
+        wrong_candidate.candidate_revision = "1515151515151515151515151515151515151515".to_owned();
+        fixture.write_surface(&wrong_candidate);
+        assert!(
+            fixture
+                .verify()
+                .expect_err("candidate mismatch must fail")
+                .contains("surface identity")
+        );
+
+        let fixture = QualificationReleaseFixture::new();
+        let mut wrong_surface_digest = fixture.members.clone();
+        wrong_surface_digest.qualification_surface_sha256 = "f".repeat(64);
+        fixture.write_members(&wrong_surface_digest);
+        assert!(
+            fixture
+                .verify()
+                .expect_err("surface digest mismatch must fail")
+                .contains("surface identity")
+        );
+
+        let fixture = QualificationReleaseFixture::new();
+        let mut wrong_member = fixture.members.clone();
+        wrong_member.artifacts[2].member_sha256 = "e".repeat(64);
+        fixture.write_members(&wrong_member);
+        assert!(
+            fixture
+                .verify()
+                .expect_err("member digest mismatch must fail")
+                .contains("differs from its projection")
+        );
+
+        let fixture = QualificationReleaseFixture::new();
+        let mut wrong_length = fixture.members.clone();
+        wrong_length.artifacts[4].bytes += 1;
+        fixture.write_members(&wrong_length);
+        assert!(
+            fixture
+                .verify()
+                .expect_err("member length mismatch must fail")
+                .contains("differs from its projection")
+        );
+
+        let fixture = QualificationReleaseFixture::new();
+        fs::write(
+            &fixture.members_path,
+            serde_json::to_vec_pretty(&fixture.members).expect("pretty fixture JSON"),
+        )
+        .expect("write noncanonical fixture");
+        assert!(
+            fixture
+                .verify()
+                .expect_err("noncanonical JSON must fail")
+                .contains("not canonical JSON")
+        );
+    }
+
+    #[test]
+    fn qualification_release_verifier_rejects_hostile_archives() {
+        let mut extra = QualificationReleaseFixture::new();
+        let path = extra
+            .artifact_root
+            .join("production-agent/auths-production-agent.tar.zst");
+        write_hostile_test_archive(
+            &path,
+            &[
+                (
+                    "auths-production-agent/target/release/auths",
+                    b"local-agent-production-binary",
+                    tar::EntryType::Regular,
+                    false,
+                ),
+                (
+                    "auths-production-agent/target/release/stripe-refund-evidence-reader",
+                    b"protected-stripe-reader",
+                    tar::EntryType::Regular,
+                    false,
+                ),
+                (
+                    "auths-production-agent/target/release/extra",
+                    b"extra",
+                    tar::EntryType::Regular,
+                    false,
+                ),
+            ],
+        );
+        extra.refresh_production_archive_projection();
+        assert!(
+            extra
+                .verify()
+                .expect_err("extra archive member must fail")
+                .contains("extra member")
+        );
+
+        let mut duplicate = QualificationReleaseFixture::new();
+        let path = duplicate
+            .artifact_root
+            .join("production-agent/auths-production-agent.tar.zst");
+        write_hostile_test_archive(
+            &path,
+            &[
+                (
+                    "auths-production-agent/target/release/auths",
+                    b"local-agent-production-binary",
+                    tar::EntryType::Regular,
+                    false,
+                ),
+                (
+                    "auths-production-agent/target/release/auths",
+                    b"local-agent-production-binary",
+                    tar::EntryType::Regular,
+                    false,
+                ),
+                (
+                    "auths-production-agent/target/release/stripe-refund-evidence-reader",
+                    b"protected-stripe-reader",
+                    tar::EntryType::Regular,
+                    false,
+                ),
+            ],
+        );
+        duplicate.refresh_production_archive_projection();
+        assert!(
+            duplicate
+                .verify()
+                .expect_err("duplicate archive member must fail")
+                .contains("digest/identity drifted")
+        );
+
+        let mut special = QualificationReleaseFixture::new();
+        let path = special
+            .artifact_root
+            .join("production-agent/auths-production-agent.tar.zst");
+        write_hostile_test_archive(
+            &path,
+            &[(
+                "auths-production-agent/target/release/auths",
+                b"",
+                tar::EntryType::Symlink,
+                false,
+            )],
+        );
+        special.refresh_production_archive_projection();
+        assert!(
+            special
+                .verify()
+                .expect_err("special archive member must fail")
+                .contains("non-file entry")
+        );
+
+        let mut escaped = QualificationReleaseFixture::new();
+        let path = escaped
+            .artifact_root
+            .join("production-agent/auths-production-agent.tar.zst");
+        write_hostile_test_archive(
+            &path,
+            &[(
+                "auths-production-agent/../escape",
+                b"escape",
+                tar::EntryType::Regular,
+                true,
+            )],
+        );
+        escaped.refresh_production_archive_projection();
+        assert!(
+            escaped
+                .verify()
+                .expect_err("archive path escape must fail")
+                .contains("escapes its root")
+        );
+    }
+
+    #[test]
+    fn qualification_release_verifier_rejects_expansion_and_forbidden_surface() {
+        let temporary = tempfile::tempdir().expect("aggregate fixture directory");
+        let archive_path = temporary.path().join("aggregate.tar.zst");
+        let entries = vec![
+            ("target/release/one".to_owned(), b"1234".to_vec()),
+            ("target/release/two".to_owned(), b"5678".to_vec()),
+        ];
+        write_test_archive(&archive_path, "aggregate", &entries);
+        let error = read_exact_agent_archive_with_limit(
+            &archive_path,
+            "aggregate",
+            &test_surface_members(&entries),
+            7,
+        )
+        .expect_err("aggregate expansion must fail");
+        assert!(error.contains("aggregate expanded-byte bound"));
+
+        let mut forbidden = QualificationReleaseFixture::new();
+        forbidden.replace_production_archive(&[
+            (
+                "target/release/auths".to_owned(),
+                b"safe-prefix:/v1/workflows/unsafe".to_vec(),
+            ),
+            (
+                "target/release/stripe-refund-evidence-reader".to_owned(),
+                b"protected-stripe-reader".to_vec(),
+            ),
+        ]);
+        assert!(
+            forbidden
+                .verify()
+                .expect_err("forbidden production route marker must fail")
+                .contains("forbidden remote/testkit/qualification surface")
+        );
+
+        let mut protected_tool_leak = QualificationReleaseFixture::new();
+        let mut qualification_entries = qualification_fixture_entries();
+        qualification_entries.push((
+            "target/release/qualification-source-client-proxy".to_owned(),
+            b"candidate-protected-tool-copy".to_vec(),
+        ));
+        protected_tool_leak.replace_qualification_archive(&qualification_entries);
+        assert!(
+            protected_tool_leak
+                .verify()
+                .expect_err("candidate protected-tool copy must fail")
+                .contains("roster")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn qualification_release_verifier_rejects_symlinked_member() {
+        use std::os::unix::fs::symlink;
+
+        let fixture = QualificationReleaseFixture::new();
+        let member = fixture
+            .artifact_root
+            .join("python-native/auths-python-native.so");
+        let target = fixture._temporary.path().join("symlink-target");
+        fs::write(&target, b"python-native").expect("write symlink fixture target");
+        fs::remove_file(&member).expect("replace fixture member");
+        symlink(target, member).expect("create fixture symlink");
+        assert!(
+            fixture
+                .verify()
+                .expect_err("symlinked member must fail")
+                .contains("differs from its projection")
+        );
     }
 
     #[test]

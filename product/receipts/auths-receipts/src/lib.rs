@@ -3,12 +3,18 @@
 #![forbid(unsafe_code)]
 
 mod disclosure;
+mod trust_anchors;
 
 pub use disclosure::{
     ReceiptDisclosure, ReceiptDisclosureLocator, ReceiptDisclosureProtector,
     ReceiptDisclosureStore, ReceiptInspection, ReceiptInspectionError, ReceiptProfileInspector,
     ReceiptProjection, ReceiptViewMode, VerifiedReceiptMetadata, decode_receipt_disclosure,
     encode_receipt_disclosure, inspect_attested_execution_receipt,
+};
+pub use trust_anchors::{
+    ReceiptTrustAnchor, ReceiptTrustAnchorRole, ReceiptTrustAnchors, ReceiptTrustAnchorsError,
+    VerifiedPortableReceipt, decode_receipt_trust_anchors, encode_receipt_trust_anchors,
+    verified_portable_receipt_claims_digest, verify_portable_receipt_with_anchors,
 };
 
 use auths_model::{
@@ -17,7 +23,9 @@ use auths_model::{
     VerificationMethod,
 };
 use auths_ports::{SignatureInput, SignatureSuite};
+use base64ct::{Base64UrlUnpadded, Encoding as _};
 use minicbor::{Decoder, Encoder, data::Type};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use std::fmt;
 
@@ -34,6 +42,412 @@ const DECISION_SIGNATURE_DOMAIN: &[u8] = b"AUTHS-DECISION-RECEIPT\x00\x01";
 const EXECUTION_SIGNATURE_DOMAIN: &[u8] = b"AUTHS-EXECUTION-RECEIPT\x00\x01";
 const APPLICATION_EXECUTION_LEASE_DOMAIN: &[u8] = b"AUTHS-APPLICATION-EXECUTION-LEASE\x00\x01";
 const MAX_IDEMPOTENCY_KEY_BYTES: usize = 256;
+const MAX_PORTABLE_RECEIPT_BYTES: usize = 1024 * 1024;
+const MAX_PROFILE_CLAIMS_BYTES: usize = 65_536;
+const MAX_PROFILE_CLAIMS: usize = 64;
+const PROFILE_CLAIMS_SCHEMA: &str = "auths.profile-receipt-claims/1";
+
+/// Receipt phase bound by one profile-public claim envelope.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProfileReceiptClaimPhase {
+    /// Claims established when the durable authority decision is written.
+    Decision,
+    /// Claims established when the durable execution result is written.
+    Execution,
+}
+
+impl ProfileReceiptClaimPhase {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Decision => "decision",
+            Self::Execution => "execution",
+        }
+    }
+}
+
+/// One named profile-public receipt claim commitment.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProfileReceiptClaim {
+    id: String,
+    sha256: [u8; 32],
+}
+
+impl ProfileReceiptClaim {
+    /// Constructs one claim after validating its stable public identifier.
+    ///
+    /// # Errors
+    ///
+    /// Rejects identifiers outside the closed lowercase dotted-token grammar.
+    pub fn new(id: impl Into<String>, sha256: [u8; 32]) -> Result<Self, ReceiptError> {
+        let id = id.into();
+        validate_profile_claim_id(&id)?;
+        Ok(Self { id, sha256 })
+    }
+
+    /// Returns the stable public claim identifier.
+    #[must_use]
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    /// Returns the claim's domain-specific SHA-256 commitment.
+    #[must_use]
+    pub const fn sha256(&self) -> &[u8; 32] {
+        &self.sha256
+    }
+}
+
+/// Decoded canonical profile-public receipt claims.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProfileReceiptClaims {
+    profile: ProfileRef,
+    phase: ProfileReceiptClaimPhase,
+    claims: Vec<ProfileReceiptClaim>,
+}
+
+impl ProfileReceiptClaims {
+    /// Returns the exact profile whose receipt carries these claims.
+    #[must_use]
+    pub const fn profile(&self) -> &ProfileRef {
+        &self.profile
+    }
+
+    /// Returns the receipt phase whose durable facts the claims describe.
+    #[must_use]
+    pub const fn phase(&self) -> ProfileReceiptClaimPhase {
+        self.phase
+    }
+
+    /// Returns the byte-sorted, unique named commitments.
+    #[must_use]
+    pub fn claims(&self) -> &[ProfileReceiptClaim] {
+        &self.claims
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProfileReceiptClaimsOutput<'a> {
+    claims: Vec<ProfileReceiptClaimOutput<'a>>,
+    phase: &'a str,
+    profile: String,
+    schema: &'static str,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProfileReceiptClaimOutput<'a> {
+    id: &'a str,
+    sha256: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ProfileReceiptClaimsInput {
+    claims: Vec<ProfileReceiptClaimInput>,
+    phase: String,
+    profile: String,
+    schema: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ProfileReceiptClaimInput {
+    id: String,
+    sha256: String,
+}
+
+/// Encodes the only accepted canonical profile-public receipt claim envelope.
+///
+/// Callers must build the named commitments through the statically registered
+/// profile builder. This function owns the bounded, canonical wire format.
+///
+/// # Errors
+///
+/// Rejects empty, excessive, reordered, duplicate, or malformed claim sets.
+pub fn encode_profile_receipt_claims(
+    profile: &ProfileRef,
+    phase: ProfileReceiptClaimPhase,
+    claims: &[ProfileReceiptClaim],
+) -> Result<Vec<u8>, ReceiptError> {
+    validate_profile_claim_roster(claims)?;
+    let output = ProfileReceiptClaimsOutput {
+        claims: claims
+            .iter()
+            .map(|claim| ProfileReceiptClaimOutput {
+                id: claim.id(),
+                sha256: encode_hex(claim.sha256()),
+            })
+            .collect(),
+        phase: phase.as_str(),
+        profile: format!("{}/{}", profile.id().as_str(), profile.version()),
+        schema: PROFILE_CLAIMS_SCHEMA,
+    };
+    let bytes = serde_json_canonicalizer::to_vec(&output).map_err(|_| ReceiptError::Malformed)?;
+    if bytes.len() > MAX_PROFILE_CLAIMS_BYTES {
+        return Err(ReceiptError::LimitExceeded);
+    }
+    Ok(bytes)
+}
+
+/// Decodes and byte-for-byte canonicality-checks profile-public receipt claims.
+///
+/// # Errors
+///
+/// Rejects unknown fields, invalid profiles/phases/digests, noncanonical JSON,
+/// and non-sorted or duplicate claim identifiers.
+pub fn decode_profile_receipt_claims(input: &[u8]) -> Result<ProfileReceiptClaims, ReceiptError> {
+    if input.is_empty() || input.len() > MAX_PROFILE_CLAIMS_BYTES {
+        return Err(ReceiptError::LimitExceeded);
+    }
+    let decoded: ProfileReceiptClaimsInput =
+        serde_json::from_slice(input).map_err(|_| ReceiptError::Malformed)?;
+    if decoded.schema != PROFILE_CLAIMS_SCHEMA {
+        return Err(ReceiptError::Malformed);
+    }
+    let phase = match decoded.phase.as_str() {
+        "decision" => ProfileReceiptClaimPhase::Decision,
+        "execution" => ProfileReceiptClaimPhase::Execution,
+        _ => return Err(ReceiptError::Malformed),
+    };
+    let (profile_id, version) = decoded
+        .profile
+        .rsplit_once('/')
+        .ok_or(ReceiptError::Malformed)?;
+    let profile = ProfileRef::new(
+        auths_model::ProfileId::parse(profile_id).map_err(|_| ReceiptError::Malformed)?,
+        version
+            .parse::<u16>()
+            .map_err(|_| ReceiptError::Malformed)?,
+    )
+    .map_err(|_| ReceiptError::Malformed)?;
+    let mut claims = Vec::with_capacity(decoded.claims.len());
+    for claim in decoded.claims {
+        claims.push(ProfileReceiptClaim::new(
+            claim.id,
+            decode_hex_digest(&claim.sha256)?,
+        )?);
+    }
+    validate_profile_claim_roster(&claims)?;
+    let canonical = encode_profile_receipt_claims(&profile, phase, &claims)?;
+    if canonical != input {
+        return Err(ReceiptError::NonCanonical);
+    }
+    Ok(ProfileReceiptClaims {
+        profile,
+        phase,
+        claims,
+    })
+}
+
+/// Canonical linked receipt container used at the local-agent boundary.
+///
+/// The execution variant embeds the complete decision attestation it names,
+/// so an offline verifier never depends on a receipt store lookup.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PortableReceipt {
+    /// One standalone signed decision.
+    Decision {
+        /// Complete canonical signed decision envelope.
+        attested_decision: Vec<u8>,
+    },
+    /// One signed execution and the complete signed decision it links.
+    Execution {
+        /// Complete canonical signed decision envelope.
+        attested_decision: Vec<u8>,
+        /// Complete canonical signed execution envelope.
+        attested_execution: Vec<u8>,
+    },
+}
+
+impl PortableReceipt {
+    /// Returns the embedded decision attestation.
+    #[must_use]
+    pub fn attested_decision(&self) -> &[u8] {
+        match self {
+            Self::Decision { attested_decision }
+            | Self::Execution {
+                attested_decision, ..
+            } => attested_decision,
+        }
+    }
+
+    /// Returns the embedded execution attestation, if present.
+    #[must_use]
+    pub fn attested_execution(&self) -> Option<&[u8]> {
+        match self {
+            Self::Decision { .. } => None,
+            Self::Execution {
+                attested_execution, ..
+            } => Some(attested_execution),
+        }
+    }
+}
+
+/// Encodes one canonical `auths.portable-receipt/1` decision container.
+///
+/// # Errors
+///
+/// Rejects malformed, non-canonical, or oversized signed receipt bytes.
+pub fn encode_portable_decision(attested_decision: &[u8]) -> Result<Vec<u8>, ReceiptError> {
+    let decoded = decode_attested_decision(attested_decision)?;
+    if encode_attested_decision(&decoded)? != attested_decision {
+        return Err(ReceiptError::Malformed);
+    }
+    let mut encoder = Encoder::new(Vec::new());
+    encoder.map(3).map_err(|_| ReceiptError::Malformed)?;
+    encoder.u8(1).map_err(|_| ReceiptError::Malformed)?;
+    encoder.u8(1).map_err(|_| ReceiptError::Malformed)?;
+    encoder.u8(2).map_err(|_| ReceiptError::Malformed)?;
+    encoder
+        .str("decision")
+        .map_err(|_| ReceiptError::Malformed)?;
+    encoder.u8(3).map_err(|_| ReceiptError::Malformed)?;
+    encoder
+        .bytes(attested_decision)
+        .map_err(|_| ReceiptError::Malformed)?;
+    bounded_portable(encoder.into_writer())
+}
+
+/// Encodes one canonical `auths.portable-receipt/1` linked execution container.
+///
+/// # Errors
+///
+/// Rejects malformed, non-canonical, unlinked, or oversized receipt bytes.
+pub fn encode_portable_execution(
+    attested_decision: &[u8],
+    attested_execution: &[u8],
+) -> Result<Vec<u8>, ReceiptError> {
+    let decision = decode_attested_decision(attested_decision)?;
+    let execution = decode_attested_execution(attested_execution)?;
+    if encode_attested_decision(&decision)? != attested_decision
+        || encode_attested_execution(&execution)? != attested_execution
+        || execution.receipt().decision_receipt() != decision_receipt_id(decision.receipt())?
+    {
+        return Err(ReceiptError::Malformed);
+    }
+    let mut encoder = Encoder::new(Vec::new());
+    encoder.map(4).map_err(|_| ReceiptError::Malformed)?;
+    encoder.u8(1).map_err(|_| ReceiptError::Malformed)?;
+    encoder.u8(1).map_err(|_| ReceiptError::Malformed)?;
+    encoder.u8(2).map_err(|_| ReceiptError::Malformed)?;
+    encoder
+        .str("execution")
+        .map_err(|_| ReceiptError::Malformed)?;
+    encoder.u8(3).map_err(|_| ReceiptError::Malformed)?;
+    encoder
+        .bytes(attested_decision)
+        .map_err(|_| ReceiptError::Malformed)?;
+    encoder.u8(4).map_err(|_| ReceiptError::Malformed)?;
+    encoder
+        .bytes(attested_execution)
+        .map_err(|_| ReceiptError::Malformed)?;
+    bounded_portable(encoder.into_writer())
+}
+
+/// Decodes and canonicality-checks a linked portable receipt container.
+///
+/// This checks the decision/execution content IDs and link. Signature trust is
+/// deliberately a separate deployment-owned verification step.
+///
+/// # Errors
+///
+/// Rejects malformed, non-canonical, unlinked, or oversized bytes.
+pub fn decode_portable_receipt(input: &[u8]) -> Result<PortableReceipt, ReceiptError> {
+    if input.is_empty() || input.len() > MAX_PORTABLE_RECEIPT_BYTES {
+        return Err(ReceiptError::LimitExceeded);
+    }
+    let mut decoder = Decoder::new(input);
+    let length = decoder.map().map_err(|_| ReceiptError::Malformed)?;
+    if !matches!(length, Some(3 | 4))
+        || decoder.u8().map_err(|_| ReceiptError::Malformed)? != 1
+        || decoder.u8().map_err(|_| ReceiptError::Malformed)? != 1
+        || decoder.u8().map_err(|_| ReceiptError::Malformed)? != 2
+    {
+        return Err(ReceiptError::Malformed);
+    }
+    let kind = decoder.str().map_err(|_| ReceiptError::Malformed)?;
+    if decoder.u8().map_err(|_| ReceiptError::Malformed)? != 3 {
+        return Err(ReceiptError::Malformed);
+    }
+    let decision = decoder
+        .bytes()
+        .map_err(|_| ReceiptError::Malformed)?
+        .to_vec();
+    let value = match (kind, length) {
+        ("decision", Some(3)) => PortableReceipt::Decision {
+            attested_decision: decision,
+        },
+        ("execution", Some(4)) => {
+            if decoder.u8().map_err(|_| ReceiptError::Malformed)? != 4 {
+                return Err(ReceiptError::Malformed);
+            }
+            PortableReceipt::Execution {
+                attested_decision: decision,
+                attested_execution: decoder
+                    .bytes()
+                    .map_err(|_| ReceiptError::Malformed)?
+                    .to_vec(),
+            }
+        }
+        _ => return Err(ReceiptError::Malformed),
+    };
+    if decoder.position() != input.len() {
+        return Err(ReceiptError::Malformed);
+    }
+    let canonical = match &value {
+        PortableReceipt::Decision { attested_decision } => {
+            encode_portable_decision(attested_decision)?
+        }
+        PortableReceipt::Execution {
+            attested_decision,
+            attested_execution,
+        } => encode_portable_execution(attested_decision, attested_execution)?,
+    };
+    if canonical != input {
+        return Err(ReceiptError::Malformed);
+    }
+    Ok(value)
+}
+
+/// Returns the public `rcpt_` identity of one canonical portable container.
+///
+/// # Errors
+///
+/// Rejects a malformed container rather than assigning an identity to it.
+pub fn portable_receipt_id(input: &[u8]) -> Result<String, ReceiptError> {
+    let _ = decode_portable_receipt(input)?;
+    let digest = Sha256::digest(input);
+    Ok(format!(
+        "rcpt_{}",
+        Base64UrlUnpadded::encode_string(digest.as_slice())
+    ))
+}
+
+/// Validates the canonical public identity grammar of a portable receipt.
+///
+/// # Errors
+///
+/// Rejects prefixes, lengths, alphabets, and encodings that cannot represent
+/// exactly one SHA-256 receipt commitment.
+pub fn validate_portable_receipt_id(value: &str) -> Result<(), ReceiptError> {
+    let encoded = value.strip_prefix("rcpt_").ok_or(ReceiptError::Malformed)?;
+    let mut digest = [0_u8; 32];
+    let decoded =
+        Base64UrlUnpadded::decode(encoded, &mut digest).map_err(|_| ReceiptError::Malformed)?;
+    if decoded.len() != 32 || Base64UrlUnpadded::encode_string(decoded) != encoded {
+        return Err(ReceiptError::Malformed);
+    }
+    Ok(())
+}
+
+fn bounded_portable(value: Vec<u8>) -> Result<Vec<u8>, ReceiptError> {
+    if value.is_empty() || value.len() > MAX_PORTABLE_RECEIPT_BYTES {
+        Err(ReceiptError::LimitExceeded)
+    } else {
+        Ok(value)
+    }
+}
 
 /// Canonical receipt bytes and the exact attestation preimage that binds them.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -71,6 +485,7 @@ impl PreparedReceipt {
 /// # Errors
 ///
 /// Returns a typed receipt error for invalid reason or encoding inputs.
+#[allow(clippy::too_many_arguments)]
 pub fn prepare_decision_receipt(
     authority_commitment: Digest,
     action: &CanonicalAction,
@@ -78,6 +493,7 @@ pub fn prepare_decision_receipt(
     decision: DecisionClass,
     reasons: Vec<String>,
     decided_at: Timestamp,
+    profile_claims: &[u8],
     signer: &ReceiptSigner,
 ) -> Result<PreparedReceipt, ReceiptError> {
     let canonical_action =
@@ -93,6 +509,76 @@ pub fn prepare_decision_receipt(
         decision,
         reasons,
         decided_at,
+        profile_claims.to_vec(),
+    )?;
+    let id = decision_receipt_id(&receipt)?;
+    Ok(PreparedReceipt {
+        id,
+        canonical: encode_decision(&receipt)?,
+        signing_preimage: decision_signing_preimage(&receipt, signer)?,
+    })
+}
+
+/// Prepares a profile-owned decision receipt from already bounded canonical
+/// profile artifacts.
+///
+/// This is the receipt boundary used by qualified v2 profiles whose exact
+/// action is not a target-v1 [`CanonicalAction`]. Rust owns every commitment,
+/// status identifier, receipt identifier, and signing preimage. Callers may
+/// supply profile bytes, but cannot supply or override their commitments.
+///
+/// # Errors
+///
+/// Rejects empty or over-limit artifacts, an invalid profile reference, or an
+/// invalid reason/receipt encoding.
+#[allow(clippy::too_many_arguments)]
+pub fn prepare_profile_decision_receipt(
+    profile: ProfileRef,
+    proof: &[u8],
+    action: &[u8],
+    context: &[u8],
+    decision: DecisionClass,
+    reasons: Vec<String>,
+    decided_at: Timestamp,
+    profile_claims: &[u8],
+    signer: &ReceiptSigner,
+) -> Result<PreparedReceipt, ReceiptError> {
+    if proof.is_empty()
+        || proof.len() > auths_model::HARD_MAX_BUNDLE_BYTES
+        || action.is_empty()
+        || action.len() > auths_model::HARD_MAX_ACTION_BYTES
+        || context.is_empty()
+        || context.len() > auths_model::HARD_MAX_CONTEXT_BYTES
+    {
+        return Err(ReceiptError::LimitExceeded);
+    }
+    let proof_digest = auths_codec::domain_commitment("auths.profile-proof.v2", proof)
+        .map_err(|_| ReceiptError::Malformed)?;
+    let action_digest = auths_codec::domain_commitment("auths.profile-action.v2", action)
+        .map_err(|_| ReceiptError::Malformed)?;
+    let context_digest = ContextDigest::from_digest(
+        auths_codec::domain_commitment("auths.profile-context.v2", context)
+            .map_err(|_| ReceiptError::Malformed)?,
+    );
+    let principal_status = StatusSnapshotId::from_digest(
+        auths_codec::domain_commitment("auths.profile-principal-status.v2", context)
+            .map_err(|_| ReceiptError::Malformed)?,
+    );
+    let grant_status = StatusSnapshotId::from_digest(
+        auths_codec::domain_commitment("auths.profile-grant-status.v2", context)
+            .map_err(|_| ReceiptError::Malformed)?,
+    );
+    let receipt = DecisionReceipt::new(
+        proof_digest,
+        action_digest,
+        context_digest,
+        principal_status,
+        grant_status,
+        profile,
+        decision,
+        reasons,
+        decided_at,
+        profile_claims.to_vec(),
     )?;
     let id = decision_receipt_id(&receipt)?;
     Ok(PreparedReceipt {
@@ -159,6 +645,7 @@ pub fn prepare_execution_receipt(
     outcome: ExecutionOutcome,
     result: Option<&[u8]>,
     completed_at: Timestamp,
+    profile_claims: &[u8],
     signer: &ReceiptSigner,
 ) -> Result<PreparedReceipt, ReceiptError> {
     let receipt = ExecutionReceipt::new(
@@ -168,7 +655,8 @@ pub fn prepare_execution_receipt(
         outcome,
         result.map(raw_digest),
         completed_at,
-    );
+        profile_claims.to_vec(),
+    )?;
     let id = execution_receipt_id(&receipt)?;
     Ok(PreparedReceipt {
         id,
@@ -204,6 +692,7 @@ pub struct DecisionReceipt {
     decision: DecisionClass,
     reasons: Vec<String>,
     decided_at: Timestamp,
+    profile_claims: Vec<u8>,
 }
 
 impl DecisionReceipt {
@@ -224,8 +713,14 @@ impl DecisionReceipt {
         decision: DecisionClass,
         reasons: Vec<String>,
         decided_at: Timestamp,
+        profile_claims: Vec<u8>,
     ) -> Result<Self, ReceiptError> {
         validate_reasons(&reasons)?;
+        validate_profile_claims(
+            &profile_claims,
+            Some(&profile),
+            ProfileReceiptClaimPhase::Decision,
+        )?;
         Ok(Self {
             proof_digest,
             action_digest,
@@ -236,6 +731,7 @@ impl DecisionReceipt {
             decision,
             reasons,
             decided_at,
+            profile_claims,
         })
     }
 
@@ -292,6 +788,12 @@ impl DecisionReceipt {
     pub const fn decided_at(&self) -> Timestamp {
         self.decided_at
     }
+
+    /// Returns the exact bounded canonical profile-public decision claims.
+    #[must_use]
+    pub fn profile_claims(&self) -> &[u8] {
+        &self.profile_claims
+    }
 }
 
 /// Execution outcome recorded separately from authority validity.
@@ -335,27 +837,35 @@ pub struct ExecutionReceipt {
     outcome: ExecutionOutcome,
     result_digest: Option<Digest>,
     completed_at: Timestamp,
+    profile_claims: Vec<u8>,
 }
 
 impl ExecutionReceipt {
     /// Constructs an execution record.
-    #[must_use]
-    pub const fn new(
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ReceiptError`] when the bounded execution profile claims are
+    /// malformed or noncanonical.
+    pub fn new(
         decision_receipt: ReceiptId,
         execution_lease: Digest,
         command_digest: Digest,
         outcome: ExecutionOutcome,
         result_digest: Option<Digest>,
         completed_at: Timestamp,
-    ) -> Self {
-        Self {
+        profile_claims: Vec<u8>,
+    ) -> Result<Self, ReceiptError> {
+        validate_profile_claims(&profile_claims, None, ProfileReceiptClaimPhase::Execution)?;
+        Ok(Self {
             decision_receipt,
             execution_lease,
             command_digest,
             outcome,
             result_digest,
             completed_at,
-        }
+            profile_claims,
+        })
     }
 
     /// Returns the decision receipt identifier.
@@ -392,6 +902,90 @@ impl ExecutionReceipt {
     #[must_use]
     pub const fn completed_at(&self) -> Timestamp {
         self.completed_at
+    }
+
+    /// Returns the exact bounded canonical profile-public execution claims.
+    #[must_use]
+    pub fn profile_claims(&self) -> &[u8] {
+        &self.profile_claims
+    }
+}
+
+fn validate_profile_claims(
+    value: &[u8],
+    expected_profile: Option<&ProfileRef>,
+    expected_phase: ProfileReceiptClaimPhase,
+) -> Result<(), ReceiptError> {
+    let decoded = decode_profile_receipt_claims(value)?;
+    if decoded.phase() != expected_phase
+        || expected_profile.is_some_and(|profile| decoded.profile() != profile)
+    {
+        return Err(ReceiptError::Malformed);
+    }
+    Ok(())
+}
+
+fn validate_profile_claim_roster(claims: &[ProfileReceiptClaim]) -> Result<(), ReceiptError> {
+    if claims.is_empty() || claims.len() > MAX_PROFILE_CLAIMS {
+        return Err(ReceiptError::LimitExceeded);
+    }
+    let mut previous: Option<&[u8]> = None;
+    for claim in claims {
+        validate_profile_claim_id(claim.id())?;
+        if previous.is_some_and(|value| value >= claim.id().as_bytes()) {
+            return Err(ReceiptError::Malformed);
+        }
+        previous = Some(claim.id().as_bytes());
+    }
+    Ok(())
+}
+
+fn validate_profile_claim_id(value: &str) -> Result<(), ReceiptError> {
+    let bytes = value.as_bytes();
+    if bytes.is_empty()
+        || bytes.len() > 128
+        || bytes.first() == Some(&b'.')
+        || bytes.last() == Some(&b'.')
+        || bytes.windows(2).any(|pair| pair == b"..")
+        || bytes
+            .iter()
+            .any(|byte| !matches!(byte, b'a'..=b'z' | b'0'..=b'9' | b'.' | b'-'))
+    {
+        return Err(ReceiptError::Malformed);
+    }
+    Ok(())
+}
+
+fn encode_hex(bytes: &[u8; 32]) -> String {
+    const TABLE: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(64);
+    for byte in bytes {
+        output.push(char::from(TABLE[usize::from(byte >> 4)]));
+        output.push(char::from(TABLE[usize::from(byte & 0x0f)]));
+    }
+    output
+}
+
+fn decode_hex_digest(value: &str) -> Result<[u8; 32], ReceiptError> {
+    if value.len() != 64
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+    {
+        return Err(ReceiptError::Malformed);
+    }
+    let mut output = [0_u8; 32];
+    for (index, pair) in value.as_bytes().chunks_exact(2).enumerate() {
+        output[index] = (hex_nibble(pair[0])? << 4) | hex_nibble(pair[1])?;
+    }
+    Ok(output)
+}
+
+fn hex_nibble(value: u8) -> Result<u8, ReceiptError> {
+    match value {
+        b'0'..=b'9' => Ok(value - b'0'),
+        b'a'..=b'f' => Ok(value - b'a' + 10),
+        _ => Err(ReceiptError::Malformed),
     }
 }
 
@@ -588,7 +1182,7 @@ impl ReceiptSignatureVerifier for ConfiguredReceiptVerifier<'_> {
 /// Returns a typed error only for an in-memory encoding invariant.
 pub fn encode_decision(receipt: &DecisionReceipt) -> Result<Vec<u8>, ReceiptError> {
     let mut encoder = Encoder::new(Vec::new());
-    encoder.map(11).map_err(|_| ReceiptError::Malformed)?;
+    encoder.map(12).map_err(|_| ReceiptError::Malformed)?;
     key(&mut encoder, 0)?;
     encoder
         .u16(PROTOCOL_V1)
@@ -630,6 +1224,10 @@ pub fn encode_decision(receipt: &DecisionReceipt) -> Result<Vec<u8>, ReceiptErro
     encoder
         .u64(receipt.decided_at.get())
         .map_err(|_| ReceiptError::Malformed)?;
+    key(&mut encoder, 11)?;
+    encoder
+        .bytes(&receipt.profile_claims)
+        .map_err(|_| ReceiptError::Malformed)?;
     Ok(encoder.into_writer())
 }
 
@@ -640,7 +1238,7 @@ pub fn encode_decision(receipt: &DecisionReceipt) -> Result<Vec<u8>, ReceiptErro
 /// Returns a typed error only for an in-memory encoding invariant.
 pub fn encode_execution(receipt: &ExecutionReceipt) -> Result<Vec<u8>, ReceiptError> {
     let mut encoder = Encoder::new(Vec::new());
-    encoder.map(7).map_err(|_| ReceiptError::Malformed)?;
+    encoder.map(8).map_err(|_| ReceiptError::Malformed)?;
     key(&mut encoder, 0)?;
     encoder
         .u16(PROTOCOL_V1)
@@ -670,6 +1268,10 @@ pub fn encode_execution(receipt: &ExecutionReceipt) -> Result<Vec<u8>, ReceiptEr
     key(&mut encoder, 6)?;
     encoder
         .u64(receipt.completed_at.get())
+        .map_err(|_| ReceiptError::Malformed)?;
+    key(&mut encoder, 7)?;
+    encoder
+        .bytes(&receipt.profile_claims)
         .map_err(|_| ReceiptError::Malformed)?;
     Ok(encoder.into_writer())
 }
@@ -838,7 +1440,7 @@ pub fn verify_execution_attestation(
 /// non-canonical bytes.
 pub fn decode_decision(input: &[u8]) -> Result<DecisionReceipt, ReceiptError> {
     let mut decoder = Decoder::new(input);
-    exact_map(&mut decoder, 11)?;
+    exact_map(&mut decoder, 12)?;
     key_decode(&mut decoder, 0)?;
     version(&mut decoder)?;
     key_decode(&mut decoder, 1)?;
@@ -888,6 +1490,11 @@ pub fn decode_decision(input: &[u8]) -> Result<DecisionReceipt, ReceiptError> {
     }
     key_decode(&mut decoder, 10)?;
     let decided_at = Timestamp::new(decoder.u64().map_err(|_| ReceiptError::Malformed)?);
+    key_decode(&mut decoder, 11)?;
+    let profile_claims = decoder
+        .bytes()
+        .map_err(|_| ReceiptError::Malformed)?
+        .to_vec();
     finish(&decoder, input)?;
     let receipt = DecisionReceipt::new(
         proof,
@@ -899,6 +1506,7 @@ pub fn decode_decision(input: &[u8]) -> Result<DecisionReceipt, ReceiptError> {
         decision,
         reasons,
         decided_at,
+        profile_claims,
     )?;
     if encode_decision(&receipt)?.as_slice() != input {
         return Err(ReceiptError::NonCanonical);
@@ -913,7 +1521,7 @@ pub fn decode_decision(input: &[u8]) -> Result<DecisionReceipt, ReceiptError> {
 /// Returns a typed error for malformed, unsupported, or non-canonical bytes.
 pub fn decode_execution(input: &[u8]) -> Result<ExecutionReceipt, ReceiptError> {
     let mut decoder = Decoder::new(input);
-    exact_map(&mut decoder, 7)?;
+    exact_map(&mut decoder, 8)?;
     key_decode(&mut decoder, 0)?;
     version(&mut decoder)?;
     key_decode(&mut decoder, 1)?;
@@ -938,8 +1546,21 @@ pub fn decode_execution(input: &[u8]) -> Result<ExecutionReceipt, ReceiptError> 
     };
     key_decode(&mut decoder, 6)?;
     let completed_at = Timestamp::new(decoder.u64().map_err(|_| ReceiptError::Malformed)?);
+    key_decode(&mut decoder, 7)?;
+    let profile_claims = decoder
+        .bytes()
+        .map_err(|_| ReceiptError::Malformed)?
+        .to_vec();
     finish(&decoder, input)?;
-    let receipt = ExecutionReceipt::new(decision, lease, command, outcome, result, completed_at);
+    let receipt = ExecutionReceipt::new(
+        decision,
+        lease,
+        command,
+        outcome,
+        result,
+        completed_at,
+        profile_claims,
+    )?;
     if encode_execution(&receipt)?.as_slice() != input {
         return Err(ReceiptError::NonCanonical);
     }
@@ -1649,6 +2270,15 @@ mod tests {
         )
     }
 
+    fn profile_claims(phase: ProfileReceiptClaimPhase) -> Vec<u8> {
+        encode_profile_receipt_claims(
+            &ProfileRef::new(ProfileId::parse("auths.mcp").unwrap(), 1).unwrap(),
+            phase,
+            &[ProfileReceiptClaim::new("test.receipt-claim", [10; 32]).unwrap()],
+        )
+        .unwrap()
+    }
+
     fn attest_decision(receipt: DecisionReceipt) -> (ReceiptId, Vec<u8>) {
         let id = decision_receipt_id(&receipt).unwrap();
         let signer = signer();
@@ -1686,6 +2316,7 @@ mod tests {
             DecisionClass::Authorized,
             vec!["authorized".into()],
             Timestamp::new(10),
+            profile_claims(ProfileReceiptClaimPhase::Decision),
         )
         .unwrap()
     }
@@ -1721,7 +2352,9 @@ mod tests {
             ExecutionOutcome::Succeeded,
             Some(Digest::new([8; 32])),
             Timestamp::new(11),
-        );
+            profile_claims(ProfileReceiptClaimPhase::Execution),
+        )
+        .unwrap();
         let encoded = encode_execution(&receipt).unwrap();
         let id = execution_receipt_id(&receipt).unwrap();
         assert_eq!(verify_execution_bytes(&encoded, id).unwrap(), receipt);
@@ -1729,6 +2362,72 @@ mod tests {
             verify_execution_bytes(&encoded, ReceiptId::new([0; 32])),
             Err(ReceiptError::DigestMismatch)
         );
+    }
+
+    #[test]
+    fn portable_receipts_are_canonical_linked_and_content_addressed() {
+        let decision = receipt();
+        let decision_id = decision_receipt_id(&decision).unwrap();
+        let (_, attested_decision) = attest_decision(decision);
+        let standalone = encode_portable_decision(&attested_decision).unwrap();
+        assert_eq!(
+            decode_portable_receipt(&standalone).unwrap(),
+            PortableReceipt::Decision {
+                attested_decision: attested_decision.clone(),
+            }
+        );
+        let id = portable_receipt_id(&standalone).unwrap();
+        assert!(id.starts_with("rcpt_") && !id.contains('='));
+        validate_portable_receipt_id(&id).unwrap();
+        assert!(validate_portable_receipt_id(&format!("{id}=")).is_err());
+        assert!(validate_portable_receipt_id(&id.replacen("rcpt_", "receipt_", 1)).is_err());
+
+        let execution = ExecutionReceipt::new(
+            decision_id,
+            Digest::new([6; 32]),
+            Digest::new([7; 32]),
+            ExecutionOutcome::Succeeded,
+            Some(Digest::new([8; 32])),
+            Timestamp::new(11),
+            profile_claims(ProfileReceiptClaimPhase::Execution),
+        )
+        .unwrap();
+        let (_, attested_execution) = attest_execution(execution);
+        let linked = encode_portable_execution(&attested_decision, &attested_execution).unwrap();
+        assert_eq!(
+            decode_portable_receipt(&linked).unwrap(),
+            PortableReceipt::Execution {
+                attested_decision,
+                attested_execution,
+            }
+        );
+        assert_ne!(portable_receipt_id(&linked).unwrap(), id);
+    }
+
+    #[test]
+    fn portable_execution_rejects_the_wrong_decision() {
+        let first = receipt();
+        let decision_id = decision_receipt_id(&first).unwrap();
+        let (_, attested_first) = attest_decision(first);
+        let mut second = receipt();
+        second.decided_at = Timestamp::new(12);
+        let (_, attested_second) = attest_decision(second);
+        let execution = ExecutionReceipt::new(
+            decision_id,
+            Digest::new([6; 32]),
+            Digest::new([7; 32]),
+            ExecutionOutcome::Indeterminate,
+            None,
+            Timestamp::new(13),
+            profile_claims(ProfileReceiptClaimPhase::Execution),
+        )
+        .unwrap();
+        let (_, attested_execution) = attest_execution(execution);
+        assert_eq!(
+            encode_portable_execution(&attested_second, &attested_execution),
+            Err(ReceiptError::Malformed)
+        );
+        assert!(encode_portable_execution(&attested_first, &attested_execution).is_ok());
     }
 
     /// Decision 11.8 (contract §10A / §5A.3). The third outcome must be a
@@ -1747,7 +2446,9 @@ mod tests {
                 outcome,
                 None,
                 Timestamp::new(11),
+                profile_claims(ProfileReceiptClaimPhase::Execution),
             )
+            .unwrap()
         };
         let unknown = of(ExecutionOutcome::Indeterminate);
         let encoded = encode_execution(&unknown).unwrap();
@@ -1770,15 +2471,17 @@ mod tests {
     fn execution_outcome_wire_tags_are_exactly_zero_one_two() {
         let decision = decision_receipt_id(&receipt()).unwrap();
         let build = |outcome| {
-            encode_execution(&ExecutionReceipt::new(
+            let receipt = ExecutionReceipt::new(
                 decision,
                 Digest::new([6; 32]),
                 Digest::new([7; 32]),
                 outcome,
                 None,
                 Timestamp::new(11),
-            ))
-            .unwrap()
+                profile_claims(ProfileReceiptClaimPhase::Execution),
+            )
+            .unwrap();
+            encode_execution(&receipt).unwrap()
         };
         let succeeded = build(ExecutionOutcome::Succeeded);
         // Key 4 is the outcome; the encodings differ in exactly that one byte.
@@ -1830,6 +2533,7 @@ mod tests {
             ExecutionOutcome::Succeeded,
             Some(b"exact result"),
             Timestamp::new(12),
+            &profile_claims(ProfileReceiptClaimPhase::Execution),
             &signer(),
         )
         .unwrap();
@@ -1844,6 +2548,7 @@ mod tests {
             ExecutionOutcome::Succeeded,
             Some(b"exact result"),
             Timestamp::new(12),
+            &profile_claims(ProfileReceiptClaimPhase::Execution),
             &signer(),
         )
         .unwrap();
@@ -1900,7 +2605,9 @@ mod tests {
             ExecutionOutcome::Succeeded,
             Some(Digest::new([8; 32])),
             Timestamp::new(11),
-        );
+            profile_claims(ProfileReceiptClaimPhase::Execution),
+        )
+        .unwrap();
         let (execution_id, execution_bytes) = attest_execution(execution);
         let disclosed = AuditArtifact::disclosed("application/cbor", b"proof".to_vec()).unwrap();
         let redacted = AuditArtifact::redacted("application/json", Digest::new([9; 32])).unwrap();

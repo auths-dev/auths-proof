@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-crash-commit-report.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "operationId", "agentProcessId", "agentStartTimeTicks", "agentCgroupSha256", "controlOperationId", "controllerNonceSha256", "decisionSnapshotSha256", "supervisorContextSha256", "decisionEventSha256", "acknowledgementContextSha256", "acknowledgementEventSha256", "killContextSha256", "killEventSha256", "restartContextSha256", "restartEventSha256", "restartedAgentProcessId", "restartedAgentStartTimeTicks", "killSentAfterEventFsync", "cgroupEmptyAfterKill", "restartObservedBeforeCleanup"],
+  "properties": {
+    "schema": {"const": "auths.qualification-crash-commit-report/1"},
+    "operationId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+    "agentProcessId": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+    "agentStartTimeTicks": {"type": "integer", "minimum": 1},
+    "agentCgroupSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "controlOperationId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+    "controllerNonceSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "decisionSnapshotSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "supervisorContextSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "decisionEventSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "acknowledgementContextSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "acknowledgementEventSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "killContextSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "killEventSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "restartContextSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "restartEventSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "restartedAgentProcessId": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+    "restartedAgentStartTimeTicks": {"type": "integer", "minimum": 1},
+    "killSentAfterEventFsync": {"const": true},
+    "cgroupEmptyAfterKill": {"const": true},
+    "restartObservedBeforeCleanup": {"const": true}
+  }
+}

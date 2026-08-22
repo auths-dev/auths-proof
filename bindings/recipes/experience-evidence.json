@@ -3,24 +3,31 @@
   "automated": {
     "runner": "bindings/recipes/tools/run.mjs",
     "languages": ["typescript", "python"],
-    "recipesPerLanguage": 5,
+    "recipesPerLanguage": 2,
     "crossLanguageReceiptVerification": true,
+    "localAgentInstalledProof": {
+      "runner": "bindings/testkit/local-agent/run.mjs",
+      "provider": "synthetic-stripe-testkit",
+      "languages": ["python", "typescript"],
+      "assertions": [
+        "fresh-generated-call",
+        "cross-language-replay",
+        "changed-input-conflict-preserves-possible-effect",
+        "portable-receipt-pair-verifies-in-both-sdks",
+        "restart-safe-replay"
+      ],
+      "status": "passed"
+    },
     "timings": [
       { "language": "typescript", "recipe": "01", "elapsedMs": 165 },
       { "language": "python", "recipe": "01", "elapsedMs": 161 },
       { "language": "typescript", "recipe": "02", "elapsedMs": 184 },
-      { "language": "python", "recipe": "02", "elapsedMs": 143 },
-      { "language": "typescript", "recipe": "03", "elapsedMs": 211 },
-      { "language": "python", "recipe": "03", "elapsedMs": 169 },
-      { "language": "typescript", "recipe": "04", "elapsedMs": 212 },
-      { "language": "python", "recipe": "04", "elapsedMs": 173 },
-      { "language": "typescript", "recipe": "05", "elapsedMs": 605 },
-      { "language": "python", "recipe": "05", "elapsedMs": 501 }
+      { "language": "python", "recipe": "02", "elapsedMs": 143 }
     ],
     "measurement": "local clean temporary consumers; installed npm tarball and wheel; Apple arm64"
   },
-  "moderatedRecipeThreeCohort": {
-    "status": "awaiting-independent-cohort",
+  "cleanMachineLaunchCohort": {
+    "status": "awaiting-operator-provisioned-agent",
     "requiredCompletions": 4,
     "requiredCohort": 5,
     "maximumMinutes": 15,
