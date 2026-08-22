@@ -2844,6 +2844,54 @@ impl JournaledLocalExecutor {
 }
 
 impl JournaledLocalExecutor {
+    #[cfg(all(target_os = "linux", feature = "qualification-failpoints"))]
+    fn qualification_pre_admission_issue(
+        &self,
+        context: &LocalOperationContext,
+        bridge: &ProfileRuntime,
+    ) -> Result<Option<CommonIssue>, LocalAgentFailure> {
+        match context.qualification_fault {
+            Some(QualificationAdmissionFaultV1::ConfigurationMismatch) => {
+                if context.profile_configuration.is_none() {
+                    return Err(LocalAgentFailure::Internal);
+                }
+                match bridge.revalidate_configuration(context) {
+                    Err(LocalAgentFailure::InvalidConfiguration) => {
+                        Ok(Some(CommonIssue::InvalidConfiguration))
+                    }
+                    Ok(()) | Err(_) => Err(LocalAgentFailure::Internal),
+                }
+            }
+            Some(QualificationAdmissionFaultV1::ConnectionSubstitution) => {
+                for alias in ["qualification-substitute-a", "qualification-substitute-b"] {
+                    match self.resolve_connection(
+                        context,
+                        bridge.connection_requirement(),
+                        Some(alias),
+                    ) {
+                        Err(LocalAgentFailure::NotFound) | Ok(None) => {}
+                        Ok(Some(_)) => return Err(LocalAgentFailure::InvalidConfiguration),
+                        Err(error) => return Err(error),
+                    }
+                }
+                Ok(Some(CommonIssue::ConnectionUnavailable))
+            }
+            Some(QualificationAdmissionFaultV1::PrincipalSubstitution) => {
+                if context.principal.as_ref() != "did:auths:qualification-substitute"
+                    || context.authority.principal().as_str() == context.principal.as_ref()
+                {
+                    return Err(LocalAgentFailure::Internal);
+                }
+                Ok(Some(CommonIssue::UnauthenticatedPrincipal))
+            }
+            Some(
+                QualificationAdmissionFaultV1::EvidenceFreshnessEdge
+                | QualificationAdmissionFaultV1::StaleEvidence,
+            )
+            | None => Ok(None),
+        }
+    }
+
     pub(crate) async fn preparation_evidence(
         &self,
         context: LocalOperationContext,
@@ -2857,6 +2905,12 @@ impl JournaledLocalExecutor {
             || request.preparation_evidence_handle().is_some()
         {
             return Err(LocalAgentFailure::NotFound);
+        }
+        #[cfg(all(target_os = "linux", feature = "qualification-failpoints"))]
+        if let Some(issue) = self.qualification_pre_admission_issue(&context, &bridge)? {
+            let inner = encode_qualification_admission_unavailable(request, issue)?;
+            return encode_preparation_evidence_outcome(request.request_id(), &inner)
+                .map_err(|_| LocalAgentFailure::Internal);
         }
         let gates = self
             .preparation_evidence_gate_set(&context, &profile, request)
@@ -3056,10 +3110,8 @@ impl JournaledLocalExecutor {
             return Err(LocalAgentFailure::NotFound);
         }
         #[cfg(all(target_os = "linux", feature = "qualification-failpoints"))]
-        if context.qualification_fault == Some(QualificationAdmissionFaultV1::ConfigurationMismatch)
-            && context.profile_configuration.is_none()
-        {
-            return Err(LocalAgentFailure::InvalidConfiguration);
+        if let Some(issue) = self.qualification_pre_admission_issue(&context, &bridge)? {
+            return encode_qualification_admission_unavailable(&request, issue);
         }
         let gates = self
             .preparation_evidence_gate_set(&context, &bridge_profile, &request)
@@ -3124,30 +3176,6 @@ impl JournaledLocalExecutor {
         // existing idempotency key, must evaluate current mutable commitments.
         // The latter can replay only when the journal's full preparation
         // commitment still matches; drift becomes a typed conflict.
-        #[cfg(all(target_os = "linux", feature = "qualification-failpoints"))]
-        if context.qualification_fault
-            == Some(QualificationAdmissionFaultV1::ConnectionSubstitution)
-        {
-            let substitute = if request.connection_alias() == Some("qualification-substitute-a") {
-                "qualification-substitute-b"
-            } else {
-                "qualification-substitute-a"
-            };
-            match self.resolve_connection(
-                &context,
-                bridge.connection_requirement(),
-                Some(substitute),
-            ) {
-                Err(LocalAgentFailure::NotFound) | Ok(None) => {
-                    return encode_qualification_admission_unavailable(
-                        &request,
-                        CommonIssue::ConnectionUnavailable,
-                    );
-                }
-                Ok(Some(_)) => return Err(LocalAgentFailure::InvalidConfiguration),
-                Err(error) => return Err(error),
-            }
-        }
         let connection = match self.resolve_connection(
             &context,
             bridge.connection_requirement(),

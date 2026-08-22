@@ -81,6 +81,20 @@ function conflict(request) {
   ]);
 }
 
+function admissionUnavailable(request) {
+  const issue = encodeDeterministic(new Map([
+    ["schema", "auths.error/1"], ["family", "configuration"], ["code", "core.invalid-configuration"],
+    ["operation", "create"], ["stage", "configuration"], ["summary", "the deployment-owned profile configuration changed before provider entry"],
+    ["correlationId", "qualification-admission"], ["retry", "never"], ["effect", "not-applied"],
+    ["entered", new Map([["approval", false], ["signer", false], ["state", false], ["credential", false], ["provider", false]])],
+    ["recommendedAction", "correct-configuration"], ["executionReference", null],
+    ["decisionReference", null], ["receiptReference", null], ["causes", ["corrupt-state"]],
+  ]));
+  return new Map([
+    [1, 1], [2, "unavailable"], [3, request], [4, null], [5, issue], [6, []], [7, "primary"],
+  ]);
+}
+
 function inProgress(request, effect) {
   return new Map([
     [1, 1], [2, "in-progress"], [3, request], [4, operation], [5, "executing"],
@@ -446,11 +460,20 @@ test("companion outcomes re-enter the ordinary TypeScript state machine", async 
     [(request) => inProgress(request, "possible"), "completed", "/recover"],
     [(request) => completed(request), "completed", null],
     [(request) => conflict(request), "conflict", null],
+    [(request) => admissionUnavailable(request), "unavailable", null],
   ]) {
     await withCompanion(initial, async (profile, paths) => {
       const outcome = await profile.invokeOutcome({ value: 7 });
       assert.equal(outcome.kind, expectedKind);
       assert.equal(paths.filter((path) => path.endsWith("/preparation-evidence")).length, 1);
+      if (outcome.kind === "unavailable") {
+        assert.equal(outcome.operationId, null);
+        assert.equal(outcome.issue.code, "core.invalid-configuration");
+        assert.deepEqual(outcome.receiptIds, []);
+        assert.deepEqual(outcome.issue.enteredBoundaries, {
+          approval: false, signer: false, state: false, credential: false, provider: false,
+        });
+      }
       if (expectedPath === null) assert.equal(paths.some((path) => path.endsWith(`/${operation}`) || path.endsWith("/recover")), false);
       else assert.equal(paths.some((path) => path.endsWith(expectedPath)), true);
     });

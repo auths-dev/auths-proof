@@ -17,8 +17,8 @@ use auths_profile_kit::{
     QualificationEvidenceLedgerTrustRegistry, QualificationEvidencePhaseCommitment,
     QualificationEvidenceSource, QualificationEvidenceSourceTrustRegistry,
     QualificationOutcomeKind, QualificationReceiptState, QualificationRedactedAttempt,
-    qualification_common_phase_matches_ledger, qualification_evidence_event_chain_valid,
-    qualification_pre_admission_attempt_count,
+    qualification_admission_expectation, qualification_common_phase_matches_ledger,
+    qualification_evidence_event_chain_valid, qualification_pre_admission_attempt_count,
 };
 #[cfg(target_os = "linux")]
 use auths_profile_kit::{
@@ -329,6 +329,7 @@ fn initialize_ledger(arguments: &[String]) -> Result<(), String> {
     common_root.sync_all().map_err(string_error)
 }
 
+#[allow(clippy::too_many_lines)]
 fn stage_common_phases(arguments: &[String]) -> Result<(), String> {
     let [
         command,
@@ -586,6 +587,7 @@ fn stage_common_phases(arguments: &[String]) -> Result<(), String> {
     require_exact_phase_roster(&scenarios_root, &plan)
 }
 
+#[allow(clippy::too_many_lines)]
 fn protected_attempts(
     phase_events: &[&QualificationEvidenceEvent],
     projections: &BTreeMap<String, QualificationCommonOperationInstanceEvidence>,
@@ -625,6 +627,7 @@ fn protected_attempts(
                 principal_sha256,
                 idempotency_sha256,
                 preparation_input_sha256,
+                admission_fault,
             } = &ingress.payload
             else {
                 return Err("protected ingress has the wrong payload".into());
@@ -643,6 +646,22 @@ fn protected_attempts(
                 return Err("protected client result has the wrong payload".into());
             };
             let operation_id = event.operation_id.clone();
+            let attempt_sequence = u16::try_from(index + 1).map_err(string_error)?;
+            let admission_expectation = qualification_admission_expectation(
+                &phase_events[0].scenario_id,
+                case_id,
+                attempt_sequence,
+            )
+            .map_err(string_error)?;
+            if *admission_fault != admission_expectation.map(|expectation| expectation.fault)
+                || admission_expectation.is_some_and(|expectation| {
+                    *outcome != expectation.outcome
+                        || *completion != expectation.completion
+                        || error_code.as_deref() != expectation.error_code
+                })
+            {
+                return Err("protected ingress has the wrong admission fault".into());
+            }
             let projection = operation_id
                 .as_ref()
                 .and_then(|operation_id| projections.get(operation_id));
@@ -676,7 +695,7 @@ fn protected_attempts(
                     | QualificationAttemptKind::CancelAfterWrite
             );
             let value = QualificationRedactedAttempt {
-                sequence: u8::try_from(index + 1).map_err(string_error)?,
+                sequence: u8::try_from(attempt_sequence).map_err(string_error)?,
                 case_id: case_id.to_owned(),
                 request_event_sequence: ingress.sequence,
                 terminal_event_sequence: event.sequence,
@@ -713,6 +732,7 @@ fn protected_attempts(
         .collect()
 }
 
+#[allow(clippy::too_many_lines)]
 fn protected_common_projection(
     operation_id: &str,
     phase_events: &[&QualificationEvidenceEvent],
@@ -961,6 +981,7 @@ fn protected_common_projection(
     Ok(projection)
 }
 
+#[allow(clippy::too_many_lines)]
 fn protected_receipt_claim(
     sequence: u8,
     attempt: &QualificationRedactedAttempt,
@@ -2966,6 +2987,7 @@ fn append_verified_event_locked(
     Ok(complete)
 }
 
+#[allow(clippy::too_many_lines)]
 fn build_event_index(arguments: &[String]) -> Result<(), String> {
     let [
         command,
@@ -3161,6 +3183,7 @@ fn seal_ledger(arguments: &[String]) -> Result<(), String> {
     write_new(Path::new(output), &ledger)
 }
 
+#[allow(clippy::too_many_lines)]
 fn assemble_ledger(arguments: &[String]) -> Result<(), String> {
     let [
         command,

@@ -2663,8 +2663,12 @@ socket, kernel-authenticates the real SDK process, and forwards the exact
 bounded canonical request through the qualification-only identity-preserving
 bridge to the exact agent UID, GID, and executable committed by the ledger
 plan. `RequestReceived` is durably appended before the first request with that
-request ID can reach the agent. The reader never treats an agent HTTP response
-as an SDK-visible terminal result. The protected workflow supplies the same
+request ID can reach the agent. Its signed payload carries the exact nullable
+admission fault selected from the immutable scenario and authenticated attempt
+sequence. The same stored value is forwarded in the bridge binding; staging
+and every fresh ledger verifier rederive and exact-compare it. Missing, extra,
+swapped, or out-of-order faults fail closed. The reader never treats an agent
+HTTP response as an SDK-visible terminal result. The protected workflow supplies the same
 private `AUTHS_QUALIFICATION_CLIENT_RESULT_SOCKET` to the clean SDK consumer;
 this is not a public client option. When that variable is present, the installed
 Python and TypeScript clients require Linux, a full local session, and an

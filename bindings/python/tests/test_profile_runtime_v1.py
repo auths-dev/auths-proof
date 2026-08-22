@@ -27,6 +27,7 @@ from auths.profile_runtime import (
     ProfileFile,
     ReceiptIntegrityFailed,
     RecoveryRequired,
+    Unavailable,
     _encode_profile_input,
     _issue,
     _outcome,
@@ -707,6 +708,39 @@ def _companion_conflict_wire() -> dict[int, Any]:
     }
 
 
+def _companion_admission_unavailable_wire() -> dict[int, Any]:
+    issue = {
+        "schema": "auths.error/1",
+        "family": "configuration",
+        "code": "core.invalid-configuration",
+        "operation": "create",
+        "stage": "configuration",
+        "summary": "the deployment-owned profile configuration changed before provider entry",
+        "correlationId": "qualification-admission",
+        "retry": "never",
+        "effect": "not-applied",
+        "entered": {
+            "approval": False,
+            "signer": False,
+            "state": False,
+            "credential": False,
+            "provider": False,
+        },
+        "recommendedAction": "correct-configuration",
+        "executionReference": None,
+        "decisionReference": None,
+        "receiptReference": None,
+        "causes": ["corrupt-state"],
+    }
+    return {
+        1: 1,
+        2: "unavailable",
+        3: b"replaced-by-client-request",
+        4: None,
+        5: encode(issue),
+        6: [],
+        7: "primary",
+    }
 def test_companion_outcomes_resume_the_normal_state_machine() -> None:
     async def scenario() -> None:
         operation = _OPERATION
@@ -734,6 +768,11 @@ def test_companion_outcomes_resume_the_normal_state_machine() -> None:
             (in_progress_possible, ("preparation-evidence", "recover"), Completed),
             (completed, ("preparation-evidence",), Completed),
             (_companion_conflict_wire(), ("preparation-evidence",), Conflict),
+            (
+                _companion_admission_unavailable_wire(),
+                ("preparation-evidence",),
+                Unavailable,
+            ),
             (_integrity_wire("completed", "applied", True), ("preparation-evidence",), ReceiptIntegrityFailed),
         )
         for outcome_wire, expected_tail, expected_type in cases:
@@ -741,6 +780,13 @@ def test_companion_outcomes_resume_the_normal_state_machine() -> None:
             outcome = await _companion_profile(client).invoke_outcome(Input(7))
             assert isinstance(outcome, expected_type)
             assert tuple(path.rsplit("/", 1)[-1] for _, path, _ in client.requests) == expected_tail
+            if isinstance(outcome, Unavailable):
+                assert outcome.operation_id is None
+                assert outcome.issue.code == "core.invalid-configuration"
+                assert outcome.receipt_ids == ()
+                assert outcome.issue.entered_boundaries == outcome.issue.entered_boundaries.__class__(
+                    False, False, False, False, False,
+                )
 
     asyncio.run(scenario())
 

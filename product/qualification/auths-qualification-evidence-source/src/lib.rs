@@ -6,6 +6,7 @@
 //! reader is not implemented fail closed and never expose a generic signer.
 
 #![forbid(unsafe_code)]
+#![allow(clippy::missing_errors_doc)]
 
 #[cfg(target_os = "linux")]
 mod generated {
@@ -48,9 +49,10 @@ use auths_profile_kit::{
     QualificationJournalDecisionContext, QualificationJournalDecisionContextRecord,
     QualificationJournalState, QualificationReceiptExecutionOutcome,
     QualificationScenarioHookStage, QualificationSetupHandoffV1,
-    QualificationSupervisorPhaseRequestV1, qualification_case_profile_input_cbor,
-    qualification_changed_profile_input_cbor, qualification_event_marker_sha256,
-    qualification_pre_admission_attempt_count, qualification_profile_input_cbor,
+    QualificationSupervisorPhaseRequestV1, qualification_admission_expectation,
+    qualification_case_profile_input_cbor, qualification_changed_profile_input_cbor,
+    qualification_event_marker_sha256, qualification_pre_admission_attempt_count,
+    qualification_profile_input_cbor,
 };
 #[cfg(any(target_os = "linux", test))]
 use auths_profile_kit::{
@@ -271,7 +273,7 @@ const SOURCE_CHECKPOINT_ABORT: u8 = 0;
 const SOURCE_CHECKPOINT_CLEAN: u8 = 1;
 
 /// One authenticated, capability-free request sent by the protected crash
-/// controller to the separately supervised JournalReader process.
+/// controller to the separately supervised `JournalReader` process.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct QualificationJournalDecisionRequestV1 {
@@ -295,7 +297,7 @@ pub struct QualificationJournalDecisionResponseV1 {
 }
 
 /// One Supervisor-authenticated decision row supplied to a full journal
-/// boundary drain.  The JournalReader independently binds both byte strings
+/// boundary drain.  The `JournalReader` independently binds both byte strings
 /// to the co-persisted Decision boundary before it signs any event.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -307,7 +309,7 @@ pub struct QualificationJournalBoundaryDecisionV1 {
 }
 
 /// Controller-authenticated process identity that owned one durable boundary.
-/// The roster is private to the bounded JournalReader session; it prevents a
+/// The roster is private to the bounded `JournalReader` session; it prevents a
 /// post-crash full-prefix retry from relabelling pre-crash events with the
 /// restarted candidate identity.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -609,7 +611,7 @@ pub struct QualificationProviderObserverOperationV1 {
     pub effect: QualificationEffect,
     pub provider_truth_sha256: String,
     /// Base64url encoding of the canonical redacted domain facts whose digest
-    /// is signed by the ProviderObserver event. Raw provider state and
+    /// is signed by the `ProviderObserver` event. Raw provider state and
     /// responses are never included.
     pub domain_facts_base64url: String,
 }
@@ -1004,7 +1006,7 @@ pub fn main_for_source(source: QualificationEvidenceSource) -> ExitCode {
     }
 }
 
-/// Runs the role-fixed ReceiptVerifier signer or its distinct no-seed reader
+/// Runs the role-fixed `ReceiptVerifier` signer or its distinct no-seed reader
 /// mode. Protected source trust requires different OS identities even though
 /// both modes use the same reviewed executable bytes.
 pub fn main_for_receipt_verifier() -> ExitCode {
@@ -1025,7 +1027,7 @@ pub fn main_for_receipt_verifier() -> ExitCode {
     }
 }
 
-/// Runs the role-fixed CredentialBroker signer or its distinct no-seed
+/// Runs the role-fixed `CredentialBroker` signer or its distinct no-seed
 /// credential-reader mode. The reader owns the protected credential store;
 /// the qualification agent receives only one deadline-bound lease.
 pub fn main_for_credential_broker() -> ExitCode {
@@ -1048,7 +1050,7 @@ pub fn main_for_credential_broker() -> ExitCode {
     }
 }
 
-/// Runs the role-fixed ProviderProxy signer or its distinct no-seed transport
+/// Runs the role-fixed `ProviderProxy` signer or its distinct no-seed transport
 /// owner. The reader accepts a complete canonical call before it emits the
 /// durable request-written boundary, then owns the one provider execution and
 /// retained response across an agent restart.
@@ -1070,7 +1072,7 @@ pub fn main_for_provider_proxy() -> ExitCode {
     }
 }
 
-/// Runs the role-fixed ProviderObserver signer or the distinct no-seed,
+/// Runs the role-fixed `ProviderObserver` signer or the distinct no-seed,
 /// runtime-read-credential owner. The reader starts provider I/O only after
 /// the controller has reaped the candidate and transferred a pinned journal
 /// snapshot.
@@ -1350,7 +1352,7 @@ fn initialize_credential_broker_stores(_arguments: &[String]) -> Result<(), Stri
     Err("CredentialBroker store initialization requires Linux process identity".into())
 }
 
-/// Runs the role-fixed ProfileStateReader signer or its distinct no-seed
+/// Runs the role-fixed `ProfileStateReader` signer or its distinct no-seed
 /// reader mode. The reader receives only controller-pinned read-only snapshots
 /// and projects domain-owned state through the existing static adapters.
 pub fn main_for_profile_state_reader() -> ExitCode {
@@ -5218,6 +5220,7 @@ struct ClientSessionState {
 struct ClientAttemptState {
     sequence: u16,
     case_id: String,
+    admission_fault: Option<QualificationAdmissionFaultV1>,
     process: ClientProcessIdentity,
     principal_sha256: String,
     idempotency_sha256: Option<String>,
@@ -6030,6 +6033,13 @@ fn relay_client_proxy_connection(
                 &state,
             )?;
             let principal_sha256 = session.principal_sha256.clone();
+            let admission_fault = qualification_admission_expectation(
+                &shared.phase.scenario_id,
+                &case_id,
+                attempt_sequence,
+            )
+            .map_err(string_error)?
+            .map(|expectation| expectation.fault);
             let record = client_proxy_record(
                 shared,
                 facts.request_id.clone(),
@@ -6040,6 +6050,7 @@ fn relay_client_proxy_connection(
                     principal_sha256: principal_sha256.clone(),
                     idempotency_sha256: facts.idempotency_sha256.clone(),
                     preparation_input_sha256: facts.preparation_input_sha256.clone(),
+                    admission_fault,
                 },
             );
             shared
@@ -6052,6 +6063,7 @@ fn relay_client_proxy_connection(
                 ClientAttemptState {
                     sequence: attempt_sequence,
                     case_id,
+                    admission_fault,
                     process: session.process.clone(),
                     principal_sha256,
                     idempotency_sha256: facts.idempotency_sha256,
@@ -6084,6 +6096,7 @@ fn relay_client_proxy_connection(
         }
     }
 
+    let admission_fault = client_admission_fault(shared, &request, exchange_binding.as_ref())?;
     let transport = if session.is_some() {
         exchange_binding
             .map(|binding| {
@@ -6114,7 +6127,6 @@ fn relay_client_proxy_connection(
         None
     };
 
-    let admission_fault = client_admission_fault(shared, &request)?;
     let binding = client_process
         .bridge_binding(
             shared.plan.source_context_sha256().map_err(string_error)?,
@@ -6374,33 +6386,49 @@ fn client_operation_response_outcome(
 fn client_admission_fault(
     shared: &ClientProxyShared,
     request: &auths_production_client::LocalAgentHttpRequest,
+    exchange_binding: Option<&ClientExchangeBinding>,
 ) -> Result<Option<QualificationAdmissionFaultV1>, String> {
-    if classify_client_route(request.path(), &shared.phase.profile)? != ClientRoute::Prepare {
+    let route = classify_client_route(request.path(), &shared.phase.profile)?;
+    if !matches!(
+        route,
+        ClientRoute::PreparationEvidence | ClientRoute::Prepare
+    ) {
         return Ok(None);
     }
-    let request =
-        decode_prepare_operation_request(request.body(), 25_165_824).map_err(string_error)?;
-    let sequence = shared
+    let request_id = exchange_binding
+        .map(|binding| binding.request_id.as_str())
+        .ok_or_else(|| "ClientProxy admission route has no authenticated exchange".to_owned())?;
+    let attempt = shared
         .state
         .lock()
         .map_err(string_error)?
         .attempts
-        .get(&request.request_id().to_base64url())
-        .map(|attempt| attempt.sequence)
+        .get(request_id)
+        .cloned()
         .ok_or_else(|| "ClientProxy admission fault has no authenticated attempt".to_owned())?;
-    Ok(match shared.phase.scenario_id.as_str() {
-        "configuration-mismatch" => Some(QualificationAdmissionFaultV1::ConfigurationMismatch),
-        "connection-substitution" => Some(QualificationAdmissionFaultV1::ConnectionSubstitution),
-        "principal-substitution" => Some(QualificationAdmissionFaultV1::PrincipalSubstitution),
-        "stale-evidence" if sequence == 1 => {
-            Some(QualificationAdmissionFaultV1::EvidenceFreshnessEdge)
-        }
-        "stale-evidence" if sequence == 2 => Some(QualificationAdmissionFaultV1::StaleEvidence),
-        "stale-evidence" => {
-            return Err("stale-evidence exceeded its exact two-attempt contract".into());
-        }
-        _ => None,
-    })
+    let expected = qualification_admission_expectation(
+        &shared.phase.scenario_id,
+        &attempt.case_id,
+        attempt.sequence,
+    )
+    .map_err(string_error)?
+    .map(|expectation| expectation.fault);
+    if attempt.admission_fault != expected {
+        return Err("ClientProxy admission fault changed after durable ingress".into());
+    }
+    match (route, attempt.admission_fault) {
+        (
+            ClientRoute::PreparationEvidence,
+            Some(
+                fault @ (QualificationAdmissionFaultV1::ConfigurationMismatch
+                | QualificationAdmissionFaultV1::ConnectionSubstitution
+                | QualificationAdmissionFaultV1::PrincipalSubstitution),
+            ),
+        ) => Ok(Some(fault)),
+        (ClientRoute::PreparationEvidence, _) => Ok(None),
+        (ClientRoute::Prepare, fault) => Ok(fault),
+        _ => unreachable!("non-admission routes returned before attempt lookup"),
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -7289,6 +7317,7 @@ fn typed_source_event(
 /// Runs the minimal supervisor-source signer. The unsigned record is accepted
 /// only from an owner-only local socket peer whose kernel UID and executable
 /// digest are bound by the protected record and source trust registry.
+#[must_use]
 pub fn main_for_supervisor() -> ExitCode {
     let arguments = env::args().skip(1).collect::<Vec<_>>();
     let result = run_supervisor_ordinary_row(&arguments);
@@ -7598,6 +7627,7 @@ fn connect_before(path: &Path, deadline: Instant, label: &str) -> Result<UnixStr
 
 /// Runs the journal-reader producer, whose decision payload is derived only
 /// from a directly decoded durable operation and deployed public trust.
+#[must_use]
 pub fn main_for_journal_reader() -> ExitCode {
     let arguments = env::args().skip(1).collect::<Vec<_>>();
     let result = run_journal_reader(&arguments);
@@ -9239,7 +9269,11 @@ pub fn read_source_session_frame_before(
     stream: &mut UnixStream,
     deadline: Instant,
 ) -> Result<Option<Vec<u8>>, String> {
-    read_bounded_session_frame_before(stream, MAX_CONTEXT_BYTES as usize, deadline)
+    read_bounded_session_frame_before(
+        stream,
+        usize::try_from(MAX_CONTEXT_BYTES).map_err(string_error)?,
+        deadline,
+    )
 }
 
 #[cfg(any(target_os = "linux", test))]
@@ -9308,7 +9342,12 @@ pub fn write_source_session_frame_before(
     bytes: &[u8],
     deadline: Instant,
 ) -> Result<(), String> {
-    write_bounded_session_frame_before(stream, bytes, MAX_CONTEXT_BYTES as usize, deadline)
+    write_bounded_session_frame_before(
+        stream,
+        bytes,
+        usize::try_from(MAX_CONTEXT_BYTES).map_err(string_error)?,
+        deadline,
+    )
 }
 
 #[cfg(any(target_os = "linux", test))]
@@ -9962,6 +10001,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn journal_reader_and_supervisor_accept_only_their_exact_output_flags() {
         assert!(!supervisor_usage().contains("append-phase"));
         let journal_reader = vec![

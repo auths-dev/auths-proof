@@ -301,7 +301,8 @@ source ACKs before phase completion.
 The protected ClientProxy, not the installed SDK or candidate agent, selects the
 closed qualification-only admission fault for `configuration-mismatch`,
 `connection-substitution`, `principal-substitution`, and `stale-evidence`. The
-fault is carried only in the authenticated client-bridge binding. The agent first
+fault is carried in both the signed `RequestReceived` source event and the
+authenticated client-bridge binding. The agent first
 authenticates the real SDK peer, then applies the selected fault to the internal
 admission input; it never treats a substituted principal as the transport peer.
 

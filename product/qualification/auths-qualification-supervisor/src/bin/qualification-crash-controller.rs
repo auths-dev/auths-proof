@@ -2,7 +2,7 @@
 //!
 //! The controller accepts one durable acknowledgement directly from the
 //! agent process, derives the capability-free public snapshot from the
-//! protected journal, obtains distinct Supervisor and JournalReader source
+//! protected journal, obtains distinct Supervisor and `JournalReader` source
 //! signatures, fsyncs the signed source record, and only then kills the
 //! agent's delegated cgroup.
 
@@ -882,11 +882,12 @@ mod linux {
         if matches!(completion, PhaseCompletion::Completed)
             && pre_admission_rejection_scenario(&phase.scenario_id)
         {
-            if !gate.decisions.is_empty() || !gate.drain(deadline)?.is_empty() {
+            if !gate.decisions.is_empty() {
                 return Err(
-                    "pre-admission rejection unexpectedly created durable journal state".into(),
+                    "pre-admission rejection unexpectedly created a durable decision".into(),
                 );
             }
+            gate.verify_pre_admission_empty(deadline)?;
         }
         if matches!(completion, PhaseCompletion::CrashReached) {
             let (control_operation_id, controller_nonce_sha256) = crash_identity
@@ -2062,6 +2063,33 @@ mod linux {
                     }
                 }
             }
+        }
+
+        fn verify_pre_admission_empty(&mut self, deadline: Instant) -> Result<(), String> {
+            self.policy.verify_agent_unchanged()?;
+            let mut snapshot = open_persisted_operation_snapshot_at_for_qualification(
+                &self.policy.state_directory,
+                self.policy.plan.agent_uid,
+            )
+            .map_err(string_error)?;
+            self.policy.verify_prior_journal_prefix(&mut snapshot)?;
+            let records = read_persisted_operation_records_from_qualification_snapshot(
+                &mut snapshot,
+                self.policy.plan.agent_uid,
+            )
+            .map_err(string_error)?;
+            let boundaries = read_persisted_qualification_boundaries_from_snapshot(
+                &mut snapshot,
+                self.policy.plan.agent_uid,
+            )
+            .map_err(string_error)?;
+            if records.len() != self.policy.prior_record_sha256.len()
+                || boundaries.len() != self.policy.prior_boundary_sha256.len()
+            {
+                return Err("pre-admission rejection changed the prior journal prefix".into());
+            }
+            self.drain_profile_state(&mut snapshot, false, deadline)?;
+            self.policy.verify_agent_unchanged()
         }
 
         fn drain_profile_state(

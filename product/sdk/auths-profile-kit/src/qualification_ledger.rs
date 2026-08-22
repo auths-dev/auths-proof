@@ -242,6 +242,7 @@ pub enum QualificationEvidenceEventPayload {
         principal_sha256: String,
         idempotency_sha256: Option<String>,
         preparation_input_sha256: Option<String>,
+        admission_fault: Option<QualificationAdmissionFaultV1>,
     },
     Decision {
         canonical_input_sha256: String,
@@ -632,6 +633,7 @@ pub enum QualificationClientProxyObservationV1 {
         principal_sha256: String,
         idempotency_sha256: Option<String>,
         preparation_input_sha256: Option<String>,
+        admission_fault: Option<QualificationAdmissionFaultV1>,
     },
     ResponseProjected {
         result_sha256: String,
@@ -1275,7 +1277,7 @@ pub struct QualificationEvidenceLedgerRecord {
     pub provider_run_id: String,
     pub ledger_id: String,
     pub session_nonce_sha256: String,
-    /// SHA-256 of the canonical protected setup handoff consumed by ClientProxy.
+    /// SHA-256 of the canonical protected setup handoff consumed by `ClientProxy`.
     pub setup_handoff_sha256: String,
     pub cleanup_reference_sha256: String,
     pub supervisor_controller_uid: u32,
@@ -1795,6 +1797,14 @@ pub fn qualification_common_phase_matches_ledger(
         return Ok(false);
     }
     for attempt in &phase.attempts {
+        let Ok(admission_expectation) = crate::qualification_admission_expectation(
+            &phase.scenario_id,
+            &attempt.case_id,
+            u16::from(attempt.sequence),
+        ) else {
+            return Ok(false);
+        };
+        let expected_admission_fault = admission_expectation.map(|expectation| expectation.fault);
         let matching_terminal = terminal_attempts
             .iter()
             .filter(|event| {
@@ -1818,9 +1828,22 @@ pub fn qualification_common_phase_matches_ledger(
             || !matches!(
                 &matching_terminal[0].payload,
                 Payload::ClientResult {
+                    result_sha256,
                     journal_projection_kinds: observed,
-                    ..
-                } if observed == &journal_projection_kinds
+                    outcome,
+                    completion,
+                    recovery_id,
+                    error_code,
+                    issue_metadata_sha256,
+                    receipt_ids,
+                } if result_sha256 == &attempt.result_sha256
+                    && observed == &journal_projection_kinds
+                    && *outcome == attempt.outcome
+                    && *completion == attempt.completion
+                    && recovery_id == &attempt.recovery_id
+                    && error_code == &attempt.error_code
+                    && issue_metadata_sha256 == &attempt.issue_metadata_sha256
+                    && receipt_ids == &attempt.receipt_ids
             )
             || ingress
                 .iter()
@@ -1834,17 +1857,24 @@ pub fn qualification_common_phase_matches_ledger(
                                 principal_sha256,
                                 idempotency_sha256,
                                 preparation_input_sha256,
+                                admission_fault,
                             } if case_id == &attempt.case_id
                                 && event.sequence == attempt.request_event_sequence
                                 && request_input_sha256 == &attempt.request_input_sha256
                                 && principal_sha256 == &attempt.principal_sha256
                                 && idempotency_sha256 == &attempt.idempotency_sha256
                                 && preparation_input_sha256 == &attempt.preparation_input_sha256
+                                && *admission_fault == expected_admission_fault
                         )
                 })
                 .count()
                 != 1
             || matching_terminal[0].sequence != attempt.terminal_event_sequence
+            || admission_expectation.is_some_and(|expectation| {
+                attempt.outcome != expectation.outcome
+                    || attempt.completion != expectation.completion
+                    || attempt.error_code.as_deref() != expectation.error_code
+            })
         {
             return Ok(false);
         }
@@ -4056,6 +4086,7 @@ impl QualificationEvidenceEvent {
     /// Validates one unsigned event and its active source-key assignment before
     /// a protected source process admits its private signing seed.
     #[cfg(any(feature = "qualification-ledger-producer", test))]
+    #[allow(clippy::too_many_arguments)]
     pub fn validate_for_signing(
         &self,
         expected_source: QualificationEvidenceSource,
@@ -4133,6 +4164,7 @@ impl QualificationEvidenceEvent {
 
     /// Signs one closed source event inside a single-role protected process.
     #[cfg(any(feature = "qualification-ledger-producer", test))]
+    #[allow(clippy::too_many_arguments)]
     pub fn sign_json(
         mut self,
         expected_source: QualificationEvidenceSource,
@@ -4292,6 +4324,7 @@ impl QualificationClientProxyRecordV1 {
                 principal_sha256,
                 idempotency_sha256,
                 preparation_input_sha256,
+                admission_fault,
             } => (
                 QualificationEvidenceEventKind::RequestReceived,
                 QualificationEvidenceEventPayload::Request {
@@ -4300,6 +4333,7 @@ impl QualificationClientProxyRecordV1 {
                     principal_sha256: principal_sha256.clone(),
                     idempotency_sha256: idempotency_sha256.clone(),
                     preparation_input_sha256: preparation_input_sha256.clone(),
+                    admission_fault: *admission_fault,
                 },
                 None,
             ),
@@ -5477,6 +5511,7 @@ fn payload_valid(payload: &QualificationEvidenceEventPayload) -> bool {
             principal_sha256,
             idempotency_sha256,
             preparation_input_sha256,
+            admission_fault: _,
         } => {
             registered_token(case_id)
                 && digest(request_input_sha256)
@@ -6025,6 +6060,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn source_key_rotation_requires_one_unique_current_key() {
         let empty = QualificationEvidenceSourceTrustRegistry {
             schema: "auths.profile-qualification-evidence-source-trust/1".into(),
@@ -6275,7 +6311,7 @@ mod tests {
         event.durable_ack_sha256 = qualification_event_marker_sha256(event.sequence, event.source);
         event.source_signature_base64url.clear();
         let signature = SigningKey::from_bytes(&source_seed(event.source))
-            .sign(&event_signature_preimage(&event).unwrap())
+            .sign(&event_signature_preimage(event).unwrap())
             .to_bytes();
         event.source_signature_base64url = Base64UrlUnpadded::encode_string(&signature);
     }
@@ -6343,6 +6379,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn zero_instance_negative_phase_matches_authenticated_attempts() {
         let mut ledger = record();
         ledger.phase_commitments[0].last_event_sequence = 4;
@@ -6402,6 +6439,7 @@ mod tests {
             principal_sha256: attempt.principal_sha256.clone(),
             idempotency_sha256: attempt.idempotency_sha256.clone(),
             preparation_input_sha256: attempt.preparation_input_sha256.clone(),
+            admission_fault: None,
         };
         sign_test_event(&mut request);
         let mut response = request.clone();
@@ -6458,6 +6496,134 @@ mod tests {
                 &ledger,
                 &ledger.phase_commitments[0],
                 &phase,
+            )
+            .unwrap()
+        );
+
+        let mut extra_fault = ledger.clone();
+        let QualificationEvidenceEventPayload::Request {
+            admission_fault, ..
+        } = &mut extra_fault.events[1].payload
+        else {
+            panic!("fixture request has the wrong payload");
+        };
+        *admission_fault = Some(QualificationAdmissionFaultV1::ConfigurationMismatch);
+        sign_test_event(&mut extra_fault.events[1]);
+        for index in 2..extra_fault.events.len() {
+            extra_fault.events[index].previous_event_sha256 = hex::encode(Sha256::digest(
+                canonical(&extra_fault.events[index - 1]).unwrap(),
+            ));
+            sign_test_event(&mut extra_fault.events[index]);
+        }
+        assert!(extra_fault.validate().is_ok());
+        assert!(
+            !qualification_common_phase_matches_ledger(
+                &extra_fault,
+                &extra_fault.phase_commitments[0],
+                &phase,
+            )
+            .unwrap()
+        );
+
+        let mut mismatch_ledger = ledger.clone();
+        mismatch_ledger.phase_commitments[0].scenario_id = "configuration-mismatch".into();
+        for event in &mut mismatch_ledger.events {
+            event.scenario_id = "configuration-mismatch".into();
+        }
+        let QualificationEvidenceEventPayload::Request {
+            case_id,
+            admission_fault,
+            ..
+        } = &mut mismatch_ledger.events[1].payload
+        else {
+            panic!("fixture request has the wrong payload");
+        };
+        *case_id = "rejected".into();
+        *admission_fault = Some(QualificationAdmissionFaultV1::ConfigurationMismatch);
+        let QualificationEvidenceEventPayload::ClientResult {
+            outcome,
+            error_code,
+            ..
+        } = &mut mismatch_ledger.events[2].payload
+        else {
+            panic!("fixture result has the wrong payload");
+        };
+        *outcome = crate::QualificationOutcomeKind::Unavailable;
+        *error_code = Some("core.invalid-configuration".into());
+        let source_context = mismatch_ledger.source_context_sha256().unwrap();
+        for index in 0..mismatch_ledger.events.len() {
+            mismatch_ledger.events[index].source_context_sha256 = source_context.clone();
+            mismatch_ledger.events[index].previous_event_sha256 = if index == 0 {
+                ZERO_DIGEST.into()
+            } else {
+                hex::encode(Sha256::digest(
+                    canonical(&mismatch_ledger.events[index - 1]).unwrap(),
+                ))
+            };
+            sign_test_event(&mut mismatch_ledger.events[index]);
+        }
+        let mut mismatch_phase = phase.clone();
+        mismatch_phase.scenario_id = "configuration-mismatch".into();
+        mismatch_phase.attempts[0].case_id = "rejected".into();
+        mismatch_phase.attempts[0].outcome = crate::QualificationOutcomeKind::Unavailable;
+        mismatch_phase.attempts[0].error_code = Some("core.invalid-configuration".into());
+        assert!(mismatch_ledger.validate().is_ok());
+        assert!(
+            qualification_common_phase_matches_ledger(
+                &mismatch_ledger,
+                &mismatch_ledger.phase_commitments[0],
+                &mismatch_phase,
+            )
+            .unwrap()
+        );
+
+        for wrong_fault in [
+            None,
+            Some(QualificationAdmissionFaultV1::PrincipalSubstitution),
+        ] {
+            let mut mutated = mismatch_ledger.clone();
+            let QualificationEvidenceEventPayload::Request {
+                admission_fault, ..
+            } = &mut mutated.events[1].payload
+            else {
+                panic!("fixture request has the wrong payload");
+            };
+            *admission_fault = wrong_fault;
+            sign_test_event(&mut mutated.events[1]);
+            for index in 2..mutated.events.len() {
+                mutated.events[index].previous_event_sha256 = hex::encode(Sha256::digest(
+                    canonical(&mutated.events[index - 1]).unwrap(),
+                ));
+                sign_test_event(&mut mutated.events[index]);
+            }
+            assert!(mutated.validate().is_ok());
+            assert!(
+                !qualification_common_phase_matches_ledger(
+                    &mutated,
+                    &mutated.phase_commitments[0],
+                    &mismatch_phase,
+                )
+                .unwrap()
+            );
+        }
+
+        let mut wrong_code = mismatch_ledger.clone();
+        let QualificationEvidenceEventPayload::ClientResult { error_code, .. } =
+            &mut wrong_code.events[2].payload
+        else {
+            panic!("fixture result has the wrong payload");
+        };
+        *error_code = Some("connection.unavailable".into());
+        sign_test_event(&mut wrong_code.events[2]);
+        wrong_code.events[3].previous_event_sha256 =
+            hex::encode(Sha256::digest(canonical(&wrong_code.events[2]).unwrap()));
+        sign_test_event(&mut wrong_code.events[3]);
+        assert!(wrong_code.validate().is_ok());
+        assert!(
+            !qualification_common_phase_matches_ledger(
+                &wrong_code,
+                &wrong_code.phase_commitments[0],
+                &mismatch_phase,
             )
             .unwrap()
         );
@@ -6977,6 +7143,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn journal_decision_context_authenticates_process_ack_run_session_and_snapshot() {
         let trust = registry();
         let seed =
@@ -6987,19 +7154,19 @@ mod tests {
         assert!(context.binds_context(&context_record));
         for mutate in [
             |context: &mut QualificationCrashPhaseContextV1| {
-                context.source_context_sha256 = "a".repeat(64)
+                context.source_context_sha256 = "a".repeat(64);
             },
             |context: &mut QualificationCrashPhaseContextV1| {
-                context.phase.profile = "auths.postgresql.role/1".into()
+                context.phase.profile = "auths.postgresql.role/1".into();
             },
             |context: &mut QualificationCrashPhaseContextV1| {
-                context.phase.operation_plan_sha256 = "c".repeat(64)
+                context.phase.operation_plan_sha256 = "c".repeat(64);
             },
             |context: &mut QualificationCrashPhaseContextV1| {
-                context.agent_launcher_artifact_sha256 = "a".repeat(64)
+                context.agent_launcher_artifact_sha256 = "a".repeat(64);
             },
             |context: &mut QualificationCrashPhaseContextV1| {
-                context.agent_executable_sha256 = "b".repeat(64)
+                context.agent_executable_sha256 = "b".repeat(64);
             },
         ] {
             let mut changed = context.clone();
@@ -7211,6 +7378,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn crash_action_contexts_are_typed_chained_and_process_bound() {
         let trust = registry();
         let seed =
@@ -7366,6 +7534,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn typed_source_records_derive_only_their_fixed_source_events() {
         let context = QualificationSourceEventContextV1 {
             sequence: 1,

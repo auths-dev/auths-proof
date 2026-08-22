@@ -8,6 +8,7 @@
 #![allow(clippy::missing_errors_doc)]
 
 use crate::qualification::QualificationTarget;
+use crate::qualification_ledger::QualificationAdmissionFaultV1;
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 use minicbor::{Decoder, Encoder, data::Type};
 use serde::{Deserialize, Serialize};
@@ -1225,6 +1226,71 @@ pub fn qualification_pre_admission_attempt_count(scenario_id: &str) -> Option<us
     }
 }
 
+/// Exact qualification-only admission contract for one reviewed SDK case.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct QualificationAdmissionExpectation {
+    pub fault: QualificationAdmissionFaultV1,
+    pub outcome: QualificationOutcomeKind,
+    pub completion: Option<QualificationCompletion>,
+    pub error_code: Option<&'static str>,
+}
+
+/// Selects the one closed qualification-only admission contract for an
+/// authenticated SDK attempt and reviewed case.
+///
+/// The protected `ClientProxy`, staging verifier, and fresh ledger verifier
+/// consume this same policy. Production listeners never accept this value.
+pub fn qualification_admission_expectation(
+    scenario_id: &str,
+    case_id: &str,
+    attempt_sequence: u16,
+) -> Result<Option<QualificationAdmissionExpectation>, QualificationHarnessError> {
+    if attempt_sequence == 0 {
+        return Err(QualificationHarnessError::InvalidPhaseClient);
+    }
+    match (scenario_id, case_id, attempt_sequence) {
+        ("configuration-mismatch", "rejected", 1) => Ok(Some(QualificationAdmissionExpectation {
+            fault: QualificationAdmissionFaultV1::ConfigurationMismatch,
+            outcome: QualificationOutcomeKind::Unavailable,
+            completion: None,
+            error_code: Some("core.invalid-configuration"),
+        })),
+        ("connection-substitution", "rejected", 1) => Ok(Some(QualificationAdmissionExpectation {
+            fault: QualificationAdmissionFaultV1::ConnectionSubstitution,
+            outcome: QualificationOutcomeKind::Unavailable,
+            completion: None,
+            error_code: Some("connection.unavailable"),
+        })),
+        ("principal-substitution", "rejected", 1) => Ok(Some(QualificationAdmissionExpectation {
+            fault: QualificationAdmissionFaultV1::PrincipalSubstitution,
+            outcome: QualificationOutcomeKind::Unavailable,
+            completion: None,
+            error_code: Some("core.unauthenticated-principal"),
+        })),
+        ("stale-evidence", "fresh-edge", 1) => Ok(Some(QualificationAdmissionExpectation {
+            fault: QualificationAdmissionFaultV1::EvidenceFreshnessEdge,
+            outcome: QualificationOutcomeKind::Completed,
+            completion: Some(QualificationCompletion::Fresh),
+            error_code: None,
+        })),
+        ("stale-evidence", "stale", 2) => Ok(Some(QualificationAdmissionExpectation {
+            fault: QualificationAdmissionFaultV1::StaleEvidence,
+            outcome: QualificationOutcomeKind::Unavailable,
+            completion: None,
+            error_code: Some("core.authorization-indeterminate"),
+        })),
+        (
+            "configuration-mismatch"
+            | "connection-substitution"
+            | "principal-substitution"
+            | "stale-evidence",
+            _,
+            _,
+        ) => Err(QualificationHarnessError::InvalidPhaseClient),
+        _ => Ok(None),
+    }
+}
+
 /// Protected `ClientProxy` endpoints for one phase-scoped generated SDK call.
 ///
 /// The common qualification harness owns these endpoints. Domain adapters may
@@ -2014,6 +2080,7 @@ pub trait QualificationProtectedObserver {
 
 /// Validates the provider-independent projection of one executable scenario.
 /// Domain adapters call this first, then enforce their hook-specific facts.
+#[allow(clippy::too_many_lines)]
 pub fn validate_scenario_program_projection(
     program: &crate::QualificationScenarioProgramV1,
     failpoint: Option<QualificationFailpoint>,
@@ -3509,8 +3576,8 @@ mod tests {
             validate_scenario_program_projection(
                 &program,
                 None,
-                &[operation.clone()],
-                &[truth.clone()]
+                std::slice::from_ref(&operation),
+                std::slice::from_ref(&truth)
             )
             .is_ok()
         );
@@ -3541,7 +3608,13 @@ mod tests {
             attempts: vec![first.clone(), second.clone()],
         };
         assert!(
-            validate_scenario_program_projection(&program, None, &[operation.clone()], &[]).is_ok()
+            validate_scenario_program_projection(
+                &program,
+                None,
+                std::slice::from_ref(&operation),
+                &[],
+            )
+            .is_ok()
         );
 
         let mut sequential = operation.clone();
@@ -3639,6 +3712,58 @@ mod tests {
         ] {
             assert_eq!(qualification_pre_admission_attempt_count(scenario), None);
         }
+    }
+
+    #[test]
+    fn admission_fault_roster_is_closed_and_attempt_bound() {
+        assert_eq!(
+            qualification_admission_expectation("configuration-mismatch", "rejected", 1),
+            Ok(Some(QualificationAdmissionExpectation {
+                fault: QualificationAdmissionFaultV1::ConfigurationMismatch,
+                outcome: QualificationOutcomeKind::Unavailable,
+                completion: None,
+                error_code: Some("core.invalid-configuration"),
+            }))
+        );
+        assert_eq!(
+            qualification_admission_expectation("connection-substitution", "rejected", 1)
+                .unwrap()
+                .unwrap()
+                .fault,
+            QualificationAdmissionFaultV1::ConnectionSubstitution
+        );
+        assert_eq!(
+            qualification_admission_expectation("principal-substitution", "rejected", 1)
+                .unwrap()
+                .unwrap()
+                .fault,
+            QualificationAdmissionFaultV1::PrincipalSubstitution
+        );
+        assert_eq!(
+            qualification_admission_expectation("stale-evidence", "fresh-edge", 1)
+                .unwrap()
+                .unwrap()
+                .fault,
+            QualificationAdmissionFaultV1::EvidenceFreshnessEdge
+        );
+        assert_eq!(
+            qualification_admission_expectation("stale-evidence", "stale", 2)
+                .unwrap()
+                .unwrap()
+                .fault,
+            QualificationAdmissionFaultV1::StaleEvidence
+        );
+        assert_eq!(
+            qualification_admission_expectation("happy-path", "primary", 1),
+            Ok(None)
+        );
+        assert!(
+            qualification_admission_expectation("configuration-mismatch", "rejected", 2).is_err()
+        );
+        assert!(qualification_admission_expectation("stale-evidence", "stale", 1).is_err());
+        assert!(qualification_admission_expectation("stale-evidence", "fresh-edge", 2).is_err());
+        assert!(qualification_admission_expectation("stale-evidence", "stale", 3).is_err());
+        assert!(qualification_admission_expectation("happy-path", "primary", 0).is_err());
     }
 
     #[test]
@@ -3865,6 +3990,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn provider_cleanup_observation_is_bound_after_teardown_and_supports_retry() {
         let resource_commitments = vec![
             format!("resource-sha256:{}", "1".repeat(64)),
