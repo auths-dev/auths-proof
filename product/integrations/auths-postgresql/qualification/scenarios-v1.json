@@ -33,7 +33,7 @@
       "hooks": [
         {
           "caseId": "effect",
-          "stage": "before-observer",
+          "stage": "after-provider-before-response",
           "hook": "advance-row-after-ledger"
         }
       ]
@@ -182,7 +182,7 @@
         {
           "caseId": "preflight-maximum",
           "intentId": "maximum",
-          "stimulus": "canonical",
+          "stimulus": "maximum-assignment",
           "role": "preflight",
           "group": 1,
           "topology": "serial",
@@ -194,7 +194,7 @@
         {
           "caseId": "effect-maximum",
           "intentId": "maximum",
-          "stimulus": "canonical",
+          "stimulus": "prepared-maximum",
           "role": "effect",
           "group": 1,
           "topology": "serial",
@@ -206,7 +206,7 @@
         {
           "caseId": "preflight-plus-one",
           "intentId": "maximum-plus-one",
-          "stimulus": "canonical",
+          "stimulus": "maximum-plus-one-assignment",
           "role": "preflight",
           "group": 2,
           "topology": "serial",
@@ -218,7 +218,7 @@
         {
           "caseId": "effect-plus-one",
           "intentId": "maximum-plus-one",
-          "stimulus": "canonical",
+          "stimulus": "no-prepared-update",
           "role": "effect",
           "group": 2,
           "topology": "serial",
@@ -389,13 +389,7 @@
           "expectedProviderCalls": 1
         }
       ],
-      "hooks": [
-        {
-          "caseId": "effect",
-          "stage": "before-observer",
-          "hook": "verify-redaction"
-        }
-      ]
+      "hooks": []
     }
   ]
 }

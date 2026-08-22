@@ -340,6 +340,7 @@ pub fn updates_execute_inspect_receipt_claims(
             if result.reconciled != reconciled
                 || result.affected_rows != command.payload.action.intent.expected_row_count
                 || result.after_state_digest != command.payload.action.after_state_digest
+                || result.transaction_isolation != crate::schema::IsolationLevelV1::Serializable
                 || inspection.facts.projection().effect() != OperationEffectV1::Applied
             {
                 return Err(ProfileRuntimeError::Invalid);
@@ -908,6 +909,26 @@ pub(crate) async fn updates_execute_transport_from_bytes(
     canonical_json(&result)
 }
 
+#[cfg(feature = "qualification")]
+pub(crate) async fn updates_execute_with_qualification_transaction_kill(
+    command: &[u8],
+    credential: &[u8],
+    now_unix_seconds: u64,
+    after_commit: bool,
+) -> Result<Vec<u8>, ProfileRuntimeError> {
+    let command: UpdateCommand = canonical_from_slice(command)?;
+    let result = crate::local_provider::execute_with_qualification_transaction_kill(
+        credential,
+        &command.payload,
+        &command.operation_id,
+        now_unix_seconds,
+        after_commit,
+    )
+    .await
+    .map_err(|_| possible_error("postgresql.update-outcome-unknown", &command.operation_id))?;
+    canonical_json(&result)
+}
+
 pub(crate) async fn updates_execute_reconcile_transport_from_bytes(
     command: &[u8],
     credential: &[u8],
@@ -927,12 +948,23 @@ pub(crate) async fn updates_execute_reconcile_transport_from_bytes(
         .transpose()
 }
 
+#[cfg(feature = "qualification")]
+pub(crate) async fn apply_qualification_row_drift_from_command(
+    command: &[u8],
+    credential: &[u8],
+    marker: &str,
+) -> Result<(), ProfileRuntimeError> {
+    let command: UpdateCommand = canonical_from_slice(command)?;
+    crate::local_provider::apply_qualification_row_drift(credential, &command.payload, marker).await
+}
+
 /// Independently reads the exercised PostgreSQL destination and returns only
 /// the closed effect plus the canonical redacted facts retained by the
 /// ProviderObserver source. This never performs a mutation.
 #[cfg(feature = "qualification")]
 #[allow(clippy::items_after_statements)]
 pub async fn observe_provider_truth_for_qualification(
+    scenario_id: &str,
     record: &JournalRecordV1,
     credential: &[u8],
     now_unix_seconds: u64,
@@ -946,7 +978,9 @@ pub async fn observe_provider_truth_for_qualification(
         record.binding().profile().version()
     );
     let operation_id = record.operation_id().as_str();
-    let (payload, applied, transaction_sha256, include_rows) = match profile.as_str() {
+    let (payload, applied, transaction_sha256, transaction_isolation, include_rows) = match profile
+        .as_str()
+    {
         "auths.postgresql.update-preflight/1" => {
             let result: PreflightProviderResult = canonical_from_slice(
                 record
@@ -995,7 +1029,7 @@ pub async fn observe_provider_truth_for_qualification(
             // A paired effect may have advanced the row once before this
             // protected post-seal re-read; return the signed historical facts
             // after independently proving the same destination and key set.
-            (result.payload, false, None, false)
+            (result.payload, false, None, None, false)
         }
         "auths.postgresql.bounded-update/1" => {
             let state: UpdateState = canonical_from_slice(record.profile_state())?;
@@ -1003,20 +1037,38 @@ pub async fn observe_provider_truth_for_qualification(
                 .payload
                 .validate()
                 .map_err(|_| ProfileRuntimeError::Invalid)?;
-            let result =
-                crate::local_provider::reconcile(credential, &state.payload, operation_id).await?;
+            let result = if scenario_id == "postgresql-later-drift" {
+                crate::local_provider::reconcile_after_qualification_later_drift(
+                    credential,
+                    &state.payload,
+                    operation_id,
+                )
+                .await?
+            } else {
+                crate::local_provider::reconcile(credential, &state.payload, operation_id).await?
+            };
             let transaction_sha256 = result
                 .as_ref()
                 .map(|result| {
                     canonical_json(&(
                         operation_id,
                         result.ledger_commitment.as_str(),
+                        result.transaction_isolation.as_str(),
                         result.committed_at,
                     ))
                     .map(|bytes| hex::encode(Sha256::digest(bytes)))
                 })
                 .transpose()?;
-            (state.payload, result.is_some(), transaction_sha256, true)
+            let transaction_isolation = result
+                .as_ref()
+                .map(|result| result.transaction_isolation.as_str().to_owned());
+            (
+                state.payload,
+                result.is_some(),
+                transaction_sha256,
+                transaction_isolation,
+                true,
+            )
         }
         _ => return Err(ProfileRuntimeError::Invalid),
     };
@@ -1033,6 +1085,7 @@ pub async fn observe_provider_truth_for_qualification(
         server_identity_sha256: String,
         database_sha256: String,
         transaction_sha256: Option<String>,
+        transaction_isolation: Option<String>,
         ledger_operation_sha256: String,
         rows: Vec<TruthRow>,
         applied: bool,
@@ -1066,6 +1119,7 @@ pub async fn observe_provider_truth_for_qualification(
             payload.action.intent.database_name.as_str().as_bytes(),
         )),
         transaction_sha256,
+        transaction_isolation,
         ledger_operation_sha256: hex::encode(Sha256::digest(operation_id.as_bytes())),
         rows,
         applied,
@@ -1090,6 +1144,7 @@ pub fn updates_execute_observe_provider_result(
     let result: TransactionResult = canonical_from_slice(input.provider_result)?;
     if result.affected_rows != command.payload.action.intent.expected_row_count
         || result.after_state_digest != command.payload.action.after_state_digest
+        || result.transaction_isolation != crate::schema::IsolationLevelV1::Serializable
     {
         return Ok(ProfileObservation {
             bytes: input.provider_result.to_vec(),

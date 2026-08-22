@@ -20,8 +20,8 @@ use tokio_postgres_rustls::MakeRustlsConnect;
 use crate::connection::{PostgresConnectionDescriptor, PostgresConnectionSecretV1};
 use crate::{
     AssignmentV1, ColumnEvidenceV1, CompiledBoundedUpdate, DecisionClass, DigestHex,
-    EvaluationContext, NamedCommitmentV1, NamedValueV1, ObservedRowV1, PgIdentifier,
-    PostgresBoundedUpdateIntentV1, PostgresBoundedUpdateV1, PostgresEvidenceV1,
+    EvaluationContext, IsolationLevelV1, NamedCommitmentV1, NamedValueV1, ObservedRowV1,
+    PgIdentifier, PostgresBoundedUpdateIntentV1, PostgresBoundedUpdateV1, PostgresEvidenceV1,
     PostgresVerifierConfigurationV1, RelationPolicyV1, RowPreconditionV1, TransactionResult,
     TypedValueV1, ValidationError, canonical::canonical_digest, compile_statement,
     generated::profile_api::UpdatePreflightInput,
@@ -271,6 +271,50 @@ pub async fn execute(
     operation_id: &str,
     now: u64,
 ) -> Result<TransactionResult, ProfileRuntimeError> {
+    execute_with_fault(
+        credential,
+        payload,
+        operation_id,
+        now,
+        QualificationTransactionFault::None,
+    )
+    .await
+}
+
+#[cfg(feature = "qualification")]
+pub(crate) async fn execute_with_qualification_transaction_kill(
+    credential: &[u8],
+    payload: &PreparedUpdatePayloadV1,
+    operation_id: &str,
+    now: u64,
+    after_commit: bool,
+) -> Result<TransactionResult, ProfileRuntimeError> {
+    let fault = if after_commit {
+        QualificationTransactionFault::AfterCommit
+    } else {
+        QualificationTransactionFault::BeforeCommit
+    };
+    execute_with_fault(credential, payload, operation_id, now, fault).await
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum QualificationTransactionFault {
+    None,
+    #[cfg(feature = "qualification")]
+    BeforeCommit,
+    #[cfg(feature = "qualification")]
+    AfterCommit,
+}
+
+async fn execute_with_fault(
+    credential: &[u8],
+    payload: &PreparedUpdatePayloadV1,
+    operation_id: &str,
+    now: u64,
+    fault: QualificationTransactionFault,
+) -> Result<TransactionResult, ProfileRuntimeError> {
+    #[cfg(not(feature = "qualification"))]
+    let _ = fault;
     payload.validate().map_err(invalid)?;
     let compiled =
         compile_statement(&payload.action.intent, &payload.configuration).map_err(invalid)?;
@@ -282,6 +326,13 @@ pub async fn execute(
         .start()
         .await
         .map_err(possible)?;
+    let transaction_isolation: String = transaction
+        .query_one("SELECT current_setting('transaction_isolation')", &[])
+        .await
+        .map_err(possible)?
+        .get(0);
+    let transaction_isolation =
+        IsolationLevelV1::try_from(transaction_isolation.as_str()).map_err(invalid)?;
     configure_session(&transaction, payload, operation_id).await?;
     recheck_all(&transaction, payload).await?;
     if !payload_is_authorized(payload, now)? {
@@ -315,6 +366,7 @@ pub async fn execute(
         operation_id,
         payload.action.after_state_digest.clone(),
         payload.action.intent.expected_row_count,
+        transaction_isolation.as_str(),
         committed_at,
     ))
     .map_err(invalid)?;
@@ -333,7 +385,29 @@ pub async fn execute(
         .await
         .map_err(possible)?
         .get(0);
+    #[cfg(feature = "qualification")]
+    if fault == QualificationTransactionFault::BeforeCommit {
+        if transaction
+            .query_one("SELECT pg_terminate_backend(pg_backend_pid())", &[])
+            .await
+            .is_ok()
+        {
+            return Err(ProfileRuntimeError::Invalid);
+        }
+        return Err(ProfileRuntimeError::Possible(Vec::new()));
+    }
     transaction.commit().await.map_err(possible)?;
+    #[cfg(feature = "qualification")]
+    if fault == QualificationTransactionFault::AfterCommit {
+        if client
+            .query_one("SELECT pg_terminate_backend(pg_backend_pid())", &[])
+            .await
+            .is_ok()
+        {
+            return Err(ProfileRuntimeError::Invalid);
+        }
+        return Err(ProfileRuntimeError::Possible(Vec::new()));
+    }
     let readback_commitment = readback(&client, payload, &compiled).await?;
     Ok(TransactionResult {
         affected_rows: payload.action.intent.expected_row_count,
@@ -341,6 +415,7 @@ pub async fn execute(
         ledger_commitment,
         readback_commitment,
         server_version,
+        transaction_isolation,
         transaction_started_at: now,
         committed_at,
         reconciled: false,
@@ -374,6 +449,24 @@ pub async fn reconcile(
     payload: &PreparedUpdatePayloadV1,
     operation_id: &str,
 ) -> Result<Option<TransactionResult>, ProfileRuntimeError> {
+    reconcile_with_readback(credential, payload, operation_id, false).await
+}
+
+#[cfg(feature = "qualification")]
+pub(crate) async fn reconcile_after_qualification_later_drift(
+    credential: &[u8],
+    payload: &PreparedUpdatePayloadV1,
+    operation_id: &str,
+) -> Result<Option<TransactionResult>, ProfileRuntimeError> {
+    reconcile_with_readback(credential, payload, operation_id, true).await
+}
+
+async fn reconcile_with_readback(
+    credential: &[u8],
+    payload: &PreparedUpdatePayloadV1,
+    operation_id: &str,
+    qualification_later_drift: bool,
+) -> Result<Option<TransactionResult>, ProfileRuntimeError> {
     payload.validate().map_err(invalid)?;
     let client = connect(credential, &payload.descriptor).await?;
     let action_digest = payload.action.digest().map_err(invalid)?;
@@ -382,7 +475,7 @@ pub async fn reconcile(
             "SELECT action_digest, claim_id, profile, relation_oid::bigint,\
              tenant_commitment, row_set_digest, before_state_digest,\
              after_state_digest, affected_rows, result_commitment,\
-             transaction_started_at, committed_at\
+             transaction_isolation, transaction_started_at, committed_at\
              FROM auths_internal.auths_read_execution($1)",
             &[&operation_id],
         )
@@ -391,16 +484,20 @@ pub async fn reconcile(
     let Some(row) = row else { return Ok(None) };
     let affected_rows =
         u32::try_from(row.get::<_, i32>(8)).map_err(|_| ProfileRuntimeError::Invalid)?;
+    let transaction_isolation: String = row.get(10);
+    let transaction_isolation =
+        IsolationLevelV1::try_from(transaction_isolation.as_str()).map_err(invalid)?;
     let transaction_started_at =
-        u64::try_from(row.get::<_, i64>(10)).map_err(|_| ProfileRuntimeError::Invalid)?;
-    let committed_at =
         u64::try_from(row.get::<_, i64>(11)).map_err(|_| ProfileRuntimeError::Invalid)?;
+    let committed_at =
+        u64::try_from(row.get::<_, i64>(12)).map_err(|_| ProfileRuntimeError::Invalid)?;
     let ledger_commitment = DigestHex::parse(row.get::<_, String>(9)).map_err(invalid)?;
     let expected_ledger_commitment = canonical_digest(&(
         action_digest.clone(),
         operation_id,
         payload.action.after_state_digest.clone(),
         affected_rows,
+        transaction_isolation.as_str(),
         committed_at,
     ))
     .map_err(invalid)?;
@@ -420,7 +517,18 @@ pub async fn reconcile(
     }
     let compiled =
         compile_statement(&payload.action.intent, &payload.configuration).map_err(invalid)?;
-    let readback_commitment = readback(&client, payload, &compiled).await?;
+    #[cfg(feature = "qualification")]
+    let readback_commitment = if qualification_later_drift {
+        validate_qualification_later_drift(&client, payload).await?;
+        payload.action.after_state_digest.clone()
+    } else {
+        readback(&client, payload, &compiled).await?
+    };
+    #[cfg(not(feature = "qualification"))]
+    let readback_commitment = {
+        debug_assert!(!qualification_later_drift);
+        readback(&client, payload, &compiled).await?
+    };
     let server_version: String = client
         .query_one("SELECT current_setting('server_version')", &[])
         .await
@@ -432,10 +540,109 @@ pub async fn reconcile(
         ledger_commitment,
         readback_commitment,
         server_version,
+        transaction_isolation,
         transaction_started_at,
         committed_at,
         reconciled: true,
     }))
+}
+
+#[cfg(feature = "qualification")]
+pub(crate) async fn apply_qualification_row_drift(
+    credential: &[u8],
+    payload: &PreparedUpdatePayloadV1,
+    marker: &str,
+) -> Result<(), ProfileRuntimeError> {
+    payload.validate().map_err(invalid)?;
+    if !matches!(marker, "before-effect" | "after-ledger") {
+        return Err(ProfileRuntimeError::Invalid);
+    }
+    let (row_id, tenant) = qualification_single_row(payload)?;
+    let client = connect(credential, &payload.descriptor).await?;
+    client
+        .query_one(
+            "SELECT set_config('app.tenant_id',$1::text,false)",
+            &[&tenant],
+        )
+        .await
+        .map_err(possible)?;
+    let value = format!("auths-qualification-{marker}");
+    let affected = client
+        .execute(
+            "UPDATE qualification_schema.tenant_rows SET value=$1 WHERE id=$2 AND tenant_id=$3",
+            &[&value, &row_id, &tenant],
+        )
+        .await
+        .map_err(possible)?;
+    if affected != 1 {
+        return Err(ProfileRuntimeError::Invalid);
+    }
+    Ok(())
+}
+
+#[cfg(feature = "qualification")]
+async fn validate_qualification_later_drift(
+    client: &Client,
+    payload: &PreparedUpdatePayloadV1,
+) -> Result<(), ProfileRuntimeError> {
+    let (row_id, tenant) = qualification_single_row(payload)?;
+    client
+        .query_one(
+            "SELECT set_config('app.tenant_id',$1::text,false)",
+            &[&tenant],
+        )
+        .await
+        .map_err(possible)?;
+    let row = client
+        .query_one(
+            "SELECT value,row_version FROM qualification_schema.tenant_rows WHERE id=$1 AND tenant_id=$2",
+            &[&row_id, &tenant],
+        )
+        .await
+        .map_err(possible)?;
+    let expected_version = payload.evidence.rows[0]
+        .row_version
+        .checked_add(2)
+        .ok_or(ProfileRuntimeError::Invalid)?;
+    if row.get::<_, String>(0) != "auths-qualification-after-ledger"
+        || row.get::<_, i64>(1) != expected_version
+    {
+        return Err(ProfileRuntimeError::Invalid);
+    }
+    Ok(())
+}
+
+#[cfg(feature = "qualification")]
+fn qualification_single_row(
+    payload: &PreparedUpdatePayloadV1,
+) -> Result<(String, String), ProfileRuntimeError> {
+    let intent = &payload.action.intent;
+    let [row] = intent.rows.as_slice() else {
+        return Err(ProfileRuntimeError::Invalid);
+    };
+    let [key] = row.primary_key.as_slice() else {
+        return Err(ProfileRuntimeError::Invalid);
+    };
+    let [assignment] = intent.assignments.as_slice() else {
+        return Err(ProfileRuntimeError::Invalid);
+    };
+    if intent.schema_name.as_str() != "qualification_schema"
+        || intent.table_name.as_str() != "tenant_rows"
+        || intent.tenant_column.as_str() != "tenant_id"
+        || key.column.as_str() != "id"
+        || assignment.column.as_str() != "value"
+    {
+        return Err(ProfileRuntimeError::Invalid);
+    }
+    let row_id = key
+        .value
+        .protocol_text()
+        .ok_or(ProfileRuntimeError::Invalid)?;
+    let tenant = intent
+        .tenant_value
+        .protocol_text()
+        .ok_or(ProfileRuntimeError::Invalid)?;
+    Ok((row_id, tenant))
 }
 
 async fn connect(
@@ -586,6 +793,7 @@ pub(crate) struct QualificationPostgresqlObservation {
     pub(crate) server_identity_sha256: String,
     pub(crate) database_sha256: String,
     pub(crate) transaction_sha256: Option<String>,
+    pub(crate) transaction_isolation: Option<String>,
     pub(crate) primary_key_sha256: String,
     pub(crate) before_version: u64,
     pub(crate) after_version: u64,
@@ -665,31 +873,41 @@ pub(crate) async fn observe_qualification_scenario(
     }
     let ledger = client
         .query_opt(
-            "SELECT profile, result_commitment, EXTRACT(EPOCH FROM committed_at)::bigint \
+            "SELECT profile, result_commitment, transaction_isolation, \
+                    EXTRACT(EPOCH FROM committed_at)::bigint \
              FROM auths_internal.auths_execution_ledger \
              WHERE claim_id=$1 AND committed_at IS NOT NULL",
             &[&operation_id],
         )
         .await
         .map_err(possible)?;
-    let (applied, transaction_sha256) = match ledger {
+    let (applied, transaction_sha256, transaction_isolation) = match ledger {
         Some(row) if profile == "auths.postgresql.bounded-update/1" => {
             let ledger_profile: String = row.get(0);
             let result_commitment: String = row.get(1);
+            let transaction_isolation: String = row.get(2);
             let committed_at =
-                u64::try_from(row.get::<_, i64>(2)).map_err(|_| ProfileRuntimeError::Invalid)?;
-            if ledger_profile != profile || DigestHex::parse(result_commitment.clone()).is_err() {
+                u64::try_from(row.get::<_, i64>(3)).map_err(|_| ProfileRuntimeError::Invalid)?;
+            if ledger_profile != profile
+                || transaction_isolation != "serializable"
+                || DigestHex::parse(result_commitment.clone()).is_err()
+            {
                 return Err(ProfileRuntimeError::Invalid);
             }
             let bytes = crate::canonical::canonical_json(&(
                 operation_id,
                 result_commitment.as_str(),
+                transaction_isolation.as_str(),
                 committed_at,
             ))
             .map_err(invalid)?;
-            (true, Some(hex::encode(sha2::Sha256::digest(bytes))))
+            (
+                true,
+                Some(hex::encode(sha2::Sha256::digest(bytes))),
+                Some(transaction_isolation),
+            )
         }
-        None => (false, None),
+        None => (false, None, None),
         Some(_) => return Err(ProfileRuntimeError::Invalid),
     };
     let before_version = after_version
@@ -703,6 +921,7 @@ pub(crate) async fn observe_qualification_scenario(
         server_identity_sha256: hex::encode(sha2::Sha256::digest(server_identity.as_bytes())),
         database_sha256: hex::encode(sha2::Sha256::digest(database.as_bytes())),
         transaction_sha256,
+        transaction_isolation,
         primary_key_sha256: hex::encode(sha2::Sha256::digest(
             crate::canonical::canonical_json(&primary_key).map_err(invalid)?,
         )),
@@ -710,50 +929,6 @@ pub(crate) async fn observe_qualification_scenario(
         after_version,
         applied,
     })
-}
-
-/// Removes the run-owned schemas and disables every qualification credential,
-/// then re-reads both facts before returning. The cleanup credential must be a
-/// separately reviewed administrative connection; it is never accepted by the
-/// candidate runtime.
-#[cfg(feature = "qualification")]
-pub(crate) async fn cleanup_qualification_row(
-    credential: &[u8],
-) -> Result<(), ProfileRuntimeError> {
-    let secret = PostgresConnectionSecretV1::from_canonical_bytes(credential)
-        .map_err(|_| ProfileRuntimeError::Invalid)?;
-    let client = connect_secret(&secret).await?;
-    client
-        .batch_execute(
-            "DROP SCHEMA IF EXISTS qualification_schema CASCADE;
-             DROP SCHEMA IF EXISTS auths_internal CASCADE;
-             ALTER ROLE auths_qualification_executor NOLOGIN;
-             ALTER ROLE auths_qualification_preflight NOLOGIN;
-             ALTER ROLE auths_qualification_audit NOLOGIN;
-             ALTER ROLE auths_qualification_setup NOLOGIN;",
-        )
-        .await
-        .map_err(possible)?;
-    let row = client
-        .query_one(
-            "SELECT to_regnamespace('qualification_schema') IS NULL,
-                    to_regnamespace('auths_internal') IS NULL,
-                    count(*) FILTER (WHERE rolcanlogin)
-             FROM pg_catalog.pg_roles
-             WHERE rolname IN (
-                 'auths_qualification_executor',
-                 'auths_qualification_preflight',
-                 'auths_qualification_audit',
-                 'auths_qualification_setup'
-             )",
-            &[],
-        )
-        .await
-        .map_err(possible)?;
-    if !row.get::<_, bool>(0) || !row.get::<_, bool>(1) || row.get::<_, i64>(2) != 0 {
-        return Err(ProfileRuntimeError::Invalid);
-    }
-    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]

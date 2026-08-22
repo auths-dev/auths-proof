@@ -295,6 +295,27 @@ pub enum IsolationLevelV1 {
     Serializable,
 }
 
+impl IsolationLevelV1 {
+    /// Exact PostgreSQL spelling sampled from `current_setting`.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Serializable => "serializable",
+        }
+    }
+}
+
+impl TryFrom<&str> for IsolationLevelV1 {
+    type Error = ValidationError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "serializable" => Ok(Self::Serializable),
+            _ => Err(ValidationError::InvalidConfiguration),
+        }
+    }
+}
+
 /// Immutable verifier policy, included in decision receipts.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

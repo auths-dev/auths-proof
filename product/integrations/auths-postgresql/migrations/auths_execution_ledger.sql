@@ -20,6 +20,9 @@ CREATE TABLE IF NOT EXISTS auths_internal.auths_execution_ledger (
         CHECK (affected_rows IS NULL OR affected_rows >= 0),
     result_commitment text
         CHECK (result_commitment IS NULL OR result_commitment ~ '^[0-9a-f]{64}$'),
+    transaction_isolation text NOT NULL
+        CONSTRAINT auths_execution_ledger_transaction_isolation
+        CHECK (transaction_isolation = 'serializable'),
     transaction_started_at timestamptz NOT NULL,
     committed_at timestamptz,
     receipt_digest text
@@ -31,6 +34,19 @@ REVOKE ALL ON auths_internal.auths_execution_ledger FROM PUBLIC;
 GRANT USAGE ON SCHEMA auths_internal TO auths_executor;
 GRANT USAGE ON SCHEMA auths_internal TO auths_audit;
 GRANT SELECT ON auths_internal.auths_execution_ledger TO auths_audit;
+
+DROP FUNCTION IF EXISTS auths_internal.auths_prepare_execution(
+    text, text, text, oid, text, text, text, text, bigint
+);
+DROP FUNCTION IF EXISTS auths_internal.auths_prepare_execution(
+    text, text, text, oid, text, text, text, text, text, bigint
+);
+DROP FUNCTION IF EXISTS auths_internal.auths_finalize_execution(
+    text, text, text, oid, text, text, text, text, integer, text, bigint
+);
+DROP FUNCTION IF EXISTS auths_internal.auths_finalize_execution(
+    text, text, text, oid, text, text, text, text, text, integer, text, bigint
+);
 
 CREATE OR REPLACE FUNCTION auths_internal.auths_prepare_execution(
     p_action_digest text,
@@ -47,15 +63,22 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = pg_catalog, auths_internal
 AS $auths$
+DECLARE
+    observed_transaction_isolation text := current_setting('transaction_isolation');
 BEGIN
+    IF observed_transaction_isolation <> 'serializable' THEN
+        RAISE EXCEPTION 'auths execution must use serializable isolation'
+            USING ERRCODE = 'check_violation';
+    END IF;
     INSERT INTO auths_internal.auths_execution_ledger (
         action_digest, claim_id, profile, relation_oid, tenant_commitment,
         row_set_digest, before_state_digest, after_state_digest,
-        transaction_started_at
+        transaction_isolation, transaction_started_at
     ) VALUES (
         p_action_digest, p_claim_id, p_profile, p_relation_oid,
         p_tenant_commitment, p_row_set_digest, p_before_state_digest,
-        p_after_state_digest, to_timestamp(p_transaction_started_at)
+        p_after_state_digest, observed_transaction_isolation,
+        to_timestamp(p_transaction_started_at)
     );
     RETURN true;
 END
@@ -80,7 +103,12 @@ SET search_path = pg_catalog, auths_internal
 AS $auths$
 DECLARE
     changed integer;
+    observed_transaction_isolation text := current_setting('transaction_isolation');
 BEGIN
+    IF observed_transaction_isolation <> 'serializable' THEN
+        RAISE EXCEPTION 'auths execution must use serializable isolation'
+            USING ERRCODE = 'check_violation';
+    END IF;
     UPDATE auths_internal.auths_execution_ledger AS ledger
        SET affected_rows = p_affected_rows,
            result_commitment = p_result_commitment,
@@ -94,6 +122,7 @@ BEGIN
        AND ledger.row_set_digest = p_row_set_digest
        AND ledger.before_state_digest = p_before_state_digest
        AND ledger.after_state_digest = p_after_state_digest
+       AND ledger.transaction_isolation = observed_transaction_isolation
        AND ledger.committed_at IS NULL;
     GET DIAGNOSTICS changed = ROW_COUNT;
     RETURN changed = 1;
@@ -112,6 +141,7 @@ RETURNS TABLE (
     after_state_digest text,
     affected_rows integer,
     result_commitment text,
+    transaction_isolation text,
     transaction_started_at bigint,
     committed_at bigint,
     receipt_digest text
@@ -131,6 +161,7 @@ AS $auths$
            ledger.after_state_digest,
            ledger.affected_rows,
            ledger.result_commitment,
+           ledger.transaction_isolation,
            EXTRACT(EPOCH FROM ledger.transaction_started_at)::bigint,
            EXTRACT(EPOCH FROM ledger.committed_at)::bigint,
            ledger.receipt_digest

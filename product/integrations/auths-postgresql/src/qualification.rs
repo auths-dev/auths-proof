@@ -3,14 +3,14 @@
 use auths_connections::{ProviderCredentialLease, QualificationProviderCallKind};
 use auths_profile_kit::QualificationProfileStateFactV1;
 use auths_profile_kit::{
-    QualificationAdapterMetadata, QualificationCleanupEvidence, QualificationCollectedOperation,
-    QualificationCollectionAdapter, QualificationCommonOperationInstanceEvidence,
-    QualificationCommonReceiptClaims, QualificationEffect, QualificationHarnessError,
-    QualificationOperationRole, QualificationPhaseClient, QualificationProtectedObserver,
-    QualificationProtectedSetup, QualificationProtectedSetupInput, QualificationProviderTruth,
-    QualificationRunContext, QualificationRunReference, QualificationScenarioProgramV1,
-    QualificationSetupHandoffV1, QualificationTarget, QualificationVector,
-    qualification_pre_admission_attempt_count,
+    QualificationAdapterMetadata, QualificationCollectedOperation, QualificationCollectionAdapter,
+    QualificationCommonOperationInstanceEvidence, QualificationCommonReceiptClaims,
+    QualificationEffect, QualificationHarnessError, QualificationOperationRole,
+    QualificationPhaseClient, QualificationProtectedObserver, QualificationProtectedSetup,
+    QualificationProtectedSetupInput, QualificationProviderCleanupObservation,
+    QualificationProviderTruth, QualificationRunContext, QualificationRunReference,
+    QualificationScenarioHookStage, QualificationScenarioProgramV1, QualificationSetupHandoffV1,
+    QualificationTarget, QualificationVector, qualification_pre_admission_attempt_count,
     qualification_scenario_program as resolve_qualification_scenario_program,
 };
 use auths_profile_runtime::{ProfileReceiptInspection, ProfileRuntimeError};
@@ -20,15 +20,67 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use zeroize::Zeroizing;
 
+/// Re-encodes the exact effect inputs derived from one authenticated
+/// preflight result. The protected ClientProxy retains only commitments over
+/// these bytes across phases.
+pub fn qualification_effect_case_inputs(
+    profile: &str,
+    value: &[u8],
+) -> Result<Option<(Vec<u8>, Vec<u8>)>, QualificationHarnessError> {
+    if profile != "auths.postgresql.update-preflight/1" {
+        return Err(QualificationHarnessError::Invocation);
+    }
+    let prepared = crate::generated::profile_api::PreparedUpdate::from_canonical_cbor(value)
+        .map_err(|_| QualificationHarnessError::Invocation)?;
+    let primary = crate::generated::profile_api::PreparedUpdateInput {
+        prepared_update: prepared.prepared_update.clone(),
+    }
+    .to_canonical_cbor()
+    .map_err(|_| QualificationHarnessError::Invocation)?;
+    let mut changed_token = prepared.prepared_update;
+    changed_token.push('x');
+    let changed = crate::generated::profile_api::PreparedUpdateInput {
+        prepared_update: changed_token,
+    }
+    .to_canonical_cbor()
+    .map_err(|_| QualificationHarnessError::Invocation)?;
+    Ok(Some((primary, changed)))
+}
+
+/// Returns the exact effect input for a reviewed case that intentionally has
+/// no prepared capability. Both the installed-client adapter and protected
+/// ClientProxy use this one domain-owned encoding.
+pub fn qualification_effect_fallback_case_json(
+    profile: &str,
+    scenario_id: &str,
+    stimulus: &str,
+) -> Result<Option<Vec<u8>>, QualificationHarnessError> {
+    if profile != "auths.postgresql.bounded-update/1" {
+        return Err(QualificationHarnessError::Invocation);
+    }
+    if qualification_pre_admission_attempt_count(scenario_id).is_none()
+        && stimulus != "no-prepared-update"
+    {
+        return Ok(None);
+    }
+    serde_json_canonicalizer::to_vec(&serde_json::json!({
+        "preparedUpdate": "qualification-missing-prepared-update-00000000000000000001",
+    }))
+    .map(Some)
+    .map_err(|_| QualificationHarnessError::Invocation)
+}
+
 /// Independently observes one provider-entered PostgreSQL operation with the
 /// protected runtime-read credential.
 pub async fn observe_provider_truth(
+    scenario_id: &str,
     record: &JournalRecordV1,
     credential: &[u8],
     _observer_root: &std::path::Path,
     now_unix_seconds: u64,
 ) -> Result<(QualificationEffect, Vec<u8>), ProfileRuntimeError> {
     crate::local_agent::observe_provider_truth_for_qualification(
+        scenario_id,
         record,
         credential,
         now_unix_seconds,
@@ -126,7 +178,8 @@ pub async fn reconcile_provider_transport(
 #[allow(clippy::too_many_arguments)]
 pub async fn dispatch_provider_transport(
     profile: &str,
-    _scenario_id: &str,
+    scenario_id: &str,
+    case_id: &str,
     kind: QualificationProviderCallKind,
     command: &[u8],
     _profile_state: &[u8],
@@ -140,7 +193,67 @@ pub async fn dispatch_provider_transport(
     let exposed = credential
         .expose(deadline)
         .map_err(|_| ProfileRuntimeError::Invalid)?;
-    match kind {
+    let program =
+        qualification_scenario_program(scenario_id).map_err(|_| ProfileRuntimeError::Invalid)?;
+    let before_effect_drift = kind == QualificationProviderCallKind::Execute
+        && profile == "auths.postgresql.bounded-update/1"
+        && program
+            .hook_for_case(
+                case_id,
+                QualificationOperationRole::Effect,
+                QualificationScenarioHookStage::BeforeProvider,
+                "advance-row-before-effect",
+            )
+            .map_err(|_| ProfileRuntimeError::Invalid)?;
+    let after_ledger_drift = kind == QualificationProviderCallKind::Execute
+        && profile == "auths.postgresql.bounded-update/1"
+        && program
+            .hook_for_case(
+                case_id,
+                QualificationOperationRole::Effect,
+                QualificationScenarioHookStage::AfterProviderBeforeResponse,
+                "advance-row-after-ledger",
+            )
+            .map_err(|_| ProfileRuntimeError::Invalid)?;
+    let kill_precommit = kind == QualificationProviderCallKind::Execute
+        && profile == "auths.postgresql.bounded-update/1"
+        && program
+            .hook_for_case(
+                case_id,
+                QualificationOperationRole::Effect,
+                QualificationScenarioHookStage::BeforeProvider,
+                "kill-precommit",
+            )
+            .map_err(|_| ProfileRuntimeError::Invalid)?;
+    let kill_postcommit = kind == QualificationProviderCallKind::Execute
+        && profile == "auths.postgresql.bounded-update/1"
+        && program
+            .hook_for_case(
+                case_id,
+                QualificationOperationRole::Effect,
+                QualificationScenarioHookStage::AfterProviderBeforeResponse,
+                "kill-postcommit",
+            )
+            .map_err(|_| ProfileRuntimeError::Invalid)?;
+    if before_effect_drift {
+        crate::local_agent::apply_qualification_row_drift_from_command(
+            command,
+            exposed,
+            "before-effect",
+        )
+        .await?;
+    }
+    let result = match kind {
+        QualificationProviderCallKind::Execute if kill_precommit || kill_postcommit => {
+            crate::local_agent::updates_execute_with_qualification_transaction_kill(
+                command,
+                exposed,
+                now_unix_seconds,
+                kill_postcommit,
+            )
+            .await
+            .map(Some)
+        }
         QualificationProviderCallKind::Execute => {
             call_provider_transport(profile, command, exposed, configuration, now_unix_seconds)
                 .await
@@ -150,7 +263,16 @@ pub async fn dispatch_provider_transport(
             reconcile_provider_transport(profile, command, exposed, configuration, now_unix_seconds)
                 .await
         }
+    };
+    if after_ledger_drift && result.is_ok() {
+        crate::local_agent::apply_qualification_row_drift_from_command(
+            command,
+            exposed,
+            "after-ledger",
+        )
+        .await?;
     }
+    result
 }
 
 #[derive(Deserialize, Serialize)]
@@ -159,6 +281,7 @@ struct PostgresqlProviderTruthFacts {
     server_identity_sha256: String,
     database_sha256: String,
     transaction_sha256: Option<String>,
+    transaction_isolation: Option<String>,
     ledger_operation_sha256: String,
     rows: Vec<PostgresqlProviderTruthRow>,
     applied: bool,
@@ -230,7 +353,7 @@ pub fn qualification_requirement_ids() -> &'static [&'static str] {
 /// SHA-256 of the exact canonical v1 requirement inventory bytes.
 #[must_use]
 pub const fn qualification_requirements_sha256() -> &'static str {
-    "304c66bfe27b3f73d9ba611c773124978ae3d2d125dbfb99bdbac22091f80696"
+    "1471be0d271bc6c9516ecbb31f55ded4313e5da3d6c83445ba645ea365646c98"
 }
 
 /// Exact public receipt-claim roster required by the v1 PostgreSQL family.
@@ -262,6 +385,7 @@ pub fn qualification_provider_truth_fields() -> &'static [&'static str] {
         "ledgerOperationSha256",
         "rows",
         "serverIdentitySha256",
+        "transactionIsolation",
         "transactionSha256",
     ]
 }
@@ -414,6 +538,10 @@ pub fn validate_provider_truth_facts(
             .transaction_sha256
             .as_deref()
             .is_some_and(|value| !digest(value))
+        || facts
+            .transaction_isolation
+            .as_deref()
+            .is_some_and(|value| value != "serializable")
         || !digest(&facts.ledger_operation_sha256)
         || facts.rows.len() > 10_000
         || facts
@@ -422,6 +550,7 @@ pub fn validate_provider_truth_facts(
             .any(|row| !digest(&row.primary_key_sha256) || row.after_version < row.before_version)
         || facts.applied != (effect == QualificationEffect::Applied)
         || facts.transaction_sha256.is_some() != facts.applied
+        || facts.transaction_isolation.is_some() != facts.applied
         || (facts.applied
             && (facts.rows.is_empty()
                 || facts
@@ -539,22 +668,24 @@ impl QualificationProtectedSetup for PostgresqlQualificationAdapter {
                 "exact-boundary" => "x".repeat(4_096),
                 _ => format!("after-{scenario_id}"),
             };
-            let vector = serde_json_canonicalizer::to_vec(&serde_json::json!({
-                "assignments": [{"column":"value","value":assignment}],
-                "relation":"qualification_schema.tenant_rows",
-                "tenantKey":tenant,
-            }))
-            .map_err(|_| QualificationHarnessError::Onboarding)?;
             let scenario_program = qualification_scenario_program(scenario_id)?;
-            let input_base64url = Base64UrlUnpadded::encode_string(&vector);
             let cases = scenario_program
                 .cases()
                 .iter()
-                .map(|case| auths_profile_kit::QualificationSetupCaseV1 {
-                    case_id: case.case_id().into(),
-                    input_base64url: input_base64url.clone(),
+                .map(|case| {
+                    let assignment = postgresql_case_assignment(case.stimulus(), &assignment)?;
+                    let vector = serde_json_canonicalizer::to_vec(&serde_json::json!({
+                        "assignments": [{"column":"value","value":assignment}],
+                        "relation":"qualification_schema.tenant_rows",
+                        "tenantKey":tenant,
+                    }))
+                    .map_err(|_| QualificationHarnessError::Onboarding)?;
+                    Ok(auths_profile_kit::QualificationSetupCaseV1 {
+                        case_id: case.case_id().into(),
+                        input_base64url: Base64UrlUnpadded::encode_string(&vector),
+                    })
                 })
-                .collect();
+                .collect::<Result<Vec<_>, QualificationHarnessError>>()?;
             vectors.push(auths_profile_kit::QualificationSetupVectorV1 {
                 id: scenario_id.clone(),
                 scenario_program,
@@ -579,6 +710,7 @@ impl QualificationProtectedSetup for PostgresqlQualificationAdapter {
             run_attempt: input.run_context.run_attempt,
             provider_run_id: input.run_context.provider_run_id.clone(),
             provider_namespace,
+            provider_destination_sha256: hex::encode(descriptor.account_commitment()),
             connection_alias_sha256: hex::encode(Sha256::digest(input.connection_alias.as_bytes())),
             resource_references: resources,
             connection_generations: vec!["1".into()],
@@ -593,6 +725,36 @@ impl QualificationProtectedSetup for PostgresqlQualificationAdapter {
         };
         handoff.validate()?;
         Ok(handoff)
+    }
+}
+
+fn postgresql_case_assignment(
+    stimulus: &str,
+    assignment: &str,
+) -> Result<String, QualificationHarnessError> {
+    match stimulus {
+        "maximum-assignment" => Ok("x".repeat(4_096)),
+        "maximum-plus-one-assignment" => Ok("x".repeat(4_097)),
+        "changed-input" => Ok(format!("{assignment}x")),
+        "canonical"
+        | "duplicate-field"
+        | "encoded-canonical"
+        | "missing-field"
+        | "no-prepared-update"
+        | "noncanonical-integer"
+        | "preflight-evidence"
+        | "preflight-handoff"
+        | "prepared-maximum"
+        | "redaction-effect"
+        | "redaction-preflight"
+        | "replay"
+        | "serializable-effect"
+        | "serializable-preflight"
+        | "stale-evidence"
+        | "transaction-postcommit"
+        | "transaction-precommit"
+        | "unknown-field" => Ok(assignment.to_owned()),
+        _ => Err(QualificationHarnessError::Onboarding),
     }
 }
 
@@ -666,7 +828,22 @@ impl QualificationCollectionAdapter for PostgresqlQualificationAdapter {
             }
             (2, QualificationOperationRole::Effect, "auths.postgresql.bounded-update/1") => {
                 if qualification_pre_admission_attempt_count(&vector.id).is_some() {
-                    let outcome = client.invoke_installed(connection_alias, &vector.cases)?;
+                    let mut cases = vector.cases.clone();
+                    for (case, program_case) in cases.iter_mut().zip(
+                        vector
+                            .scenario_program
+                            .cases()
+                            .iter()
+                            .filter(|case| case.role() == QualificationOperationRole::Effect),
+                    ) {
+                        case.input = qualification_effect_fallback_case_json(
+                            profile,
+                            &vector.id,
+                            program_case.stimulus(),
+                        )?
+                        .ok_or(QualificationHarnessError::Invocation)?;
+                    }
+                    let outcome = client.invoke_installed(connection_alias, &cases)?;
                     if outcome.cases.iter().any(|case| case.kind != "unavailable") {
                         return Err(QualificationHarnessError::Invocation);
                     }
@@ -682,11 +859,28 @@ impl QualificationCollectionAdapter for PostgresqlQualificationAdapter {
                     .iter()
                     .filter(|case| case.role() == QualificationOperationRole::Effect)
                 {
-                    let prepared_update = environment
+                    let fallback = qualification_effect_fallback_case_json(
+                        profile,
+                        &vector.id,
+                        program_case.stimulus(),
+                    )?;
+                    let mut prepared_update = environment
                         .prepared_updates
                         .get(program_case.intent_id())
                         .cloned()
+                        .or_else(|| {
+                            fallback.and_then(|bytes| {
+                                serde_json::from_slice::<serde_json::Value>(&bytes)
+                                    .ok()
+                                    .and_then(|input| {
+                                        input["preparedUpdate"].as_str().map(str::to_owned)
+                                    })
+                            })
+                        })
                         .ok_or(QualificationHarnessError::Invocation)?;
+                    if program_case.stimulus() == "changed-input" {
+                        prepared_update.push('x');
+                    }
                     let case = cases
                         .iter_mut()
                         .find(|case| case.case_id == program_case.case_id())
@@ -710,6 +904,7 @@ impl QualificationCollectionAdapter for PostgresqlQualificationAdapter {
 
 impl QualificationProtectedObserver for PostgresqlQualificationAdapter {
     type Environment = PostgresqlProtectedObserverEnvironment;
+    type CleanupEnvironment = ();
 
     fn metadata(&self) -> QualificationAdapterMetadata {
         metadata()
@@ -788,6 +983,7 @@ impl QualificationProtectedObserver for PostgresqlQualificationAdapter {
             server_identity_sha256: observed.server_identity_sha256,
             database_sha256: observed.database_sha256,
             transaction_sha256: observed.transaction_sha256,
+            transaction_isolation: observed.transaction_isolation,
             ledger_operation_sha256: hex::encode(Sha256::digest(instance.operation_id.as_bytes())),
             rows,
             applied: observed.applied,
@@ -840,14 +1036,34 @@ impl QualificationProtectedObserver for PostgresqlQualificationAdapter {
             return Ok(());
         }
         match program.id() {
-            "postgresql-preflight"
-            | "postgresql-serializable-update"
-            | "postgresql-value-redaction" => {
+            "postgresql-preflight" | "postgresql-row-boundary" => {
                 validate_successful_postgresql_pair(operations, truths)
+            }
+            "postgresql-serializable-update" => {
+                validate_serializable_postgresql_pair(operations, truths)
+            }
+            "postgresql-value-redaction" => {
+                validate_successful_postgresql_pair(operations, truths)?;
+                if truths.iter().any(|truth| {
+                    qualification_redaction_prefixes().iter().any(|prefix| {
+                        truth
+                            .domain_facts
+                            .windows(prefix.len())
+                            .any(|window| window == prefix.as_bytes())
+                    })
+                }) {
+                    return Err(QualificationHarnessError::Redaction);
+                }
+                Ok(())
             }
             "postgresql-response-loss" => {
                 validate_successful_postgresql_pair(operations, truths)?;
                 validate_reconciled_postgresql_effect(operations)
+            }
+            "postgresql-later-drift" => validate_successful_postgresql_pair(operations, truths),
+            "postgresql-row-drift" => validate_postgresql_row_drift(operations, truths),
+            "postgresql-transaction-kill" => {
+                validate_postgresql_transaction_kill(operations, truths)
             }
             _ => Err(QualificationHarnessError::PrerequisiteUnavailable(
                 "PostgreSQL scenario predicate is not implemented",
@@ -855,31 +1071,26 @@ impl QualificationProtectedObserver for PostgresqlQualificationAdapter {
         }
     }
 
+    fn open_cleanup(
+        &self,
+        _context: &QualificationRunContext,
+    ) -> Result<Self::CleanupEnvironment, QualificationHarnessError> {
+        Err(QualificationHarnessError::PrerequisiteUnavailable(
+            "PostgreSQL cleanup requires a run-scoped database and role namespace derived from the protected run context",
+        ))
+    }
+
     fn cleanup(
         &self,
+        _environment: &Self::CleanupEnvironment,
         context: &QualificationRunContext,
-        _reference: Option<&QualificationRunReference>,
-    ) -> Result<QualificationCleanupEvidence, QualificationHarnessError> {
+    ) -> Result<QualificationProviderCleanupObservation, QualificationHarnessError> {
         if context.protected_environment != "qualification-postgresql" {
             return Err(QualificationHarnessError::Cleanup);
         }
-        let credential = protected_credential("QUALIFICATION_CLEANUP_CREDENTIAL")
-            .map_err(|_| QualificationHarnessError::Cleanup)?;
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .map_err(|_| QualificationHarnessError::Cleanup)?;
-        runtime
-            .block_on(crate::local_provider::cleanup_qualification_row(
-                &credential,
-            ))
-            .map_err(|_| QualificationHarnessError::Cleanup)?;
-        Ok(QualificationCleanupEvidence {
-            provider_resources_destroyed: true,
-            connection_disabled: true,
-            credentials_revoked: true,
-            residual_resource_count: 0,
-        })
+        Err(QualificationHarnessError::PrerequisiteUnavailable(
+            "PostgreSQL cleanup requires a run-scoped database and role namespace bound to the protected setup reference",
+        ))
     }
 }
 
@@ -930,6 +1141,7 @@ fn validate_successful_postgresql_pair(
         || preflight_truth.effect != QualificationEffect::NotApplied
         || preflight_facts.applied
         || preflight_facts.transaction_sha256.is_some()
+        || preflight_facts.transaction_isolation.is_some()
         || !preflight_facts.rows.is_empty()
         || effect_truth.effect != QualificationEffect::Applied
         || !effect_facts.applied
@@ -937,6 +1149,7 @@ fn validate_successful_postgresql_pair(
             .transaction_sha256
             .as_deref()
             .is_none_or(|value| !digest(value))
+        || effect_facts.transaction_isolation.as_deref() != Some("serializable")
         || effect_facts.rows.is_empty()
         || effect_facts
             .rows
@@ -949,6 +1162,28 @@ fn validate_successful_postgresql_pair(
         || effect_facts.ledger_operation_sha256
             != hex::encode(Sha256::digest(effect_instance.operation_id.as_bytes()))
     {
+        return Err(QualificationHarnessError::ProviderTruth);
+    }
+    Ok(())
+}
+
+fn validate_serializable_postgresql_pair(
+    operations: &[auths_profile_kit::QualificationRedactedOperation],
+    truths: &[QualificationProviderTruth],
+) -> Result<(), QualificationHarnessError> {
+    validate_successful_postgresql_pair(operations, truths)?;
+    let effect = operations
+        .iter()
+        .find(|operation| operation.role == QualificationOperationRole::Effect)
+        .and_then(|operation| operation.instances.first())
+        .ok_or(QualificationHarnessError::ProviderTruth)?;
+    let truth = truths
+        .iter()
+        .find(|truth| truth.operation_id == effect.operation_id)
+        .ok_or(QualificationHarnessError::ProviderTruth)?;
+    let facts: PostgresqlProviderTruthFacts = serde_json::from_slice(&truth.domain_facts)
+        .map_err(|_| QualificationHarnessError::ProviderTruth)?;
+    if facts.transaction_isolation.as_deref() != Some("serializable") {
         return Err(QualificationHarnessError::ProviderTruth);
     }
     Ok(())
@@ -971,6 +1206,181 @@ fn validate_reconciled_postgresql_effect(
         return Err(QualificationHarnessError::ProviderTruth);
     }
     Ok(())
+}
+
+fn validate_postgresql_row_drift(
+    operations: &[auths_profile_kit::QualificationRedactedOperation],
+    truths: &[QualificationProviderTruth],
+) -> Result<(), QualificationHarnessError> {
+    let [preflight, effect] = operations else {
+        return Err(QualificationHarnessError::ProviderTruth);
+    };
+    let [preflight_instance] = preflight.instances.as_slice() else {
+        return Err(QualificationHarnessError::ProviderTruth);
+    };
+    let [effect_instance] = effect.instances.as_slice() else {
+        return Err(QualificationHarnessError::ProviderTruth);
+    };
+    let preflight_truth = truths
+        .iter()
+        .find(|truth| truth.operation_id == preflight_instance.operation_id)
+        .ok_or(QualificationHarnessError::ProviderTruth)?;
+    let effect_truth = truths
+        .iter()
+        .find(|truth| truth.operation_id == effect_instance.operation_id)
+        .ok_or(QualificationHarnessError::ProviderTruth)?;
+    let preflight_facts: PostgresqlProviderTruthFacts =
+        serde_json::from_slice(&preflight_truth.domain_facts)
+            .map_err(|_| QualificationHarnessError::ProviderTruth)?;
+    let effect_facts: PostgresqlProviderTruthFacts =
+        serde_json::from_slice(&effect_truth.domain_facts)
+            .map_err(|_| QualificationHarnessError::ProviderTruth)?;
+    if preflight.role != QualificationOperationRole::Preflight
+        || effect.role != QualificationOperationRole::Effect
+        || preflight_truth.effect != QualificationEffect::NotApplied
+        || effect_truth.effect != QualificationEffect::NotApplied
+        || effect_instance.effect != QualificationEffect::NotApplied
+        || !effect_instance.reconciled
+        || effect_instance.counters.provider_calls != 1
+        || preflight_facts.applied
+        || effect_facts.applied
+        || preflight_facts.transaction_sha256.is_some()
+        || effect_facts.transaction_sha256.is_some()
+        || !preflight_facts.rows.is_empty()
+        || effect_facts.rows.is_empty()
+        || effect_facts
+            .rows
+            .iter()
+            .any(|row| row.before_version != row.after_version)
+    {
+        return Err(QualificationHarnessError::ProviderTruth);
+    }
+    Ok(())
+}
+
+fn validate_postgresql_transaction_kill(
+    operations: &[auths_profile_kit::QualificationRedactedOperation],
+    truths: &[QualificationProviderTruth],
+) -> Result<(), QualificationHarnessError> {
+    let preflight = operations
+        .iter()
+        .find(|operation| operation.role == QualificationOperationRole::Preflight)
+        .ok_or(QualificationHarnessError::ProviderTruth)?;
+    let effect = operations
+        .iter()
+        .find(|operation| operation.role == QualificationOperationRole::Effect)
+        .ok_or(QualificationHarnessError::ProviderTruth)?;
+    if operations.len() != 2
+        || preflight.instances.len() != 2
+        || effect.instances.len() != 2
+        || truths.len() != 4
+    {
+        return Err(QualificationHarnessError::ProviderTruth);
+    }
+
+    let precommit_preflight = postgresql_case_instance(preflight, "preflight-precommit")?;
+    let postcommit_preflight = postgresql_case_instance(preflight, "preflight-postcommit")?;
+    let precommit_effect = postgresql_case_instance(effect, "effect-precommit")?;
+    let postcommit_effect = postgresql_case_instance(effect, "effect-postcommit")?;
+    let precommit_preflight_facts =
+        postgresql_truth_facts(truths, &precommit_preflight.operation_id)?;
+    let postcommit_preflight_facts =
+        postgresql_truth_facts(truths, &postcommit_preflight.operation_id)?;
+    let precommit_effect_facts = postgresql_truth_facts(truths, &precommit_effect.operation_id)?;
+    let postcommit_effect_facts = postgresql_truth_facts(truths, &postcommit_effect.operation_id)?;
+
+    let preflights = [
+        (precommit_preflight, &precommit_preflight_facts),
+        (postcommit_preflight, &postcommit_preflight_facts),
+    ];
+    if preflights.iter().any(|(instance, facts)| {
+        instance.effect != QualificationEffect::NotApplied
+            || instance.counters.provider_calls != 0
+            || facts.applied
+            || facts.transaction_sha256.is_some()
+            || !facts.rows.is_empty()
+    }) || precommit_effect.effect != QualificationEffect::NotApplied
+        || !precommit_effect.reconciled
+        || precommit_effect.counters.provider_calls != 1
+        || precommit_effect_facts.applied
+        || precommit_effect_facts.transaction_sha256.is_some()
+        || precommit_effect_facts.rows.is_empty()
+        || precommit_effect_facts
+            .rows
+            .iter()
+            .any(|row| row.before_version != row.after_version)
+        || postcommit_effect.effect != QualificationEffect::Applied
+        || !postcommit_effect.reconciled
+        || postcommit_effect.counters.provider_calls != 1
+        || !postcommit_effect_facts.applied
+        || postcommit_effect_facts
+            .transaction_sha256
+            .as_deref()
+            .is_none_or(|value| !digest(value))
+        || postcommit_effect_facts.rows.is_empty()
+        || postcommit_effect_facts
+            .rows
+            .iter()
+            .any(|row| row.after_version != row.before_version.saturating_add(1))
+    {
+        return Err(QualificationHarnessError::ProviderTruth);
+    }
+
+    let all_facts = [
+        &precommit_preflight_facts,
+        &postcommit_preflight_facts,
+        &precommit_effect_facts,
+        &postcommit_effect_facts,
+    ];
+    if all_facts
+        .iter()
+        .any(|facts| facts.server_identity_sha256 != all_facts[0].server_identity_sha256)
+        || all_facts
+            .iter()
+            .any(|facts| facts.database_sha256 != all_facts[0].database_sha256)
+    {
+        return Err(QualificationHarnessError::ProviderTruth);
+    }
+    Ok(())
+}
+
+fn postgresql_case_instance<'a>(
+    operation: &'a auths_profile_kit::QualificationRedactedOperation,
+    case_id: &str,
+) -> Result<&'a auths_profile_kit::QualificationRedactedOperationInstance, QualificationHarnessError>
+{
+    let operation_id = operation
+        .attempts
+        .iter()
+        .find(|attempt| attempt.case_id == case_id)
+        .and_then(|attempt| attempt.operation_id.as_deref())
+        .ok_or(QualificationHarnessError::ProviderTruth)?;
+    operation
+        .instances
+        .iter()
+        .find(|instance| instance.operation_id == operation_id)
+        .ok_or(QualificationHarnessError::ProviderTruth)
+}
+
+fn postgresql_truth_facts(
+    truths: &[QualificationProviderTruth],
+    operation_id: &str,
+) -> Result<PostgresqlProviderTruthFacts, QualificationHarnessError> {
+    let truth = truths
+        .iter()
+        .find(|truth| truth.operation_id == operation_id)
+        .ok_or(QualificationHarnessError::ProviderTruth)?;
+    let facts: PostgresqlProviderTruthFacts = serde_json::from_slice(&truth.domain_facts)
+        .map_err(|_| QualificationHarnessError::ProviderTruth)?;
+    if serde_json_canonicalizer::to_vec(&facts)
+        .map_err(|_| QualificationHarnessError::ProviderTruth)?
+        != truth.domain_facts
+        || facts.applied != (truth.effect == QualificationEffect::Applied)
+        || facts.ledger_operation_sha256 != hex::encode(Sha256::digest(operation_id.as_bytes()))
+    {
+        return Err(QualificationHarnessError::ProviderTruth);
+    }
+    Ok(facts)
 }
 
 fn provider_identity(
@@ -1015,6 +1425,81 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn authenticated_preflight_result_derives_only_the_paired_effect_inputs() {
+        let token = "prepared-update-000000000000000000000000000000001";
+        let value = crate::generated::profile_api::PreparedUpdate {
+            prepared_update: token.into(),
+            action_digest: "1".repeat(64),
+            matched_rows: 1,
+            expires_at: 10,
+        }
+        .to_canonical_cbor()
+        .unwrap();
+        let (primary, changed) =
+            qualification_effect_case_inputs("auths.postgresql.update-preflight/1", &value)
+                .unwrap()
+                .unwrap();
+        assert_eq!(
+            crate::generated::profile_api::PreparedUpdateInput::from_canonical_cbor(&primary)
+                .unwrap()
+                .prepared_update,
+            token
+        );
+        assert_eq!(
+            crate::generated::profile_api::PreparedUpdateInput::from_canonical_cbor(&changed)
+                .unwrap()
+                .prepared_update,
+            format!("{token}x")
+        );
+        assert!(
+            qualification_effect_case_inputs("auths.postgresql.bounded-update/1", &value).is_err()
+        );
+    }
+
+    #[test]
+    fn missing_preflight_uses_one_domain_owned_effect_input() {
+        let boundary = qualification_effect_fallback_case_json(
+            "auths.postgresql.bounded-update/1",
+            "boundary-plus-one",
+            "canonical",
+        )
+        .unwrap()
+        .unwrap();
+        let missing = qualification_effect_fallback_case_json(
+            "auths.postgresql.bounded-update/1",
+            "postgresql-row-boundary",
+            "no-prepared-update",
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(boundary, missing);
+        let canonical =
+            auths_profile_kit::qualification_case_profile_input_cbor("canonical", &boundary)
+                .unwrap();
+        for stimulus in [
+            "duplicate-field",
+            "missing-field",
+            "noncanonical-integer",
+            "unknown-field",
+        ] {
+            assert_ne!(
+                auths_profile_kit::qualification_case_profile_input_cbor(stimulus, &boundary)
+                    .unwrap(),
+                canonical
+            );
+        }
+        assert!(
+            qualification_effect_fallback_case_json(
+                "auths.postgresql.bounded-update/1",
+                "happy-path",
+                "canonical",
+            )
+            .unwrap()
+            .is_none()
+        );
+    }
+
+    #[test]
     fn provider_truth_requires_committed_ids_and_effect_algebra() {
         let facts = json!({
             "applied":false,
@@ -1022,6 +1507,7 @@ mod tests {
             "ledgerOperationSha256":"22".repeat(32),
             "rows":[{"afterVersion":7,"beforeVersion":7,"primaryKeySha256":"33".repeat(32)}],
             "serverIdentitySha256":"44".repeat(32),
+            "transactionIsolation":null,
             "transactionSha256":null
         });
         let bytes = serde_json_canonicalizer::to_vec(&facts).unwrap();
@@ -1036,5 +1522,81 @@ mod tests {
             )
             .is_err()
         );
+
+        let committed = json!({
+            "applied":true,
+            "databaseSha256":"11".repeat(32),
+            "ledgerOperationSha256":"22".repeat(32),
+            "rows":[{"afterVersion":8,"beforeVersion":7,"primaryKeySha256":"33".repeat(32)}],
+            "serverIdentitySha256":"44".repeat(32),
+            "transactionIsolation":"serializable",
+            "transactionSha256":"55".repeat(32)
+        });
+        validate_provider_truth_facts(
+            &serde_json_canonicalizer::to_vec(&committed).unwrap(),
+            QualificationEffect::Applied,
+        )
+        .unwrap();
+        let mut weaker = committed;
+        weaker["transactionIsolation"] = json!("repeatable read");
+        assert!(
+            validate_provider_truth_facts(
+                &serde_json_canonicalizer::to_vec(&weaker).unwrap(),
+                QualificationEffect::Applied,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn execution_ledger_migration_persists_the_sampled_serializable_level() {
+        let migration = include_str!("../migrations/auths_execution_ledger.sql");
+        for marker in [
+            "transaction_isolation text NOT NULL",
+            "CHECK (transaction_isolation = 'serializable')",
+            "observed_transaction_isolation text := current_setting('transaction_isolation')",
+            "observed_transaction_isolation <> 'serializable'",
+            "ledger.transaction_isolation = observed_transaction_isolation",
+            "ledger.transaction_isolation,",
+        ] {
+            assert!(
+                migration.contains(marker),
+                "missing migration marker {marker}"
+            );
+        }
+        assert!(!migration.contains("SET transaction_isolation = 'serializable'"));
+    }
+
+    #[test]
+    fn row_boundary_program_uses_distinct_bounded_inputs() {
+        let program = qualification_scenario_program("postgresql-row-boundary").unwrap();
+        let stimuli = program
+            .cases()
+            .iter()
+            .map(|case| (case.case_id(), case.intent_id(), case.stimulus()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            stimuli,
+            vec![
+                ("preflight-maximum", "maximum", "maximum-assignment"),
+                ("effect-maximum", "maximum", "prepared-maximum"),
+                (
+                    "preflight-plus-one",
+                    "maximum-plus-one",
+                    "maximum-plus-one-assignment",
+                ),
+                ("effect-plus-one", "maximum-plus-one", "no-prepared-update",),
+            ]
+        );
+    }
+
+    #[test]
+    fn every_reviewed_postgresql_stimulus_has_one_fail_closed_setup_mapping() {
+        for scenario in SCENARIOS {
+            for case in qualification_scenario_program(scenario).unwrap().cases() {
+                postgresql_case_assignment(case.stimulus(), "after").unwrap();
+            }
+        }
+        assert!(postgresql_case_assignment("misspelled-stimulus", "after").is_err());
     }
 }
