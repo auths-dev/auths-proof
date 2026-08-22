@@ -129,6 +129,7 @@ pub async fn reconcile_provider_transport(
 #[allow(clippy::too_many_arguments)]
 pub async fn dispatch_provider_transport(
     profile: &str,
+    _scenario_id: &str,
     kind: QualificationProviderCallKind,
     command: &[u8],
     _profile_state: &[u8],
@@ -698,18 +699,28 @@ impl QualificationProtectedSetup for OpentofuQualificationAdapter {
                 }));
                 vector["sourceFiles"] = serde_json::Value::Array(files);
             }
-            let bytes = serde_json_canonicalizer::to_vec(&vector)
-                .map_err(|_| QualificationHarnessError::Onboarding)?;
             let scenario_program = qualification_scenario_program(scenario_id)?;
-            let input_base64url = Base64UrlUnpadded::encode_string(&bytes);
             let cases = scenario_program
                 .cases()
                 .iter()
-                .map(|case| auths_profile_kit::QualificationSetupCaseV1 {
-                    case_id: case.case_id().into(),
-                    input_base64url: input_base64url.clone(),
+                .map(|case| {
+                    let mut case_vector = vector.clone();
+                    if case.stimulus() == "destructive-plan" {
+                        let destructive = format!(
+                            "terraform {{ required_providers {{ null = {{ source = \"hashicorp/null\" version = \"3.2.4\" }} }} }}\nresource \"null_resource\" \"qualification\" {{ triggers = {{ marker = \"{workspace}-replacement\" }} }}\n"
+                        );
+                        case_vector["sourceFiles"] = serde_json::json!([
+                            {"contents":destructive,"path":"main.tf"}
+                        ]);
+                    }
+                    let bytes = serde_json_canonicalizer::to_vec(&case_vector)
+                        .map_err(|_| QualificationHarnessError::Onboarding)?;
+                    Ok(auths_profile_kit::QualificationSetupCaseV1 {
+                        case_id: case.case_id().into(),
+                        input_base64url: Base64UrlUnpadded::encode_string(&bytes),
+                    })
                 })
-                .collect();
+                .collect::<Result<Vec<_>, QualificationHarnessError>>()?;
             vectors.push(auths_profile_kit::QualificationSetupVectorV1 {
                 id: scenario_id.clone(),
                 scenario_program,
@@ -841,6 +852,11 @@ impl QualificationCollectionAdapter for OpentofuQualificationAdapter {
                         .prepared_plans
                         .get(program_case.intent_id())
                         .cloned()
+                        .or_else(|| {
+                            (program_case.stimulus() == "no-prepared-plan").then(|| {
+                                "qualification-missing-prepared-plan-00000000000000000001".into()
+                            })
+                        })
                         .ok_or(QualificationHarnessError::Invocation)?;
                     let case = cases
                         .iter_mut()
@@ -1001,6 +1017,9 @@ impl QualificationProtectedObserver for OpentofuQualificationAdapter {
             "opentofu-protected-plan" | "opentofu-artifact-redaction" => {
                 validate_successful_opentofu_pair(operations, truths)
             }
+            "opentofu-destructive-denial" => {
+                validate_opentofu_destructive_denial(program, operations, truths)
+            }
             "opentofu-response-loss" => {
                 validate_successful_opentofu_pair(operations, truths)?;
                 validate_reconciled_opentofu_effect(operations)
@@ -1120,6 +1139,32 @@ fn validate_reconciled_opentofu_effect(
     if !instance.reconciled
         || instance.effect != QualificationEffect::Applied
         || instance.counters.provider_calls != 1
+    {
+        return Err(QualificationHarnessError::ProviderTruth);
+    }
+    Ok(())
+}
+
+fn validate_opentofu_destructive_denial(
+    program: &QualificationScenarioProgramV1,
+    operations: &[auths_profile_kit::QualificationRedactedOperation],
+    truths: &[QualificationProviderTruth],
+) -> Result<(), QualificationHarnessError> {
+    let [preflight, effect] = operations else {
+        return Err(QualificationHarnessError::ProviderTruth);
+    };
+    let [preflight_case, effect_case] = program.cases() else {
+        return Err(QualificationHarnessError::ProviderTruth);
+    };
+    if preflight.role != QualificationOperationRole::Preflight
+        || effect.role != QualificationOperationRole::Effect
+        || preflight_case.role() != QualificationOperationRole::Preflight
+        || preflight_case.stimulus() != "destructive-plan"
+        || effect_case.role() != QualificationOperationRole::Effect
+        || effect_case.stimulus() != "no-prepared-plan"
+        || !preflight.instances.is_empty()
+        || !effect.instances.is_empty()
+        || !truths.is_empty()
     {
         return Err(QualificationHarnessError::ProviderTruth);
     }

@@ -55,6 +55,7 @@ impl QualificationRoute {
     pub(crate) async fn dispatch_provider_transport(
         self,
         profile: &str,
+        scenario_id: &str,
         kind: QualificationProviderCallKind,
         command: &[u8],
         profile_state: &[u8],
@@ -69,6 +70,7 @@ impl QualificationRoute {
             Self::Opentofu => {
                 auths_opentofu::qualification::dispatch_provider_transport(
                     profile,
+                    scenario_id,
                     kind,
                     command,
                     profile_state,
@@ -84,6 +86,7 @@ impl QualificationRoute {
             Self::Postgresql => {
                 auths_postgresql::qualification::dispatch_provider_transport(
                     profile,
+                    scenario_id,
                     kind,
                     command,
                     profile_state,
@@ -99,6 +102,7 @@ impl QualificationRoute {
             Self::Stripe => {
                 auths_stripe::qualification::dispatch_provider_transport(
                     profile,
+                    scenario_id,
                     kind,
                     command,
                     profile_state,
@@ -205,14 +209,17 @@ impl QualificationRoute {
         match self {
             Self::Opentofu => {
                 auths_opentofu::qualification::inspect_profile_state(profile, records, store_bytes)
+                    .map_err(|_| QualificationHarnessError::ProviderTruth)
             }
             Self::Postgresql => auths_postgresql::qualification::inspect_profile_state(
                 profile,
                 records,
                 store_bytes,
-            ),
+            )
+            .map_err(|_| QualificationHarnessError::ProviderTruth),
             Self::Stripe => {
                 auths_stripe::qualification::inspect_profile_state(profile, records, store_bytes)
+                    .map_err(|_| QualificationHarnessError::ProviderTruth)
             }
         }
     }

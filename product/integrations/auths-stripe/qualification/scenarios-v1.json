@@ -134,7 +134,7 @@
         {
           "caseId": "primary",
           "intentId": "primary",
-          "stimulus": "canonical",
+          "stimulus": "unrelated-refund",
           "role": "effect",
           "group": 1,
           "topology": "serial",
@@ -147,7 +147,7 @@
       "hooks": [
         {
           "caseId": "primary",
-          "stage": "setup",
+          "stage": "before-provider",
           "hook": "create-unrelated-refund"
         },
         {
@@ -314,8 +314,8 @@
           "group": 1,
           "topology": "serial",
           "expectation": "exact",
-          "expectedOutcome": "completed",
-          "expectedEffect": "applied",
+          "expectedOutcome": "not-applied",
+          "expectedEffect": "not-applied",
           "expectedProviderCalls": 1
         }
       ],

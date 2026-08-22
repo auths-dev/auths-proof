@@ -2506,6 +2506,19 @@ mod tests {
         .unwrap()
     }
 
+    fn hooked_program(cases: &str, hooks: &str) -> crate::QualificationScenarioProgramV1 {
+        let common = format!(
+            "{{\"schema\":\"auths.profile-qualification-scenarios/2\",\"domain\":\"common\",\"programs\":[{{\"id\":\"hook-test\",\"cases\":{cases},\"hooks\":{hooks}}}]}}"
+        );
+        crate::qualification_scenario_program(
+            common.as_bytes(),
+            br#"{"schema":"auths.profile-qualification-scenarios/2","domain":"test","programs":[{"id":"domain-placeholder","cases":[{"caseId":"primary","intentId":"primary","stimulus":"canonical","role":"effect","group":1,"topology":"serial","expectation":"exact","expectedOutcome":"denied","expectedEffect":"not-applied","expectedProviderCalls":0}],"hooks":[]}]}"#,
+            "test",
+            "hook-test",
+        )
+        .unwrap()
+    }
+
     fn operation_free_attempt() -> QualificationRedactedAttempt {
         QualificationRedactedAttempt {
             sequence: 1,
@@ -2567,6 +2580,36 @@ mod tests {
         swapped.attempts[0].case_id = "b".into();
         swapped.attempts[1].case_id = "a".into();
         assert!(validate_scenario_program_projection(&program, None, &[swapped], &[]).is_err());
+    }
+
+    #[test]
+    fn protected_hook_requires_one_exact_active_case() {
+        let one = hooked_program(
+            r#"[{"caseId":"primary","intentId":"primary","stimulus":"canonical","role":"effect","group":1,"topology":"serial","expectation":"exact","expectedOutcome":"completed","expectedEffect":"applied","expectedProviderCalls":1}]"#,
+            r#"[{"caseId":"primary","stage":"after-provider-before-response","hook":"suppress-first-response"}]"#,
+        );
+        assert_eq!(
+            one.unique_hook_for_role(
+                QualificationOperationRole::Effect,
+                crate::QualificationScenarioHookStage::AfterProviderBeforeResponse,
+                "suppress-first-response",
+            ),
+            Ok(true)
+        );
+
+        let ambiguous = hooked_program(
+            r#"[{"caseId":"a","intentId":"a","stimulus":"canonical","role":"effect","group":1,"topology":"serial","expectation":"exact","expectedOutcome":"completed","expectedEffect":"applied","expectedProviderCalls":1},{"caseId":"b","intentId":"b","stimulus":"canonical","role":"effect","group":2,"topology":"serial","expectation":"exact","expectedOutcome":"denied","expectedEffect":"not-applied","expectedProviderCalls":0}]"#,
+            r#"[{"caseId":"a","stage":"after-provider-before-response","hook":"suppress-first-response"}]"#,
+        );
+        assert!(
+            ambiguous
+                .unique_hook_for_role(
+                    QualificationOperationRole::Effect,
+                    crate::QualificationScenarioHookStage::AfterProviderBeforeResponse,
+                    "suppress-first-response",
+                )
+                .is_err()
+        );
     }
 
     #[test]

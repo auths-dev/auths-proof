@@ -253,8 +253,8 @@
           "group": 1,
           "topology": "serial",
           "expectation": "exact",
-          "expectedOutcome": "completed",
-          "expectedEffect": "applied",
+          "expectedOutcome": "not-applied",
+          "expectedEffect": "not-applied",
           "expectedProviderCalls": 1
         }
       ],
@@ -300,9 +300,9 @@
       "id": "postgresql-transaction-kill",
       "cases": [
         {
-          "caseId": "preflight",
-          "intentId": "primary",
-          "stimulus": "canonical",
+          "caseId": "preflight-precommit",
+          "intentId": "precommit",
+          "stimulus": "transaction-precommit",
           "role": "preflight",
           "group": 1,
           "topology": "serial",
@@ -312,11 +312,35 @@
           "expectedProviderCalls": 0
         },
         {
-          "caseId": "effect",
-          "intentId": "primary",
-          "stimulus": "canonical",
+          "caseId": "effect-precommit",
+          "intentId": "precommit",
+          "stimulus": "transaction-precommit",
           "role": "effect",
           "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "not-applied",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 1
+        },
+        {
+          "caseId": "preflight-postcommit",
+          "intentId": "postcommit",
+          "stimulus": "transaction-postcommit",
+          "role": "preflight",
+          "group": 2,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "effect-postcommit",
+          "intentId": "postcommit",
+          "stimulus": "transaction-postcommit",
+          "role": "effect",
+          "group": 2,
           "topology": "serial",
           "expectation": "exact",
           "expectedOutcome": "completed",
@@ -326,12 +350,12 @@
       ],
       "hooks": [
         {
-          "caseId": "effect",
+          "caseId": "effect-precommit",
           "stage": "before-provider",
           "hook": "kill-precommit"
         },
         {
-          "caseId": "effect",
+          "caseId": "effect-postcommit",
           "stage": "after-provider-before-response",
           "hook": "kill-postcommit"
         }

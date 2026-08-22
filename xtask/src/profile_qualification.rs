@@ -12744,9 +12744,23 @@ mod tests {
     }
 
     fn happy_path_vectors() -> Vec<auths_profile_kit::QualificationVector> {
+        let manifest = auths_profile_kit::QualificationScenarioManifest::from_json(include_bytes!(
+            "../../product/conformance/v2/profile-qualification-common.json"
+        ))
+        .unwrap();
+        let scenario_program = manifest.program("happy-path").unwrap().clone();
+        let cases = scenario_program
+            .cases()
+            .iter()
+            .map(|case| auths_profile_kit::QualificationCaseVector {
+                case_id: case.case_id().into(),
+                input: vec![1],
+            })
+            .collect();
         vec![auths_profile_kit::QualificationVector {
             id: "happy-path".into(),
-            input: Vec::new(),
+            scenario_program,
+            cases,
             failpoint: None,
         }]
     }

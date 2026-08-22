@@ -126,6 +126,7 @@ pub async fn reconcile_provider_transport(
 #[allow(clippy::too_many_arguments)]
 pub async fn dispatch_provider_transport(
     profile: &str,
+    _scenario_id: &str,
     kind: QualificationProviderCallKind,
     command: &[u8],
     _profile_state: &[u8],

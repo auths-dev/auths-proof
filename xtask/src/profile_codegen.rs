@@ -375,9 +375,12 @@ fn scaffold_at(repository: &Path, arguments: &NewProfileArguments) -> Result<(),
                 "id":format!("{domain}-{effect}-live"),
                 "cases":[{
                     "caseId":"primary",
+                    "intentId":"primary",
+                    "stimulus":"unimplemented",
                     "role":"effect",
                     "group":1,
                     "topology":"serial",
+                    "expectation":"exact",
                     "expectedOutcome":"unavailable",
                     "expectedEffect":"not-applied",
                     "expectedProviderCalls":0
@@ -903,7 +906,7 @@ pub fn qualification_provider_truth_fields() -> &'static [&'static str] {{ &[\"i
 pub fn qualification_forbidden_evidence_fields() -> &'static [&'static str] {{ &[] }}\n\n\
 pub fn qualification_redaction_prefixes() -> &'static [&'static str] {{ &[] }}\n\n\
 #[allow(clippy::too_many_arguments)]\n\
-pub async fn dispatch_provider_transport(_profile: &str, _kind: QualificationProviderCallKind, _command: &[u8], _profile_state: &[u8], _credential: &ProviderCredentialLease, _configuration: Option<&[u8]>, _transport_root: &Path, _operation_id: &str, _now_unix_seconds: u64, _deadline: Instant) -> Result<Option<Vec<u8>>, ProfileRuntimeError> {{ Err(ProfileRuntimeError::Invalid) }}\n\n\
+pub async fn dispatch_provider_transport(_profile: &str, _scenario_id: &str, _kind: QualificationProviderCallKind, _command: &[u8], _profile_state: &[u8], _credential: &ProviderCredentialLease, _configuration: Option<&[u8]>, _transport_root: &Path, _operation_id: &str, _now_unix_seconds: u64, _deadline: Instant) -> Result<Option<Vec<u8>>, ProfileRuntimeError> {{ Err(ProfileRuntimeError::Invalid) }}\n\n\
 pub async fn observe_provider_truth(_record: &JournalRecordV1, _credential: &[u8], _observer_root: &Path, _now_unix_seconds: u64) -> Result<(QualificationEffect, Vec<u8>), ProfileRuntimeError> {{ Err(ProfileRuntimeError::Invalid) }}\n\n\
 pub fn inspect_receipt_claims(_profile: &str, _inspection: ProfileReceiptInspection<'_>) -> Result<(), ProfileRuntimeError> {{ Err(ProfileRuntimeError::Invalid) }}\n\n\
 pub fn inspect_profile_state(_profile: &str, _journal: &[JournalRecordV1], _store_bytes: &[u8]) -> Result<Vec<QualificationProfileStateFactV1>, ProfileRuntimeError> {{ Err(ProfileRuntimeError::Invalid) }}\n\n\
@@ -2244,12 +2247,12 @@ pub(crate) enum QualificationRoute {\n",
         .map_err(|error| error.to_string())?;
     }
     output.push_str("        }\n    }\n\n");
-    output.push_str("    #[allow(clippy::too_many_arguments)]\n    pub(crate) async fn dispatch_provider_transport(\n        self,\n        profile: &str,\n        kind: QualificationProviderCallKind,\n        command: &[u8],\n        profile_state: &[u8],\n        credential: &ProviderCredentialLease,\n        configuration: Option<&[u8]>,\n        transport_root: &Path,\n        operation_id: &str,\n        now_unix_seconds: u64,\n        deadline: std::time::Instant,\n    ) -> Result<Option<Vec<u8>>, ProfileRuntimeError> {\n        match self {\n");
+    output.push_str("    #[allow(clippy::too_many_arguments)]\n    pub(crate) async fn dispatch_provider_transport(\n        self,\n        profile: &str,\n        scenario_id: &str,\n        kind: QualificationProviderCallKind,\n        command: &[u8],\n        profile_state: &[u8],\n        credential: &ProviderCredentialLease,\n        configuration: Option<&[u8]>,\n        transport_root: &Path,\n        operation_id: &str,\n        now_unix_seconds: u64,\n        deadline: std::time::Instant,\n    ) -> Result<Option<Vec<u8>>, ProfileRuntimeError> {\n        match self {\n");
     for entry in roster.packages() {
         let crate_name = entry.rust_package().replace('-', "_");
         writeln!(
             output,
-            "            Self::{} => {crate_name}::qualification::dispatch_provider_transport(profile, kind, command, profile_state, credential, configuration, transport_root, operation_id, now_unix_seconds, deadline).await,",
+            "            Self::{} => {crate_name}::qualification::dispatch_provider_transport(profile, scenario_id, kind, command, profile_state, credential, configuration, transport_root, operation_id, now_unix_seconds, deadline).await,",
             pascal(entry.domain())
         )
         .map_err(|error| error.to_string())?;
@@ -2313,7 +2316,7 @@ pub(crate) enum QualificationRoute {\n",
         let crate_name = entry.rust_package().replace('-', "_");
         writeln!(
             output,
-            "            Self::{} => {crate_name}::qualification::inspect_profile_state(profile, records, store_bytes),",
+            "            Self::{} => {crate_name}::qualification::inspect_profile_state(profile, records, store_bytes).map_err(|_| QualificationHarnessError::ProviderTruth),",
             pascal(entry.domain())
         )
         .map_err(|error| error.to_string())?;

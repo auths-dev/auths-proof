@@ -1,5 +1,5 @@
 {
   "$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://auths.dev/spec/v1/stripe-qualification-provider-truth.schema.json",
-  "type":"object","additionalProperties":false,"required":["accountSha256","paymentIntentSha256","refundSha256","amount","currency","applied"],
-  "properties":{"accountSha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},"paymentIntentSha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},"refundSha256":{"type":["string","null"],"pattern":"^[0-9a-f]{64}$"},"amount":{"type":"integer","minimum":1,"maximum":100000000},"currency":{"type":"string","pattern":"^[a-z]{3}$"},"applied":{"type":"boolean"}}
+  "type":"object","additionalProperties":false,"required":["accountSha256","amount","applied","competingRefundCount","currency","paymentIntentSha256","refundSha256","unrelatedRefundCount"],
+  "properties":{"accountSha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},"amount":{"type":"integer","minimum":1,"maximum":100000000},"applied":{"type":"boolean"},"competingRefundCount":{"type":"integer","minimum":0,"maximum":1},"currency":{"type":"string","pattern":"^[a-z]{3}$"},"paymentIntentSha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},"refundSha256":{"type":["string","null"],"pattern":"^[0-9a-f]{64}$"},"unrelatedRefundCount":{"type":"integer","minimum":0,"maximum":1}}
 }

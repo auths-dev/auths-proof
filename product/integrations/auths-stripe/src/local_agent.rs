@@ -1205,6 +1205,89 @@ pub(crate) async fn refunds_create_transport_from_bytes(
     refunds_create_transport(&command, credential).await
 }
 
+/// Creates the protected competing refund used by the reviewed refundable-
+/// amount drift scenario. The competing refund never carries the Auths
+/// workflow marker and therefore cannot satisfy reconciliation for the
+/// candidate operation.
+#[cfg(feature = "qualification")]
+pub(crate) async fn qualification_reduce_refundable_amount(
+    command: &[u8],
+    credential: &ProviderCredentialLease,
+) -> Result<(), ProfileRuntimeError> {
+    qualification_create_other_refund(
+        command,
+        credential,
+        "auths_qualification_competing_refund",
+        "drift",
+    )
+    .await
+}
+
+/// Creates one unrelated provider refund before the Auths request so recovery
+/// must select the operation-bound refund rather than any refund for the same
+/// PaymentIntent.
+#[cfg(feature = "qualification")]
+pub(crate) async fn qualification_create_unrelated_refund(
+    command: &[u8],
+    credential: &ProviderCredentialLease,
+) -> Result<(), ProfileRuntimeError> {
+    qualification_create_other_refund(
+        command,
+        credential,
+        "auths_qualification_unrelated_refund",
+        "unrelated",
+    )
+    .await
+}
+
+#[cfg(feature = "qualification")]
+async fn qualification_create_other_refund(
+    command: &[u8],
+    credential: &ProviderCredentialLease,
+    metadata_name: &str,
+    idempotency_scope: &str,
+) -> Result<(), ProfileRuntimeError> {
+    let command: BoundedRefundCommand = canonical_from_slice(command)?;
+    validate_bounded_command(&command)?;
+    let secret = credential
+        .expose(Instant::now())
+        .map_err(|_| ProfileRuntimeError::Invalid)?;
+    let secret = std::str::from_utf8(secret).map_err(|_| ProfileRuntimeError::Invalid)?;
+    let idempotency = format!(
+        "aq-{idempotency_scope}-{}",
+        hex::encode(Sha256::digest(command.operation_id.as_bytes()))
+    );
+    let metadata_name = format!("metadata[{metadata_name}]");
+    let response = stripe_client()?
+        .post(STRIPE_REFUNDS_ENDPOINT)
+        .bearer_auth(secret)
+        .header("Accept", "application/json")
+        .header("Stripe-Version", command.action.stripe_api_version())
+        .header("Idempotency-Key", idempotency)
+        .form(&[
+            ("charge", command.action.charge_id().as_str()),
+            ("amount", "1"),
+            (metadata_name.as_str(), "1"),
+        ])
+        .send()
+        .await
+        .map_err(|_| ProfileRuntimeError::Invalid)?;
+    let bytes = bounded_provider_result(response, command.action.stripe_api_version()).await?;
+    let result = decode_provider_result(&bytes)?;
+    if !(200..300).contains(&result.status) {
+        return Err(ProfileRuntimeError::Invalid);
+    }
+    let refund: StripeRefundResponse =
+        serde_json::from_slice(&result.body).map_err(|_| ProfileRuntimeError::Invalid)?;
+    if refund.charge != command.action.charge_id().as_str()
+        || refund.amount != 1
+        || refund.currency != command.action.amount().currency().as_str()
+    {
+        return Err(ProfileRuntimeError::Invalid);
+    }
+    Ok(())
+}
+
 /// Returns one deterministic synthetic provider response for the disposable
 /// testkit agent. A real, generation-pinned credential lease is still required
 /// so the test exercises the same connection and credential ordering.

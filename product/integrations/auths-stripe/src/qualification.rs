@@ -12,9 +12,9 @@ use auths_profile_kit::{
     QualificationCommonReceiptClaims, QualificationEffect, QualificationHarnessError,
     QualificationOperationRole, QualificationPhaseClient, QualificationProtectedObserver,
     QualificationProtectedSetup, QualificationProtectedSetupInput, QualificationProviderTruth,
-    QualificationRunContext, QualificationRunReference, QualificationScenarioProgramV1,
-    QualificationSetupHandoffV1, QualificationTarget, QualificationVector,
-    qualification_scenario_program as resolve_qualification_scenario_program,
+    QualificationRunContext, QualificationRunReference, QualificationScenarioHookStage,
+    QualificationScenarioProgramV1, QualificationSetupHandoffV1, QualificationTarget,
+    QualificationVector, qualification_scenario_program as resolve_qualification_scenario_program,
 };
 use auths_profile_runtime::{ProfileReceiptInspection, ProfileRuntimeError};
 use auths_stores::JournalRecordV1;
@@ -77,6 +77,7 @@ pub async fn reconcile_provider_transport(
 #[allow(clippy::too_many_arguments)]
 pub async fn dispatch_provider_transport(
     profile: &str,
+    scenario_id: &str,
     kind: QualificationProviderCallKind,
     command: &[u8],
     profile_state: &[u8],
@@ -89,6 +90,30 @@ pub async fn dispatch_provider_transport(
 ) -> Result<Option<Vec<u8>>, ProfileRuntimeError> {
     if profile != "auths.stripe.refund/1" {
         return Err(ProfileRuntimeError::Invalid);
+    }
+    let program =
+        qualification_scenario_program(scenario_id).map_err(|_| ProfileRuntimeError::Invalid)?;
+    if kind == QualificationProviderCallKind::Execute
+        && program
+            .unique_hook_for_role(
+                QualificationOperationRole::Effect,
+                QualificationScenarioHookStage::BeforeProvider,
+                "reduce-refundable-amount",
+            )
+            .map_err(|_| ProfileRuntimeError::Invalid)?
+    {
+        crate::local_agent::qualification_reduce_refundable_amount(command, credential).await?;
+    }
+    if kind == QualificationProviderCallKind::Execute
+        && program
+            .unique_hook_for_role(
+                QualificationOperationRole::Effect,
+                QualificationScenarioHookStage::BeforeProvider,
+                "create-unrelated-refund",
+            )
+            .map_err(|_| ProfileRuntimeError::Invalid)?
+    {
+        crate::local_agent::qualification_create_unrelated_refund(command, credential).await?;
     }
     match kind {
         QualificationProviderCallKind::Execute => {
@@ -124,6 +149,8 @@ struct StripeProviderTruthFacts {
     account_sha256: String,
     payment_intent_sha256: String,
     refund_sha256: Option<String>,
+    competing_refund_count: u32,
+    unrelated_refund_count: u32,
     amount: u64,
     currency: String,
     applied: bool,
@@ -160,7 +187,7 @@ pub fn qualification_requirement_ids() -> &'static [&'static str] {
 /// SHA-256 of the exact canonical v1 requirement inventory bytes.
 #[must_use]
 pub const fn qualification_requirements_sha256() -> &'static str {
-    "3b7ed3724993ce56813aa547b530dfeeea616a1ffae005b1d7b06d0f25278082"
+    "866c9e723b45248fc4b79443b72fb400ef7ddc56b2042df4ef6858158d77efb9"
 }
 
 /// Exact public receipt-claim roster required by the v1 Stripe family.
@@ -186,9 +213,11 @@ pub fn qualification_provider_truth_fields() -> &'static [&'static str] {
         "accountSha256",
         "amount",
         "applied",
+        "competingRefundCount",
         "currency",
         "paymentIntentSha256",
         "refundSha256",
+        "unrelatedRefundCount",
     ]
 }
 
@@ -294,6 +323,8 @@ pub fn validate_provider_truth_facts(
         || !facts.currency.bytes().all(|byte| byte.is_ascii_lowercase())
         || facts.applied != (effect == QualificationEffect::Applied)
         || facts.refund_sha256.is_some() != facts.applied
+        || facts.competing_refund_count > 1
+        || facts.unrelated_refund_count > 1
     {
         return Err(QualificationHarnessError::ProviderTruth);
     }
@@ -500,6 +531,7 @@ async fn stripe_setup(
                     | "account-equality"
                     | "redaction-audit"
                     | "canonical" => amount,
+                    "unrelated-refund" => amount.saturating_sub(1),
                     _ => amount,
                 };
                 let vector = serde_json_canonicalizer::to_vec(&serde_json::json!({
@@ -713,6 +745,8 @@ impl QualificationProtectedObserver for StripeQualificationAdapter {
                 validate_single_applied_refund_truth(truths, None, true)?;
                 validate_reconciled_effect(operations)
             }
+            "stripe-refundable-drift" => validate_stripe_refundable_drift(operations, truths),
+            "stripe-existing-refund" => validate_stripe_existing_refund(operations, truths),
             _ => Err(QualificationHarnessError::PrerequisiteUnavailable(
                 "Stripe scenario predicate is not implemented",
             )),
@@ -818,6 +852,50 @@ fn validate_reconciled_effect(
     Ok(())
 }
 
+fn validate_stripe_refundable_drift(
+    operations: &[auths_profile_kit::QualificationRedactedOperation],
+    truths: &[QualificationProviderTruth],
+) -> Result<(), QualificationHarnessError> {
+    let [operation] = operations else {
+        return Err(QualificationHarnessError::ProviderTruth);
+    };
+    let [instance] = operation.instances.as_slice() else {
+        return Err(QualificationHarnessError::ProviderTruth);
+    };
+    let [truth] = truths else {
+        return Err(QualificationHarnessError::ProviderTruth);
+    };
+    let facts: StripeProviderTruthFacts = serde_json::from_slice(&truth.domain_facts)
+        .map_err(|_| QualificationHarnessError::ProviderTruth)?;
+    if operation.role != QualificationOperationRole::Effect
+        || instance.operation_id != truth.operation_id
+        || instance.effect != QualificationEffect::NotApplied
+        || instance.counters.provider_calls != 1
+        || truth.effect != QualificationEffect::NotApplied
+        || truth.provider_calls != 1
+        || facts.applied
+        || facts.refund_sha256.is_some()
+        || facts.competing_refund_count != 1
+    {
+        return Err(QualificationHarnessError::ProviderTruth);
+    }
+    Ok(())
+}
+
+fn validate_stripe_existing_refund(
+    operations: &[auths_profile_kit::QualificationRedactedOperation],
+    truths: &[QualificationProviderTruth],
+) -> Result<(), QualificationHarnessError> {
+    validate_single_applied_refund_truth(truths, Some(1_999), true)?;
+    validate_reconciled_effect(operations)?;
+    let facts: StripeProviderTruthFacts = serde_json::from_slice(&truths[0].domain_facts)
+        .map_err(|_| QualificationHarnessError::ProviderTruth)?;
+    if facts.unrelated_refund_count != 1 || facts.competing_refund_count != 0 {
+        return Err(QualificationHarnessError::ProviderTruth);
+    }
+    Ok(())
+}
+
 #[derive(Deserialize)]
 struct StripeSearchList<T> {
     data: Vec<T>,
@@ -917,6 +995,26 @@ async fn stripe_observe_by_namespace(
                 .is_some_and(|value| value == operation_id)
         })
         .collect::<Vec<_>>();
+    let competing_refund_count = refunds
+        .data
+        .iter()
+        .filter(|refund| {
+            refund
+                .metadata
+                .get("auths_qualification_competing_refund")
+                .is_some_and(|value| value == "1")
+        })
+        .count();
+    let unrelated_refund_count = refunds
+        .data
+        .iter()
+        .filter(|refund| {
+            refund
+                .metadata
+                .get("auths_qualification_unrelated_refund")
+                .is_some_and(|value| value == "1")
+        })
+        .count();
     if matching.len() > 1 {
         return Err(QualificationHarnessError::ProviderTruth);
     }
@@ -935,6 +1033,10 @@ async fn stripe_observe_by_namespace(
         refund_sha256: matching
             .first()
             .map(|refund| hex::encode(Sha256::digest(refund.id.as_bytes()))),
+        competing_refund_count: u32::try_from(competing_refund_count)
+            .map_err(|_| QualificationHarnessError::ProviderTruth)?,
+        unrelated_refund_count: u32::try_from(unrelated_refund_count)
+            .map_err(|_| QualificationHarnessError::ProviderTruth)?,
         amount: matching
             .first()
             .map_or(intent.amount, |refund| refund.amount),
@@ -1065,6 +1167,8 @@ mod tests {
                 .into(),
             payment_intent_sha256: "11".repeat(32),
             refund_sha256: Some("22".repeat(32)),
+            competing_refund_count: 0,
+            unrelated_refund_count: 0,
             amount,
             currency: "usd".into(),
             applied: true,
@@ -1088,9 +1192,11 @@ mod tests {
             "accountSha256":"43aec9c80a97eb14b852a1a541f81c85eff70c52cadc91963be5ec07b3900730",
             "amount":2000,
             "applied":false,
+            "competingRefundCount":0,
             "currency":"usd",
             "paymentIntentSha256":"11".repeat(32),
-            "refundSha256":null
+            "refundSha256":null,
+            "unrelatedRefundCount":0
         });
         let bytes = serde_json_canonicalizer::to_vec(&facts).unwrap();
         validate_provider_truth_facts(&bytes, QualificationEffect::NotApplied).unwrap();

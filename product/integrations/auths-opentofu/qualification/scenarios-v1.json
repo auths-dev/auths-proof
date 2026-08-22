@@ -80,26 +80,26 @@
         {
           "caseId": "preflight",
           "intentId": "primary",
-          "stimulus": "canonical",
+          "stimulus": "destructive-plan",
           "role": "preflight",
           "group": 1,
           "topology": "serial",
           "expectation": "exact",
-          "expectedOutcome": "completed",
+          "expectedOutcome": "denied",
           "expectedEffect": "not-applied",
           "expectedProviderCalls": 0
         },
         {
           "caseId": "effect",
           "intentId": "primary",
-          "stimulus": "canonical",
+          "stimulus": "no-prepared-plan",
           "role": "effect",
           "group": 1,
           "topology": "serial",
           "expectation": "exact",
-          "expectedOutcome": "completed",
-          "expectedEffect": "applied",
-          "expectedProviderCalls": 1
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
         }
       ],
       "hooks": []
@@ -301,8 +301,8 @@
           "group": 1,
           "topology": "serial",
           "expectation": "exact",
-          "expectedOutcome": "completed",
-          "expectedEffect": "applied",
+          "expectedOutcome": "not-applied",
+          "expectedEffect": "not-applied",
           "expectedProviderCalls": 1
         }
       ],

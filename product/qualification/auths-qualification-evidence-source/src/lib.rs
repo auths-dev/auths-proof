@@ -2236,15 +2236,24 @@ fn handle_provider_proxy_connection(
         }
         checkpoint.peer.verify_unchanged()?;
     }
-    let mut response =
-        execute_provider_proxy_call(&request, transport_root, &credential, deadline)?;
+    let mut response = execute_provider_proxy_call(
+        &request,
+        &phase.scenario_id,
+        transport_root,
+        &credential,
+        deadline,
+    )?;
     if request.kind() == QualificationProviderCallKind::Execute
         && matches!(response, QualificationProviderCallResponse::Success(_))
-        && phase_has_hook(
+        && (phase_has_hook(
             phase,
             QualificationScenarioHookStage::AfterProviderBeforeResponse,
             "suppress-first-response",
-        )?
+        )? || phase_has_hook(
+            phase,
+            QualificationScenarioHookStage::AfterProviderBeforeResponse,
+            "force-reconcile",
+        )?)
     {
         response = QualificationProviderCallResponse::PostEntryTimeout;
     }
@@ -2326,26 +2335,9 @@ fn phase_has_hook(
     if program.sha256().map_err(string_error)? != phase.scenario_program_sha256 {
         return Err("ProviderProxy scenario program differs from the immutable phase".into());
     }
-    let cases = program
-        .cases()
-        .iter()
-        .filter(|case| case.role() == phase.role)
-        .collect::<Vec<_>>();
-    let matching = program
-        .hooks()
-        .iter()
-        .filter(|candidate| {
-            candidate.stage() == stage
-                && candidate.hook() == hook
-                && cases
-                    .iter()
-                    .any(|case| case.case_id() == candidate.case_id())
-        })
-        .count();
-    if matching > 0 && (cases.len() != 1 || matching != 1) {
-        return Err("ProviderProxy hook lacks one exact active case binding".into());
-    }
-    Ok(matching == 1)
+    program
+        .unique_hook_for_role(phase.role, stage, hook)
+        .map_err(string_error)
 }
 
 #[cfg(target_os = "linux")]
@@ -2513,6 +2505,7 @@ fn redeem_provider_proxy_credential(
 #[cfg(target_os = "linux")]
 fn execute_provider_proxy_call(
     request: &QualificationProviderCallRequest,
+    scenario_id: &str,
     transport_root: &Path,
     credential: &ProviderCredentialLease,
     deadline: Instant,
@@ -2528,6 +2521,7 @@ fn execute_provider_proxy_call(
         deadline,
         route.dispatch_provider_transport(
             &profile,
+            scenario_id,
             request.kind(),
             request.command(),
             request.profile_state(),
