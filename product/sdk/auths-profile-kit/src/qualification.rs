@@ -3025,6 +3025,7 @@ mod tests {
         );
     }
 
+    #[allow(clippy::unreadable_literal)]
     fn record_value() -> Value {
         json!({
             "schema":"auths.profile-qualification/1",

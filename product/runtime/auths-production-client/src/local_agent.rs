@@ -3013,7 +3013,10 @@ mod tests {
         );
         assert_eq!(&frame[..2], &[1, 3]);
         assert_eq!(&frame[2..18], &request_id);
-        assert_eq!(&frame[18..22], &(result.len() as u32).to_be_bytes());
+        assert_eq!(
+            &frame[18..22],
+            &u32::try_from(result.len()).unwrap().to_be_bytes()
+        );
         assert_eq!(&frame[22..], &result);
         assert_eq!(
             encode_qualification_client_result_frame(4, &request_id, &result),
@@ -3136,6 +3139,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn operation_outcomes_round_trip_canonically() {
         let operation_id = OperationId::parse("op_AQEBAQEBAQEBAQEBAQEBAQ").unwrap();
         let receipt = vec![1, 2, 3];

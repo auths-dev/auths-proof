@@ -5381,7 +5381,7 @@ impl ProcessProtectedPhaseGuard {
         ) else {
             return;
         };
-        if named.st_dev as u64 != captured.dev() || named.st_ino as u64 != captured.ino() {
+        if named.st_dev as u64 != captured.dev() || named.st_ino != captured.ino() {
             return;
         }
         let _ = rustix::fs::unlinkat(
@@ -5537,10 +5537,8 @@ impl Drop for ProcessProtectedPhaseGuard {
         }
         let mut cgroup_empty = self.force_kill_phase_cgroup();
         let killed_group = self.force_kill_controller_group();
-        if controller_exit.is_none() {
-            if !killed_group {
-                let _ = self.child.kill();
-            }
+        if controller_exit.is_none() && !killed_group {
+            let _ = self.child.kill();
         }
         let _ = self.child.wait();
         if !cgroup_empty {
@@ -5899,18 +5897,15 @@ fn validate_protected_phase_topology(
         {
             return Err("protected qualification role trust snapshot differs from input".into());
         }
-        if matches!(name, "journal-reader" | "receipt-verifier-reader") {
-            if protected_regular_file_identity(
+        if matches!(name, "journal-reader" | "receipt-verifier-reader")
+            && protected_regular_file_identity(
                 &runtime_root.join(name).join("receipt-trust.json"),
                 uid,
                 0o600,
                 262_144,
             )? != receipt_trust_bytes
-            {
-                return Err(
-                    "protected qualification role receipt snapshot differs from input".into(),
-                );
-            }
+        {
+            return Err("protected qualification role receipt snapshot differs from input".into());
         }
     }
 
@@ -6774,6 +6769,7 @@ fn provider_truth_matches_ledger(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn read_protected_common_phase_evidence(
     directory: &Path,
     ledger: &QualificationEvidenceLedgerRecord,
@@ -7743,7 +7739,7 @@ fn validate_verified_release_build_binding(
         || binding.workflow_revision != release_build["workflowRevision"]
         || binding.run_id != release_build["runId"]
         || binding.run_id != required_env("OFFICIAL_RELEASE_BUILD_RUN_ID")?
-        || Value::from(binding.run_attempt) != release_build["runAttempt"]
+        || release_build["runAttempt"].as_u64() != Some(u64::from(binding.run_attempt))
         || binding.run_label != "official"
         || release_build["runLabel"] != "official"
         || binding.retention_days != expected_retention_days
@@ -7846,7 +7842,7 @@ fn validate_verified_release_build_binding(
                     .saturating_add(u64::from(binding.retention_days) * 86_400)
             || actual.member_path != expected["memberPath"]
             || actual.member_sha256 != expected["memberSha256"]
-            || Value::from(actual.bytes) != expected["bytes"]
+            || expected["bytes"].as_u64() != Some(actual.bytes)
         {
             return Err(format!(
                 "verified release-build artifact binding drifted for {role}"
@@ -8194,7 +8190,7 @@ fn verify_retained_evidence_ledgers(
                         "Supervisor phase event is absent from the immutable ledger plan".to_owned()
                     })?;
                 let expected = auths_profile_kit::qualification_supervisor_phase_context_sha256(
-                    &phase,
+                    phase,
                     controller_sha256,
                 )
                 .map_err(string_error)?;
@@ -9002,41 +8998,41 @@ fn validate_typed_report_set(
                         ));
                     }
                 }
-                if planned.lifecycle_owner {
-                    if let Some(boundary) = crash_boundary {
-                        if boundary.failpoint != "before-decision"
-                            && operation
-                                .attempts
-                                .iter()
-                                .any(|attempt| attempt.operation_id.is_none())
-                        {
-                            return Err(format!(
-                                "post-decision crash attempt omits its durable operation ID: {scenario_id}/{}",
-                                execution.provider_run_id
-                            ));
-                        }
-                        let effects = operation
-                            .instances
+                if planned.lifecycle_owner
+                    && let Some(boundary) = crash_boundary
+                {
+                    if boundary.failpoint != "before-decision"
+                        && operation
+                            .attempts
                             .iter()
-                            .map(|instance| match instance.effect {
-                                auths_profile_kit::QualificationEffect::Applied => "applied",
-                                auths_profile_kit::QualificationEffect::NotApplied => "not-applied",
-                                auths_profile_kit::QualificationEffect::Possible => "possible",
-                            })
-                            .collect::<BTreeSet<_>>();
-                        if operation.instances.len() != boundary.applicable_effects.len()
-                            || effects
-                                != boundary
-                                    .applicable_effects
-                                    .iter()
-                                    .map(String::as_str)
-                                    .collect()
-                        {
-                            return Err(format!(
-                                "scenario operation does not cover the exact crash-boundary effect set: {scenario_id}/{}",
-                                execution.provider_run_id
-                            ));
-                        }
+                            .any(|attempt| attempt.operation_id.is_none())
+                    {
+                        return Err(format!(
+                            "post-decision crash attempt omits its durable operation ID: {scenario_id}/{}",
+                            execution.provider_run_id
+                        ));
+                    }
+                    let effects = operation
+                        .instances
+                        .iter()
+                        .map(|instance| match instance.effect {
+                            auths_profile_kit::QualificationEffect::Applied => "applied",
+                            auths_profile_kit::QualificationEffect::NotApplied => "not-applied",
+                            auths_profile_kit::QualificationEffect::Possible => "possible",
+                        })
+                        .collect::<BTreeSet<_>>();
+                    if operation.instances.len() != boundary.applicable_effects.len()
+                        || effects
+                            != boundary
+                                .applicable_effects
+                                .iter()
+                                .map(String::as_str)
+                                .collect()
+                    {
+                        return Err(format!(
+                            "scenario operation does not cover the exact crash-boundary effect set: {scenario_id}/{}",
+                            execution.provider_run_id
+                        ));
                     }
                 }
             }
@@ -9452,10 +9448,10 @@ fn verify_retained_receipts(
         if !seen_receipt_ids.insert(decision.portable_id().to_owned()) {
             return Err("portable receipt identity is duplicated".into());
         }
-        if operation.state == QualificationReceiptState::DecisionOnly {
-            if inspection.execution_profile_claims_sha256.is_some() {
-                return Err("decision-only receipt has execution inspection commitments".into());
-            }
+        if operation.state == QualificationReceiptState::DecisionOnly
+            && inspection.execution_profile_claims_sha256.is_some()
+        {
+            return Err("decision-only receipt has execution inspection commitments".into());
         }
 
         if operation.state == QualificationReceiptState::LinkedExecution {
@@ -11677,7 +11673,7 @@ fn load_failpoint_coverage_bytes(
     let domain = context.package.domain().id();
     let coverage: QualificationFailpointCoverage =
         serde_json::from_slice(bytes).map_err(string_error)?;
-    if !canonical_source_json(&coverage, &bytes)?
+    if !canonical_source_json(&coverage, bytes)?
         || coverage.schema != "auths.profile-qualification-failpoint-coverage/1"
         || coverage.domain != domain
         || coverage.boundaries.len() != QUALIFICATION_CRASH_SCENARIO_IDS.len()
@@ -12448,7 +12444,7 @@ fn qualify_index(
             }));
         }
     }
-    entries.sort_by(|left, right| index_identity(left).cmp(&index_identity(right)));
+    entries.sort_by_key(index_identity);
     Ok(())
 }
 
@@ -12701,6 +12697,7 @@ impl ImportLock {
             .read(true)
             .write(true)
             .create(true)
+            .truncate(false)
             .open(path)
             .map_err(string_error)?;
         rustix::fs::flock(&file, rustix::fs::FlockOperation::NonBlockingLockExclusive)

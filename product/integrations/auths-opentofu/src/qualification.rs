@@ -24,6 +24,7 @@ use zeroize::Zeroizing;
 
 const PLAN_TRANSPORT_ENVELOPE_VERSION: u8 = 1;
 const MAX_PLAN_TRANSPORT_ENVELOPE_BYTES: usize = 258 * 1024 * 1024;
+type DerivedEffectCaseInputs = Option<(Vec<u8>, Vec<u8>)>;
 
 /// Re-encodes the exact effect inputs derived from one authenticated
 /// preflight result. The protected ClientProxy retains only commitments over
@@ -31,7 +32,7 @@ const MAX_PLAN_TRANSPORT_ENVELOPE_BYTES: usize = 258 * 1024 * 1024;
 pub fn qualification_effect_case_inputs(
     profile: &str,
     value: &[u8],
-) -> Result<Option<(Vec<u8>, Vec<u8>)>, QualificationHarnessError> {
+) -> Result<DerivedEffectCaseInputs, QualificationHarnessError> {
     if profile != "auths.opentofu.plan-preflight/1" {
         return Err(QualificationHarnessError::Invocation);
     }
@@ -875,6 +876,7 @@ impl QualificationCollectionAdapter for OpentofuQualificationAdapter {
         Ok(OpentofuQualificationEnvironment::default())
     }
 
+    #[allow(clippy::too_many_lines)]
     fn invoke_phase(
         &self,
         environment: &mut Self::Environment,

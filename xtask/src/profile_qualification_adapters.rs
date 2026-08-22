@@ -89,6 +89,7 @@ pub(crate) fn qualification_requirements_sha256(domain: &str) -> Result<&'static
     }
 }
 
+#[allow(clippy::type_complexity)]
 pub(crate) fn qualification_provider_matrix_rows(
     domain: &str,
 ) -> Result<

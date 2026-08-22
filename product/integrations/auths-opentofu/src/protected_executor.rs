@@ -167,6 +167,7 @@ impl ProtectedOpenTofuExecutor {
         })
     }
 
+    #[allow(clippy::unused_self)]
     pub(crate) fn run(
         &self,
         arguments: &[String],

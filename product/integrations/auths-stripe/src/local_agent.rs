@@ -1225,7 +1225,7 @@ pub(crate) async fn qualification_reduce_refundable_amount(
 
 /// Creates one unrelated provider refund before the Auths request so recovery
 /// must select the operation-bound refund rather than any refund for the same
-/// PaymentIntent.
+/// `PaymentIntent`.
 #[cfg(feature = "qualification")]
 pub(crate) async fn qualification_create_unrelated_refund(
     command: &[u8],

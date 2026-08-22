@@ -112,6 +112,7 @@ pub(crate) fn release_control(arguments: Vec<String>) -> Result<(), String> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn assemble_qualification_build(
     members_path: &Path,
     hosted_artifacts_path: &Path,

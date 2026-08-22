@@ -24,12 +24,13 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use std::time::{Duration, Instant};
 use zeroize::Zeroizing;
+type DerivedEffectCaseInputs = Option<(Vec<u8>, Vec<u8>)>;
 
 /// Stripe has no paired preflight capability to carry between phases.
 pub fn qualification_effect_case_inputs(
     _profile: &str,
     _value: &[u8],
-) -> Result<Option<(Vec<u8>, Vec<u8>)>, QualificationHarnessError> {
+) -> Result<DerivedEffectCaseInputs, QualificationHarnessError> {
     Ok(None)
 }
 

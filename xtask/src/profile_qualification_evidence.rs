@@ -190,8 +190,16 @@ pub(crate) fn verify_and_extract(archive_path: &Path) -> Result<VerifiedEvidence
             || header.uid().map_err(string_error)? != 0
             || header.gid().map_err(string_error)? != 0
             || header.mtime().map_err(string_error)? != 0
-            || header.username().map_err(string_error)?.unwrap_or("") != ""
-            || header.groupname().map_err(string_error)?.unwrap_or("") != ""
+            || !header
+                .username()
+                .map_err(string_error)?
+                .unwrap_or("")
+                .is_empty()
+            || !header
+                .groupname()
+                .map_err(string_error)?
+                .unwrap_or("")
+                .is_empty()
         {
             return Err("qualification evidence contains non-canonical tar metadata".into());
         }
@@ -221,7 +229,6 @@ pub(crate) fn verify_and_extract(archive_path: &Path) -> Result<VerifiedEvidence
             write_private_member(output.path(), &path, &bytes)?;
         }
     }
-    drop(archive);
     let expected_tar_bytes = expected_tar_end
         .checked_add(1_024)
         .ok_or_else(|| "qualification tar length overflow".to_owned())?;

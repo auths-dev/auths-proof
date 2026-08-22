@@ -3810,6 +3810,7 @@ fn render_typescript_types(
     Ok(output)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_typescript_client(
     header: &str,
     _domain: &str,
@@ -4024,6 +4025,7 @@ fn render_python_types(
     Ok(output)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_python_client(
     header: &str,
     _domain: &str,

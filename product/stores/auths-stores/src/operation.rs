@@ -3355,7 +3355,7 @@ mod tests {
         let kinds = database
             .qualification_boundaries
             .iter()
-            .map(|boundary| boundary.kind())
+            .map(super::QualificationJournalBoundaryV1::kind)
             .collect::<Vec<_>>();
         assert_eq!(
             kinds,
@@ -3638,7 +3638,6 @@ mod tests {
                     .unwrap()
                     .is_some()
             );
-            return;
         }
         #[cfg(not(feature = "qualification-evidence"))]
         assert_eq!(
@@ -3723,6 +3722,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn provider_result_must_be_durable_before_observation_and_terminal_state() {
         let directory = tempfile::tempdir().unwrap();
         let journal = PersistentOperationJournal::open(
@@ -3940,6 +3940,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn receipt_quarantine_preserves_every_provider_truth_classification() {
         let cases = [
             (
@@ -3985,7 +3986,7 @@ mod tests {
             let directory = tempfile::tempdir().unwrap();
             let path = directory.path().join("operations.db");
             let journal = PersistentOperationJournal::open(&path, [(profile(), limits())]).unwrap();
-            let initial = record([index as u8 + 20; 16], None);
+            let initial = record([u8::try_from(index).unwrap() + 20; 16], None);
             let id = initial.operation_id.clone();
             journal.prepare(initial, 1_000).unwrap();
             let sealed = journal

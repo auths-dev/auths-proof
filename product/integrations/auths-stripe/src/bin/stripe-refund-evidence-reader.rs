@@ -47,6 +47,7 @@ struct StripePaymentIntent {
 }
 
 #[derive(Deserialize)]
+#[allow(clippy::struct_excessive_bools)]
 struct StripeCharge {
     id: String,
     object: String,
@@ -104,7 +105,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     if Base64UrlUnpadded::encode_string(&*seed) != seed_text {
         return Err(invalid("non-canonical reader signing seed"));
     }
-    let signing_key = SigningKey::from_bytes(&*seed);
+    let signing_key = SigningKey::from_bytes(&seed);
     let client = Client::builder()
         .https_only(true)
         .redirect(Policy::none())
@@ -305,7 +306,7 @@ async fn fetch_snapshot(
         request.phase(),
         request.sealed_command_sha256().cloned(),
         evidence,
-        &signing_key,
+        signing_key,
     )?;
     Ok(snapshot)
 }

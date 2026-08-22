@@ -182,7 +182,7 @@ fn inspect_hcl_body(
     expression_nodes: &mut usize,
     parent: Option<&str>,
 ) -> Result<(), ValidationError> {
-    for structure in body.iter() {
+    for structure in body {
         *structures = structures
             .checked_add(1)
             .ok_or(ValidationError::LimitExceeded)?;
@@ -478,6 +478,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn hcl_closure_is_structural_and_exact() {
         let mut value = bundle();
         value.root_module_files = BTreeMap::from([(

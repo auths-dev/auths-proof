@@ -19,6 +19,7 @@ use base64ct::{Base64UrlUnpadded, Encoding as _};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use zeroize::Zeroizing;
+type DerivedEffectCaseInputs = Option<(Vec<u8>, Vec<u8>)>;
 
 /// Re-encodes the exact effect inputs derived from one authenticated
 /// preflight result. The protected ClientProxy retains only commitments over
@@ -26,7 +27,7 @@ use zeroize::Zeroizing;
 pub fn qualification_effect_case_inputs(
     profile: &str,
     value: &[u8],
-) -> Result<Option<(Vec<u8>, Vec<u8>)>, QualificationHarnessError> {
+) -> Result<DerivedEffectCaseInputs, QualificationHarnessError> {
     if profile != "auths.postgresql.update-preflight/1" {
         return Err(QualificationHarnessError::Invocation);
     }

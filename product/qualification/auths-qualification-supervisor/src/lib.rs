@@ -1,5 +1,7 @@
 //! Provider-free protected qualification mechanisms.
 
+#![allow(clippy::missing_errors_doc)]
+
 use auths_profile_kit::{
     ProfileRoster, QUALIFICATION_RELEASE_ARTIFACT_ROLES, QualificationReleaseBuild,
 };
@@ -225,6 +227,7 @@ struct ProvenanceVerification {
 
 /// Verifies the exact nine qualification release members and the closed
 /// production-versus-qualification executable surface.
+#[allow(clippy::too_many_lines)]
 pub fn verify_release_surface(
     surface_path: &Path,
     members_path: &Path,
@@ -368,6 +371,7 @@ pub fn verify_release_surface(
 /// Candidate-authored release projections remain useful mismatch oracles, but
 /// they cannot establish which Cargo features or unqualified profile routes
 /// the candidate actually declared.
+#[allow(clippy::too_many_lines)]
 fn verify_candidate_build_surface(repository: &Path) -> Result<(), String> {
     let metadata = fs::symlink_metadata(repository)
         .map_err(|error| format!("could not inspect candidate repository: {error}"))?;
@@ -576,7 +580,7 @@ fn verify_candidate_build_surface(repository: &Path) -> Result<(), String> {
     let expected_profiles = roster
         .packages()
         .iter()
-        .flat_map(|package| package.profiles())
+        .flat_map(auths_profile_kit::ProfileRosterEntry::profiles)
         .map(|profile| (profile.profile_ref(), profile.testkit_available()))
         .collect::<Vec<_>>();
     if profiles.len() != expected_profiles.len() {
@@ -735,6 +739,7 @@ fn exact_workspace_path_dependency(value: Option<&toml::Value>, path: &str) -> b
 // dependency feature through any direct, transitive, aliased, or target-
 // specific edge, so verify their complete local-manifest occurrence roster
 // instead of maintaining a partial package graph here.
+#[allow(clippy::too_many_lines)]
 fn verify_reserved_qualification_feature_roster(
     repository: &Path,
     workspace: &toml::Value,
@@ -1102,6 +1107,7 @@ pub fn verify_release_build(
 /// Verifies authenticated hosted-artifact metadata and emits the exact
 /// canonical handoff that a later qualification attester must consume.
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_lines)]
 pub fn verify_hosted_release_build(
     release_build_path: &Path,
     surface_path: &Path,
@@ -1145,7 +1151,7 @@ pub fn verify_hosted_release_build(
         || metadata.workflow_revision != release_build["workflowRevision"]
         || release_build["runLabel"] != "official"
         || metadata.run_id != release_build["runId"]
-        || Value::from(metadata.run_attempt) != release_build["runAttempt"]
+        || release_build["runAttempt"].as_u64() != Some(u64::from(metadata.run_attempt))
         || metadata.artifacts.len() != QUALIFICATION_RELEASE_ARTIFACT_ROLES.len()
         || metadata.projection.role != "release-build"
         || !(90..=365).contains(&metadata.retention_days)
@@ -1725,6 +1731,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn candidate_surface_reconstruction_rejects_feature_or_route_authority_drift() {
         for required in [
             "    \"auths-connections/qualification-broker\",\n",

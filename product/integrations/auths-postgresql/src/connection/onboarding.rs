@@ -115,6 +115,26 @@ impl PostgresConnectionSecretV1 {
     }
 }
 
+/// Validates a protected libpq service/credential blob without interpreting it in shared code.
+pub fn validate_connection_secret(bytes: Vec<u8>) -> Result<SecretBytes, CredentialStoreError> {
+    PostgresConnectionSecretV1::from_canonical_bytes(&bytes)?;
+    SecretBytes::new(bytes)
+}
+
+/// Validates the exact descriptor and protected deployment credential shape.
+pub fn validate_onboarding(
+    descriptor: &[u8],
+    bytes: Vec<u8>,
+) -> Result<SecretBytes, ConnectionAdapterError> {
+    let descriptor = PostgresConnectionDescriptor::from_canonical_bytes(descriptor)?;
+    let secret = PostgresConnectionSecretV1::from_canonical_bytes(&bytes)
+        .map_err(|_| ConnectionAdapterError::CredentialUnavailable)?;
+    secret
+        .validate_for_descriptor(&descriptor)
+        .map_err(|_| ConnectionAdapterError::CredentialUnavailable)?;
+    SecretBytes::new(bytes).map_err(|_| ConnectionAdapterError::CredentialUnavailable)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -155,24 +175,4 @@ mod tests {
         .unwrap();
         assert!(PostgresConnectionSecretV1::from_canonical_bytes(&missing).is_err());
     }
-}
-
-/// Validates a protected libpq service/credential blob without interpreting it in shared code.
-pub fn validate_connection_secret(bytes: Vec<u8>) -> Result<SecretBytes, CredentialStoreError> {
-    PostgresConnectionSecretV1::from_canonical_bytes(&bytes)?;
-    SecretBytes::new(bytes)
-}
-
-/// Validates the exact descriptor and protected deployment credential shape.
-pub fn validate_onboarding(
-    descriptor: &[u8],
-    bytes: Vec<u8>,
-) -> Result<SecretBytes, ConnectionAdapterError> {
-    let descriptor = PostgresConnectionDescriptor::from_canonical_bytes(descriptor)?;
-    let secret = PostgresConnectionSecretV1::from_canonical_bytes(&bytes)
-        .map_err(|_| ConnectionAdapterError::CredentialUnavailable)?;
-    secret
-        .validate_for_descriptor(&descriptor)
-        .map_err(|_| ConnectionAdapterError::CredentialUnavailable)?;
-    SecretBytes::new(bytes).map_err(|_| ConnectionAdapterError::CredentialUnavailable)
 }
