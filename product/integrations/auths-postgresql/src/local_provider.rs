@@ -472,20 +472,16 @@ async fn connect_secret(
     if config.get_ssl_mode() != SslMode::Require {
         return Err(ProfileRuntimeError::Invalid);
     }
-    let mut roots = RootCertStore {
-        roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
-    };
-    if let Some(pem) = secret.ca_pem() {
-        let mut count = 0_usize;
-        for certificate in CertificateDer::pem_slice_iter(pem.as_bytes()) {
-            roots
-                .add(certificate.map_err(|_| ProfileRuntimeError::Invalid)?)
-                .map_err(|_| ProfileRuntimeError::Invalid)?;
-            count = count.saturating_add(1);
-        }
-        if count == 0 {
-            return Err(ProfileRuntimeError::Invalid);
-        }
+    let mut roots = RootCertStore::empty();
+    let mut count = 0_usize;
+    for certificate in CertificateDer::pem_slice_iter(secret.ca_pem().as_bytes()) {
+        roots
+            .add(certificate.map_err(|_| ProfileRuntimeError::Invalid)?)
+            .map_err(|_| ProfileRuntimeError::Invalid)?;
+        count = count.saturating_add(1);
+    }
+    if count == 0 {
+        return Err(ProfileRuntimeError::Invalid);
     }
     let tls = ClientConfig::builder()
         .with_root_certificates(roots)

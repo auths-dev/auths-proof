@@ -51,6 +51,8 @@ recovery handles. Successfully preparing an update does not authorize it.
 - one database;
 - one executor role;
 - one TLS server name; and
+- one exact certificate-authority bundle digest under
+  `auths.postgresql.tls/1`; and
 - the byte-sorted exact scope set below.
 
 The JCS descriptor identity is
@@ -68,13 +70,17 @@ descriptor. The descriptor contains no password, client key, credential-store
 locator, prepared-update token, or caller-resolvable secret reference.
 
 The account commitment is SHA-256 over a domain separator and
-length-delimited server identity, database, and executor role. Both profiles
+length-delimited server identity, database, executor role, TLS server name,
+TLS policy, and certificate-authority digest. Both profiles
 bind the connection ID, generation, provider kind, account commitment,
 descriptor commitment, and credential commitment into the sealed operation.
 Alias resolution supplies only this non-secret metadata and performs no
 provider I/O.
 
-Protected onboarding installs a bounded libpq credential/service blob. The
+Protected onboarding installs a bounded libpq credential/service blob with a
+mandatory PEM certificate-authority bundle whose SHA-256 exactly equals the
+descriptor commitment. The TLS client trusts only that committed bundle; it
+never adds the public WebPKI root set. The
 adapter validates the descriptor and credential independently. Every lease
 re-reads the connection registry and secret generation and checks the exact
 profile scope. Preflight receives read/catalog privileges plus only the row

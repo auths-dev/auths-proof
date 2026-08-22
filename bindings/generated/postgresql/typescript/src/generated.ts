@@ -13,6 +13,7 @@ export interface PreparedUpdate {
   readonly expiresAt: bigint;
   readonly auths: OperationMetadata;
 }
+
 export interface PreparedUpdateInput {
   readonly preparedUpdate: string;
 }

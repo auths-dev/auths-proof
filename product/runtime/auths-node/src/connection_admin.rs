@@ -1472,7 +1472,7 @@ uid = 1000
             secret: serde_json_canonicalizer::to_vec(&serde_json::json!({
                 "schema": "auths.postgresql.connection-secret/1",
                 "connectionString": "host=database.internal port=5432 dbname=app user=auths_executor password=development-only sslmode=require",
-                "caPem": null
+                "caPem": include_str!("../../../integrations/auths-postgresql/fixtures/connection/v1/test-ca.pem")
             }))
             .unwrap(),
         };

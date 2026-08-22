@@ -1005,7 +1005,6 @@ dependencies = [
  "tokio-postgres-rustls",
  "unicode-normalization",
  "uuid",
- "webpki-roots",
  "zeroize",
 ]
 

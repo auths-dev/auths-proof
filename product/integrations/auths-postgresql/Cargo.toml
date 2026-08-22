@@ -48,7 +48,6 @@ tokio-postgres.workspace = true
 tokio-postgres-rustls.workspace = true
 unicode-normalization.workspace = true
 uuid.workspace = true
-webpki-roots.workspace = true
 zeroize.workspace = true
 
 [lints]

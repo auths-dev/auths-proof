@@ -11,6 +11,8 @@ pub struct PostgresConnectionDescriptor {
     database: String,
     executor_role: String,
     tls_server_name: String,
+    tls_policy: String,
+    certificate_authority_sha256: String,
     allowed_scopes: Vec<String>,
 }
 
@@ -61,12 +63,24 @@ impl PostgresConnectionDescriptor {
         &self.tls_server_name
     }
 
+    #[must_use]
+    pub fn certificate_authority_sha256(&self) -> &str {
+        &self.certificate_authority_sha256
+    }
+
     /// Returns the committed server/database/role account identity.
     #[must_use]
     pub fn account_commitment(&self) -> [u8; 32] {
         let mut digest = Sha256::new();
         digest.update(b"auths.postgresql.account/1\0");
-        for value in [&self.server_identity, &self.database, &self.executor_role] {
+        for value in [
+            &self.server_identity,
+            &self.database,
+            &self.executor_role,
+            &self.tls_server_name,
+            &self.tls_policy,
+            &self.certificate_authority_sha256,
+        ] {
             digest.update((value.len() as u64).to_be_bytes());
             digest.update(value.as_bytes());
         }
@@ -87,6 +101,8 @@ impl PostgresConnectionDescriptor {
             || !postgres_identifier(&self.database)
             || !postgres_identifier(&self.executor_role)
             || !dns_name(&self.tls_server_name)
+            || self.tls_policy != "auths.postgresql.tls/1"
+            || !lower_hex_digest(&self.certificate_authority_sha256)
             || self.allowed_scopes.is_empty()
             || self.allowed_scopes.len() > 32
             || !self.allowed_scopes.windows(2).all(|pair| pair[0] < pair[1])
@@ -100,6 +116,13 @@ impl PostgresConnectionDescriptor {
         }
         Ok(())
     }
+}
+
+fn lower_hex_digest(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
 }
 
 fn bounded_graphic(value: &str, maximum: usize) -> bool {

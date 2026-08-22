@@ -26,6 +26,7 @@ class PreparedUpdate:
         object.__setattr__(self, "matched_rows", matched_rows)
         object.__setattr__(self, "expires_at", expires_at)
         object.__setattr__(self, "auths", auths)
+
 @dataclass(frozen=True, init=False)
 class PreparedUpdateInput:
     prepared_update: str

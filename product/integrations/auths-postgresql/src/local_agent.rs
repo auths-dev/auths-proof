@@ -974,14 +974,28 @@ pub async fn observe_provider_truth_for_qualification(
                 now_unix_seconds,
             )
             .await?;
+            let original_rows = &result.payload.action.intent.rows;
+            let current_rows = &fresh.action.intent.rows;
             if fresh.action.database_server_identity
                 != result.payload.action.database_server_identity
                 || fresh.action.intent.database_name != result.payload.action.intent.database_name
-                || fresh.action.intent.rows != result.payload.action.intent.rows
+                || current_rows.len() != original_rows.len()
+                || current_rows
+                    .iter()
+                    .zip(original_rows)
+                    .any(|(current, original)| {
+                        current.primary_key != original.primary_key
+                            || (current.row_version != original.row_version
+                                && current.row_version != original.row_version.saturating_add(1))
+                    })
             {
                 return Err(ProfileRuntimeError::Invalid);
             }
-            (fresh, false, None, false)
+            // The preflight event commits the original provider observation.
+            // A paired effect may have advanced the row once before this
+            // protected post-seal re-read; return the signed historical facts
+            // after independently proving the same destination and key set.
+            (result.payload, false, None, false)
         }
         "auths.postgresql.bounded-update/1" => {
             let state: UpdateState = canonical_from_slice(record.profile_state())?;
