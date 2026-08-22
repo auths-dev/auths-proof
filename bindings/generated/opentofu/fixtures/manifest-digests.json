@@ -2,13 +2,13 @@
   "schema": "auths.generated-profile-fixture/1",
   "generator": "auths-profile-generator/1",
   "manifest": "product/integrations/auths-opentofu/profile-package.json",
-  "sourceSha256": "6780503d68f1c1d5f5cad332ec3f6e14a6758605b73a0c8f477706a470378fff",
+  "sourceSha256": "0ad7ec54e8f14b956abb0dbeb4a947bbf79db60be78f82b02c3ac2a01782d64d",
   "profiles": [
     {
       "id": "auths.opentofu.plan-preflight",
       "version": 1,
       "errorProjectionSha256": "74348d06191887fe693d964c818319b35d1d6c66e98b0870f84323e9e4207df9",
-      "runtimeContractSha256": "6a0498dc412aa721015744801b80f5fcc69074f7933445261524cd32e247a082"
+      "runtimeContractSha256": "3755d1f86c9cef3284cab65ff0a465c89741cd131f80519f844ffcf012fa8638"
     },
     {
       "id": "auths.opentofu.saved-plan-apply",

@@ -22,7 +22,6 @@ prepared = opentofu.plans.create({
   sourceFiles,
   variables,
   dependencyLock,
-  modules,
   workspace
 })
 
@@ -71,7 +70,7 @@ commitments and performs no provider I/O.
 
 Each profile lease re-reads the registry and secret generation and checks the
 exact workload and scope. Planning receives only the privileges needed to
-initialize, read state, resolve pinned providers/modules, and create a plan.
+initialize, read state, resolve pinned providers, and create a plan.
 Apply receives only those needed to recheck state and execute the already
 prepared artifact. Deployments may use different underlying credentials for
 the two scopes.
@@ -99,8 +98,10 @@ maximum_bytes = 524288
 Both entries are mandatory and must name the same format, path, digest, and
 maximum. The canonical file contains `OpenTofuVerifierConfigurationV1` plus
 the launch planner policy: exact OpenTofu binary digest, platform, fixed argv
-template, sandbox identity, dependency mirror/source allowlist, provider and
-module pin policy, and prepared-plan lifetime. `maximum_bytes` must be in
+template, sandbox identity, dependency mirror/source allowlist, exact provider
+pin policy, an empty module-pin roster, and prepared-plan lifetime. Module
+execution is fail-closed until installed module bytes have a protected
+materialization and verification contract. `maximum_bytes` must be in
 `1..=524288`.
 
 The path is absolute UTF-8, contains no `.` or `..` component, and is not
@@ -138,13 +139,10 @@ variable, PATH lookup, or caller value.
 ```text
 SourceFile { path, contents }
 Variable { name, value }
-ModulePin { source, version, digest }
-
 PlanPreflightInput {
   sourceFiles: 1..32 SourceFile
   variables: 0..64 Variable
   dependencyLock: bounded UTF-8 lock-file text
-  modules: 0..64 ModulePin
   workspace: bounded workspace name
 }
 
@@ -166,15 +164,14 @@ ApplyResult { workspace, stateSerial }
 
 The input is a list representation of AP-SPEC-0008's source-bundle maps.
 Canonicalization requires `sourceFiles` byte-sorted by unique path,
-`variables` byte-sorted by unique name, and `modules` byte-sorted by unique
-`(source, version, digest)`. It rejects duplicates rather than applying
+and `variables` byte-sorted by unique name. It rejects duplicates rather than applying
 last-write-wins semantics.
 
 Paths are relative canonical `.tf` paths with no empty, `.`, `..`, hidden, or
 backslash segment. Symlinks and caller filesystem paths cannot appear in this
 DTO. Each text field is copied before use. The domain enforces the 2 MiB
 aggregate source/variable/lock limit, HCL nesting bound, forbidden-feature
-rules, provider/module pins, and all AP-SPEC-0008 restrictions in addition to
+rules, exact provider pins, an empty module closure, and all AP-SPEC-0008 restrictions in addition to
 the per-field schema bounds. Variables are sensitive and never enter receipts.
 
 The public apply input deliberately contains no `bytes` type and no
@@ -234,7 +231,7 @@ After durable decision and generic reservation, sealing:
 7. records the planner/backend entry marker before executing the sealed
    command.
 
-The existing `ProtectedPlanner` is then invoked in a fresh isolated workspace.
+The existing `ProtectedPlanner` is then invoked in a fresh owner-private workspace.
 It reads trusted backend state, creates the saved plan, derives and validates
 the semantic projection from `tofu show -json`, computes every action and
 evidence commitment, and puts the opaque saved-plan bytes into the protected

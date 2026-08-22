@@ -11,10 +11,9 @@ fn plan_preflight_source_input_matches_the_cross_language_canonical_fixture() {
         }],
         variables: Vec::new(),
         dependency_lock: "lock".into(),
-        modules: Vec::new(),
         workspace: "prod".into(),
     };
-    let expected = hex::decode("a5676d6f64756c657380697661726961626c65738069776f726b73706163656470726f646b736f7572636546696c657381a26470617468676d61696e2e746668636f6e74656e7473737265736f757263652022782220227922207b7d6e646570656e64656e63794c6f636b646c6f636b").unwrap();
+    let expected = hex::decode("a4697661726961626c65738069776f726b73706163656470726f646b736f7572636546696c657381a26470617468676d61696e2e746668636f6e74656e7473737265736f757263652022782220227922207b7d6e646570656e64656e63794c6f636b646c6f636b").unwrap();
     assert_eq!(value.to_canonical_cbor().unwrap(), expected);
     assert_eq!(
         PlanPreflightInput::from_canonical_cbor(&expected).unwrap(),

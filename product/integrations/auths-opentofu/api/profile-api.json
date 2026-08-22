@@ -26,26 +26,6 @@
         }
       ]
     },
-    "ModulePin": {
-      "kind": "record",
-      "fields": [
-        {
-          "name": "source",
-          "value": {"kind": "string", "minimumBytes": 1, "maximumBytes": 512, "alphabet": "ascii-graphic"},
-          "sensitive": false
-        },
-        {
-          "name": "version",
-          "value": {"kind": "string", "minimumBytes": 1, "maximumBytes": 128, "alphabet": "ascii-graphic"},
-          "sensitive": false
-        },
-        {
-          "name": "digest",
-          "value": {"kind": "string", "minimumBytes": 64, "maximumBytes": 64, "alphabet": "lower-hex"},
-          "sensitive": false
-        }
-      ]
-    },
     "PlanPreflightInput": {
       "kind": "record",
       "fields": [
@@ -62,11 +42,6 @@
         {
           "name": "dependencyLock",
           "value": {"kind": "string", "minimumBytes": 1, "maximumBytes": 65536, "alphabet": "utf8"},
-          "sensitive": false
-        },
-        {
-          "name": "modules",
-          "value": {"kind": "list", "value": {"kind": "ref", "name": "ModulePin"}, "minimumItems": 0, "maximumItems": 64},
           "sensitive": false
         },
         {

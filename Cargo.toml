@@ -227,6 +227,8 @@ axum = "0.8.9"
 dotenvy = "0.15.7"
 getrandom = "0.3.4"
 hmac = "0.12.1"
+hcl-rs = "0.19.8"
+url = "2.5.8"
 iroh = { version = "1.0.3", default-features = false, features = ["tls-ring"] }
 reqwest = { version = "0.13.4", default-features = false, features = ["blocking", "form", "query", "rustls"] }
 postgres = { version = "0.19.12", default-features = false }

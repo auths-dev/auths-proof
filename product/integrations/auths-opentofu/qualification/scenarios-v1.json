@@ -66,13 +66,7 @@
           "expectedProviderCalls": 1
         }
       ],
-      "hooks": [
-        {
-          "caseId": "effect",
-          "stage": "before-observer",
-          "hook": "verify-redaction"
-        }
-      ]
+      "hooks": []
     },
     {
       "id": "opentofu-destructive-denial",

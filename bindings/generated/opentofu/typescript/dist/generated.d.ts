@@ -7,16 +7,10 @@ export interface ApplyResult {
     readonly stateSerial: bigint;
     readonly auths: OperationMetadata;
 }
-export interface ModulePin {
-    readonly source: string;
-    readonly version: string;
-    readonly digest: string;
-}
 export interface PlanPreflightInput {
     readonly sourceFiles: readonly SourceFile[];
     readonly variables: readonly Variable[];
     readonly dependencyLock: string;
-    readonly modules: readonly ModulePin[];
     readonly workspace: string;
 }
 export interface PreparedPlan {

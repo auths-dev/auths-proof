@@ -69,8 +69,7 @@ impl OpenTofuLocalAgentConfigurationV1 {
             || !safe_absolute_path(&planner.binary_path)
             || !token(&planner.platform, 64)
             || !token(&planner.sandbox_identity, 128)
-            || planner.dependency_mirror.is_empty()
-            || planner.dependency_mirror.len() > 512
+            || !valid_network_mirror(&planner.dependency_mirror)
             || !argv(&planner.fixed_plan_argv)
             || !argv(&planner.fixed_apply_argv)
             || planner.fixed_plan_argv.as_slice()
@@ -90,14 +89,14 @@ impl OpenTofuLocalAgentConfigurationV1 {
                     "{protected-saved-plan}",
                 ]
             || planner.provider_pins.is_empty()
+            || !planner.module_pins.is_empty()
             || planner.prepared_plan_lifetime_seconds == 0
             || planner.prepared_plan_lifetime_seconds
                 > self.verifier.maximum_authorization_lifetime_seconds()
         {
             return Err(ValidationError::InvalidConfiguration);
         }
-        validate_pins(&planner.provider_pins)?;
-        validate_pins(&planner.module_pins)
+        validate_pins(&planner.provider_pins)
     }
 
     #[must_use]
@@ -218,4 +217,38 @@ fn safe_absolute_path(value: &str) -> bool {
         && path
             .components()
             .all(|component| matches!(component, Component::RootDir | Component::Normal(_)))
+}
+
+fn valid_network_mirror(value: &str) -> bool {
+    let Ok(parsed) = url::Url::parse(value) else {
+        return false;
+    };
+    value.len() <= 512
+        && parsed.scheme() == "https"
+        && parsed.host().is_some()
+        && parsed.username().is_empty()
+        && parsed.password().is_none()
+        && parsed.query().is_none()
+        && parsed.fragment().is_none()
+        && !value.ends_with('/')
+}
+
+#[cfg(test)]
+mod tests {
+    use super::valid_network_mirror;
+
+    #[test]
+    fn dependency_mirror_is_one_canonical_https_endpoint() {
+        assert!(valid_network_mirror("https://127.0.0.1:28443/v1"));
+        for invalid in [
+            "/tmp/mirror",
+            "http://127.0.0.1:28443/v1",
+            "https://user@127.0.0.1:28443/v1",
+            "https://127.0.0.1:28443/v1/",
+            "https://127.0.0.1:28443/v1?alternate=true",
+            "not a url",
+        ] {
+            assert!(!valid_network_mirror(invalid), "accepted {invalid}");
+        }
+    }
 }

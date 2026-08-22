@@ -37,6 +37,7 @@ pub mod planner;
 pub mod ports;
 pub mod prepared_store;
 pub mod profile;
+mod protected_executor;
 pub mod provider_request;
 #[cfg(feature = "qualification")]
 pub mod qualification;

@@ -72,8 +72,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 
 use crate::{
-    DigestHex, ModulePinV1, OpenTofuLocalAgentConfigurationV1, OpenTofuSavedPlanProfile,
-    OpenTofuSourceBundleV1, PreparedPlanRecordV1, PreparedPlanStore, PreparedPlanStoreError,
+    DigestHex, OpenTofuLocalAgentConfigurationV1, OpenTofuSavedPlanProfile, OpenTofuSourceBundleV1,
+    PreparedPlanRecordV1, PreparedPlanStore, PreparedPlanStoreError,
     connection::OpenTofuConnectionDescriptor,
     generated::profile_api::{
         ApplyPreparedPlanInput, ApplyResult, PlanPreflightInput, PreparedPlan,
@@ -1127,7 +1127,7 @@ impl PlanPreflightActionV1 {
             dependency_lock_digest: crate::canonical::sha256(
                 bundle.dependency_lock_file.as_bytes(),
             ),
-            module_manifest_digest: crate::canonical::canonical_digest(&bundle.module_manifest)
+            module_manifest_digest: crate::bundle::empty_module_manifest_digest()
                 .map_err(invalid)?,
             variable_commitment: crate::canonical::canonical_digest(&bundle.variable_values)
                 .map_err(invalid)?,
@@ -1608,10 +1608,6 @@ fn bundle_from_input(
             .variables
             .windows(2)
             .any(|pair| pair[0].name >= pair[1].name)
-        || input.modules.windows(2).any(|pair| {
-            (&pair[0].source, &pair[0].version, &pair[0].digest)
-                >= (&pair[1].source, &pair[1].version, &pair[1].digest)
-        })
     {
         return Err(ProfileRuntimeError::Invalid);
     }
@@ -1627,17 +1623,6 @@ fn bundle_from_input(
             .map(|value| (value.name, value.value))
             .collect::<BTreeMap<_, _>>(),
         dependency_lock_file: input.dependency_lock,
-        module_manifest: input
-            .modules
-            .into_iter()
-            .map(|value| {
-                Ok(ModulePinV1 {
-                    source: value.source,
-                    version: value.version,
-                    digest: DigestHex::parse(value.digest).map_err(invalid)?,
-                })
-            })
-            .collect::<Result<Vec<_>, ProfileRuntimeError>>()?,
         requested_workspace: input.workspace,
     };
     bundle.validate().map_err(invalid)?;

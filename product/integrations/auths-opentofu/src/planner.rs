@@ -3,7 +3,7 @@
 use crate::{
     action::{OpenTofuSavedPlanApplyInput, OpenTofuSavedPlanApplyV1, PermittedChangeSummaryV1},
     bundle::OpenTofuSourceBundleV1,
-    canonical::{canonical_digest, sha256},
+    canonical::sha256,
     errors::{PortError, ValidationError},
     plan_projection::SavedPlanProjectionV1,
     ports::{PlanArtifactStore, SavedPlanArtifact},
@@ -70,7 +70,7 @@ where
         configuration.validate()?;
         if bundle.requested_workspace != evidence.workspace
             || sha256(bundle.dependency_lock_file.as_bytes()) != evidence.dependency_lock_digest
-            || canonical_digest(&bundle.module_manifest)? != evidence.module_manifest_digest
+            || crate::bundle::empty_module_manifest_digest()? != evidence.module_manifest_digest
             || planned_at != evidence.observed_at
         {
             return Err(PlannerError::EvidenceMismatch);

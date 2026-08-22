@@ -3,14 +3,14 @@
 use auths_connections::{ProviderCredentialLease, QualificationProviderCallKind};
 use auths_profile_kit::QualificationProfileStateFactV1;
 use auths_profile_kit::{
-    QualificationAdapterMetadata, QualificationCleanupEvidence, QualificationCollectedOperation,
-    QualificationCollectionAdapter, QualificationCommonOperationInstanceEvidence,
-    QualificationCommonReceiptClaims, QualificationEffect, QualificationHarnessError,
-    QualificationOperationRole, QualificationPhaseClient, QualificationProtectedObserver,
-    QualificationProtectedSetup, QualificationProtectedSetupInput, QualificationProviderTruth,
-    QualificationRunContext, QualificationRunReference, QualificationScenarioProgramV1,
-    QualificationSetupHandoffV1, QualificationTarget, QualificationVector,
-    qualification_pre_admission_attempt_count,
+    QualificationAdapterMetadata, QualificationCollectedOperation, QualificationCollectionAdapter,
+    QualificationCommonOperationInstanceEvidence, QualificationCommonReceiptClaims,
+    QualificationEffect, QualificationHarnessError, QualificationOperationRole,
+    QualificationPhaseClient, QualificationProtectedObserver, QualificationProtectedSetup,
+    QualificationProtectedSetupInput, QualificationProviderCleanupObservation,
+    QualificationProviderTruth, QualificationRunContext, QualificationRunReference,
+    QualificationScenarioProgramV1, QualificationSetupHandoffV1, QualificationTarget,
+    QualificationVector, qualification_pre_admission_attempt_count,
     qualification_scenario_program as resolve_qualification_scenario_program,
 };
 use auths_profile_runtime::{ProfileReceiptInspection, ProfileRuntimeError};
@@ -24,6 +24,56 @@ use zeroize::Zeroizing;
 
 const PLAN_TRANSPORT_ENVELOPE_VERSION: u8 = 1;
 const MAX_PLAN_TRANSPORT_ENVELOPE_BYTES: usize = 258 * 1024 * 1024;
+
+/// Re-encodes the exact effect inputs derived from one authenticated
+/// preflight result. The protected ClientProxy retains only commitments over
+/// these bytes across phases.
+pub fn qualification_effect_case_inputs(
+    profile: &str,
+    value: &[u8],
+) -> Result<Option<(Vec<u8>, Vec<u8>)>, QualificationHarnessError> {
+    if profile != "auths.opentofu.plan-preflight/1" {
+        return Err(QualificationHarnessError::Invocation);
+    }
+    let prepared = crate::generated::profile_api::PreparedPlan::from_canonical_cbor(value)
+        .map_err(|_| QualificationHarnessError::Invocation)?;
+    let primary = crate::generated::profile_api::ApplyPreparedPlanInput {
+        prepared_plan: prepared.prepared_plan.clone(),
+    }
+    .to_canonical_cbor()
+    .map_err(|_| QualificationHarnessError::Invocation)?;
+    let mut changed_token = prepared.prepared_plan;
+    changed_token.push('x');
+    let changed = crate::generated::profile_api::ApplyPreparedPlanInput {
+        prepared_plan: changed_token,
+    }
+    .to_canonical_cbor()
+    .map_err(|_| QualificationHarnessError::Invocation)?;
+    Ok(Some((primary, changed)))
+}
+
+/// Returns the exact effect input for a reviewed case that intentionally has
+/// no prepared capability. Both the installed-client adapter and protected
+/// ClientProxy use this one domain-owned encoding.
+pub fn qualification_effect_fallback_case_json(
+    profile: &str,
+    scenario_id: &str,
+    stimulus: &str,
+) -> Result<Option<Vec<u8>>, QualificationHarnessError> {
+    if profile != "auths.opentofu.saved-plan-apply/1" {
+        return Err(QualificationHarnessError::Invocation);
+    }
+    if qualification_pre_admission_attempt_count(scenario_id).is_none()
+        && stimulus != "no-prepared-plan"
+    {
+        return Ok(None);
+    }
+    serde_json_canonicalizer::to_vec(&serde_json::json!({
+        "preparedPlan": "qualification-missing-prepared-plan-00000000000000000001",
+    }))
+    .map(Some)
+    .map_err(|_| QualificationHarnessError::Invocation)
+}
 
 /// Runs the production profile receipt inspector through the qualification-only static port.
 pub fn inspect_receipt_claims(
@@ -130,6 +180,7 @@ pub async fn reconcile_provider_transport(
 pub async fn dispatch_provider_transport(
     profile: &str,
     _scenario_id: &str,
+    _case_id: &str,
     kind: QualificationProviderCallKind,
     command: &[u8],
     _profile_state: &[u8],
@@ -171,6 +222,7 @@ pub async fn dispatch_provider_transport(
 /// Independently observes one provider-entered OpenTofu operation with the
 /// protected runtime-read credential and ProviderObserver-owned workspace.
 pub async fn observe_provider_truth(
+    _scenario_id: &str,
     record: &JournalRecordV1,
     credential: &[u8],
     observer_root: &Path,
@@ -411,7 +463,7 @@ pub fn qualification_operation_plan()
     ]
 }
 
-/// Validates the exact Linux sandbox/tool/dependency/backend selection.
+/// Validates the declared Linux sandbox/tool/dependency/backend contract.
 pub fn validate_provider_matrix_contract(
     bytes: &[u8],
     provider_version: &str,
@@ -450,7 +502,7 @@ pub fn validate_provider_matrix_contract(
         || contract.dependency_lock_sha256
             != "26d49718e8ef09f1693391fd84bf8ffa06afbb78f43b187faa72b68a022fcc19"
         || contract.provider_pins.as_slice() != ["registry.opentofu.org/hashicorp/null@3.2.4"]
-        || contract.module_pins.as_slice() != ["auths.local/qualification/resource@1.0.0"]
+        || !contract.module_pins.is_empty()
         || contract.artifact_encryption != "age-x25519-zstd-v1"
         || contract.artifact_key_policy != "environment-owned-rotatable-v1"
         || contract.backend != "https://127.0.0.1:29443/v1"
@@ -577,13 +629,18 @@ fn qualification_bundle(
         root_module_files: BTreeMap::from([("main.tf".into(), contents.into())]),
         variable_values: BTreeMap::new(),
         dependency_lock_file: dependency_lock.into(),
-        module_manifest: Vec::new(),
         requested_workspace: workspace.into(),
     };
     bundle
         .validate()
         .map_err(|_| QualificationHarnessError::Onboarding)?;
     Ok(bundle)
+}
+
+fn qualification_hcl(marker: &str) -> String {
+    format!(
+        "terraform {{\n  required_providers {{\n    null = {{\n      source = \"hashicorp/null\"\n      version = \"3.2.4\"\n    }}\n  }}\n}}\nresource \"null_resource\" \"qualification\" {{\n  triggers = {{ marker = \"{marker}\" }}\n}}\n"
+    )
 }
 
 impl QualificationProtectedSetup for OpentofuQualificationAdapter {
@@ -636,6 +693,15 @@ impl QualificationProtectedSetup for OpentofuQualificationAdapter {
         let configuration =
             crate::OpenTofuLocalAgentConfigurationV1::from_canonical_bytes(configuration_bytes)
                 .map_err(|_| QualificationHarnessError::Onboarding)?;
+        if configuration.planner().provider_pins().len() != 1
+            || configuration.planner().provider_pins()[0].source()
+                != "registry.opentofu.org/hashicorp/null"
+            || configuration.planner().provider_pins()[0].version() != "3.2.4"
+            || !configuration.planner().module_pins().is_empty()
+            || configuration.planner().dependency_mirror() != "https://127.0.0.1:28443/v1"
+        {
+            return Err(QualificationHarnessError::Onboarding);
+        }
         let descriptor = crate::connection::OpenTofuConnectionDescriptor::from_canonical_bytes(
             input.connection_descriptor,
         )
@@ -651,9 +717,7 @@ impl QualificationProtectedSetup for OpentofuQualificationAdapter {
         let mut vectors = Vec::with_capacity(input.scenario_ids.len());
         for scenario_id in input.scenario_ids {
             let workspace = format!("{provider_namespace}-{scenario_id}");
-            let contents = format!(
-                "terraform {{ required_providers {{ null = {{ source = \"hashicorp/null\" version = \"3.2.4\" }} }} }}\nresource \"null_resource\" \"qualification\" {{ triggers = {{ marker = \"{workspace}\" }} }}\n"
-            );
+            let contents = qualification_hcl(&workspace);
             let bundle = qualification_bundle(&workspace, &contents, &setup.dependency_lock)?;
             let observed = crate::local_provider::ensure_qualification_workspace(
                 setup_root.path(),
@@ -672,7 +736,6 @@ impl QualificationProtectedSetup for OpentofuQualificationAdapter {
             }
             let mut vector = serde_json::json!({
                 "dependencyLock": setup.dependency_lock.clone(),
-                "modules": [],
                 "sourceFiles": [{"contents":contents,"path":"main.tf"}],
                 "variables": [],
                 "workspace": workspace,
@@ -704,15 +767,7 @@ impl QualificationProtectedSetup for OpentofuQualificationAdapter {
                 .cases()
                 .iter()
                 .map(|case| {
-                    let mut case_vector = vector.clone();
-                    if case.stimulus() == "destructive-plan" {
-                        let destructive = format!(
-                            "terraform {{ required_providers {{ null = {{ source = \"hashicorp/null\" version = \"3.2.4\" }} }} }}\nresource \"null_resource\" \"qualification\" {{ triggers = {{ marker = \"{workspace}-replacement\" }} }}\n"
-                        );
-                        case_vector["sourceFiles"] = serde_json::json!([
-                            {"contents":destructive,"path":"main.tf"}
-                        ]);
-                    }
+                    let case_vector = opentofu_case_vector(case.stimulus(), &vector, &workspace)?;
                     let bytes = serde_json_canonicalizer::to_vec(&case_vector)
                         .map_err(|_| QualificationHarnessError::Onboarding)?;
                     Ok(auths_profile_kit::QualificationSetupCaseV1 {
@@ -745,6 +800,7 @@ impl QualificationProtectedSetup for OpentofuQualificationAdapter {
             run_attempt: input.run_context.run_attempt,
             provider_run_id: input.run_context.provider_run_id.clone(),
             provider_namespace,
+            provider_destination_sha256: hex::encode(descriptor.account_commitment()),
             connection_alias_sha256: hex::encode(Sha256::digest(input.connection_alias.as_bytes())),
             resource_references: resources,
             connection_generations: vec!["1".into()],
@@ -760,6 +816,40 @@ impl QualificationProtectedSetup for OpentofuQualificationAdapter {
         handoff.validate()?;
         Ok(handoff)
     }
+}
+
+fn opentofu_case_vector(
+    stimulus: &str,
+    vector: &serde_json::Value,
+    workspace: &str,
+) -> Result<serde_json::Value, QualificationHarnessError> {
+    let mut case_vector = vector.clone();
+    match stimulus {
+        "destructive-plan" => {
+            let destructive = qualification_hcl(&format!("{workspace}-replacement"));
+            case_vector["sourceFiles"] = serde_json::json!([
+                {"contents":destructive,"path":"main.tf"}
+            ]);
+        }
+        "changed-input" => {
+            case_vector["workspace"] = serde_json::Value::String(format!("{workspace}x"));
+        }
+        "canonical"
+        | "duplicate-field"
+        | "encoded-canonical"
+        | "missing-field"
+        | "no-prepared-plan"
+        | "noncanonical-integer"
+        | "protected-apply"
+        | "protected-plan"
+        | "redaction-apply"
+        | "redaction-plan"
+        | "replay"
+        | "stale-evidence"
+        | "unknown-field" => {}
+        _ => return Err(QualificationHarnessError::Onboarding),
+    }
+    Ok(case_vector)
 }
 
 #[derive(Default)]
@@ -832,7 +922,22 @@ impl QualificationCollectionAdapter for OpentofuQualificationAdapter {
             }
             (2, QualificationOperationRole::Effect, "auths.opentofu.saved-plan-apply/1") => {
                 if qualification_pre_admission_attempt_count(&vector.id).is_some() {
-                    let outcome = client.invoke_installed(connection_alias, &vector.cases)?;
+                    let mut cases = vector.cases.clone();
+                    for (case, program_case) in cases.iter_mut().zip(
+                        vector
+                            .scenario_program
+                            .cases()
+                            .iter()
+                            .filter(|case| case.role() == QualificationOperationRole::Effect),
+                    ) {
+                        case.input = qualification_effect_fallback_case_json(
+                            profile,
+                            &vector.id,
+                            program_case.stimulus(),
+                        )?
+                        .ok_or(QualificationHarnessError::Invocation)?;
+                    }
+                    let outcome = client.invoke_installed(connection_alias, &cases)?;
                     if outcome.cases.iter().any(|case| case.kind != "unavailable") {
                         return Err(QualificationHarnessError::Invocation);
                     }
@@ -848,16 +953,28 @@ impl QualificationCollectionAdapter for OpentofuQualificationAdapter {
                     .iter()
                     .filter(|case| case.role() == QualificationOperationRole::Effect)
                 {
-                    let prepared_plan = environment
+                    let fallback = qualification_effect_fallback_case_json(
+                        profile,
+                        &vector.id,
+                        program_case.stimulus(),
+                    )?;
+                    let mut prepared_plan = environment
                         .prepared_plans
                         .get(program_case.intent_id())
                         .cloned()
                         .or_else(|| {
-                            (program_case.stimulus() == "no-prepared-plan").then(|| {
-                                "qualification-missing-prepared-plan-00000000000000000001".into()
+                            fallback.and_then(|bytes| {
+                                serde_json::from_slice::<serde_json::Value>(&bytes)
+                                    .ok()
+                                    .and_then(|input| {
+                                        input["preparedPlan"].as_str().map(str::to_owned)
+                                    })
                             })
                         })
                         .ok_or(QualificationHarnessError::Invocation)?;
+                    if program_case.stimulus() == "changed-input" {
+                        prepared_plan.push('x');
+                    }
                     let case = cases
                         .iter_mut()
                         .find(|case| case.case_id == program_case.case_id())
@@ -881,6 +998,7 @@ impl QualificationCollectionAdapter for OpentofuQualificationAdapter {
 
 impl QualificationProtectedObserver for OpentofuQualificationAdapter {
     type Environment = OpentofuProtectedObserverEnvironment;
+    type CleanupEnvironment = ();
 
     fn metadata(&self) -> QualificationAdapterMetadata {
         metadata()
@@ -1014,8 +1132,20 @@ impl QualificationProtectedObserver for OpentofuQualificationAdapter {
             return Ok(());
         }
         match program.id() {
-            "opentofu-protected-plan" | "opentofu-artifact-redaction" => {
-                validate_successful_opentofu_pair(operations, truths)
+            "opentofu-protected-plan" => validate_successful_opentofu_pair(operations, truths),
+            "opentofu-artifact-redaction" => {
+                validate_successful_opentofu_pair(operations, truths)?;
+                if truths.iter().any(|truth| {
+                    qualification_redaction_prefixes().iter().any(|prefix| {
+                        truth
+                            .domain_facts
+                            .windows(prefix.len())
+                            .any(|window| window == prefix.as_bytes())
+                    })
+                }) {
+                    return Err(QualificationHarnessError::Redaction);
+                }
+                Ok(())
             }
             "opentofu-destructive-denial" => {
                 validate_opentofu_destructive_denial(program, operations, truths)
@@ -1030,43 +1160,26 @@ impl QualificationProtectedObserver for OpentofuQualificationAdapter {
         }
     }
 
+    fn open_cleanup(
+        &self,
+        _context: &QualificationRunContext,
+    ) -> Result<Self::CleanupEnvironment, QualificationHarnessError> {
+        Err(QualificationHarnessError::PrerequisiteUnavailable(
+            "OpenTofu cleanup requires exact deterministic workspace-roster destruction through the reviewed sandbox",
+        ))
+    }
+
     fn cleanup(
         &self,
+        _environment: &Self::CleanupEnvironment,
         context: &QualificationRunContext,
-        _reference: Option<&QualificationRunReference>,
-    ) -> Result<QualificationCleanupEvidence, QualificationHarnessError> {
+    ) -> Result<QualificationProviderCleanupObservation, QualificationHarnessError> {
         if context.protected_environment != "qualification-opentofu" {
             return Err(QualificationHarnessError::Cleanup);
         }
-        let credential = protected_credential(
-            "QUALIFICATION_CLEANUP_CREDENTIAL",
-            QualificationHarnessError::Cleanup,
-        )?;
-        let material = parse_observer_credential(&credential, &QualificationHarnessError::Cleanup)?;
-        let namespace = format!(
-            "aq-{}-{}-{}",
-            context.run_id, context.run_attempt, context.provider_run_id
-        );
-        let workspace = format!("{namespace}-cleanup-probe");
-        let contents = qualification_source(&workspace);
-        let bundle = qualification_bundle(&workspace, &contents, &material.dependency_lock)
-            .map_err(|_| QualificationHarnessError::Cleanup)?;
-        let root = tempfile::tempdir().map_err(|_| QualificationHarnessError::Cleanup)?;
-        crate::local_provider::cleanup_qualification_namespace(
-            root.path(),
-            &material.backend_credential,
-            &material.descriptor,
-            &material.configuration,
-            &bundle,
-            &namespace,
-        )
-        .map_err(|_| QualificationHarnessError::Cleanup)?;
-        Ok(QualificationCleanupEvidence {
-            provider_resources_destroyed: true,
-            connection_disabled: true,
-            credentials_revoked: true,
-            residual_resource_count: 0,
-        })
+        Err(QualificationHarnessError::PrerequisiteUnavailable(
+            "OpenTofu cleanup requires exact workspace-roster destruction through the reviewed sandbox",
+        ))
     }
 }
 
@@ -1243,9 +1356,7 @@ fn protected_credential(
 }
 
 fn qualification_source(workspace: &str) -> String {
-    format!(
-        "terraform {{ required_providers {{ null = {{ source = \"hashicorp/null\" version = \"3.2.4\" }} }} }}\nresource \"null_resource\" \"qualification\" {{ triggers = {{ marker = \"{workspace}\" }} }}\n"
-    )
+    qualification_hcl(workspace)
 }
 
 fn metadata() -> QualificationAdapterMetadata {
@@ -1265,6 +1376,86 @@ fn metadata() -> QualificationAdapterMetadata {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn authenticated_preflight_result_derives_only_the_paired_effect_inputs() {
+        let token = "prepared-plan-000000000000000000000000000000000001";
+        let value = crate::generated::profile_api::PreparedPlan {
+            prepared_plan: token.into(),
+            action_digest: "1".repeat(64),
+            workspace: "workspace".into(),
+            prior_state_serial: 0,
+            creates: 1,
+            updates: 0,
+            reads: 0,
+            no_ops: 0,
+            expires_at: 10,
+        }
+        .to_canonical_cbor()
+        .unwrap();
+        let (primary, changed) =
+            qualification_effect_case_inputs("auths.opentofu.plan-preflight/1", &value)
+                .unwrap()
+                .unwrap();
+        assert_eq!(
+            crate::generated::profile_api::ApplyPreparedPlanInput::from_canonical_cbor(&primary)
+                .unwrap()
+                .prepared_plan,
+            token
+        );
+        assert_eq!(
+            crate::generated::profile_api::ApplyPreparedPlanInput::from_canonical_cbor(&changed)
+                .unwrap()
+                .prepared_plan,
+            format!("{token}x")
+        );
+        assert!(
+            qualification_effect_case_inputs("auths.opentofu.saved-plan-apply/1", &value).is_err()
+        );
+    }
+
+    #[test]
+    fn missing_preflight_uses_one_domain_owned_effect_input() {
+        let malformed = qualification_effect_fallback_case_json(
+            "auths.opentofu.saved-plan-apply/1",
+            "malformed-input",
+            "canonical",
+        )
+        .unwrap()
+        .unwrap();
+        let missing = qualification_effect_fallback_case_json(
+            "auths.opentofu.saved-plan-apply/1",
+            "opentofu-destructive-denial",
+            "no-prepared-plan",
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(malformed, missing);
+        let canonical =
+            auths_profile_kit::qualification_case_profile_input_cbor("canonical", &malformed)
+                .unwrap();
+        for stimulus in [
+            "duplicate-field",
+            "missing-field",
+            "noncanonical-integer",
+            "unknown-field",
+        ] {
+            assert_ne!(
+                auths_profile_kit::qualification_case_profile_input_cbor(stimulus, &malformed)
+                    .unwrap(),
+                canonical
+            );
+        }
+        assert!(
+            qualification_effect_fallback_case_json(
+                "auths.opentofu.saved-plan-apply/1",
+                "happy-path",
+                "canonical",
+            )
+            .unwrap()
+            .is_none()
+        );
+    }
 
     #[test]
     fn provider_truth_requires_committed_state_and_effect_algebra() {
@@ -1292,5 +1483,16 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn every_reviewed_opentofu_stimulus_has_one_fail_closed_setup_mapping() {
+        let vector = json!({"sourceFiles": [{"contents":"safe","path":"main.tf"}]});
+        for scenario in SCENARIOS {
+            for case in qualification_scenario_program(scenario).unwrap().cases() {
+                opentofu_case_vector(case.stimulus(), &vector, "workspace").unwrap();
+            }
+        }
+        assert!(opentofu_case_vector("misspelled-stimulus", &vector, "workspace").is_err());
     }
 }

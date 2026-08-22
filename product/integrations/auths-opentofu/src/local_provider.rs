@@ -3,20 +3,16 @@
 #![forbid(unsafe_code)]
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fmt::Write as _,
     fs::{self, File, OpenOptions},
     io::{Read, Write as _},
     os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _},
-    path::{Path, PathBuf},
-    process::{Command, Stdio},
-    thread,
-    time::{Duration, Instant},
+    path::Path,
 };
 
 use auths_profile_runtime::ProfileRuntimeError;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest as _, Sha256};
 use tempfile::{NamedTempFile, TempDir};
 
 use crate::{
@@ -26,11 +22,8 @@ use crate::{
     PlanArtifactStore, SavedPlanArtifact, SavedPlanProjectionV1,
     canonical::{canonical_digest, canonical_json, sha256},
     connection::{OpenTofuConnectionDescriptor, OpenTofuConnectionSecretV1},
+    protected_executor::{ProcessOutput, ProtectedOpenTofuExecutor},
 };
-
-const MAX_PROCESS_OUTPUT: usize = 16 * 1024 * 1024;
-const MAX_BINARY_BYTES: u64 = 512 * 1024 * 1024;
-const PROCESS_TIMEOUT: Duration = Duration::from_mins(5);
 
 /// Complete protected planning output persisted behind a prepared token.
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
@@ -117,7 +110,6 @@ pub fn plan(
     {
         return Err(ProfileRuntimeError::Invalid);
     }
-    verify_binary(configuration)?;
     let secret = OpenTofuConnectionSecretV1::from_canonical_bytes(credential)
         .map_err(|_| ProfileRuntimeError::Invalid)?;
     let workspace = ProtectedWorkspace::create(
@@ -252,7 +244,6 @@ pub fn apply(
     now: u64,
 ) -> Result<OpenTofuApplyResult, ProfileRuntimeError> {
     payload.validate(now)?;
-    verify_binary(&payload.configuration)?;
     let secret = OpenTofuConnectionSecretV1::from_canonical_bytes(credential)
         .map_err(|_| ProfileRuntimeError::Invalid)?;
     let workspace = ProtectedWorkspace::create(
@@ -346,7 +337,6 @@ pub fn reconcile(
     payload: &PreparedPlanPayloadV1,
     now: u64,
 ) -> Result<Option<OpenTofuApplyResult>, ProfileRuntimeError> {
-    verify_binary(&payload.configuration)?;
     let secret = OpenTofuConnectionSecretV1::from_canonical_bytes(credential)
         .map_err(|_| ProfileRuntimeError::Invalid)?;
     let workspace = ProtectedWorkspace::create(
@@ -379,7 +369,6 @@ pub(crate) fn observe_state(
     payload: &PreparedPlanPayloadV1,
     now: u64,
 ) -> Result<OpenTofuStateEvidenceV1, ProfileRuntimeError> {
-    verify_binary(&payload.configuration)?;
     let secret = OpenTofuConnectionSecretV1::from_canonical_bytes(credential)
         .map_err(|_| ProfileRuntimeError::Invalid)?;
     let workspace = ProtectedWorkspace::create(
@@ -411,7 +400,6 @@ pub(crate) fn ensure_qualification_workspace(
         .validate()
         .map_err(|_| ProfileRuntimeError::Invalid)?;
     validate_bundle_policy(bundle, configuration)?;
-    verify_binary(configuration)?;
     let secret = OpenTofuConnectionSecretV1::from_canonical_bytes(credential)
         .map_err(|_| ProfileRuntimeError::Invalid)?;
     let workspace = ProtectedWorkspace::create(root, descriptor, configuration, bundle, &secret)?;
@@ -437,105 +425,11 @@ pub(crate) fn observe_qualification_workspace(
         .validate()
         .map_err(|_| ProfileRuntimeError::Invalid)?;
     validate_bundle_policy(bundle, configuration)?;
-    verify_binary(configuration)?;
     let secret = OpenTofuConnectionSecretV1::from_canonical_bytes(credential)
         .map_err(|_| ProfileRuntimeError::Invalid)?;
     let workspace = ProtectedWorkspace::create(root, descriptor, configuration, bundle, &secret)?;
     workspace.initialize(false)?;
     workspace.state_evidence(now)
-}
-
-/// Destroys and deletes every workspace in the exact run namespace, then
-/// re-lists the backend to prove that no run-owned workspace remains.
-#[cfg(feature = "qualification")]
-pub(crate) fn cleanup_qualification_namespace(
-    root: &Path,
-    credential: &[u8],
-    descriptor: &OpenTofuConnectionDescriptor,
-    configuration: &OpenTofuLocalAgentConfigurationV1,
-    probe_bundle: &OpenTofuSourceBundleV1,
-    namespace: &str,
-) -> Result<(), ProfileRuntimeError> {
-    if namespace.is_empty()
-        || namespace.len() > 128
-        || !namespace
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
-    {
-        return Err(ProfileRuntimeError::Invalid);
-    }
-    configuration
-        .validate()
-        .map_err(|_| ProfileRuntimeError::Invalid)?;
-    probe_bundle
-        .validate()
-        .map_err(|_| ProfileRuntimeError::Invalid)?;
-    validate_bundle_policy(probe_bundle, configuration)?;
-    verify_binary(configuration)?;
-    let secret = OpenTofuConnectionSecretV1::from_canonical_bytes(credential)
-        .map_err(|_| ProfileRuntimeError::Invalid)?;
-    let workspace =
-        ProtectedWorkspace::create(root, descriptor, configuration, probe_bundle, &secret)?;
-    let initialized = workspace.run(&[
-        "init".into(),
-        "-input=false".into(),
-        "-lockfile=readonly".into(),
-        "-backend-config=.auths-backend.hcl".into(),
-    ])?;
-    if !initialized.success {
-        return Err(ProfileRuntimeError::Invalid);
-    }
-    let listed = workspace.run(&["workspace".into(), "list".into()])?;
-    if !listed.success {
-        return Err(ProfileRuntimeError::Invalid);
-    }
-    let output = std::str::from_utf8(&listed.stdout).map_err(|_| ProfileRuntimeError::Invalid)?;
-    let mut names = output
-        .lines()
-        .map(|line| line.trim().trim_start_matches('*').trim())
-        .filter(|name| name.starts_with(namespace))
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
-    names.sort();
-    names.dedup();
-    if names.len() > 128 {
-        return Err(ProfileRuntimeError::Invalid);
-    }
-    for name in names {
-        let selected = workspace.run(&["workspace".into(), "select".into(), name.clone()])?;
-        if !selected.success {
-            return Err(ProfileRuntimeError::Invalid);
-        }
-        let destroyed = workspace.run(&[
-            "destroy".into(),
-            "-input=false".into(),
-            "-auto-approve".into(),
-            "-lock=true".into(),
-        ])?;
-        if !destroyed.success {
-            return Err(ProfileRuntimeError::Invalid);
-        }
-        let selected_default =
-            workspace.run(&["workspace".into(), "select".into(), "default".into()])?;
-        if !selected_default.success {
-            return Err(ProfileRuntimeError::Invalid);
-        }
-        let deleted = workspace.run(&["workspace".into(), "delete".into(), name])?;
-        if !deleted.success {
-            return Err(ProfileRuntimeError::Invalid);
-        }
-    }
-    let listed = workspace.run(&["workspace".into(), "list".into()])?;
-    if !listed.success
-        || std::str::from_utf8(&listed.stdout)
-            .map_err(|_| ProfileRuntimeError::Invalid)?
-            .lines()
-            .map(|line| line.trim().trim_start_matches('*').trim())
-            .any(|name| name.starts_with(namespace))
-    {
-        return Err(ProfileRuntimeError::Invalid);
-    }
-    Ok(())
 }
 
 fn same_state(left: &OpenTofuStateEvidenceV1, right: &OpenTofuStateEvidenceV1) -> bool {
@@ -558,19 +452,63 @@ fn validate_bundle_policy(
     bundle: &OpenTofuSourceBundleV1,
     configuration: &OpenTofuLocalAgentConfigurationV1,
 ) -> Result<(), ProfileRuntimeError> {
-    for module in &bundle.module_manifest {
-        if !configuration.planner().module_pins().iter().any(|pin| {
-            pin.source() == module.source
-                && pin.version() == module.version
-                && pin.digest() == &module.digest
-        }) {
+    let hcl = bundle
+        .hcl_dependency_closure()
+        .map_err(|_| ProfileRuntimeError::Invalid)?;
+    let configured_providers = configuration
+        .planner()
+        .provider_pins()
+        .iter()
+        .map(|pin| (pin.source().to_owned(), pin.version().to_owned()))
+        .collect::<BTreeSet<_>>();
+    if !hcl.modules.is_empty() || hcl.providers != configured_providers {
+        return Err(ProfileRuntimeError::Invalid);
+    }
+    validate_dependency_lock(
+        &bundle.dependency_lock_file,
+        configuration
+            .planner()
+            .provider_pins()
+            .iter()
+            .map(|pin| (pin.source(), pin.version(), pin.digest().as_str())),
+    )?;
+    Ok(())
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct LockedProvider {
+    version: String,
+    hashes: BTreeSet<String>,
+}
+
+/// Parses the deliberately small, generated `.terraform.lock.hcl` surface used
+/// by the protected planner. This is an exact structural check: provider pins
+/// found in comments, constraints, another provider block, or arbitrary text
+/// never satisfy the reviewed closure.
+fn validate_dependency_lock<'a>(
+    contents: &str,
+    expected: impl IntoIterator<Item = (&'a str, &'a str, &'a str)>,
+) -> Result<(), ProfileRuntimeError> {
+    let actual = parse_dependency_lock(contents)?;
+    let mut expected_map = BTreeMap::new();
+    for (source, version, digest) in expected {
+        if !dependency_source(source)
+            || !lock_token(version, 128)
+            || digest.len() != 64
+            || !digest.bytes().all(|byte| byte.is_ascii_hexdigit())
+            || expected_map.insert(source, (version, digest)).is_some()
+        {
             return Err(ProfileRuntimeError::Invalid);
         }
     }
-    for pin in configuration.planner().provider_pins() {
-        if !bundle.dependency_lock_file.contains(pin.source())
-            || !bundle.dependency_lock_file.contains(pin.version())
-            || !bundle.dependency_lock_file.contains(pin.digest().as_str())
+    if actual.len() != expected_map.len() {
+        return Err(ProfileRuntimeError::Invalid);
+    }
+    for (source, (version, digest)) in expected_map {
+        let locked = actual.get(source).ok_or(ProfileRuntimeError::Invalid)?;
+        let normalized = digest.to_ascii_lowercase();
+        if locked.version != version
+            || locked.hashes != BTreeSet::from([format!("zh:{normalized}")])
         {
             return Err(ProfileRuntimeError::Invalid);
         }
@@ -578,36 +516,169 @@ fn validate_bundle_policy(
     Ok(())
 }
 
-fn verify_binary(
-    configuration: &OpenTofuLocalAgentConfigurationV1,
-) -> Result<(), ProfileRuntimeError> {
-    let path = Path::new(configuration.planner().binary_path());
-    let metadata = fs::symlink_metadata(path).map_err(|_| ProfileRuntimeError::Invalid)?;
-    if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len() > MAX_BINARY_BYTES
+fn parse_dependency_lock(
+    contents: &str,
+) -> Result<BTreeMap<String, LockedProvider>, ProfileRuntimeError> {
+    if contents.is_empty() || contents.len() > 65_536 || contents.contains('\r') {
+        return Err(ProfileRuntimeError::Invalid);
+    }
+    let lines = contents.lines().collect::<Vec<_>>();
+    let mut index = 0_usize;
+    let mut providers = BTreeMap::new();
+    while index < lines.len() {
+        let line = lines[index].trim();
+        index += 1;
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let source = provider_block_header(line)?;
+        if providers.contains_key(source.as_str()) {
+            return Err(ProfileRuntimeError::Invalid);
+        }
+        let mut version = None;
+        let mut constraints_seen = false;
+        let mut hashes = None;
+        loop {
+            let line = lines.get(index).ok_or(ProfileRuntimeError::Invalid)?.trim();
+            index += 1;
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            if line == "}" {
+                break;
+            }
+            if let Some(value) = assignment(line, "version") {
+                if version.replace(quoted(value, 128)?).is_some() {
+                    return Err(ProfileRuntimeError::Invalid);
+                }
+                continue;
+            }
+            if let Some(value) = assignment(line, "constraints") {
+                if constraints_seen {
+                    return Err(ProfileRuntimeError::Invalid);
+                }
+                let _ = quoted_text(value, 256)?;
+                constraints_seen = true;
+                continue;
+            }
+            if line == "hashes = [" {
+                if hashes.is_some() {
+                    return Err(ProfileRuntimeError::Invalid);
+                }
+                let mut values = BTreeSet::new();
+                loop {
+                    let item = lines.get(index).ok_or(ProfileRuntimeError::Invalid)?.trim();
+                    index += 1;
+                    if item == "]" {
+                        break;
+                    }
+                    if item.is_empty() || item.starts_with('#') {
+                        continue;
+                    }
+                    let item = item.strip_suffix(',').unwrap_or(item);
+                    let value = quoted(item, 128)?;
+                    if !lock_hash(&value) || !values.insert(value) || values.len() > 64 {
+                        return Err(ProfileRuntimeError::Invalid);
+                    }
+                }
+                if values.is_empty() {
+                    return Err(ProfileRuntimeError::Invalid);
+                }
+                hashes = Some(values);
+                continue;
+            }
+            return Err(ProfileRuntimeError::Invalid);
+        }
+        let version = version.ok_or(ProfileRuntimeError::Invalid)?;
+        if !lock_token(&version, 128) {
+            return Err(ProfileRuntimeError::Invalid);
+        }
+        providers.insert(
+            source,
+            LockedProvider {
+                version,
+                hashes: hashes.ok_or(ProfileRuntimeError::Invalid)?,
+            },
+        );
+        if providers.len() > 256 {
+            return Err(ProfileRuntimeError::Invalid);
+        }
+    }
+    if providers.is_empty() {
+        return Err(ProfileRuntimeError::Invalid);
+    }
+    Ok(providers)
+}
+
+fn provider_block_header(line: &str) -> Result<String, ProfileRuntimeError> {
+    let body = line
+        .strip_prefix("provider ")
+        .and_then(|value| value.strip_suffix(" {"))
+        .ok_or(ProfileRuntimeError::Invalid)?;
+    let source = quoted(body, 256)?;
+    if !dependency_source(&source) {
+        return Err(ProfileRuntimeError::Invalid);
+    }
+    Ok(source)
+}
+
+fn assignment<'a>(line: &'a str, name: &str) -> Option<&'a str> {
+    line.strip_prefix(name)?.strip_prefix(" = ")
+}
+
+fn quoted(value: &str, maximum: usize) -> Result<String, ProfileRuntimeError> {
+    let value = quoted_text(value, maximum)?;
+    if !value.bytes().all(|byte| byte.is_ascii_graphic()) {
+        return Err(ProfileRuntimeError::Invalid);
+    }
+    Ok(value)
+}
+
+fn quoted_text(value: &str, maximum: usize) -> Result<String, ProfileRuntimeError> {
+    let value = value
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+        .ok_or(ProfileRuntimeError::Invalid)?;
+    if value.is_empty()
+        || value.len() > maximum
+        || value.contains('"')
+        || value.contains('\\')
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_graphic() || byte == b' ')
     {
         return Err(ProfileRuntimeError::Invalid);
     }
-    let mut file = File::open(path).map_err(|_| ProfileRuntimeError::Invalid)?;
-    let mut digest = Sha256::new();
-    let mut buffer = vec![0_u8; 64 * 1024].into_boxed_slice();
-    loop {
-        let count = file
-            .read(&mut buffer)
-            .map_err(|_| ProfileRuntimeError::Invalid)?;
-        if count == 0 {
-            break;
-        }
-        digest.update(&buffer[..count]);
-    }
-    if hex::encode(digest.finalize()) != configuration.planner().binary_sha256().as_str() {
-        return Err(ProfileRuntimeError::Invalid);
-    }
-    Ok(())
+    Ok(value.into())
+}
+
+fn dependency_source(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 256
+        && value.split('/').count() == 3
+        && value.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || b"-._/".contains(&byte)
+        })
+}
+
+fn lock_token(value: &str, maximum: usize) -> bool {
+    !value.is_empty()
+        && value.len() <= maximum
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"-._+<>=!~ ".contains(&byte))
+}
+
+fn lock_hash(value: &str) -> bool {
+    let Some((kind, digest)) = value.split_once(':') else {
+        return false;
+    };
+    kind == "zh" && digest.len() == 64 && digest.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 struct ProtectedWorkspace {
     directory: TempDir,
-    binary: PathBuf,
+    executor: ProtectedOpenTofuExecutor,
     environment: BTreeMap<String, String>,
     descriptor: OpenTofuConnectionDescriptor,
     configuration: OpenTofuLocalAgentConfigurationV1,
@@ -622,6 +693,10 @@ impl ProtectedWorkspace {
         bundle: &OpenTofuSourceBundleV1,
         secret: &OpenTofuConnectionSecretV1,
     ) -> Result<Self, ProfileRuntimeError> {
+        let executor = ProtectedOpenTofuExecutor::open(
+            Path::new(configuration.planner().binary_path()),
+            configuration.planner().binary_sha256().as_str(),
+        )?;
         let parent = root.join("opentofu-workspaces-v1");
         if !parent.exists() {
             fs::create_dir(&parent).map_err(|_| ProfileRuntimeError::Invalid)?;
@@ -663,9 +738,16 @@ impl ProtectedWorkspace {
             &directory.path().join(".auths-backend.hcl"),
             backend_config.as_bytes(),
         )?;
+        let mirror = format!(
+            "{}/",
+            configuration
+                .planner()
+                .dependency_mirror()
+                .trim_end_matches('/')
+        );
         let cli_config = format!(
-            "provider_installation {{\n  filesystem_mirror {{ path = {} }}\n}}\n",
-            serde_json::to_string(configuration.planner().dependency_mirror()).unwrap()
+            "provider_installation {{\n  network_mirror {{ url = {} }}\n}}\n",
+            serde_json::to_string(&mirror).unwrap()
         );
         write_private(
             &directory.path().join(".auths-tofurc"),
@@ -698,7 +780,7 @@ impl ProtectedWorkspace {
         );
         Ok(Self {
             directory,
-            binary: PathBuf::from(configuration.planner().binary_path()),
+            executor,
             environment,
             descriptor: descriptor.clone(),
             configuration: configuration.clone(),
@@ -768,7 +850,7 @@ impl ProtectedWorkspace {
             state_digest: sha256(&canonical),
             lock_held: false,
             dependency_lock_digest: sha256(self.bundle.dependency_lock_file.as_bytes()),
-            module_manifest_digest: canonical_digest(&self.bundle.module_manifest)
+            module_manifest_digest: crate::bundle::empty_module_manifest_digest()
                 .map_err(invalid)?,
             planner_build_identity: self.configuration.planner().binary_sha256().to_string(),
             observed_at: now,
@@ -801,63 +883,8 @@ impl ProtectedWorkspace {
     }
 
     fn run(&self, arguments: &[String]) -> Result<ProcessOutput, ProfileRuntimeError> {
-        let mut command = Command::new(&self.binary);
-        command
-            .args(arguments)
-            .current_dir(self.path())
-            .env_clear()
-            .envs(&self.environment)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        let mut child = command.spawn().map_err(|_| ProfileRuntimeError::Invalid)?;
-        let stdout = child.stdout.take().ok_or(ProfileRuntimeError::Invalid)?;
-        let stderr = child.stderr.take().ok_or(ProfileRuntimeError::Invalid)?;
-        let stdout_reader = thread::spawn(move || read_bounded(stdout));
-        let stderr_reader = thread::spawn(move || read_bounded(stderr));
-        let started = Instant::now();
-        let status = loop {
-            if let Some(status) = child.try_wait().map_err(|_| ProfileRuntimeError::Invalid)? {
-                break status;
-            }
-            if started.elapsed() >= PROCESS_TIMEOUT {
-                let _ = child.kill();
-                let _ = child.wait();
-                let _ = stdout_reader.join();
-                let _ = stderr_reader.join();
-                return Err(ProfileRuntimeError::Invalid);
-            }
-            thread::sleep(Duration::from_millis(20));
-        };
-        Ok(ProcessOutput {
-            success: status.success(),
-            stdout: stdout_reader
-                .join()
-                .map_err(|_| ProfileRuntimeError::Invalid)??,
-            stderr: stderr_reader
-                .join()
-                .map_err(|_| ProfileRuntimeError::Invalid)??,
-        })
+        self.executor.run(arguments, self.path(), &self.environment)
     }
-}
-
-struct ProcessOutput {
-    success: bool,
-    stdout: Vec<u8>,
-    stderr: Vec<u8>,
-}
-
-fn read_bounded(mut reader: impl Read) -> Result<Vec<u8>, ProfileRuntimeError> {
-    let mut bytes = Vec::new();
-    reader
-        .by_ref()
-        .take((MAX_PROCESS_OUTPUT + 1) as u64)
-        .read_to_end(&mut bytes)
-        .map_err(|_| ProfileRuntimeError::Invalid)?;
-    if bytes.len() > MAX_PROCESS_OUTPUT {
-        return Err(ProfileRuntimeError::Invalid);
-    }
-    Ok(bytes)
 }
 
 fn read_bounded_file(path: &Path, maximum: usize) -> Result<Vec<u8>, ProfileRuntimeError> {
@@ -936,4 +963,94 @@ fn change_summary(projection: &SavedPlanProjectionV1) -> crate::PermittedChangeS
 
 fn invalid(_: impl core::fmt::Display) -> ProfileRuntimeError {
     ProfileRuntimeError::Invalid
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SOURCE: &str = "registry.opentofu.org/hashicorp/null";
+    const VERSION: &str = "3.2.4";
+    const DIGEST: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+    fn lock(source: &str, version: &str, digest: &str) -> String {
+        format!(
+            "# generated lock file\nprovider \"{source}\" {{\n  version = \"{version}\"\n  constraints = \"{version}\"\n  hashes = [\n    \"zh:{digest}\",\n  ]\n}}\n"
+        )
+    }
+
+    #[test]
+    fn dependency_lock_requires_exact_structural_provider_closure() {
+        validate_dependency_lock(&lock(SOURCE, VERSION, DIGEST), [(SOURCE, VERSION, DIGEST)])
+            .unwrap();
+
+        let injected = format!(
+            "# provider \"{SOURCE}\" {{ version = \"{VERSION}\" hashes = [\"zh:{DIGEST}\"] }}\nprovider \"registry.opentofu.org/hashicorp/random\" {{\n  version = \"3.6.0\"\n  hashes = [\n    \"zh:{DIGEST}\",\n  ]\n}}\n"
+        );
+        assert!(
+            validate_dependency_lock(&injected, [(SOURCE, VERSION, DIGEST)]).is_err(),
+            "a pin present only in a comment must not satisfy the closure"
+        );
+
+        let extra = format!(
+            "{}provider \"registry.opentofu.org/hashicorp/random\" {{\n  version = \"3.6.0\"\n  hashes = [\n    \"zh:{DIGEST}\",\n  ]\n}}\n",
+            lock(SOURCE, VERSION, DIGEST)
+        );
+        assert!(validate_dependency_lock(&extra, [(SOURCE, VERSION, DIGEST)]).is_err());
+    }
+
+    #[test]
+    fn dependency_lock_rejects_mismatched_and_duplicated_pin_fields() {
+        assert!(
+            validate_dependency_lock(&lock(SOURCE, "3.2.5", DIGEST), [(SOURCE, VERSION, DIGEST)])
+                .is_err()
+        );
+        assert!(
+            validate_dependency_lock(
+                &lock(SOURCE, VERSION, &"f".repeat(64)),
+                [(SOURCE, VERSION, DIGEST)]
+            )
+            .is_err()
+        );
+        let duplicate_version = lock(SOURCE, VERSION, DIGEST)
+            .replace("  constraints", "  version = \"3.2.4\"\n  constraints");
+        assert!(validate_dependency_lock(&duplicate_version, [(SOURCE, VERSION, DIGEST)]).is_err());
+        let arbitrary_text = lock(SOURCE, VERSION, DIGEST).replace(
+            "  constraints",
+            &format!("  note = \"{DIGEST}\"\n  constraints"),
+        );
+        assert!(validate_dependency_lock(&arbitrary_text, [(SOURCE, VERSION, DIGEST)]).is_err());
+        let bare_digest = lock(SOURCE, VERSION, DIGEST)
+            .replace(&format!("\"zh:{DIGEST}\""), &format!("\"{DIGEST}\""));
+        assert!(validate_dependency_lock(&bare_digest, [(SOURCE, VERSION, DIGEST)]).is_err());
+        let extra_zh = lock(SOURCE, VERSION, DIGEST).replace(
+            &format!("    \"zh:{DIGEST}\","),
+            &format!("    \"zh:{DIGEST}\",\n    \"zh:{}\",", "f".repeat(64)),
+        );
+        assert!(validate_dependency_lock(&extra_zh, [(SOURCE, VERSION, DIGEST)]).is_err());
+        let extra_h1 = lock(SOURCE, VERSION, DIGEST).replace(
+            &format!("    \"zh:{DIGEST}\","),
+            &format!(
+                "    \"zh:{DIGEST}\",\n    \"h1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\","
+            ),
+        );
+        assert!(validate_dependency_lock(&extra_h1, [(SOURCE, VERSION, DIGEST)]).is_err());
+        assert!(
+            validate_dependency_lock(
+                &lock(SOURCE, VERSION, DIGEST).replace(
+                    &format!("constraints = \"{VERSION}\""),
+                    "constraints = \">= 3.2.0, < 4.0.0\"",
+                ),
+                [(SOURCE, VERSION, DIGEST)]
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_dependency_lock(
+                &lock(SOURCE, VERSION, DIGEST),
+                [(SOURCE, VERSION, DIGEST), (SOURCE, VERSION, DIGEST)]
+            )
+            .is_err()
+        );
+    }
 }
