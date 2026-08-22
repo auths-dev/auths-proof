@@ -25,7 +25,6 @@ jobs:
       POLICY_ROOT: /run/auths-qualification-policy-${{ github.run_id }}-${{ github.run_attempt }}/${{ inputs.domain }}/${{ inputs.target }}
       CGROUP_ROOT_PREFIX: /sys/fs/cgroup/auths-q-${{ github.run_id }}-${{ github.run_attempt }}
       PROTECTED_BIN_ROOT: /usr/local/libexec/auths-qualification-${{ github.run_id }}-${{ github.run_attempt }}
-      AGENT_CONFIG: ${{ runner.temp }}/qualification-agent-config/${{ inputs.domain }}/${{ inputs.target }}/agent.toml
       SOURCE_TRUST: ${{ github.workspace }}/trusted-attester/release/qualification/v1/evidence-source-trust-keys.json
       DOMAIN: ${{ inputs.domain }}
       AGENT_GID: ${{ vars.AUTHS_QUALIFICATION_AGENT_GID }}
@@ -550,6 +549,8 @@ jobs:
       - name: Stop exact retained row processes
         if: always()
         shell: bash
+        env:
+          AGENT_CONFIG: ${{ runner.temp }}/qualification-agent-config/${{ inputs.domain }}/${{ inputs.target }}/agent.toml
         run: sudo --preserve-env=TOOLS,MATRIX,RUNTIME_ROOT,POLICY_ROOT,CGROUP_ROOT_PREFIX,PROTECTED_BIN_ROOT,AGENT_CONFIG,SOURCE_TRUST,DOMAIN,AGENT_GID,COMMON_ROOT bash trusted-attester/.github/scripts/qualification-row-services.sh stop
       - name: Upload collection and verified release handoff
         id: upload
