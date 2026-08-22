@@ -104,6 +104,7 @@
       ],
       "hooks": [
         {
+          "caseId": "primary",
           "stage": "before-call",
           "hook": "crash-after-command"
         }
@@ -127,6 +128,7 @@
       ],
       "hooks": [
         {
+          "caseId": "primary",
           "stage": "before-call",
           "hook": "crash-after-decision"
         }
@@ -150,6 +152,7 @@
       ],
       "hooks": [
         {
+          "caseId": "primary",
           "stage": "before-call",
           "hook": "crash-after-entry-marker"
         }
@@ -173,6 +176,7 @@
       ],
       "hooks": [
         {
+          "caseId": "primary",
           "stage": "before-call",
           "hook": "crash-after-execution-receipt"
         }
@@ -196,6 +200,7 @@
       ],
       "hooks": [
         {
+          "caseId": "primary",
           "stage": "before-call",
           "hook": "crash-after-lease"
         }
@@ -219,6 +224,7 @@
       ],
       "hooks": [
         {
+          "caseId": "primary",
           "stage": "before-call",
           "hook": "crash-after-observation"
         }
@@ -242,6 +248,7 @@
       ],
       "hooks": [
         {
+          "caseId": "primary",
           "stage": "before-call",
           "hook": "crash-after-provider-result"
         }
@@ -265,6 +272,7 @@
       ],
       "hooks": [
         {
+          "caseId": "primary",
           "stage": "before-call",
           "hook": "crash-after-request-write"
         }
@@ -288,6 +296,7 @@
       ],
       "hooks": [
         {
+          "caseId": "primary",
           "stage": "before-call",
           "hook": "crash-after-reread"
         }
@@ -311,6 +320,7 @@
       ],
       "hooks": [
         {
+          "caseId": "primary",
           "stage": "before-call",
           "hook": "crash-after-reservation"
         }
@@ -334,6 +344,7 @@
       ],
       "hooks": [
         {
+          "caseId": "primary",
           "stage": "before-call",
           "hook": "crash-after-terminal"
         }
@@ -357,6 +368,7 @@
       ],
       "hooks": [
         {
+          "caseId": "primary",
           "stage": "before-call",
           "hook": "crash-before-decision"
         }

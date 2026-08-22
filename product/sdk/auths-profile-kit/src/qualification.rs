@@ -417,6 +417,7 @@ pub enum QualificationScenarioExpectation {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct QualificationScenarioHookV1 {
+    case_id: String,
     stage: QualificationScenarioHookStage,
     hook: String,
 }
@@ -1766,8 +1767,12 @@ impl QualificationScenarioProgramV1 {
             || !self
                 .hooks
                 .windows(2)
-                .all(|pair| hook_order(&pair[0]) < hook_order(&pair[1]))
-            || self.hooks.iter().any(|hook| !registered_token(&hook.hook))
+                .all(|pair| hook_order(&self.cases, &pair[0]) < hook_order(&self.cases, &pair[1]))
+            || self.hooks.iter().any(|hook| {
+                !registered_token(&hook.case_id)
+                    || !registered_token(&hook.hook)
+                    || !self.cases.iter().any(|case| case.case_id == hook.case_id)
+            })
         {
             return Err(QualificationError::InvalidScenarios);
         }
@@ -1869,6 +1874,12 @@ impl QualificationScenarioCaseV1 {
 }
 
 impl QualificationScenarioHookV1 {
+    /// Exact installed-client case to which this protected hook belongs.
+    #[must_use]
+    pub fn case_id(&self) -> &str {
+        &self.case_id
+    }
+
     #[must_use]
     pub const fn stage(&self) -> QualificationScenarioHookStage {
         self.stage
@@ -1880,7 +1891,10 @@ impl QualificationScenarioHookV1 {
     }
 }
 
-fn hook_order(hook: &QualificationScenarioHookV1) -> (u8, &str) {
+fn hook_order<'a>(
+    cases: &[QualificationScenarioCaseV1],
+    hook: &'a QualificationScenarioHookV1,
+) -> (u8, usize, &'a str) {
     let stage = match hook.stage {
         QualificationScenarioHookStage::Setup => 0,
         QualificationScenarioHookStage::BeforeCall => 1,
@@ -1889,7 +1903,11 @@ fn hook_order(hook: &QualificationScenarioHookV1) -> (u8, &str) {
         QualificationScenarioHookStage::BeforeObserver => 4,
         QualificationScenarioHookStage::StateFileCorruption => 5,
     };
-    (stage, hook.hook.as_str())
+    let case = cases
+        .iter()
+        .position(|case| case.case_id == hook.case_id)
+        .unwrap_or(usize::MAX);
+    (stage, case, hook.hook.as_str())
 }
 
 impl QualificationReceiptVerification {

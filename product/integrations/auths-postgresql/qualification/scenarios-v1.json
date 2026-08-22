@@ -32,6 +32,7 @@
       ],
       "hooks": [
         {
+          "caseId": "effect",
           "stage": "before-observer",
           "hook": "advance-row-after-ledger"
         }
@@ -97,6 +98,7 @@
       ],
       "hooks": [
         {
+          "caseId": "effect",
           "stage": "after-provider-before-response",
           "hook": "suppress-first-response"
         }
@@ -132,6 +134,7 @@
       ],
       "hooks": [
         {
+          "caseId": "preflight",
           "stage": "setup",
           "hook": "exercise-rls-policy-variants"
         }
@@ -167,6 +170,7 @@
       ],
       "hooks": [
         {
+          "caseId": "preflight",
           "stage": "setup",
           "hook": "exercise-role-trust-variants"
         }
@@ -256,6 +260,7 @@
       ],
       "hooks": [
         {
+          "caseId": "effect",
           "stage": "before-provider",
           "hook": "advance-row-before-effect"
         }
@@ -321,10 +326,12 @@
       ],
       "hooks": [
         {
+          "caseId": "effect",
           "stage": "before-provider",
           "hook": "kill-precommit"
         },
         {
+          "caseId": "effect",
           "stage": "after-provider-before-response",
           "hook": "kill-postcommit"
         }
@@ -360,6 +367,7 @@
       ],
       "hooks": [
         {
+          "caseId": "effect",
           "stage": "before-observer",
           "hook": "verify-redaction"
         }

@@ -47,8 +47,9 @@
     "hook": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["stage", "hook"],
+      "required": ["caseId", "stage", "hook"],
       "properties": {
+        "caseId": {"$ref": "#/$defs/token"},
         "stage": {"enum": ["setup", "before-call", "before-provider", "after-provider-before-response", "before-observer", "state-file-corruption"]},
         "hook": {"$ref": "#/$defs/token"}
       }

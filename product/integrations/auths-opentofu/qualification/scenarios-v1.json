@@ -32,6 +32,7 @@
       ],
       "hooks": [
         {
+          "caseId": "effect",
           "stage": "before-observer",
           "hook": "create-unrelated-backend-mutation"
         }
@@ -67,6 +68,7 @@
       ],
       "hooks": [
         {
+          "caseId": "effect",
           "stage": "before-observer",
           "hook": "verify-redaction"
         }
@@ -132,6 +134,7 @@
       ],
       "hooks": [
         {
+          "caseId": "preflight",
           "stage": "before-call",
           "hook": "exercise-lock-variants"
         }
@@ -167,6 +170,7 @@
       ],
       "hooks": [
         {
+          "caseId": "effect",
           "stage": "state-file-corruption",
           "hook": "corrupt-saved-plan"
         }
@@ -232,6 +236,7 @@
       ],
       "hooks": [
         {
+          "caseId": "effect",
           "stage": "after-provider-before-response",
           "hook": "suppress-first-response"
         }
@@ -267,6 +272,7 @@
       ],
       "hooks": [
         {
+          "caseId": "preflight",
           "stage": "before-provider",
           "hook": "exercise-sandbox-hostiles"
         }
@@ -302,6 +308,7 @@
       ],
       "hooks": [
         {
+          "caseId": "effect",
           "stage": "before-provider",
           "hook": "advance-backend-state"
         }
@@ -337,6 +344,7 @@
       ],
       "hooks": [
         {
+          "caseId": "preflight",
           "stage": "state-file-corruption",
           "hook": "replace-tool-identity"
         }

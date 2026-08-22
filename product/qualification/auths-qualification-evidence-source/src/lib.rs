@@ -2326,10 +2326,26 @@ fn phase_has_hook(
     if program.sha256().map_err(string_error)? != phase.scenario_program_sha256 {
         return Err("ProviderProxy scenario program differs from the immutable phase".into());
     }
-    Ok(program
+    let cases = program
+        .cases()
+        .iter()
+        .filter(|case| case.role() == phase.role)
+        .collect::<Vec<_>>();
+    let matching = program
         .hooks()
         .iter()
-        .any(|candidate| candidate.stage() == stage && candidate.hook() == hook))
+        .filter(|candidate| {
+            candidate.stage() == stage
+                && candidate.hook() == hook
+                && cases
+                    .iter()
+                    .any(|case| case.case_id() == candidate.case_id())
+        })
+        .count();
+    if matching > 0 && (cases.len() != 1 || matching != 1) {
+        return Err("ProviderProxy hook lacks one exact active case binding".into());
+    }
+    Ok(matching == 1)
 }
 
 #[cfg(target_os = "linux")]

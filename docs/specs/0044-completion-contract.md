@@ -148,7 +148,9 @@ advance after a controller/source failure.
 Each immutable scenario program fixes an ordered roster of case IDs, stable
 logical intent IDs, closed domain stimulus tokens, serial/parallel groups,
 expectation authority, public outcome/effect/provider-call tuples, and protected
-hooks. Protected setup emits one canonical public input for every case in exact
+hooks. Every hook names one exact case ID; scenario-wide or role-only hook
+selection is forbidden, and multi-case stimuli repeat the hook row for each
+case they govern. Protected setup emits one canonical public input for every case in exact
 program order. The common installed runner derives idempotency only from the
 scenario, phase, and reviewed intent ID, executes every serial group in order,
 and starts every request in a parallel group before accepting its first
