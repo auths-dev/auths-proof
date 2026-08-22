@@ -13,6 +13,7 @@ use base64ct::{Base64UrlUnpadded, Encoding as _};
 use minicbor::{Decoder, Encoder, data::Type};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
+use std::sync::Arc;
 use thiserror::Error;
 
 const MAX_SCENARIOS: usize = 256;
@@ -1295,7 +1296,7 @@ pub fn qualification_admission_expectation(
 ///
 /// The common qualification harness owns these endpoints. Domain adapters may
 /// use them only to construct the installed client for the current phase.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone)]
 pub struct QualificationPhaseClient {
     agent_socket: String,
     result_socket: String,
@@ -1303,14 +1304,12 @@ pub struct QualificationPhaseClient {
     phase_index: Option<u8>,
     role: Option<QualificationOperationRole>,
     installed: Option<QualificationInstalledClient>,
+    installed_runner: Option<Arc<dyn QualificationInstalledClientRunner>>,
 }
 
 /// Exact checked installed-client process selected by the common harness.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct QualificationInstalledClient {
-    python: String,
-    profile_source: String,
-    working_directory: String,
     python_module: String,
     client_class: String,
     group: String,
@@ -1318,6 +1317,73 @@ pub struct QualificationInstalledClient {
     input_type: String,
     deadline_at_unix_seconds: u64,
 }
+
+/// Closed, logical request handed to the protected installed-client runner.
+///
+/// It deliberately contains no host executable or package path. The protected
+/// runner owns the reviewed runtime closure and translates these logical values
+/// to fixed in-sandbox paths.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct QualificationInstalledClientInvocation {
+    schema: String,
+    agent_socket: String,
+    result_socket: String,
+    python_module: String,
+    client_class: String,
+    group: String,
+    method: String,
+    input_type: String,
+    connection_alias: String,
+    scenario_id: String,
+    phase_index: u8,
+    role: QualificationOperationRole,
+    scenario_program_json: String,
+    canonical_input_base64url: String,
+    deadline_at_unix_seconds: u64,
+}
+
+/// Protected operating-system boundary for an installed generated SDK call.
+///
+/// Implementations must execute the request in the reviewed candidate sandbox
+/// and return only bounded canonical JSON. Domain adapters never receive an
+/// executable path or an arbitrary command surface.
+pub trait QualificationInstalledClientRunner: Send + Sync {
+    /// Runs one exact logical installed-client request.
+    fn invoke(
+        &self,
+        request: &QualificationInstalledClientInvocation,
+    ) -> Result<Vec<u8>, QualificationHarnessError>;
+}
+
+impl std::fmt::Debug for QualificationPhaseClient {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("QualificationPhaseClient")
+            .field("agent_socket", &self.agent_socket)
+            .field("result_socket", &self.result_socket)
+            .field("scenario_program", &self.scenario_program)
+            .field("phase_index", &self.phase_index)
+            .field("role", &self.role)
+            .field("installed", &self.installed)
+            .field("installed_runner", &self.installed_runner.is_some())
+            .finish()
+    }
+}
+
+impl PartialEq for QualificationPhaseClient {
+    fn eq(&self, other: &Self) -> bool {
+        self.agent_socket == other.agent_socket
+            && self.result_socket == other.result_socket
+            && self.scenario_program == other.scenario_program
+            && self.phase_index == other.phase_index
+            && self.role == other.role
+            && self.installed == other.installed
+            && self.installed_runner.is_some() == other.installed_runner.is_some()
+    }
+}
+
+impl Eq for QualificationPhaseClient {}
 
 /// Bounded canonical public outcome returned by the installed generated SDK.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1381,6 +1447,7 @@ impl QualificationPhaseClient {
             phase_index: None,
             role: None,
             installed: None,
+            installed_runner: None,
         })
     }
 
@@ -1415,6 +1482,18 @@ impl QualificationPhaseClient {
         Ok(self)
     }
 
+    /// Attaches the protected operating-system runner for the installed SDK.
+    pub fn with_installed_client_runner(
+        mut self,
+        runner: Arc<dyn QualificationInstalledClientRunner>,
+    ) -> Result<Self, QualificationHarnessError> {
+        if self.installed.is_none() {
+            return Err(QualificationHarnessError::InvalidPhaseClient);
+        }
+        self.installed_runner = Some(runner);
+        Ok(self)
+    }
+
     /// `ClientProxy` request socket supplied to the generated SDK.
     #[must_use]
     pub fn agent_socket(&self) -> &str {
@@ -1443,7 +1522,11 @@ impl QualificationPhaseClient {
         if self.scenario_program.is_none() || self.phase_index.is_none() || self.role.is_none() {
             return Err(QualificationHarnessError::InvalidPhaseClient);
         }
-        installed.invoke(self, connection_alias, cases)
+        let runner = self
+            .installed_runner
+            .as_ref()
+            .ok_or(QualificationHarnessError::InvalidPhaseClient)?;
+        installed.invoke(self, runner.as_ref(), connection_alias, cases)
     }
 }
 
@@ -1451,9 +1534,6 @@ impl QualificationInstalledClient {
     /// Constructs a manifest-derived installed-client invocation contract.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        python: String,
-        profile_source: String,
-        working_directory: String,
         python_module: String,
         client_class: String,
         group: String,
@@ -1462,9 +1542,6 @@ impl QualificationInstalledClient {
         deadline_at_unix_seconds: u64,
     ) -> Result<Self, QualificationHarnessError> {
         let value = Self {
-            python,
-            profile_source,
-            working_directory,
             python_module,
             client_class,
             group,
@@ -1477,13 +1554,7 @@ impl QualificationInstalledClient {
     }
 
     fn validate(&self) -> Result<(), QualificationHarnessError> {
-        let paths = [
-            self.python.as_str(),
-            self.profile_source.as_str(),
-            self.working_directory.as_str(),
-        ];
-        if paths.iter().any(|value| !safe_absolute_path(value))
-            || !python_module(&self.python_module)
+        if !python_module(&self.python_module)
             || !public_class_name(&self.client_class)
             || !python_identifier(&self.group)
             || !python_identifier(&self.method)
@@ -1499,17 +1570,13 @@ impl QualificationInstalledClient {
     fn invoke(
         &self,
         phase: &QualificationPhaseClient,
+        runner: &dyn QualificationInstalledClientRunner,
         connection_alias: &str,
         cases: &[QualificationCaseVector],
     ) -> Result<QualificationInstalledClientOutcome, QualificationHarnessError> {
-        use std::io::{Read as _, Write as _};
-        use std::process::Stdio;
-        use std::time::{Duration, SystemTime, UNIX_EPOCH};
-
-        let phase_index = phase
+        let phase_index_value = phase
             .phase_index
-            .ok_or(QualificationHarnessError::InvalidPhaseClient)?
-            .to_string();
+            .ok_or(QualificationHarnessError::InvalidPhaseClient)?;
         let scenario_program = phase
             .scenario_program
             .as_ref()
@@ -1519,13 +1586,6 @@ impl QualificationInstalledClient {
                 .map_err(|_| QualificationHarnessError::InvalidPhaseClient)?,
         )
         .map_err(|_| QualificationHarnessError::InvalidPhaseClient)?;
-        let role = match phase
-            .role
-            .ok_or(QualificationHarnessError::InvalidPhaseClient)?
-        {
-            QualificationOperationRole::Preflight => "preflight",
-            QualificationOperationRole::Effect => "effect",
-        };
         let selected_program_cases = scenario_program
             .cases()
             .iter()
@@ -1572,79 +1632,28 @@ impl QualificationInstalledClient {
         if canonical_input.is_empty() || canonical_input.len() > MAX_VECTOR_BYTES {
             return Err(QualificationHarnessError::Invocation);
         }
-        let mut child = std::process::Command::new(&self.python)
-            .args([
-                "-I",
-                "-c",
-                INSTALLED_QUALIFICATION_CLIENT,
-                &self.profile_source,
-                &self.python_module,
-                &self.client_class,
-                &self.group,
-                &self.method,
-                &self.input_type,
-                phase.agent_socket(),
-                connection_alias,
-                scenario_program.id(),
-                &phase_index,
-                role,
-                &scenario_program_json,
-            ])
-            .current_dir(&self.working_directory)
-            .env_clear()
-            .env("PYTHONNOUSERSITE", "1")
-            .env(
-                "AUTHS_QUALIFICATION_CLIENT_RESULT_SOCKET",
-                phase.result_socket(),
-            )
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::inherit())
-            .spawn()
-            .map_err(|_| QualificationHarnessError::Invocation)?;
-        let mut input = child
-            .stdin
-            .take()
-            .ok_or(QualificationHarnessError::Invocation)?;
-        input
-            .write_all(&canonical_input)
-            .map_err(|_| QualificationHarnessError::Invocation)?;
-        drop(input);
-        let output = child
-            .stdout
-            .take()
-            .ok_or(QualificationHarnessError::Invocation)?;
-        let reader = std::thread::spawn(move || {
-            let mut bytes = Vec::new();
-            output
-                .take(u64::try_from(MAX_VECTOR_BYTES + 1).unwrap_or(u64::MAX))
-                .read_to_end(&mut bytes)
-                .map(|_| bytes)
-        });
-        let status = loop {
-            if let Some(status) = child
-                .try_wait()
-                .map_err(|_| QualificationHarnessError::Invocation)?
-            {
-                break status;
-            }
-            let now = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map_err(|_| QualificationHarnessError::Invocation)?
-                .as_secs();
-            if now >= self.deadline_at_unix_seconds {
-                let _ = child.kill();
-                let _ = child.wait();
-                let _ = reader.join();
-                return Err(QualificationHarnessError::Invocation);
-            }
-            std::thread::sleep(Duration::from_millis(10));
+        let request = QualificationInstalledClientInvocation {
+            schema: "auths.profile-qualification-installed-client-invocation/1".into(),
+            agent_socket: phase.agent_socket().to_owned(),
+            result_socket: phase.result_socket().to_owned(),
+            python_module: self.python_module.clone(),
+            client_class: self.client_class.clone(),
+            group: self.group.clone(),
+            method: self.method.clone(),
+            input_type: self.input_type.clone(),
+            connection_alias: connection_alias.to_owned(),
+            scenario_id: scenario_program.id().to_owned(),
+            phase_index: phase_index_value,
+            role: phase
+                .role
+                .ok_or(QualificationHarnessError::InvalidPhaseClient)?,
+            scenario_program_json,
+            canonical_input_base64url: Base64UrlUnpadded::encode_string(&canonical_input),
+            deadline_at_unix_seconds: self.deadline_at_unix_seconds,
         };
-        let bytes = reader
-            .join()
-            .map_err(|_| QualificationHarnessError::Invocation)?
-            .map_err(|_| QualificationHarnessError::Invocation)?;
-        if !status.success() || bytes.is_empty() || bytes.len() > MAX_VECTOR_BYTES {
+        request.validate()?;
+        let bytes = runner.invoke(&request)?;
+        if bytes.is_empty() || bytes.len() > MAX_VECTOR_BYTES {
             return Err(QualificationHarnessError::Invocation);
         }
         let value: serde_json::Value =
@@ -1716,6 +1725,140 @@ impl QualificationInstalledClient {
             })
             .collect::<Result<Vec<_>, QualificationHarnessError>>()?;
         Ok(QualificationInstalledClientOutcome { cases })
+    }
+}
+
+impl QualificationInstalledClientInvocation {
+    /// Parses one exact canonical protected invocation.
+    pub fn from_json(bytes: &[u8]) -> Result<Self, QualificationHarnessError> {
+        if bytes.is_empty() || bytes.len() > MAX_VECTOR_BYTES.saturating_mul(2) {
+            return Err(QualificationHarnessError::InvalidPhaseClient);
+        }
+        let value: Self = serde_json::from_slice(bytes)
+            .map_err(|_| QualificationHarnessError::InvalidPhaseClient)?;
+        value.validate()?;
+        if serde_json_canonicalizer::to_vec(&value)
+            .map_err(|_| QualificationHarnessError::InvalidPhaseClient)?
+            != bytes
+        {
+            return Err(QualificationHarnessError::InvalidPhaseClient);
+        }
+        Ok(value)
+    }
+
+    /// Returns the exact canonical request bytes.
+    pub fn to_json(&self) -> Result<Vec<u8>, QualificationHarnessError> {
+        self.validate()?;
+        serde_json_canonicalizer::to_vec(self)
+            .map_err(|_| QualificationHarnessError::InvalidPhaseClient)
+    }
+
+    /// Validates the closed logical invocation surface.
+    pub fn validate(&self) -> Result<(), QualificationHarnessError> {
+        let sockets = [&self.agent_socket, &self.result_socket];
+        let agent = std::path::Path::new(&self.agent_socket);
+        let result = std::path::Path::new(&self.result_socket);
+        let scenario: serde_json::Value = serde_json::from_str(&self.scenario_program_json)
+            .map_err(|_| QualificationHarnessError::InvalidPhaseClient)?;
+        let canonical_input = Base64UrlUnpadded::decode_vec(&self.canonical_input_base64url)
+            .map_err(|_| QualificationHarnessError::InvalidPhaseClient)?;
+        if self.schema != "auths.profile-qualification-installed-client-invocation/1"
+            || sockets.iter().any(|value| !safe_absolute_path(value))
+            || agent == result
+            || agent.parent() != result.parent()
+            || !python_module(&self.python_module)
+            || !public_class_name(&self.client_class)
+            || !python_identifier(&self.group)
+            || !python_identifier(&self.method)
+            || !public_class_name(&self.input_type)
+            || !registered_token(&self.connection_alias)
+            || !lower_token(&self.scenario_id)
+            || !(1..=8).contains(&self.phase_index)
+            || serde_json_canonicalizer::to_vec(&scenario)
+                .map_err(|_| QualificationHarnessError::InvalidPhaseClient)?
+                != self.scenario_program_json.as_bytes()
+            || canonical_input.is_empty()
+            || canonical_input.len() > MAX_VECTOR_BYTES
+            || self.deadline_at_unix_seconds == 0
+        {
+            return Err(QualificationHarnessError::InvalidPhaseClient);
+        }
+        Ok(())
+    }
+
+    /// Returns the fixed reviewed Python program executed by the sandbox.
+    #[must_use]
+    pub const fn python_program(&self) -> &'static str {
+        INSTALLED_QUALIFICATION_CLIENT
+    }
+
+    /// Returns the fixed logical Python arguments, excluding executable and
+    /// package paths owned by the sandbox.
+    #[must_use]
+    pub fn python_arguments(&self) -> Vec<String> {
+        vec![
+            "-I".into(),
+            "-c".into(),
+            self.python_program().into(),
+            "/opt/auths/profile/src".into(),
+            self.python_module.clone(),
+            self.client_class.clone(),
+            self.group.clone(),
+            self.method.clone(),
+            self.input_type.clone(),
+            self.agent_socket.clone(),
+            self.connection_alias.clone(),
+            self.scenario_id.clone(),
+            self.phase_index.to_string(),
+            match self.role {
+                QualificationOperationRole::Preflight => "preflight".into(),
+                QualificationOperationRole::Effect => "effect".into(),
+            },
+            self.scenario_program_json.clone(),
+        ]
+    }
+
+    /// Returns the bounded canonical case-input document for stdin.
+    #[must_use]
+    pub fn canonical_input(&self) -> Result<Vec<u8>, QualificationHarnessError> {
+        Base64UrlUnpadded::decode_vec(&self.canonical_input_base64url)
+            .map_err(|_| QualificationHarnessError::InvalidPhaseClient)
+    }
+
+    /// Returns the protected result socket visible inside the sandbox.
+    #[must_use]
+    pub fn result_socket(&self) -> &str {
+        &self.result_socket
+    }
+
+    /// Returns the protected SDK request socket visible inside the sandbox.
+    #[must_use]
+    pub fn agent_socket(&self) -> &str {
+        &self.agent_socket
+    }
+
+    /// Returns the exact reviewed scenario selected for this call.
+    #[must_use]
+    pub fn scenario_id(&self) -> &str {
+        &self.scenario_id
+    }
+
+    /// Returns the exact reviewed phase index selected for this call.
+    #[must_use]
+    pub const fn phase_index(&self) -> u8 {
+        self.phase_index
+    }
+
+    /// Returns the exact operation role selected for this call.
+    #[must_use]
+    pub const fn role(&self) -> QualificationOperationRole {
+        self.role
+    }
+
+    /// Returns the immutable wall-clock deadline.
+    #[must_use]
+    pub const fn deadline_at_unix_seconds(&self) -> u64 {
+        self.deadline_at_unix_seconds
     }
 }
 

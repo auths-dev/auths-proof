@@ -166,6 +166,9 @@ jobs:
             --config-output "$config_root/agent.toml" \
             --anchors-output "$common_root/anchor-snapshots/receipt-trust-anchors.json" \
             --expected-sha256 "$RECEIPT_TRUST_SHA256"
+      - name: Install the exact protected Python toolchain
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with: {python-version: "3.13.5"}
       - name: Refuse invalid static ledger policy before provider setup
         shell: bash
         env:
@@ -200,6 +203,8 @@ jobs:
               AUTHS_QUALIFICATION_AGENT_UID="$AGENT_UID" \
               AUTHS_QUALIFICATION_AGENT_GID="$AGENT_GID" \
               AUTHS_QUALIFICATION_AGENT_CONFIG_SHA256="$agent_config_sha256" \
+              AUTHS_QUALIFICATION_AGENT_CONFIG="$agent_config" \
+              AUTHS_QUALIFICATION_PYTHON="$(command -v python)" \
               AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256="$WORKLOAD_ID_SHA256" \
               AUTHS_QUALIFICATION_RECOVERY_KEY_ID="$RECOVERY_KEY_ID" \
               AUTHS_QUALIFICATION_RECOVERY_PUBLIC_KEY_BASE64URL="$RECOVERY_PUBLIC_KEY_BASE64URL" \
@@ -225,9 +230,6 @@ jobs:
           ref: ${{ inputs.candidate_revision }}
           path: provider-free-candidate
           persist-credentials: false
-      - name: Install the exact protected Python toolchain
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with: {python-version: "3.13.5"}
       - name: Build and prepare the zero-provider pre-admission row
         if: env.PROVIDER_FREE_SANDBOX_READY == 'true' && inputs.domain == 'stripe'
         shell: bash
@@ -268,6 +270,8 @@ jobs:
             AUTHS_QUALIFICATION_AGENT_UID="$AGENT_UID" \
             AUTHS_QUALIFICATION_AGENT_GID="$AGENT_GID" \
             AUTHS_QUALIFICATION_AGENT_CONFIG_SHA256="$agent_config_sha256" \
+            AUTHS_QUALIFICATION_AGENT_CONFIG="$agent_config" \
+            AUTHS_QUALIFICATION_PYTHON="$(command -v python)" \
             AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256="$WORKLOAD_ID_SHA256" \
             AUTHS_QUALIFICATION_RECOVERY_KEY_ID="$RECOVERY_KEY_ID" \
             AUTHS_QUALIFICATION_RECOVERY_PUBLIC_KEY_BASE64URL="$RECOVERY_PUBLIC_KEY_BASE64URL" \
@@ -578,6 +582,8 @@ jobs:
               AUTHS_QUALIFICATION_AGENT_UID="$AGENT_UID" \
               AUTHS_QUALIFICATION_AGENT_GID="$AGENT_GID" \
               AUTHS_QUALIFICATION_AGENT_CONFIG_SHA256="$agent_config_sha256" \
+              AUTHS_QUALIFICATION_AGENT_CONFIG="$agent_config" \
+              AUTHS_QUALIFICATION_PYTHON="$(command -v python)" \
               AUTHS_QUALIFICATION_WORKLOAD_ID_SHA256="$WORKLOAD_ID_SHA256" \
               AUTHS_QUALIFICATION_RECOVERY_KEY_ID="$RECOVERY_KEY_ID" \
               AUTHS_QUALIFICATION_RECOVERY_PUBLIC_KEY_BASE64URL="$RECOVERY_PUBLIC_KEY_BASE64URL" \

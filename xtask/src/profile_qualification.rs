@@ -1,6 +1,6 @@
 use crate::prelude::*;
 use crate::root;
-use auths_config::{AgentConfig, AgentPlatform};
+use auths_config::{AgentConfig, AgentPlatform, WorkloadSelector};
 use auths_profile_kit::{
     ProfileApi, ProfilePackage, ProfileQualification, ProfileRoster,
     QUALIFICATION_RELEASE_ARTIFACT_ROLES, QualificationAttestation, QualificationCollectedScenario,
@@ -10,6 +10,7 @@ use auths_profile_kit::{
     QualificationEvidenceLedgerPlanV1, QualificationEvidenceLedgerRecord,
     QualificationEvidenceLedgerTrustRegistry, QualificationEvidenceSource,
     QualificationEvidenceSourceTrustRegistry, QualificationIndex, QualificationInstalledClient,
+    QualificationInstalledClientInvocation, QualificationInstalledClientRunner,
     QualificationJournalDecisionContext, QualificationObservation, QualificationObservationRecord,
     QualificationObserverTrustRegistry, QualificationPhaseClient, QualificationProtectedObserver,
     QualificationProtectedSetupInput, QualificationRecord, QualificationReleaseBuild,
@@ -21,11 +22,85 @@ use auths_profile_kit::{
     validate_qualification_key_separation, validate_qualification_trust_separation,
 };
 use auths_qualification_supervisor::{
+    qualification_candidate_sandbox_policy_sha256, qualification_python_runtime_closure,
     qualification_receipt_anchors_from_agent_config, verify_provider_free_qualification_ledger,
 };
 use auths_receipts::decode_receipt_trust_anchors;
 use base64ct::Encoding as _;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+#[derive(Debug)]
+struct ProtectedCandidateSandboxRunner {
+    socket: PathBuf,
+}
+
+impl QualificationInstalledClientRunner for ProtectedCandidateSandboxRunner {
+    fn invoke(
+        &self,
+        request: &QualificationInstalledClientInvocation,
+    ) -> Result<Vec<u8>, auths_profile_kit::QualificationHarnessError> {
+        use std::io::{Read as _, Write as _};
+        use std::os::unix::net::UnixStream;
+
+        if !self.socket.is_absolute() || request.canonical_input()?.is_empty() {
+            return Err(auths_profile_kit::QualificationHarnessError::InvalidPhaseClient);
+        }
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|_| auths_profile_kit::QualificationHarnessError::Invocation)?
+            .as_secs();
+        let timeout = request
+            .deadline_at_unix_seconds()
+            .checked_sub(now)
+            .filter(|seconds| *seconds != 0)
+            .map(Duration::from_secs)
+            .ok_or(auths_profile_kit::QualificationHarnessError::Invocation)?;
+        let bytes = request.to_json()?;
+        let mut stream = UnixStream::connect(&self.socket)
+            .map_err(|_| auths_profile_kit::QualificationHarnessError::Invocation)?;
+        stream
+            .set_read_timeout(Some(timeout))
+            .map_err(|_| auths_profile_kit::QualificationHarnessError::Invocation)?;
+        stream
+            .set_write_timeout(Some(timeout))
+            .map_err(|_| auths_profile_kit::QualificationHarnessError::Invocation)?;
+        stream
+            .write_all(
+                &u32::try_from(bytes.len())
+                    .map_err(|_| auths_profile_kit::QualificationHarnessError::Invocation)?
+                    .to_be_bytes(),
+            )
+            .map_err(|_| auths_profile_kit::QualificationHarnessError::Invocation)?;
+        stream
+            .write_all(&bytes)
+            .map_err(|_| auths_profile_kit::QualificationHarnessError::Invocation)?;
+        stream
+            .shutdown(std::net::Shutdown::Write)
+            .map_err(|_| auths_profile_kit::QualificationHarnessError::Invocation)?;
+        let mut header = [0_u8; 4];
+        stream
+            .read_exact(&mut header)
+            .map_err(|_| auths_profile_kit::QualificationHarnessError::Invocation)?;
+        let length = usize::try_from(u32::from_be_bytes(header))
+            .map_err(|_| auths_profile_kit::QualificationHarnessError::Invocation)?;
+        if length == 0 || length > MAX_CANDIDATE_COLLECTION_BYTES as usize {
+            return Err(auths_profile_kit::QualificationHarnessError::Invocation);
+        }
+        let mut response = vec![0_u8; length];
+        stream
+            .read_exact(&mut response)
+            .map_err(|_| auths_profile_kit::QualificationHarnessError::Invocation)?;
+        let mut trailing = [0_u8; 1];
+        if stream
+            .read(&mut trailing)
+            .map_err(|_| auths_profile_kit::QualificationHarnessError::Invocation)?
+            != 0
+        {
+            return Err(auths_profile_kit::QualificationHarnessError::Invocation);
+        }
+        Ok(response)
+    }
+}
 
 const CLOSURE_DOMAIN: &[u8] = b"auths.profile-qualification-closure/1\0";
 const ROSTER_PATH: &str = "product/runtime/auths-node/profile-packages.json";
@@ -1213,6 +1288,81 @@ fn build_ledger_plan(
         .map(|member| member.sha256.clone())
         .filter(|digest| lower_hex(digest, 64))
         .ok_or_else(|| "verified release binding omits the qualification agent".to_owned())?;
+    let release_member_sha256 = |role: &str| {
+        release_binding
+            .artifacts
+            .iter()
+            .find(|artifact| artifact.role == role)
+            .map(|artifact| artifact.member_sha256.clone())
+            .filter(|digest| lower_hex(digest, 64))
+            .ok_or_else(|| format!("verified release binding omits {role}"))
+    };
+    let agent_config_bytes = read_bounded(
+        Path::new(&required_env("AUTHS_QUALIFICATION_AGENT_CONFIG")?),
+        4_194_304,
+    )?;
+    if hex::encode(Sha256::digest(&agent_config_bytes))
+        != required_sha256_env("AUTHS_QUALIFICATION_AGENT_CONFIG_SHA256")?
+    {
+        return Err("candidate sandbox agent configuration digest drifted".into());
+    }
+    let agent_config = AgentConfig::from_toml(
+        std::str::from_utf8(&agent_config_bytes).map_err(string_error)?,
+        AgentPlatform::Linux,
+    )
+    .map_err(string_error)?;
+    let workload = agent_config
+        .workloads()
+        .iter()
+        .filter(|workload| {
+            hex::encode(Sha256::digest(workload.id().as_bytes())) == workload_id_sha256
+        })
+        .collect::<Vec<_>>();
+    let [workload] = workload.as_slice() else {
+        return Err("candidate sandbox workload selector is not unique".into());
+    };
+    let (workload_uid, workload_gid, executable_sha256, linux_cgroup_prefix) =
+        match workload.selector() {
+            WorkloadSelector::Posix {
+                uid,
+                gid: Some(gid),
+                executable_sha256: Some(executable_sha256),
+                linux_cgroup_prefix: Some(linux_cgroup_prefix),
+            } => (
+                *uid,
+                *gid,
+                executable_sha256.clone(),
+                linux_cgroup_prefix.clone(),
+            ),
+            _ => return Err("candidate sandbox workload selector is not fully bound".into()),
+        };
+    let python_runtime = qualification_python_runtime_closure(Path::new(&required_env(
+        "AUTHS_QUALIFICATION_PYTHON",
+    )?))?;
+    if executable_sha256 != python_runtime.executable_sha256 {
+        return Err(
+            "candidate sandbox Python executable differs from its workload selector".into(),
+        );
+    }
+    let candidate_sandbox = auths_profile_kit::QualificationCandidateSandboxPlanV1 {
+        schema: "auths.profile-qualification-candidate-sandbox-plan/1".into(),
+        workload_uid,
+        workload_gid,
+        requester_artifact_sha256: release_binding
+            .attester_tools
+            .members
+            .iter()
+            .find(|member| member.path == "xtask")
+            .map(|member| member.sha256.clone())
+            .filter(|digest| lower_hex(digest, 64))
+            .ok_or_else(|| "verified attester tools omit the sandbox requester".to_owned())?,
+        executable_sha256,
+        linux_cgroup_prefix,
+        python_runtime_sha256: python_runtime.runtime_sha256,
+        python_wheel_sha256: release_member_sha256("python-wheel")?,
+        python_profile_sha256: release_member_sha256(&format!("python-profile-{domain}"))?,
+        policy_sha256: qualification_candidate_sandbox_policy_sha256(),
+    };
     let plan = auths_profile_kit::QualificationEvidenceLedgerPlanV1 {
         schema: "auths.profile-qualification-evidence-ledger-plan/1".into(),
         repository_id,
@@ -1251,6 +1401,7 @@ fn build_ledger_plan(
         receipt_trust_anchor_sha256: required_sha256_env(
             "AUTHS_QUALIFICATION_RECEIPT_TRUST_ANCHOR_SHA256",
         )?,
+        candidate_sandbox,
         phases,
         started_at_unix_seconds,
         deadline_at_unix_seconds,
@@ -5137,9 +5288,9 @@ struct ProcessProtectedPhaseRuntime {
     plan: QualificationEvidenceLedgerPlanV1,
     agent_config_sha256: String,
     agent_launcher_sha256: String,
-    installed_python: PathBuf,
-    installed_profile_source: PathBuf,
-    installed_working_directory: PathBuf,
+    candidate_python: PathBuf,
+    candidate_wheel: PathBuf,
+    candidate_profile_archive: PathBuf,
     installed_python_module: String,
     installed_client_class: String,
     installed_methods: BTreeMap<String, InstalledProfileMethod>,
@@ -5323,24 +5474,6 @@ impl ProcessProtectedPhaseRuntime {
         let wheel = verified_release_member(&binding, &release_artifacts, "python-wheel")?;
         let profile_role = format!("python-profile-{}", context.domain);
         let profile_archive = verified_release_member(&binding, &release_artifacts, &profile_role)?;
-        let installed_working_directory = runtime_root.join("installed-client");
-        fs::create_dir(&installed_working_directory).map_err(string_error)?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt as _;
-            fs::set_permissions(
-                &installed_working_directory,
-                fs::Permissions::from_mode(0o700),
-            )
-            .map_err(string_error)?;
-        }
-        let (installed_python, installed_profile_source) = install_python_client(
-            &python,
-            &wheel,
-            &profile_archive,
-            context.domain,
-            &installed_working_directory,
-        )?;
         let mut installed_methods = BTreeMap::new();
         for profile in context.package.profiles() {
             let semantic = format!("{}/{}", profile.id(), profile.version());
@@ -5373,9 +5506,9 @@ impl ProcessProtectedPhaseRuntime {
             plan,
             agent_config_sha256,
             agent_launcher_sha256,
-            installed_python,
-            installed_profile_source,
-            installed_working_directory,
+            candidate_python: python,
+            candidate_wheel: wheel,
+            candidate_profile_archive: profile_archive,
             installed_python_module: context.package.domain().python_module().into(),
             installed_client_class: context.package.domain().client_class().into(),
             installed_methods,
@@ -5460,6 +5593,7 @@ impl ProtectedPhaseRuntime for ProcessProtectedPhaseRuntime {
         let agent_socket = phase_root.join("agent/agent.sock");
         let client_proxy_socket = phase_root.join("client-proxy/client.sock");
         let client_result_socket = phase_root.join("client-proxy/result.sock");
+        let candidate_workload_socket = phase_root.join("candidate-workload/controller.sock");
         let client_proxy_control_socket = phase_root.join("client-proxy/control.sock");
         let credential_broker_socket = phase_root.join("credential-broker/agent.sock");
         let credential_broker_checkpoint_socket =
@@ -5504,6 +5638,18 @@ impl ProtectedPhaseRuntime for ProcessProtectedPhaseRuntime {
                 absolute_path_string(&cgroup)?.as_str(),
                 "--client-proxy-control-socket",
                 absolute_path_string(&client_proxy_control_socket)?.as_str(),
+                "--client-proxy-socket",
+                absolute_path_string(&client_proxy_socket)?.as_str(),
+                "--client-result-socket",
+                absolute_path_string(&client_result_socket)?.as_str(),
+                "--candidate-workload-socket",
+                absolute_path_string(&candidate_workload_socket)?.as_str(),
+                "--candidate-python",
+                absolute_path_string(&self.candidate_python)?.as_str(),
+                "--candidate-python-wheel",
+                absolute_path_string(&self.candidate_wheel)?.as_str(),
+                "--candidate-python-profile",
+                absolute_path_string(&self.candidate_profile_archive)?.as_str(),
                 "--credential-broker-socket",
                 absolute_path_string(&credential_broker_socket)?.as_str(),
                 "--credential-broker-checkpoint-socket",
@@ -5593,9 +5739,6 @@ impl ProtectedPhaseRuntime for ProcessProtectedPhaseRuntime {
             .map_err(string_error)?
             .with_installed_client(
                 QualificationInstalledClient::new(
-                    absolute_path_string(&self.installed_python)?,
-                    absolute_path_string(&self.installed_profile_source)?,
-                    absolute_path_string(&self.installed_working_directory)?,
                     self.installed_python_module.clone(),
                     self.installed_client_class.clone(),
                     self.installed_methods
@@ -5617,6 +5760,10 @@ impl ProtectedPhaseRuntime for ProcessProtectedPhaseRuntime {
                 )
                 .map_err(string_error)?,
             )
+            .map_err(string_error)?
+            .with_installed_client_runner(std::sync::Arc::new(ProtectedCandidateSandboxRunner {
+                socket: candidate_workload_socket,
+            }))
             .map_err(string_error)?,
             child,
             input: Some(input),

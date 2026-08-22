@@ -236,6 +236,7 @@ r2d2 = "0.8.10"
 r2d2_postgres = "0.18.2"
 rustls = { version = "0.23.42", default-features = false, features = ["ring", "std", "tls12"] }
 rustix = { version = "1.1.4", default-features = false, features = ["fs", "net", "process"] }
+seccompiler = "0.5.0"
 zeroize = { version = "1.9.0", features = ["derive"] }
 rmcp = { version = "1.8.0", default-features = false, features = ["server"] }
 serde_json_canonicalizer = "0.3.2"

@@ -20,16 +20,193 @@ use sha2::{Digest as _, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::Read as _;
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
 
 const RELEASE_SURFACE_SCHEMA: &str = "auths.qualification-release-surface/1";
 const RELEASE_MEMBERS_SCHEMA: &str = "auths.qualification-release-members/1";
 const MAX_JSON_BYTES: u64 = 262_144;
 const MAX_ARTIFACT_BYTES: u64 = 536_870_912;
 const MAX_AGGREGATE_ARTIFACT_BYTES: u64 = 4_294_967_296;
+const MAX_PYTHON_RUNTIME_MEMBERS: usize = 100_000;
+const MAX_PYTHON_RUNTIME_BYTES: u64 = 4_294_967_296;
+const CANDIDATE_SANDBOX_POLICY: &[u8] = include_bytes!("../policy/candidate-sandbox-v1.json");
 
 fn string_error(error: impl std::fmt::Display) -> String {
     error.to_string()
+}
+
+/// Returns the digest of the fixed sandbox policy compiled into every
+/// protected qualification tool that prepares or launches candidate code.
+#[must_use]
+pub fn qualification_candidate_sandbox_policy_sha256() -> String {
+    hex::encode(Sha256::digest(CANDIDATE_SANDBOX_POLICY))
+}
+
+/// Exact checked Python runtime closure used by the candidate sandbox.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualificationPythonRuntimeClosure {
+    pub root: PathBuf,
+    pub executable_relative_path: PathBuf,
+    pub executable_sha256: String,
+    pub runtime_sha256: String,
+    pub members: usize,
+    pub bytes: u64,
+}
+
+/// Hashes the complete bounded Python prefix without following member links.
+///
+/// The protected sandbox launcher repeats this projection while copying the
+/// same closure into its private read-only root, closing the check/use gap.
+#[cfg(unix)]
+pub fn qualification_python_runtime_closure(
+    executable: &Path,
+) -> Result<QualificationPythonRuntimeClosure, String> {
+    use rustix::fs::{Mode, OFlags, open};
+    use std::os::unix::fs::MetadataExt as _;
+
+    if !executable.is_absolute() {
+        return Err("qualification Python executable is not absolute".into());
+    }
+    let canonical_executable = fs::canonicalize(executable).map_err(string_error)?;
+    let root = canonical_executable
+        .parent()
+        .and_then(Path::parent)
+        .ok_or_else(|| "qualification Python executable has no runtime prefix".to_owned())?
+        .to_path_buf();
+    let executable_relative_path = canonical_executable
+        .strip_prefix(&root)
+        .map_err(string_error)?
+        .to_path_buf();
+    let mut pending = vec![PathBuf::new()];
+    let mut entries = Vec::new();
+    while let Some(relative_directory) = pending.pop() {
+        let directory = root.join(&relative_directory);
+        let mut children = fs::read_dir(&directory)
+            .map_err(string_error)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(string_error)?;
+        children.sort_by_key(fs::DirEntry::file_name);
+        for child in children {
+            let name = child.file_name();
+            let name = name
+                .to_str()
+                .ok_or_else(|| "qualification Python runtime path is not UTF-8".to_owned())?;
+            if name.is_empty() || name == "." || name == ".." || name.contains('\0') {
+                return Err("qualification Python runtime path is unsafe".into());
+            }
+            let relative = relative_directory.join(name);
+            let metadata = fs::symlink_metadata(child.path()).map_err(string_error)?;
+            entries.push((relative.clone(), metadata));
+            if entries.len() > MAX_PYTHON_RUNTIME_MEMBERS {
+                return Err("qualification Python runtime member count exceeds its bound".into());
+            }
+            if entries
+                .last()
+                .is_some_and(|(_, metadata)| metadata.is_dir())
+            {
+                pending.push(relative);
+            }
+        }
+    }
+    entries.sort_by(|left, right| left.0.cmp(&right.0));
+    let mut runtime = Sha256::new();
+    runtime.update(b"AUTHS-QUALIFICATION-PYTHON-RUNTIME\0\x01");
+    let mut total = 0_u64;
+    let mut executable_sha256 = None;
+    for (relative, before) in &entries {
+        let relative_bytes = relative
+            .to_str()
+            .ok_or_else(|| "qualification Python runtime path is not UTF-8".to_owned())?
+            .as_bytes();
+        runtime.update(
+            u32::try_from(relative_bytes.len())
+                .map_err(string_error)?
+                .to_be_bytes(),
+        );
+        runtime.update(relative_bytes);
+        runtime.update((before.mode() & 0o777).to_be_bytes());
+        if before.is_dir() {
+            runtime.update(b"d");
+            continue;
+        }
+        if before.file_type().is_symlink() {
+            let target = fs::read_link(root.join(relative)).map_err(string_error)?;
+            if target.is_absolute()
+                || target
+                    .components()
+                    .any(|component| matches!(component, Component::ParentDir | Component::RootDir))
+            {
+                return Err("qualification Python runtime link escapes its prefix".into());
+            }
+            let target = target
+                .to_str()
+                .ok_or_else(|| "qualification Python runtime link is not UTF-8".to_owned())?;
+            runtime.update(b"l");
+            runtime.update(
+                u32::try_from(target.len())
+                    .map_err(string_error)?
+                    .to_be_bytes(),
+            );
+            runtime.update(target.as_bytes());
+            continue;
+        }
+        if !before.is_file() || before.nlink() != 1 {
+            return Err("qualification Python runtime member is not a single-link file".into());
+        }
+        let mut file = fs::File::from(
+            open(
+                root.join(relative),
+                OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+                Mode::empty(),
+            )
+            .map_err(string_error)?,
+        );
+        let mut member = Sha256::new();
+        let mut member_bytes = 0_u64;
+        let mut chunk = [0_u8; 65_536];
+        loop {
+            let length = file.read(&mut chunk).map_err(string_error)?;
+            if length == 0 {
+                break;
+            }
+            member_bytes = member_bytes
+                .checked_add(u64::try_from(length).map_err(string_error)?)
+                .ok_or_else(|| "qualification Python member length overflowed".to_owned())?;
+            total = total
+                .checked_add(u64::try_from(length).map_err(string_error)?)
+                .filter(|value| *value <= MAX_PYTHON_RUNTIME_BYTES)
+                .ok_or_else(|| {
+                    "qualification Python runtime bytes exceed their bound".to_owned()
+                })?;
+            member.update(&chunk[..length]);
+        }
+        let after = file.metadata().map_err(string_error)?;
+        if member_bytes != before.len()
+            || before.dev() != after.dev()
+            || before.ino() != after.ino()
+            || before.len() != after.len()
+            || before.mode() != after.mode()
+        {
+            return Err("qualification Python runtime changed while hashing".into());
+        }
+        let member_sha256 = hex::encode(member.finalize());
+        runtime.update(b"f");
+        runtime.update(member_bytes.to_be_bytes());
+        runtime.update(member_sha256.as_bytes());
+        if relative == &executable_relative_path {
+            executable_sha256 = Some(member_sha256);
+        }
+    }
+    Ok(QualificationPythonRuntimeClosure {
+        root,
+        executable_relative_path,
+        executable_sha256: executable_sha256.ok_or_else(|| {
+            "qualification Python executable is absent from its runtime closure".to_owned()
+        })?,
+        runtime_sha256: hex::encode(runtime.finalize()),
+        members: entries.len(),
+        bytes: total,
+    })
 }
 
 /// Derives the one canonical public receipt-anchor snapshot from an exact

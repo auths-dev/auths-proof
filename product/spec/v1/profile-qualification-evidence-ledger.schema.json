@@ -21,7 +21,7 @@
   "$defs": {
     "record": {
       "type": "object", "additionalProperties": false,
-      "required": ["schema", "repositoryId", "workflowPath", "workflowRevision", "candidateRevision", "attesterRevision", "runId", "runAttempt", "domain", "target", "protectedEnvironment", "providerRunId", "ledgerId", "sessionNonceSha256", "setupHandoffSha256", "cleanupReferenceSha256", "supervisorControllerUid", "supervisorControllerArtifactSha256", "ledgerAppenderArtifactSha256", "agentUid", "agentGid", "agentLauncherArtifactSha256", "agentExecutableSha256", "agentConfigurationSha256", "recoveryKeyId", "recoveryPublicKeyBase64url", "receiptTrustAnchorSha256", "phaseCommitments", "events", "startedAtUnixSeconds", "deadlineAtUnixSeconds", "completedAtUnixSeconds"],
+      "required": ["schema", "repositoryId", "workflowPath", "workflowRevision", "candidateRevision", "attesterRevision", "runId", "runAttempt", "domain", "target", "protectedEnvironment", "providerRunId", "ledgerId", "sessionNonceSha256", "setupHandoffSha256", "cleanupReferenceSha256", "supervisorControllerUid", "supervisorControllerArtifactSha256", "ledgerAppenderArtifactSha256", "agentUid", "agentGid", "agentLauncherArtifactSha256", "agentExecutableSha256", "agentConfigurationSha256", "recoveryKeyId", "recoveryPublicKeyBase64url", "receiptTrustAnchorSha256", "candidateSandbox", "phaseCommitments", "events", "startedAtUnixSeconds", "deadlineAtUnixSeconds", "completedAtUnixSeconds"],
       "properties": {
         "schema": {"const": "auths.profile-qualification-evidence-ledger-record/1"},
         "repositoryId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
@@ -50,6 +50,7 @@
         "recoveryKeyId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
         "recoveryPublicKeyBase64url": {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"},
         "receiptTrustAnchorSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "candidateSandbox": {"$ref": "profile-qualification-evidence-ledger-plan.schema.json#/$defs/candidateSandbox"},
         "phaseCommitments": {"type": "array", "minItems": 1, "maxItems": 2048, "items": {"$ref": "#/$defs/phase"}},
         "events": {"type": "array", "minItems": 1, "maxItems": 16384, "items": {"$ref": "#/$defs/event"}},
         "startedAtUnixSeconds": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},

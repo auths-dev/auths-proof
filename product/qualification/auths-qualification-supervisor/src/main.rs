@@ -1398,6 +1398,7 @@ fn prepare_row_runtime(arguments: &[String]) -> Result<(), String> {
         )?;
         for (name, uid) in [
             ("agent", plan.agent_uid),
+            ("candidate-workload", plan.supervisor_controller_uid),
             ("journal-reader", journal_reader_uid),
             ("client-proxy", client_proxy_reader_uid),
             ("credential-broker", credential_broker_reader_uid),
@@ -3459,6 +3460,7 @@ fn assemble_ledger(arguments: &[String]) -> Result<(), String> {
         recovery_key_id: plan.recovery_key_id,
         recovery_public_key_base64url: plan.recovery_public_key_base64url,
         receipt_trust_anchor_sha256: plan.receipt_trust_anchor_sha256,
+        candidate_sandbox: plan.candidate_sandbox,
         phase_commitments,
         events,
         started_at_unix_seconds: plan.started_at_unix_seconds,
@@ -4405,6 +4407,18 @@ mod tests {
             recovery_key_id: "recovery".into(),
             recovery_public_key_base64url: Base64UrlUnpadded::encode_string(&[9; 32]),
             receipt_trust_anchor_sha256: "c".repeat(64),
+            candidate_sandbox: auths_profile_kit::QualificationCandidateSandboxPlanV1 {
+                schema: "auths.profile-qualification-candidate-sandbox-plan/1".into(),
+                workload_uid: 1002,
+                workload_gid: 1002,
+                requester_artifact_sha256: "a".repeat(64),
+                executable_sha256: "e".repeat(64),
+                linux_cgroup_prefix: "/auths-qualification/".into(),
+                python_runtime_sha256: "f".repeat(64),
+                python_wheel_sha256: "1".repeat(64),
+                python_profile_sha256: "2".repeat(64),
+                policy_sha256: "3".repeat(64),
+            },
             phases: vec![QualificationEvidencePhasePlanV1 {
                 scenario_id: "happy-path".into(),
                 phase_index: 1,

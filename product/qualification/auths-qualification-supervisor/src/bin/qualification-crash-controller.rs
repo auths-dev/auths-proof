@@ -19,9 +19,10 @@ mod linux {
         QualificationDurableDecisionAckV1, QualificationEffect, QualificationEvidenceEvent,
         QualificationEvidenceEventKind, QualificationEvidenceLedgerPlanV1,
         QualificationEvidenceSource, QualificationEvidenceSourceTrustRegistry,
-        QualificationFailpoint, QualificationJournalDecisionContext,
-        QualificationJournalDecisionContextRecord, QualificationSupervisorPhaseRequestV1,
-        qualification_pre_admission_attempt_count, qualification_state_directory_commitment,
+        QualificationFailpoint, QualificationInstalledClientInvocation,
+        QualificationJournalDecisionContext, QualificationJournalDecisionContextRecord,
+        QualificationSupervisorPhaseRequestV1, qualification_pre_admission_attempt_count,
+        qualification_state_directory_commitment,
     };
     use auths_qualification_evidence_source::{
         QualificationCrashActionResponseV1, QualificationJournalBoundaryDecisionV1,
@@ -58,8 +59,8 @@ mod linux {
         os::{
             fd::{AsFd as _, OwnedFd},
             unix::{
-                fs::{FileTypeExt as _, MetadataExt as _},
-                net::UnixStream,
+                fs::{FileTypeExt as _, MetadataExt as _, PermissionsExt as _},
+                net::{UnixListener, UnixStream},
                 process::ExitStatusExt as _,
             },
         },
@@ -205,6 +206,117 @@ mod linux {
         path: PathBuf,
         device: u64,
         inode: u64,
+    }
+
+    struct CandidateWorkloadSession {
+        listener: UnixListener,
+        plan: QualificationEvidenceLedgerPlanV1,
+        phase: auths_profile_kit::QualificationEvidencePhasePlanV1,
+        launcher: PathBuf,
+        launcher_plan: PathBuf,
+        python: PathBuf,
+        wheel: PathBuf,
+        profile: PathBuf,
+        cgroup: PathBuf,
+        client_socket: PathBuf,
+        result_socket: PathBuf,
+    }
+
+    impl CandidateWorkloadSession {
+        fn run(self, deadline: Instant) -> Result<(), String> {
+            let (mut stream, _) = accept_before(&self.listener, deadline, "candidate workload")?;
+            let peer = QualificationSourceSessionPeer::observe(&stream)?;
+            if peer.uid() != self.plan.supervisor_controller_uid
+                || peer.executable_sha256() != self.plan.candidate_sandbox.requester_artifact_sha256
+            {
+                return Err("candidate workload requester differs from protected policy".into());
+            }
+            let request_bytes =
+                read_bounded_session_frame_before(&mut stream, 2 * 16_777_216, deadline)?
+                    .ok_or_else(|| "candidate workload request is absent".to_owned())?;
+            if read_bounded_session_frame_before(&mut stream, 1, deadline)?.is_some() {
+                return Err("candidate workload requester sent more than one frame".into());
+            }
+            let request = QualificationInstalledClientInvocation::from_json(&request_bytes)
+                .map_err(string_error)?;
+            if request.scenario_id() != self.phase.scenario_id
+                || request.phase_index() != self.phase.phase_index
+                || request.role() != self.phase.role
+                || request.agent_socket() != path_string(&self.client_socket)?
+                || request.result_socket() != path_string(&self.result_socket)?
+            {
+                return Err("candidate workload request differs from the immutable phase".into());
+            }
+            peer.verify_unchanged()?;
+            let result = launch_candidate_workload(
+                &self.plan,
+                &self.phase,
+                &self.launcher,
+                &self.launcher_plan,
+                &self.python,
+                &self.wheel,
+                &self.profile,
+                &self.cgroup,
+                &request_bytes,
+                deadline,
+            )?;
+            peer.verify_unchanged()?;
+            write_source_session_frame_before(&mut stream, &result, deadline)?;
+            stream.shutdown(Shutdown::Write).map_err(string_error)?;
+            Ok(())
+        }
+    }
+
+    fn bind_candidate_workload_listener(
+        path: &Path,
+        controller_uid: u32,
+        agent_gid: u32,
+    ) -> Result<UnixListener, String> {
+        if !path.is_absolute() || fs::symlink_metadata(path).is_ok() {
+            return Err("candidate workload socket path is not new and absolute".into());
+        }
+        let parent = path
+            .parent()
+            .ok_or_else(|| "candidate workload socket has no parent".to_owned())?;
+        let metadata = fs::symlink_metadata(parent).map_err(string_error)?;
+        if !metadata.file_type().is_dir()
+            || metadata.uid() != controller_uid
+            || metadata.gid() != agent_gid
+            || metadata.mode() & 0o777 != 0o710
+        {
+            return Err("candidate workload socket parent differs from protected topology".into());
+        }
+        let listener = UnixListener::bind(path).map_err(string_error)?;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600)).map_err(string_error)?;
+        listener.set_nonblocking(true).map_err(string_error)?;
+        Ok(listener)
+    }
+
+    fn accept_before(
+        listener: &UnixListener,
+        deadline: Instant,
+        label: &str,
+    ) -> Result<(UnixStream, std::os::unix::net::SocketAddr), String> {
+        loop {
+            if Instant::now() >= deadline {
+                return Err(format!("{label} did not connect before the deadline"));
+            }
+            match listener.accept() {
+                Ok((stream, address)) => {
+                    stream.set_nonblocking(true).map_err(string_error)?;
+                    return Ok((stream, address));
+                }
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::Interrupted
+                    ) =>
+                {
+                    thread::sleep(Duration::from_millis(10));
+                }
+                Err(error) => return Err(string_error(error)),
+            }
+        }
     }
 
     impl OwnedCgroup {
@@ -393,7 +505,13 @@ mod linux {
                 "--agent-state-directory",
                 "--agent-uid",
                 "--cgroup",
+                "--candidate-python",
+                "--candidate-python-profile",
+                "--candidate-python-wheel",
+                "--candidate-workload-socket",
                 "--client-proxy-control-socket",
+                "--client-proxy-socket",
+                "--client-result-socket",
                 "--credential-broker-checkpoint-socket",
                 "--credential-broker-control-socket",
                 "--credential-broker-socket",
@@ -716,6 +834,16 @@ mod linux {
             return Err("ordinary phase launcher differs from the immutable plan".into());
         }
         let cgroup = Path::new(value(&values, "--cgroup")?);
+        let cgroup_name = cgroup
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| "ordinary phase cgroup has no safe name".to_owned())?;
+        let workload_cgroup = cgroup.with_file_name(format!("{cgroup_name}-workload"));
+        let candidate_listener = bind_candidate_workload_listener(
+            Path::new(value(&values, "--candidate-workload-socket")?),
+            controller_uid,
+            agent_gid,
+        )?;
         let crash_identity_ref = crash_identity
             .as_ref()
             .map(|(control, nonce)| (control.as_str(), nonce.as_str()));
@@ -896,6 +1024,20 @@ mod linux {
             journal_reader: None,
             profile_state_reader: None,
         };
+        let candidate_session = CandidateWorkloadSession {
+            listener: candidate_listener,
+            plan: plan.clone(),
+            phase: phase.clone(),
+            launcher: PathBuf::from(value(&values, "--agent-launcher")?),
+            launcher_plan: PathBuf::from(launcher_ledger_plan_path),
+            python: PathBuf::from(value(&values, "--candidate-python")?),
+            wheel: PathBuf::from(value(&values, "--candidate-python-wheel")?),
+            profile: PathBuf::from(value(&values, "--candidate-python-profile")?),
+            cgroup: workload_cgroup,
+            client_socket: PathBuf::from(value(&values, "--client-proxy-socket")?),
+            result_socket: PathBuf::from(value(&values, "--client-result-socket")?),
+        };
+        let candidate_worker = thread::spawn(move || candidate_session.run(deadline));
         let ready = format!("AUTHS-QUALIFICATION-PHASE-READY/1 {scenario_id} {phase_index}\n");
         let mut output = std::io::stdout().lock();
         output.write_all(ready.as_bytes()).map_err(string_error)?;
@@ -1144,6 +1286,9 @@ mod linux {
             drop(held_gate_output);
             drop(held_gate_release);
         }
+        candidate_worker
+            .join()
+            .map_err(|_| "candidate workload worker panicked".to_owned())??;
         drop(gate);
         stop_phase_reader(
             Path::new(value(&values, "--client-proxy-control-socket")?),
@@ -4098,6 +4243,58 @@ mod linux {
             }
         }
         Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn launch_candidate_workload(
+        plan: &QualificationEvidenceLedgerPlanV1,
+        phase: &auths_profile_kit::QualificationEvidencePhasePlanV1,
+        launcher: &Path,
+        launcher_plan: &Path,
+        python: &Path,
+        wheel: &Path,
+        profile: &Path,
+        cgroup: &Path,
+        request: &[u8],
+        _deadline: Instant,
+    ) -> Result<Vec<u8>, String> {
+        use auths_qualification_supervisor::{
+            qualification_candidate_sandbox_policy_sha256, qualification_python_runtime_closure,
+        };
+
+        if !launcher.is_absolute()
+            || !launcher_plan.is_absolute()
+            || !python.is_absolute()
+            || !wheel.is_absolute()
+            || !profile.is_absolute()
+            || !cgroup.starts_with("/sys/fs/cgroup")
+            || cgroup == Path::new("/sys/fs/cgroup")
+            || !plan.phases.iter().any(|planned| planned == phase)
+        {
+            return Err("candidate workload launch inputs are malformed".into());
+        }
+        let launcher_bytes = read_bounded(launcher, 536_870_912, false)?;
+        let launcher_plan_bytes = read_bounded(launcher_plan, MAX_TRUST_BYTES, true)?;
+        let python_runtime = qualification_python_runtime_closure(python)?;
+        let wheel_bytes = read_bounded(wheel, 536_870_912, false)?;
+        let profile_bytes = read_bounded(profile, 536_870_912, false)?;
+        if hex::encode(Sha256::digest(&launcher_bytes)) != plan.agent_launcher_artifact_sha256
+            || QualificationEvidenceLedgerPlanV1::from_json(&launcher_plan_bytes)
+                .map_err(string_error)?
+                != *plan
+            || python_runtime.executable_sha256 != plan.candidate_sandbox.executable_sha256
+            || python_runtime.runtime_sha256 != plan.candidate_sandbox.python_runtime_sha256
+            || hex::encode(Sha256::digest(&wheel_bytes))
+                != plan.candidate_sandbox.python_wheel_sha256
+            || hex::encode(Sha256::digest(&profile_bytes))
+                != plan.candidate_sandbox.python_profile_sha256
+            || qualification_candidate_sandbox_policy_sha256()
+                != plan.candidate_sandbox.policy_sha256
+            || QualificationInstalledClientInvocation::from_json(request).is_err()
+        {
+            return Err("candidate workload differs from its signed sandbox contract".into());
+        }
+        Err("candidate workload sandbox launcher is not yet enabled".into())
     }
 
     fn wait_for_agent_exec(

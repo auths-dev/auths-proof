@@ -1221,6 +1221,49 @@ pub fn qualification_event_marker_sha256(
 /// the ledger assembler.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct QualificationCandidateSandboxPlanV1 {
+    pub schema: String,
+    pub workload_uid: u32,
+    pub workload_gid: u32,
+    pub requester_artifact_sha256: String,
+    pub executable_sha256: String,
+    pub linux_cgroup_prefix: String,
+    pub python_runtime_sha256: String,
+    pub python_wheel_sha256: String,
+    pub python_profile_sha256: String,
+    pub policy_sha256: String,
+}
+
+impl QualificationCandidateSandboxPlanV1 {
+    fn validate(&self) -> Result<(), QualificationEvidenceLedgerError> {
+        if self.schema != "auths.profile-qualification-candidate-sandbox-plan/1"
+            || self.workload_uid == 0
+            || self.workload_uid == u32::MAX
+            || self.workload_gid == 0
+            || self.workload_gid == u32::MAX
+            || !digest(&self.requester_artifact_sha256)
+            || !digest(&self.executable_sha256)
+            || !self.linux_cgroup_prefix.starts_with('/')
+            || !self.linux_cgroup_prefix.ends_with('/')
+            || self.linux_cgroup_prefix.len() > 256
+            || self.linux_cgroup_prefix.contains("//")
+            || self
+                .linux_cgroup_prefix
+                .split('/')
+                .any(|component| component == "." || component == "..")
+            || !digest(&self.python_runtime_sha256)
+            || !digest(&self.python_wheel_sha256)
+            || !digest(&self.python_profile_sha256)
+            || !digest(&self.policy_sha256)
+        {
+            return Err(QualificationEvidenceLedgerError::InvalidRecord);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct QualificationEvidenceLedgerPlanV1 {
     pub schema: String,
     pub repository_id: String,
@@ -1260,6 +1303,8 @@ pub struct QualificationEvidenceLedgerPlanV1 {
     pub recovery_public_key_base64url: String,
     /// Digest of the exact public receipt-anchor snapshot loaded at startup.
     pub receipt_trust_anchor_sha256: String,
+    /// Exact protected candidate workload and sandbox closure.
+    pub candidate_sandbox: QualificationCandidateSandboxPlanV1,
     pub phases: Vec<QualificationEvidencePhasePlanV1>,
     pub started_at_unix_seconds: u64,
     pub deadline_at_unix_seconds: u64,
@@ -1297,6 +1342,7 @@ pub struct QualificationEvidenceLedgerRecord {
     pub recovery_key_id: String,
     pub recovery_public_key_base64url: String,
     pub receipt_trust_anchor_sha256: String,
+    pub candidate_sandbox: QualificationCandidateSandboxPlanV1,
     pub phase_commitments: Vec<QualificationEvidencePhaseCommitment>,
     pub events: Vec<QualificationEvidenceEvent>,
     pub started_at_unix_seconds: u64,
@@ -1387,6 +1433,10 @@ impl QualificationEvidenceLedgerRecord {
             || !registered_token(&self.recovery_key_id)
             || decode_fixed::<32>(&self.recovery_public_key_base64url).is_err()
             || !digest(&self.receipt_trust_anchor_sha256)
+            || self.candidate_sandbox.validate().is_err()
+            || self.candidate_sandbox.workload_uid == self.supervisor_controller_uid
+            || self.candidate_sandbox.workload_uid == self.agent_uid
+            || self.candidate_sandbox.workload_gid == self.agent_gid
             || self.phase_commitments.is_empty()
             || self.phase_commitments.len() > MAX_PHASES
             || self.events.is_empty()
@@ -1611,6 +1661,7 @@ impl QualificationEvidenceLedgerRecord {
             recovery_key_id: self.recovery_key_id.clone(),
             recovery_public_key_base64url: self.recovery_public_key_base64url.clone(),
             receipt_trust_anchor_sha256: self.receipt_trust_anchor_sha256.clone(),
+            candidate_sandbox: self.candidate_sandbox.clone(),
             phases: self
                 .phase_commitments
                 .iter()
@@ -2663,6 +2714,10 @@ impl QualificationEvidenceLedgerPlanV1 {
             || !registered_token(&self.recovery_key_id)
             || decode_fixed::<32>(&self.recovery_public_key_base64url).is_err()
             || !digest(&self.receipt_trust_anchor_sha256)
+            || self.candidate_sandbox.validate().is_err()
+            || self.candidate_sandbox.workload_uid == self.supervisor_controller_uid
+            || self.candidate_sandbox.workload_uid == self.agent_uid
+            || self.candidate_sandbox.workload_gid == self.agent_gid
             || self.phases.is_empty()
             || self.phases.len() > MAX_PHASES
             || self.started_at_unix_seconds >= self.deadline_at_unix_seconds
@@ -2721,6 +2776,7 @@ impl QualificationEvidenceLedgerPlanV1 {
             "agentLauncherArtifactSha256": self.agent_launcher_artifact_sha256,
             "agentUid": self.agent_uid,
             "candidateRevision": self.candidate_revision,
+            "candidateSandbox": self.candidate_sandbox,
             "domain": self.domain,
             "ledgerId": self.ledger_id,
             "ledgerAppenderArtifactSha256": self.ledger_appender_artifact_sha256,
@@ -6451,6 +6507,21 @@ mod tests {
         event.source_signature_base64url = Base64UrlUnpadded::encode_string(&signature);
     }
 
+    fn candidate_sandbox() -> QualificationCandidateSandboxPlanV1 {
+        QualificationCandidateSandboxPlanV1 {
+            schema: "auths.profile-qualification-candidate-sandbox-plan/1".into(),
+            workload_uid: 1002,
+            workload_gid: 1002,
+            requester_artifact_sha256: "a".repeat(64),
+            executable_sha256: "e".repeat(64),
+            linux_cgroup_prefix: "/auths-qualification/".into(),
+            python_runtime_sha256: "f".repeat(64),
+            python_wheel_sha256: "1".repeat(64),
+            python_profile_sha256: "2".repeat(64),
+            policy_sha256: "3".repeat(64),
+        }
+    }
+
     fn record() -> QualificationEvidenceLedgerRecord {
         let mut record = QualificationEvidenceLedgerRecord {
             schema: "auths.profile-qualification-evidence-ledger-record/1".into(),
@@ -6480,6 +6551,7 @@ mod tests {
             recovery_key_id: "recovery".into(),
             recovery_public_key_base64url: Base64UrlUnpadded::encode_string(&[9; 32]),
             receipt_trust_anchor_sha256: "c".repeat(64),
+            candidate_sandbox: candidate_sandbox(),
             phase_commitments: vec![QualificationEvidencePhaseCommitment {
                 scenario_id: "happy-path".into(),
                 phase_index: 1,
@@ -7385,6 +7457,7 @@ mod tests {
             recovery_key_id: "recovery".into(),
             recovery_public_key_base64url: Base64UrlUnpadded::encode_string(&[9; 32]),
             receipt_trust_anchor_sha256: "c".repeat(64),
+            candidate_sandbox: candidate_sandbox(),
             phases: vec![context.phase.clone()],
             started_at_unix_seconds: NOW - 10,
             deadline_at_unix_seconds: NOW + 10,
