@@ -447,8 +447,8 @@ async fn serve_agent(arguments: ServeAgent) -> Result<(), Box<dyn std::error::Er
     let qualification_gate = qualification_gate
         .map(
             |(generation, failpoint, control_id, nonce_sha256, controller_pid)| {
-                let output = std::fs::File::from(rustix::io::dup(&std::io::stdout())?);
-                let release = std::fs::File::from(rustix::io::dup(&std::io::stdin())?);
+                let output = std::fs::File::from(rustix::io::dup(std::io::stdout())?);
+                let release = std::fs::File::from(rustix::io::dup(std::io::stdin())?);
                 rustix::io::fcntl_setfd(&output, rustix::io::FdFlags::CLOEXEC)?;
                 rustix::io::fcntl_setfd(&release, rustix::io::FdFlags::CLOEXEC)?;
                 let output_null = rustix::fs::open(
@@ -561,12 +561,11 @@ async fn serve_agent(arguments: ServeAgent) -> Result<(), Box<dyn std::error::Er
     let agent_config = AgentConfig::from_toml(source, platform)?;
     let recovery_key = state.join("recovery.key");
     #[cfg(feature = "qualification-failpoints")]
-    let (recovery_key_id, recovery_public_key_base64url) = match (
+    let (Some(recovery_key_id), Some(recovery_public_key_base64url)) = (
         arguments.qualification_recovery_key_id,
         arguments.qualification_recovery_public_key_base64url,
-    ) {
-        (Some(key_id), Some(public_key)) => (key_id, public_key),
-        _ => return Err("qualification agent requires its reviewed recovery identity".into()),
+    ) else {
+        return Err("qualification agent requires its reviewed recovery identity".into());
     };
     #[cfg(not(feature = "qualification-failpoints"))]
     let recovery_key_id = {
