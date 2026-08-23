@@ -758,8 +758,6 @@ class BoundProfile(Generic[_T, _P, _G]):
                 )
             remaining = deadline - asyncio.get_running_loop().time()
             if remaining <= 0:
-                if fallback is None:
-                    raise asyncio.TimeoutError("profile operation deadline exceeded")
                 return _recovery_required(
                     operation, RecoveryHandle.from_bytes(fallback[0]), fallback[1]
                 )
@@ -1558,19 +1556,21 @@ def _raise_outcome(outcome: object) -> None:
             outcome.issue, outcome.operation_id, outcome.receipt_ids
         )
     if isinstance(outcome, Partial):
+        partial = cast(Partial[Any], cast(object, outcome))
         raise _partial_error(
-            outcome.issue,
-            outcome.operation_id,
-            outcome.receipt_ids,
-            cast(object, outcome.details),
+            partial.issue,
+            partial.operation_id,
+            partial.receipt_ids,
+            partial.details,
         )
     if isinstance(outcome, RecoveryRequired):
+        recovery_required = cast(RecoveryRequired[Any], cast(object, outcome))
         raise _recovery_required_error(
-            outcome.issue,
-            outcome.operation_id,
-            outcome.receipt_ids,
-            outcome.recovery,
-            cast(object, outcome.progress),
+            recovery_required.issue,
+            recovery_required.operation_id,
+            recovery_required.receipt_ids,
+            recovery_required.recovery,
+            recovery_required.progress,
         )
     if isinstance(outcome, ReceiptIntegrityFailed):
         raise _receipt_integrity_error(
@@ -1687,7 +1687,9 @@ def _validate_value(
     if kind == "list":
         if not isinstance(value, (tuple, list)):
             raise TypeError("expected bounded sequence")
-        values: Union[Tuple[Any, ...], list[Any]] = value
+        values = cast(
+            Union[Tuple[Any, ...], list[Any]], cast(object, value)
+        )
         if not int(schema["minimumItems"]) <= len(values) <= int(
             schema["maximumItems"]
         ):
@@ -2016,7 +2018,7 @@ def _assert_recovery_identity(
 def _receipt_ids(value: object, descriptor: ProfileDescriptor) -> Tuple[str, ...]:
     if not isinstance(value, list):
         raise ValueError("invalid receipt list")
-    values: list[Any] = value
+    values = cast(list[Any], cast(object, value))
     if len(values) > descriptor.receipt_count:
         raise ValueError("invalid receipt list")
     receipts = tuple(
@@ -2031,7 +2033,7 @@ def _receipt_ids(value: object, descriptor: ProfileDescriptor) -> Tuple[str, ...
 def _receipt_id_list(value: object, maximum: int) -> Tuple[str, ...]:
     if not isinstance(value, list):
         raise ValueError("invalid receipt ID list")
-    values: list[Any] = value
+    values = cast(list[Any], cast(object, value))
     if len(values) > maximum:
         raise ValueError("invalid receipt ID list")
     if any(
