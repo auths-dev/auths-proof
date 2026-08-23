@@ -120,7 +120,7 @@ enum RuntimeCredentialLease {
     Brokered {
         credential_capability: Zeroizing<[u8; 32]>,
         lease_sha256: [u8; 32],
-        transport: QualificationCredentialTransport,
+        transport: Box<QualificationCredentialTransport>,
     },
 }
 
@@ -169,7 +169,7 @@ impl RuntimeCredentialLease {
         match self {
             Self::Local(_) => Ok(()),
             #[cfg(all(target_os = "linux", feature = "qualification-failpoints"))]
-            Self::Brokered { transport, .. } => transport.close().await,
+            Self::Brokered { transport, .. } => (*transport).close().await,
         }
     }
 }
@@ -374,10 +374,10 @@ async fn lease_from_qualification_credential_broker(
 ) -> Result<RuntimeCredentialLease, LocalAgentFailure> {
     let lease_sha256 = request
         .lease_sha256()
-        .map_err(|_| LocalAgentFailure::InvalidConfiguration)?;
+        .map_err(|()| LocalAgentFailure::InvalidConfiguration)?;
     let request = request
         .to_cbor()
-        .map_err(|_| LocalAgentFailure::InvalidConfiguration)?;
+        .map_err(|()| LocalAgentFailure::InvalidConfiguration)?;
     if request.len() > MAX_QUALIFICATION_CREDENTIAL_REQUEST_BYTES {
         return Err(LocalAgentFailure::InvalidConfiguration);
     }
@@ -403,13 +403,13 @@ async fn lease_from_qualification_credential_broker(
     Ok(RuntimeCredentialLease::Brokered {
         credential_capability,
         lease_sha256,
-        transport: QualificationCredentialTransport {
+        transport: Box::new(QualificationCredentialTransport {
             stream,
             request,
             peer_pid,
             peer,
             policy,
-        },
+        }),
     })
 }
 
@@ -418,7 +418,9 @@ async fn call_qualification_provider_proxy(
     policy: &QualificationProviderProxyPolicy,
     request: QualificationProviderCallRequest,
 ) -> Result<QualificationProviderCallResponse, ProfileBridgeError> {
-    let request = request.to_cbor().map_err(|_| ProfileBridgeError::Invalid)?;
+    let request = request
+        .to_cbor()
+        .map_err(|()| ProfileBridgeError::Invalid)?;
     let deadline = TokioInstant::now() + QUALIFICATION_CREDENTIAL_IO_TIMEOUT;
     loop {
         if TokioInstant::now() >= deadline {
@@ -435,6 +437,7 @@ async fn call_qualification_provider_proxy(
 }
 
 #[cfg(all(target_os = "linux", feature = "qualification-failpoints"))]
+#[allow(clippy::too_many_arguments)]
 fn qualification_provider_call_request(
     policy: &QualificationProviderProxyPolicy,
     record: &JournalRecordV1,
@@ -522,7 +525,7 @@ async fn call_qualification_provider_proxy_once(
     verify_provider_proxy_peer(peer_pid, &peer, policy)
         .map_err(|_| QualificationProviderProxyTransportError::Fatal)?;
     QualificationProviderCallResponse::from_cbor(&response)
-        .map_err(|_| QualificationProviderProxyTransportError::Fatal)
+        .map_err(|()| QualificationProviderProxyTransportError::Fatal)
 }
 
 #[cfg(all(target_os = "linux", feature = "qualification-failpoints"))]
@@ -1319,7 +1322,7 @@ impl ExecutorJournal {
             } else {
                 claim.cancel();
             }
-            return result;
+            result
         }
         #[cfg(not(all(target_os = "linux", feature = "qualification-failpoints")))]
         self.inner.prepare(record, now_unix_seconds)
@@ -1342,7 +1345,7 @@ impl ExecutorJournal {
                 .reserve()
                 .map_err(|()| auths_stores::OperationJournalError::Unavailable)?;
             let before = self.boundary_count()?;
-            return self.finish_boundary_transaction(
+            self.finish_boundary_transaction(
                 reservation,
                 before,
                 self.inner.mutate_operation(
@@ -1352,7 +1355,7 @@ impl ExecutorJournal {
                     mutation,
                     now_unix_seconds,
                 ),
-            );
+            )
         }
         #[cfg(not(all(target_os = "linux", feature = "qualification-failpoints")))]
         self.inner.mutate_operation(
@@ -1823,7 +1826,7 @@ impl JournaledLocalExecutor {
                 requirement.descriptor_schema,
                 requirement.credential_scope,
             )
-            .map_err(|_| LocalAgentFailure::InvalidConfiguration)?;
+            .map_err(|()| LocalAgentFailure::InvalidConfiguration)?;
             let lease = lease_from_qualification_credential_broker(policy, request).await?;
             return Ok((None, Some(lease)));
         }
@@ -1874,7 +1877,7 @@ impl JournaledLocalExecutor {
                 requirement.descriptor_schema,
                 requirement.credential_scope,
             )
-            .map_err(|_| LocalAgentFailure::InvalidConfiguration)?;
+            .map_err(|()| LocalAgentFailure::InvalidConfiguration)?;
             return lease_from_qualification_credential_broker(policy, request).await;
         }
         let scope = CredentialScope::parse(requirement.credential_scope)

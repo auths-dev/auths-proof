@@ -111,7 +111,7 @@ impl axum::extract::connect_info::Connected<axum::serve::IncomingStream<'_, Unix
     }
 }
 
-/// Immutable policy for the qualification-only ClientProxy bridge.
+/// Immutable policy for the qualification-only `ClientProxy` bridge.
 #[cfg(all(target_os = "linux", feature = "qualification-failpoints"))]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct QualificationClientBridgePolicy {
@@ -826,7 +826,7 @@ pub struct LocalOperationContext {
     pub profile_configuration: Option<Arc<auths_profile_runtime::ProfileConfigurationBinding>>,
     /// Owner-controlled root for profile-owned durable state.
     pub profile_state_root: Arc<PathBuf>,
-    /// Protected qualification-only fault selected by ClientProxy from the
+    /// Protected qualification-only fault selected by `ClientProxy` from the
     /// immutable phase. It is structurally absent from production builds.
     #[cfg(all(target_os = "linux", feature = "qualification-failpoints"))]
     pub qualification_fault: Option<QualificationAdmissionFaultV1>,
@@ -1127,7 +1127,7 @@ pub async fn serve_local_agent(
     .await
 }
 
-/// Serves the qualification router only after the protected ClientProxy has
+/// Serves the qualification router only after the protected `ClientProxy` has
 /// authenticated and rebound the original SDK peer for each connection.
 #[cfg(all(target_os = "linux", feature = "qualification-failpoints"))]
 pub async fn serve_qualification_client_bridge(
@@ -1568,25 +1568,25 @@ fn context(
     #[cfg(not(all(target_os = "linux", feature = "qualification-failpoints")))]
     let profile_configuration = access.workload.profile_configurations.get(&profile_ref);
     #[cfg(all(target_os = "linux", feature = "qualification-failpoints"))]
-    if peer.qualification_fault == Some(QualificationAdmissionFaultV1::ConfigurationMismatch) {
-        if let Some(binding) = profile_configuration.as_deref() {
-            let mut changed_sha256 = binding.sha256();
-            changed_sha256[0] ^= 1;
-            profile_configuration = Some(Arc::new(
-                auths_profile_runtime::ProfileConfigurationBinding::from_loader(
-                    binding.profile_ref().to_owned(),
-                    binding.format().to_owned(),
-                    Arc::from(binding.canonical_bytes()),
-                    changed_sha256,
-                    binding.path().to_owned(),
-                    binding.maximum_bytes(),
-                    binding.file_device(),
-                    binding.file_inode(),
-                    binding.file_length(),
-                    binding.file_modified_nanoseconds(),
-                ),
-            ));
-        }
+    if peer.qualification_fault == Some(QualificationAdmissionFaultV1::ConfigurationMismatch)
+        && let Some(binding) = profile_configuration.as_deref()
+    {
+        let mut changed_sha256 = binding.sha256();
+        changed_sha256[0] ^= 1;
+        profile_configuration = Some(Arc::new(
+            auths_profile_runtime::ProfileConfigurationBinding::from_loader(
+                binding.profile_ref().to_owned(),
+                binding.format().to_owned(),
+                Arc::from(binding.canonical_bytes()),
+                changed_sha256,
+                binding.path().to_owned(),
+                binding.maximum_bytes(),
+                binding.file_device(),
+                binding.file_inode(),
+                binding.file_length(),
+                binding.file_modified_nanoseconds(),
+            ),
+        ));
     }
     LocalOperationContext {
         workload_id: access.workload.workload_id.clone(),
