@@ -11,6 +11,8 @@ from dataclasses import dataclass as _dataclass
 from datetime import timedelta as _timedelta
 from typing import (
     Any as _Any,
+    Mapping as _Mapping,
+    Sequence as _Sequence,
     Literal as _Literal,
     Protocol as _Protocol,
     cast as _cast,
@@ -60,9 +62,13 @@ def _encode(value: _Any) -> bytes:
         raw = value.encode()
         return _head(3, len(raw)) + raw
     if isinstance(value, (list, tuple)):
-        return _head(4, len(value)) + b"".join(_encode(v) for v in value)
+        sequence = _cast(_Sequence[_Any], value)
+        return _head(4, len(sequence)) + b"".join(
+            _encode(item) for item in sequence
+        )
     if isinstance(value, dict):
-        items = sorted(value.items(), key=lambda item: _encode(item[0]))
+        mapping = _cast(_Mapping[_Any, _Any], value)
+        items = sorted(mapping.items(), key=lambda item: _encode(item[0]))
         return _head(5, len(items)) + b"".join(
             _encode(k) + _encode(v) for k, v in items
         )

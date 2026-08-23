@@ -98,17 +98,28 @@ _ERROR_TOKEN = object()
 
 
 class AuthsError(Exception):
-    def __new__(cls, token: object, info: Optional[ErrorInfo] = None) -> "AuthsError":
-        if cls is AuthsError and token is not _ERROR_TOKEN:
+    def __new__(cls, *args: Any, **kwargs: Any) -> "AuthsError":
+        if cls is AuthsError and (
+            kwargs
+            or len(args) != 2
+            or args[0] is not _ERROR_TOKEN
+            or not isinstance(args[1], ErrorInfo)
+        ):
             raise TypeError("AuthsError is sealed")
         return super().__new__(cls)
 
-    def __init__(self, token: object, info: Optional[ErrorInfo] = None) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         if type(self) is not AuthsError:
-            Exception.__init__(self, token)
+            Exception.__init__(self, *args)
             return
-        if token is not _ERROR_TOKEN or info is None:
+        if (
+            kwargs
+            or len(args) != 2
+            or args[0] is not _ERROR_TOKEN
+            or not isinstance(args[1], ErrorInfo)
+        ):
             raise TypeError("AuthsError is sealed")
+        info = args[1]
         super().__init__(info.summary)
         self.info = info
 
@@ -125,7 +136,10 @@ class AuthsError(Exception):
         return self.info.retry
 
 
-_DEFINITIONS = {item["code"]: item for item in ERROR_REGISTRY["definitions"]}
+_DEFINITIONS: Mapping[str, Mapping[str, Any]] = {
+    cast(str, item["code"]): item
+    for item in cast(Iterable[Mapping[str, Any]], ERROR_REGISTRY["definitions"])
+}
 _ERROR_KEYS = {
     "schema", "family", "code", "operation", "stage", "summary",
     "correlationId", "retry", "effect", "entered", "recommendedAction",
@@ -143,27 +157,28 @@ def parse_error_info(value: object) -> ErrorInfo:
     """Parse one exact registry-bound ``auths.error/1`` host projection."""
     if not isinstance(value, Mapping) or set(value) != _ERROR_KEYS:
         raise ValueError("Auths error envelope has unknown or missing fields")
-    if value["schema"] != "auths.error/1":
+    envelope = cast(Mapping[str, Any], value)
+    if envelope["schema"] != "auths.error/1":
         raise ValueError("unsupported Auths error schema")
-    code = value["code"]
+    code = envelope["code"]
     if not isinstance(code, str) or not _TOKEN.fullmatch(code):
         raise ValueError("invalid Auths error code")
     definition = _DEFINITIONS.get(code)
-    if definition is None or value["family"] != definition["family"]:
+    if definition is None or envelope["family"] != definition["family"]:
         raise ValueError("unknown or contradictory Auths error code")
-    operation, stage = value["operation"], value["stage"]
+    operation, stage = envelope["operation"], envelope["stage"]
     if operation != definition["operation"] or stage not in definition["stages"]:
         raise ValueError("Auths error operation or stage is not registered")
-    for token in (operation, stage, value["correlationId"]):
+    for token in (operation, stage, envelope["correlationId"]):
         if not isinstance(token, str) or not _TOKEN.fullmatch(token):
             raise ValueError("invalid Auths error token")
-    summary = value["summary"]
+    summary = envelope["summary"]
     if not isinstance(summary, str) or not 1 <= len(summary.encode("utf-8")) <= 256:
         raise ValueError("invalid Auths error summary")
     try:
-        retry = RetryClass(value["retry"])
-        effect = EffectState(value["effect"])
-        action = RecommendedAction(value["recommendedAction"])
+        retry = RetryClass(envelope["retry"])
+        effect = EffectState(envelope["effect"])
+        action = RecommendedAction(envelope["recommendedAction"])
     except (TypeError, ValueError) as error:
         raise ValueError("invalid Auths recovery classification") from error
     if not any(
@@ -171,14 +186,14 @@ def parse_error_info(value: object) -> ErrorInfo:
         for item in definition["outcomes"]
     ) or action.value != definition["recommendedAction"]:
         raise ValueError("Auths recovery classification is not registered")
-    entered = value["entered"]
+    entered = envelope["entered"]
     if not isinstance(entered, Mapping) or set(entered) != _ENTERED_KEYS or any(
         type(entered[key]) is not bool for key in _ENTERED_KEYS
     ):
         raise ValueError("invalid Auths entered-boundary projection")
     references = []
     for name in ("executionReference", "decisionReference", "receiptReference"):
-        reference = value[name]
+        reference = envelope[name]
         if reference is not None and (
             not isinstance(reference, str) or not _TOKEN.fullmatch(reference)
         ):
@@ -210,14 +225,14 @@ def parse_error_info(value: object) -> ErrorInfo:
         raise ValueError("possible Auths effect lacks recovery invariants")
     if effect is EffectState.NOT_APPLIED and receipt is not None:
         raise ValueError("not-applied Auths error cannot name an execution receipt")
-    causes = value["causes"]
+    causes = envelope["causes"]
     if not isinstance(causes, list) or len(causes) > 8 or any(
         not isinstance(item, str) or item not in _CAUSES for item in causes
     ):
         raise ValueError("invalid Auths cause categories")
     return ErrorInfo(
         "auths.error/1", KnownAuthsErrorCode(code), definition["family"], operation,
-        stage, summary, value["correlationId"], effect, retry, action,
+        stage, summary, envelope["correlationId"], effect, retry, action,
         EnteredBoundaries(
             entered["approval"], entered["signer"], entered["state"],
             entered["credential"], entered["provider"],

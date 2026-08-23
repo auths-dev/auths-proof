@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Mapping, Sequence, Tuple, Union, cast
 
 
 MapKey = Union[int, str]
@@ -38,10 +38,14 @@ def encode(value: Any) -> bytes:
         raw = value.encode("utf-8")
         return _head(3, len(raw)) + raw
     if isinstance(value, (list, tuple)):
-        return _head(4, len(value)) + b"".join(encode(item) for item in value)
+        sequence = cast(Sequence[Any], value)
+        return _head(4, len(sequence)) + b"".join(
+            encode(item) for item in sequence
+        )
     if isinstance(value, dict):
+        mapping = cast(Mapping[Any, Any], value)
         items: List[Tuple[bytes, bytes]] = []
-        for key, item in value.items():
+        for key, item in mapping.items():
             if not isinstance(key, (int, str)) or isinstance(key, bool):
                 raise TypeError("Auths CBOR map keys must be integers or strings")
             encoded_key = encode(key)

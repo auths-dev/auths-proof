@@ -6,6 +6,7 @@ from dataclasses import dataclass as _dataclass
 from datetime import timedelta as _timedelta
 from typing import Any as _Any, Dict as _Dict, Generic as _Generic, Literal as _Literal
 from typing import Optional as _Optional, Tuple as _Tuple, TypeVar as _TypeVar, Union as _Union
+from typing import cast as _cast
 
 from .._native import (
     decode_identity_descriptor_v1 as _decode_descriptor,
@@ -187,7 +188,7 @@ class IdentityClient:
                 result = await _asyncio.wait_for(method.resolve(identity._record), _seconds(timeout))
                 if not isinstance(result, AdapterOk):
                     return _adapter_result(result, "resolve")
-                record = result.value
+                record = _cast(ResolvedIdentityRecord, result.value)
                 if record.method_id != identity.method_id or record.identity_id != identity.identity_id:
                     return IdentityIndeterminate("indeterminate", _error_info("identity.resolution-indeterminate"))
             return IdentityOk("ok", ResolvedIdentity(_TOKEN, identity._packet, record))

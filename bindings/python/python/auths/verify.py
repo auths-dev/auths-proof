@@ -4,7 +4,7 @@ import hashlib
 import json
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, Literal, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, Literal, Optional, Tuple, Union, cast
 
 from . import ErrorInfo, Receipt
 from ._native import (
@@ -183,7 +183,7 @@ def pinned_receipt_trust(
         and verification_time_unix_seconds < 0
     ):
         raise ValueError("verification time is invalid")
-    seen = set()
+    seen: set[tuple[str, str, str, str]] = set()
     for anchor in anchor_values:
         identity = (
             anchor.role,
@@ -490,7 +490,7 @@ def _verify_with_anchors(
             )
             value = json.loads(bytes(encoded).decode("utf-8"))
             if type(value) is dict:
-                return value
+                return cast(Dict[str, Any], value)
         except Exception:
             continue
     if not attempted:
