@@ -246,7 +246,7 @@ class _OperationError(AuthsError):
         token: object,
         issue: ErrorInfo,
         operation_id: Optional[str],
-        receipt_ids: Tuple[str, ...],
+        receipt_ids: Tuple[str, ...] = (),
         *,
         recovery: Optional[RecoveryHandle] = None,
         details: object = None,
