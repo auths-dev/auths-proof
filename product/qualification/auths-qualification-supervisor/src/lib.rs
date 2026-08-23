@@ -42,6 +42,25 @@ pub fn qualification_candidate_sandbox_policy_sha256() -> String {
     hex::encode(Sha256::digest(CANDIDATE_SANDBOX_POLICY))
 }
 
+/// Returns whether one absolute cgroup-v2 path is beneath the exact signed
+/// cgroup membership prefix used by the candidate workload selector.
+#[must_use]
+pub fn qualification_candidate_cgroup_binds_prefix(cgroup: &Path, prefix: &str) -> bool {
+    let Some(relative_prefix) = prefix.strip_prefix('/') else {
+        return false;
+    };
+    if relative_prefix.is_empty()
+        || !prefix.ends_with('/')
+        || relative_prefix.contains("//")
+        || Path::new(relative_prefix)
+            .components()
+            .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+    {
+        return false;
+    }
+    cgroup.starts_with(Path::new("/sys/fs/cgroup").join(relative_prefix))
+}
+
 /// Exact checked Python runtime closure used by the candidate sandbox.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct QualificationPythonRuntimeClosure {
@@ -2188,6 +2207,35 @@ mod tests {
         "product/stores/auths-stores/src/lib.rs",
         "product/stores/auths-stores/src/operation.rs",
     ];
+
+    #[test]
+    fn candidate_cgroup_is_beneath_the_exact_signed_prefix() {
+        assert!(qualification_candidate_cgroup_binds_prefix(
+            Path::new("/sys/fs/cgroup/auths-qualification/run-row/phase-workload"),
+            "/auths-qualification/",
+        ));
+        for (path, prefix) in [
+            (
+                "/sys/fs/cgroup/auths-qualification-neighbor/run",
+                "/auths-qualification/",
+            ),
+            ("/sys/fs/cgroup/auths-qualification/run", "/"),
+            (
+                "/sys/fs/cgroup/auths-qualification/run",
+                "auths-qualification/",
+            ),
+            (
+                "/sys/fs/cgroup/auths-qualification/run",
+                "/auths-qualification/../",
+            ),
+            ("/tmp/auths-qualification/run", "/auths-qualification/"),
+        ] {
+            assert!(!qualification_candidate_cgroup_binds_prefix(
+                Path::new(path),
+                prefix,
+            ));
+        }
+    }
 
     fn repository() -> std::path::PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))

@@ -4430,6 +4430,7 @@ mod linux {
         deadline: Instant,
     ) -> Result<Vec<u8>, String> {
         use auths_qualification_supervisor::{
+            qualification_candidate_cgroup_binds_prefix,
             qualification_candidate_sandbox_policy_sha256, qualification_python_runtime_closure,
         };
 
@@ -4445,10 +4446,10 @@ mod linux {
         {
             return Err("candidate workload launch inputs are malformed".into());
         }
-        let delegated_cgroup = cgroup
-            .strip_prefix("/sys/fs/cgroup")
-            .map_err(string_error)?;
-        if !delegated_cgroup.starts_with(&plan.candidate_sandbox.linux_cgroup_prefix) {
+        if !qualification_candidate_cgroup_binds_prefix(
+            cgroup,
+            &plan.candidate_sandbox.linux_cgroup_prefix,
+        ) {
             return Err("candidate workload cgroup is outside its signed prefix".into());
         }
         let launcher_bytes = read_bounded(launcher, 536_870_912, false)?;
