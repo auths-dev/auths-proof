@@ -365,9 +365,7 @@ fn qualification_python_external_closure(
                 if let Some(prior) = external.insert(destination.clone(), value.clone())
                     && prior != value
                 {
-                    return Err(
-                        "qualification Python dependency destination is ambiguous".into()
-                    );
+                    return Err("qualification Python dependency destination is ambiguous".into());
                 }
             }
             pending.push((dependency, destination));
