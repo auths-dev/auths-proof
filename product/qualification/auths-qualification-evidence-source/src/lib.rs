@@ -2130,9 +2130,9 @@ fn authorize_provider_proxy_request(
         .binding()
         .connection()
         .ok_or_else(|| "ProviderProxy authorization has no connection binding".to_owned())?;
-    let configuration_sha256: [u8; 32] = request
-        .configuration()
-        .map_or([0; 32], |configuration| Sha256::digest(configuration).into());
+    let configuration_sha256: [u8; 32] = request.configuration().map_or([0; 32], |configuration| {
+        Sha256::digest(configuration).into()
+    });
     if format!(
         "{}/{}",
         record.binding().profile().id(),
@@ -3169,13 +3169,7 @@ fn handle_credential_broker_connection(
             return Err("CredentialBroker redemption peer differs from ProviderProxy trust".into());
         }
         peer.verify_unchanged()?;
-        return redeem_credential_for_provider_proxy(
-            shared,
-            &mut stream,
-            &peer,
-            request,
-            deadline,
-        );
+        return redeem_credential_for_provider_proxy(shared, &mut stream, &peer, request, deadline);
     }
     if peer.uid() != shared.plan.agent_uid
         || peer.gid() != shared.plan.agent_gid
@@ -4972,9 +4966,7 @@ impl QualificationSourceAppendSession {
         deadline: Instant,
         mut sign_event: impl FnMut(u32, String) -> Result<Vec<u8>, String>,
     ) -> Result<(QualificationEvidenceEvent, Vec<u8>), String> {
-        if let Some(retained) =
-            self.append_transaction(&intent, true, deadline, &mut sign_event)?
-        {
+        if let Some(retained) = self.append_transaction(&intent, true, deadline, &mut sign_event)? {
             return Ok(retained);
         }
         self.append_transaction(&intent, false, deadline, &mut sign_event)?
@@ -5068,8 +5060,7 @@ impl QualificationSourceAppendSession {
                     thread::sleep(Duration::from_millis(10));
                     continue;
                 }
-                if let Ok(Some(signed)) =
-                    read_source_session_frame_before(&mut sequencer, deadline)
+                if let Ok(Some(signed)) = read_source_session_frame_before(&mut sequencer, deadline)
                 {
                     signed
                 } else {
@@ -5219,8 +5210,8 @@ impl FixedSourceAppendSession {
                 move |sequence, previous_event_sha256| {
                     let record_bytes = record_for_ordering(sequence, previous_event_sha256)?;
                     write_source_session_frame_before(signer, &record_bytes, deadline)?;
-                    let signed_event_bytes =
-                        read_source_session_frame_before(signer, deadline)?.ok_or_else(|| {
+                    let signed_event_bytes = read_source_session_frame_before(signer, deadline)?
+                        .ok_or_else(|| {
                             "fixed source signer closed before returning an event".to_owned()
                         })?;
                     signer_peer.verify_unchanged()?;
@@ -5242,8 +5233,8 @@ impl FixedSourceAppendSession {
             .resume_or_append(intent, deadline, move |sequence, previous_event_sha256| {
                 let record_bytes = record_for_ordering(sequence, previous_event_sha256)?;
                 write_source_session_frame_before(signer, &record_bytes, deadline)?;
-                let signed_event_bytes =
-                    read_source_session_frame_before(signer, deadline)?.ok_or_else(|| {
+                let signed_event_bytes = read_source_session_frame_before(signer, deadline)?
+                    .ok_or_else(|| {
                         "fixed source signer closed before returning an event".to_owned()
                     })?;
                 signer_peer.verify_unchanged()?;
