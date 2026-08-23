@@ -5806,6 +5806,18 @@
     {
       "source": "auths-opentofu",
       "source_layer": "product",
+      "target": "hcl-rs",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-opentofu",
+      "source_layer": "product",
       "target": "hex",
       "target_layer": null,
       "scope": "external",
@@ -5955,6 +5967,18 @@
         "sync",
         "time"
       ]
+    },
+    {
+      "source": "auths-opentofu",
+      "source_layer": "product",
+      "target": "url",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
     },
     {
       "source": "auths-opentofu",
@@ -6801,18 +6825,6 @@
     {
       "source": "auths-postgresql",
       "source_layer": "product",
-      "target": "webpki-roots",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-postgresql",
-      "source_layer": "product",
       "target": "zeroize",
       "target_layer": null,
       "scope": "external",
@@ -7488,6 +7500,20 @@
       "optional": false,
       "default_features": true,
       "features": []
+    },
+    {
+      "source": "auths-profile-kit",
+      "source_layer": "product",
+      "target": "minicbor",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
     },
     {
       "source": "auths-profile-kit",
@@ -10143,11 +10169,35 @@
     {
       "source": "auths-qualification-supervisor",
       "source_layer": "product",
+      "target": "goblin",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
       "target": "hex",
       "target_layer": null,
       "scope": "external",
       "kind": "normal",
       "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
+      "target": "libc",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": "cfg(target_os = \"linux\")",
       "optional": false,
       "default_features": true,
       "features": []
@@ -10164,11 +10214,24 @@
       "default_features": false,
       "features": [
         "fs",
+        "mount",
         "net",
         "process",
         "std",
         "thread"
       ]
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
+      "target": "seccompiler",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": "cfg(target_os = \"linux\")",
+      "optional": false,
+      "default_features": true,
+      "features": []
     },
     {
       "source": "auths-qualification-supervisor",
@@ -10242,7 +10305,7 @@
       "target": "tempfile",
       "target_layer": null,
       "scope": "external",
-      "kind": "dev",
+      "kind": "normal",
       "target_condition": null,
       "optional": false,
       "default_features": true,
@@ -10272,6 +10335,20 @@
       "default_features": true,
       "features": [
         "derive"
+      ]
+    },
+    {
+      "source": "auths-qualification-supervisor",
+      "source_layer": "product",
+      "target": "zip",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "deflate-flate2-zlib-rs"
       ]
     },
     {
