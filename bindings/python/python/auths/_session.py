@@ -14,9 +14,17 @@ from typing import Any, Deque, Dict, Literal, Optional, Tuple, Union, cast
 from ._cbor import decode as _decode_cbor
 from ._cbor import encode as _encode_cbor
 from ._public import (
-    AuthsError, EffectState, EnteredBoundaries, ErrorInfo, Receipt,
-    RecommendedAction, RetryClass, mint_receipt, parse_error_info,
-    parse_portable_receipt, runtime_info,
+    AuthsError,
+    EffectState,
+    EnteredBoundaries,
+    ErrorInfo,
+    Receipt,
+    RecommendedAction,
+    RetryClass,
+    mint_receipt,
+    parse_error_info,
+    parse_portable_receipt,
+    runtime_info,
 )
 from ._native import (
     encode_qualification_client_result_frame_v1,
@@ -32,8 +40,15 @@ _MAX_QUEUED_CALLS = 256
 _QUALIFICATION_RESULT_SOCKET_ENV = "AUTHS_QUALIFICATION_CLIENT_RESULT_SOCKET"
 
 OperationState = Literal[
-    "preparing", "denied", "unavailable", "ready", "executing",
-    "recovery-required", "completed", "partial", "not-applied",
+    "preparing",
+    "denied",
+    "unavailable",
+    "ready",
+    "executing",
+    "recovery-required",
+    "completed",
+    "partial",
+    "not-applied",
 ]
 
 
@@ -53,7 +68,10 @@ class _ProfileInvocationEntry:
 
 class _ProfileInvocationTicket:
     def __init__(
-        self, client: "Client", scope: str, entry: _ProfileInvocationEntry,
+        self,
+        client: "Client",
+        scope: str,
+        entry: _ProfileInvocationEntry,
         role: Literal["leader", "follower", "observer", "conflict-probe"],
         attached: bool,
     ) -> None:
@@ -93,7 +111,11 @@ class _AdmissionGate:
             try:
                 self._waiters.remove(waiter)
             except ValueError:
-                if waiter.done() and not waiter.cancelled() and waiter.exception() is None:
+                if (
+                    waiter.done()
+                    and not waiter.cancelled()
+                    and waiter.exception() is None
+                ):
                     self.release()
             raise
 
@@ -119,12 +141,16 @@ class _AdmissionGate:
 def _is_reserved_sdk_request(method: str, path: str) -> bool:
     """Safe status and recovery calls do not consume ordinary effect capacity."""
     return (
-        method == "GET" or method == "POST" and path == "/v1/operations/recover"
-        or method == "POST" and re.fullmatch(
+        method == "GET"
+        or method == "POST"
+        and path == "/v1/operations/recover"
+        or method == "POST"
+        and re.fullmatch(
             r"/v1/profiles/[a-z][a-z0-9-]*/[a-z][a-z0-9-]*/[1-9][0-9]{0,4}"
             r"/operations/op_[A-Za-z0-9_-]{22}/recover",
             path,
-        ) is not None
+        )
+        is not None
     )
 
 
@@ -212,7 +238,9 @@ def _is_post_write_request_error(value: BaseException) -> bool:
 
 
 class _OperationError(AuthsError):
-    def __new__(cls, token: object, *args: object, **kwargs: object) -> "_OperationError":
+    def __new__(
+        cls, token: object, *args: object, **kwargs: object
+    ) -> "_OperationError":
         if token is not _OPERATION_ERROR_TOKEN:
             raise TypeError("Auths operation errors are SDK-constructible only")
         return Exception.__new__(cls)
@@ -282,28 +310,58 @@ class ReceiptIntegrityError(_OperationError):
         self.terminal = terminal
 
 
-def _denied_error(issue: ErrorInfo, operation_id: str, receipt_ids: Tuple[str, ...]) -> DeniedError:
+def _denied_error(
+    issue: ErrorInfo, operation_id: str, receipt_ids: Tuple[str, ...]
+) -> DeniedError:
     return DeniedError(_OPERATION_ERROR_TOKEN, issue, operation_id, receipt_ids)
 
 
-def _unavailable_error(issue: ErrorInfo, operation_id: Optional[str], receipt_ids: Tuple[str, ...]) -> UnavailableError:
+def _unavailable_error(
+    issue: ErrorInfo, operation_id: Optional[str], receipt_ids: Tuple[str, ...]
+) -> UnavailableError:
     return UnavailableError(_OPERATION_ERROR_TOKEN, issue, operation_id, receipt_ids)
 
 
-def _conflict_error(issue: ErrorInfo, operation_id: str, receipt_ids: Tuple[str, ...], recovery: RecoveryHandle) -> ConflictError:
-    return ConflictError(_OPERATION_ERROR_TOKEN, issue, operation_id, receipt_ids, recovery=recovery)
+def _conflict_error(
+    issue: ErrorInfo,
+    operation_id: str,
+    receipt_ids: Tuple[str, ...],
+    recovery: RecoveryHandle,
+) -> ConflictError:
+    return ConflictError(
+        _OPERATION_ERROR_TOKEN, issue, operation_id, receipt_ids, recovery=recovery
+    )
 
 
-def _not_applied_error(issue: ErrorInfo, operation_id: str, receipt_ids: Tuple[str, ...]) -> NotAppliedError:
+def _not_applied_error(
+    issue: ErrorInfo, operation_id: str, receipt_ids: Tuple[str, ...]
+) -> NotAppliedError:
     return NotAppliedError(_OPERATION_ERROR_TOKEN, issue, operation_id, receipt_ids)
 
 
-def _partial_error(issue: ErrorInfo, operation_id: str, receipt_ids: Tuple[str, ...], details: object) -> PartialError:
-    return PartialError(_OPERATION_ERROR_TOKEN, issue, operation_id, receipt_ids, details=details)
+def _partial_error(
+    issue: ErrorInfo, operation_id: str, receipt_ids: Tuple[str, ...], details: object
+) -> PartialError:
+    return PartialError(
+        _OPERATION_ERROR_TOKEN, issue, operation_id, receipt_ids, details=details
+    )
 
 
-def _recovery_required_error(issue: ErrorInfo, operation_id: str, receipt_ids: Tuple[str, ...], recovery: RecoveryHandle, progress: object) -> RecoveryRequired:
-    return RecoveryRequired(_OPERATION_ERROR_TOKEN, issue, operation_id, receipt_ids, recovery=recovery, progress=progress)
+def _recovery_required_error(
+    issue: ErrorInfo,
+    operation_id: str,
+    receipt_ids: Tuple[str, ...],
+    recovery: RecoveryHandle,
+    progress: object,
+) -> RecoveryRequired:
+    return RecoveryRequired(
+        _OPERATION_ERROR_TOKEN,
+        issue,
+        operation_id,
+        receipt_ids,
+        recovery=recovery,
+        progress=progress,
+    )
 
 
 def _receipt_integrity_error(
@@ -313,7 +371,11 @@ def _receipt_integrity_error(
     terminal: bool,
 ) -> ReceiptIntegrityError:
     return ReceiptIntegrityError(
-        _OPERATION_ERROR_TOKEN, issue, operation_id, state, terminal,
+        _OPERATION_ERROR_TOKEN,
+        issue,
+        operation_id,
+        state,
+        terminal,
     )
 
 
@@ -353,8 +415,12 @@ class Operations:
         except _OperationError:
             raise
         except (
-            asyncio.CancelledError, OSError, asyncio.TimeoutError, TypeError,
-            ValueError, _PostWriteRequestError,
+            asyncio.CancelledError,
+            OSError,
+            asyncio.TimeoutError,
+            TypeError,
+            ValueError,
+            _PostWriteRequestError,
         ) as error:
             if (
                 self._client._mode != "recovery-only"
@@ -363,7 +429,11 @@ class Operations:
             ):
                 raise
             raise _recovery_required_error(
-                _recovery_unavailable_issue(identity[0]), identity[0], (), recovery, {},
+                _recovery_unavailable_issue(identity[0]),
+                identity[0],
+                (),
+                recovery,
+                {},
             ) from error
 
     async def pending(self) -> Tuple[OperationStatus, ...]:
@@ -377,7 +447,10 @@ class Operations:
             raise ValueError("pending-operation response exceeds bound")
         decoded = tuple(_pending_row(item) for item in wire[2])
         for previous, current in zip(decoded, decoded[1:]):
-            if (previous[1], previous[0].operation_id) >= (current[1], current[0].operation_id):
+            if (previous[1], previous[0].operation_id) >= (
+                current[1],
+                current[0].operation_id,
+            ):
                 raise ValueError("pending operations are not strictly ordered")
         return tuple(item[0] for item in decoded)
 
@@ -389,8 +462,10 @@ class Operations:
         wire = _wire_map(raw)
         if wire.get(2) == "receipt-integrity-failed":
             if (
-                set(wire) != set(range(1, 10)) or wire.get(1) != 1
-                or not isinstance(wire.get(3), bytes) or len(wire[3]) != 16
+                set(wire) != set(range(1, 10))
+                or wire.get(1) != 1
+                or not isinstance(wire.get(3), bytes)
+                or len(wire[3]) != 16
                 or wire.get(4) != operation_id
             ):
                 raise ValueError("invalid receipt integrity outcome")
@@ -404,7 +479,11 @@ class Operations:
         total = 0
         for row in rows:
             item = _map(row)
-            if set(item) != {1, 2} or not isinstance(item[1], str) or not isinstance(item[2], bytes):
+            if (
+                set(item) != {1, 2}
+                or not isinstance(item[1], str)
+                or not isinstance(item[2], bytes)
+            ):
                 raise ValueError("invalid receipt entry")
             total += len(item[2])
             if total > 16 * 1024 * 1024:
@@ -443,15 +522,22 @@ class Client:
                 _validate_posix_socket(self._socket)
             else:
                 _validate_qualification_socket_pair(
-                    self._socket, qualification_result_socket,
+                    self._socket,
+                    qualification_result_socket,
                 )
             request_id = os.urandom(16)
             info = runtime_info()
             digest = bytes.fromhex(info.error_registry_digest)
-            body = _encode_cbor({
-                1: 1, 2: request_id, 3: "python", 4: info.sdk_version,
-                5: digest, 6: "full",
-            })
+            body = _encode_cbor(
+                {
+                    1: 1,
+                    2: request_id,
+                    3: "python",
+                    4: info.sdk_version,
+                    5: digest,
+                    6: "full",
+                }
+            )
             raw = await self._request_raw(
                 "POST", "/v1/session", body, self._options.connect_timeout, None
             )
@@ -459,12 +545,17 @@ class Client:
             self._install_session(wire, request_id, digest)
             if qualification_result_socket is not None:
                 if self._mode != "full":
-                    raise ValueError("qualification result handoff requires a full local session")
+                    raise ValueError(
+                        "qualification result handoff requires a full local session"
+                    )
                 self._qualification_result_socket = qualification_result_socket
             self._state = "open"
             return self
         except (
-            OSError, asyncio.TimeoutError, ClientStateError, ValueError,
+            OSError,
+            asyncio.TimeoutError,
+            ClientStateError,
+            ValueError,
             _PostWriteRequestError,
         ) as error:
             self._state = "closed"
@@ -512,8 +603,11 @@ class Client:
             if session is not None and self._socket is not None:
                 try:
                     await self._request_raw(
-                        "DELETE", f"/v1/session/{session}", b"",
-                        timedelta(seconds=5), session,
+                        "DELETE",
+                        f"/v1/session/{session}",
+                        b"",
+                        timedelta(seconds=5),
+                        session,
                     )
                 except Exception:
                     pass
@@ -528,7 +622,11 @@ class Client:
         return self._operations
 
     def _profile_capability(
-        self, profile_id: str, version: int, *, for_recovery: bool = False,
+        self,
+        profile_id: str,
+        version: int,
+        *,
+        for_recovery: bool = False,
     ) -> _ProfileCapability:
         self._ensure_open()
         if self._mode == "recovery-only" and not for_recovery:
@@ -559,23 +657,30 @@ class Client:
         if self._qualification_result_socket is None:
             return None
         capability = self._profiles.get((profile_id, version))
-        if self._mode != "full" or capability is None or capability.qualification is not None:
+        if (
+            self._mode != "full"
+            or capability is None
+            or capability.qualification is not None
+        ):
             raise ValueError(
                 "qualification result handoff is outside the exercised unqualified profile",
             )
         return self._qualification_result_socket
 
     def _require_qualification_profile(self, capability: _ProfileCapability) -> None:
-        if (
-            self._qualification_result_socket is not None
-            and (self._mode != "full" or capability.qualification is not None)
+        if self._qualification_result_socket is not None and (
+            self._mode != "full" or capability.qualification is not None
         ):
             raise ValueError(
                 "qualification result handoff is outside the exercised unqualified profile",
             )
 
     async def _request(
-        self, method: str, path: str, body: bytes, timeout: timedelta,
+        self,
+        method: str,
+        path: str,
+        body: bytes,
+        timeout: timedelta,
         coordination: Optional[_ProfileInvocationTicket] = None,
     ) -> bytes:
         self._ensure_open()
@@ -591,7 +696,10 @@ class Client:
             self._admission.release()
 
     def _begin_profile_invocation(
-        self, scope: str, fingerprint: bytes, request_id: bytes,
+        self,
+        scope: str,
+        fingerprint: bytes,
+        request_id: bytes,
     ) -> _ProfileInvocationTicket:
         self._ensure_open()
         entry = self._profile_invocations.get(scope)
@@ -599,7 +707,9 @@ class Client:
             if entry.waiters >= 256:
                 raise _unavailable_error(_admission_issue(), None, ())
             entry.waiters += 1
-            ticket = _ProfileInvocationTicket(self, scope, entry, "conflict-probe", True)
+            ticket = _ProfileInvocationTicket(
+                self, scope, entry, "conflict-probe", True
+            )
             ticket.request_id = bytes(request_id)
             return ticket
         if entry is not None:
@@ -607,25 +717,35 @@ class Client:
             if attached:
                 entry.waiters += 1
             return _ProfileInvocationTicket(
-                self, scope, entry, "follower" if attached else "observer", attached,
+                self,
+                scope,
+                entry,
+                "follower" if attached else "observer",
+                attached,
             )
         entry = _ProfileInvocationEntry(bytes(fingerprint), bytes(request_id))
         self._profile_invocations[scope] = entry
         return _ProfileInvocationTicket(self, scope, entry, "leader", False)
 
     def _publish_profile_invocation(
-        self, ticket: _ProfileInvocationTicket, operation_id: Optional[str],
+        self,
+        ticket: _ProfileInvocationTicket,
+        operation_id: Optional[str],
         initial: bytes = b"",
     ) -> None:
         if (
-            ticket.client is not self or ticket.role != "leader"
-            or ticket.finished or ticket.entry.published
+            ticket.client is not self
+            or ticket.role != "leader"
+            or ticket.finished
+            or ticket.entry.published
         ):
             return
         ticket.entry.published = True
         ticket.entry.has_operation = operation_id is not None
         ticket.entry.identity.set_result(
-            None if operation_id is None else (ticket.entry.request_id, operation_id, bytes(initial))
+            None
+            if operation_id is None
+            else (ticket.entry.request_id, operation_id, bytes(initial))
         )
 
     def _finish_profile_invocation(self, ticket: _ProfileInvocationTicket) -> None:
@@ -642,16 +762,21 @@ class Client:
         elif ticket.attached:
             entry.waiters -= 1
         if (
-            entry.settled and (not entry.has_operation or entry.waiters == 0)
+            entry.settled
+            and (not entry.has_operation or entry.waiters == 0)
             and self._profile_invocations.get(ticket.scope) is entry
         ):
             del self._profile_invocations[ticket.scope]
 
     async def _profile_invocation_status(
-        self, ticket: _ProfileInvocationTicket, path: str, timeout: timedelta,
+        self,
+        ticket: _ProfileInvocationTicket,
+        path: str,
+        timeout: timedelta,
     ) -> bytes:
         if (
-            ticket.client is not self or ticket.finished
+            ticket.client is not self
+            or ticket.finished
             or ticket.role not in ("follower", "observer")
         ):
             raise ClientStateError("invalid coordinated profile status request")
@@ -659,14 +784,20 @@ class Client:
         if entry.status is None:
             task = asyncio.create_task(self._request("GET", path, b"", timeout))
             entry.status = task
+
             def clear(completed: asyncio.Task[bytes]) -> None:
                 if entry.status is completed:
                     entry.status = None
+
             task.add_done_callback(clear)
         return await asyncio.shield(entry.status)
 
     async def _tracked_request(
-        self, method: str, path: str, body: bytes, timeout: timedelta,
+        self,
+        method: str,
+        path: str,
+        body: bytes,
+        timeout: timedelta,
     ) -> bytes:
         self._ensure_open()
         session = self._session_id
@@ -687,7 +818,9 @@ class Client:
         return self._mode == "recovery-only"
 
     def _profile_capability_for_recovery(
-        self, profile_id: str, version: int,
+        self,
+        profile_id: str,
+        version: int,
     ) -> Optional[_ProfileCapability]:
         self._ensure_open()
         capability = self._profiles.get((profile_id, version))
@@ -710,16 +843,29 @@ class Client:
         try:
             return await asyncio.wait_for(
                 _unix_http_request(
-                    self._socket, method, path, body, session, written,
+                    self._socket,
+                    method,
+                    path,
+                    body,
+                    session,
+                    written,
                 ),
                 timeout_seconds,
             )
-        except (asyncio.CancelledError, asyncio.TimeoutError, OSError, ClientStateError, ValueError) as error:
+        except (
+            asyncio.CancelledError,
+            asyncio.TimeoutError,
+            OSError,
+            ClientStateError,
+            ValueError,
+        ) as error:
             if written[0]:
                 raise _PostWriteRequestError(error) from error
             raise
 
-    def _install_session(self, wire: Dict[int, Any], request_id: bytes, digest: bytes) -> None:
+    def _install_session(
+        self, wire: Dict[int, Any], request_id: bytes, digest: bytes
+    ) -> None:
         if set(wire) != set(range(1, 9)) or wire[1] != 1 or wire[2] != request_id:
             raise ValueError("invalid Auths session response")
         if not _valid_session_id(wire[3]) or not _valid_principal(wire[4]):
@@ -727,9 +873,11 @@ class Client:
         mode = wire[8]
         if (
             mode not in ("full", "recovery-only")
-            or not isinstance(wire[5], bytes) or len(wire[5]) != 32
+            or not isinstance(wire[5], bytes)
+            or len(wire[5]) != 32
             or (mode == "full") != (wire[5] == digest)
-            or type(wire[7]) is not int or not 1 <= wire[7] <= 32
+            or type(wire[7]) is not int
+            or not 1 <= wire[7] <= 32
         ):
             raise ValueError("invalid Auths session mode")
         profiles = wire[6]
@@ -758,10 +906,13 @@ class Client:
                     raise ValueError("invalid Auths connection advertisement")
             if (
                 not _valid_profile_id(item[1])
-                or type(item[2]) is not int or not 1 <= item[2] <= 65_535
-                or not isinstance(item[3], bytes) or len(item[3]) != 32
+                or type(item[2]) is not int
+                or not 1 <= item[2] <= 65_535
+                or not isinstance(item[3], bytes)
+                or len(item[3]) != 32
                 or item[4] != "auths.profile-operation/1"
-                or not isinstance(item[5], bytes) or len(item[5]) != 32
+                or not isinstance(item[5], bytes)
+                or len(item[5]) != 32
             ):
                 raise ValueError("invalid Auths profile advertisement")
             raw_qualification = item[7]
@@ -777,7 +928,13 @@ class Client:
                     set(qualified) != {1, 2, 3}
                     or not isinstance(qualification_id, str)
                     or re.fullmatch(r"qlf_[A-Za-z0-9_-]{43}", qualification_id) is None
-                    or target not in {"linux-x86_64", "linux-aarch64", "macos-x86_64", "macos-aarch64"}
+                    or target
+                    not in {
+                        "linux-x86_64",
+                        "linux-aarch64",
+                        "macos-x86_64",
+                        "macos-aarch64",
+                    }
                     or not isinstance(closure, bytes)
                     or len(closure) != 32
                 ):
@@ -788,7 +945,12 @@ class Client:
                 raise ValueError("duplicate or unordered Auths profile advertisement")
             previous_key = key
             parsed[key] = _ProfileCapability(
-                item[1], item[2], bytes(item[3]), item[4], bytes(item[5]), projection,
+                item[1],
+                item[2],
+                bytes(item[3]),
+                item[4],
+                bytes(item[5]),
+                projection,
                 qualification,
             )
         self._session_id = wire[3]
@@ -818,7 +980,8 @@ def _valid_session_id(value: object) -> bool:
     except (ValueError, TypeError):
         return False
     return (
-        len(decoded) == 16 and any(decoded)
+        len(decoded) == 16
+        and any(decoded)
         and base64.urlsafe_b64encode(decoded).decode("ascii").rstrip("=") == encoded
     )
 
@@ -828,29 +991,34 @@ def _valid_principal(value: object) -> bool:
         return False
     scheme, separator, remainder = value.partition(":")
     return (
-        separator == ":" and bool(remainder)
+        separator == ":"
+        and bool(remainder)
         and re.fullmatch(r"[a-z][a-z0-9+.-]*", scheme) is not None
-        and all(0x21 <= ord(character) <= 0x7e for character in value)
+        and all(0x21 <= ord(character) <= 0x7E for character in value)
     )
 
 
 def _valid_profile_id(value: object) -> bool:
     return (
-        isinstance(value, str) and len(value) <= 128
-        and re.fullmatch(r"auths\.[a-z][a-z0-9-]{0,63}\.[a-z][a-z0-9-]{0,63}", value) is not None
+        isinstance(value, str)
+        and len(value) <= 128
+        and re.fullmatch(r"auths\.[a-z][a-z0-9-]{0,63}\.[a-z][a-z0-9-]{0,63}", value)
+        is not None
     )
 
 
 def _valid_lower_token(value: object) -> bool:
     return (
-        isinstance(value, str) and len(value) <= 64
+        isinstance(value, str)
+        and len(value) <= 64
         and re.fullmatch(r"[a-z][a-z0-9-]*", value) is not None
     )
 
 
 def _valid_semantic_id(value: object) -> bool:
     return (
-        isinstance(value, str) and len(value) <= 128
+        isinstance(value, str)
+        and len(value) <= 128
         and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]*", value) is not None
     )
 
@@ -877,7 +1045,9 @@ def _discover_socket(explicit: Optional[Union[str, os.PathLike[str]]]) -> str:
             (),
         )
     encoded = candidate.encode("utf-8")
-    if not 1 <= len(encoded) <= 1024 or any(byte < 0x20 or byte == 0x7F for byte in encoded):
+    if not 1 <= len(encoded) <= 1024 or any(
+        byte < 0x20 or byte == 0x7F for byte in encoded
+    ):
         raise ValueError("invalid local Auths agent socket")
     if os.name == "posix" and not os.path.isabs(candidate):
         raise ValueError("local Auths agent socket must be absolute")
@@ -905,7 +1075,9 @@ def _discover_qualification_result_socket() -> Optional[str]:
 def _validate_posix_socket(path: str) -> None:
     if os.name != "posix":
         raise _unavailable_error(
-            _client_issue("client.agent-unavailable", "local named-pipe transport is unavailable"),
+            _client_issue(
+                "client.agent-unavailable", "local named-pipe transport is unavailable"
+            ),
             None,
             (),
         )
@@ -913,19 +1085,25 @@ def _validate_posix_socket(path: str) -> None:
         item = os.lstat(path)
     except OSError as error:
         raise _unavailable_error(
-            _client_issue("client.agent-unavailable", "local Auths agent socket is unavailable"),
+            _client_issue(
+                "client.agent-unavailable", "local Auths agent socket is unavailable"
+            ),
             None,
             (),
         ) from error
     if stat.S_ISLNK(item.st_mode) or not stat.S_ISSOCK(item.st_mode):
         raise _unavailable_error(
-            _client_issue("client.agent-unavailable", "Auths agent address is not a safe socket"),
+            _client_issue(
+                "client.agent-unavailable", "Auths agent address is not a safe socket"
+            ),
             None,
             (),
         )
     if item.st_uid not in (0, os.geteuid()) or item.st_mode & stat.S_IWOTH:
         raise _unavailable_error(
-            _client_issue("client.agent-unavailable", "Auths agent socket permissions are unsafe"),
+            _client_issue(
+                "client.agent-unavailable", "Auths agent socket permissions are unsafe"
+            ),
             None,
             (),
         )
@@ -947,7 +1125,9 @@ def _validate_qualification_socket_pair(agent_socket: str, result_socket: str) -
         current /= component
         item = os.lstat(current)
         if stat.S_ISLNK(item.st_mode) or not stat.S_ISDIR(item.st_mode):
-            raise ValueError("qualification socket parent is not a no-symlink directory")
+            raise ValueError(
+                "qualification socket parent is not a no-symlink directory"
+            )
     parent = os.lstat(parent_path)
     agent = os.lstat(agent_socket)
     result = os.lstat(result_socket)
@@ -955,13 +1135,17 @@ def _validate_qualification_socket_pair(agent_socket: str, result_socket: str) -
     gid = os.getegid()
     if (
         owner in (0, os.geteuid())
-        or parent.st_gid != gid or stat.S_IMODE(parent.st_mode) != 0o710
+        or parent.st_gid != gid
+        or stat.S_IMODE(parent.st_mode) != 0o710
         or not stat.S_ISDIR(parent.st_mode)
-        or agent.st_uid != owner or result.st_uid != owner
-        or agent.st_gid != gid or result.st_gid != gid
+        or agent.st_uid != owner
+        or result.st_uid != owner
+        or agent.st_gid != gid
+        or result.st_gid != gid
         or stat.S_IMODE(agent.st_mode) != 0o660
         or stat.S_IMODE(result.st_mode) != 0o660
-        or not stat.S_ISSOCK(agent.st_mode) or not stat.S_ISSOCK(result.st_mode)
+        or not stat.S_ISSOCK(agent.st_mode)
+        or not stat.S_ISSOCK(result.st_mode)
     ):
         raise ValueError("qualification sockets are not exact protected shared state")
 
@@ -990,20 +1174,29 @@ async def _report_qualification_result(
         sent = False
         try:
             reader, writer = await asyncio.wait_for(
-                asyncio.open_unix_connection(socket_path), remaining,
+                asyncio.open_unix_connection(socket_path),
+                remaining,
             )
             try:
-                writer.write(encode_qualification_client_result_frame_v1(
-                    mode, request_id, result,
-                ))
-                await asyncio.wait_for(writer.drain(), _qualification_remaining(deadline))
+                writer.write(
+                    encode_qualification_client_result_frame_v1(
+                        mode,
+                        request_id,
+                        result,
+                    )
+                )
+                await asyncio.wait_for(
+                    writer.drain(), _qualification_remaining(deadline)
+                )
                 writer.write_eof()
                 sent = True
                 acknowledgement = await asyncio.wait_for(
-                    reader.readexactly(32), _qualification_remaining(deadline),
+                    reader.readexactly(32),
+                    _qualification_remaining(deadline),
                 )
                 trailing = await asyncio.wait_for(
-                    reader.read(1), _qualification_remaining(deadline),
+                    reader.read(1),
+                    _qualification_remaining(deadline),
                 )
                 if len(acknowledgement) == 32 and trailing == b"":
                     return
@@ -1017,15 +1210,25 @@ async def _report_qualification_result(
             pass
         if sent:
             mode = new_mode + 2
-        await asyncio.sleep(min(0.01, max(0.0, deadline - asyncio.get_running_loop().time())))
+        await asyncio.sleep(
+            min(0.01, max(0.0, deadline - asyncio.get_running_loop().time()))
+        )
 
 
 async def _report_qualification_cancellation(
-    client: Client, profile_id: str, version: int, request_id: bytes,
+    client: Client,
+    profile_id: str,
+    version: int,
+    request_id: bytes,
 ) -> None:
     result = qualification_client_cancellation_result_v1(request_id)
     await _report_qualification_result(
-        client, profile_id, version, request_id, result, cancellation=True,
+        client,
+        profile_id,
+        version,
+        request_id,
+        result,
+        cancellation=True,
     )
 
 
@@ -1039,40 +1242,78 @@ def _qualification_remaining(deadline: float) -> float:
 def _client_issue(code: str, summary: str) -> ErrorInfo:
     if code == "client.profile-unavailable":
         return ErrorInfo(
-            "auths.error/1", code, "configuration", "connect", "negotiation",
-            summary, "auths-python", EffectState.NOT_APPLIED, RetryClass.NEVER,
+            "auths.error/1",
+            code,
+            "configuration",
+            "connect",
+            "negotiation",
+            summary,
+            "auths-python",
+            EffectState.NOT_APPLIED,
+            RetryClass.NEVER,
             RecommendedAction.INSTALL_COMPATIBLE_RUNTIME,
             EnteredBoundaries(False, False, False, False, False),
-            None, None, None, (),
+            None,
+            None,
+            None,
+            (),
         )
     return ErrorInfo(
-        "auths.error/1", "client.agent-unavailable", "runtime", "connect",
-        "local-agent", summary, "auths-python", EffectState.NOT_APPLIED,
-        RetryClass.CONDITIONAL, RecommendedAction.CORRECT_CONFIGURATION,
+        "auths.error/1",
+        "client.agent-unavailable",
+        "runtime",
+        "connect",
+        "local-agent",
+        summary,
+        "auths-python",
+        EffectState.NOT_APPLIED,
+        RetryClass.CONDITIONAL,
+        RecommendedAction.CORRECT_CONFIGURATION,
         EnteredBoundaries(False, False, False, False, False),
-        None, None, None, (),
+        None,
+        None,
+        None,
+        (),
     )
 
 
 def _admission_issue() -> ErrorInfo:
     return ErrorInfo(
-        "auths.error/1", "operation.admission-exhausted", "state", "execute",
-        "admission", "Operation admission exhausted", "auths-python-admission",
-        EffectState.NOT_APPLIED, RetryClass.CONDITIONAL,
+        "auths.error/1",
+        "operation.admission-exhausted",
+        "state",
+        "execute",
+        "admission",
+        "Operation admission exhausted",
+        "auths-python-admission",
+        EffectState.NOT_APPLIED,
+        RetryClass.CONDITIONAL,
         RecommendedAction.RETRY_EXECUTION,
         EnteredBoundaries(False, False, False, False, False),
-        None, None, None, ("unknown",),
+        None,
+        None,
+        None,
+        ("unknown",),
     )
 
 
 def _recovery_unavailable_issue(operation_id: str) -> ErrorInfo:
     return ErrorInfo(
-        "auths.error/1", "operation.recovery-unavailable", "state", "recover",
-        "reconciliation", "recovery could not safely decode the installed operation outcome",
-        operation_id, EffectState.POSSIBLE, RetryClass.UNKNOWN,
+        "auths.error/1",
+        "operation.recovery-unavailable",
+        "state",
+        "recover",
+        "reconciliation",
+        "recovery could not safely decode the installed operation outcome",
+        operation_id,
+        EffectState.POSSIBLE,
+        RetryClass.UNKNOWN,
         RecommendedAction.RESUME_AND_RECONCILE,
         EnteredBoundaries(False, False, False, False, True),
-        operation_id, None, None, ("unknown",),
+        operation_id,
+        None,
+        None,
+        ("unknown",),
     )
 
 
@@ -1091,8 +1332,10 @@ async def _unix_http_request(
     reader, writer = await asyncio.open_unix_connection(socket_path)
     try:
         headers = [
-            f"{method} {path} HTTP/1.1", "Host: localhost",
-            f"Content-Type: {_MEDIA_TYPE}", f"Content-Length: {len(body)}",
+            f"{method} {path} HTTP/1.1",
+            "Host: localhost",
+            f"Content-Type: {_MEDIA_TYPE}",
+            f"Content-Length: {len(body)}",
             "Connection: close",
         ]
         if session is not None:
@@ -1149,7 +1392,9 @@ def _map(value: Any) -> Dict[int, Any]:
 
 
 def _duration_ms(value: timedelta, minimum: int, maximum: int, name: str) -> int:
-    microseconds = value.days * 86_400_000_000 + value.seconds * 1_000_000 + value.microseconds
+    microseconds = (
+        value.days * 86_400_000_000 + value.seconds * 1_000_000 + value.microseconds
+    )
     if microseconds % 1000 != 0:
         raise ValueError(f"{name} must use whole milliseconds")
     milliseconds = microseconds // 1000
@@ -1183,24 +1428,32 @@ def _recovery_identity(value: bytes) -> Tuple[str, str, int]:
     if (
         not isinstance(profile_id, str)
         or re.fullmatch(r"auths\.[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*", profile_id) is None
-        or type(version) is not int or not 1 <= version <= 65_535
-        or not isinstance(raw.get(5), bytes) or len(raw[5]) != 32
+        or type(version) is not int
+        or not 1 <= version <= 65_535
+        or not isinstance(raw.get(5), bytes)
+        or len(raw[5]) != 32
         or type(raw.get(6)) is not int
         or (raw.get(7) is not None and type(raw.get(7)) is not int)
-        or not isinstance(raw.get(8), bytes) or len(raw[8]) != 32
+        or not isinstance(raw.get(8), bytes)
+        or len(raw[8]) != 32
         or raw.get(9) != "Ed25519"
         or not isinstance(raw.get(10), str)
-        or not isinstance(raw.get(11), bytes) or len(raw[11]) != 64
+        or not isinstance(raw.get(11), bytes)
+        or len(raw[11]) != 64
     ):
         raise ValueError("invalid recovery handle")
     return operation, profile_id, version
 
 
 def _receipt_id_list(value: object) -> Tuple[str, ...]:
-    if not isinstance(value, list) or len(value) > 64 or any(
-        not isinstance(item, str)
-        or re.fullmatch(r"rcpt_[A-Za-z0-9_-]{43}", item) is None
-        for item in value
+    if (
+        not isinstance(value, list)
+        or len(value) > 64
+        or any(
+            not isinstance(item, str)
+            or re.fullmatch(r"rcpt_[A-Za-z0-9_-]{43}", item) is None
+            for item in value
+        )
     ):
         raise ValueError("invalid receipt ID list")
     return tuple(value)
@@ -1224,14 +1477,23 @@ def _status_from_outcome(
 ) -> OperationStatus:
     kind = wire.get(2)
     sizes = {
-        "ready": 8, "in-progress": 9, "denied": 7, "unavailable": 7,
-        "conflict": 8, "completed": 8, "partial": 9, "not-applied": 8,
-        "recovery-required": 9, "receipt-integrity-failed": 9,
+        "ready": 8,
+        "in-progress": 9,
+        "denied": 7,
+        "unavailable": 7,
+        "conflict": 8,
+        "completed": 8,
+        "partial": 9,
+        "not-applied": 8,
+        "recovery-required": 9,
+        "receipt-integrity-failed": 9,
     }
     maximum = sizes.get(kind) if isinstance(kind, str) else None
     if (
-        maximum is None or set(wire) != set(range(1, maximum + 1))
-        or wire.get(1) != 1 or wire.get(3) != request_id
+        maximum is None
+        or set(wire) != set(range(1, maximum + 1))
+        or wire.get(1) != 1
+        or wire.get(3) != request_id
     ):
         raise ValueError("invalid recovery outcome")
     operation = wire.get(4)
@@ -1267,44 +1529,77 @@ def _status_from_outcome(
     elif kind == "denied":
         _status_issue(wire.get(5), "not-applied", operation)
         receipt_ids = _receipt_ids_from_portable([wire.get(6)])
-        connection = wire.get(7); state = "denied"; effect = "not-applied"; terminal = True
+        connection = wire.get(7)
+        state = "denied"
+        effect = "not-applied"
+        terminal = True
     elif kind == "unavailable":
         _status_issue(wire.get(5), "not-applied", operation)
         receipts = wire.get(6)
         if not isinstance(receipts, list) or len(receipts) > 1:
             raise ValueError("invalid unavailable receipt list")
         receipt_ids = _receipt_ids_from_portable(receipts)
-        connection = wire.get(7); state = "unavailable"; effect = "not-applied"; terminal = True
+        connection = wire.get(7)
+        state = "unavailable"
+        effect = "not-applied"
+        terminal = True
     elif kind == "conflict":
         _status_issue(wire.get(5), "possible", operation)
         recovery = _status_recovery(wire.get(6), identity)
         receipt_ids = _receipt_ids_from_portable(wire.get(7))
-        connection = wire.get(8); state = "recovery-required"; effect = "possible"; terminal = False
+        connection = wire.get(8)
+        state = "recovery-required"
+        effect = "possible"
+        terminal = False
     elif kind == "completed":
-        _bounded_result(wire.get(5)); receipt_ids = _receipt_ids_from_portable(wire.get(6)); _completion(wire.get(7))
-        connection = wire.get(8); state = "completed"; effect = "applied"; terminal = True
+        _bounded_result(wire.get(5))
+        receipt_ids = _receipt_ids_from_portable(wire.get(6))
+        _completion(wire.get(7))
+        connection = wire.get(8)
+        state = "completed"
+        effect = "applied"
+        terminal = True
     elif kind == "partial":
-        _bounded_result(wire.get(5)); _status_issue(wire.get(6), "applied", operation); receipt_ids = _receipt_ids_from_portable(wire.get(7)); _completion(wire.get(8))
-        connection = wire.get(9); state = "partial"; effect = "applied"; terminal = True
+        _bounded_result(wire.get(5))
+        _status_issue(wire.get(6), "applied", operation)
+        receipt_ids = _receipt_ids_from_portable(wire.get(7))
+        _completion(wire.get(8))
+        connection = wire.get(9)
+        state = "partial"
+        effect = "applied"
+        terminal = True
     elif kind == "not-applied":
-        _status_issue(wire.get(5), "not-applied", operation); receipt_ids = _receipt_ids_from_portable(wire.get(6)); _completion(wire.get(7))
-        connection = wire.get(8); state = "not-applied"; effect = "not-applied"; terminal = True
+        _status_issue(wire.get(5), "not-applied", operation)
+        receipt_ids = _receipt_ids_from_portable(wire.get(6))
+        _completion(wire.get(7))
+        connection = wire.get(8)
+        state = "not-applied"
+        effect = "not-applied"
+        terminal = True
     else:
         _status_issue(wire.get(5), "possible", operation)
         recovery = _status_recovery(wire.get(6), identity)
         receipt_ids = _receipt_ids_from_portable(wire.get(7))
         if wire.get(8) is not None:
             _bounded_result(wire.get(8))
-        connection = wire.get(9); state = "recovery-required"; effect = "possible"; terminal = False
+        connection = wire.get(9)
+        state = "recovery-required"
+        effect = "possible"
+        terminal = False
     if connection is not None and (
         not isinstance(connection, str)
         or re.fullmatch(r"[a-z][a-z0-9-]{0,63}", connection) is None
     ):
         raise ValueError("invalid connection alias")
     return OperationStatus(
-        operation, f"{identity[1]}/{identity[2]}", connection, state,
-        effect, terminal,
-        receipt_ids, recovery,
+        operation,
+        f"{identity[1]}/{identity[2]}",
+        connection,
+        state,
+        effect,
+        terminal,
+        receipt_ids,
+        recovery,
     )
 
 
@@ -1347,12 +1642,20 @@ def _completion(value: object) -> Literal["fresh", "replayed", "reconciled"]:
 
 
 def _receipt_integrity_failure(
-    wire: Dict[int, Any], operation_id: str,
+    wire: Dict[int, Any],
+    operation_id: str,
 ) -> ReceiptIntegrityError:
     raw_state = wire.get(6)
     if raw_state not in (
-        "preparing", "denied", "unavailable", "ready", "executing",
-        "recovery-required", "completed", "partial", "not-applied",
+        "preparing",
+        "denied",
+        "unavailable",
+        "ready",
+        "executing",
+        "recovery-required",
+        "completed",
+        "partial",
+        "not-applied",
     ):
         raise ValueError("invalid receipt integrity state")
     raw_effect = wire.get(7)
@@ -1361,7 +1664,9 @@ def _receipt_integrity_failure(
     terminal = wire.get(8)
     state = cast(OperationState, raw_state)
     if type(terminal) is not bool or not _valid_integrity_truth(
-        state, cast(Literal["not-applied", "possible", "applied"], raw_effect), terminal,
+        state,
+        cast(Literal["not-applied", "possible", "applied"], raw_effect),
+        terminal,
     ):
         raise ValueError("receipt integrity outcome contradicts durable truth")
     connection = wire.get(9)
@@ -1380,7 +1685,8 @@ def _receipt_integrity_failure(
         or issue.correlation_id != operation_id
         or issue.execution_reference != operation_id
         or not _integrity_provider_boundary(
-            state, cast(Literal["not-applied", "possible", "applied"], raw_effect),
+            state,
+            cast(Literal["not-applied", "possible", "applied"], raw_effect),
             issue.entered_boundaries.provider,
         )
     ):
@@ -1429,24 +1735,33 @@ def _pending_row(value: Any) -> Tuple[OperationStatus, int]:
     if (
         not isinstance(profile_id, str)
         or re.fullmatch(r"auths\.[a-z][a-z0-9-]*\.[a-z][a-z0-9-]*", profile_id) is None
-        or not isinstance(version, int) or isinstance(version, bool)
+        or not isinstance(version, int)
+        or isinstance(version, bool)
         or not 1 <= version <= 65_535
     ):
         raise ValueError("invalid pending-operation profile")
     state = wire[4]
     effect = wire[5]
     if (
-        not isinstance(state, str) or not isinstance(effect, str)
-        or (state, effect) not in {
-            ("preparing", "not-applied"), ("ready", "not-applied"),
-            ("executing", "not-applied"), ("executing", "possible"),
+        not isinstance(state, str)
+        or not isinstance(effect, str)
+        or (state, effect)
+        not in {
+            ("preparing", "not-applied"),
+            ("ready", "not-applied"),
+            ("executing", "not-applied"),
+            ("executing", "possible"),
             ("recovery-required", "possible"),
         }
         or wire[6] is not False
     ):
         raise ValueError("invalid pending-operation truth")
     updated_at = wire[7]
-    if not isinstance(updated_at, int) or isinstance(updated_at, bool) or updated_at < 1:
+    if (
+        not isinstance(updated_at, int)
+        or isinstance(updated_at, bool)
+        or updated_at < 1
+    ):
         raise ValueError("invalid pending-operation timestamp")
     receipt_ids = _receipt_id_list(wire[8])
     if not isinstance(wire[9], bytes):
@@ -1463,9 +1778,14 @@ def _pending_row(value: Any) -> Tuple[OperationStatus, int]:
         raise ValueError("invalid pending-operation connection")
     return (
         OperationStatus(
-            operation, f"{profile_id}/{version}", connection, cast(OperationState, state),
-            cast(Literal["not-applied", "possible", "applied"], effect), False,
-            receipt_ids, recovery,
+            operation,
+            f"{profile_id}/{version}",
+            connection,
+            cast(OperationState, state),
+            cast(Literal["not-applied", "possible", "applied"], effect),
+            False,
+            receipt_ids,
+            recovery,
         ),
         updated_at,
     )
