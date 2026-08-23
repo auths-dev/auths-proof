@@ -23,8 +23,8 @@ mod linux {
     use rustix::{
         fs::{
             AtFlags, MemfdFlags, Mode, OFlags, RenameFlags, ResolveFlags, SealFlags, chown, fchown,
-            fcntl_add_seals, fcntl_get_seals, memfd_create, open, openat, openat2, renameat_with,
-            unlinkat,
+            fcntl_add_seals, fcntl_get_seals, fcntl_setfl, memfd_create, open, openat, openat2,
+            renameat_with, unlinkat,
         },
         io::{FdFlags, fcntl_setfd},
         mount::{
@@ -49,9 +49,9 @@ mod linux {
             },
         },
         path::{Component, Path, PathBuf},
-        process::{Command, ExitCode, Stdio},
+        process::{Child, ChildStderr, ChildStdout, Command, ExitCode, ExitStatus, Stdio},
         thread,
-        time::{SystemTime, UNIX_EPOCH},
+        time::{Duration, SystemTime, UNIX_EPOCH},
     };
 
     const RELEASE: &[u8] = b"AUTHS-QUALIFICATION-LAUNCH/1\n";
@@ -693,17 +693,7 @@ mod linux {
             .stderr
             .take()
             .ok_or_else(|| "candidate init has no stderr".to_owned())?;
-        let output_worker =
-            thread::spawn(move || read_bounded_pipe(stdout, MAX_CANDIDATE_RESULT_BYTES));
-        let error_worker =
-            thread::spawn(move || read_bounded_pipe(stderr, MAX_CANDIDATE_STDERR_BYTES));
-        let status = child.wait().map_err(string_error)?;
-        let output = output_worker
-            .join()
-            .map_err(|_| "candidate output reader panicked".to_owned())??;
-        let errors = error_worker
-            .join()
-            .map_err(|_| "candidate stderr reader panicked".to_owned())??;
+        let (status, output, errors) = read_candidate_child_output(&mut child, stdout, stderr)?;
         if !status.success() || output.is_empty() || !errors.is_empty() {
             return Err("candidate workload did not produce one clean bounded result".into());
         }
@@ -1277,17 +1267,79 @@ mod linux {
         path.strip_prefix("/").map_err(string_error)
     }
 
-    fn read_bounded_pipe<R: Read>(mut reader: R, maximum: usize) -> Result<Vec<u8>, String> {
-        let mut bytes = Vec::new();
-        reader
-            .by_ref()
-            .take(u64::try_from(maximum).map_err(string_error)? + 1)
-            .read_to_end(&mut bytes)
-            .map_err(string_error)?;
-        if bytes.len() > maximum {
-            return Err("candidate output exceeds its byte bound".into());
+    fn read_candidate_child_output(
+        child: &mut Child,
+        mut stdout: ChildStdout,
+        mut stderr: ChildStderr,
+    ) -> Result<(ExitStatus, Vec<u8>, Vec<u8>), String> {
+        fcntl_setfl(&stdout, OFlags::NONBLOCK).map_err(string_error)?;
+        fcntl_setfl(&stderr, OFlags::NONBLOCK).map_err(string_error)?;
+        let mut output = Vec::new();
+        let mut errors = Vec::new();
+        let mut output_closed = false;
+        let mut errors_closed = false;
+        loop {
+            drain_candidate_pipe(
+                &mut stdout,
+                &mut output,
+                MAX_CANDIDATE_RESULT_BYTES,
+                &mut output_closed,
+            )?;
+            drain_candidate_pipe(
+                &mut stderr,
+                &mut errors,
+                MAX_CANDIDATE_STDERR_BYTES,
+                &mut errors_closed,
+            )?;
+            if let Some(status) = child.try_wait().map_err(string_error)? {
+                drain_candidate_pipe(
+                    &mut stdout,
+                    &mut output,
+                    MAX_CANDIDATE_RESULT_BYTES,
+                    &mut output_closed,
+                )?;
+                drain_candidate_pipe(
+                    &mut stderr,
+                    &mut errors,
+                    MAX_CANDIDATE_STDERR_BYTES,
+                    &mut errors_closed,
+                )?;
+                if !output_closed || !errors_closed {
+                    return Err("candidate descendant retained an output pipe".into());
+                }
+                return Ok((status, output, errors));
+            }
+            thread::sleep(Duration::from_millis(5));
         }
-        Ok(bytes)
+    }
+
+    fn drain_candidate_pipe<R: Read>(
+        reader: &mut R,
+        bytes: &mut Vec<u8>,
+        maximum: usize,
+        closed: &mut bool,
+    ) -> Result<(), String> {
+        if *closed {
+            return Ok(());
+        }
+        let mut buffer = [0_u8; 8_192];
+        loop {
+            match reader.read(&mut buffer) {
+                Ok(0) => {
+                    *closed = true;
+                    return Ok(());
+                }
+                Ok(length) => {
+                    if bytes.len().saturating_add(length) > maximum {
+                        return Err("candidate output exceeds its byte bound".into());
+                    }
+                    bytes.extend_from_slice(&buffer[..length]);
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => return Ok(()),
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(error) => return Err(string_error(error)),
+            }
+        }
     }
 
     fn write_candidate_frame<W: Write>(writer: &mut W, bytes: &[u8]) -> Result<(), String> {
@@ -2286,8 +2338,29 @@ mod linux {
 
     #[cfg(test)]
     mod tests {
-        use super::{LaunchMode, build_agent_arguments, launch_values};
+        use super::{
+            LaunchMode, build_agent_arguments, launch_values, read_candidate_child_output,
+        };
         use auths_profile_kit::QualificationFailpoint;
+        use std::process::{Command, Stdio};
+
+        #[test]
+        fn candidate_output_is_drained_without_post_unshare_threads() {
+            let mut child = Command::new("/bin/sh")
+                .args(["-c", "printf exact-result"])
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap();
+            let stdout = child.stdout.take().unwrap();
+            let stderr = child.stderr.take().unwrap();
+            let (status, output, errors) =
+                read_candidate_child_output(&mut child, stdout, stderr).unwrap();
+            assert!(status.success());
+            assert_eq!(output, b"exact-result");
+            assert!(errors.is_empty());
+        }
 
         fn common(mode: &str) -> Vec<String> {
             [
