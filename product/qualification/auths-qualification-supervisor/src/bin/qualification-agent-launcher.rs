@@ -45,7 +45,9 @@ mod linux {
         os::{
             fd::AsRawFd as _,
             unix::{
-                fs::{FileTypeExt as _, MetadataExt as _, PermissionsExt as _},
+                fs::{
+                    FileTypeExt as _, MetadataExt as _, OpenOptionsExt as _, PermissionsExt as _,
+                },
                 process::CommandExt as _,
             },
         },
@@ -993,7 +995,6 @@ mod linux {
         let mut members = 0_usize;
         while let Some(relative) = pending.pop() {
             let source_directory = source_root.join(&relative);
-            let target_directory = target_root.join(&relative);
             let mut entries = fs::read_dir(&source_directory)
                 .map_err(string_error)?
                 .collect::<Result<Vec<_>, _>>()
