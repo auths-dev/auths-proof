@@ -27,6 +27,7 @@ from typing import (
     Type,
     TypeVar,
     Union,
+    cast,
     final,
 )
 
@@ -694,10 +695,9 @@ class BoundProfile(Generic[_T, _P, _G]):
         while True:
             remaining = deadline - asyncio.get_running_loop().time()
             if remaining <= 0:
-                if fallback is None:
-                    raise asyncio.TimeoutError("profile operation deadline exceeded")
+                retained = cast(Tuple[bytes, Tuple[str, ...]], fallback)
                 return _recovery_required(
-                    operation, RecoveryHandle.from_bytes(fallback[0]), fallback[1]
+                    operation, RecoveryHandle.from_bytes(retained[0]), retained[1]
                 )
             try:
                 raw = await asyncio.wait_for(
@@ -993,8 +993,11 @@ class BoundProfile(Generic[_T, _P, _G]):
     ) -> Tuple[Optional[bytearray], Optional[bytes]]:
         if not 1 <= len(raw) <= self._descriptor.response_bytes + 256:
             raise ValueError("preparation evidence response exceeds bound")
-        wire = _decode(raw)
-        if not isinstance(wire, dict) or wire.get(1) != 1 or wire.get(2) != request_id:
+        wire_value = _decode(raw)
+        if not isinstance(wire_value, dict):
+            raise ValueError("invalid preparation evidence response")
+        wire = cast(Dict[int, Any], wire_value)
+        if wire.get(1) != 1 or wire.get(2) != request_id:
             raise ValueError("invalid preparation evidence response")
         if wire.get(3) == "lease":
             if (
@@ -1255,9 +1258,7 @@ class BoundProfile(Generic[_T, _P, _G]):
                 if recovery_only
                 else _recovery_required(identity[0], recovery, ())
             )
-        if terminal is None:
-            raise AssertionError("terminal recovery outcome was not retained")
-        return self._project_and_retain(terminal)
+        return self._project_and_retain(cast(Dict[int, Any], terminal))
 
     async def _recover_ambiguous(
         self,
@@ -1304,9 +1305,7 @@ class BoundProfile(Generic[_T, _P, _G]):
         ):
             return _recovery_required(operation, recovery, receipt_ids)
 
-        if terminal is None:
-            raise AssertionError("terminal recovery outcome was not retained")
-        return self._project_and_retain(terminal)
+        return self._project_and_retain(cast(Dict[int, Any], terminal))
 
     def _project_and_retain(
         self,
@@ -1560,7 +1559,10 @@ def _raise_outcome(outcome: object) -> None:
         )
     if isinstance(outcome, Partial):
         raise _partial_error(
-            outcome.issue, outcome.operation_id, outcome.receipt_ids, outcome.details
+            outcome.issue,
+            outcome.operation_id,
+            outcome.receipt_ids,
+            cast(object, outcome.details),
         )
     if isinstance(outcome, RecoveryRequired):
         raise _recovery_required_error(
@@ -1568,7 +1570,7 @@ def _raise_outcome(outcome: object) -> None:
             outcome.operation_id,
             outcome.receipt_ids,
             outcome.recovery,
-            outcome.progress,
+            cast(object, outcome.progress),
         )
     if isinstance(outcome, ReceiptIntegrityFailed):
         raise _receipt_integrity_error(
@@ -1585,8 +1587,11 @@ def _encode_profile_input(
 ) -> bytes:
     if type(value) is not expected:
         raise TypeError(f"expected generated {type_name}")
-    types = api.get("types")
-    if not isinstance(types, dict) or type_name not in types:
+    types_value = api.get("types")
+    if not isinstance(types_value, dict):
+        raise ValueError("generated profile API is inconsistent")
+    types = cast(Mapping[str, object], types_value)
+    if type_name not in types:
         raise ValueError("generated profile API is inconsistent")
     canonical = _validate_value(types[type_name], value, types, encode=True)
     return _encode(canonical)
@@ -1601,14 +1606,20 @@ def _decode_profile_result(
 ) -> _T:
     if not isinstance(value, bytes):
         raise ValueError("profile result is not canonical bytes")
-    types = api.get("types")
-    if not isinstance(types, dict) or type_name not in types:
+    types_value = api.get("types")
+    if not isinstance(types_value, dict):
+        raise ValueError("generated profile API is inconsistent")
+    types = cast(Mapping[str, object], types_value)
+    if type_name not in types:
         raise ValueError("generated profile API is inconsistent")
     canonical = _decode(value)
     normalized = _validate_value(types[type_name], canonical, types, encode=False)
     if not isinstance(normalized, dict):
         raise ValueError("top-level profile result must be a record")
-    kwargs = {_snake(key): item for key, item in normalized.items()}
+    normalized_record = cast(Mapping[str, object], normalized)
+    kwargs: Dict[str, object] = {
+        _snake(key): item for key, item in normalized_record.items()
+    }
     if metadata is not None:
         kwargs["auths"] = metadata
     return cls(**kwargs)
@@ -1617,11 +1628,15 @@ def _decode_profile_result(
 def _validate_value(
     node: object, value: object, types: Mapping[str, object], *, encode: bool
 ) -> object:
-    if not isinstance(node, dict) or not isinstance(node.get("kind"), str):
+    if not isinstance(node, dict):
         raise ValueError("invalid generated profile schema")
-    kind = node["kind"]
+    schema = cast(Mapping[str, Any], node)
+    kind_value = schema.get("kind")
+    if not isinstance(kind_value, str):
+        raise ValueError("invalid generated profile schema")
+    kind = kind_value
     if kind == "ref":
-        name = node.get("name")
+        name = schema.get("name")
         if not isinstance(name, str) or name not in types:
             raise ValueError("invalid generated profile reference")
         return _validate_value(types[name], value, types, encode=encode)
@@ -1632,7 +1647,7 @@ def _validate_value(
     if kind in ("uint", "int"):
         if type(value) is not int:
             raise TypeError("expected integer")
-        minimum, maximum = int(node["minimum"]), int(node["maximum"])
+        minimum, maximum = int(schema["minimum"]), int(schema["maximum"])
         if not minimum <= value <= maximum or (kind == "uint" and value < 0):
             raise ValueError("integer is outside profile bounds")
         return value
@@ -1640,43 +1655,52 @@ def _validate_value(
         if not isinstance(value, str):
             raise TypeError("expected string")
         if kind == "enum":
-            if value not in node.get("values", []):
+            if value not in schema.get("values", []):
                 raise ValueError("unknown enum value")
             return value
         raw = value.encode("utf-8")
-        if not int(node["minimumBytes"]) <= len(raw) <= int(node["maximumBytes"]):
+        if not int(schema["minimumBytes"]) <= len(raw) <= int(
+            schema["maximumBytes"]
+        ):
             raise ValueError("string is outside profile bounds")
-        _alphabet(value, str(node["alphabet"]))
+        _alphabet(value, str(schema["alphabet"]))
         return value
     if kind == "bytes":
-        convenience = node.get("sourceConvenience")
+        convenience = schema.get("sourceConvenience")
         if convenience not in (None, "file"):
             raise ValueError("invalid generated byte source convenience")
         if encode and convenience == "file" and type(value) is ProfileFile:
-            value = _read_profile_file(value, int(node["maximumBytes"]))
+            value = _read_profile_file(value, int(schema["maximumBytes"]))
         if not isinstance(value, bytes):
             raise TypeError("expected bytes")
-        if not int(node["minimumBytes"]) <= len(value) <= int(node["maximumBytes"]):
+        if not int(schema["minimumBytes"]) <= len(value) <= int(
+            schema["maximumBytes"]
+        ):
             raise ValueError("bytes are outside profile bounds")
         return bytes(value)
     if kind == "option":
         return (
             None
             if value is None
-            else _validate_value(node["value"], value, types, encode=encode)
+            else _validate_value(schema["value"], value, types, encode=encode)
         )
     if kind == "list":
         if not isinstance(value, (tuple, list)):
             raise TypeError("expected bounded sequence")
-        if not int(node["minimumItems"]) <= len(value) <= int(node["maximumItems"]):
+        values = cast(Union[Tuple[Any, ...], list[Any]], value)
+        if not int(schema["minimumItems"]) <= len(values) <= int(
+            schema["maximumItems"]
+        ):
             raise ValueError("sequence is outside profile bounds")
         return [
-            _validate_value(node["value"], item, types, encode=encode) for item in value
+            _validate_value(schema["value"], item, types, encode=encode)
+            for item in values
         ]
     if kind == "record":
-        fields = node.get("fields")
-        if not isinstance(fields, list):
+        fields_value = schema.get("fields")
+        if not isinstance(fields_value, list):
             raise ValueError("invalid generated record")
+        fields = cast(list[Mapping[str, Any]], fields_value)
         if encode:
             if not dataclasses.is_dataclass(value):
                 raise TypeError("expected generated dataclass")
@@ -1696,13 +1720,14 @@ def _validate_value(
                 )
                 for field in fields
             }
-        if not isinstance(value, dict) or set(value) != {
-            field["name"] for field in fields
-        }:
+        if not isinstance(value, dict):
+            raise ValueError("profile result record is not closed")
+        record = cast(Mapping[str, object], value)
+        if set(record) != {field["name"] for field in fields}:
             raise ValueError("profile result record is not closed")
         return {
             str(field["name"]): _validate_value(
-                field["value"], value[field["name"]], types, encode=False
+                field["value"], record[field["name"]], types, encode=False
             )
             for field in fields
         }
@@ -1742,7 +1767,7 @@ def _integrity_state(value: object) -> OperationState:
         "not-applied",
     ):
         raise ValueError("invalid receipt integrity state")
-    return value  # type: ignore[return-value]
+    return cast(OperationState, value)
 
 
 def _valid_integrity_truth(
@@ -1798,7 +1823,7 @@ def _local_issue(code: str, summary: str) -> ErrorInfo:
 
 
 def _outcome(value: bytes, expected_request: bytes) -> Dict[int, Any]:
-    raw = _decode(value)
+    raw_value = _decode(value)
     sizes = {
         "ready": 8,
         "in-progress": 9,
@@ -1811,7 +1836,10 @@ def _outcome(value: bytes, expected_request: bytes) -> Dict[int, Any]:
         "recovery-required": 9,
         "receipt-integrity-failed": 9,
     }
-    if not isinstance(raw, dict) or raw.get(1) != 1 or not isinstance(raw.get(2), str):
+    if not isinstance(raw_value, dict):
+        raise ValueError("invalid Auths profile outcome")
+    raw = cast(Dict[int, Any], raw_value)
+    if raw.get(1) != 1 or not isinstance(raw.get(2), str):
         raise ValueError("invalid Auths profile outcome")
     maximum = sizes.get(raw[2])
     if (
@@ -1920,8 +1948,11 @@ def _recovery_unavailable_issue(operation_id: str) -> ErrorInfo:
 
 
 def _recovery_identity(value: bytes) -> Tuple[str, str, int]:
-    raw = _decode(value)
-    if not isinstance(raw, dict) or set(raw) != set(range(1, 12)) or raw.get(1) != 1:
+    raw_value = _decode(value)
+    if not isinstance(raw_value, dict):
+        raise ValueError("invalid recovery handle")
+    raw = cast(Dict[int, Any], raw_value)
+    if set(raw) != set(range(1, 12)) or raw.get(1) != 1:
         raise ValueError("invalid recovery handle")
     operation = _operation_id(raw.get(2))
     profile_id, version = raw.get(3), raw.get(4)
@@ -1983,10 +2014,14 @@ def _assert_recovery_identity(
 
 
 def _receipt_ids(value: object, descriptor: ProfileDescriptor) -> Tuple[str, ...]:
-    if not isinstance(value, list) or len(value) > descriptor.receipt_count:
+    if not isinstance(value, list):
+        raise ValueError("invalid receipt list")
+    values = cast(list[Any], value)
+    if len(values) > descriptor.receipt_count:
         raise ValueError("invalid receipt list")
     receipts = tuple(
-        _receipt_bytes(item, min(1_048_576, descriptor.receipt_bytes)) for item in value
+        _receipt_bytes(item, min(1_048_576, descriptor.receipt_bytes))
+        for item in values
     )
     if sum(len(item) for item in receipts) > descriptor.receipt_bytes:
         raise ValueError("profile receipt bytes exceed the declared bound")
@@ -1994,15 +2029,18 @@ def _receipt_ids(value: object, descriptor: ProfileDescriptor) -> Tuple[str, ...
 
 
 def _receipt_id_list(value: object, maximum: int) -> Tuple[str, ...]:
-    if not isinstance(value, list) or len(value) > maximum:
+    if not isinstance(value, list):
+        raise ValueError("invalid receipt ID list")
+    values = cast(list[Any], value)
+    if len(values) > maximum:
         raise ValueError("invalid receipt ID list")
     if any(
         not isinstance(item, str)
         or re.fullmatch(r"rcpt_[A-Za-z0-9_-]{43}", item) is None
-        for item in value
+        for item in values
     ):
         raise ValueError("invalid receipt ID")
-    return tuple(value)
+    return tuple(cast(str, item) for item in values)
 
 
 def _bytes(value: object) -> bytes:

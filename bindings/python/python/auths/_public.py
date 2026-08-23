@@ -7,7 +7,7 @@ import re
 import sys
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Iterable, Mapping, Optional, Tuple, Type, cast
+from typing import Any, Iterable, Mapping, Optional, Tuple, Type, TypeVar, cast
 
 from ._error_registry import ERROR_REGISTRY
 from ._native import native_abi_version
@@ -95,10 +95,13 @@ class ErrorInfo:
 
 
 _ERROR_TOKEN = object()
+_AuthsErrorT = TypeVar("_AuthsErrorT", bound="AuthsError")
 
 
 class AuthsError(Exception):
-    def __new__(cls, *args: Any, **kwargs: Any) -> "AuthsError":
+    def __new__(
+        cls: Type[_AuthsErrorT], *args: Any, **kwargs: Any
+    ) -> _AuthsErrorT:
         if cls is AuthsError and (
             kwargs
             or len(args) != 2
@@ -106,7 +109,7 @@ class AuthsError(Exception):
             or not isinstance(args[1], ErrorInfo)
         ):
             raise TypeError("AuthsError is sealed")
-        return super().__new__(cls)
+        return cast(_AuthsErrorT, super().__new__(cls))
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         if type(self) is not AuthsError:
@@ -155,7 +158,10 @@ _TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}")
 
 def parse_error_info(value: object) -> ErrorInfo:
     """Parse one exact registry-bound ``auths.error/1`` host projection."""
-    if not isinstance(value, Mapping) or set(value) != _ERROR_KEYS:
+    if not isinstance(value, Mapping):
+        raise ValueError("Auths error envelope has unknown or missing fields")
+    untyped_envelope = cast(Mapping[Any, Any], value)
+    if set(untyped_envelope) != _ERROR_KEYS:
         raise ValueError("Auths error envelope has unknown or missing fields")
     envelope = cast(Mapping[str, Any], value)
     if envelope["schema"] != "auths.error/1":
@@ -172,6 +178,9 @@ def parse_error_info(value: object) -> ErrorInfo:
     for token in (operation, stage, envelope["correlationId"]):
         if not isinstance(token, str) or not _TOKEN.fullmatch(token):
             raise ValueError("invalid Auths error token")
+    operation = cast(str, operation)
+    stage = cast(str, stage)
+    correlation_id = cast(str, envelope["correlationId"])
     summary = envelope["summary"]
     if not isinstance(summary, str) or not 1 <= len(summary.encode("utf-8")) <= 256:
         raise ValueError("invalid Auths error summary")
@@ -186,19 +195,23 @@ def parse_error_info(value: object) -> ErrorInfo:
         for item in definition["outcomes"]
     ) or action.value != definition["recommendedAction"]:
         raise ValueError("Auths recovery classification is not registered")
-    entered = envelope["entered"]
-    if not isinstance(entered, Mapping) or set(entered) != _ENTERED_KEYS or any(
-        type(entered[key]) is not bool for key in _ENTERED_KEYS
+    entered_value = envelope["entered"]
+    if not isinstance(entered_value, Mapping):
+        raise ValueError("invalid Auths entered-boundary projection")
+    untyped_entered = cast(Mapping[Any, Any], entered_value)
+    if set(untyped_entered) != _ENTERED_KEYS or any(
+        type(untyped_entered[key]) is not bool for key in _ENTERED_KEYS
     ):
         raise ValueError("invalid Auths entered-boundary projection")
-    references = []
+    entered = cast(Mapping[str, bool], untyped_entered)
+    references: list[Optional[str]] = []
     for name in ("executionReference", "decisionReference", "receiptReference"):
         reference = envelope[name]
         if reference is not None and (
             not isinstance(reference, str) or not _TOKEN.fullmatch(reference)
         ):
             raise ValueError("invalid Auths error reference")
-        references.append(reference)
+        references.append(cast(Optional[str], reference))
     execution, decision, receipt = references
     if (execution is not None) != bool(definition["allowsExecutionReference"]):
         raise ValueError("invalid Auths execution reference")
@@ -225,19 +238,23 @@ def parse_error_info(value: object) -> ErrorInfo:
         raise ValueError("possible Auths effect lacks recovery invariants")
     if effect is EffectState.NOT_APPLIED and receipt is not None:
         raise ValueError("not-applied Auths error cannot name an execution receipt")
-    causes = envelope["causes"]
-    if not isinstance(causes, list) or len(causes) > 8 or any(
-        not isinstance(item, str) or item not in _CAUSES for item in causes
+    causes_value = envelope["causes"]
+    if not isinstance(causes_value, list):
+        raise ValueError("invalid Auths cause categories")
+    untyped_causes = cast(list[Any], causes_value)
+    if len(untyped_causes) > 8 or any(
+        not isinstance(item, str) or item not in _CAUSES for item in untyped_causes
     ):
         raise ValueError("invalid Auths cause categories")
+    causes = tuple(cast(str, item) for item in untyped_causes)
     return ErrorInfo(
         "auths.error/1", KnownAuthsErrorCode(code), definition["family"], operation,
-        stage, summary, envelope["correlationId"], effect, retry, action,
+        stage, summary, correlation_id, effect, retry, action,
         EnteredBoundaries(
             entered["approval"], entered["signer"], entered["state"],
             entered["credential"], entered["provider"],
         ),
-        execution, decision, receipt, tuple(causes),
+        execution, decision, receipt, causes,
     )
 
 

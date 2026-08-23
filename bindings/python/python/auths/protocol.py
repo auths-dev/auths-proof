@@ -308,7 +308,7 @@ class RemoteVerifier:
                 ("authorized", "denied", "indeterminate"),
                 ("decode", "resolve", "principal-control", "authority", "complete"),
             )
-            kind = kinds[raw[1]]
+            kind = kinds[int(raw[1])]
             stage = _cast(
                 _Literal[
                     "decode", "resolve", "principal-control", "authority", "complete"

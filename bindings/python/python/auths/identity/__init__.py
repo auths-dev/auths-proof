@@ -188,7 +188,8 @@ class IdentityClient:
                 result = await _asyncio.wait_for(method.resolve(identity._record), _seconds(timeout))
                 if not isinstance(result, AdapterOk):
                     return _adapter_result(result, "resolve")
-                record = _cast(ResolvedIdentityRecord, result.value)
+                successful = _cast(AdapterOk[ResolvedIdentityRecord], result)
+                record = successful.value
                 if record.method_id != identity.method_id or record.identity_id != identity.identity_id:
                     return IdentityIndeterminate("indeterminate", _error_info("identity.resolution-indeterminate"))
             return IdentityOk("ok", ResolvedIdentity(_TOKEN, identity._packet, record))

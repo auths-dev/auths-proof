@@ -9,7 +9,7 @@ from collections import deque
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Deque, Dict, Literal, Optional, Tuple, Union, cast
+from typing import Any, Deque, Dict, Literal, Optional, Tuple, Type, TypeVar, Union, cast
 
 from ._cbor import decode as _decode_cbor
 from ._cbor import encode as _encode_cbor
@@ -237,13 +237,16 @@ def _is_post_write_request_error(value: BaseException) -> bool:
     return isinstance(value, _PostWriteRequestError)
 
 
+_OperationErrorT = TypeVar("_OperationErrorT", bound="_OperationError")
+
+
 class _OperationError(AuthsError):
     def __new__(
-        cls, token: object, *args: object, **kwargs: object
-    ) -> "_OperationError":
-        if token is not _OPERATION_ERROR_TOKEN:
+        cls: Type[_OperationErrorT], *args: object, **kwargs: object
+    ) -> _OperationErrorT:
+        if not args or args[0] is not _OPERATION_ERROR_TOKEN:
             raise TypeError("Auths operation errors are SDK-constructible only")
-        return Exception.__new__(cls)
+        return cast(_OperationErrorT, Exception.__new__(cls))
 
     def __init__(
         self,
@@ -443,9 +446,10 @@ class Operations:
         wire = _wire_map(raw)
         if set(wire) != {1, 2} or wire[1] != 1 or not isinstance(wire[2], list):
             raise ValueError("invalid pending-operation response")
-        if len(wire[2]) > 256:
+        rows = cast(list[Any], wire[2])
+        if len(rows) > 256:
             raise ValueError("pending-operation response exceeds bound")
-        decoded = tuple(_pending_row(item) for item in wire[2])
+        decoded = tuple(_pending_row(item) for item in rows)
         for previous, current in zip(decoded, decoded[1:]):
             if (previous[1], previous[0].operation_id) >= (
                 current[1],
@@ -472,10 +476,13 @@ class Operations:
             raise _receipt_integrity_failure(wire, operation_id)
         if set(wire) != {1, 2, 3} or wire[1] != 1 or wire[2] != operation_id:
             raise ValueError("invalid receipt response")
-        rows = wire[3]
-        if not isinstance(rows, list) or len(rows) > 64:
+        rows_value = wire[3]
+        if not isinstance(rows_value, list):
             raise ValueError("invalid receipt response")
-        receipts = []
+        rows = cast(list[Any], rows_value)
+        if len(rows) > 64:
+            raise ValueError("invalid receipt response")
+        receipts: list[PortableReceipt] = []
         total = 0
         for row in rows:
             item = _map(row)
@@ -880,8 +887,11 @@ class Client:
             or not 1 <= wire[7] <= 32
         ):
             raise ValueError("invalid Auths session mode")
-        profiles = wire[6]
-        if not isinstance(profiles, list) or len(profiles) > 256:
+        profiles_value = wire[6]
+        if not isinstance(profiles_value, list):
+            raise ValueError("invalid Auths profile advertisement")
+        profiles = cast(list[Any], profiles_value)
+        if len(profiles) > 256:
             raise ValueError("invalid Auths profile advertisement")
         parsed: Dict[Tuple[str, int], _ProfileCapability] = {}
         previous_key: Optional[Tuple[str, int]] = None
@@ -1386,9 +1396,12 @@ def _wire_map(raw: bytes) -> Dict[int, Any]:
 
 
 def _map(value: Any) -> Dict[int, Any]:
-    if not isinstance(value, dict) or any(not isinstance(key, int) for key in value):
+    if not isinstance(value, dict):
         raise ValueError("expected integer-keyed Auths map")
-    return value
+    mapping = cast(Dict[Any, Any], value)
+    if any(not isinstance(key, int) for key in mapping):
+        raise ValueError("expected integer-keyed Auths map")
+    return cast(Dict[int, Any], mapping)
 
 
 def _duration_ms(value: timedelta, minimum: int, maximum: int, name: str) -> int:
@@ -1446,24 +1459,26 @@ def _recovery_identity(value: bytes) -> Tuple[str, str, int]:
 
 
 def _receipt_id_list(value: object) -> Tuple[str, ...]:
-    if (
-        not isinstance(value, list)
-        or len(value) > 64
-        or any(
-            not isinstance(item, str)
-            or re.fullmatch(r"rcpt_[A-Za-z0-9_-]{43}", item) is None
-            for item in value
-        )
+    if not isinstance(value, list):
+        raise ValueError("invalid receipt ID list")
+    values = cast(list[Any], value)
+    if len(values) > 64 or any(
+        not isinstance(item, str)
+        or re.fullmatch(r"rcpt_[A-Za-z0-9_-]{43}", item) is None
+        for item in values
     ):
         raise ValueError("invalid receipt ID list")
-    return tuple(value)
+    return tuple(cast(str, item) for item in values)
 
 
 def _receipt_ids_from_portable(value: object) -> Tuple[str, ...]:
-    if not isinstance(value, list) or len(value) > 64:
+    if not isinstance(value, list):
         raise ValueError("invalid portable receipt list")
-    output = []
-    for item in value:
+    values = cast(list[Any], value)
+    if len(values) > 64:
+        raise ValueError("invalid portable receipt list")
+    output: list[str] = []
+    for item in values:
         if not isinstance(item, bytes) or not 1 <= len(item) <= 1_048_576:
             raise ValueError("invalid portable receipt")
         output.append(parse_portable_receipt(item)[1])
