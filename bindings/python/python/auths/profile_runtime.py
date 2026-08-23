@@ -1258,7 +1258,7 @@ class BoundProfile(Generic[_T, _P, _G]):
                 if recovery_only
                 else _recovery_required(identity[0], recovery, ())
             )
-        return self._project_and_retain(cast(Dict[int, Any], terminal))
+        return self._project_and_retain(terminal)
 
     async def _recover_ambiguous(
         self,
@@ -1305,7 +1305,7 @@ class BoundProfile(Generic[_T, _P, _G]):
         ):
             return _recovery_required(operation, recovery, receipt_ids)
 
-        return self._project_and_retain(cast(Dict[int, Any], terminal))
+        return self._project_and_retain(terminal)
 
     def _project_and_retain(
         self,
@@ -1687,7 +1687,7 @@ def _validate_value(
     if kind == "list":
         if not isinstance(value, (tuple, list)):
             raise TypeError("expected bounded sequence")
-        values = cast(Union[Tuple[Any, ...], list[Any]], value)
+        values: Union[Tuple[Any, ...], list[Any]] = value
         if not int(schema["minimumItems"]) <= len(values) <= int(
             schema["maximumItems"]
         ):
@@ -2016,7 +2016,7 @@ def _assert_recovery_identity(
 def _receipt_ids(value: object, descriptor: ProfileDescriptor) -> Tuple[str, ...]:
     if not isinstance(value, list):
         raise ValueError("invalid receipt list")
-    values = cast(list[Any], value)
+    values: list[Any] = value
     if len(values) > descriptor.receipt_count:
         raise ValueError("invalid receipt list")
     receipts = tuple(
@@ -2031,7 +2031,7 @@ def _receipt_ids(value: object, descriptor: ProfileDescriptor) -> Tuple[str, ...
 def _receipt_id_list(value: object, maximum: int) -> Tuple[str, ...]:
     if not isinstance(value, list):
         raise ValueError("invalid receipt ID list")
-    values = cast(list[Any], value)
+    values: list[Any] = value
     if len(values) > maximum:
         raise ValueError("invalid receipt ID list")
     if any(

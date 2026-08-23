@@ -109,7 +109,7 @@ class AuthsError(Exception):
             or not isinstance(args[1], ErrorInfo)
         ):
             raise TypeError("AuthsError is sealed")
-        return cast(_AuthsErrorT, super().__new__(cls))
+        return super().__new__(cls)
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         if type(self) is not AuthsError:
@@ -160,7 +160,7 @@ def parse_error_info(value: object) -> ErrorInfo:
     """Parse one exact registry-bound ``auths.error/1`` host projection."""
     if not isinstance(value, Mapping):
         raise ValueError("Auths error envelope has unknown or missing fields")
-    untyped_envelope = cast(Mapping[Any, Any], value)
+    untyped_envelope: Mapping[Any, Any] = value
     if set(untyped_envelope) != _ERROR_KEYS:
         raise ValueError("Auths error envelope has unknown or missing fields")
     envelope = cast(Mapping[str, Any], value)
@@ -198,7 +198,7 @@ def parse_error_info(value: object) -> ErrorInfo:
     entered_value = envelope["entered"]
     if not isinstance(entered_value, Mapping):
         raise ValueError("invalid Auths entered-boundary projection")
-    untyped_entered = cast(Mapping[Any, Any], entered_value)
+    untyped_entered: Mapping[Any, Any] = entered_value
     if set(untyped_entered) != _ENTERED_KEYS or any(
         type(untyped_entered[key]) is not bool for key in _ENTERED_KEYS
     ):
@@ -211,7 +211,7 @@ def parse_error_info(value: object) -> ErrorInfo:
             not isinstance(reference, str) or not _TOKEN.fullmatch(reference)
         ):
             raise ValueError("invalid Auths error reference")
-        references.append(cast(Optional[str], reference))
+        references.append(reference)
     execution, decision, receipt = references
     if (execution is not None) != bool(definition["allowsExecutionReference"]):
         raise ValueError("invalid Auths execution reference")
@@ -241,7 +241,7 @@ def parse_error_info(value: object) -> ErrorInfo:
     causes_value = envelope["causes"]
     if not isinstance(causes_value, list):
         raise ValueError("invalid Auths cause categories")
-    untyped_causes = cast(list[Any], causes_value)
+    untyped_causes: list[Any] = causes_value
     if len(untyped_causes) > 8 or any(
         not isinstance(item, str) or item not in _CAUSES for item in untyped_causes
     ):
