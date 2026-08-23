@@ -1245,6 +1245,7 @@ impl QualificationCandidateSandboxPlanV1 {
             || !digest(&self.executable_sha256)
             || !self.linux_cgroup_prefix.starts_with('/')
             || !self.linux_cgroup_prefix.ends_with('/')
+            || self.linux_cgroup_prefix == "/"
             || self.linux_cgroup_prefix.len() > 256
             || self.linux_cgroup_prefix.contains("//")
             || self

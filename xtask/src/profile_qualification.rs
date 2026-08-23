@@ -1340,6 +1340,9 @@ fn build_ledger_plan(
     if workload_gid != agent_gid {
         return Err("candidate sandbox workload must use the exact socket IPC group".into());
     }
+    if linux_cgroup_prefix != "/auths-qualification/" {
+        return Err("candidate sandbox workload must use the reviewed cgroup prefix".into());
+    }
     if load_evidence_source_trust_registry(&repository)?.uses_process_uid(workload_uid) {
         return Err("candidate sandbox workload UID overlaps a protected source process".into());
     }

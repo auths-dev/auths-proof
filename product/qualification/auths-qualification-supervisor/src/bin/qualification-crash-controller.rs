@@ -222,6 +222,7 @@ mod linux {
         cgroup: PathBuf,
         client_socket: PathBuf,
         result_socket: PathBuf,
+        client_proxy_reader_uid: u32,
     }
 
     struct ManagedCandidateWorkload {
@@ -364,6 +365,7 @@ mod linux {
                 &self.profile,
                 &self.sandbox_root,
                 &self.cgroup,
+                self.client_proxy_reader_uid,
                 &request_bytes,
                 deadline,
             )?;
@@ -1147,6 +1149,7 @@ mod linux {
             cgroup: workload_cgroup,
             client_socket: PathBuf::from(value(&values, "--client-proxy-socket")?),
             result_socket: PathBuf::from(value(&values, "--client-result-socket")?),
+            client_proxy_reader_uid: client_proxy_uid,
         };
         let candidate_worker = thread::spawn(move || candidate_session.run(deadline));
         let ready = format!("AUTHS-QUALIFICATION-PHASE-READY/1 {scenario_id} {phase_index}\n");
@@ -4422,6 +4425,7 @@ mod linux {
         profile: &Path,
         sandbox_root: &Path,
         cgroup: &Path,
+        client_proxy_reader_uid: u32,
         request: &[u8],
         deadline: Instant,
     ) -> Result<Vec<u8>, String> {
@@ -4440,6 +4444,12 @@ mod linux {
             || !plan.phases.iter().any(|planned| planned == phase)
         {
             return Err("candidate workload launch inputs are malformed".into());
+        }
+        let delegated_cgroup = cgroup
+            .strip_prefix("/sys/fs/cgroup")
+            .map_err(string_error)?;
+        if !delegated_cgroup.starts_with(&plan.candidate_sandbox.linux_cgroup_prefix) {
+            return Err("candidate workload cgroup is outside its signed prefix".into());
         }
         let launcher_bytes = read_bounded(launcher, 536_870_912, false)?;
         let launcher_plan_bytes = read_bounded(launcher_plan, MAX_TRUST_BYTES, true)?;
@@ -4466,6 +4476,8 @@ mod linux {
             "candidate-workload".to_owned(),
             "--cgroup".to_owned(),
             path_string(cgroup)?.to_owned(),
+            "--client-proxy-reader-uid".to_owned(),
+            client_proxy_reader_uid.to_string(),
             "--controller-pid".to_owned(),
             std::process::id().to_string(),
             "--ledger-plan".to_owned(),

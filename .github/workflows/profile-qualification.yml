@@ -30,7 +30,7 @@ jobs:
       MATRIX: ${{ github.workspace }}/product/integrations/auths-${{ inputs.domain }}/qualification/provider-matrix-v1.json
       RUNTIME_ROOT: /run/auths-qualification-${{ github.run_id }}-${{ github.run_attempt }}/${{ inputs.domain }}/${{ inputs.target }}
       POLICY_ROOT: /run/auths-qualification-policy-${{ github.run_id }}-${{ github.run_attempt }}/${{ inputs.domain }}/${{ inputs.target }}
-      CGROUP_ROOT_PREFIX: /sys/fs/cgroup/auths-q-${{ github.run_id }}-${{ github.run_attempt }}
+      CGROUP_ROOT_PREFIX: /sys/fs/cgroup/auths-qualification/${{ github.run_id }}-${{ github.run_attempt }}
       PROTECTED_BIN_ROOT: /usr/local/libexec/auths-qualification-${{ github.run_id }}-${{ github.run_attempt }}
       SOURCE_TRUST: ${{ github.workspace }}/trusted-attester/release/qualification/v1/evidence-source-trust-keys.json
       DOMAIN: ${{ inputs.domain }}
@@ -302,7 +302,7 @@ jobs:
           protected_bins="/usr/local/libexec/auths-qualification-provider-free-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           runtime="$runtime_parent/$provider_run"
           policy="$policy_parent/$provider_run"
-          cgroup="/sys/fs/cgroup/auths-q-provider-free-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$provider_run"
+          cgroup="/sys/fs/cgroup/auths-qualification/provider-free-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$provider_run"
           sudo install -d -o root -g root -m 0711 "$policy_parent"
           sudo install -d -o root -g root -m 0700 "$policy"
           sudo install -o root -g root -m 0600 "$row/ledger-plan.json" "$policy/ledger-plan.json"
@@ -318,6 +318,9 @@ jobs:
             auths-qualification-agent/target/release/auths-qualification-agent \
             | sudo install -o root -g root -m 0755 /dev/stdin "$protected_bins/auths-qualification-agent"
           sudo install -o root -g root -m 0644 "$agent_config" "$protected_bins/agent.toml"
+          sudo install -d -o root -g root -m 0755 /sys/fs/cgroup/auths-qualification
+          printf '%s\n' '+cpu +memory +pids' \
+            | sudo tee /sys/fs/cgroup/auths-qualification/cgroup.subtree_control >/dev/null
           sudo env -i "$TOOLS/auths-qualification-supervisor" prepare-row-runtime \
             --plan "$policy/ledger-plan.json" \
             --source-trust "$policy/source-trust.json" \
@@ -426,7 +429,7 @@ jobs:
             AUTHS_QUALIFICATION_RECEIPT_TRUST="$GITHUB_WORKSPACE/target/qualification-common-evidence/stripe/linux-x86_64/anchor-snapshots/receipt-trust-anchors.json" \
             AUTHS_QUALIFICATION_CONNECTION_STORE_TEMPLATE="$runtime/credential-broker-store/connections.cbor" \
             AUTHS_QUALIFICATION_PHASE_RUNTIME_ROOT="$runtime" \
-            AUTHS_QUALIFICATION_CGROUP_ROOT="/sys/fs/cgroup/auths-q-provider-free-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$provider_run" \
+            AUTHS_QUALIFICATION_CGROUP_ROOT="/sys/fs/cgroup/auths-qualification/provider-free-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$provider_run" \
             AUTHS_QUALIFICATION_PRINCIPAL="$QUALIFICATION_PRINCIPAL" \
             AUTHS_QUALIFICATION_RELEASE_BUILD_BINDING="$GITHUB_WORKSPACE/verified-release-build/verified-release-build.json" \
             AUTHS_QUALIFICATION_RELEASE_ARTIFACTS="$GITHUB_WORKSPACE/verified-release-build/artifacts" \
@@ -501,7 +504,7 @@ jobs:
             MATRIX="$GITHUB_WORKSPACE/provider-free-candidate/product/integrations/auths-stripe/qualification/provider-matrix-v1.json" \
             RUNTIME_ROOT="/run/auths-qualification-provider-free-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
             POLICY_ROOT="$policy_root" \
-            CGROUP_ROOT_PREFIX="/sys/fs/cgroup/auths-q-provider-free-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            CGROUP_ROOT_PREFIX="/sys/fs/cgroup/auths-qualification/provider-free-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
             PROTECTED_BIN_ROOT="/usr/local/libexec/auths-qualification-provider-free-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
             AGENT_CONFIG="$RUNNER_TEMP/qualification-agent-config/stripe/linux-x86_64/agent.toml" \
             SOURCE_TRUST="$GITHUB_WORKSPACE/trusted-attester/release/qualification/v1/evidence-source-trust-keys.json" \
@@ -671,11 +674,14 @@ jobs:
           client_proxy_uid="$(jq -er --arg domain "$DOMAIN" --argjson now "$now" \
             '[.keys[] | select(.source == "client-proxy" and (.allowedDomains | index($domain)) != null and .notBeforeUnixSeconds <= $now and (.notAfterUnixSeconds == 0 or $now < .notAfterUnixSeconds))] | if length == 1 then .[0].readerUid else error("current ClientProxy reader is not unique") end' \
             "$source_trust")"
+          sudo install -d -o root -g root -m 0755 /sys/fs/cgroup/auths-qualification
+          printf '%s\n' '+cpu +memory +pids' \
+            | sudo tee /sys/fs/cgroup/auths-qualification/cgroup.subtree_control >/dev/null
           while read -r provider_run; do
             row="$common_root/ledger/$provider_run"
             runtime="$runtime_parent/$provider_run"
             policy="$policy_parent/$provider_run"
-            cgroup="/sys/fs/cgroup/auths-q-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$provider_run"
+            cgroup="/sys/fs/cgroup/auths-qualification/$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$provider_run"
             sudo install -d -o root -g root -m 0700 "$policy"
             sudo install -o root -g root -m 0600 "$row/ledger-plan.json" "$policy/ledger-plan.json"
             sudo install -o root -g root -m 0600 "$source_trust" "$policy/source-trust.json"
@@ -799,7 +805,7 @@ jobs:
           set -euo pipefail
           common_root="$GITHUB_WORKSPACE/target/qualification-common-evidence/$DOMAIN/$TARGET"
           runtime_parent="/run/auths-qualification-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT/$DOMAIN/$TARGET"
-          cgroup_prefix="/sys/fs/cgroup/auths-q-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          cgroup_prefix="/sys/fs/cgroup/auths-qualification/$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           protected_bins="/usr/local/libexec/auths-qualification-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           while read -r provider_run; do
             runtime="$runtime_parent/$provider_run"

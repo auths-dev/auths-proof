@@ -22,7 +22,7 @@ mod linux {
     use base64ct::{Base64UrlUnpadded, Encoding as _};
     use rustix::{
         fs::{
-            AtFlags, MemfdFlags, Mode, OFlags, RenameFlags, ResolveFlags, SealFlags, fchown,
+            AtFlags, MemfdFlags, Mode, OFlags, RenameFlags, ResolveFlags, SealFlags, chown, fchown,
             fcntl_add_seals, fcntl_get_seals, memfd_create, open, openat, openat2, renameat_with,
             unlinkat,
         },
@@ -437,6 +437,7 @@ mod linux {
             "candidate-workload",
             &[
                 "--cgroup",
+                "--client-proxy-reader-uid",
                 "--controller-pid",
                 "--ledger-plan",
                 "--phase-index",
@@ -464,10 +465,17 @@ mod linux {
             return Err("candidate workload cgroup path is outside delegated cgroup v2".into());
         }
         let plan = read_protected_ledger_plan(plan_path)?;
+        let delegated_cgroup = cgroup
+            .strip_prefix("/sys/fs/cgroup")
+            .map_err(string_error)?;
+        if !delegated_cgroup.starts_with(&plan.candidate_sandbox.linux_cgroup_prefix) {
+            return Err("candidate workload cgroup is outside its signed prefix".into());
+        }
         let controller_pid = canonical_u32(value(&values, "--controller-pid")?)?;
         let controller_start_time_ticks = authenticate_controller(&plan, controller_pid)?;
         let phase_index = canonical_u32(value(&values, "--phase-index")?)?;
         let phase_index = u8::try_from(phase_index).map_err(string_error)?;
+        let client_proxy_reader_uid = canonical_u32(value(&values, "--client-proxy-reader-uid")?)?;
         let workload_uid = canonical_u32(value(&values, "--workload-uid")?)?;
         let workload_gid = canonical_u32(value(&values, "--workload-gid")?)?;
         let scenario = value(&values, "--scenario")?;
@@ -477,7 +485,10 @@ mod linux {
             .iter()
             .find(|phase| phase.scenario_id == scenario && phase.phase_index == phase_index)
             .ok_or_else(|| "candidate workload phase is absent from the ledger plan".to_owned())?;
-        if workload_uid != plan.candidate_sandbox.workload_uid
+        if client_proxy_reader_uid == 0
+            || client_proxy_reader_uid == workload_uid
+            || client_proxy_reader_uid == plan.supervisor_controller_uid
+            || workload_uid != plan.candidate_sandbox.workload_uid
             || workload_gid != plan.candidate_sandbox.workload_gid
             || !digest(request_sha256)
             || qualification_candidate_sandbox_policy_sha256()
@@ -548,6 +559,7 @@ mod linux {
             sandbox_root,
             &runtime,
             &invocation,
+            client_proxy_reader_uid,
             controller_pid,
             controller_start_time_ticks,
         )
@@ -563,6 +575,7 @@ mod linux {
         sandbox_root: &Path,
         runtime: &QualificationPythonRuntimeClosure,
         invocation: &QualificationInstalledClientInvocation,
+        client_proxy_reader_uid: u32,
         controller_pid: u32,
         controller_start_time_ticks: u64,
     ) -> Result<(), String> {
@@ -585,15 +598,12 @@ mod linux {
         let sandbox_python = copy_python_runtime(sandbox_root, python, runtime)?;
         install_wheel(sandbox_root, runtime, wheel)?;
         install_profile(sandbox_root, &plan.domain, profile)?;
-        install_candidate_socket(
+        install_candidate_socket_pair(
             sandbox_root,
             invocation.agent_socket(),
-            "/run/auths/client.sock",
-        )?;
-        install_candidate_socket(
-            sandbox_root,
             invocation.result_socket(),
-            QualificationInstalledClientInvocation::sandbox_result_socket(),
+            client_proxy_reader_uid,
+            plan.candidate_sandbox.workload_gid,
         )?;
         for directory in ["proc", "tmp", "dev"] {
             create_sandbox_directory(&sandbox_root.join(directory), 0o755)?;
@@ -1166,26 +1176,100 @@ mod linux {
         fs::set_permissions(path, fs::Permissions::from_mode(mode)).map_err(string_error)
     }
 
-    fn install_candidate_socket(
+    fn install_candidate_socket_pair(
         sandbox_root: &Path,
-        source: &str,
-        destination: &str,
+        client_source: &str,
+        result_source: &str,
+        reader_uid: u32,
+        workload_gid: u32,
     ) -> Result<(), String> {
-        let source = Path::new(source);
-        require_normalized_absolute(source)?;
-        let metadata = fs::symlink_metadata(source).map_err(string_error)?;
-        if !metadata.file_type().is_socket() {
-            return Err("candidate workload endpoint is not a Unix socket".into());
+        let client_source = Path::new(client_source);
+        let result_source = Path::new(result_source);
+        for source in [client_source, result_source] {
+            require_normalized_absolute(source)?;
         }
-        let destination = sandbox_root.join(relative_absolute(Path::new(destination))?);
-        create_sandbox_file(&destination, 0o600)?;
-        mount_bind(source, &destination).map_err(string_error)?;
-        mount_remount(
-            &destination,
-            MountFlags::BIND | MountFlags::NOSUID | MountFlags::NODEV | MountFlags::NOEXEC,
-            "",
+        let source_parent = client_source
+            .parent()
+            .ok_or_else(|| "candidate client socket has no parent".to_owned())?;
+        if result_source.parent() != Some(source_parent) {
+            return Err("candidate workload sockets do not share one protected parent".into());
+        }
+        let parent_before = fs::symlink_metadata(source_parent).map_err(string_error)?;
+        let client_before = fs::symlink_metadata(client_source).map_err(string_error)?;
+        let result_before = fs::symlink_metadata(result_source).map_err(string_error)?;
+        if !parent_before.is_dir()
+            || parent_before.file_type().is_symlink()
+            || parent_before.uid() != reader_uid
+            || parent_before.gid() != workload_gid
+            || parent_before.mode() & 0o777 != 0o710
+            || !client_before.file_type().is_socket()
+            || !result_before.file_type().is_socket()
+            || client_before.uid() != reader_uid
+            || result_before.uid() != reader_uid
+            || client_before.gid() != workload_gid
+            || result_before.gid() != workload_gid
+            || client_before.mode() & 0o777 != 0o660
+            || result_before.mode() & 0o777 != 0o660
+            || client_before.nlink() != 1
+            || result_before.nlink() != 1
+        {
+            return Err("candidate workload sockets differ from protected reader ownership".into());
+        }
+
+        let sandbox_parent = sandbox_root.join("run/auths");
+        create_sandbox_directory(&sandbox_parent, 0o710)?;
+        let sandbox_client = sandbox_parent.join("client.sock");
+        let sandbox_result = sandbox_parent.join("result.sock");
+        create_sandbox_file(&sandbox_client, 0o600)?;
+        create_sandbox_file(&sandbox_result, 0o600)?;
+        chown(
+            &sandbox_parent,
+            Some(rustix::process::Uid::from_raw(reader_uid)),
+            Some(rustix::process::Gid::from_raw(workload_gid)),
         )
-        .map_err(string_error)
+        .map_err(string_error)?;
+        fs::set_permissions(&sandbox_parent, fs::Permissions::from_mode(0o710))
+            .map_err(string_error)?;
+
+        for (source, destination_name, source_before) in [
+            (client_source, "client.sock", &client_before),
+            (result_source, "result.sock", &result_before),
+        ] {
+            let destination = sandbox_parent.join(destination_name);
+            mount_bind(source, &destination).map_err(string_error)?;
+            mount_remount(
+                &destination,
+                MountFlags::BIND | MountFlags::NOSUID | MountFlags::NODEV | MountFlags::NOEXEC,
+                "",
+            )
+            .map_err(string_error)?;
+            let source_after = fs::symlink_metadata(source).map_err(string_error)?;
+            let destination_after = fs::symlink_metadata(&destination).map_err(string_error)?;
+            if source_after.dev() != source_before.dev()
+                || source_after.ino() != source_before.ino()
+                || source_after.uid() != source_before.uid()
+                || source_after.gid() != source_before.gid()
+                || source_after.mode() != source_before.mode()
+                || destination_after.dev() != source_before.dev()
+                || destination_after.ino() != source_before.ino()
+                || destination_after.uid() != reader_uid
+                || destination_after.gid() != workload_gid
+                || destination_after.mode() & 0o777 != 0o660
+                || !destination_after.file_type().is_socket()
+            {
+                return Err("candidate workload socket changed while bind-mounted".into());
+            }
+        }
+        let parent_after = fs::symlink_metadata(source_parent).map_err(string_error)?;
+        if parent_after.dev() != parent_before.dev()
+            || parent_after.ino() != parent_before.ino()
+            || parent_after.uid() != parent_before.uid()
+            || parent_after.gid() != parent_before.gid()
+            || parent_after.mode() != parent_before.mode()
+        {
+            return Err("candidate workload socket parent changed during sandbox setup".into());
+        }
+        Ok(())
     }
 
     fn relative_absolute(path: &Path) -> Result<&Path, String> {
@@ -1378,7 +1462,16 @@ mod linux {
         };
 
         rustix::thread::set_thread_groups(&[]).map_err(string_error)?;
-        for capability in CapabilitySet::all().iter() {
+        let capability_last = fs::read_to_string("/proc/sys/kernel/cap_last_cap")
+            .map_err(string_error)?
+            .trim()
+            .parse::<u32>()
+            .map_err(string_error)?;
+        if capability_last >= u64::BITS {
+            return Err("candidate kernel capability bound is unsupported".into());
+        }
+        for bit in 0..=capability_last {
+            let capability = CapabilitySet::from_bits_retain(1_u64 << bit);
             rustix::thread::remove_capability_from_bounding_set(capability)
                 .map_err(string_error)?;
         }
