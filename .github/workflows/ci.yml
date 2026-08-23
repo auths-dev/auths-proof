@@ -17,32 +17,6 @@ permissions:
   contents: read
 
 jobs:
-  semantic-freeze-update:
-    name: semantic-freeze update
-    if: github.event_name == 'workflow_dispatch' && github.ref_name == 'codex/formal-source-closure'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-          fetch-depth: 2
-      - uses: ./.github/actions/setup-rust-cache
-        with:
-          toolchain: 1.97.1
-          compiler-cache: "false"
-      - name: Restore the final workflow surface
-        run: git checkout HEAD^ -- .github/workflows/ci.yml
-      - name: Generate the reviewed semantic freeze
-        run: cargo xtask semantic-freeze --update
-      - name: Preserve the semantic freeze
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: auths-semantic-freeze-${{ github.run_id }}-${{ github.run_attempt }}
-          path: release/semantic-freeze.json
-          if-no-files-found: error
-          retention-days: 1
-
   ci-plan:
     name: ci-plan
     runs-on: ubuntu-latest
