@@ -19,6 +19,18 @@ test("profile files are nofollow, regular, and bounded to maximum plus one", asy
   let observedFlags = 0;
   let observedReadLength = 0;
   let beforeOpen = async () => {};
+  if (process.platform === "win32") {
+    try {
+      await writeFile(selected, Uint8Array.of(1, 2, 3));
+      await assert.rejects(
+        readBoundedProfileFile(selected, 3),
+        /cannot safely open profile files/,
+      );
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+    return;
+  }
   fs.promises.open = async (path, flags, mode) => {
     observedFlags = Number(flags);
     await beforeOpen(path);

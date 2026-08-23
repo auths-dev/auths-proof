@@ -13,6 +13,8 @@ import {
   publishProfileInvocation,
 } from "../../dist/session.js";
 
+const posixSocketTest = process.platform === "win32" ? test.skip : test;
+
 const operation = "op_AAAAAAAAAAAAAAAAAAAAAA";
 const digest = new Uint8Array(32).fill(12);
 const descriptor = {
@@ -210,7 +212,7 @@ async function withCompanion(initial, action, options = {}) {
   }
 }
 
-test("profile invocation coordination is bounded, uses fresh conflict IDs, and promotes after a prewrite failure", async () => {
+posixSocketTest("profile invocation coordination is bounded, uses fresh conflict IDs, and promotes after a prewrite failure", async () => {
   await withCompanion(null, async (_profile, _paths, client) => {
     const requestA = new Uint8Array(16).fill(1);
     const requestB = new Uint8Array(16).fill(2);
@@ -273,7 +275,7 @@ test("profile invocation coordination is bounded, uses fresh conflict IDs, and p
   });
 });
 
-test("generated invocations coalesce exact keys, preserve follower cancellation truth, and probe changed input with a fresh request", async () => {
+posixSocketTest("generated invocations coalesce exact keys, preserve follower cancellation truth, and probe changed input with a fresh request", async () => {
   const prepareIds = [];
   await withCompanion(null, async (profile, paths) => {
     const leader = profile.invokeOutcome({ value: 7 }, { idempotencyKey: "same-key", timeoutMs: 1_000, recoveryWaitMs: 100 });
@@ -303,7 +305,7 @@ test("generated invocations coalesce exact keys, preserve follower cancellation 
   });
 });
 
-test("a null qualification advertisement remains usable for the isolated testkit", async () => {
+posixSocketTest("a null qualification advertisement remains usable for the isolated testkit", async () => {
   await withCompanion(null, async (profile, paths) => {
     const outcome = await profile.invokeOutcome({ value: 7 });
     assert.equal(outcome.kind, "completed");
@@ -311,7 +313,7 @@ test("a null qualification advertisement remains usable for the isolated testkit
   }, { nullQualification: true });
 });
 
-test("session negotiation rejects malformed binding and unrelated profile rows", async () => {
+posixSocketTest("session negotiation rejects malformed binding and unrelated profile rows", async () => {
   const hostile = [
     { sessionId: "test-session" },
     { sessionId: "ses_AAAAAAAAAAAAAAAAAAAAAA" },
@@ -328,7 +330,7 @@ test("session negotiation rejects malformed binding and unrelated profile rows",
   }
 });
 
-test("recovery-only sessions block new effects but conservatively preserve root recovery", async () => {
+posixSocketTest("recovery-only sessions block new effects but conservatively preserve root recovery", async () => {
   await withCompanion(null, async (profile, paths) => {
     const outcome = await profile.recoverOutcome(recoveryForOperation());
     assert.equal(outcome.kind, "completed");
@@ -363,7 +365,7 @@ test("recovery-only sessions block new effects but conservatively preserve root 
   }, { recoveryOnly: true, unknownRecovery: true });
 });
 
-test("generated recovery never accepts a foreign operation response", async () => {
+posixSocketTest("generated recovery never accepts a foreign operation response", async () => {
   const foreign = `op_${"B".repeat(22)}`;
   await withCompanion(null, async (profile) => {
     const recovery = recoveryForOperation();
@@ -393,7 +395,7 @@ test("generated recovery never accepts a foreign operation response", async () =
   });
 });
 
-test("pending rows are exact, identity-bound, and strictly ordered", async () => {
+posixSocketTest("pending rows are exact, identity-bound, and strictly ordered", async () => {
   const second = `op_${"B".repeat(22)}`;
   await withCompanion(null, async (_profile, _paths, client) => {
     const rows = await client.operations.pending();
@@ -414,7 +416,7 @@ test("pending rows are exact, identity-bound, and strictly ordered", async () =>
   }
 });
 
-test("unavailable is a terminal not-applied recovery status", async () => {
+posixSocketTest("unavailable is a terminal not-applied recovery status", async () => {
   await withCompanion(null, async (_profile, _paths, client) => {
     const status = await client.operations.recover(recoveryForOperation());
     assert.equal(status.state, "unavailable");
@@ -423,7 +425,7 @@ test("unavailable is a terminal not-applied recovery status", async () => {
   }, { unavailableRecovery: true });
 });
 
-test("root recovery validates every status field and returned handle identity", async () => {
+posixSocketTest("root recovery validates every status field and returned handle identity", async () => {
   const foreign = `op_${"B".repeat(22)}`;
   const hostile = [
     (request) => { const value = inProgress(request, "not-applied"); value.set(5, "future"); return value; },
@@ -442,7 +444,7 @@ test("root recovery validates every status field and returned handle identity", 
   }
 });
 
-test("root recovery preserves the original handle after a written response is lost", async () => {
+posixSocketTest("root recovery preserves the original handle after a written response is lost", async () => {
   for (const recoveryOnly of [false, true]) {
     await withCompanion(null, async (_profile, _paths, client) => {
       const recovery = recoveryForOperation();
@@ -454,7 +456,7 @@ test("root recovery preserves the original handle after a written response is lo
   }
 });
 
-test("companion outcomes re-enter the ordinary TypeScript state machine", async () => {
+posixSocketTest("companion outcomes re-enter the ordinary TypeScript state machine", async () => {
   for (const [initial, expectedKind, expectedPath] of [
     [(request) => inProgress(request, "not-applied"), "completed", `/${operation}`],
     [(request) => inProgress(request, "possible"), "completed", "/recover"],
@@ -480,7 +482,7 @@ test("companion outcomes re-enter the ordinary TypeScript state machine", async 
   }
 });
 
-test("post-write cancellation never advances a not-applied TypeScript operation", async () => {
+posixSocketTest("post-write cancellation never advances a not-applied TypeScript operation", async () => {
   const companionAbort = new AbortController();
   await withCompanion(null, async (profile, paths) => {
     await assert.rejects(
@@ -507,7 +509,7 @@ test("post-write cancellation never advances a not-applied TypeScript operation"
   });
 });
 
-test("post-write cancellation preserves coalesced applied and possible truth", async () => {
+posixSocketTest("post-write cancellation preserves coalesced applied and possible truth", async () => {
   for (const [prepareOutcome, recoverOutcome, expected] of [
     [completed, undefined, "completed"],
     [(request) => inProgress(request, "possible"), (request) => inProgress(request, "possible"), "recovery-required"],
@@ -521,7 +523,7 @@ test("post-write cancellation preserves coalesced applied and possible truth", a
   }
 });
 
-test("malformed companion and prepare responses are exactly replayed", async () => {
+posixSocketTest("malformed companion and prepare responses are exactly replayed", async () => {
   await withCompanion(null, async (profile, paths) => {
     assert.equal((await profile.invokeOutcome({ value: 7 })).kind, "completed");
     assert.equal(paths.filter((path) => path.endsWith("/preparation-evidence")).length, 2);
@@ -533,7 +535,7 @@ test("malformed companion and prepare responses are exactly replayed", async () 
   }, { malformedPrepare: true });
 });
 
-test("post-write timeout uses the reserved cleanup budget and never executes", async () => {
+posixSocketTest("post-write timeout uses the reserved cleanup budget and never executes", async () => {
   await withCompanion(null, async (profile, paths) => {
     const outcome = await profile.invokeOutcome(
       { value: 7 },

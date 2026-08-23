@@ -9,6 +9,8 @@ import { ReceiptIntegrityError, connect } from "../../dist/index.js";
 import { encodeDeterministic, decodeDeterministic } from "../../dist/internal/cbor.js";
 import { PROFILE_CLIENT_RUNTIME, bindProfile } from "../../dist/profile-runtime.js";
 
+const posixSocketTest = process.platform === "win32" ? test.skip : test;
+
 const operation = "op_AAAAAAAAAAAAAAAAAAAAAA";
 const digest = new Uint8Array(32).fill(9);
 const descriptor = {
@@ -115,7 +117,7 @@ async function withProfile(wire, action) {
   }
 }
 
-test("receipt integrity outcomes preserve durable truth and mint sealed errors", async () => {
+posixSocketTest("receipt integrity outcomes preserve durable truth and mint sealed errors", async () => {
   for (const [state, effect, terminal] of [
     ["ready", "not-applied", false],
     ["recovery-required", "possible", false],
@@ -139,7 +141,7 @@ test("receipt integrity outcomes preserve durable truth and mint sealed errors",
   }
 });
 
-test("receipt integrity outcomes reject identity, boundary, and truth substitutions", async () => {
+posixSocketTest("receipt integrity outcomes reject identity, boundary, and truth substitutions", async () => {
   for (const wire of [
     integrityWire("ready", "not-applied", true),
     integrityWire("completed", "applied", true, { correlation: "op_BBBBBBBBBBBBBBBBBBBBBB" }),
