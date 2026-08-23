@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "8ab669d3bd6e56897f79dffbdeb112adca9f304493023cb0225b0277d26000f8",
+  "digest": "5785c655db119ca58392b01e4adabab2e8cea4be5aadc7e37fd226b00c997fbf",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -8,12 +8,12 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "20ab48b1b099f118bd9056a8ea5acc84b005027ebfb5c55b4387ba45625f0044",
+      "sha256": "e6c6fdf11a611a9245729b0c304c1686491d96c015f4c6518d8592f5b226dfeb",
       "normalization": "translated-cargo-closure-v1"
     },
     {
       "path": "Cargo.toml",
-      "sha256": "d6ac26afb8ddf6c1c3e7a9c1aaaeafa1ffd113cbadb124025b22a068a20618ee"
+      "sha256": "9ea035b4cf5e691cf3eccec9a8b12f31678c3cd2d3b0cac3e258556f874eec77"
     },
     {
       "path": "core/crates/auths-algebra-kernel/Cargo.toml",
@@ -129,7 +129,7 @@
     },
     {
       "path": "product/runtime/auths-lifecycle/Cargo.toml",
-      "sha256": "7084097893fca25f8a4e959faf86841c4295944ed70591490517c38170a9f01a"
+      "sha256": "c5053c705f8d5554b44e432fe75287a2faf11d644e5a2552e45ad6cd94176af5"
     },
     {
       "path": "product/runtime/auths-lifecycle/src/codec.rs",
@@ -149,11 +149,15 @@
     },
     {
       "path": "product/runtime/auths-lifecycle/src/lib.rs",
-      "sha256": "ed9a32eff4e4e9d08880b040b20cbf0d797eb44409a2dca98c500a2b2c4354af"
+      "sha256": "afe5a345cd309b5a4f08ffba3170a6d7f16ff914892b3f2006d5208ed24ec736"
     },
     {
       "path": "product/runtime/auths-lifecycle/src/model.rs",
       "sha256": "1af12bbeeeaa65ec02ddcebd7d2c8c92ec1e339fa40ae85b45ab9b01a722a4fa"
+    },
+    {
+      "path": "product/runtime/auths-lifecycle/src/operation.rs",
+      "sha256": "78e6d05fcf5d7ea4f148032a3fa26fdfcab77eb346019effe927b08e0d64d732"
     },
     {
       "path": "product/runtime/auths-lifecycle/src/registry.rs",
@@ -177,7 +181,7 @@
     },
     {
       "path": "xtask/Cargo.toml",
-      "sha256": "5958f5ae42c7830a8dd0cde470402cdf8b9f8357b9bfd953fbba96955d016566"
+      "sha256": "f103363e6a1a309be6515fa14ed781174390bd0c0eba7f61de2369b157892270"
     },
     {
       "path": "xtask/ci-plan/Cargo.toml",
@@ -200,10 +204,6 @@
       "sha256": "3344b796e095c16fd679416f5610544006fd356df31e914a6d0463fdeee84fc2"
     },
     {
-      "path": "xtask/src/assurance.rs",
-      "sha256": "88811480332341265de50418e887968d35f3454daf63d0f600a22adbc3940b0a"
-    },
-    {
       "path": "xtask/src/benchmark.rs",
       "sha256": "76698fa709e7eb6bef8f6b42bbf3a705e4e8100ec175843446a11b4877b78da4"
     },
@@ -217,11 +217,11 @@
     },
     {
       "path": "xtask/src/bounded_domains.rs",
-      "sha256": "3703534c0bdcbb05244672657e735e08d330c954f285fe13fbca58db463818e5"
+      "sha256": "4bed58f9f2cb5446d56c5a31ad93d8ad2515af28aabb66af01a0b7226aa943aa"
     },
     {
       "path": "xtask/src/checks.rs",
-      "sha256": "928cabc1f6ced5ecfd01d63bba5ac64a51e4f8b67f502b3e791f74083f21eeca"
+      "sha256": "30ccc40bd36aacf4b31b1834612471ec3ff36f28a0ffcb04c7ae1dff75d2b9bb"
     },
     {
       "path": "xtask/src/compliance.rs",
@@ -233,7 +233,7 @@
     },
     {
       "path": "xtask/src/error_registry.rs",
-      "sha256": "9c9c734100f7a1db41a5a441af948d1ed7f405790a710fab546c5eaec4f6efcf"
+      "sha256": "6b5e4ba2cf9cd2d0d3bea35d5e0a58720bb7653f8e24ae5093103b908f9304bb"
     },
     {
       "path": "xtask/src/evolution_policy.rs",
@@ -241,7 +241,7 @@
     },
     {
       "path": "xtask/src/fixtures.rs",
-      "sha256": "a9e2799459b12d6939b98edd0c293453c2caa168e7d75fbf0ba6756b5660602e"
+      "sha256": "8a6db6c3274a1d333fda4e386161dbb38a9cb5053a10191dafd31763b546c28a"
     },
     {
       "path": "xtask/src/formal.rs",
@@ -261,47 +261,63 @@
     },
     {
       "path": "xtask/src/main.rs",
-      "sha256": "f8d04a848eecd0abdbacae997b15b3c686186f6b9de0c24459d164510adc3b43"
+      "sha256": "f186eeb1e84f13dd16f0161c74b32fa2ada2e8cb1a29ebb2823f05c4f8176e02"
     },
     {
       "path": "xtask/src/mcp_session_contract.rs",
-      "sha256": "d47c9cf1f23faf3cd01c61381fa23947d59350f2845c340c029604ddf0780c30"
+      "sha256": "d71252beea3a36f7d89db30714e025956e38a114f3845ff24b9eb69b14e129c7"
     },
     {
       "path": "xtask/src/mechanism_conformance.rs",
-      "sha256": "80d62edd545ca2eccfa4175a7fb14f6e1190f927acd0a1fd8e8dbb530c52a3e3"
+      "sha256": "cc52edf006a613e3bc2c4c659f20d8587add3eeaf0193830d9bb62469e0450d7"
     },
     {
       "path": "xtask/src/prelude.rs",
-      "sha256": "1fe26fb3edbe41baeb171f87c99cd24147e765c484cc2804b4a0f2def0dad52a"
+      "sha256": "f0e7cd3f740bb0ca4a518d96102ee8e267dffa409c4d722372bdb8e22c3cd8ea"
     },
     {
       "path": "xtask/src/process.rs",
-      "sha256": "c05c8c7260a513fa8a43cb4cbc34bde300cb7fdf3b3f86f5d0d30888f36a41a7"
+      "sha256": "bf78983be2a9ff6716d2faeb32ed541b1c4a339349a9d0d50da63632ba28b6a9"
     },
     {
       "path": "xtask/src/product_waist.rs",
       "sha256": "323b1410f96809b9b462eda2c8865f6ade74cef8c17322ba1045576b184013b9"
     },
     {
-      "path": "xtask/src/production_contract.rs",
-      "sha256": "9fb7537773f758bb6012e943bc505a94aea650bb2bdb720a70ffdae261c66342"
+      "path": "xtask/src/profile_codegen.rs",
+      "sha256": "df95e20c7e4014ece697a0717a32b4ad4d71de24b59a53aa7b7fd13f00da19b0"
+    },
+    {
+      "path": "xtask/src/profile_qualification.rs",
+      "sha256": "bc112029566636fcd4f1174f9fe6becdd1ba744fdaafa07c2be983e9cf2c797b"
+    },
+    {
+      "path": "xtask/src/profile_qualification_adapters.rs",
+      "sha256": "3ba5592ef62f79a8eafd92302ca6ac1ec3590d9e26c5a333acbb7c6691128241"
+    },
+    {
+      "path": "xtask/src/profile_qualification_evidence.rs",
+      "sha256": "eebc4eb5fdb4d1ffecda01ef6c347768aa385c297290f850795cd5abd6a14cb3"
+    },
+    {
+      "path": "xtask/src/profile_qualification_reports.rs",
+      "sha256": "8377d526532b3a9abeb89dfbd70547ca3ce88351297c71bf066b63f2dd46a04b"
     },
     {
       "path": "xtask/src/public_naming.rs",
-      "sha256": "f33fcc9b2b79c7fb567a6beb400a94bdd2c7b161a71c02cec334a44fa94051e2"
+      "sha256": "f7e54745289a1b29866e4d18dcc19e4771326b08873b98aabc67be8b8742d9b0"
     },
     {
       "path": "xtask/src/release.rs",
-      "sha256": "8717b630f84e20e1c09480734d67114a0c4ec2f75ff21e983c9905ba42f7b65d"
+      "sha256": "c32fe5b00bd06d842a7db5381d41757bb498e9ba674fa940cd88fbbf6c86afe7"
     },
     {
       "path": "xtask/src/release_control.rs",
-      "sha256": "8dd95fb137d704c78ddf15bfa0c78d0813e67e4ba1e4f376af6ad56b0d7579cd"
+      "sha256": "4d84c2e72cead61bca0cc5974a289d45e0f434a95cf88efcd2e26c1afc547cc6"
     },
     {
       "path": "xtask/src/sdk_experience.rs",
-      "sha256": "0c3d9329d5e2c17b00c77cf1f5edbb870e053111e24da3816d332732cf202c0f"
+      "sha256": "cc243fa4734407e6d4b829bfe12f1f73d2bb3c19744524d8f6a7ce6030bdbc32"
     },
     {
       "path": "xtask/src/sdk_vocabulary.rs",
@@ -309,7 +325,7 @@
     },
     {
       "path": "xtask/src/semantic_freeze.rs",
-      "sha256": "41e62d0797b665bb7fd27d68ed7c5424d0f439fc1b73447e6854d9561f11d92b"
+      "sha256": "bc7c9b88da44c07f695c6b62cb28d73d921ce0f774dc5d3799f9e1875d063b03"
     },
     {
       "path": "xtask/src/stripe.rs",
