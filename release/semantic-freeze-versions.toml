@@ -1,4 +1,4 @@
-freeze_version = 161
+freeze_version = 162
 
 # Semantic identity counters live outside the xtask source tree deliberately.
 # The formal source closure binds xtask's executable code, while the semantic
@@ -67,5 +67,5 @@ freeze_version = 161
 "auths.product.simplified-waist" = 11
 "auths.product.vocabulary" = 14
 "auths.release.benchmark-contract" = 1
-"auths.release.evolution-contract" = 29
-"auths.release.public-surface" = 159
+"auths.release.evolution-contract" = 30
+"auths.release.public-surface" = 160
