@@ -1416,6 +1416,33 @@ fn prepare_row_runtime(arguments: &[String]) -> Result<(), String> {
         plan.agent_gid,
         0o700,
     )?;
+    let controllers = fs::read_to_string(cgroup_root.join("cgroup.controllers"))
+        .map_err(string_error)?
+        .split_ascii_whitespace()
+        .map(str::to_owned)
+        .collect::<BTreeSet<_>>();
+    if !["cpu", "memory", "pids"]
+        .iter()
+        .all(|controller| controllers.contains(*controller))
+    {
+        return Err("qualification cgroup root lacks candidate resource controllers".into());
+    }
+    fs::write(
+        cgroup_root.join("cgroup.subtree_control"),
+        b"+cpu +memory +pids",
+    )
+    .map_err(string_error)?;
+    let enabled = fs::read_to_string(cgroup_root.join("cgroup.subtree_control"))
+        .map_err(string_error)?
+        .split_ascii_whitespace()
+        .map(str::to_owned)
+        .collect::<BTreeSet<_>>();
+    if !["cpu", "memory", "pids"]
+        .iter()
+        .all(|controller| enabled.contains(*controller))
+    {
+        return Err("qualification cgroup root did not enable candidate resource policy".into());
+    }
     Ok(())
 }
 
@@ -4192,9 +4219,11 @@ mod tests {
         QualificationEvidenceLedgerPlanV1, QualificationEvidencePhasePlanV1,
         QualificationOperationRole, QualificationTarget,
     };
+    #[allow(unused_imports)]
+    use std::os::unix::fs::PermissionsExt as _;
     use std::{
         fs::{self, OpenOptions},
-        os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _, symlink},
+        os::unix::fs::{OpenOptionsExt as _, symlink},
     };
 
     #[test]
@@ -4410,7 +4439,7 @@ mod tests {
             candidate_sandbox: auths_profile_kit::QualificationCandidateSandboxPlanV1 {
                 schema: "auths.profile-qualification-candidate-sandbox-plan/1".into(),
                 workload_uid: 1002,
-                workload_gid: 1002,
+                workload_gid: 1001,
                 requester_artifact_sha256: "a".repeat(64),
                 executable_sha256: "e".repeat(64),
                 linux_cgroup_prefix: "/auths-qualification/".into(),

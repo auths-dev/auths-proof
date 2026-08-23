@@ -19,7 +19,7 @@ use serde_json::Value;
 use sha2::{Digest as _, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::io::Read as _;
+use std::io::{Read as _, Seek as _, SeekFrom};
 use std::path::{Component, Path, PathBuf};
 
 const RELEASE_SURFACE_SCHEMA: &str = "auths.qualification-release-surface/1";
@@ -50,6 +50,16 @@ pub struct QualificationPythonRuntimeClosure {
     pub executable_sha256: String,
     pub runtime_sha256: String,
     pub members: usize,
+    pub bytes: u64,
+    pub external_files: Vec<QualificationPythonRuntimeExternalFile>,
+}
+
+/// One exact dynamic-loader dependency copied into the private sandbox root.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualificationPythonRuntimeExternalFile {
+    pub source: PathBuf,
+    pub sandbox_path: PathBuf,
+    pub sha256: String,
     pub bytes: u64,
 }
 
@@ -113,6 +123,7 @@ pub fn qualification_python_runtime_closure(
     runtime.update(b"AUTHS-QUALIFICATION-PYTHON-RUNTIME\0\x01");
     let mut total = 0_u64;
     let mut executable_sha256 = None;
+    let mut elf_files = Vec::new();
     for (relative, before) in &entries {
         let relative_bytes = relative
             .to_str()
@@ -196,6 +207,34 @@ pub fn qualification_python_runtime_closure(
         if relative == &executable_relative_path {
             executable_sha256 = Some(member_sha256);
         }
+        file.seek(SeekFrom::Start(0)).map_err(string_error)?;
+        let mut magic = [0_u8; 4];
+        if file.read_exact(&mut magic).is_ok() && magic == *b"\x7fELF" {
+            if member_bytes > MAX_ARTIFACT_BYTES {
+                return Err("qualification Python ELF member exceeds its parse bound".into());
+            }
+            elf_files.push(root.join(relative));
+        }
+    }
+    let external_files = qualification_python_external_closure(&root, &elf_files)?;
+    for member in &external_files {
+        let sandbox = member
+            .sandbox_path
+            .to_str()
+            .ok_or_else(|| "qualification Python external path is not UTF-8".to_owned())?;
+        runtime.update(b"x");
+        runtime.update(
+            u32::try_from(sandbox.len())
+                .map_err(string_error)?
+                .to_be_bytes(),
+        );
+        runtime.update(sandbox.as_bytes());
+        runtime.update(member.bytes.to_be_bytes());
+        runtime.update(member.sha256.as_bytes());
+        total = total
+            .checked_add(member.bytes)
+            .filter(|value| *value <= MAX_PYTHON_RUNTIME_BYTES)
+            .ok_or_else(|| "qualification Python runtime bytes exceed their bound".to_owned())?;
     }
     Ok(QualificationPythonRuntimeClosure {
         root,
@@ -206,7 +245,167 @@ pub fn qualification_python_runtime_closure(
         runtime_sha256: hex::encode(runtime.finalize()),
         members: entries.len(),
         bytes: total,
+        external_files,
     })
+}
+
+#[cfg(target_os = "linux")]
+fn qualification_python_external_closure(
+    runtime_root: &Path,
+    elf_files: &[PathBuf],
+) -> Result<Vec<QualificationPythonRuntimeExternalFile>, String> {
+    use goblin::Object;
+
+    let mut pending = elf_files
+        .iter()
+        .map(|path| (path.clone(), path.clone()))
+        .collect::<Vec<_>>();
+    let mut parsed = BTreeSet::new();
+    let mut external = BTreeMap::<PathBuf, QualificationPythonRuntimeExternalFile>::new();
+    while let Some((source, sandbox_path)) = pending.pop() {
+        let canonical = fs::canonicalize(&source).map_err(string_error)?;
+        if !canonical.is_absolute()
+            || canonical
+                .components()
+                .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+        {
+            return Err("qualification Python ELF dependency path is unsafe".into());
+        }
+        if !parsed.insert(canonical.clone()) {
+            continue;
+        }
+        if parsed.len() > MAX_PYTHON_RUNTIME_MEMBERS {
+            return Err("qualification Python ELF dependency count exceeds its bound".into());
+        }
+        let bytes = read_bounded_regular(&canonical, MAX_ARTIFACT_BYTES)?;
+        let Object::Elf(elf) = Object::parse(&bytes).map_err(string_error)? else {
+            return Err("qualification Python runtime dependency is not ELF".into());
+        };
+        let origin = canonical
+            .parent()
+            .ok_or_else(|| "qualification Python ELF dependency has no parent".to_owned())?;
+        let mut search = elf
+            .runpaths
+            .iter()
+            .chain(elf.rpaths.iter())
+            .flat_map(|paths| paths.split(':'))
+            .map(|path| {
+                let expanded = path
+                    .replace("${ORIGIN}", origin.to_string_lossy().as_ref())
+                    .replace("$ORIGIN", origin.to_string_lossy().as_ref());
+                let expanded = PathBuf::from(expanded);
+                if expanded.is_absolute() {
+                    expanded
+                } else {
+                    origin.join(expanded)
+                }
+            })
+            .collect::<Vec<_>>();
+        search.extend([
+            runtime_root.join("lib"),
+            runtime_root.join("lib64"),
+            PathBuf::from("/lib/x86_64-linux-gnu"),
+            PathBuf::from("/usr/lib/x86_64-linux-gnu"),
+            PathBuf::from("/lib64"),
+            PathBuf::from("/usr/lib64"),
+            PathBuf::from("/lib"),
+            PathBuf::from("/usr/lib"),
+        ]);
+        let mut dependencies = Vec::<(PathBuf, PathBuf)>::new();
+        if let Some(interpreter) = elf.interpreter {
+            let interpreter = PathBuf::from(interpreter);
+            if !interpreter.is_absolute() {
+                return Err("qualification Python ELF interpreter is not absolute".into());
+            }
+            dependencies.push((interpreter.clone(), interpreter));
+        }
+        for library in elf.libraries {
+            if library.is_empty() || library.contains('/') {
+                return Err("qualification Python ELF library name is unsafe".into());
+            }
+            let selected = search
+                .iter()
+                .map(|directory| directory.join(library))
+                .find(|candidate| fs::symlink_metadata(candidate).is_ok())
+                .ok_or_else(|| format!("qualification Python dependency is absent: {library}"))?;
+            dependencies.push((selected.clone(), selected));
+        }
+        for (dependency, destination) in dependencies {
+            let dependency = fs::canonicalize(&dependency).map_err(string_error)?;
+            let inside_runtime = dependency.starts_with(runtime_root);
+            if !inside_runtime {
+                let dependency_bytes = read_bounded_regular(&dependency, MAX_ARTIFACT_BYTES)?;
+                let value = QualificationPythonRuntimeExternalFile {
+                    source: dependency.clone(),
+                    sandbox_path: destination.clone(),
+                    sha256: hex::encode(Sha256::digest(&dependency_bytes)),
+                    bytes: u64::try_from(dependency_bytes.len()).map_err(string_error)?,
+                };
+                if let Some(prior) = external.insert(destination.clone(), value.clone()) {
+                    if prior != value {
+                        return Err(
+                            "qualification Python dependency destination is ambiguous".into()
+                        );
+                    }
+                }
+            }
+            pending.push((dependency, destination));
+        }
+        if !canonical.starts_with(runtime_root) && !external.contains_key(&sandbox_path) {
+            let value = QualificationPythonRuntimeExternalFile {
+                source: canonical.clone(),
+                sandbox_path: sandbox_path.clone(),
+                sha256: hex::encode(Sha256::digest(&bytes)),
+                bytes: u64::try_from(bytes.len()).map_err(string_error)?,
+            };
+            external.insert(sandbox_path, value);
+        }
+    }
+    Ok(external.into_values().collect())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn qualification_python_external_closure(
+    _runtime_root: &Path,
+    elf_files: &[PathBuf],
+) -> Result<Vec<QualificationPythonRuntimeExternalFile>, String> {
+    if !elf_files.is_empty() {
+        return Err("ELF Python runtime closure is supported only on Linux".into());
+    }
+    Ok(Vec::new())
+}
+
+#[cfg(target_os = "linux")]
+fn read_bounded_regular(path: &Path, maximum: u64) -> Result<Vec<u8>, String> {
+    use rustix::fs::{Mode, OFlags, open};
+    use std::os::unix::fs::MetadataExt as _;
+
+    let mut file = fs::File::from(
+        open(
+            path,
+            OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+            Mode::empty(),
+        )
+        .map_err(string_error)?,
+    );
+    let before = file.metadata().map_err(string_error)?;
+    if !before.is_file() || before.len() == 0 || before.len() > maximum {
+        return Err("qualification runtime dependency is not one bounded regular file".into());
+    }
+    let mut bytes = Vec::new();
+    file.by_ref()
+        .take(maximum + 1)
+        .read_to_end(&mut bytes)
+        .map_err(string_error)?;
+    let after = file.metadata().map_err(string_error)?;
+    if bytes.len() as u64 != before.len()
+        || before.dev() != after.dev()
+        || before.ino() != after.ino()
+        || before.len() != after.len()
+    {
+        return Err("qualification runtime dependency changed while read".into());
+    }
+    Ok(bytes)
 }
 
 /// Derives the one canonical public receipt-anchor snapshot from an exact

@@ -11,8 +11,13 @@
 mod linux {
     use auths_profile_kit::{
         QualificationEvidenceLedgerPlanV1, QualificationFailpoint,
+        QualificationInstalledClientInvocation,
         qualification_plan_is_provider_free_configuration_mismatch,
         qualification_state_directory_commitment,
+    };
+    use auths_qualification_supervisor::{
+        QualificationPythonRuntimeClosure, qualification_candidate_sandbox_policy_sha256,
+        qualification_python_runtime_closure,
     };
     use base64ct::{Base64UrlUnpadded, Encoding as _};
     use rustix::{
@@ -22,22 +27,30 @@ mod linux {
             unlinkat,
         },
         io::{FdFlags, fcntl_setfd},
+        mount::{
+            MountFlags, MountPropagationFlags, mount, mount_bind, mount_change, mount_remount,
+        },
+    };
+    use seccompiler::{
+        BpfProgram, SeccompAction, SeccompCmpArgLen, SeccompCmpOp, SeccompCondition, SeccompFilter,
+        SeccompRule, TargetArch, apply_filter,
     };
     use sha2::{Digest as _, Sha256};
     use std::{
         collections::{BTreeMap, BTreeSet},
         env,
-        fs::File,
+        fs::{self, File},
         io::{Read as _, Seek as _, SeekFrom, Write as _},
         os::{
             fd::AsRawFd as _,
             unix::{
-                fs::{FileTypeExt as _, MetadataExt as _},
+                fs::{FileTypeExt as _, MetadataExt as _, PermissionsExt as _},
                 process::CommandExt as _,
             },
         },
-        path::{Component, Path},
-        process::{Command, ExitCode},
+        path::{Component, Path, PathBuf},
+        process::{Command, ExitCode, Stdio},
+        thread,
         time::{SystemTime, UNIX_EPOCH},
     };
 
@@ -47,6 +60,13 @@ mod linux {
     const MAX_CONNECTION_STORE_BYTES: u64 = 4 * 1024 * 1024;
     const CONNECTION_STORE_NAME: &str = "connections.cbor";
     const CONNECTION_STORE_STAGE_NAME: &str = ".connections.cbor.qualification-stage";
+    const CANDIDATE_WORKLOAD_RELEASE: &[u8] = b"AUTHS-QUALIFICATION-CANDIDATE-WORKLOAD/1\n";
+    const MAX_CANDIDATE_REQUEST_BYTES: usize = 16_777_216;
+    const MAX_CANDIDATE_RESULT_BYTES: usize = 16_777_216;
+    const MAX_CANDIDATE_STDERR_BYTES: usize = 1_048_576;
+    const MAX_WHEEL_MEMBERS: usize = 20_000;
+    const MAX_WHEEL_MEMBER_BYTES: u64 = 67_108_864;
+    const MAX_WHEEL_BYTES: u64 = 536_870_912;
 
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
     enum LaunchMode {
@@ -69,7 +89,14 @@ mod linux {
     }
 
     pub(super) fn main() -> ExitCode {
-        match run(&env::args().skip(1).collect::<Vec<_>>()) {
+        let arguments = env::args().skip(1).collect::<Vec<_>>();
+        let result = match arguments.first().map(String::as_str) {
+            Some("launch") => run_agent(&arguments),
+            Some("candidate-workload") => run_candidate_workload(&arguments),
+            Some("candidate-init") => run_candidate_init(&arguments),
+            _ => Err(usage()),
+        };
+        match result {
             Ok(()) => ExitCode::SUCCESS,
             Err(error) => {
                 eprintln!("qualification agent launcher failed closed: {error}");
@@ -78,7 +105,7 @@ mod linux {
         }
     }
 
-    fn run(arguments: &[String]) -> Result<(), String> {
+    fn run_agent(arguments: &[String]) -> Result<(), String> {
         let (mode, values) = launch_values(arguments)?;
         reject_secret_environment()?;
         let ledger_plan_path = Path::new(value(&values, "--ledger-plan")?);
@@ -404,6 +431,1126 @@ mod linux {
         Err(format!("could not execute qualification agent: {error}"))
     }
 
+    fn run_candidate_workload(arguments: &[String]) -> Result<(), String> {
+        let values = exact_flags(
+            arguments,
+            "candidate-workload",
+            &[
+                "--cgroup",
+                "--controller-pid",
+                "--ledger-plan",
+                "--phase-index",
+                "--profile",
+                "--python",
+                "--request-sha256",
+                "--sandbox-root",
+                "--scenario",
+                "--wheel",
+                "--workload-gid",
+                "--workload-uid",
+            ],
+        )?;
+        reject_secret_environment()?;
+        let plan_path = Path::new(value(&values, "--ledger-plan")?);
+        let python = Path::new(value(&values, "--python")?);
+        let wheel = Path::new(value(&values, "--wheel")?);
+        let profile = Path::new(value(&values, "--profile")?);
+        let cgroup = Path::new(value(&values, "--cgroup")?);
+        let sandbox_root = Path::new(value(&values, "--sandbox-root")?);
+        for path in [plan_path, python, wheel, profile, cgroup, sandbox_root] {
+            require_normalized_absolute(path)?;
+        }
+        if !cgroup.starts_with("/sys/fs/cgroup") || cgroup == Path::new("/sys/fs/cgroup") {
+            return Err("candidate workload cgroup path is outside delegated cgroup v2".into());
+        }
+        let plan = read_protected_ledger_plan(plan_path)?;
+        let controller_pid = canonical_u32(value(&values, "--controller-pid")?)?;
+        let controller_start_time_ticks = authenticate_controller(&plan, controller_pid)?;
+        let phase_index = canonical_u32(value(&values, "--phase-index")?)?;
+        let phase_index = u8::try_from(phase_index).map_err(string_error)?;
+        let workload_uid = canonical_u32(value(&values, "--workload-uid")?)?;
+        let workload_gid = canonical_u32(value(&values, "--workload-gid")?)?;
+        let scenario = value(&values, "--scenario")?;
+        let request_sha256 = value(&values, "--request-sha256")?;
+        let phase = plan
+            .phases
+            .iter()
+            .find(|phase| phase.scenario_id == scenario && phase.phase_index == phase_index)
+            .ok_or_else(|| "candidate workload phase is absent from the ledger plan".to_owned())?;
+        if workload_uid != plan.candidate_sandbox.workload_uid
+            || workload_gid != plan.candidate_sandbox.workload_gid
+            || !digest(request_sha256)
+            || qualification_candidate_sandbox_policy_sha256()
+                != plan.candidate_sandbox.policy_sha256
+        {
+            return Err("candidate workload identity differs from the signed plan".into());
+        }
+        let launcher = File::open("/proc/self/exe").map_err(string_error)?;
+        if sha256_reader(launcher, MAX_EXECUTABLE_BYTES)? != plan.agent_launcher_artifact_sha256 {
+            return Err("candidate workload launcher differs from the signed plan".into());
+        }
+        let runtime = qualification_python_runtime_closure(python)?;
+        if runtime.executable_sha256 != plan.candidate_sandbox.executable_sha256
+            || runtime.runtime_sha256 != plan.candidate_sandbox.python_runtime_sha256
+            || sha256_file(wheel, MAX_EXECUTABLE_BYTES)?
+                != plan.candidate_sandbox.python_wheel_sha256
+            || sha256_file(profile, MAX_EXECUTABLE_BYTES)?
+                != plan.candidate_sandbox.python_profile_sha256
+        {
+            return Err("candidate workload artifacts differ from the signed plan".into());
+        }
+        let membership = std::fs::read_to_string("/proc/self/cgroup").map_err(string_error)?;
+        if membership.trim() != expected_cgroup_membership(cgroup)? {
+            return Err("candidate workload launcher is outside its exact cgroup".into());
+        }
+        for (name, expected) in [
+            ("pids.max", "64"),
+            ("memory.max", "536870912"),
+            ("memory.swap.max", "0"),
+            ("cpu.max", "60000 100000"),
+        ] {
+            if std::fs::read_to_string(cgroup.join(name))
+                .map_err(string_error)?
+                .trim()
+                != expected
+            {
+                return Err(format!(
+                    "candidate workload cgroup differs from exact {name} policy"
+                ));
+            }
+        }
+        let mut release = [0_u8; CANDIDATE_WORKLOAD_RELEASE.len()];
+        std::io::stdin()
+            .read_exact(&mut release)
+            .map_err(string_error)?;
+        if release != CANDIDATE_WORKLOAD_RELEASE {
+            return Err("candidate workload release message is invalid".into());
+        }
+        let request = read_candidate_frame(&mut std::io::stdin(), MAX_CANDIDATE_REQUEST_BYTES)?;
+        if hex::encode(Sha256::digest(&request)) != request_sha256 {
+            return Err("candidate workload request differs from its protected digest".into());
+        }
+        let invocation =
+            QualificationInstalledClientInvocation::from_json(&request).map_err(string_error)?;
+        if invocation.scenario_id() != phase.scenario_id
+            || invocation.phase_index() != phase.phase_index
+            || invocation.role() != phase.role
+        {
+            return Err("candidate workload invocation differs from its immutable phase".into());
+        }
+        authenticate_controller_unchanged(&plan, controller_pid, controller_start_time_ticks)?;
+        execute_candidate_workload(
+            &plan,
+            plan_path,
+            python,
+            wheel,
+            profile,
+            sandbox_root,
+            &runtime,
+            &invocation,
+            controller_pid,
+            controller_start_time_ticks,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+    fn execute_candidate_workload(
+        plan: &QualificationEvidenceLedgerPlanV1,
+        plan_path: &Path,
+        python: &Path,
+        wheel: &Path,
+        profile: &Path,
+        sandbox_root: &Path,
+        runtime: &QualificationPythonRuntimeClosure,
+        invocation: &QualificationInstalledClientInvocation,
+        controller_pid: u32,
+        controller_start_time_ticks: u64,
+    ) -> Result<(), String> {
+        prepare_candidate_sandbox_root(sandbox_root)?;
+        unshare_candidate_namespaces()?;
+        mount_change(
+            "/",
+            MountPropagationFlags::PRIVATE | MountPropagationFlags::REC,
+        )
+        .map_err(string_error)?;
+        mount(
+            "tmpfs",
+            sandbox_root,
+            "tmpfs",
+            MountFlags::NOSUID | MountFlags::NODEV,
+            Some(c"mode=0700,size=1073741824"),
+        )
+        .map_err(string_error)?;
+
+        let sandbox_python = copy_python_runtime(sandbox_root, python, runtime)?;
+        install_wheel(sandbox_root, runtime, wheel)?;
+        install_profile(sandbox_root, &plan.domain, profile)?;
+        install_candidate_socket(
+            sandbox_root,
+            invocation.agent_socket(),
+            "/run/auths/client.sock",
+        )?;
+        install_candidate_socket(
+            sandbox_root,
+            invocation.result_socket(),
+            QualificationInstalledClientInvocation::sandbox_result_socket(),
+        )?;
+        for directory in ["proc", "tmp", "dev"] {
+            create_sandbox_directory(&sandbox_root.join(directory), 0o755)?;
+        }
+        for (source, target) in [
+            ("/dev/null", sandbox_root.join("dev/null")),
+            ("/dev/urandom", sandbox_root.join("dev/urandom")),
+        ] {
+            create_sandbox_file(&target, 0o444)?;
+            mount_bind(source, &target).map_err(string_error)?;
+            mount_remount(
+                &target,
+                MountFlags::BIND | MountFlags::RDONLY | MountFlags::NOSUID | MountFlags::NOEXEC,
+                "",
+            )
+            .map_err(string_error)?;
+        }
+
+        let invocation_bytes = invocation.to_json().map_err(string_error)?;
+        let invocation_path = sandbox_root.join("run/auths/invocation.json");
+        write_sandbox_file(&invocation_path, &invocation_bytes, 0o444)?;
+        let input = invocation.canonical_input().map_err(string_error)?;
+        let input_path = sandbox_root.join("run/auths/input.json");
+        write_sandbox_file(&input_path, &input, 0o444)?;
+        fs::set_permissions(sandbox_root, fs::Permissions::from_mode(0o555))
+            .map_err(string_error)?;
+        mount_remount(
+            sandbox_root,
+            MountFlags::RDONLY | MountFlags::NOSUID | MountFlags::NODEV,
+            "",
+        )
+        .map_err(string_error)?;
+
+        let self_path = "/proc/self/exe";
+        let candidate_cgroup = expected_cgroup_from_proc_self()?;
+        let controller_pid_value = controller_pid.to_string();
+        let launcher_pid = std::process::id().to_string();
+        let launcher_start_time_ticks = process_start_time_ticks(std::process::id())?.to_string();
+        let plan_path_value = plan_path
+            .to_str()
+            .ok_or_else(|| "candidate plan path is not UTF-8".to_owned())?;
+        let sandbox_root_value = sandbox_root
+            .to_str()
+            .ok_or_else(|| "candidate sandbox root is not UTF-8".to_owned())?;
+        let workload_gid = plan.candidate_sandbox.workload_gid.to_string();
+        let workload_uid = plan.candidate_sandbox.workload_uid.to_string();
+        let (stage, stage_sha256) = candidate_init_stage()?;
+        let mut child = Command::new(self_path)
+            .args([
+                "candidate-init",
+                "--cgroup",
+                &candidate_cgroup,
+                "--controller-pid",
+                &controller_pid_value,
+                "--input",
+                "/run/auths/input.json",
+                "--invocation",
+                "/run/auths/invocation.json",
+                "--launcher-pid",
+                &launcher_pid,
+                "--launcher-start-time-ticks",
+                &launcher_start_time_ticks,
+                "--ledger-plan",
+                plan_path_value,
+                "--python",
+                &sandbox_python,
+                "--sandbox-root",
+                sandbox_root_value,
+                "--stage-sha256",
+                &stage_sha256,
+                "--workload-gid",
+                &workload_gid,
+                "--workload-uid",
+                &workload_uid,
+            ])
+            .env_clear()
+            .stdin(Stdio::from(stage))
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(string_error)?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| "candidate init has no stdout".to_owned())?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| "candidate init has no stderr".to_owned())?;
+        let output_worker =
+            thread::spawn(move || read_bounded_pipe(stdout, MAX_CANDIDATE_RESULT_BYTES));
+        let error_worker =
+            thread::spawn(move || read_bounded_pipe(stderr, MAX_CANDIDATE_STDERR_BYTES));
+        let status = child.wait().map_err(string_error)?;
+        let output = output_worker
+            .join()
+            .map_err(|_| "candidate output reader panicked".to_owned())??;
+        let errors = error_worker
+            .join()
+            .map_err(|_| "candidate stderr reader panicked".to_owned())??;
+        if !status.success() || output.is_empty() || !errors.is_empty() {
+            return Err("candidate workload did not produce one clean bounded result".into());
+        }
+        authenticate_controller_unchanged(plan, controller_pid, controller_start_time_ticks)?;
+        write_candidate_frame(&mut std::io::stdout(), &output)?;
+        std::io::stdout().flush().map_err(string_error)?;
+        let mut trailing = [0_u8; 1];
+        match std::io::stdin().read(&mut trailing).map_err(string_error)? {
+            0 => Err("candidate workload controller closed before cgroup teardown".into()),
+            _ => Err("candidate workload controller sent a forbidden trailing frame".into()),
+        }
+    }
+
+    fn run_candidate_init(arguments: &[String]) -> Result<(), String> {
+        let values = exact_flags(
+            arguments,
+            "candidate-init",
+            &[
+                "--cgroup",
+                "--controller-pid",
+                "--input",
+                "--invocation",
+                "--launcher-pid",
+                "--launcher-start-time-ticks",
+                "--ledger-plan",
+                "--python",
+                "--sandbox-root",
+                "--stage-sha256",
+                "--workload-gid",
+                "--workload-uid",
+            ],
+        )?;
+        reject_secret_environment()?;
+        let plan_path = Path::new(value(&values, "--ledger-plan")?);
+        let cgroup = Path::new(value(&values, "--cgroup")?);
+        for path in [plan_path, cgroup] {
+            require_normalized_absolute(path)?;
+        }
+        let plan = read_protected_ledger_plan(plan_path)?;
+        let controller_pid = canonical_u32(value(&values, "--controller-pid")?)?;
+        let controller_start_time_ticks = authenticate_controller_process(&plan, controller_pid)?;
+        let launcher_pid = canonical_u32(value(&values, "--launcher-pid")?)?;
+        let launcher_start_time_ticks = value(&values, "--launcher-start-time-ticks")?
+            .parse::<u64>()
+            .map_err(string_error)?;
+        if !rustix::process::geteuid().is_root() || launcher_pid == 0 {
+            return Err("candidate init lacks its privileged namespace parent".into());
+        }
+        if hash_process_executable(launcher_pid)? != plan.agent_launcher_artifact_sha256
+            || fs::read_to_string(format!("/proc/{launcher_pid}/cgroup"))
+                .map_err(string_error)?
+                .trim()
+                != expected_cgroup_membership(cgroup)?
+            || process_parent_pid(launcher_pid)? != controller_pid
+            || process_parent_pid_from_status("/proc/self/status")? != launcher_pid
+            || process_start_time_ticks(launcher_pid)? != launcher_start_time_ticks
+            || qualification_candidate_sandbox_policy_sha256()
+                != plan.candidate_sandbox.policy_sha256
+        {
+            return Err("candidate init parent differs from its protected launcher".into());
+        }
+        authenticate_candidate_init_stage(value(&values, "--stage-sha256")?)?;
+        authenticate_candidate_namespaces(launcher_pid, controller_pid)?;
+        if process_parent_pid_from_status("/proc/self/status")? != launcher_pid
+            || process_start_time_ticks(launcher_pid)? != launcher_start_time_ticks
+        {
+            return Err("candidate init launcher changed before namespace setup".into());
+        }
+        let sandbox_root = Path::new(value(&values, "--sandbox-root")?);
+        require_normalized_absolute(sandbox_root)?;
+        let python = value(&values, "--python")?;
+        let input = value(&values, "--input")?;
+        let invocation_path = value(&values, "--invocation")?;
+        for path in [python, input, invocation_path] {
+            if !path.starts_with('/') || path.contains("/../") || path.contains("/./") {
+                return Err("candidate init path is not one normalized sandbox path".into());
+            }
+        }
+        let workload_uid = canonical_u32(value(&values, "--workload-uid")?)?;
+        let workload_gid = canonical_u32(value(&values, "--workload-gid")?)?;
+        if workload_uid == 0 || workload_gid == 0 {
+            return Err("candidate init identity is privileged".into());
+        }
+        if workload_uid != plan.candidate_sandbox.workload_uid
+            || workload_gid != plan.candidate_sandbox.workload_gid
+        {
+            return Err("candidate init identity differs from the signed plan".into());
+        }
+        if process_start_time_ticks(controller_pid)? != controller_start_time_ticks
+            || hash_process_executable(controller_pid)?
+                != plan.supervisor_controller_artifact_sha256
+            || process_start_time_ticks(launcher_pid)? != launcher_start_time_ticks
+        {
+            return Err("candidate init protected process chain changed before chroot".into());
+        }
+        rustix::process::chroot(sandbox_root).map_err(string_error)?;
+        env::set_current_dir("/").map_err(string_error)?;
+        mount(
+            "proc",
+            "/proc",
+            "proc",
+            MountFlags::NOSUID | MountFlags::NODEV | MountFlags::NOEXEC,
+            None::<&std::ffi::CStr>,
+        )
+        .map_err(string_error)?;
+        mount(
+            "tmpfs",
+            "/tmp",
+            "tmpfs",
+            MountFlags::NOSUID | MountFlags::NODEV | MountFlags::NOEXEC,
+            Some(c"mode=1777,size=67108864"),
+        )
+        .map_err(string_error)?;
+        drop_candidate_privileges(workload_uid, workload_gid)?;
+        install_candidate_seccomp()?;
+        let invocation_bytes = fs::read(invocation_path).map_err(string_error)?;
+        let invocation = QualificationInstalledClientInvocation::from_json(&invocation_bytes)
+            .map_err(string_error)?;
+        let input_bytes = fs::read(input).map_err(string_error)?;
+        if invocation.canonical_input().map_err(string_error)? != input_bytes {
+            return Err("candidate init input differs from its canonical invocation".into());
+        }
+        let input_file = File::open(input).map_err(string_error)?;
+        let error = Command::new(python)
+            .args(invocation.python_arguments())
+            .env_clear()
+            .env("PYTHONNOUSERSITE", "1")
+            .env(
+                "AUTHS_QUALIFICATION_CLIENT_RESULT_SOCKET",
+                QualificationInstalledClientInvocation::sandbox_result_socket(),
+            )
+            .current_dir("/tmp")
+            .stdin(Stdio::from(input_file))
+            .exec();
+        Err(format!("could not execute candidate Python: {error}"))
+    }
+
+    fn prepare_candidate_sandbox_root(path: &Path) -> Result<(), String> {
+        let parent = path
+            .parent()
+            .ok_or_else(|| "candidate sandbox root has no parent".to_owned())?;
+        let parent_metadata = fs::symlink_metadata(parent).map_err(string_error)?;
+        if !parent_metadata.is_dir()
+            || parent_metadata.file_type().is_symlink()
+            || parent_metadata.uid() == 0
+            || parent_metadata.mode() & 0o022 != 0
+        {
+            return Err("candidate sandbox parent is not one protected runtime directory".into());
+        }
+        match fs::symlink_metadata(path) {
+            Ok(_) => return Err("candidate sandbox root already exists".into()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(string_error(error)),
+        }
+        fs::create_dir(path).map_err(string_error)?;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o700)).map_err(string_error)?;
+        let metadata = fs::symlink_metadata(path).map_err(string_error)?;
+        if !metadata.is_dir()
+            || metadata.file_type().is_symlink()
+            || metadata.uid() != 0
+            || metadata.mode() & 0o777 != 0o700
+        {
+            return Err("candidate sandbox root is not root-owned and private".into());
+        }
+        Ok(())
+    }
+
+    fn candidate_init_stage() -> Result<(File, String), String> {
+        let mut nonce = [0_u8; 32];
+        File::open("/dev/urandom")
+            .map_err(string_error)?
+            .read_exact(&mut nonce)
+            .map_err(string_error)?;
+        let mut stage = File::from(
+            memfd_create(
+                "auths-qualification-candidate-init-stage",
+                MemfdFlags::ALLOW_SEALING,
+            )
+            .map_err(string_error)?,
+        );
+        stage.write_all(&nonce).map_err(string_error)?;
+        stage.flush().map_err(string_error)?;
+        stage.sync_all().map_err(string_error)?;
+        let seals = SealFlags::SEAL | SealFlags::SHRINK | SealFlags::GROW | SealFlags::WRITE;
+        fcntl_add_seals(&stage, seals).map_err(string_error)?;
+        if fcntl_get_seals(&stage).map_err(string_error)? != seals {
+            return Err("candidate init stage is not exactly sealed".into());
+        }
+        Ok((stage, hex::encode(Sha256::digest(nonce))))
+    }
+
+    fn authenticate_candidate_init_stage(expected_sha256: &str) -> Result<(), String> {
+        if !digest(expected_sha256) {
+            return Err("candidate init stage descriptor is malformed".into());
+        }
+        let mut stage = File::open("/proc/self/fd/0").map_err(string_error)?;
+        let metadata = stage.metadata().map_err(string_error)?;
+        let seals = SealFlags::SEAL | SealFlags::SHRINK | SealFlags::GROW | SealFlags::WRITE;
+        if !metadata.is_file()
+            || metadata.uid() != 0
+            || metadata.len() != 32
+            || fcntl_get_seals(&stage).map_err(string_error)? != seals
+        {
+            return Err("candidate init stage is not one root-owned sealed memfd".into());
+        }
+        let mut nonce = [0_u8; 32];
+        stage.read_exact(&mut nonce).map_err(string_error)?;
+        let mut extra = [0_u8; 1];
+        if stage.read(&mut extra).map_err(string_error)? != 0
+            || hex::encode(Sha256::digest(nonce)) != expected_sha256
+        {
+            return Err("candidate init stage nonce differs from its handoff".into());
+        }
+        Ok(())
+    }
+
+    fn authenticate_candidate_namespaces(
+        launcher_pid: u32,
+        controller_pid: u32,
+    ) -> Result<(), String> {
+        if !rustix::process::getpid().is_init() {
+            return Err("candidate init is not PID 1 in its private namespace".into());
+        }
+        for namespace in ["mnt", "net", "ipc", "uts"] {
+            let current =
+                fs::metadata(format!("/proc/self/ns/{namespace}")).map_err(string_error)?;
+            let launcher = fs::metadata(format!("/proc/{launcher_pid}/ns/{namespace}"))
+                .map_err(string_error)?;
+            let controller = fs::metadata(format!("/proc/{controller_pid}/ns/{namespace}"))
+                .map_err(string_error)?;
+            if current.dev() != launcher.dev()
+                || current.ino() != launcher.ino()
+                || (current.dev() == controller.dev() && current.ino() == controller.ino())
+            {
+                return Err(format!(
+                    "candidate init does not own one private {namespace} namespace"
+                ));
+            }
+        }
+        let current_pid = fs::metadata("/proc/self/ns/pid").map_err(string_error)?;
+        let controller_pid_namespace =
+            fs::metadata(format!("/proc/{controller_pid}/ns/pid")).map_err(string_error)?;
+        if current_pid.dev() == controller_pid_namespace.dev()
+            && current_pid.ino() == controller_pid_namespace.ino()
+        {
+            return Err("candidate init does not own a private PID namespace".into());
+        }
+        Ok(())
+    }
+
+    #[allow(deprecated)]
+    fn unshare_candidate_namespaces() -> Result<(), String> {
+        rustix::thread::unshare(
+            rustix::thread::UnshareFlags::NEWNS
+                | rustix::thread::UnshareFlags::NEWPID
+                | rustix::thread::UnshareFlags::NEWNET
+                | rustix::thread::UnshareFlags::NEWIPC
+                | rustix::thread::UnshareFlags::NEWUTS,
+        )
+        .map_err(string_error)
+    }
+
+    fn copy_python_runtime(
+        sandbox_root: &Path,
+        python: &Path,
+        runtime: &QualificationPythonRuntimeClosure,
+    ) -> Result<String, String> {
+        copy_runtime_tree(
+            &runtime.root,
+            &sandbox_root.join(relative_absolute(&runtime.root)?),
+        )?;
+        for external in &runtime.external_files {
+            let destination = sandbox_root.join(relative_absolute(&external.sandbox_path)?);
+            copy_regular_exact(
+                &external.source,
+                &destination,
+                external.bytes,
+                &external.sha256,
+                0o555,
+            )?;
+        }
+        let after = qualification_python_runtime_closure(python)?;
+        if &after != runtime {
+            return Err("candidate Python runtime changed while copied".into());
+        }
+        let sandbox_python = runtime.root.join(&runtime.executable_relative_path);
+        sandbox_python
+            .to_str()
+            .map(str::to_owned)
+            .ok_or_else(|| "candidate sandbox Python path is not UTF-8".to_owned())
+    }
+
+    fn copy_runtime_tree(source_root: &Path, target_root: &Path) -> Result<(), String> {
+        create_sandbox_directory(target_root, 0o555)?;
+        let mut pending = vec![PathBuf::new()];
+        let mut members = 0_usize;
+        while let Some(relative) = pending.pop() {
+            let source_directory = source_root.join(&relative);
+            let target_directory = target_root.join(&relative);
+            let mut entries = fs::read_dir(&source_directory)
+                .map_err(string_error)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(string_error)?;
+            entries.sort_by_key(fs::DirEntry::file_name);
+            for entry in entries {
+                members = members
+                    .checked_add(1)
+                    .filter(|count| *count <= 100_000)
+                    .ok_or_else(|| "candidate Python copy exceeds its member bound".to_owned())?;
+                let name = entry.file_name();
+                let name = name
+                    .to_str()
+                    .ok_or_else(|| "candidate Python runtime path is not UTF-8".to_owned())?;
+                if name.is_empty() || name == "." || name == ".." || name.contains('\0') {
+                    return Err("candidate Python runtime path is unsafe".into());
+                }
+                let child_relative = relative.join(name);
+                let source = source_root.join(&child_relative);
+                let target = target_root.join(&child_relative);
+                let before = fs::symlink_metadata(&source).map_err(string_error)?;
+                if before.is_dir() {
+                    create_sandbox_directory(&target, 0o555)?;
+                    pending.push(child_relative);
+                } else if before.file_type().is_symlink() {
+                    let link = fs::read_link(&source).map_err(string_error)?;
+                    if link.is_absolute()
+                        || link.components().any(|component| {
+                            matches!(component, Component::ParentDir | Component::RootDir)
+                        })
+                    {
+                        return Err("candidate Python runtime link escapes its prefix".into());
+                    }
+                    std::os::unix::fs::symlink(link, target).map_err(string_error)?;
+                } else if before.is_file() && before.nlink() == 1 {
+                    copy_regular_exact(
+                        &source,
+                        &target,
+                        before.len(),
+                        &sha256_file(&source, 536_870_912)?,
+                        if before.mode() & 0o111 == 0 {
+                            0o444
+                        } else {
+                            0o555
+                        },
+                    )?;
+                } else {
+                    return Err("candidate Python runtime contains an unsafe member".into());
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn copy_regular_exact(
+        source: &Path,
+        target: &Path,
+        expected_bytes: u64,
+        expected_sha256: &str,
+        mode: u32,
+    ) -> Result<(), String> {
+        if let Some(parent) = target.parent() {
+            create_sandbox_directory(parent, 0o555)?;
+        }
+        let mut input = File::from(
+            open(
+                source,
+                OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+                Mode::empty(),
+            )
+            .map_err(string_error)?,
+        );
+        let before = input.metadata().map_err(string_error)?;
+        if !before.is_file() || before.nlink() != 1 || before.len() != expected_bytes {
+            return Err("candidate source member is not one exact regular file".into());
+        }
+        let mut output = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(target)
+            .map_err(string_error)?;
+        let mut digest = Sha256::new();
+        let mut total = 0_u64;
+        let mut buffer = [0_u8; 65_536];
+        loop {
+            let length = input.read(&mut buffer).map_err(string_error)?;
+            if length == 0 {
+                break;
+            }
+            total = total
+                .checked_add(u64::try_from(length).map_err(string_error)?)
+                .ok_or_else(|| "candidate member byte count overflow".to_owned())?;
+            digest.update(&buffer[..length]);
+            output.write_all(&buffer[..length]).map_err(string_error)?;
+        }
+        let after = input.metadata().map_err(string_error)?;
+        if total != expected_bytes
+            || before.dev() != after.dev()
+            || before.ino() != after.ino()
+            || before.len() != after.len()
+            || hex::encode(digest.finalize()) != expected_sha256
+        {
+            return Err("candidate source member changed while copied".into());
+        }
+        output.flush().map_err(string_error)?;
+        output.sync_all().map_err(string_error)?;
+        fs::set_permissions(target, fs::Permissions::from_mode(mode)).map_err(string_error)?;
+        Ok(())
+    }
+
+    fn create_sandbox_directory(path: &Path, mode: u32) -> Result<(), String> {
+        let mut missing = Vec::new();
+        let mut cursor = path;
+        loop {
+            match fs::symlink_metadata(cursor) {
+                Ok(metadata) => {
+                    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+                        return Err("candidate sandbox directory path is occupied".into());
+                    }
+                    break;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    missing.push(cursor.to_path_buf());
+                    cursor = cursor.parent().ok_or_else(|| {
+                        "candidate sandbox directory has no existing ancestor".to_owned()
+                    })?;
+                }
+                Err(error) => return Err(string_error(error)),
+            }
+        }
+        for directory in missing.iter().rev() {
+            fs::create_dir(directory).map_err(string_error)?;
+            fs::set_permissions(directory, fs::Permissions::from_mode(0o555))
+                .map_err(string_error)?;
+        }
+        fs::set_permissions(path, fs::Permissions::from_mode(mode)).map_err(string_error)
+    }
+
+    fn create_sandbox_file(path: &Path, mode: u32) -> Result<(), String> {
+        if let Some(parent) = path.parent() {
+            create_sandbox_directory(parent, 0o755)?;
+        }
+        fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(mode)
+            .open(path)
+            .map_err(string_error)?;
+        Ok(())
+    }
+
+    fn write_sandbox_file(path: &Path, bytes: &[u8], mode: u32) -> Result<(), String> {
+        if bytes.is_empty()
+            || u64::try_from(bytes.len()).map_err(string_error)? > MAX_WHEEL_MEMBER_BYTES
+        {
+            return Err("candidate sandbox file exceeds its byte bound".into());
+        }
+        if let Some(parent) = path.parent() {
+            create_sandbox_directory(parent, 0o755)?;
+        }
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(path)
+            .map_err(string_error)?;
+        file.write_all(bytes).map_err(string_error)?;
+        file.flush().map_err(string_error)?;
+        file.sync_all().map_err(string_error)?;
+        fs::set_permissions(path, fs::Permissions::from_mode(mode)).map_err(string_error)
+    }
+
+    fn install_candidate_socket(
+        sandbox_root: &Path,
+        source: &str,
+        destination: &str,
+    ) -> Result<(), String> {
+        let source = Path::new(source);
+        require_normalized_absolute(source)?;
+        let metadata = fs::symlink_metadata(source).map_err(string_error)?;
+        if !metadata.file_type().is_socket() {
+            return Err("candidate workload endpoint is not a Unix socket".into());
+        }
+        let destination = sandbox_root.join(relative_absolute(Path::new(destination))?);
+        create_sandbox_file(&destination, 0o600)?;
+        mount_bind(source, &destination).map_err(string_error)?;
+        mount_remount(
+            &destination,
+            MountFlags::BIND | MountFlags::NOSUID | MountFlags::NODEV | MountFlags::NOEXEC,
+            "",
+        )
+        .map_err(string_error)
+    }
+
+    fn relative_absolute(path: &Path) -> Result<&Path, String> {
+        require_normalized_absolute(path)?;
+        path.strip_prefix("/").map_err(string_error)
+    }
+
+    fn read_bounded_pipe<R: Read>(mut reader: R, maximum: usize) -> Result<Vec<u8>, String> {
+        let mut bytes = Vec::new();
+        reader
+            .by_ref()
+            .take(u64::try_from(maximum).map_err(string_error)? + 1)
+            .read_to_end(&mut bytes)
+            .map_err(string_error)?;
+        if bytes.len() > maximum {
+            return Err("candidate output exceeds its byte bound".into());
+        }
+        Ok(bytes)
+    }
+
+    fn write_candidate_frame<W: Write>(writer: &mut W, bytes: &[u8]) -> Result<(), String> {
+        if bytes.is_empty() || bytes.len() > MAX_CANDIDATE_RESULT_BYTES {
+            return Err("candidate result frame exceeds its byte bound".into());
+        }
+        writer
+            .write_all(
+                &u32::try_from(bytes.len())
+                    .map_err(string_error)?
+                    .to_be_bytes(),
+            )
+            .map_err(string_error)?;
+        writer.write_all(bytes).map_err(string_error)
+    }
+
+    fn install_wheel(
+        sandbox_root: &Path,
+        runtime: &QualificationPythonRuntimeClosure,
+        wheel: &Path,
+    ) -> Result<(), String> {
+        let library = runtime.root.join("lib");
+        let mut versions = fs::read_dir(&library)
+            .map_err(string_error)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(string_error)?
+            .into_iter()
+            .filter(|entry| {
+                entry.file_name().to_string_lossy().starts_with("python")
+                    && entry.path().join("site-packages").is_dir()
+            })
+            .collect::<Vec<_>>();
+        versions.sort_by_key(fs::DirEntry::file_name);
+        if versions.len() != 1 {
+            return Err("candidate Python runtime has no unique site-packages directory".into());
+        }
+        let site_packages = sandbox_root
+            .join(relative_absolute(&runtime.root)?)
+            .join("lib")
+            .join(versions[0].file_name())
+            .join("site-packages");
+        let file = File::from(
+            open(
+                wheel,
+                OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+                Mode::empty(),
+            )
+            .map_err(string_error)?,
+        );
+        let mut archive = zip::ZipArchive::new(file).map_err(string_error)?;
+        if archive.len() == 0 || archive.len() > MAX_WHEEL_MEMBERS {
+            return Err("candidate wheel member count exceeds its bound".into());
+        }
+        let mut names = BTreeSet::new();
+        let mut total = 0_u64;
+        for index in 0..archive.len() {
+            let mut member = archive.by_index(index).map_err(string_error)?;
+            let relative = member
+                .enclosed_name()
+                .ok_or_else(|| "candidate wheel member path is unsafe".to_owned())?;
+            if relative.as_os_str().is_empty()
+                || relative.is_absolute()
+                || relative.components().any(|component| {
+                    matches!(
+                        component,
+                        Component::RootDir | Component::CurDir | Component::ParentDir
+                    )
+                })
+                || !names.insert(relative.clone())
+                || member.is_symlink()
+            {
+                return Err("candidate wheel member roster is unsafe".into());
+            }
+            if member.is_dir() {
+                create_sandbox_directory(&site_packages.join(relative), 0o555)?;
+                continue;
+            }
+            if member
+                .unix_mode()
+                .is_some_and(|mode| mode & 0o170000 != 0o100000)
+                || member.size() == 0
+                || member.size() > MAX_WHEEL_MEMBER_BYTES
+            {
+                return Err("candidate wheel member is not one bounded regular file".into());
+            }
+            total = total
+                .checked_add(member.size())
+                .filter(|bytes| *bytes <= MAX_WHEEL_BYTES)
+                .ok_or_else(|| "candidate wheel bytes exceed their bound".to_owned())?;
+            let mut bytes =
+                Vec::with_capacity(usize::try_from(member.size()).map_err(string_error)?);
+            member
+                .by_ref()
+                .take(MAX_WHEEL_MEMBER_BYTES + 1)
+                .read_to_end(&mut bytes)
+                .map_err(string_error)?;
+            if u64::try_from(bytes.len()).map_err(string_error)? != member.size() {
+                return Err("candidate wheel member changed while extracted".into());
+            }
+            write_sandbox_file(&site_packages.join(relative), &bytes, 0o444)?;
+        }
+        Ok(())
+    }
+
+    fn install_profile(sandbox_root: &Path, domain: &str, profile: &Path) -> Result<(), String> {
+        if !matches!(domain, "opentofu" | "postgresql" | "stripe") {
+            return Err("candidate profile domain is invalid".into());
+        }
+        let prefix = format!("auths-profile-{domain}/bindings/generated/{domain}/python/");
+        let expected = [
+            "README.md".to_owned(),
+            "pyproject.toml".to_owned(),
+            format!("src/auths_profiles/{domain}/__init__.py"),
+            format!("src/auths_profiles/{domain}/generated.py"),
+            format!("src/auths_profiles/{domain}/py.typed"),
+        ];
+        let archive = File::from(
+            open(
+                profile,
+                OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+                Mode::empty(),
+            )
+            .map_err(string_error)?,
+        );
+        let decoder = zstd::Decoder::new(archive).map_err(string_error)?;
+        let mut archive = tar::Archive::new(decoder);
+        let mut files = BTreeMap::<String, Vec<u8>>::new();
+        for entry in archive.entries().map_err(string_error)? {
+            let entry = entry.map_err(string_error)?;
+            let path = entry
+                .path()
+                .map_err(string_error)?
+                .to_str()
+                .ok_or_else(|| "candidate profile archive path is not UTF-8".to_owned())?
+                .to_owned();
+            let relative = path
+                .strip_prefix(&prefix)
+                .ok_or_else(|| "candidate profile archive prefix drifted".to_owned())?;
+            if !entry.header().entry_type().is_file()
+                || entry.header().mode().map_err(string_error)? != 0o644
+                || !expected.iter().any(|candidate| candidate == relative)
+                || files.contains_key(relative)
+            {
+                return Err("candidate profile archive roster is unsafe".into());
+            }
+            let mut bytes = Vec::new();
+            entry
+                .take(MAX_WHEEL_MEMBER_BYTES + 1)
+                .read_to_end(&mut bytes)
+                .map_err(string_error)?;
+            if bytes.is_empty()
+                || u64::try_from(bytes.len()).map_err(string_error)? > MAX_WHEEL_MEMBER_BYTES
+            {
+                return Err("candidate profile member exceeds its bound".into());
+            }
+            files.insert(relative.to_owned(), bytes);
+        }
+        if files.keys().ne(expected.iter()) {
+            return Err("candidate profile archive roster drifted".into());
+        }
+        let output = sandbox_root.join("opt/auths/profile");
+        for (relative, bytes) in files {
+            write_sandbox_file(&output.join(relative), &bytes, 0o444)?;
+        }
+        Ok(())
+    }
+
+    fn drop_candidate_privileges(uid: u32, gid: u32) -> Result<(), String> {
+        use rustix::thread::{
+            CapabilitiesSecureBits, CapabilitySet, CapabilitySets, set_capabilities,
+            set_capabilities_secure_bits,
+        };
+
+        rustix::thread::set_thread_groups(&[]).map_err(string_error)?;
+        for capability in CapabilitySet::all().iter() {
+            rustix::thread::remove_capability_from_bounding_set(capability)
+                .map_err(string_error)?;
+        }
+        rustix::thread::clear_ambient_capability_set().map_err(string_error)?;
+        set_capabilities_secure_bits(
+            CapabilitiesSecureBits::NO_ROOT
+                | CapabilitiesSecureBits::NO_ROOT_LOCKED
+                | CapabilitiesSecureBits::NO_CAP_AMBIENT_RAISE
+                | CapabilitiesSecureBits::NO_CAP_AMBIENT_RAISE_LOCKED,
+        )
+        .map_err(string_error)?;
+        let uid = rustix::process::Uid::from_raw(uid);
+        let gid = rustix::process::Gid::from_raw(gid);
+        rustix::thread::set_thread_res_gid(gid, gid, gid).map_err(string_error)?;
+        rustix::thread::set_thread_res_uid(uid, uid, uid).map_err(string_error)?;
+        set_capabilities(
+            None,
+            CapabilitySets {
+                effective: CapabilitySet::empty(),
+                permitted: CapabilitySet::empty(),
+                inheritable: CapabilitySet::empty(),
+            },
+        )
+        .map_err(string_error)?;
+        rustix::thread::set_no_new_privs(true).map_err(string_error)?;
+        Ok(())
+    }
+
+    fn install_candidate_seccomp() -> Result<(), String> {
+        let mut rules = BTreeMap::new();
+        for syscall in [
+            libc::SYS_clone,
+            libc::SYS_clone3,
+            libc::SYS_fork,
+            libc::SYS_vfork,
+            libc::SYS_setpgid,
+            libc::SYS_setsid,
+            libc::SYS_unshare,
+            libc::SYS_setns,
+            libc::SYS_mount,
+            libc::SYS_umount2,
+            libc::SYS_pivot_root,
+            libc::SYS_chroot,
+            libc::SYS_ptrace,
+            libc::SYS_process_vm_readv,
+            libc::SYS_process_vm_writev,
+            libc::SYS_pidfd_open,
+            libc::SYS_pidfd_getfd,
+            libc::SYS_bpf,
+            libc::SYS_perf_event_open,
+            libc::SYS_keyctl,
+            libc::SYS_add_key,
+            libc::SYS_request_key,
+            libc::SYS_init_module,
+            libc::SYS_finit_module,
+            libc::SYS_delete_module,
+            libc::SYS_reboot,
+            libc::SYS_swapon,
+            libc::SYS_swapoff,
+            libc::SYS_kexec_load,
+        ] {
+            rules.insert(syscall, Vec::new());
+        }
+        let non_unix = SeccompCondition::new(
+            0,
+            SeccompCmpArgLen::Dword,
+            SeccompCmpOp::Ne,
+            u64::try_from(libc::AF_UNIX).map_err(string_error)?,
+        )
+        .map_err(string_error)?;
+        rules.insert(
+            libc::SYS_socket,
+            vec![SeccompRule::new(vec![non_unix]).map_err(string_error)?],
+        );
+        let filter: BpfProgram = SeccompFilter::new(
+            rules,
+            SeccompAction::Allow,
+            SeccompAction::Errno(u32::try_from(libc::EPERM).map_err(string_error)?),
+            TargetArch::try_from(env::consts::ARCH).map_err(string_error)?,
+        )
+        .map_err(string_error)?
+        .try_into()
+        .map_err(string_error)?;
+        apply_filter(&filter).map_err(string_error)
+    }
+
+    fn read_candidate_frame<R: std::io::Read>(
+        reader: &mut R,
+        maximum: usize,
+    ) -> Result<Vec<u8>, String> {
+        let mut header = [0_u8; 4];
+        reader.read_exact(&mut header).map_err(string_error)?;
+        let length = usize::try_from(u32::from_be_bytes(header)).map_err(string_error)?;
+        if length == 0 || length > maximum {
+            return Err("candidate workload frame exceeds its byte bound".into());
+        }
+        let mut bytes = vec![0_u8; length];
+        reader.read_exact(&mut bytes).map_err(string_error)?;
+        Ok(bytes)
+    }
+
+    fn sha256_file(path: &Path, maximum: u64) -> Result<String, String> {
+        let file = File::from(
+            open(
+                path,
+                OFlags::RDONLY | OFlags::CLOEXEC | OFlags::NOFOLLOW,
+                Mode::empty(),
+            )
+            .map_err(string_error)?,
+        );
+        sha256_reader(file, maximum)
+    }
+
+    fn sha256_reader(mut file: File, maximum: u64) -> Result<String, String> {
+        let before = file.metadata().map_err(string_error)?;
+        if !before.file_type().is_file() || before.len() == 0 || before.len() > maximum {
+            return Err("candidate workload artifact is not one bounded regular file".into());
+        }
+        let mut hasher = Sha256::new();
+        let mut total = 0_u64;
+        let mut buffer = [0_u8; 65_536];
+        loop {
+            let length = file.read(&mut buffer).map_err(string_error)?;
+            if length == 0 {
+                break;
+            }
+            total = total
+                .checked_add(u64::try_from(length).map_err(string_error)?)
+                .ok_or_else(|| "candidate workload artifact byte count overflow".to_owned())?;
+            if total > maximum {
+                return Err("candidate workload artifact exceeds its byte bound".into());
+            }
+            hasher.update(&buffer[..length]);
+        }
+        let after = file.metadata().map_err(string_error)?;
+        if total != before.len()
+            || before.dev() != after.dev()
+            || before.ino() != after.ino()
+            || before.len() != after.len()
+        {
+            return Err("candidate workload artifact changed while read".into());
+        }
+        Ok(hex::encode(hasher.finalize()))
+    }
+
+    fn expected_cgroup_membership(path: &Path) -> Result<String, String> {
+        let relative = path.strip_prefix("/sys/fs/cgroup").map_err(string_error)?;
+        if relative.as_os_str().is_empty()
+            || relative.components().any(|part| {
+                matches!(
+                    part,
+                    Component::RootDir | Component::CurDir | Component::ParentDir
+                )
+            })
+        {
+            return Err("candidate workload cgroup path is not normalized".into());
+        }
+        Ok(format!("0::/{}", relative.to_string_lossy()))
+    }
+
+    fn expected_cgroup_from_proc_self() -> Result<String, String> {
+        let membership = fs::read_to_string("/proc/self/cgroup").map_err(string_error)?;
+        let relative = membership
+            .trim()
+            .strip_prefix("0::/")
+            .ok_or_else(|| "candidate launcher has no exact cgroup-v2 membership".to_owned())?;
+        if relative.is_empty() || relative.contains("..") || relative.contains('\0') {
+            return Err("candidate launcher cgroup membership is malformed".into());
+        }
+        Ok(format!("/sys/fs/cgroup/{relative}"))
+    }
+
     fn build_agent_arguments(
         mode: LaunchMode,
         values: &BTreeMap<String, String>,
@@ -669,9 +1816,10 @@ mod linux {
 
     fn exact_flags(
         arguments: &[String],
+        command: &str,
         flags: &[&str],
     ) -> Result<BTreeMap<String, String>, String> {
-        if arguments.first().map(String::as_str) != Some("launch")
+        if arguments.first().map(String::as_str) != Some(command)
             || arguments.len() != 1 + flags.len() * 2
         {
             return Err(usage());
@@ -747,7 +1895,7 @@ mod linux {
         if mode.failpoint().is_some() {
             flags.extend(["--control-operation-id", "--controller-nonce-sha256"]);
         }
-        exact_flags(arguments, &flags).map(|values| (mode, values))
+        exact_flags(arguments, "launch", &flags).map(|values| (mode, values))
     }
 
     fn remove_stale_agent_socket(path: &Path, uid: u32, gid: u32) -> Result<(), String> {
@@ -908,6 +2056,22 @@ mod linux {
         process_start_time_ticks(controller_pid)
     }
 
+    fn authenticate_controller_process(
+        plan: &QualificationEvidenceLedgerPlanV1,
+        controller_pid: u32,
+    ) -> Result<u64, String> {
+        let process = fs::metadata(format!("/proc/{controller_pid}")).map_err(string_error)?;
+        if rustix::process::geteuid().as_raw() != 0
+            || rustix::process::getuid().as_raw() != plan.supervisor_controller_uid
+            || process.uid() != plan.supervisor_controller_uid
+            || hash_process_executable(controller_pid)?
+                != plan.supervisor_controller_artifact_sha256
+        {
+            return Err("candidate init controller differs from the signed plan".into());
+        }
+        process_start_time_ticks(controller_pid)
+    }
+
     fn authenticate_controller_unchanged(
         plan: &QualificationEvidenceLedgerPlanV1,
         controller_pid: u32,
@@ -925,33 +2089,22 @@ mod linux {
     }
 
     fn hash_process_executable(pid: u32) -> Result<String, String> {
-        let mut file = File::open(format!("/proc/{pid}/exe")).map_err(string_error)?;
-        let metadata = file.metadata().map_err(string_error)?;
-        if !metadata.file_type().is_file()
-            || metadata.len() == 0
-            || metadata.len() > MAX_EXECUTABLE_BYTES
-        {
-            return Err("protected controller executable is invalid".into());
-        }
-        let mut hasher = Sha256::new();
-        let mut total = 0_u64;
-        let mut chunk = [0_u8; 65_536];
-        loop {
-            let length = file.read(&mut chunk).map_err(string_error)?;
-            if length == 0 {
-                break;
-            }
-            total = total
-                .checked_add(u64::try_from(length).map_err(string_error)?)
-                .ok_or_else(|| "protected controller byte count overflow".to_owned())?;
-            if total > MAX_EXECUTABLE_BYTES {
-                return Err("protected controller executable exceeds its bound".into());
-            }
-            hasher.update(&chunk[..length]);
-        }
-        (total == metadata.len())
-            .then(|| hex::encode(hasher.finalize()))
-            .ok_or_else(|| "protected controller executable changed while read".to_owned())
+        let file = File::open(format!("/proc/{pid}/exe")).map_err(string_error)?;
+        sha256_reader(file, MAX_EXECUTABLE_BYTES)
+    }
+
+    fn process_parent_pid(pid: u32) -> Result<u32, String> {
+        process_parent_pid_from_status(&format!("/proc/{pid}/status"))
+    }
+
+    fn process_parent_pid_from_status(path: &str) -> Result<u32, String> {
+        let status = fs::read_to_string(path).map_err(string_error)?;
+        let value = status
+            .lines()
+            .find_map(|line| line.strip_prefix("PPid:"))
+            .ok_or_else(|| "protected process parent identity is absent".to_owned())?
+            .trim();
+        canonical_u32(value)
     }
 
     fn process_start_time_ticks(pid: u32) -> Result<u64, String> {
@@ -1011,7 +2164,31 @@ mod linux {
     }
 
     fn usage() -> String {
-        "usage: qualification-agent-launcher launch --mode <ordinary|crash-after-decision> --admin-socket <path> --agent <path> --agent-gid <gid> --agent-sha256 <digest> --agent-socket <path> --agent-uid <uid> --client-proxy-artifact-sha256 <digest> --client-proxy-reader-uid <uid> --config <path> --config-sha256 <digest> --controller-pid <pid> --credential-broker-artifact-sha256 <digest> --credential-broker-reader-uid <uid> --credential-broker-socket <path> --ledger-plan <root-owned-policy> --qualification-connection-store-template <broker-owned-path> --recovery-key-id <id> --recovery-public-key-base64url <key> --source-context-sha256 <digest> --state-directory <path> --state-directory-sha256 <digest> [--agent-generation <u32> --control-operation-id <id> --controller-nonce-sha256 <digest>]".into()
+        concat!(
+            "usage:\n",
+            "  qualification-agent-launcher launch --mode <ordinary|crash-after-decision> ",
+            "--admin-socket <path> --agent <path> --agent-gid <gid> ",
+            "--agent-sha256 <digest> --agent-socket <path> --agent-uid <uid> ",
+            "--client-proxy-artifact-sha256 <digest> --client-proxy-reader-uid <uid> ",
+            "--config <path> --config-sha256 <digest> --controller-pid <pid> ",
+            "--credential-broker-artifact-sha256 <digest> ",
+            "--credential-broker-reader-uid <uid> --credential-broker-socket <path> ",
+            "--ledger-plan <root-owned-policy> ",
+            "--qualification-connection-store-template <broker-owned-path> ",
+            "--recovery-key-id <id> --recovery-public-key-base64url <key> ",
+            "--source-context-sha256 <digest> --state-directory <path> ",
+            "--state-directory-sha256 <digest> ",
+            "[--agent-generation <u32> --control-operation-id <id> ",
+            "--controller-nonce-sha256 <digest>]\n",
+            "  qualification-agent-launcher candidate-workload --cgroup <path> ",
+            "--controller-pid <pid> --ledger-plan <root-owned-policy> ",
+            "--phase-index <u8> --profile <path> --python <path> ",
+            "--request-sha256 <digest> --sandbox-root <path> --scenario <id> ",
+            "--wheel <path> --workload-gid <gid> --workload-uid <uid>\n",
+            "  candidate-init is an authenticated internal namespace stage and cannot be ",
+            "invoked directly"
+        )
+        .into()
     }
 
     #[cfg(test)]

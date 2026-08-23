@@ -87,6 +87,7 @@ mod linux {
     const SOURCE_CHECKPOINT_PROVIDER_AUTHORIZATION: u8 = 16;
     const SOURCE_CHECKPOINT_ABORT: u8 = 0;
     const SOURCE_CHECKPOINT_CLEAN: u8 = 1;
+    const CANDIDATE_WORKLOAD_RELEASE: &[u8] = b"AUTHS-QUALIFICATION-CANDIDATE-WORKLOAD/1\n";
 
     struct AgentServiceLaunchPolicy {
         client_proxy_reader_uid: u32,
@@ -217,9 +218,114 @@ mod linux {
         python: PathBuf,
         wheel: PathBuf,
         profile: PathBuf,
+        sandbox_root: PathBuf,
         cgroup: PathBuf,
         client_socket: PathBuf,
         result_socket: PathBuf,
+    }
+
+    struct ManagedCandidateWorkload {
+        child: Child,
+        cgroup: Option<OwnedCgroup>,
+        _pidfd: OwnedFd,
+        finished: bool,
+    }
+
+    impl ManagedCandidateWorkload {
+        fn launch(
+            launcher: &Path,
+            arguments: &[String],
+            cgroup_path: &Path,
+        ) -> Result<Self, String> {
+            let cgroup = OwnedCgroup::create(cgroup_path)?;
+            configure_candidate_cgroup(&cgroup)?;
+            let mut child = Command::new(launcher)
+                .args(arguments)
+                .env_clear()
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::inherit())
+                .spawn()
+                .map_err(string_error)?;
+            let pid = child.id();
+            let rustix_pid = Pid::from_raw(i32::try_from(pid).map_err(string_error)?)
+                .ok_or_else(|| "candidate workload launcher returned an invalid PID".to_owned())?;
+            let pidfd = pidfd_open(rustix_pid, PidfdFlags::empty()).map_err(string_error)?;
+            if let Err(error) = prepare_cgroup(&cgroup, pid) {
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = fs::remove_dir(&cgroup.path);
+                return Err(error);
+            }
+            Ok(Self {
+                child,
+                cgroup: Some(cgroup),
+                _pidfd: pidfd,
+                finished: false,
+            })
+        }
+
+        fn run(&mut self, request: &[u8], deadline: Instant) -> Result<Vec<u8>, String> {
+            let input = self
+                .child
+                .stdin
+                .as_mut()
+                .ok_or_else(|| "candidate workload launcher has no control input".to_owned())?;
+            rustix::fs::fcntl_setfl(&mut *input, OFlags::NONBLOCK).map_err(string_error)?;
+            write_all_before(input, CANDIDATE_WORKLOAD_RELEASE, deadline)?;
+            write_candidate_frame_before(input, request, deadline)?;
+            let output = self
+                .child
+                .stdout
+                .as_mut()
+                .ok_or_else(|| "candidate workload launcher has no result output".to_owned())?;
+            rustix::fs::fcntl_setfl(&mut *output, OFlags::NONBLOCK).map_err(string_error)?;
+            let result = read_candidate_frame_before(output, 16_777_216, deadline)?;
+            self.kill_and_reap(deadline)?;
+            Ok(result)
+        }
+
+        fn kill_and_reap(&mut self, deadline: Instant) -> Result<(), String> {
+            let cgroup = self
+                .cgroup
+                .as_ref()
+                .ok_or_else(|| "candidate workload cgroup ownership was lost".to_owned())?;
+            kill_cgroup_and_reap(cgroup, &mut self.child, deadline, true)?;
+            self.finished = true;
+            Ok(())
+        }
+    }
+
+    impl Drop for ManagedCandidateWorkload {
+        fn drop(&mut self) {
+            if self.finished {
+                return;
+            }
+            if let Some(cgroup) = &self.cgroup {
+                if cgroup.validate_identity().is_ok() {
+                    let _ = fs::write(cgroup.path.join("cgroup.kill"), b"1");
+                }
+            }
+            let deadline = Instant::now() + Duration::from_secs(5);
+            loop {
+                match self.child.try_wait() {
+                    Ok(Some(_)) => break,
+                    Ok(None) if Instant::now() < deadline => {
+                        thread::sleep(Duration::from_millis(10));
+                    }
+                    _ => {
+                        let _ = self.child.kill();
+                        let _ = self.child.wait();
+                        break;
+                    }
+                }
+            }
+            if let Some(cgroup) = &self.cgroup {
+                if cgroup.validate_identity().is_ok() {
+                    let _ = fs::remove_dir(&cgroup.path);
+                }
+            }
+        }
     }
 
     impl CandidateWorkloadSession {
@@ -256,6 +362,7 @@ mod linux {
                 &self.python,
                 &self.wheel,
                 &self.profile,
+                &self.sandbox_root,
                 &self.cgroup,
                 &request_bytes,
                 deadline,
@@ -1033,6 +1140,10 @@ mod linux {
             python: PathBuf::from(value(&values, "--candidate-python")?),
             wheel: PathBuf::from(value(&values, "--candidate-python-wheel")?),
             profile: PathBuf::from(value(&values, "--candidate-python-profile")?),
+            sandbox_root: PathBuf::from(value(&values, "--candidate-workload-socket")?)
+                .parent()
+                .ok_or_else(|| "candidate workload socket has no parent".to_owned())?
+                .join("sandbox-root"),
             cgroup: workload_cgroup,
             client_socket: PathBuf::from(value(&values, "--client-proxy-socket")?),
             result_socket: PathBuf::from(value(&values, "--client-result-socket")?),
@@ -3322,6 +3433,37 @@ mod linux {
         write_all_before(stream, bytes, deadline)
     }
 
+    fn write_candidate_frame_before<W: Write>(
+        stream: &mut W,
+        bytes: &[u8],
+        deadline: Instant,
+    ) -> Result<(), String> {
+        if bytes.is_empty() || bytes.len() > 16_777_216 {
+            return Err("candidate workload request length is outside its bound".into());
+        }
+        let header = u32::try_from(bytes.len())
+            .map_err(string_error)?
+            .to_be_bytes();
+        write_all_before(stream, &header, deadline)?;
+        write_all_before(stream, bytes, deadline)
+    }
+
+    fn read_candidate_frame_before<R: Read>(
+        stream: &mut R,
+        maximum: usize,
+        deadline: Instant,
+    ) -> Result<Vec<u8>, String> {
+        let mut header = [0_u8; 4];
+        read_exact_before(stream, &mut header, deadline)?;
+        let length = usize::try_from(u32::from_be_bytes(header)).map_err(string_error)?;
+        if length == 0 || length > maximum {
+            return Err("candidate workload result length is outside its bound".into());
+        }
+        let mut bytes = vec![0_u8; length];
+        read_exact_before(stream, &mut bytes, deadline)?;
+        Ok(bytes)
+    }
+
     fn read_exact_before<R: Read>(
         stream: &mut R,
         mut bytes: &mut [u8],
@@ -4245,6 +4387,30 @@ mod linux {
         Ok(())
     }
 
+    fn configure_candidate_cgroup(cgroup: &OwnedCgroup) -> Result<(), String> {
+        cgroup.validate_identity()?;
+        for (name, value) in [
+            ("pids.max", "64"),
+            ("memory.max", "536870912"),
+            ("memory.swap.max", "0"),
+            ("cpu.max", "60000 100000"),
+        ] {
+            let path = cgroup.path.join(name);
+            if !path.is_file() {
+                return Err(format!(
+                    "candidate workload cgroup omits required controller {name}"
+                ));
+            }
+            fs::write(&path, value).map_err(string_error)?;
+            if fs::read_to_string(&path).map_err(string_error)?.trim() != value {
+                return Err(format!(
+                    "candidate workload cgroup did not retain exact {name} policy"
+                ));
+            }
+        }
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn launch_candidate_workload(
         plan: &QualificationEvidenceLedgerPlanV1,
@@ -4254,9 +4420,10 @@ mod linux {
         python: &Path,
         wheel: &Path,
         profile: &Path,
+        sandbox_root: &Path,
         cgroup: &Path,
         request: &[u8],
-        _deadline: Instant,
+        deadline: Instant,
     ) -> Result<Vec<u8>, String> {
         use auths_qualification_supervisor::{
             qualification_candidate_sandbox_policy_sha256, qualification_python_runtime_closure,
@@ -4267,6 +4434,7 @@ mod linux {
             || !python.is_absolute()
             || !wheel.is_absolute()
             || !profile.is_absolute()
+            || !sandbox_root.is_absolute()
             || !cgroup.starts_with("/sys/fs/cgroup")
             || cgroup == Path::new("/sys/fs/cgroup")
             || !plan.phases.iter().any(|planned| planned == phase)
@@ -4294,7 +4462,41 @@ mod linux {
         {
             return Err("candidate workload differs from its signed sandbox contract".into());
         }
-        Err("candidate workload sandbox launcher is not yet enabled".into())
+        let arguments = [
+            "candidate-workload".to_owned(),
+            "--cgroup".to_owned(),
+            path_string(cgroup)?.to_owned(),
+            "--controller-pid".to_owned(),
+            std::process::id().to_string(),
+            "--ledger-plan".to_owned(),
+            path_string(launcher_plan)?.to_owned(),
+            "--phase-index".to_owned(),
+            phase.phase_index.to_string(),
+            "--profile".to_owned(),
+            path_string(profile)?.to_owned(),
+            "--python".to_owned(),
+            path_string(python)?.to_owned(),
+            "--request-sha256".to_owned(),
+            hex::encode(Sha256::digest(request)),
+            "--scenario".to_owned(),
+            phase.scenario_id.clone(),
+            "--sandbox-root".to_owned(),
+            path_string(sandbox_root)?.to_owned(),
+            "--wheel".to_owned(),
+            path_string(wheel)?.to_owned(),
+            "--workload-gid".to_owned(),
+            plan.candidate_sandbox.workload_gid.to_string(),
+            "--workload-uid".to_owned(),
+            plan.candidate_sandbox.workload_uid.to_string(),
+        ];
+        let mut workload = ManagedCandidateWorkload::launch(launcher, &arguments, cgroup)?;
+        let result = workload.run(request, deadline)?;
+        let mut residual = fs::read_dir(sandbox_root).map_err(string_error)?;
+        if residual.next().is_some() {
+            return Err("candidate sandbox mountpoint retained workload material".into());
+        }
+        fs::remove_dir(sandbox_root).map_err(string_error)?;
+        Ok(result)
     }
 
     fn wait_for_agent_exec(

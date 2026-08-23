@@ -1806,7 +1806,7 @@ impl QualificationInstalledClientInvocation {
             self.group.clone(),
             self.method.clone(),
             self.input_type.clone(),
-            self.agent_socket.clone(),
+            "/run/auths/client.sock".into(),
             self.connection_alias.clone(),
             self.scenario_id.clone(),
             self.phase_index.to_string(),
@@ -1829,6 +1829,12 @@ impl QualificationInstalledClientInvocation {
     #[must_use]
     pub fn result_socket(&self) -> &str {
         &self.result_socket
+    }
+
+    /// Returns the sole terminal-result socket name mounted into the sandbox.
+    #[must_use]
+    pub const fn sandbox_result_socket() -> &'static str {
+        "/run/auths/result.sock"
     }
 
     /// Returns the protected SDK request socket visible inside the sandbox.

@@ -1436,7 +1436,7 @@ impl QualificationEvidenceLedgerRecord {
             || self.candidate_sandbox.validate().is_err()
             || self.candidate_sandbox.workload_uid == self.supervisor_controller_uid
             || self.candidate_sandbox.workload_uid == self.agent_uid
-            || self.candidate_sandbox.workload_gid == self.agent_gid
+            || self.candidate_sandbox.workload_gid != self.agent_gid
             || self.phase_commitments.is_empty()
             || self.phase_commitments.len() > MAX_PHASES
             || self.events.is_empty()
@@ -2717,7 +2717,7 @@ impl QualificationEvidenceLedgerPlanV1 {
             || self.candidate_sandbox.validate().is_err()
             || self.candidate_sandbox.workload_uid == self.supervisor_controller_uid
             || self.candidate_sandbox.workload_uid == self.agent_uid
-            || self.candidate_sandbox.workload_gid == self.agent_gid
+            || self.candidate_sandbox.workload_gid != self.agent_gid
             || self.phases.is_empty()
             || self.phases.len() > MAX_PHASES
             || self.started_at_unix_seconds >= self.deadline_at_unix_seconds
@@ -6511,7 +6511,7 @@ mod tests {
         QualificationCandidateSandboxPlanV1 {
             schema: "auths.profile-qualification-candidate-sandbox-plan/1".into(),
             workload_uid: 1002,
-            workload_gid: 1002,
+            workload_gid: 1001,
             requester_artifact_sha256: "a".repeat(64),
             executable_sha256: "e".repeat(64),
             linux_cgroup_prefix: "/auths-qualification/".into(),

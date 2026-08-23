@@ -1336,6 +1336,13 @@ fn build_ledger_plan(
             ),
             _ => return Err("candidate sandbox workload selector is not fully bound".into()),
         };
+    let agent_gid = required_u32_env("AUTHS_QUALIFICATION_AGENT_GID")?;
+    if workload_gid != agent_gid {
+        return Err("candidate sandbox workload must use the exact socket IPC group".into());
+    }
+    if load_evidence_source_trust_registry(&repository)?.uses_process_uid(workload_uid) {
+        return Err("candidate sandbox workload UID overlaps a protected source process".into());
+    }
     let python_runtime = qualification_python_runtime_closure(Path::new(&required_env(
         "AUTHS_QUALIFICATION_PYTHON",
     )?))?;
@@ -1388,7 +1395,7 @@ fn build_ledger_plan(
             "AUTHS_QUALIFICATION_LEDGER_APPENDER_SHA256",
         )?,
         agent_uid: required_u32_env("AUTHS_QUALIFICATION_AGENT_UID")?,
-        agent_gid: required_u32_env("AUTHS_QUALIFICATION_AGENT_GID")?,
+        agent_gid,
         agent_launcher_artifact_sha256: required_sha256_env(
             "AUTHS_QUALIFICATION_AGENT_LAUNCHER_SHA256",
         )?,
@@ -5312,6 +5319,8 @@ struct ProcessProtectedPhaseGuard {
     cgroup_parent: fs::File,
     cgroup_name: std::ffi::OsString,
     cgroup_directory: Option<fs::File>,
+    workload_cgroup_name: std::ffi::OsString,
+    workload_cgroup_directory: Option<fs::File>,
     cgroup_owner_uid: u32,
     controller_exited_normally: bool,
     completed: bool,
@@ -5611,6 +5620,12 @@ impl ProtectedPhaseRuntime for ProcessProtectedPhaseRuntime {
         let cgroup = self.cgroup_path(&vector.id, phase_index);
         let (cgroup_parent, cgroup_name) =
             open_new_phase_cgroup_parent(&cgroup, self.plan.supervisor_controller_uid)?;
+        let workload_cgroup_name = std::ffi::OsString::from(format!(
+            "{}-workload",
+            cgroup_name
+                .to_str()
+                .ok_or_else(|| "protected phase cgroup name is not UTF-8".to_owned())?
+        ));
         let agent_uid = self.plan.agent_uid.to_string();
         let agent_gid = self.plan.agent_gid.to_string();
         let phase_index_string = phase_index.to_string();
@@ -5772,6 +5787,8 @@ impl ProtectedPhaseRuntime for ProcessProtectedPhaseRuntime {
             cgroup_parent,
             cgroup_name,
             cgroup_directory: None,
+            workload_cgroup_name,
+            workload_cgroup_directory: None,
             cgroup_owner_uid: self.plan.supervisor_controller_uid,
             controller_exited_normally: false,
             completed: false,
@@ -5826,6 +5843,119 @@ impl ProcessProtectedPhaseGuard {
             return Err("protected phase controller did not create its delegated cgroup".into());
         }
         Ok(())
+    }
+
+    #[cfg(unix)]
+    fn capture_workload_cgroup_directory(&mut self) -> Result<(), String> {
+        use std::os::unix::fs::MetadataExt as _;
+
+        if self.workload_cgroup_directory.is_some() {
+            return Ok(());
+        }
+        let descriptor = match rustix::fs::openat(
+            &self.cgroup_parent,
+            Path::new(&self.workload_cgroup_name),
+            rustix::fs::OFlags::RDONLY
+                | rustix::fs::OFlags::DIRECTORY
+                | rustix::fs::OFlags::CLOEXEC
+                | rustix::fs::OFlags::NOFOLLOW,
+            rustix::fs::Mode::empty(),
+        ) {
+            Ok(descriptor) => descriptor,
+            Err(error) if error == rustix::io::Errno::NOENT => return Ok(()),
+            Err(error) => return Err(string_error(error)),
+        };
+        let directory = fs::File::from(descriptor);
+        let metadata = directory.metadata().map_err(string_error)?;
+        if !metadata.file_type().is_dir()
+            || metadata.uid() != self.cgroup_owner_uid
+            || metadata.mode() & 0o022 != 0
+        {
+            return Err("candidate workload cgroup is not controller-owned".into());
+        }
+        self.workload_cgroup_directory = Some(directory);
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    fn cleanup_workload_cgroup_after_controller(&mut self) -> bool {
+        use std::io::{Read as _, Write as _};
+        use std::os::unix::fs::MetadataExt as _;
+
+        if self.capture_workload_cgroup_directory().is_err() {
+            return false;
+        }
+        let Some(directory) = self.workload_cgroup_directory.take() else {
+            return true;
+        };
+        let Ok(captured) = directory.metadata() else {
+            return false;
+        };
+        let Ok(kill_descriptor) = rustix::fs::openat(
+            &directory,
+            "cgroup.kill",
+            rustix::fs::OFlags::WRONLY | rustix::fs::OFlags::CLOEXEC | rustix::fs::OFlags::NOFOLLOW,
+            rustix::fs::Mode::empty(),
+        ) else {
+            return false;
+        };
+        if fs::File::from(kill_descriptor).write_all(b"1").is_err() {
+            return false;
+        }
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut empty = false;
+        while Instant::now() < deadline {
+            let Ok(events_descriptor) = rustix::fs::openat(
+                &directory,
+                "cgroup.events",
+                rustix::fs::OFlags::RDONLY
+                    | rustix::fs::OFlags::CLOEXEC
+                    | rustix::fs::OFlags::NOFOLLOW,
+                rustix::fs::Mode::empty(),
+            ) else {
+                break;
+            };
+            let mut events = String::new();
+            if fs::File::from(events_descriptor)
+                .read_to_string(&mut events)
+                .is_err()
+            {
+                break;
+            }
+            if events
+                .lines()
+                .any(|line| line.split_ascii_whitespace().eq(["populated", "0"]))
+            {
+                empty = true;
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        if !empty {
+            return false;
+        }
+        drop(directory);
+        let Ok(named) = rustix::fs::statat(
+            &self.cgroup_parent,
+            Path::new(&self.workload_cgroup_name),
+            rustix::fs::AtFlags::SYMLINK_NOFOLLOW,
+        ) else {
+            return false;
+        };
+        if named.st_dev as u64 != captured.dev() || named.st_ino != captured.ino() {
+            return false;
+        }
+        rustix::fs::unlinkat(
+            &self.cgroup_parent,
+            Path::new(&self.workload_cgroup_name),
+            rustix::fs::AtFlags::REMOVEDIR,
+        )
+        .is_ok()
+    }
+
+    #[cfg(not(unix))]
+    fn cleanup_workload_cgroup_after_controller(&mut self) -> bool {
+        false
     }
 
     #[cfg(unix)]
@@ -6084,6 +6214,7 @@ impl Drop for ProcessProtectedPhaseGuard {
             return;
         }
         if self.controller_exited_normally {
+            let _ = self.cleanup_workload_cgroup_after_controller();
             if self.wait_for_empty_cgroup() || self.force_kill_phase_cgroup() {
                 self.remove_empty_phase_cgroup();
             }
@@ -6104,6 +6235,7 @@ impl Drop for ProcessProtectedPhaseGuard {
         }
         if controller_exit == Some(true) {
             let _ = self.child.wait();
+            let _ = self.cleanup_workload_cgroup_after_controller();
             if self.wait_for_empty_cgroup() {
                 self.remove_empty_phase_cgroup();
             }
@@ -6115,6 +6247,7 @@ impl Drop for ProcessProtectedPhaseGuard {
             let _ = self.child.kill();
         }
         let _ = self.child.wait();
+        let _ = self.cleanup_workload_cgroup_after_controller();
         if !cgroup_empty {
             cgroup_empty = self.wait_for_empty_cgroup();
         }
@@ -8703,6 +8836,7 @@ fn verify_retained_evidence_ledgers(
             || ledger.record().recovery_key_id != recovery_key_id
             || ledger.record().recovery_public_key_base64url != recovery_public_key_base64url
             || source_trust.uses_process_uid(ledger.record().agent_uid)
+            || source_trust.uses_process_uid(ledger.record().candidate_sandbox.workload_uid)
             || expected_qualification_agent_sha256
                 != Some(ledger.record().agent_executable_sha256.as_str())
         {
