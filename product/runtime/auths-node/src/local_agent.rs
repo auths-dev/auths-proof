@@ -622,7 +622,7 @@ pub(crate) fn observe_linux_process(pid: u32) -> Result<ProcessObservation, Loca
         return Err(LocalAgentFailure::Unauthenticated);
     }
     let mut digest = Sha256::new();
-    let mut buffer = [0_u8; 65_536];
+    let mut buffer = vec![0_u8; 65_536];
     loop {
         let read = std::io::Read::read(&mut file, &mut buffer)
             .map_err(|_| LocalAgentFailure::Unauthenticated)?;
