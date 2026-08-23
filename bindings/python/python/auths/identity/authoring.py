@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import hashlib as _hashlib
 from typing import Sequence as _Sequence
 
 from .._native import (
+    compact_identity_descriptor_v1 as _compact_descriptor,
+    decode_identity_descriptor_v1 as _decode_descriptor,
     encode_identity_descriptor_v1 as _encode_descriptor,
     identity_descriptor_signing_preimage_v1 as _signing_preimage,
     raw_key_identity_v2 as _raw_key_identity,
@@ -30,10 +31,26 @@ def create_raw_key_ed25519_identity(public_key: bytes, /) -> ValidatedIdentity:
     key = bytes(public_key)
     if len(key) != 32:
         raise ValueError("Ed25519 public key must contain exactly 32 bytes")
-    packet = _raw_key_identity("ed25519-v1", key)
-    identity_id = "raw:" + _hashlib.sha256(key).hexdigest()
-    relationship = VerificationRelationship("default-signing", "authentication", "ed25519-v1", (VerificationMaterial("default", key),))
-    decoded = DecodedIdentityRecord("raw-key", identity_id, b"", (relationship,))
+    packet = bytes(_compact_descriptor(_raw_key_identity("ed25519-v1", key)))
+    projection = _decode_descriptor(packet)
+    relationships = tuple(
+        VerificationRelationship(
+            relationship_id,
+            purpose,
+            suite_id,
+            tuple(
+                VerificationMaterial(material_id, bytes(material))
+                for material_id, material in materials
+            ),
+        )
+        for relationship_id, purpose, suite_id, materials in projection.relationships
+    )
+    decoded = DecodedIdentityRecord(
+        projection.method_id,
+        projection.identity_id,
+        bytes(projection.method_material),
+        relationships,
+    )
     evidence = ResolutionEvidence("authoring", 0, 2**63 - 1, ("self-contained",))
     return _validated(packet, ResolvedIdentityRecord(decoded.method_id, decoded.identity_id, decoded.method_material, decoded.relationships, evidence))
 

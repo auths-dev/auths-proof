@@ -20,7 +20,9 @@ async def run(_: Path) -> None:
         raise RuntimeError("installed wheel omitted the local-agent session capability")
 
     identity = create_raw_key_ed25519_identity(b"\x01" * 32)
-    if not identity.identity_id.startswith("raw:"):
+    if identity.method_id != "raw-key-v2" or not identity.identity_id.startswith(
+        "key:sha256-v2:"
+    ):
         raise RuntimeError("installed identity authoring path is unavailable")
 
     # An effectful clean-consumer test needs an operator-provisioned local
