@@ -39,7 +39,7 @@ impl ProtectedOpenTofuExecutor {
     pub(crate) fn open(path: &Path, expected_sha256: &str) -> Result<Self, ProfileRuntimeError> {
         #[cfg(target_os = "linux")]
         {
-            return Self::open_linux(path, expected_sha256);
+            Self::open_linux(path, expected_sha256)
         }
         #[cfg(not(target_os = "linux"))]
         {
@@ -110,50 +110,12 @@ impl ProtectedOpenTofuExecutor {
         {
             return Err(ProfileRuntimeError::Invalid);
         }
-        executable
-            .flush()
-            .map_err(|_| ProfileRuntimeError::Invalid)?;
-        executable
-            .sync_all()
-            .map_err(|_| ProfileRuntimeError::Invalid)?;
-        let seals = rustix::fs::SealFlags::SEAL
-            | rustix::fs::SealFlags::SHRINK
-            | rustix::fs::SealFlags::GROW
-            | rustix::fs::SealFlags::WRITE;
-        rustix::fs::fcntl_add_seals(&executable, seals)
-            .map_err(|_| ProfileRuntimeError::Invalid)?;
-        if rustix::fs::fcntl_get_seals(&executable).map_err(|_| ProfileRuntimeError::Invalid)?
-            != seals
-        {
-            return Err(ProfileRuntimeError::Invalid);
-        }
-        executable
-            .seek(SeekFrom::Start(0))
-            .map_err(|_| ProfileRuntimeError::Invalid)?;
-        let mut sealed_digest = Sha256::new();
-        let mut sealed_total = 0_u64;
-        loop {
-            let count = executable
-                .read(&mut buffer)
-                .map_err(|_| ProfileRuntimeError::Invalid)?;
-            if count == 0 {
-                break;
-            }
-            sealed_total = sealed_total
-                .checked_add(u64::try_from(count).map_err(|_| ProfileRuntimeError::Invalid)?)
-                .ok_or(ProfileRuntimeError::Invalid)?;
-            sealed_digest.update(&buffer[..count]);
-        }
-        if sealed_total != total || hex::encode(sealed_digest.finalize()) != expected_sha256 {
-            return Err(ProfileRuntimeError::Invalid);
-        }
-        executable
-            .seek(SeekFrom::Start(0))
-            .map_err(|_| ProfileRuntimeError::Invalid)?;
-        // The kernel resolves this descriptor during exec. The later sandbox
-        // owns the child's exact descriptor-closing policy.
-        rustix::io::fcntl_setfd(&executable, rustix::io::FdFlags::empty())
-            .map_err(|_| ProfileRuntimeError::Invalid)?;
+        seal_and_verify_executable(
+            &mut executable,
+            &mut buffer,
+            total,
+            expected_sha256,
+        )?;
 
         let executable_path = retained_descriptor_path(executable.as_raw_fd());
         let retained_metadata =
@@ -176,7 +138,7 @@ impl ProtectedOpenTofuExecutor {
     ) -> Result<ProcessOutput, ProfileRuntimeError> {
         #[cfg(target_os = "linux")]
         {
-            return self.run_linux(arguments, current_directory, environment);
+            self.run_linux(arguments, current_directory, environment)
         }
         #[cfg(not(target_os = "linux"))]
         {
@@ -251,6 +213,59 @@ impl ProtectedOpenTofuExecutor {
                 .map_err(|_| ProfileRuntimeError::Invalid)??,
         })
     }
+}
+
+#[cfg(target_os = "linux")]
+fn seal_and_verify_executable(
+    executable: &mut File,
+    buffer: &mut [u8],
+    expected_size: u64,
+    expected_sha256: &str,
+) -> Result<(), ProfileRuntimeError> {
+    executable
+        .flush()
+        .map_err(|_| ProfileRuntimeError::Invalid)?;
+    executable
+        .sync_all()
+        .map_err(|_| ProfileRuntimeError::Invalid)?;
+    let seals = rustix::fs::SealFlags::SEAL
+        | rustix::fs::SealFlags::SHRINK
+        | rustix::fs::SealFlags::GROW
+        | rustix::fs::SealFlags::WRITE;
+    rustix::fs::fcntl_add_seals(&*executable, seals)
+        .map_err(|_| ProfileRuntimeError::Invalid)?;
+    if rustix::fs::fcntl_get_seals(&*executable).map_err(|_| ProfileRuntimeError::Invalid)?
+        != seals
+    {
+        return Err(ProfileRuntimeError::Invalid);
+    }
+    executable
+        .seek(SeekFrom::Start(0))
+        .map_err(|_| ProfileRuntimeError::Invalid)?;
+    let mut digest = Sha256::new();
+    let mut total = 0_u64;
+    loop {
+        let count = executable
+            .read(buffer)
+            .map_err(|_| ProfileRuntimeError::Invalid)?;
+        if count == 0 {
+            break;
+        }
+        total = total
+            .checked_add(u64::try_from(count).map_err(|_| ProfileRuntimeError::Invalid)?)
+            .ok_or(ProfileRuntimeError::Invalid)?;
+        digest.update(&buffer[..count]);
+    }
+    if total != expected_size || hex::encode(digest.finalize()) != expected_sha256 {
+        return Err(ProfileRuntimeError::Invalid);
+    }
+    executable
+        .seek(SeekFrom::Start(0))
+        .map_err(|_| ProfileRuntimeError::Invalid)?;
+    // The kernel resolves this descriptor during exec. The later sandbox
+    // owns the child's exact descriptor-closing policy.
+    rustix::io::fcntl_setfd(&*executable, rustix::io::FdFlags::empty())
+        .map_err(|_| ProfileRuntimeError::Invalid)
 }
 
 #[cfg(target_os = "linux")]
