@@ -7,7 +7,21 @@
 //! agent's delegated cgroup.
 
 #![forbid(unsafe_code)]
-#![allow(clippy::similar_names)]
+#![allow(
+    clippy::assigning_clones,
+    clippy::collapsible_if,
+    clippy::if_not_else,
+    clippy::items_after_statements,
+    clippy::large_stack_arrays,
+    clippy::map_unwrap_or,
+    clippy::needless_borrow,
+    clippy::redundant_closure_for_method_calls,
+    clippy::similar_names,
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    clippy::used_underscore_binding,
+    clippy::while_let_loop,
+)]
 
 #[cfg(target_os = "linux")]
 mod linux {

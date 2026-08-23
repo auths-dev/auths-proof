@@ -6,6 +6,7 @@
 //! an fd-pinned qualification-agent executable to replace this process.
 
 #![forbid(unsafe_code)]
+#![allow(clippy::similar_names)]
 
 #[cfg(target_os = "linux")]
 mod linux {
@@ -40,7 +41,7 @@ mod linux {
         collections::{BTreeMap, BTreeSet},
         env,
         fs::{self, File},
-        io::{Read as _, Seek as _, SeekFrom, Write as _},
+        io::{Read, Seek as _, SeekFrom, Write},
         os::{
             fd::AsRawFd as _,
             unix::{
@@ -1419,7 +1420,7 @@ mod linux {
             }
             if member
                 .unix_mode()
-                .is_some_and(|mode| mode & 0o170000 != 0o100000)
+                .is_some_and(|mode| mode & 0o170_000 != 0o100_000)
                 || member.size() == 0
                 || member.size() > MAX_WHEEL_MEMBER_BYTES
             {
