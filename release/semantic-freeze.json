@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 164,
+  "freezeVersion": 165,
   "publicSurface": {
     "rustRoots": [
       "auths",
