@@ -110,12 +110,7 @@ impl ProtectedOpenTofuExecutor {
         {
             return Err(ProfileRuntimeError::Invalid);
         }
-        seal_and_verify_executable(
-            &mut executable,
-            &mut buffer,
-            total,
-            expected_sha256,
-        )?;
+        seal_and_verify_executable(&mut executable, &mut buffer, total, expected_sha256)?;
 
         let executable_path = retained_descriptor_path(executable.as_raw_fd());
         let retained_metadata =
@@ -232,10 +227,8 @@ fn seal_and_verify_executable(
         | rustix::fs::SealFlags::SHRINK
         | rustix::fs::SealFlags::GROW
         | rustix::fs::SealFlags::WRITE;
-    rustix::fs::fcntl_add_seals(&*executable, seals)
-        .map_err(|_| ProfileRuntimeError::Invalid)?;
-    if rustix::fs::fcntl_get_seals(&*executable).map_err(|_| ProfileRuntimeError::Invalid)?
-        != seals
+    rustix::fs::fcntl_add_seals(&*executable, seals).map_err(|_| ProfileRuntimeError::Invalid)?;
+    if rustix::fs::fcntl_get_seals(&*executable).map_err(|_| ProfileRuntimeError::Invalid)? != seals
     {
         return Err(ProfileRuntimeError::Invalid);
     }
