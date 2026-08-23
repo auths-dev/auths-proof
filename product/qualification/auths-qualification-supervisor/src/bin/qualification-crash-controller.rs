@@ -20,7 +20,7 @@
     clippy::too_many_arguments,
     clippy::too_many_lines,
     clippy::used_underscore_binding,
-    clippy::while_let_loop,
+    clippy::while_let_loop
 )]
 
 #[cfg(target_os = "linux")]
