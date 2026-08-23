@@ -129,6 +129,24 @@ class _EphemeralSigner:
 def ephemeral_ed25519_signer() -> object: return _EphemeralSigner()
 
 
+class DevelopmentEd25519IdentityKey:
+    """Ephemeral test-only key for identity examples and conformance fixtures."""
+
+    def __init__(self) -> None:
+        self._key = _DevelopmentEd25519Key.generate()
+
+    @property
+    def public_key(self) -> bytes:
+        return bytes(self._key.public_key)
+
+    def sign(self, preimage: bytes, /) -> bytes:
+        return bytes(self._key.sign(bytes(preimage)))
+
+
+def development_ed25519_identity_key() -> DevelopmentEd25519IdentityKey:
+    return DevelopmentEd25519IdentityKey()
+
+
 class fixtures:
     def __new__(cls) -> "fixtures": raise TypeError("fixtures is a namespace")
     @staticmethod
@@ -139,4 +157,4 @@ class fixtures:
     def github_denied_candidate(reason: _Literal["protected-path", "base-mismatch"]) -> bytes: return ("auths.github.fixture/2:" + reason).encode()
 
 
-__all__ = ["ConformanceCase", "ConformanceMetadata", "ConformanceReport", "run_custody_signer_conformance", "run_reservation_store_conformance", "run_bounded_transport_conformance", "ephemeral_ed25519_signer", "fixtures"]
+__all__ = ["ConformanceCase", "ConformanceMetadata", "ConformanceReport", "DevelopmentEd25519IdentityKey", "run_custody_signer_conformance", "run_reservation_store_conformance", "run_bounded_transport_conformance", "development_ed25519_identity_key", "ephemeral_ed25519_signer", "fixtures"]

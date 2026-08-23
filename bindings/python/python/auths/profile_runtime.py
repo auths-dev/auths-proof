@@ -256,11 +256,11 @@ class BoundProfile(Generic[_T, _P, _G]):
                 ))
             return outcome
         except BaseException as error:
-            retained = _QUALIFICATION_CANCELLATION.get()
-            if retained is not None and retained[0] is error:
+            cancelled = _QUALIFICATION_CANCELLATION.get()
+            if cancelled is not None and cancelled[0] is error:
                 await _complete_qualification_handoff(_report_qualification_cancellation(
                     self._client, self._descriptor.profile_id, self._descriptor.version,
-                    retained[1],
+                    cancelled[1],
                 ))
             raise
         finally:
@@ -303,11 +303,11 @@ class BoundProfile(Generic[_T, _P, _G]):
                 ))
             return outcome
         except BaseException as error:
-            retained = _QUALIFICATION_CANCELLATION.get()
-            if retained is not None and retained[0] is error:
+            cancelled = _QUALIFICATION_CANCELLATION.get()
+            if cancelled is not None and cancelled[0] is error:
                 await _complete_qualification_handoff(_report_qualification_cancellation(
                     self._client, self._descriptor.profile_id, self._descriptor.version,
-                    retained[1],
+                    cancelled[1],
                 ))
             raise
         finally:
@@ -900,11 +900,11 @@ class BoundProfile(Generic[_T, _P, _G]):
                 ))
             return outcome
         except BaseException as error:
-            retained = _QUALIFICATION_CANCELLATION.get()
-            if retained is not None and retained[0] is error:
+            cancelled = _QUALIFICATION_CANCELLATION.get()
+            if cancelled is not None and cancelled[0] is error:
                 await _complete_qualification_handoff(_report_qualification_cancellation(
                     self._client, self._descriptor.profile_id, self._descriptor.version,
-                    retained[1],
+                    cancelled[1],
                 ))
             raise
         finally:
@@ -1598,8 +1598,12 @@ async def _profile_request(
 ) -> bytes:
     request = getattr(client, "_request")
     if coordination is None:
-        return await request(method, path, body, timeout)
-    return await request(method, path, body, timeout, coordination)
+        response = await request(method, path, body, timeout)
+    else:
+        response = await request(method, path, body, timeout, coordination)
+    if not isinstance(response, bytes):
+        raise TypeError("profile transport returned non-byte response")
+    return response
 
 
 def _remaining_timeout(deadline: float) -> timedelta:

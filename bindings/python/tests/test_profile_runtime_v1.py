@@ -433,7 +433,7 @@ def test_generated_descriptor_runtime_timeout_and_receipt_limits_are_enforced() 
         client,  # type: ignore[arg-type]
         **{**arguments, "execution_milliseconds": 30_000, "receipt_bytes": 4},
     )
-    with pytest.raises(ValueError, match="portable receipt"):
+    with pytest.raises(RecoveryRequiredError, match="provider outcome remains unknown"):
         asyncio.run(receipt_limited.invoke(Input(7)))
 
 

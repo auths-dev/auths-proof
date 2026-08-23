@@ -3,43 +3,30 @@ from __future__ import annotations
 import asyncio
 import json
 
-from auths.identity import (
-    IdentityRegistry,
-    VerificationMaterial,
-    VerificationRelationship,
-    decode_identity,
-    encode_identity,
+from auths.identity import IdentityOk, raw_key_ed25519
+from auths.identity.authoring import (
+    create_raw_key_ed25519_identity,
+    prepare_identity_message,
 )
-from auths.testkit import DevelopmentIdentityMethod, DevelopmentSignatureSuite
+from auths.testkit import development_ed25519_identity_key
 
 
 async def main() -> None:
-    relationship = VerificationRelationship(
-        "default-signing",
-        "authentication",
-        "auths.test-signature",
-        (VerificationMaterial("credential", b"public-development-material"),),
-    )
-    packet = encode_identity(
-        "auths.test-identity",
-        "identity:example:alice",
-        relationships=(relationship,),
-    )
-    registry = IdentityRegistry(
-        methods=[DevelopmentIdentityMethod()],
-        suites=[DevelopmentSignatureSuite()],
-    )
-    validated = await decode_identity(packet).validate(registry)
-    await validated.authenticate(
-        b"publish weekly report", b"auths-development-signature", registry
-    )
-    changed_rejected = False
-    try:
-        await validated.authenticate(
-            b"delete weekly report", b"changed-signature", registry
+    key = development_ed25519_identity_key()
+    identity = create_raw_key_ed25519_identity(key.public_key)
+    message = b"publish weekly report"
+    prepared = prepare_identity_message(identity, message=message)
+    signature = key.sign(prepared.signing_preimage)
+    async with raw_key_ed25519() as client:
+        authenticated = await client.authenticate(
+            identity, message=message, signature=signature
         )
-    except ValueError:
-        changed_rejected = True
+        changed = await client.authenticate(
+            identity, message=b"delete weekly report", signature=signature
+        )
+    if not isinstance(authenticated, IdentityOk):
+        raise RuntimeError(authenticated.issue.code)
+    changed_rejected = not isinstance(changed, IdentityOk)
     if not changed_rejected:
         raise RuntimeError("changed message authenticated")
     print(

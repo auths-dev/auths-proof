@@ -31,12 +31,14 @@ try {
   await cp(new URL("authorized.context.cbor", vectors), join(temporary, "fixtures/context.cbor"));
   await writeFile(join(temporary, "worker.js"), `
     const started = performance.now();
-    const { loadVerifier } = await import("/node_modules/@auths-dev/sdk/dist/verify.js");
+    const { createVerifier } = await import("/node_modules/@auths-dev/sdk/dist/verify.js");
     const bytes = async (name) => new Uint8Array(await (await fetch('/fixtures/' + name)).arrayBuffer());
-    const verifier = await loadVerifier();
-    const result = verifier.verify(
-      await bytes('proof.cbor'), await bytes('action.cbor'), await bytes('context.cbor'),
-    );
+    const verifier = await createVerifier();
+    const result = verifier.verify({
+      proof: await bytes('proof.cbor'),
+      action: await bytes('action.cbor'),
+      trustedContext: await bytes('context.cbor'),
+    });
     postMessage({ kind: result.kind, coldStartMs: performance.now() - started });
   `);
   await writeFile(join(temporary, "index.html"), `<!doctype html>
@@ -45,17 +47,18 @@ try {
     <output id="result">starting</output>
     <script type="module">
       import { runtimeInfo } from "/node_modules/@auths-dev/sdk/dist/index.js";
-      import { loadVerifier } from "/node_modules/@auths-dev/sdk/dist/verify.js";
+      import { createVerifier } from "/node_modules/@auths-dev/sdk/dist/verify.js";
       const bytes = async (name) => new Uint8Array(await (await fetch('/fixtures/' + name)).arrayBuffer());
       const proof = await bytes('proof.cbor');
       const actionBytes = await bytes('action.cbor');
       const context = await bytes('context.cbor');
-      const verifier = await loadVerifier();
-      const verified = verifier.verify(proof, actionBytes, context);
+      const verifier = await createVerifier();
+      const input = { proof, action: actionBytes, trustedContext: context };
+      const verified = verifier.verify(input);
       const warmTimings = [];
       for (let index = 0; index < 30; index += 1) {
         const before = performance.now();
-        verifier.verify(proof, actionBytes, context);
+        verifier.verify(input);
         warmTimings.push(performance.now() - before);
       }
       warmTimings.sort((left, right) => left - right);

@@ -14,28 +14,19 @@ Source: `typescript/02-verify-authority.ts`
 
 ```typescript
 import { readFile } from "node:fs/promises";
-import { loadVerifier } from "@auths-dev/sdk/verify";
+import { createVerifier } from "@auths-dev/sdk/verify";
 
 const fixture = process.env.AUTHS_RECIPE_FIXTURE;
 if (fixture === undefined) throw new Error("AUTHS_RECIPE_FIXTURE is required");
-const [proof, action, context] = await Promise.all([
+const [proof, action, trustedContext] = await Promise.all([
   readFile(`${fixture}/workflow.proof.cbor`),
   readFile(`${fixture}/workflow.action.cbor`),
   readFile(`${fixture}/workflow.context.cbor`),
 ]);
-const verifier = await loadVerifier();
-const verified = verifier.verify(proof, action, context);
-if (verified.kind !== "authorized") throw new Error(`unexpected verdict: ${verified.kind}`);
-const changed = action.slice();
-changed[changed.length - 1] ^= 1;
-let changedRejected = false;
-try {
-  changedRejected = verifier.verify(proof, changed, context).kind !== "authorized";
-} catch {
-  changedRejected = true;
-}
-if (!changedRejected) throw new Error("mutated action remained authorized");
-console.log(JSON.stringify({ recipe: "02-verify-authority", outcome: verified.kind, changedRejected }));
+const verifier = await createVerifier();
+const result = verifier.verify({ proof: new Uint8Array(proof), action: new Uint8Array(action), trustedContext: new Uint8Array(trustedContext) });
+if (result.kind !== "authorized") throw new Error(result.code);
+console.log(JSON.stringify({ recipe: "02-verify-authority", outcome: result.kind }));
 ```
 
 ## Python
@@ -49,20 +40,26 @@ import json
 import os
 from pathlib import Path
 
-from auths.verify import verify
+from auths.verify import VerificationInput, verify
 
 
 root = Path(os.environ["AUTHS_RECIPE_FIXTURE"])
 proof = (root / "workflow.proof.cbor").read_bytes()
 action = (root / "workflow.action.cbor").read_bytes()
 context = (root / "workflow.context.cbor").read_bytes()
-verified = verify(proof, action, context)
+verified = verify(
+    VerificationInput(proof=proof, action=action, trusted_context=context)
+)
 if verified.kind != "authorized":
     raise RuntimeError(f"unexpected verdict: {verified.kind}")
 changed = bytearray(action)
 changed[-1] ^= 1
 try:
-    changed_rejected = verify(proof, bytes(changed), context).kind != "authorized"
+    changed_rejected = verify(
+        VerificationInput(
+            proof=proof, action=bytes(changed), trusted_context=context
+        )
+    ).kind != "authorized"
 except (TypeError, ValueError):
     changed_rejected = True
 if not changed_rejected:
