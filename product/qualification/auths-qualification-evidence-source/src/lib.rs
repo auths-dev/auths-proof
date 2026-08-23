@@ -3196,7 +3196,7 @@ fn handle_credential_broker_connection(
         return Err("CredentialBroker request differs from the immutable phase".into());
     }
     if mode == CREDENTIAL_BROKER_CLOSE_RETRY {
-        retry_credential_lease_close(&shared, &request, deadline)?;
+        retry_credential_lease_close(shared, &request, deadline)?;
         peer.verify_unchanged()?;
         if write_source_session_frame_before(&mut stream, &[1], deadline).is_ok() {
             let _ = stream.shutdown(Shutdown::Write);
@@ -3206,16 +3206,16 @@ fn handle_credential_broker_connection(
     if mode != CREDENTIAL_BROKER_ACQUIRE {
         return Err("CredentialBroker lease request mode is invalid".into());
     }
-    let Some(mut response) = acquire_credential_lease(&shared, &request, deadline)? else {
+    let Some(mut response) = acquire_credential_lease(shared, &request, deadline)? else {
         let _ = stream.shutdown(Shutdown::Both);
         return Ok(());
     };
     if shared.phase.failpoint == Some(QualificationFailpoint::AfterLease)
-        && !credential_broker_checkpoint(&shared, SOURCE_CHECKPOINT_AFTER_LEASE, deadline)?
+        && !credential_broker_checkpoint(shared, SOURCE_CHECKPOINT_AFTER_LEASE, deadline)?
     {
         response.fill(0);
-        close_credential_lease(&shared, &request, deadline)?;
-        credential_broker_checkpoint_clean(&shared, deadline)?;
+        close_credential_lease(shared, &request, deadline)?;
+        credential_broker_checkpoint_clean(shared, deadline)?;
         let _ = stream.shutdown(Shutdown::Both);
         return Ok(());
     }
@@ -3224,20 +3224,20 @@ fn handle_credential_broker_connection(
         .is_err()
     {
         response.fill(0);
-        detach_credential_lease(&shared, &request, deadline)?;
+        detach_credential_lease(shared, &request, deadline)?;
         return Ok(());
     }
     response.fill(0);
     match read_source_session_frame_before(&mut stream, deadline)? {
         Some(frame) if frame == [1] => {
             peer.verify_unchanged()?;
-            close_credential_lease(&shared, &request, deadline)?;
+            close_credential_lease(shared, &request, deadline)?;
             if write_source_session_frame_before(&mut stream, &[1], deadline).is_ok() {
                 let _ = stream.shutdown(Shutdown::Write);
             }
             Ok(())
         }
-        None => detach_credential_lease(&shared, &request, deadline),
+        None => detach_credential_lease(shared, &request, deadline),
         Some(_) => Err("CredentialBroker agent returned a malformed lease close".into()),
     }
 }
@@ -3726,11 +3726,11 @@ fn append_credential_observation_mode(
         )
     };
     if retry_only {
-        appender.append.append(intent, true, deadline, &mut sign)?;
+        appender.append.append(&intent, true, deadline, &mut sign)?;
     } else {
         appender
             .append
-            .resume_or_append(intent, deadline, &mut sign)?;
+            .resume_or_append(&intent, deadline, &mut sign)?;
     }
     Ok(())
 }
@@ -4948,12 +4948,12 @@ impl QualificationSourceAppendSession {
     /// exact retained event rather than creating a duplicate.
     pub fn append(
         &self,
-        intent: Vec<u8>,
+        intent: &[u8],
         retry: bool,
         deadline: Instant,
         mut sign_event: impl FnMut(u32, String) -> Result<Vec<u8>, String>,
     ) -> Result<(QualificationEvidenceEvent, Vec<u8>), String> {
-        self.append_transaction(&intent, retry, deadline, &mut sign_event)?
+        self.append_transaction(intent, retry, deadline, &mut sign_event)?
             .ok_or_else(|| "explicit append retry has no retained matching event".to_owned())
     }
 
@@ -4962,14 +4962,14 @@ impl QualificationSourceAppendSession {
     /// so a reader restart after any durable prefix cannot duplicate evidence.
     pub fn resume_or_append(
         &self,
-        intent: Vec<u8>,
+        intent: &[u8],
         deadline: Instant,
         mut sign_event: impl FnMut(u32, String) -> Result<Vec<u8>, String>,
     ) -> Result<(QualificationEvidenceEvent, Vec<u8>), String> {
-        if let Some(retained) = self.append_transaction(&intent, true, deadline, &mut sign_event)? {
+        if let Some(retained) = self.append_transaction(intent, true, deadline, &mut sign_event)? {
             return Ok(retained);
         }
-        self.append_transaction(&intent, false, deadline, &mut sign_event)?
+        self.append_transaction(intent, false, deadline, &mut sign_event)?
             .ok_or_else(|| "new append transaction returned no event".to_owned())
     }
 
@@ -5204,7 +5204,7 @@ impl FixedSourceAppendSession {
         let signer_peer = &self.signer_peer;
         self.append
             .append(
-                intent,
+                &intent,
                 retry,
                 deadline,
                 move |sequence, previous_event_sha256| {
@@ -5230,7 +5230,7 @@ impl FixedSourceAppendSession {
         let signer = &mut self.signer;
         let signer_peer = &self.signer_peer;
         self.append
-            .resume_or_append(intent, deadline, move |sequence, previous_event_sha256| {
+            .resume_or_append(&intent, deadline, move |sequence, previous_event_sha256| {
                 let record_bytes = record_for_ordering(sequence, previous_event_sha256)?;
                 write_source_session_frame_before(signer, &record_bytes, deadline)?;
                 let signed_event_bytes = read_source_session_frame_before(signer, deadline)?
@@ -7980,7 +7980,7 @@ fn run_journal_decision(arguments: &[String]) -> Result<(), String> {
     );
     let mut seed = None;
     let (_, event) = append.append(
-        intent,
+        &intent,
         append_retry,
         deadline,
         |sequence, previous_event_sha256| {
@@ -8374,7 +8374,7 @@ fn run_journal_boundary_session_with_seed(
             let intent = hex::decode(unsigned.intent_sha256().map_err(string_error)?)
                 .map_err(string_error)?;
             let (_, signed) =
-                append.resume_or_append(intent, deadline, |sequence, previous_event_sha256| {
+                append.resume_or_append(&intent, deadline, |sequence, previous_event_sha256| {
                     let mut event = unsigned.clone();
                     event.sequence = sequence;
                     event.previous_event_sha256 = previous_event_sha256;
