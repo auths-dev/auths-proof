@@ -13245,9 +13245,9 @@ fn validate_repository_qualification_key_separation(
     if attestation.identities().next().is_none()
         && observer.identities().next().is_none()
         && source_bytes
-            == br#"{"keys":[],"schema":"auths.profile-qualification-evidence-source-trust/1"}"#
+            == b"{\"keys\":[],\"schema\":\"auths.profile-qualification-evidence-source-trust/1\"}\n"
         && ledger_bytes
-            == br#"{"keys":[],"schema":"auths.profile-qualification-evidence-ledger-trust/1"}"#
+            == b"{\"keys\":[],\"schema\":\"auths.profile-qualification-evidence-ledger-trust/1\"}\n"
     {
         // The checked all-empty family is the documented pre-ceremony repository state.
         // Runtime parsers remain strict, and any partial population reaches the complete
