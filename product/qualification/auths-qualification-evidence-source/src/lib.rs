@@ -2702,7 +2702,7 @@ fn append_provider_proxy_observation(
     appender
         .lock()
         .map_err(string_error)?
-        .resume_or_append_record(intent, deadline, move |sequence, previous| {
+        .resume_or_append_record(&intent, deadline, move |sequence, previous| {
             record.context.sequence = sequence;
             record.context.previous_event_sha256 = previous;
             record.to_json().map_err(string_error)
@@ -3959,7 +3959,7 @@ fn run_receipt_verifier_reader(arguments: &[String]) -> Result<(), String> {
             let intent = hex::decode(source_record.intent_sha256().map_err(string_error)?)
                 .map_err(string_error)?;
             appender.resume_or_append_record(
-                intent,
+                &intent,
                 deadline,
                 |sequence, previous_event_sha256| {
                     source_record.context.sequence = sequence;
@@ -4231,7 +4231,7 @@ fn run_profile_state_reader(arguments: &[String]) -> Result<(), String> {
                 let intent = hex::decode(source_record.intent_sha256().map_err(string_error)?)
                     .map_err(string_error)?;
                 appender.resume_or_append_record(
-                    intent,
+                    &intent,
                     deadline,
                     |sequence, previous_event_sha256| {
                         source_record.context.sequence = sequence;
@@ -4559,7 +4559,7 @@ fn run_provider_observer_reader_with_credential(
             let intent = hex::decode(source_record.intent_sha256().map_err(string_error)?)
                 .map_err(string_error)?;
             appender.resume_or_append_record(
-                intent,
+                &intent,
                 deadline,
                 |sequence, previous_event_sha256| {
                     source_record.context.sequence = sequence;
@@ -5195,7 +5195,7 @@ impl FixedSourceAppendSession {
 
     fn append_record(
         &mut self,
-        intent: Vec<u8>,
+        intent: &[u8],
         retry: bool,
         deadline: Instant,
         mut record_for_ordering: impl FnMut(u32, String) -> Result<Vec<u8>, String>,
@@ -5204,7 +5204,7 @@ impl FixedSourceAppendSession {
         let signer_peer = &self.signer_peer;
         self.append
             .append(
-                &intent,
+                intent,
                 retry,
                 deadline,
                 move |sequence, previous_event_sha256| {
@@ -5223,14 +5223,14 @@ impl FixedSourceAppendSession {
 
     fn resume_or_append_record(
         &mut self,
-        intent: Vec<u8>,
+        intent: &[u8],
         deadline: Instant,
         mut record_for_ordering: impl FnMut(u32, String) -> Result<Vec<u8>, String>,
     ) -> Result<QualificationEvidenceEvent, String> {
         let signer = &mut self.signer;
         let signer_peer = &self.signer_peer;
         self.append
-            .resume_or_append(&intent, deadline, move |sequence, previous_event_sha256| {
+            .resume_or_append(intent, deadline, move |sequence, previous_event_sha256| {
                 let record_bytes = record_for_ordering(sequence, previous_event_sha256)?;
                 write_source_session_frame_before(signer, &record_bytes, deadline)?;
                 let signed_event_bytes = read_source_session_frame_before(signer, deadline)?
@@ -5252,7 +5252,7 @@ impl FixedSourceAppendSession {
         let intent =
             hex::decode(record.intent_sha256().map_err(string_error)?).map_err(string_error)?;
         self.append_record(
-            intent,
+            &intent,
             retry,
             deadline,
             move |sequence, previous_event_sha256| {
