@@ -13254,10 +13254,10 @@ fn validate_repository_qualification_key_separation(
         // separation validation below and fails closed.
         return Ok(());
     }
-    let sources = QualificationEvidenceSourceTrustRegistry::from_json(&source_bytes)
-        .map_err(string_error)?;
-    let ledgers = QualificationEvidenceLedgerTrustRegistry::from_json(&ledger_bytes)
-        .map_err(string_error)?;
+    let sources =
+        QualificationEvidenceSourceTrustRegistry::from_json(&source_bytes).map_err(string_error)?;
+    let ledgers =
+        QualificationEvidenceLedgerTrustRegistry::from_json(&ledger_bytes).map_err(string_error)?;
     validate_qualification_key_separation(
         attestation
             .identities()
