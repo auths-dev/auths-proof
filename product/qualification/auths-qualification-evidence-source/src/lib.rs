@@ -10053,7 +10053,7 @@ mod tests {
     use ed25519_dalek::{Signer as _, SigningKey};
     use std::{
         fs::{self, OpenOptions},
-        os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _, symlink},
+        os::unix::fs::{OpenOptionsExt as _, symlink},
     };
 
     #[test]
