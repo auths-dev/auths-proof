@@ -142,6 +142,8 @@ bind_profile
 ConformanceCase
 ConformanceMetadata
 ConformanceReport
+DevelopmentEd25519IdentityKey
+development_ed25519_identity_key
 ephemeral_ed25519_signer
 fixtures
 run_bounded_transport_conformance
