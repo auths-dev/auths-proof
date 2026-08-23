@@ -17,6 +17,47 @@ permissions:
   contents: read
 
 jobs:
+  reviewed-closure-update:
+    name: reviewed closure update
+    if: github.event_name == 'workflow_dispatch' && github.ref_name == 'codex/formal-source-closure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+          compiler-cache: "false"
+      - name: Restore the final workflow surface
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path(".github/workflows/ci.yml")
+          source = path.read_text()
+          start = source.index("  reviewed-closure-update:\n")
+          end = source.index("  ci-plan:\n", start)
+          path.write_text(source[:start] + source[end:])
+          PY
+      - name: Generate the reviewed closure
+        run: |
+          cargo xtask arch --update
+          cargo run --locked -p auths-ci-plan -- formal-source-closure update
+          cargo xtask semantic-freeze --update
+      - name: Preserve the reviewed closure
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-reviewed-closure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            architecture/dependency-graph.json
+            formal/qualification/aeneas/source-closure.json
+            release/semantic-freeze.json
+          if-no-files-found: error
+          retention-days: 1
+
   ci-plan:
     name: ci-plan
     runs-on: ubuntu-latest

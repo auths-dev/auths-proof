@@ -16,10 +16,21 @@
     "prepareReceiptDisclosureV1",
     "inspectRawKeyReceiptV1",
     "profileReceiptBindingsV1",
-    "developmentEd25519PublicKeyV1"
+    "developmentEd25519PublicKeyV1",
+    "qualificationClientCancellationResultV1",
+    "encodeQualificationClientResultFrameV1",
+    "prepareAuthorizedDecisionReceiptV1",
+    "prepareProfileDecisionReceiptV2",
+    "prepareApplicationExecutionReceiptV1",
+    "validateReceiptAnchorV1",
+    "profileReceiptPayloadCommitmentV2",
+    "decodePortableReceiptV1",
+    "verifyPinnedReceiptV1"
   ],
   "types": [
-    "ProfileReceiptBindingsV1"
+    "ProfileReceiptBindingsV1",
+    "ReceiptPreparationV1",
+    "PortableReceiptProjectionV1"
   ],
   "errorEnvelope": {
     "schema": "auths.error/1",
