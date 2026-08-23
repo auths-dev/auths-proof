@@ -5945,7 +5945,7 @@ impl ProcessProtectedPhaseGuard {
         ) else {
             return false;
         };
-        if named.st_dev as u64 != captured.dev() || named.st_ino != captured.ino() {
+        if named.st_dev != captured.dev() || named.st_ino != captured.ino() {
             return false;
         }
         rustix::fs::unlinkat(
@@ -6088,7 +6088,7 @@ impl ProcessProtectedPhaseGuard {
         ) else {
             return;
         };
-        if named.st_dev as u64 != captured.dev() || named.st_ino != captured.ino() {
+        if named.st_dev != captured.dev() || named.st_ino != captured.ino() {
             return;
         }
         let _ = rustix::fs::unlinkat(

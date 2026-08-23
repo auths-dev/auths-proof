@@ -6,7 +6,12 @@
 //! an fd-pinned qualification-agent executable to replace this process.
 
 #![forbid(unsafe_code)]
-#![allow(clippy::similar_names)]
+#![allow(
+    clippy::large_stack_arrays,
+    clippy::needless_borrow,
+    clippy::similar_names,
+    clippy::too_many_lines
+)]
 
 #[cfg(target_os = "linux")]
 mod linux {
@@ -173,7 +178,8 @@ mod linux {
             || Base64UrlUnpadded::decode(recovery_public_key, &mut decoded_recovery_public_key)
                 .is_err()
             || !digest(expected_state_directory_sha256)
-            || rustix::process::Pid::as_raw(rustix::process::getppid()) != controller_pid as i32
+            || rustix::process::Pid::as_raw(rustix::process::getppid())
+                != controller_pid.cast_signed()
         {
             return Err("qualification launch identity is malformed".into());
         }
@@ -1392,7 +1398,7 @@ mod linux {
             .map_err(string_error)?,
         );
         let mut archive = zip::ZipArchive::new(file).map_err(string_error)?;
-        if archive.len() == 0 || archive.len() > MAX_WHEEL_MEMBERS {
+        if archive.is_empty() || archive.len() > MAX_WHEEL_MEMBERS {
             return Err("candidate wheel member count exceeds its bound".into());
         }
         let mut names = BTreeSet::new();
@@ -2194,7 +2200,8 @@ mod linux {
     ) -> Result<u64, String> {
         if rustix::process::geteuid().as_raw() != 0
             || rustix::process::getuid().as_raw() != plan.supervisor_controller_uid
-            || rustix::process::Pid::as_raw(rustix::process::getppid()) != controller_pid as i32
+            || rustix::process::Pid::as_raw(rustix::process::getppid())
+                != controller_pid.cast_signed()
             || hash_process_executable(controller_pid)?
                 != plan.supervisor_controller_artifact_sha256
         {
@@ -2225,7 +2232,8 @@ mod linux {
         start_time_ticks: u64,
     ) -> Result<(), String> {
         if rustix::process::getuid().as_raw() != plan.supervisor_controller_uid
-            || rustix::process::Pid::as_raw(rustix::process::getppid()) != controller_pid as i32
+            || rustix::process::Pid::as_raw(rustix::process::getppid())
+                != controller_pid.cast_signed()
             || process_start_time_ticks(controller_pid)? != start_time_ticks
             || hash_process_executable(controller_pid)?
                 != plan.supervisor_controller_artifact_sha256
