@@ -178,5 +178,7 @@ const expected = normalizeText(
   await readFile(new URL("../api/public-api.txt", import.meta.url), "utf8"),
 );
 if (actual !== expected) {
+  process.stderr.write("--- reviewed public API\n+++ generated public API\n");
+  process.stderr.write(actual);
   throw new Error("installed TypeScript public API drifted; review declarations and update api/public-api.txt");
 }
