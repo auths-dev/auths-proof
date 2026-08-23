@@ -1539,10 +1539,7 @@ Source-level checks should additionally reject in verifier and codec paths:
 Every pull request runs:
 
 ```text
-cargo fmt --all --check
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test --workspace
-cargo test --workspace --all-features
+cargo xtask ci
 cargo test -p auths-verifier --no-default-features
 cargo check -p auths-verifier \
   --target wasm32-unknown-unknown \

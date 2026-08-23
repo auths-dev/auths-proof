@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-index.schema.json",
+  "title": "Auths profile qualification index v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "entries"],
+  "properties": {
+    "schema": {"const": "auths.profile-qualification-index/1"},
+    "entries": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["profile", "target", "qualificationId"],
+        "properties": {
+          "profile": {"type": "string", "maxLength": 134},
+          "target": {"enum": ["linux-x86_64", "linux-aarch64", "macos-x86_64", "macos-aarch64"]},
+          "qualificationId": {"type": "string", "pattern": "^qlf_[A-Za-z0-9_-]{43}$"}
+        }
+      }
+    }
+  }
+}

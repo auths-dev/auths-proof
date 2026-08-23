@@ -1,0 +1,348 @@
+{
+  "schema": "auths.profile-qualification-scenarios/2",
+  "domain": "opentofu",
+  "programs": [
+    {
+      "id": "opentofu-applied-marker",
+      "cases": [
+        {
+          "caseId": "preflight",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "preflight",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "effect",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "effect",
+          "stage": "before-observer",
+          "hook": "create-unrelated-backend-mutation"
+        }
+      ]
+    },
+    {
+      "id": "opentofu-artifact-redaction",
+      "cases": [
+        {
+          "caseId": "preflight",
+          "intentId": "primary",
+          "stimulus": "redaction-plan",
+          "role": "preflight",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "effect",
+          "intentId": "primary",
+          "stimulus": "redaction-apply",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "opentofu-destructive-denial",
+      "cases": [
+        {
+          "caseId": "preflight",
+          "intentId": "primary",
+          "stimulus": "destructive-plan",
+          "role": "preflight",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "denied",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "effect",
+          "intentId": "primary",
+          "stimulus": "no-prepared-plan",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "opentofu-lock-closure",
+      "cases": [
+        {
+          "caseId": "preflight",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "preflight",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "effect",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "preflight",
+          "stage": "before-call",
+          "hook": "exercise-lock-variants"
+        }
+      ]
+    },
+    {
+      "id": "opentofu-plan-integrity",
+      "cases": [
+        {
+          "caseId": "preflight",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "preflight",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "effect",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "effect",
+          "stage": "state-file-corruption",
+          "hook": "corrupt-saved-plan"
+        }
+      ]
+    },
+    {
+      "id": "opentofu-protected-plan",
+      "cases": [
+        {
+          "caseId": "preflight",
+          "intentId": "primary",
+          "stimulus": "protected-plan",
+          "role": "preflight",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "effect",
+          "intentId": "primary",
+          "stimulus": "protected-apply",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "opentofu-response-loss",
+      "cases": [
+        {
+          "caseId": "preflight",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "preflight",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "effect",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "effect",
+          "stage": "after-provider-before-response",
+          "hook": "suppress-first-response"
+        }
+      ]
+    },
+    {
+      "id": "opentofu-sandbox",
+      "cases": [
+        {
+          "caseId": "preflight",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "preflight",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "effect",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "preflight",
+          "stage": "before-provider",
+          "hook": "exercise-sandbox-hostiles"
+        }
+      ]
+    },
+    {
+      "id": "opentofu-state-drift",
+      "cases": [
+        {
+          "caseId": "preflight",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "preflight",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "effect",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "not-applied",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "effect",
+          "stage": "before-provider",
+          "hook": "advance-backend-state"
+        }
+      ]
+    },
+    {
+      "id": "opentofu-tool-identity",
+      "cases": [
+        {
+          "caseId": "preflight",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "preflight",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "effect",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "preflight",
+          "stage": "state-file-corruption",
+          "hook": "replace-tool-identity"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+[package]
+name = "auths-profile-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+publish = false
+description = "Passive static-profile operation vocabulary for the Auths local agent"
+
+[dependencies]
+auths-connections.workspace = true
+auths-lifecycle.workspace = true
+auths-stores.workspace = true
+hex.workspace = true
+serde.workspace = true
+sha2.workspace = true
+
+[lints]
+workspace = true

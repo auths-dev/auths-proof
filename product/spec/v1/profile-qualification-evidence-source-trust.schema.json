@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-evidence-source-trust.schema.json",
+  "x-auths-semanticValidator": "profile-qualification-evidence-source-trust/1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "keys"],
+  "properties": {
+    "schema": {"const": "auths.profile-qualification-evidence-source-trust/1"},
+    "keys": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 64,
+      "uniqueItems": true,
+      "x-auths-byteSortedBy": ["source", "keyId"],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source", "keyId", "algorithm", "publicKeyBase64url", "sourceIdentity", "sourceArtifactSha256", "sourceUid", "readerIdentity", "readerArtifactSha256", "readerUid", "allowedDomains", "notBeforeUnixSeconds", "notAfterUnixSeconds"],
+        "properties": {
+          "source": {"enum": ["supervisor", "client-proxy", "journal-reader", "credential-broker", "profile-state-reader", "provider-proxy", "receipt-verifier", "provider-observer"]},
+          "keyId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+          "algorithm": {"const": "Ed25519"},
+          "publicKeyBase64url": {"type": "string", "pattern": "^[A-Za-z0-9_-]{43}$"},
+          "sourceIdentity": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+          "sourceArtifactSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+          "sourceUid": {"type": "integer", "minimum": 1, "maximum": 4294967294},
+          "readerIdentity": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"}]},
+          "readerArtifactSha256": {"oneOf": [{"type": "null"}, {"$ref": "profile-qualification.schema.json#/$defs/digest"}]},
+          "readerUid": {"type": ["integer", "null"], "minimum": 1, "maximum": 4294967294},
+          "allowedDomains": {"type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true, "x-auths-byteSorted": true, "items": {"$ref": "profile-qualification.schema.json#/$defs/domain"}},
+          "notBeforeUnixSeconds": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
+          "notAfterUnixSeconds": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615}
+        },
+        "allOf": [{
+          "if": {"properties": {"source": {"enum": ["client-proxy", "credential-broker", "profile-state-reader", "provider-proxy", "receipt-verifier", "provider-observer"]}}},
+          "then": {"properties": {"readerIdentity": {"type": "string"}, "readerArtifactSha256": {"type": "string"}, "readerUid": {"type": "integer"}}},
+          "else": {"properties": {"readerIdentity": {"type": "null"}, "readerArtifactSha256": {"type": "null"}, "readerUid": {"type": "null"}}}
+        }]
+      }
+    }
+  }
+}

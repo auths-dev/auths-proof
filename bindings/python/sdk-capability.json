@@ -3,59 +3,33 @@
   "package": "auths",
   "language": "python",
   "implementationTier": "full-workflow-sdk",
-  "evidenceStatus": "repository-local-complete",
+  "evidenceStatus": "repository-local-in-progress",
   "promotedTier": "verifier-binding",
   "targetTier": "full-workflow-sdk",
-  "governingSpec": "AP-SPEC-035",
-  "implementationStatus": "elite-repository-implementation-complete",
-  "eliteScorecard": {
-    "timeToValue": "installed identity and full-workflow quickstarts",
-    "pythonFit": "async protocols, immutable values, context managers and exhaustive unions",
-    "nativeSafety": "non-constructible profile-bound one-use commands",
-    "semanticParity": "Rust-owned canonicalization, authoring, verification, plans and lifecycle",
-    "surfaceBreadth": "root workflow, identity, verification, qualified profiles, integrations, framework and testkit",
-    "productionIntegration": "evidence-gated signer and atomic reservation ports with deterministic conformance",
-    "operations": "replay, budget, cancellation, cleanup and outcome-unknown states",
-    "performance": "bounded order-preserving GIL-releasing native batch verification",
-    "packaging": "exact abi3 wheel, API, content and runtime-contract qualification",
-    "documentation": "current topology README and executable installed-wheel journeys"
-  },
+  "governingSpec": "AP-SPEC-040",
+  "implementationStatus": "prelaunch-ap-spec-040-cutover",
   "publicationStatus": "blocked",
   "promotionStatus": "blocked",
+  "blockingIssues": [
+    "AP-SPEC-040 qualification and independent review remain incomplete"
+  ],
   "claims": {
     "supported": [
-      "bounded three-input local verification",
-      "three-valued native result projection",
-      "non-constructible native verified action",
-      "closed create, delegate, execute, resume and verify product workflow",
-      "sealed single-use MCP commands and ordered plan commands",
-      "exact ordered plan-once approval with no partial command exposure",
-      "complete immutable decision inspection and inert caller-supplied diagnostics",
-      "standalone authority-independent identity decoding, resolution, validation and authentication",
-      "raw-key Ed25519 and resolver-backed identity reference paths",
-      "credential-shape-agnostic identity descriptors with multiple purpose and suite relationships",
-      "composite, threshold and hybrid verification-material representation without adapter ownership",
-      "explicit identity-to-authority input preserving method, suite, purpose, provenance and assurance",
-      "idempotency-required MCP gateway with command-bound receipts",
-      "committed no-approval and bounded threshold approval composition",
-      "bounded order-preserving native batch verification with GIL release",
-      "stable structured redacted product errors and inert decision inspection",
-      "bounded auths doctor diagnostics for runtime and configuration readiness",
-      "development compositions and executable mechanism checks under auths.testkit",
-      "purpose-labelled root, identity, verify, profiles, integrations, framework and testkit modules",
-      "shared Rust, TypeScript and Python customer-journey projections",
-      "strict mypy and Pyright consumer contracts",
-      "installed abi3 wheel qualification on Linux, macOS and Windows for every CPython 3.9 through 3.14 minor",
-      "typed GitHub issue-agent task, candidate-file, denial, replay, reconciliation and receipt flow"
+      "ambient local-agent session establishment without an application token",
+      "non-secret provider connection aliases selected on generated domain clients",
+      "generated Stripe, PostgreSQL, and OpenTofu domain distributions",
+      "typed success, refusal, conflict, partial, and recovery outcomes",
+      "opaque durable recovery handles and portable receipts",
+      "public versioned profile-runtime compatibility module for generated distributions",
+      "effect-free identity and verification utilities",
+      "typed installed-wheel coverage for the local-agent surface"
     ],
     "excluded": [
-      "promoted full workflow SDK release claim",
-      "independent review",
-      "production readiness",
-      "backward compatibility or migration support",
-      "production custody or approval adapters",
-      "atomicity of remote provider effects",
-      "package publication authorization"
+      "backward compatibility or migration shims for prelaunch APIs",
+      "Auths application access tokens",
+      "provider credentials in application code or SDK configuration",
+      "caller-defined profile callbacks or dynamic runtime plugins",
+      "independent review, production readiness, and package publication authorization"
     ]
   }
 }

@@ -40,12 +40,15 @@ mod development;
 mod errors;
 mod identity;
 mod mcp;
-mod production_client;
+mod observability;
 mod receipts;
 mod result;
 mod runtime;
 mod workflow;
 
+use auths_production_client::{
+    encode_qualification_client_result_frame, qualification_client_cancellation_result,
+};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
@@ -63,19 +66,56 @@ fn generate_challenge_v1(py: Python<'_>) -> PyResult<Bound<'_, PyBytes>> {
     Ok(PyBytes::new(py, &challenge))
 }
 
+#[pyfunction]
+fn qualification_client_cancellation_result_v1<'py>(
+    py: Python<'py>,
+    request_id: &[u8],
+) -> PyResult<Bound<'py, PyBytes>> {
+    let request_id: &[u8; 16] = request_id
+        .try_into()
+        .map_err(|_| errors::malformed_input("invalid qualification request ID"))?;
+    Ok(PyBytes::new(
+        py,
+        &qualification_client_cancellation_result(request_id),
+    ))
+}
+
+#[pyfunction]
+fn encode_qualification_client_result_frame_v1<'py>(
+    py: Python<'py>,
+    mode: u8,
+    request_id: &[u8],
+    result: &[u8],
+) -> PyResult<Bound<'py, PyBytes>> {
+    let request_id: &[u8; 16] = request_id
+        .try_into()
+        .map_err(|_| errors::malformed_input("invalid qualification request ID"))?;
+    let frame = encode_qualification_client_result_frame(mode, request_id, result)
+        .map_err(errors::malformed_input)?;
+    Ok(PyBytes::new(py, &frame))
+}
+
 /// Installs the private native extension consumed by `auths`.
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(generate_challenge_v1, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        qualification_client_cancellation_result_v1,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        encode_qualification_client_result_frame_v1,
+        module
+    )?)?;
     errors::register(module)?;
     authoring::register(module)?;
     development::register(module)?;
     identity::register(module)?;
     mcp::register(module)?;
+    observability::register(module)?;
     result::register(module)?;
     receipts::register(module)?;
     runtime::register(module)?;
-    production_client::register(module)?;
     workflow::register(module)?;
     Ok(())
 }

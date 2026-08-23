@@ -2,9 +2,11 @@
 
 ## Result and boundary
 
-The Auths reusable release builder passes the applicable SLSA 1.2 Build Level
-3 requirements for the workflow bytes whose SHA-256 is
-`e2762ffe4ee2aa2c76c79f7382b2ac4913582a21630907c27fa0a517a1c7c25d`.
+The current Auths reusable release builder is pending a new hosted SLSA 1.2
+Build Level 3 runtime assessment. Its workflow SHA-256 is
+`ad6573cb516eb238fabcc5311bd86c3c054c20d1e9b34772887b4c0d07140f04`.
+The previous builder bytes passed the applicable requirements, but that result
+does not authorize the changed workflow.
 The machine-readable authority is
 [`slsa-build-level-3-assessment.json`](slsa-build-level-3-assessment.json).
 
@@ -21,7 +23,10 @@ that a reusable workflow using attestations can establish the isolation needed
 for Build Level 3 in
 [Increasing the security rating of your artifact attestations](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/increase-security-rating).
 
-## Assessed runtime
+## Previous assessed runtime
+
+This historical run assessed the superseded workflow and is not evidence for
+the current workflow bytes:
 
 - Preparation run: [30849197798](https://github.com/auths-dev/auths-proof/actions/runs/30849197798)
 - Source commit: `a6e7f99a151b641b94837504749404109f7a59e2`
@@ -41,7 +46,7 @@ completed. GitHub states that standard hosted jobs run on a new virtual
 machine and are decommissioned after the job in
 [GitHub-hosted runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
 
-## Requirement assessment
+## Previous requirement assessment
 
 | Requirement | Result | Concrete evidence |
 | --- | --- | --- |
@@ -60,7 +65,7 @@ platform and verification roots within the consumer's trust analysis.
 
 ## Staleness and enforcement
 
-The result is valid only for the exact reusable-builder bytes named above and
+The previous result was valid only for its exact reusable-builder bytes and
 the documented GitHub-hosted execution boundary. Release finalization reads
 the machine-readable assessment, requires every enumerated requirement to be
 `passed`, verifies the assessed workflow SHA-256 against the checked-out
@@ -68,9 +73,10 @@ workflow, and embeds a digest reference to the assessment in the release
 manifest. Offline promotion verification repeats those checks against the
 staged files.
 
-Changing the builder workflow therefore makes the assessment stale and blocks
-the release. A successful CI label, an edited prose claim, or a manifest field
-alone cannot preserve the result.
+The changed builder workflow is therefore recorded as
+`pending-runtime-assessment` and blocks the release. A successful CI label, an
+edited prose claim, or a manifest field alone cannot replace a new observed
+runtime assessment.
 
 ## Exclusions
 

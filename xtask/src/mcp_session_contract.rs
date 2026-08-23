@@ -1,7 +1,7 @@
 use crate::*;
 
 const OUTPUTS: [&str; 3] = [
-    "product/profiles/auths-profile-mcp/profile-v1.json",
+    "product/profiles/auths-profile-mcp/profile-v2.json",
     "bindings/typescript/src/generated/mcp-profile.ts",
     "bindings/python/python/auths/_mcp_profile.py",
 ];
@@ -13,7 +13,7 @@ struct McpSessionContract {
     profile: &'static str,
     profile_version: u16,
     semantic_subject: &'static str,
-    limits: auths_profile_mcp::McpProfileLimitsV1,
+    limits: auths_profile_mcp::McpProfileLimitsV2,
     steps: &'static [&'static str],
     handler_effects: &'static [&'static str],
     error_codes: Vec<&'static str>,
@@ -21,19 +21,20 @@ struct McpSessionContract {
 
 pub(crate) fn mcp_session_contract(update: bool) -> Result<(), String> {
     let contract = McpSessionContract {
-        schema: "auths.mcp-session-contract/1",
+        schema: "auths.mcp-session-contract/2",
         profile: auths_profile_mcp::PROFILE_ID,
         profile_version: auths_profile_mcp::PROFILE_VERSION,
         semantic_subject: auths_profile_mcp::MCP_SESSION_SEMANTIC_SUBJECT,
-        limits: auths_profile_mcp::mcp_profile_limits_v1(),
+        limits: auths_profile_mcp::mcp_profile_limits_v2(),
         steps: &[
             "reserve",
             "mark-provider-entry",
             "invoke",
+            "persist-provider-result",
             "persist-receipt",
             "reconcile",
         ],
-        handler_effects: &["not-applied", "applied", "possible"],
+        handler_effects: &["applied", "possible"],
         error_codes: auths_errors::registry()
             .filter(|definition| definition.owner == "mcp")
             .map(|definition| definition.code)

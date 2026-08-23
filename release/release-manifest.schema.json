@@ -29,6 +29,9 @@
       "type": "object",
       "required": ["workflow", "workflowDigest", "environment", "oidcIssuer", "oidcSubject", "slsaTarget", "slsaAssessmentStatus", "slsaAssessment", "slsaBuilderWorkflow"],
       "properties": {
+        "environment": {"type": "null"},
+        "oidcIssuer": {"const": "https://token.actions.githubusercontent.com"},
+        "oidcSubject": {"const": "repo:auths-dev@260513770/auths-proof@1310728509:ref:refs/heads/main"},
         "slsaTarget": { "const": "SLSA 1.2 Build Level 3" },
         "slsaAssessmentStatus": { "const": "passed" },
         "slsaAssessment": { "$ref": "#/$defs/digestReference" },

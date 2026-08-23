@@ -2,6 +2,84 @@
 
 use crate::*;
 
+const AUTHS_NODE_CHECK_PROFILES: [&[&str]; 5] = [
+    &[
+        "-p",
+        "auths-node",
+        "--no-default-features",
+        "--bin",
+        "auths",
+    ],
+    &[
+        "-p",
+        "auths-node",
+        "--no-default-features",
+        "--features",
+        "qualification-failpoints",
+        "--bin",
+        "auths-qualification-agent",
+    ],
+    &[
+        "-p",
+        "auths-node",
+        "--no-default-features",
+        "--features",
+        "testkit-agent",
+        "--bin",
+        "auths-testkit-agent",
+    ],
+    &["-p", "auths-node", "--all-features", "--lib"],
+    &[
+        "-p",
+        "auths-node",
+        "--no-default-features",
+        "--test",
+        "profile_qualification",
+    ],
+];
+
+const AUTHS_NODE_TEST_PROFILES: [&[&str]; 4] = [
+    &["-p", "auths-node", "--no-default-features", "--lib"],
+    &[
+        "-p",
+        "auths-node",
+        "--no-default-features",
+        "--features",
+        "qualification-failpoints",
+        "--lib",
+    ],
+    &[
+        "-p",
+        "auths-node",
+        "--no-default-features",
+        "--features",
+        "testkit-agent",
+        "--lib",
+    ],
+    &[
+        "-p",
+        "auths-node",
+        "--no-default-features",
+        "--test",
+        "profile_qualification",
+    ],
+];
+
+fn cargo_auths_node_profiles(
+    command: &str,
+    profiles: &[&[&str]],
+    trailing: &[&str],
+) -> Result<(), String> {
+    for profile in profiles {
+        let arguments = std::iter::once(command)
+            .chain(profile.iter().copied())
+            .chain(trailing.iter().copied())
+            .collect::<Vec<_>>();
+        cargo(&arguments)?;
+    }
+    Ok(())
+}
+
 pub(crate) fn ci() -> Result<(), String> {
     ci_authoritative()?;
     formal(false, false)?;
@@ -17,12 +95,19 @@ pub(crate) fn ci_preflight() -> Result<(), String> {
     cargo(&[
         "clippy",
         "--workspace",
+        "--exclude",
+        "auths-node",
         "--all-targets",
         "--all-features",
         "--",
         "-D",
         "warnings",
-    ])
+    ])?;
+    cargo_auths_node_profiles(
+        "clippy",
+        &AUTHS_NODE_CHECK_PROFILES,
+        &["--", "-D", "warnings"],
+    )
 }
 
 pub(crate) fn ci_authoritative() -> Result<(), String> {
@@ -38,20 +123,43 @@ pub(crate) fn ci_authoritative() -> Result<(), String> {
     mechanism_conformance(false)?;
     product_waist_conformance(false)?;
     public_naming()?;
+    crate::profile_qualification::qualification_check_all()?;
     release_contract()?;
     repository_hygiene()?;
-    cargo(&["check", "--workspace", "--all-targets", "--all-features"])?;
-    cargo(&["test", "--workspace", "--all-features"])?;
+    cargo(&[
+        "check",
+        "--workspace",
+        "--exclude",
+        "auths-node",
+        "--all-targets",
+        "--all-features",
+    ])?;
+    cargo_auths_node_profiles("check", &AUTHS_NODE_CHECK_PROFILES, &[])?;
+    cargo(&[
+        "test",
+        "--workspace",
+        "--exclude",
+        "auths-node",
+        "--all-features",
+    ])?;
+    cargo_auths_node_profiles("test", &AUTHS_NODE_TEST_PROFILES, &[])?;
     release_preflight()?;
     cargo(&[
         "clippy",
         "--workspace",
+        "--exclude",
+        "auths-node",
         "--all-targets",
         "--all-features",
         "--",
         "-D",
         "warnings",
     ])?;
+    cargo_auths_node_profiles(
+        "clippy",
+        &AUTHS_NODE_CHECK_PROFILES,
+        &["--", "-D", "warnings"],
+    )?;
     release_documentation()?;
     core_boundary()?;
     workspace_msrv()?;
@@ -60,8 +168,8 @@ pub(crate) fn ci_authoritative() -> Result<(), String> {
 }
 
 /// Runs the deterministic compilation-profile and canonical-byte gates that
-/// release preparation depends on in addition to the all-features workspace
-/// suite.
+/// release preparation depends on in addition to the split workspace feature
+/// matrix.
 ///
 /// Keep this in authoritative pull-request CI. A release candidate must not be
 /// the first place that no-default-features compilation or wire drift is
@@ -74,21 +182,46 @@ pub(crate) fn release_preflight() -> Result<(), String> {
 
 pub(crate) fn release_documentation() -> Result<(), String> {
     let status = Command::new("cargo")
-        .args(["doc", "--workspace", "--all-features", "--no-deps"])
+        .args([
+            "doc",
+            "--workspace",
+            "--exclude",
+            "auths-node",
+            "--all-features",
+            "--no-deps",
+        ])
         .env("RUSTDOCFLAGS", "-D warnings")
         .current_dir(root())
         .status()
         .map_err(|error| format!("could not build release documentation: {error}"))?;
-    if status.success() {
-        println!("release documentation passed");
-        Ok(())
-    } else {
-        Err(format!("documentation build failed with {status}"))
+    if !status.success() {
+        return Err(format!("documentation build failed with {status}"));
     }
+    let node_status = Command::new("cargo")
+        .args([
+            "doc",
+            "-p",
+            "auths-node",
+            "--all-features",
+            "--lib",
+            "--no-deps",
+        ])
+        .env("RUSTDOCFLAGS", "-D warnings")
+        .current_dir(root())
+        .status()
+        .map_err(|error| format!("could not build auths-node documentation: {error}"))?;
+    if !node_status.success() {
+        return Err(format!(
+            "auths-node documentation build failed with {node_status}"
+        ));
+    }
+    println!("release documentation passed");
+    Ok(())
 }
 
 pub(crate) fn ci_compliance() -> Result<(), String> {
     let compliance_inventory = compliance_inventory()?;
+    crate::profile_qualification::qualification_check_all()?;
     abi()?;
     exchange_conformance()?;
     product_conformance()?;
@@ -123,28 +256,39 @@ pub(crate) fn format_all() -> Result<(), String> {
 
 pub(crate) fn layer_check(layer: &str) -> Result<(), String> {
     let policy = load_architecture_policy()?;
+    let includes_auths_node = policy
+        .packages
+        .get("auths-node")
+        .is_some_and(|package_layer| package_layer == layer);
     let packages: Vec<_> = policy
         .packages
         .iter()
-        .filter(|(_, package_layer)| package_layer.as_str() == layer)
+        .filter(|(name, package_layer)| {
+            name.as_str() != "auths-node" && package_layer.as_str() == layer
+        })
         .map(|(name, _)| name.as_str())
         .collect();
-    if packages.is_empty() {
+    if packages.is_empty() && !includes_auths_node {
         return Err(format!("architecture layer {layer} has no packages"));
     }
-    let mut command = Command::new("cargo");
-    command
-        .arg("test")
-        .arg("--all-features")
-        .current_dir(root());
-    for package in packages {
-        command.arg("-p").arg(package);
+    if !packages.is_empty() {
+        let mut command = Command::new("cargo");
+        command
+            .arg("test")
+            .arg("--all-features")
+            .current_dir(root());
+        for package in packages {
+            command.arg("-p").arg(package);
+        }
+        let status = command
+            .status()
+            .map_err(|error| format!("could not test {layer} layer: {error}"))?;
+        if !status.success() {
+            return Err(format!("{layer} layer tests failed with {status}"));
+        }
     }
-    let status = command
-        .status()
-        .map_err(|error| format!("could not test {layer} layer: {error}"))?;
-    if !status.success() {
-        return Err(format!("{layer} layer tests failed with {status}"));
+    if includes_auths_node {
+        cargo_auths_node_profiles("test", &AUTHS_NODE_TEST_PROFILES, &[])?;
     }
     Ok(())
 }
@@ -235,26 +379,28 @@ pub(crate) fn npm_package_smoke() -> Result<(), String> {
     fs::write(
         &smoke,
         "import * as auths from '@auths-dev/sdk';\n\
-         import * as identity from '@auths-dev/sdk/identity';\n\
          import * as verify from '@auths-dev/sdk/verify';\n\
-         import * as profiles from '@auths-dev/sdk/profiles';\n\
-         import * as integrations from '@auths-dev/sdk/integrations';\n\
-         import * as framework from '@auths-dev/sdk/framework';\n\
+         import * as identity from '@auths-dev/sdk/identity';\n\
+         import * as authoring from '@auths-dev/sdk/identity/authoring';\n\
+         import * as identityAdapters from '@auths-dev/sdk/identity/adapters';\n\
+         import * as protocol from '@auths-dev/sdk/protocol';\n\
+         import * as profileRuntime from '@auths-dev/sdk/profile-runtime';\n\
+         import * as adapters from '@auths-dev/sdk/adapters';\n\
          import * as testkit from '@auths-dev/sdk/testkit';\n\
-         if (typeof auths.createAuths !== 'function') throw new Error('createAuths export missing');\n\
-         if (typeof identity.loadIdentity !== 'function') throw new Error('loadIdentity export missing');\n\
+         if (typeof auths.runtimeInfo !== 'function') throw new Error('runtimeInfo export missing');\n\
+         if (typeof auths.connect !== 'function') throw new Error('local-agent connect export missing');\n\
+         if (typeof identity.createRawKeyEd25519IdentityClient !== 'function') throw new Error('identity client missing');\n\
+         if (typeof authoring.createRawKeyEd25519Identity !== 'function') throw new Error('identity authoring missing');\n\
+         if (typeof identityAdapters.createIdentityClient !== 'function') throw new Error('identity adapter composition missing');\n\
          if (typeof verify.Verifier !== 'function') throw new Error('Verifier export missing');\n\
-         if (typeof verify.loadVerifier !== 'function') throw new Error('loadVerifier export missing');\n\
-         if (typeof profiles.mcp !== 'object') throw new Error('MCP profile missing');\n\
-         if (typeof profiles.opentofuSavedPlanApply !== 'function' || profiles.opentofuSavedPlanApply().id !== 'auths.opentofu.saved-plan-apply/1') throw new Error('OpenTofu profile missing');\n\
-         if (typeof profiles.postgresqlBoundedUpdate !== 'function' || profiles.postgresqlBoundedUpdate().id !== 'auths.postgresql.bounded-update/1') throw new Error('PostgreSQL profile missing');\n\
-         if (typeof profiles.githubIssueAddress !== 'function' || profiles.githubIssueAddress().id !== 'auths.github.issue-address/1') throw new Error('GitHub profile missing');\n\
-         if (typeof integrations.development !== 'object') throw new Error('development integration missing');\n\
-         if (typeof framework !== 'object') throw new Error('framework export missing');\n\
-         if (typeof testkit.createDiagnosticVerifier !== 'function') throw new Error('diagnostic testkit missing');\n\
+         if (typeof verify.createVerifier !== 'function') throw new Error('verifier factory missing');\n\
+         if (typeof protocol.connectRemoteVerifier !== 'function') throw new Error('remote verifier missing');\n\
+         if (typeof profileRuntime.bindProfile !== 'function') throw new Error('generated profile runtime missing');\n\
+         if (typeof adapters !== 'object') throw new Error('adapter contract module missing');\n\
+         if (typeof testkit.conformance !== 'object') throw new Error('v2 conformance testkit missing');\n\
          if ('Verifier' in auths) throw new Error('raw verifier leaked onto the root entry point');\n\
-         if ('loadVerifier' in auths) throw new Error('raw loader leaked onto the root entry point');\n\
-         if ('createDiagnosticVerifier' in auths) throw new Error('diagnostic verifier leaked onto the root entry point');\n",
+         if ('mcp' in auths) throw new Error('MCP leaked onto the root entry point');\n\
+         if ('connectGitHubIssueAddress' in auths) throw new Error('GitHub client leaked onto the root entry point');\n",
     )
     .map_err(|error| format!("could not write npm install smoke: {error}"))?;
     command_in("node", &[path_text(&smoke)?], &install_directory, None)
@@ -271,6 +417,8 @@ pub(crate) fn workspace_msrv() -> Result<(), String> {
             "check",
             "--locked",
             "--workspace",
+            "--exclude",
+            "auths-node",
             "--all-targets",
             "--all-features",
         ])
@@ -279,14 +427,31 @@ pub(crate) fn workspace_msrv() -> Result<(), String> {
     let status = command
         .status()
         .map_err(|error| format!("could not run workspace MSRV toolchain {toolchain}: {error}"))?;
-    if status.success() {
-        println!("workspace MSRV {toolchain} check passed");
-        Ok(())
-    } else {
-        Err(format!(
+    if !status.success() {
+        return Err(format!(
             "workspace MSRV {toolchain} check failed with {status}"
-        ))
+        ));
     }
+    for profile in AUTHS_NODE_CHECK_PROFILES {
+        let status = Command::new("cargo")
+            .arg(format!("+{toolchain}"))
+            .arg("check")
+            .arg("--locked")
+            .args(profile)
+            .env("CARGO_TARGET_DIR", root().join("target/workspace-msrv"))
+            .current_dir(root())
+            .status()
+            .map_err(|error| {
+                format!("could not run auths-node MSRV profile with {toolchain}: {error}")
+            })?;
+        if !status.success() {
+            return Err(format!(
+                "auths-node MSRV {toolchain} profile failed with {status}"
+            ));
+        }
+    }
+    println!("workspace MSRV {toolchain} check passed");
+    Ok(())
 }
 
 pub(crate) fn python_wheel_smoke() -> Result<(), String> {

@@ -503,7 +503,13 @@ fn validate_release_order(tiers: &[ReleaseTier]) -> Result<(), String> {
 
 fn validate_stale_names(allowances: &[StaleNameAllowance]) -> Result<(), String> {
     let output = Command::new("git")
-        .args(["ls-files", "-z"])
+        .args([
+            "ls-files",
+            "-z",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+        ])
         .current_dir(root())
         .output()
         .map_err(|error| format!("could not inventory tracked files: {error}"))?;
@@ -518,11 +524,14 @@ fn validate_stale_names(allowances: &[StaleNameAllowance]) -> Result<(), String>
     {
         let path = String::from_utf8(bytes.to_vec())
             .map_err(|error| format!("tracked path is not UTF-8: {error}"))?;
-        contents.insert(
-            path.clone(),
-            fs::read(root().join(&path))
-                .map_err(|error| format!("could not read tracked file {path}: {error}"))?,
-        );
+        let absolute = root().join(&path);
+        if absolute.is_file() {
+            contents.insert(
+                path.clone(),
+                fs::read(absolute)
+                    .map_err(|error| format!("could not read inventoried file {path}: {error}"))?,
+            );
+        }
     }
     validate_stale_contents(&contents, allowances)
 }

@@ -1,0 +1,91 @@
+{
+  "schema": "auths.binding-security-evidence-cutover/1",
+  "governingSpec": "AP-SPEC-040",
+  "policy": "A removed prelaunch test is not evidence for the relaunched API. Every removal below names live replacement evidence or explicitly retires the old claim.",
+  "currentClaims": [
+    {
+      "claim": "Applications connect to a local agent without an Auths token or remote endpoint.",
+      "evidence": [
+        "bindings/python/tests/test_profile_runtime_v1.py",
+        "bindings/typescript/test/contract/profile-runtime.ts",
+        "docs/product/LOCAL_AGENT_SDK_QUICKSTART.md"
+      ]
+    },
+    {
+      "claim": "Generated clients use a non-secret connection alias and typed profile results.",
+      "evidence": [
+        "bindings/python/tests/test_profile_runtime_v1.py",
+        "bindings/generated/stripe/python/src/auths_profiles/stripe/__init__.py",
+        "bindings/generated/stripe/typescript/src/index.ts"
+      ]
+    },
+    {
+      "claim": "Possible effects are recovered with the previously issued durable handle and are not blindly re-entered.",
+      "evidence": [
+        "bindings/python/tests/test_profile_runtime_v1.py",
+        "bindings/typescript/test/unit/public-api-v2.test.js",
+        "product/runtime/auths-node/src/journal_executor.rs"
+      ]
+    },
+    {
+      "claim": "Effect, retry, and error-code projections remain Rust-owned and fail closed.",
+      "evidence": [
+        "bindings/python/tests/test_registry_code_inventory.py",
+        "bindings/typescript/test/contract/effect-axis.ts",
+        "xtask/src/error_registry.rs"
+      ]
+    },
+    {
+      "claim": "Receipts, recovery handles, identity results, and profile outcomes cannot be forged through public constructors.",
+      "evidence": [
+        "bindings/python/tests/test_native_boundary_contract.py",
+        "bindings/python/tests/test_profile_runtime_v1.py",
+        "bindings/typescript/test/contract/nonforgeability.ts"
+      ]
+    },
+    {
+      "claim": "The public generated-package runtime is explicit, packaged, and versioned.",
+      "evidence": [
+        "bindings/public-topology-v1.json",
+        "bindings/python/tools/check_wheel.py",
+        "bindings/python/tests/test_public_api_v2.py",
+        "bindings/typescript/test/unit/public-api-v2.test.js"
+      ]
+    }
+  ],
+  "removedTests": [
+    { "path": "bindings/python/tests/test_api.py", "disposition": "replaced", "evidence": ["bindings/python/tests/test_public_api_v2.py"] },
+    { "path": "bindings/python/tests/test_conformance.py", "disposition": "replaced", "evidence": ["bindings/python/tests/test_native_boundary_contract.py", "bindings/python/tests/test_registry_code_inventory.py"] },
+    { "path": "bindings/python/tests/test_development_product.py", "disposition": "old callback-based development launch retired", "evidence": ["bindings/python/tests/test_profile_runtime_v1.py", "docs/product/LOCAL_AGENT_SDK_QUICKSTART.md"] },
+    { "path": "bindings/python/tests/test_effect_axis_boundary.py", "disposition": "replaced", "evidence": ["bindings/python/tests/test_registry_code_inventory.py", "bindings/typescript/test/contract/effect-axis.ts"] },
+    { "path": "bindings/python/tests/test_github_agent.py", "disposition": "old token-and-endpoint GitHub launch claim retired", "evidence": ["bindings/python/tests/test_profile_runtime_v1.py", "bindings/python/README.md"] },
+    { "path": "bindings/python/tests/test_mcp_workflow.py", "disposition": "old caller-callback profile claim retired", "evidence": ["bindings/python/tests/test_profile_runtime_v1.py", "bindings/generated/stripe/python/src/auths_profiles/stripe/__init__.py"] },
+    { "path": "bindings/python/tests/test_product.py", "disposition": "replaced", "evidence": ["bindings/python/tests/test_public_api_v2.py", "bindings/python/tests/test_profile_runtime_v1.py"] },
+    { "path": "bindings/python/tests/test_product_errors.py", "disposition": "replaced", "evidence": ["bindings/python/tests/test_registry_code_inventory.py"] },
+    { "path": "bindings/python/tests/test_product_waist_conformance.py", "disposition": "replaced", "evidence": ["bindings/python/tests/test_native_boundary_contract.py", "bindings/python/tests/test_public_api_v2.py"] },
+    { "path": "bindings/python/tests/test_production_client.py", "disposition": "old remote control-plane client claim retired", "evidence": ["bindings/python/tests/test_profile_runtime_v1.py", "docs/product/LOCAL_AGENT_SDK_QUICKSTART.md"] },
+    { "path": "bindings/python/tests/test_receipt_inspection.py", "disposition": "replaced", "evidence": ["bindings/python/tests/test_public_api_v2.py", "bindings/python/tests/test_native_boundary_contract.py"] },
+    { "path": "bindings/python/tests/test_vocabulary_parity.py", "disposition": "replaced", "evidence": ["bindings/python/tests/test_public_api_v2.py", "bindings/public-topology-v1.json"] },
+
+    { "path": "bindings/typescript/test/integration/development-product.test.js", "disposition": "old callback-based development launch retired", "evidence": ["bindings/typescript/test/contract/profile-runtime.ts", "docs/product/LOCAL_AGENT_SDK_QUICKSTART.md"] },
+    { "path": "bindings/typescript/test/integration/diagnostic.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/package/packed-doctor.test.js", "bindings/typescript/test/unit/public-api-v2.test.js"] },
+    { "path": "bindings/typescript/test/integration/effect-axis-boundary.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/contract/effect-axis.ts", "bindings/python/tests/test_registry_code_inventory.py"] },
+    { "path": "bindings/typescript/test/integration/fixtures/crash-after-provider-entry.mjs", "disposition": "replaced by v2 durable-journal restart tests", "evidence": ["product/runtime/auths-node/src/journal_executor.rs", "bindings/python/tests/test_profile_runtime_v1.py"] },
+    { "path": "bindings/typescript/test/integration/identity.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/unit/public-api-v2.test.js", "bindings/typescript/test/contract/nonforgeability.ts"] },
+    { "path": "bindings/typescript/test/integration/inspection.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/unit/public-api-v2.test.js"] },
+    { "path": "bindings/typescript/test/integration/non-forgeability.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/contract/nonforgeability.ts", "bindings/python/tests/test_profile_runtime_v1.py"] },
+    { "path": "bindings/typescript/test/integration/profiles/mcp.test.js", "disposition": "old caller-callback profile claim retired", "evidence": ["bindings/typescript/test/contract/profile-runtime.ts", "bindings/generated/stripe/typescript/src/index.ts"] },
+    { "path": "bindings/typescript/test/integration/receipt-inspection.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/unit/public-api-v2.test.js", "bindings/typescript/test/contract/nonforgeability.ts"] },
+    { "path": "bindings/typescript/test/integration/scenario-corpus.test.js", "disposition": "replaced", "evidence": ["bindings/python/tests/test_native_boundary_contract.py", "bindings/typescript/test/unit/public-api-v2.test.js"] },
+    { "path": "bindings/typescript/test/integration/verifier.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/unit/public-api-v2.test.js", "bindings/typescript/test/contract/effect-axis.ts"] },
+    { "path": "bindings/typescript/test/unit/cache.test.js", "disposition": "old non-launch cache claim retired", "evidence": ["bindings/typescript/test/package/package.test.js"] },
+    { "path": "bindings/typescript/test/unit/conformance.test.js", "disposition": "replaced", "evidence": ["bindings/python/tests/test_native_boundary_contract.py", "bindings/typescript/test/contract/nonforgeability.ts"] },
+    { "path": "bindings/typescript/test/unit/custody-conformance.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/unit/public-api-v2.test.js"] },
+    { "path": "bindings/typescript/test/unit/doctor.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/package/packed-doctor.test.js"] },
+    { "path": "bindings/typescript/test/unit/github-agent.test.js", "disposition": "old remote endpoint GitHub launch claim retired", "evidence": ["bindings/typescript/test/contract/profile-runtime.ts", "bindings/generated/stripe/typescript/src/index.ts", "docs/product/PRODUCTION_SDK_QUICKSTART.md"] },
+    { "path": "bindings/typescript/test/unit/product-errors.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/unit/errors.test.js", "bindings/python/tests/test_registry_code_inventory.py"] },
+    { "path": "bindings/typescript/test/unit/product-waist-conformance.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/unit/public-api-v2.test.js", "bindings/typescript/test/contract/nonforgeability.ts"] },
+    { "path": "bindings/typescript/test/unit/product.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/unit/public-api-v2.test.js", "bindings/typescript/test/contract/profile-runtime.ts"] },
+    { "path": "bindings/typescript/test/unit/testkit.test.js", "disposition": "replaced", "evidence": ["bindings/typescript/test/unit/public-api-v2.test.js"] }
+  ]
+}

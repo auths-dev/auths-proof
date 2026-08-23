@@ -113,6 +113,18 @@ for (const symbol of removed) {
     );
   }
 }
+for (const symbol of [
+  "productionClientContractVersionV1",
+  "encodeProductionRequestV1",
+  "decodeProductionRequestV1",
+  "decodeProductionResponseV1",
+  "productionTransportFailureV1",
+  "encodeProductionDelegationV1",
+]) {
+  if (published.has(symbol) || declarations.includes(symbol)) {
+    throw new Error(`${symbol} is a removed remote-effect ABI and must not be shipped`);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // The boundary carries meaning.
@@ -132,7 +144,6 @@ const probes = [
   ["decodePublicIdentityV2", () => wasm.decodePublicIdentityV2(new Uint8Array([0xff, 0xff, 0xff]))],
   ["decodeSignedIdentityMessageV2", () => wasm.decodeSignedIdentityMessageV2(new Uint8Array([1, 2, 3]))],
   ["canonicalPrincipalV1", () => wasm.canonicalPrincipalV1("!!!")],
-  ["decodeProductionResponseV1", () => wasm.decodeProductionResponseV1(new Uint8Array([0xff]))],
   ["parsePrincipalStatusSnapshotV1", () => wasm.parsePrincipalStatusSnapshotV1(null)],
 ];
 for (const [name, probe] of probes) {

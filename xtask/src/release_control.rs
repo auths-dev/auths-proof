@@ -1,4 +1,5 @@
 use crate::*;
+use auths_profile_kit::QualificationReleaseBuild;
 
 const PREPARATION_COMPARISON_SCHEMA: &str = "auths.preparation-comparison/1";
 const PROMOTION_REQUEST_SCHEMA: &str = "auths.promotion-request/1";
@@ -7,7 +8,7 @@ const OWNER_AUTHORIZATION_STATEMENT: &str =
     "I authorize promotion of these exact prepared bytes to a GitHub prerelease.";
 const EXPECTED_OIDC_ISSUER: &str = "https://token.actions.githubusercontent.com";
 const EXPECTED_OIDC_SUBJECT: &str =
-    "repo:auths-dev@260513770/auths-proof@1310728509:environment:release-candidate";
+    "repo:auths-dev@260513770/auths-proof@1310728509:ref:refs/heads/main";
 const EXPECTED_BUILDER_WORKFLOW: &str =
     "auths-dev/auths-proof/.github/workflows/release-builder.yml";
 const SLSA_ASSESSMENT_PATH: &str = "release/slsa-build-level-3-assessment.json";
@@ -70,11 +71,207 @@ pub(crate) fn release_control(arguments: Vec<String>) -> Result<(), String> {
                 Path::new(authorization),
             )
         }
+        [command, input, output] if command == "canonicalize-qualification-build" => {
+            canonicalize_qualification_build(Path::new(input), Path::new(output))
+        }
+        [
+            command,
+            members,
+            hosted_artifacts,
+            output,
+            repository_id,
+            workflow_revision,
+            run_id,
+            run_attempt,
+            run_label,
+        ] if command == "assemble-qualification-build" => assemble_qualification_build(
+            Path::new(members),
+            Path::new(hosted_artifacts),
+            Path::new(output),
+            repository_id,
+            workflow_revision,
+            run_id,
+            run_attempt,
+            run_label,
+        ),
+        [command, release_build, surface, members, artifact_root, commit]
+            if command == "verify-qualification-release-build" =>
+        {
+            verify_qualification_release_build_files(
+                Path::new(release_build),
+                Path::new(surface),
+                Path::new(members),
+                Path::new(artifact_root),
+                commit,
+            )
+        }
         _ => Err(
-            "usage: cargo xtask release-control <finalize TAG COMMIT PROVENANCE TRUSTED_ROOT VERIFICATION BUILDER_WORKFLOW BUILDER_DIGEST|compare FIRST SECOND OUTPUT|verify-promotion STAGED REQUEST AUTHORIZATION>"
+            "usage: cargo xtask release-control <finalize TAG COMMIT PROVENANCE TRUSTED_ROOT VERIFICATION BUILDER_WORKFLOW BUILDER_DIGEST|compare FIRST SECOND OUTPUT|verify-promotion STAGED REQUEST AUTHORIZATION|assemble-qualification-build MEMBERS HOSTED_ARTIFACTS OUTPUT REPOSITORY_ID WORKFLOW_REVISION RUN_ID RUN_ATTEMPT RUN_LABEL|canonicalize-qualification-build INPUT OUTPUT|verify-qualification-release-build RELEASE_BUILD SURFACE MEMBERS ARTIFACT_ROOT COMMIT>"
                 .to_owned(),
         ),
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn assemble_qualification_build(
+    members_path: &Path,
+    hosted_artifacts_path: &Path,
+    output: &Path,
+    repository_id: &str,
+    workflow_revision: &str,
+    run_id: &str,
+    run_attempt: &str,
+    run_label: &str,
+) -> Result<(), String> {
+    validate_full_commit(workflow_revision)?;
+    let run_attempt = run_attempt
+        .parse::<u32>()
+        .map_err(|_| "qualification release run attempt is invalid".to_owned())?;
+    let members = read_json(members_path, "qualification release members")?;
+    if members["schema"] != "auths.qualification-release-members/1"
+        || members["candidateRevision"] != workflow_revision
+    {
+        return Err("qualification release members do not match the workflow revision".to_owned());
+    }
+    let member_rows = members["artifacts"]
+        .as_array()
+        .ok_or("qualification release members have no artifact roster")?;
+    let hosted = read_json(hosted_artifacts_path, "hosted artifact inventory")?;
+    let pages = hosted
+        .as_array()
+        .ok_or("hosted artifact inventory is not a bounded page array")?;
+    if pages.is_empty() || pages.len() > 16 {
+        return Err("hosted artifact inventory page count is invalid".to_owned());
+    }
+    let mut by_name = BTreeMap::new();
+    for page in pages {
+        let artifacts = page["artifacts"]
+            .as_array()
+            .ok_or("hosted artifact inventory page has no artifacts")?;
+        if artifacts.len() > 100 {
+            return Err("hosted artifact inventory page is too large".to_owned());
+        }
+        for artifact in artifacts {
+            let name = artifact["name"]
+                .as_str()
+                .ok_or("hosted artifact has no name")?;
+            if by_name.insert(name.to_owned(), artifact).is_some() {
+                return Err(format!("duplicate hosted artifact name: {name}"));
+            }
+        }
+    }
+    let mut artifacts = Vec::with_capacity(member_rows.len());
+    for member in member_rows {
+        let expected_name = format!(
+            "auths-qualification-{workflow_revision}-{run_label}-members-attempt-{run_attempt}"
+        );
+        let hosted = by_name
+            .get(&expected_name)
+            .ok_or_else(|| format!("missing hosted qualification artifact: {expected_name}"))?;
+        if hosted.get("expired").and_then(Value::as_bool) != Some(false) {
+            return Err(format!(
+                "hosted qualification artifact expiry is not explicitly current: {expected_name}"
+            ));
+        }
+        let artifact_id = hosted["id"]
+            .as_u64()
+            .filter(|id| *id > 0)
+            .ok_or_else(|| format!("hosted qualification artifact ID is invalid: {expected_name}"))?
+            .to_string();
+        let digest = hosted["digest"]
+            .as_str()
+            .and_then(|value| value.strip_prefix("sha256:"))
+            .ok_or_else(|| {
+                format!("hosted qualification artifact digest is invalid: {expected_name}")
+            })?;
+        if digest.len() != 64
+            || !digest
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+        {
+            return Err(format!(
+                "hosted qualification artifact digest is invalid: {expected_name}"
+            ));
+        }
+        let mut row = member
+            .as_object()
+            .ok_or("qualification release member is not an object")?
+            .clone();
+        row.insert("artifactId".to_owned(), Value::String(artifact_id));
+        row.insert(
+            "uploadedArchiveSha256".to_owned(),
+            Value::String(digest.to_owned()),
+        );
+        artifacts.push(Value::Object(row));
+    }
+    let build = json!({
+        "provider": "github-actions",
+        "repositoryId": repository_id,
+        "workflowPath": ".github/workflows/release-builder.yml",
+        "workflowRevision": workflow_revision,
+        "runId": run_id,
+        "runAttempt": run_attempt,
+        "runLabel": run_label,
+        "qualificationSurfaceSha256": members["qualificationSurfaceSha256"],
+        "artifacts": artifacts,
+    });
+    let canonical = serde_json_canonicalizer::to_vec(&build)
+        .map_err(|error| format!("could not canonicalize qualification release build: {error}"))?;
+    let build = QualificationReleaseBuild::from_json(&canonical)
+        .map_err(|error| format!("qualification release build is invalid: {error}"))?;
+    let verified = build
+        .canonical_json()
+        .map_err(|error| format!("could not encode qualification release build: {error}"))?;
+    if output.exists() {
+        return Err(format!(
+            "qualification release build output already exists: {}",
+            output.display()
+        ));
+    }
+    if let Some(parent) = output.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("could not create qualification release output: {error}"))?;
+    }
+    fs::write(output, verified)
+        .map_err(|error| format!("could not write qualification release build: {error}"))
+}
+
+fn canonicalize_qualification_build(input: &Path, output: &Path) -> Result<(), String> {
+    let metadata = fs::symlink_metadata(input)
+        .map_err(|error| format!("could not inspect qualification release build: {error}"))?;
+    if !metadata.is_file()
+        || metadata.file_type().is_symlink()
+        || metadata.len() == 0
+        || metadata.len() > 262_144
+    {
+        return Err("qualification release build input is not a bounded regular file".to_owned());
+    }
+    let bytes = fs::read(input)
+        .map_err(|error| format!("could not read qualification release build: {error}"))?;
+    let value: Value = serde_json::from_slice(&bytes)
+        .map_err(|error| format!("qualification release build is not JSON: {error}"))?;
+    let canonical = serde_json_canonicalizer::to_vec(&value)
+        .map_err(|error| format!("could not canonicalize qualification release build: {error}"))?;
+    let build = QualificationReleaseBuild::from_json(&canonical)
+        .map_err(|error| format!("qualification release build is invalid: {error}"))?;
+    let verified = build
+        .canonical_json()
+        .map_err(|error| format!("could not encode qualification release build: {error}"))?;
+    if canonical != verified {
+        return Err("qualification release build canonical projection drifted".to_owned());
+    }
+    if output.exists() {
+        return Err(format!(
+            "qualification release build output already exists: {}",
+            output.display()
+        ));
+    }
+    if let Some(parent) = output.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("could not create qualification release output: {error}"))?;
+    }
+    fs::write(output, verified)
+        .map_err(|error| format!("could not write qualification release build: {error}"))
 }
 
 fn finalize_preparation(
@@ -163,7 +360,7 @@ fn finalize_preparation(
         "builder": {
             "workflow": builder_workflow,
             "workflowDigest": builder_digest,
-            "environment": "release-candidate",
+            "environment": null,
             "oidcIssuer": EXPECTED_OIDC_ISSUER,
             "oidcSubject": EXPECTED_OIDC_SUBJECT,
             "slsaTarget": SLSA_TARGET,
@@ -410,31 +607,9 @@ fn validate_slsa_assessment(
     assessment_path: &str,
     builder_path: &str,
 ) -> Result<(), String> {
-    let path = base.join(assessment_path);
-    let assessment = read_json(&path, "SLSA Build Level 3 assessment")?;
-    if assessment["schema"] != SLSA_ASSESSMENT_SCHEMA
-        || assessment["specification"] != "https://slsa.dev/spec/v1.2/requirements"
-        || assessment["target"] != SLSA_TARGET
-        || assessment["status"] != "passed"
-        || assessment["assessmentNature"] != "repository-owner-delegated-technical-assessment"
-        || assessment["assessedBuilder"]["platform"] != "github-actions"
-        || assessment["assessedBuilder"]["workflow"] != ASSESSED_BUILDER_PATH
-        || assessment["assessedBuilder"]["workflowEvidence"] != ASSESSED_BUILDER_EVIDENCE_PATH
-        || assessment["assessedBuilder"]["runner"] != "github-hosted/ubuntu-latest"
-        || assessment["assessedBuilder"]["provenance"]
-            != "github-artifact-attestations/slsa-provenance-v1"
-    {
-        return Err("SLSA Build Level 3 assessment metadata is incomplete".to_owned());
-    }
-    let expected_workflow_digest = assessment["assessedBuilder"]["workflowSha256"]
-        .as_str()
-        .ok_or("SLSA assessment has no workflow SHA-256")?;
-    validate_sha256(expected_workflow_digest)?;
-    let actual_workflow_digest = sha256_file(&base.join(builder_path))?;
-    if expected_workflow_digest != actual_workflow_digest {
-        return Err(
-            "SLSA Build Level 3 assessment is stale: reusable builder bytes changed".to_owned(),
-        );
+    let assessment = validate_slsa_assessment_binding(base, assessment_path, builder_path)?;
+    if assessment["status"] != "passed" {
+        return Err("SLSA Build Level 3 runtime assessment has not passed".to_owned());
     }
     validate_full_commit(
         assessment["runtimeEvidence"]["candidateCommit"]
@@ -488,6 +663,49 @@ fn validate_slsa_assessment(
         return Err("SLSA assessment limitations are incomplete".to_owned());
     }
     Ok(())
+}
+
+fn validate_slsa_assessment_binding(
+    base: &Path,
+    assessment_path: &str,
+    builder_path: &str,
+) -> Result<Value, String> {
+    let path = base.join(assessment_path);
+    let assessment = read_json(&path, "SLSA Build Level 3 assessment")?;
+    if assessment["schema"] != SLSA_ASSESSMENT_SCHEMA
+        || assessment["specification"] != "https://slsa.dev/spec/v1.2/requirements"
+        || assessment["target"] != SLSA_TARGET
+        || !matches!(
+            assessment["status"].as_str(),
+            Some("passed" | "pending-runtime-assessment")
+        )
+        || assessment["assessmentNature"] != "repository-owner-delegated-technical-assessment"
+        || assessment["assessedBuilder"]["platform"] != "github-actions"
+        || assessment["assessedBuilder"]["workflow"] != ASSESSED_BUILDER_PATH
+        || assessment["assessedBuilder"]["workflowEvidence"] != ASSESSED_BUILDER_EVIDENCE_PATH
+        || assessment["assessedBuilder"]["runner"] != "github-hosted/ubuntu-latest"
+        || assessment["assessedBuilder"]["provenance"]
+            != "github-artifact-attestations/slsa-provenance-v1"
+    {
+        return Err("SLSA Build Level 3 assessment metadata is incomplete".to_owned());
+    }
+    let expected_workflow_digest = assessment["assessedBuilder"]["workflowSha256"]
+        .as_str()
+        .ok_or("SLSA assessment has no workflow SHA-256")?;
+    validate_sha256(expected_workflow_digest)?;
+    let actual_workflow_digest = sha256_file(&base.join(builder_path))?;
+    if expected_workflow_digest != actual_workflow_digest {
+        return Err(
+            "SLSA Build Level 3 assessment is stale: reusable builder bytes changed".to_owned(),
+        );
+    }
+    if assessment["limitations"]
+        .as_array()
+        .is_none_or(|limitations| limitations.len() < 4)
+    {
+        return Err("SLSA assessment limitations are incomplete".to_owned());
+    }
+    Ok(assessment)
 }
 
 fn validate_attestation_verification(
@@ -699,6 +917,96 @@ mod tests {
     }
 
     #[test]
+    fn qualification_release_build_is_assembled_from_the_generated_hosted_roster() {
+        let temporary = tempfile::tempdir().expect("create release-build fixture");
+        let commit = "b".repeat(40);
+        let members_path = temporary.path().join("members.json");
+        let hosted_path = temporary.path().join("hosted.json");
+        let output = temporary.path().join("release-build.json");
+        let members = json!({
+            "schema": "auths.qualification-release-members/1",
+            "candidateRevision": commit,
+            "qualificationSurfaceSha256": "a".repeat(64),
+            "artifacts": auths_profile_kit::QUALIFICATION_RELEASE_ARTIFACT_ROLES
+                .iter()
+                .enumerate()
+                .map(|(index, role)| json!({
+                    "role": role,
+                    "memberPath": format!("member-{index}.bin"),
+                    "memberSha256": format!("{:064x}", index + 1),
+                    "bytes": index + 1,
+                }))
+                .collect::<Vec<_>>(),
+        });
+        let hosted = json!([{"artifacts": [{
+            "id": 1000,
+            "name": format!("auths-qualification-{commit}-official-members-attempt-1"),
+            "digest": format!("sha256:{}", "c".repeat(64)),
+            "expired": false,
+        }]}]);
+        fs::write(
+            &members_path,
+            serde_json_canonicalizer::to_vec(&members).unwrap(),
+        )
+        .unwrap();
+        fs::write(
+            &hosted_path,
+            serde_json_canonicalizer::to_vec(&hosted).unwrap(),
+        )
+        .unwrap();
+        assemble_qualification_build(
+            &members_path,
+            &hosted_path,
+            &output,
+            "1310728509",
+            &commit,
+            "1234",
+            "1",
+            "official",
+        )
+        .expect("assemble exact hosted roster");
+        let build = fs::read(&output).expect("read release build");
+        let decoded = QualificationReleaseBuild::from_json(&build).expect("decode release build");
+        assert_eq!(decoded.canonical_json().unwrap(), build);
+        let build: Value = serde_json::from_slice(&build).unwrap();
+        assert!(build["artifacts"].as_array().unwrap().iter().all(|row| {
+            row["artifactId"] == "1000" && row["uploadedArchiveSha256"] == "c".repeat(64)
+        }));
+
+        for (label, expired) in [
+            ("missing", None),
+            ("null", Some(Value::Null)),
+            ("string", Some(Value::String("false".to_owned()))),
+            ("expired", Some(Value::Bool(true))),
+        ] {
+            let mut hostile = hosted.clone();
+            let object = hostile[0]["artifacts"][0].as_object_mut().unwrap();
+            object.remove("expired");
+            if let Some(expired) = expired {
+                object.insert("expired".to_owned(), expired);
+            }
+            fs::write(
+                &hosted_path,
+                serde_json_canonicalizer::to_vec(&hostile).unwrap(),
+            )
+            .unwrap();
+            let hostile_output = temporary.path().join(format!("release-build-{label}.json"));
+            let error = assemble_qualification_build(
+                &members_path,
+                &hosted_path,
+                &hostile_output,
+                "1310728509",
+                &commit,
+                "1234",
+                "1",
+                "official",
+            )
+            .expect_err("non-current hosted artifact must fail");
+            assert!(error.contains("expiry is not explicitly current"));
+        }
+    }
+
+    #[test]
     fn changed_byte_identical_subject_is_terminal() {
         let first = subject("auths.crate", 'a', "byte-identical");
         let second = subject("auths.crate", 'b', "byte-identical");
@@ -730,7 +1038,7 @@ mod tests {
     fn immutable_builder_identity_is_exact() {
         assert_eq!(
             EXPECTED_OIDC_SUBJECT,
-            "repo:auths-dev@260513770/auths-proof@1310728509:environment:release-candidate"
+            "repo:auths-dev@260513770/auths-proof@1310728509:ref:refs/heads/main"
         );
         assert_eq!(
             EXPECTED_BUILDER_WORKFLOW,
@@ -752,9 +1060,14 @@ mod tests {
     }
 
     #[test]
-    fn checked_in_slsa_assessment_matches_builder_bytes() {
-        validate_slsa_assessment(&root(), SLSA_ASSESSMENT_PATH, ASSESSED_BUILDER_PATH)
-            .expect("checked-in assessment must be current");
+    fn checked_in_slsa_assessment_is_bound_to_builder_bytes() {
+        validate_slsa_assessment_binding(&root(), SLSA_ASSESSMENT_PATH, ASSESSED_BUILDER_PATH)
+            .expect("checked-in assessment binding must be current");
+        assert!(
+            validate_slsa_assessment(&root(), SLSA_ASSESSMENT_PATH, ASSESSED_BUILDER_PATH)
+                .unwrap_err()
+                .contains("has not passed")
+        );
     }
 
     #[test]
@@ -773,9 +1086,12 @@ mod tests {
             b"name: changed builder\n",
         )
         .expect("write changed builder");
-        let error =
-            validate_slsa_assessment(&temporary, SLSA_ASSESSMENT_PATH, ASSESSED_BUILDER_PATH)
-                .expect_err("changed builder must stale assessment");
+        let error = validate_slsa_assessment_binding(
+            &temporary,
+            SLSA_ASSESSMENT_PATH,
+            ASSESSED_BUILDER_PATH,
+        )
+        .expect_err("changed builder must stale assessment");
         fs::remove_dir_all(&temporary).expect("remove test directory");
         assert!(error.contains("assessment is stale"));
     }

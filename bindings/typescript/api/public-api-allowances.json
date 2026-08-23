@@ -11,6 +11,11 @@
     "over adding an entry here: each one is a place a reader must be told which of two",
     "similarly-named things they want."
   ],
-  "mirror": [],
+  "mirror": [
+    {
+      "key": "./verify\tReceiptVerificationInput",
+      "reason": "VerificationInput is the authority proof/action/context tuple; ReceiptVerificationInput is the distinct signed-receipt plus trust-policy operation selected by the v2 API contract."
+    }
+  ],
   "homonym": []
 }

@@ -16,7 +16,7 @@ use crate::{
     },
     profile::PostgresUpdateCommand,
     receipts::PostgresReceipt,
-    schema::DigestHex,
+    schema::{DigestHex, IsolationLevelV1},
 };
 
 /// Secret connection material; it is never serializable or printable.
@@ -84,6 +84,8 @@ pub struct TransactionResult {
     pub ledger_commitment: DigestHex,
     pub readback_commitment: DigestHex,
     pub server_version: String,
+    /// Isolation level sampled inside the exact committed transaction.
+    pub transaction_isolation: IsolationLevelV1,
     pub transaction_started_at: u64,
     pub committed_at: u64,
     pub reconciled: bool,

@@ -1,0 +1,25 @@
+{
+  "schema": "auths.error-registry-fragment/1",
+  "owner": "stripe-refund",
+  "ownerVersion": 1,
+  "definitions": [
+    {
+      "code": "stripe.refund-denied",
+      "operation": "execute",
+      "stage": "profile-evaluation",
+      "effect": "not-applied",
+      "retry": "satisfy-condition",
+      "action": "inspect-input",
+      "summary": "The exact Stripe refund was not authorized by the bounded profile."
+    },
+    {
+      "code": "stripe.refund-outcome-unknown",
+      "operation": "execute",
+      "stage": "provider-observation",
+      "effect": "possible",
+      "retry": "recover-only",
+      "action": "recover",
+      "summary": "Stripe refund outcome requires recovery before another execution."
+    }
+  ]
+}

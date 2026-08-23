@@ -19,20 +19,6 @@ for (const recipe of manifest.recipes) {
   run("python", recipe.id, python, [join(recipes, recipe.python)], recipe.expected);
 }
 
-const typescriptOutput = outputs.get("typescript/05-cross-organization-plan");
-const pythonOutput = outputs.get("python/05-cross-organization-plan");
-if (typescriptOutput === undefined || pythonOutput === undefined) throw new Error("recipe five output is missing");
-run("python", "05-verify-typescript-receipt", python, [
-  join(recipes, "python/05_cross_organization_plan.py"),
-  "verify",
-  join(typescriptOutput, "typescript-recovered-receipt.json"),
-], "verified-portable-receipt");
-run("typescript", "05-verify-python-receipt", process.execPath, [
-  join(recipes, "typescript/build/05-cross-organization-plan.js"),
-  "verify",
-  join(pythonOutput, "python-recovered-receipt.json"),
-], "verified-portable-receipt");
-
 console.log(JSON.stringify({ schema: "auths.recipe-run/1", timings }, null, 2));
 
 function run(language, id, command, args, expected) {

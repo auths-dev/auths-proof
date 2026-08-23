@@ -1,5 +1,8 @@
 //! Validated Stripe identifiers and closed exact-refund objects.
 
+// Bounded domain constructors expose one closed validation error family.
+#![allow(clippy::missing_errors_doc)]
+
 use std::{collections::BTreeMap, fmt, str::FromStr};
 
 use serde::{Deserialize, Deserializer, Serialize};
@@ -671,7 +674,7 @@ impl RefundEvidenceV1 {
         if input.charge_refunded != (refundable_amount_minor == 0) {
             return Err(ValidationError::InvalidEvidence);
         }
-        Ok(Self {
+        let value = Self {
             schema: "auths.stripe.refund-evidence/1".into(),
             stripe_account_id: input.stripe_account_id,
             stripe_api_version: input.stripe_api_version,
@@ -690,7 +693,31 @@ impl RefundEvidenceV1 {
             disputed: input.disputed,
             observed_at: input.observed_at,
             response_commitment: input.response_commitment,
-        })
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    /// Validates a decoded protected snapshot without supplying defaults.
+    pub fn validate(&self) -> Result<(), ValidationError> {
+        if self.schema != "auths.stripe.refund-evidence/1"
+            || !valid_api_version(&self.stripe_api_version)
+            || self.livemode
+            || self.charge_amount_minor == 0
+            || self.captured_amount_minor == 0
+            || self.captured_amount_minor > self.charge_amount_minor
+            || self.amount_refunded_minor > self.captured_amount_minor
+            || self.refundable_amount_minor
+                != self
+                    .captured_amount_minor
+                    .checked_sub(self.amount_refunded_minor)
+                    .ok_or(ValidationError::InvalidEvidence)?
+            || self.charge_refunded != (self.refundable_amount_minor == 0)
+            || self.observed_at == 0
+        {
+            return Err(ValidationError::InvalidEvidence);
+        }
+        Ok(())
     }
 
     /// Returns a canonical evidence digest.

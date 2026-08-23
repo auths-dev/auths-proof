@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-evidence-manifest.schema.json",
+  "title": "Auths deterministic qualification evidence manifest v1",
+  "type": "object", "additionalProperties": false, "required": ["schema", "members", "memberCount", "uncompressedBytes"],
+  "properties": {
+    "schema": {"const": "auths.profile-qualification-evidence-manifest/1"},
+    "members": {"type": "array", "minItems": 1, "maxItems": 4095, "items": {"type": "object", "additionalProperties": false, "required": ["path", "bytes", "sha256"], "properties": {"path": {"type": "string", "minLength": 1, "maxLength": 512}, "bytes": {"type": "integer", "minimum": 1, "maximum": 16777216}, "sha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"}}}},
+    "memberCount": {"type": "integer", "minimum": 1, "maximum": 4095},
+    "uncompressedBytes": {"type": "integer", "minimum": 1, "maximum": 1073741824}
+  }
+}

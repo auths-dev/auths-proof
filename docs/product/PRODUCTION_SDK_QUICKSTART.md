@@ -1,112 +1,98 @@
-# Production SDK quickstart: one GitHub issue
+# Production SDK contract: one typed provider operation
 
-The launch path gives an agent one bounded GitHub task and keeps the GitHub App
-credential inside a separate trusted executor. The SDK accepts named domain
-values and a Git bundle file; it does not ask application code to construct
-CBOR, proof bytes, canonical actions, or receipt envelopes.
+> **Qualification status:** this document shows the frozen application API,
+> not a currently promoted live-provider route. The production agent advertises
+> no Stripe, PostgreSQL, or OpenTofu effect profile until its exact revision has
+> completed the required live, crash, recovery, receipt, and independent-review
+> gates. The disposable testkit agent proves this API with a synthetic Stripe
+> provider only.
 
-The operator first deploys the existing `demos/github-issue` service for one
-isolated repository and issue. Both SDKs then use the same flow.
+Auths applications connect to a local agent and call a generated domain
+client. The application supplies domain input and, optionally, a non-secret
+connection alias. The agent owns workload authentication, authorization,
+provider credentials, durable execution, recovery, and receipts.
 
-## TypeScript
+## Application setup after profile qualification
+
+Install the root SDK and the generated package for the domain you need:
+
+```bash
+npm install @auths-dev/sdk @auths-dev/profile-stripe
+pip install auths auths-profile-stripe
+```
+
+TypeScript:
 
 ```ts
-import { createGitHubAgentClient } from "@auths-dev/sdk/service";
+import { connect } from "@auths-dev/sdk";
+import { Stripe } from "@auths-dev/profile-stripe";
 
-const auths = createGitHubAgentClient({ endpoint: "https://executor.example" });
-const candidateRevision = "<git-object-id>";
-const boundary = await auths.boundary();
-const task = await auths.delegate({
-  repository: boundary.repository,
-  issueNumber: boundary.issueNumber,
-  baseRef: boundary.baseRef,
-  baseRevision: boundary.baseRevision,
-  allowedPaths: boundary.allowedPaths,
-  protectedPaths: boundary.protectedPaths,
-  expiresInSeconds: boundary.maximumExpirySeconds,
-  branchBudget: 1,
-  draftPullRequestBudget: 1,
-  agentLabel: "issue-agent",
+await using session = await connect();
+const refund = await new Stripe(session, { connection: "billing" }).refunds.create({
+  paymentIntent: "pi_123",
+  amount: 2_000,
+  currency: "usd",
 });
-const candidate = await auths.inspectCandidate(task, {
-  path: "./candidate.bundle",
-  baseRevision: boundary.baseRevision,
-  candidateRevision,
-});
-if (candidate.kind !== "inspected") throw new Error(candidate.decisionCode);
-let result = await auths.execute(task);
-if (result.next === "reconcile") result = await auths.reconcile(task);
-if (result.kind !== "completed" && result.kind !== "reconciled") {
-  throw new Error(result.code);
-}
-const receipts = await auths.verifyReceipts(task);
+console.log(refund.id, refund.auths.receiptIds);
 ```
 
-## Python
+Python:
 
 ```python
-from auths.service import (
-    GitHubAgentTask,
-    GitHubCandidateFile,
-    create_github_agent_client,
-)
+import auths
+from auths_profiles.stripe import Stripe
 
-auths = create_github_agent_client(endpoint="https://executor.example")
-candidate_revision = "<git-object-id>"
-boundary = await auths.boundary()
-task = await auths.delegate(GitHubAgentTask(
-    repository=boundary.repository,
-    issue_number=boundary.issue_number,
-    base_ref=boundary.base_ref,
-    base_revision=boundary.base_revision,
-    allowed_paths=boundary.allowed_paths,
-    protected_paths=boundary.protected_paths,
-    expires_in_seconds=boundary.maximum_expiry_seconds,
-    branch_budget=1,
-    draft_pull_request_budget=1,
-    agent_label="issue-agent",
-))
-candidate = await auths.inspect_candidate(task, GitHubCandidateFile(
-    path="candidate.bundle",
-    base_revision=boundary.base_revision,
-    candidate_revision=candidate_revision,
-))
-if candidate.kind != "inspected":
-    raise RuntimeError(candidate.decision_code)
-result = await auths.execute(task)
-if result.next == "reconcile":
-    result = await auths.reconcile(task)
-if result.kind not in ("completed", "reconciled"):
-    raise RuntimeError(result.code)
-receipts = await auths.verify_receipts(task)
+async with auths.connect() as session:
+    refund = await Stripe(session, connection="billing").refunds.create(
+        payment_intent="pi_123",
+        amount=2_000,
+        currency="usd",
+    )
+    print(refund.id, refund.auths.receipt_ids)
 ```
 
-## What the boundary guarantees
+The ordinary application API has no Auths bearer token, remote executor URL,
+provider credential, arbitrary provider request, or caller-supplied authority.
+`AUTHS_AGENT_SOCKET` may select a local socket; it is not a credential.
 
-- The task repeats the operator-approved repository, issue, current base,
-  allowed/protected paths, expiry, and fixed one-branch/one-draft-PR budget.
-  Any widening is refused before a session is created.
-- The agent produces only a Git bundle. It has no GitHub App token.
-- Rust performs bounded Git inspection and derives the exact branch and draft
-  pull-request commands.
-- Each effect is durably claimed before the executor requests its credential.
-- A protected path, stale base, repository/issue substitution, or changed
-  candidate is denied before a write.
-- Replay returns the existing receipt commitment with zero new credentials and
-  zero new mutations.
-- An ambiguous provider outcome says `reconcile`; it never tells the caller to
-  start the action again.
-- If an execute response is lost, both SDKs return `indeterminate` with
-  credential and mutation counts set to `unknown` and `next = reconcile`.
-  They never turn transport loss into a zero-effect claim.
-- `verifyReceipts` reads through the existing bounded signed-receipt verifier.
+## Operator setup after profile qualification
 
-The generic five-verb remote contract remains at `@auths-dev/sdk/service` and
-`auths.service`. The GitHub calls live on those existing remote-service entry
-points, but their request is deliberately profile-specific
-because candidate inspection, fresh GitHub evidence, two ordered effects, and
-reconciliation cannot be represented honestly as an arbitrary JSON action.
+Before the application starts, a privileged operator:
 
-See the maintained [demo quickstart](../../demos/github-issue/README.md),
-[architecture](../../demos/github-issue/docs/architecture.md), and
-[failure/recovery guide](recipes/06_PRODUCTION_FAILURES.md).
+1. installs and starts the local Auths agent;
+2. provisions a provider connection through the separate admin listener;
+3. maps the observed workload identity to allowed profiles and connection
+   aliases; and
+4. verifies socket ownership and runs the bounded doctor command.
+
+Provider secrets enter only the privileged administration flow. They are
+stored behind the configured credential store and never returned to the
+application or generated package. See
+[Local-agent SDK quickstart](LOCAL_AGENT_SDK_QUICKSTART.md) for the concrete
+operator/application split and clean-machine acceptance checks.
+
+Connection onboarding, rotation, disable, revocation, backup, and restore are
+covered by the
+[provider connection lifecycle runbook](../operations/PROVIDER_CONNECTION_LIFECYCLE_RUNBOOK.md).
+
+## Failure and recovery
+
+The generated method returns the domain success value. Denial, unavailability,
+conflict, partial completion, and possible effect are represented by typed
+errors. If an effect may have happened, Auths returns a sealed recovery handle;
+the caller invokes the generated `recover` method and does not repeat the
+original operation.
+
+The same session can be shared by generated Stripe, PostgreSQL, OpenTofu, and
+future domain clients. Adding a domain package does not add credentials or
+provider-specific methods to the root SDK.
+
+See [profile recovery](../operations/PROFILE_RECOVERY_RUNBOOK.md) for the
+operator procedure and [profile authoring](PROFILE_AUTHORING.md) for adding an
+operation or provider kind.
+
+## Release status
+
+This is the AP-SPEC-040 prelaunch cutover contract. Repository-local checks are
+not independent review or publication authorization; the language-specific
+`sdk-capability.json` files remain authoritative for promotion status.

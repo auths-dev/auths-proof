@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { parseAuthsErrorEnvelope } from "../../dist/product-errors.js";
 import { AuthsWorkflowError, ProviderOperationError } from "../../dist/workflow/errors.js";
 
 test("workflow and provider errors expose bounded recovery metadata", () => {
@@ -35,4 +36,33 @@ test("workflow and provider errors expose bounded recovery metadata", () => {
   // (none|possible|occurred) is deleted. `none` was a second spelling of
   // `not-applied`; the value is the same, the word is now the Rust-owned one.
   assert.equal(provider.effect, "not-applied");
+});
+
+test("Rust error tokens accept base64url operation references", () => {
+  const operation = "op_Gf0wzqCl4vdf_IjnYcNMzA";
+  const error = parseAuthsErrorEnvelope({
+    schema: "auths.error/1",
+    family: "state",
+    code: "operation.idempotency-conflict",
+    operation: "execute",
+    stage: "reservation",
+    summary: "The idempotency key is bound to another commitment.",
+    correlationId: operation,
+    retry: "unknown",
+    effect: "possible",
+    entered: {
+      approval: true,
+      signer: true,
+      state: true,
+      credential: true,
+      provider: true,
+    },
+    recommendedAction: "resume-and-reconcile",
+    executionReference: operation,
+    decisionReference: null,
+    receiptReference: null,
+    causes: ["conflict"],
+  });
+  assert.equal(error.executionReference, operation);
+  assert.equal(error.effect, "possible");
 });

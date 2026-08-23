@@ -3,6 +3,10 @@
 Auths lets software prove exactly what it may do, execute through a closed
 action family, and leave a signed receipt.
 
+A profile names a versioned effect-domain action family. Shipping its generated
+client does not qualify or activate that profile; the exact local-agent build
+must advertise a qualified matching route.
+
 ## The five security nouns
 
 | Term | Plain meaning | Boundary |

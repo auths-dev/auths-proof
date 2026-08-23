@@ -1,13 +1,4 @@
-"""Gate: `auths/__init__.pyi` must re-export exactly the runtime surface.
-
-`auths` is a `py.typed` package with a lazy `__getattr__`, so a type checker
-reads only the stub. Every name missing from the stub is invisible to mypy and
-pyright even though it imports at runtime -- which is how the entire production
-client became untypeable while `api/public-api.txt` reported it as public.
-
-The stub is generated from `auths.__init__._OWNERS`, the same table the lazy
-import uses, so the two cannot disagree.
-"""
+"""Gate: `auths/__init__.pyi` must re-export exactly the runtime surface."""
 
 from __future__ import annotations
 
@@ -25,14 +16,18 @@ _HEADER = (
 
 def projection() -> str:
     root = importlib.import_module("auths")
-    owners: dict[str, str] = getattr(root, "_OWNERS")
     exported: list[str] = list(getattr(root, "__all__"))
-    if sorted(owners) != sorted(exported):
-        raise SystemExit(
-            "auths.__all__ and auths._OWNERS disagree: "
-            f"{sorted(set(owners) ^ set(exported))}"
-        )
-    lines = [_HEADER]
+    owners = {}
+    for name in exported:
+        owner = getattr(getattr(root, name), "__module__", "auths._public")
+        # Dynamically generated enums deliberately advertise the public root
+        # for repr/pickle stability, while their import owner remains _public.
+        owners[name] = "auths._public" if owner == root.__name__ else owner
+        # Runtime type aliases report their implementation owner as `typing`,
+        # which is not where the public name can be imported from.
+        if name == "OperationState":
+            owners[name] = "auths._session"
+    lines = [_HEADER.replace("auths.__init__._OWNERS", "auths.__all__")]
     for name in sorted(owners):
         lines.append(f"from {owners[name]} import {name} as {name}\n")
     lines.append("\n__all__: list[str]\n")

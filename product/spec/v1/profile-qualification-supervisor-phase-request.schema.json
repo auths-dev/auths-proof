@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-supervisor-phase-request.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "sequence", "previousEventSha256", "scenarioId", "phaseIndex", "supervisorGeneration", "kind"],
+  "properties": {
+    "schema": {"const": "auths.qualification-supervisor-phase-request/1"},
+    "sequence": {"type": "integer", "minimum": 1, "maximum": 16384},
+    "previousEventSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "scenarioId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+    "phaseIndex": {"type": "integer", "minimum": 1, "maximum": 8},
+    "supervisorGeneration": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+    "kind": {"enum": ["scenario-started", "scenario-completed"]}
+  }
+}

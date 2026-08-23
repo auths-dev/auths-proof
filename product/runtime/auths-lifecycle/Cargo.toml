@@ -15,6 +15,7 @@ test-support = ["std"]
 
 [dependencies]
 auths-bounded-policy.workspace = true
+base64ct.workspace = true
 postcard.workspace = true
 serde.workspace = true
 sha2.workspace = true

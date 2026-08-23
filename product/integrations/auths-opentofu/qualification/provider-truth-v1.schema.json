@@ -1,0 +1,5 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://auths.dev/spec/v1/opentofu-qualification-provider-truth.schema.json",
+  "type":"object","additionalProperties":false,"required":["workspaceSha256","planSha256","artifactSha256","stateLineageSha256","beforeSerial","afterSerial","appliedMarkerSha256","applied"],
+  "properties":{"workspaceSha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},"planSha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},"artifactSha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},"stateLineageSha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},"beforeSerial":{"type":"integer","minimum":0},"afterSerial":{"type":"integer","minimum":0},"appliedMarkerSha256":{"type":["string","null"],"pattern":"^[0-9a-f]{64}$"},"applied":{"type":"boolean"}}
+}

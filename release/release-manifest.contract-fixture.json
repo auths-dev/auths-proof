@@ -15,9 +15,9 @@
   "builder": {
     "workflow": "auths-dev/auths-proof/.github/workflows/release-builder.yml",
     "workflowDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-    "environment": "release-candidate",
+    "environment": null,
     "oidcIssuer": "https://token.actions.githubusercontent.com",
-    "oidcSubject": "repo:auths-dev@260513770/auths-proof@1310728509:environment:release-candidate",
+    "oidcSubject": "repo:auths-dev@260513770/auths-proof@1310728509:ref:refs/heads/main",
     "slsaTarget": "SLSA 1.2 Build Level 3",
     "slsaAssessmentStatus": "passed",
     "slsaAssessment": {

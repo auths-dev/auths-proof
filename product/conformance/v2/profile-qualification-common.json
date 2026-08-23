@@ -1,0 +1,594 @@
+{
+  "schema": "auths.profile-qualification-scenarios/2",
+  "domain": "common",
+  "programs": [
+    {
+      "id": "boundary-plus-one",
+      "cases": [
+        {
+          "caseId": "rejected",
+          "intentId": "rejected",
+          "stimulus": "encoded-canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "changed-input-conflict",
+      "cases": [
+        {
+          "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        },
+        {
+          "caseId": "changed-input",
+          "intentId": "primary",
+          "stimulus": "changed-input",
+          "role": "effect",
+          "group": 2,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "conflict",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "configuration-mismatch",
+      "cases": [
+        {
+          "caseId": "rejected",
+          "intentId": "rejected",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "connection-substitution",
+      "cases": [
+        {
+          "caseId": "rejected",
+          "intentId": "rejected",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "crash-after-command",
+      "cases": [
+        {
+          "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "failpoint",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "primary",
+          "stage": "before-call",
+          "hook": "crash-after-command"
+        }
+      ]
+    },
+    {
+      "id": "crash-after-decision",
+      "cases": [
+        {
+          "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "failpoint",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "primary",
+          "stage": "before-call",
+          "hook": "crash-after-decision"
+        }
+      ]
+    },
+    {
+      "id": "crash-after-entry-marker",
+      "cases": [
+        {
+          "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "failpoint",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "primary",
+          "stage": "before-call",
+          "hook": "crash-after-entry-marker"
+        }
+      ]
+    },
+    {
+      "id": "crash-after-execution-receipt",
+      "cases": [
+        {
+          "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "failpoint",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "primary",
+          "stage": "before-call",
+          "hook": "crash-after-execution-receipt"
+        }
+      ]
+    },
+    {
+      "id": "crash-after-lease",
+      "cases": [
+        {
+          "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "failpoint",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "primary",
+          "stage": "before-call",
+          "hook": "crash-after-lease"
+        }
+      ]
+    },
+    {
+      "id": "crash-after-observation",
+      "cases": [
+        {
+          "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "failpoint",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "primary",
+          "stage": "before-call",
+          "hook": "crash-after-observation"
+        }
+      ]
+    },
+    {
+      "id": "crash-after-provider-result",
+      "cases": [
+        {
+          "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "failpoint",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "primary",
+          "stage": "before-call",
+          "hook": "crash-after-provider-result"
+        }
+      ]
+    },
+    {
+      "id": "crash-after-request-write",
+      "cases": [
+        {
+          "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "failpoint",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "primary",
+          "stage": "before-call",
+          "hook": "crash-after-request-write"
+        }
+      ]
+    },
+    {
+      "id": "crash-after-reread",
+      "cases": [
+        {
+          "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "failpoint",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "primary",
+          "stage": "before-call",
+          "hook": "crash-after-reread"
+        }
+      ]
+    },
+    {
+      "id": "crash-after-reservation",
+      "cases": [
+        {
+          "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "failpoint",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "primary",
+          "stage": "before-call",
+          "hook": "crash-after-reservation"
+        }
+      ]
+    },
+    {
+      "id": "crash-after-terminal",
+      "cases": [
+        {
+          "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "failpoint",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "primary",
+          "stage": "before-call",
+          "hook": "crash-after-terminal"
+        }
+      ]
+    },
+    {
+      "id": "crash-before-decision",
+      "cases": [
+        {
+          "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "failpoint",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "primary",
+          "stage": "before-call",
+          "hook": "crash-before-decision"
+        }
+      ]
+    },
+    {
+      "id": "exact-boundary",
+      "cases": [
+        {
+          "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "happy-path",
+      "cases": [
+        {
+          "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "malformed-input",
+      "cases": [
+        {
+          "caseId": "duplicate-field",
+          "intentId": "duplicate-field",
+          "stimulus": "duplicate-field",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "missing-field",
+          "intentId": "missing-field",
+          "stimulus": "missing-field",
+          "role": "effect",
+          "group": 2,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "noncanonical-integer",
+          "intentId": "noncanonical-integer",
+          "stimulus": "noncanonical-integer",
+          "role": "effect",
+          "group": 3,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "unknown-field",
+          "intentId": "unknown-field",
+          "stimulus": "unknown-field",
+          "role": "effect",
+          "group": 4,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "principal-substitution",
+      "cases": [
+        {
+          "caseId": "rejected",
+          "intentId": "rejected",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "provider-denial",
+      "cases": [
+        {
+          "caseId": "denied",
+          "intentId": "denied",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "denied",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "quota-final-capacity",
+      "cases": [
+        {
+          "caseId": "contender-a",
+          "intentId": "contender-a",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "parallel",
+          "expectation": "group-multiset",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        },
+        {
+          "caseId": "contender-b",
+          "intentId": "contender-b",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "parallel",
+          "expectation": "group-multiset",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "replay",
+      "cases": [
+        {
+          "caseId": "fresh",
+          "intentId": "fresh",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        },
+        {
+          "caseId": "replay",
+          "intentId": "fresh",
+          "stimulus": "replay",
+          "role": "effect",
+          "group": 2,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "stale-evidence",
+      "cases": [
+        {
+          "caseId": "fresh-edge",
+          "intentId": "fresh-edge",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        },
+        {
+          "caseId": "stale",
+          "intentId": "stale",
+          "stimulus": "stale-evidence",
+          "role": "effect",
+          "group": 2,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    }
+  ]
+}

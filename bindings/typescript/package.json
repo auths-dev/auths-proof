@@ -11,29 +11,35 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./identity": {
-      "types": "./dist/identity.d.ts",
-      "import": "./dist/identity.js"
-    },
     "./verify": {
       "types": "./dist/verify.d.ts",
       "import": "./dist/verify.js"
     },
-    "./service": {
-      "types": "./dist/service.d.ts",
-      "import": "./dist/service.js"
+    "./identity": {
+      "types": "./dist/identity.d.ts",
+      "import": "./dist/identity.js"
     },
-    "./profiles": {
-      "types": "./dist/profiles.d.ts",
-      "import": "./dist/profiles.js"
+    "./identity/authoring": {
+      "types": "./dist/identity/authoring.d.ts",
+      "import": "./dist/identity/authoring.js"
     },
-    "./integrations": {
-      "types": "./dist/integrations.d.ts",
-      "import": "./dist/integrations.js"
+    "./identity/adapters": {
+      "types": "./dist/identity/adapters.d.ts",
+      "import": "./dist/identity/adapters.js"
     },
-    "./framework": {
-      "types": "./dist/framework.d.ts",
-      "import": "./dist/framework.js"
+    "./adapters": {
+      "types": "./dist/adapters.d.ts",
+      "import": "./dist/adapters.js"
+    },
+    "./protocol": {
+      "types": "./dist/protocol.d.ts",
+      "import": "./dist/protocol.js"
+    },
+    "./profile-runtime": {
+      "node": {
+        "types": "./dist/profile-runtime.d.ts",
+        "import": "./dist/profile-runtime.js"
+      }
     },
     "./testkit": {
       "types": "./dist/testkit/index.d.ts",
@@ -70,7 +76,7 @@
     "test:integration:built": "npm run build && node tools/run-tests.mjs integration",
     "test:package": "npm run build && node tools/run-tests.mjs package",
     "test:packed": "npm run test:package && npm run test:browser",
-    "test:sealed": "npm run build && node --test test/integration/verifier.test.js test/integration/diagnostic.test.js test/integration/non-forgeability.test.js test/integration/inspection.test.js",
+    "test:sealed": "npm run build && node --test test/unit/public-api-v2.test.js",
     "test:unit": "npm run build && node tools/run-tests.mjs unit"
   },
   "devDependencies": {
@@ -79,6 +85,6 @@
     "typescript": "5.9.3"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.6.0"
   }
 }

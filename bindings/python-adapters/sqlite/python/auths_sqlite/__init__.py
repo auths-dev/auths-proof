@@ -7,7 +7,7 @@ import sqlite3
 from pathlib import Path
 from typing import Literal, Union
 
-from auths.framework import AtomicReservationRecord
+from auths.adapters.reservations import ReservationRecord
 
 
 class SQLiteAtomicReservationStore:
@@ -16,13 +16,25 @@ class SQLiteAtomicReservationStore:
         self._closed = False
         self._initialize()
 
+    @property
+    def contract(self) -> Literal["atomic-reservation-store/2"]:
+        return "atomic-reservation-store/2"
+
+    @property
+    def kind(self) -> str:
+        return "auths.sqlite.atomic-reservation"
+
+    @property
+    def durability(self) -> Literal["single-machine-durable"]:
+        return "single-machine-durable"
+
     async def reserve(
-        self, record: AtomicReservationRecord
+        self, record: ReservationRecord
     ) -> Literal["acquired", "exact-replay", "conflict"]:
         if self._closed:
             raise RuntimeError("atomic reservation store is closed")
         if (
-            type(record) is not AtomicReservationRecord
+            type(record) is not ReservationRecord
             or not record.key
             or len(record.key.encode()) > 256
             or len(record.commitment) != 32
@@ -57,7 +69,7 @@ class SQLiteAtomicReservationStore:
             )
 
     def _reserve(
-        self, record: AtomicReservationRecord
+        self, record: ReservationRecord
     ) -> Literal["acquired", "exact-replay", "conflict"]:
         with self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")

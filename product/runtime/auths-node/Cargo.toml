@@ -6,24 +6,61 @@ license.workspace = true
 rust-version.workspace = true
 description = "Hardened open reference node for the Auths production contract"
 publish = false
+autobins = false
+
+[[bin]]
+name = "auths"
+path = "src/bin/auths-production.rs"
+
+[features]
+qualification-failpoints = [
+    "auths-connections/qualification-broker",
+    "auths-opentofu/qualification",
+    "auths-postgresql/qualification",
+    "auths-stores/qualification-evidence",
+    "auths-stripe/qualification",
+]
+testkit-agent = ["auths-stripe/testkit-agent"]
+
+[[bin]]
+name = "auths-qualification-agent"
+path = "src/bin/auths-qualification-agent.rs"
+required-features = ["qualification-failpoints"]
+
+[[bin]]
+name = "auths-testkit-agent"
+path = "src/bin/auths-testkit-agent.rs"
+required-features = ["testkit-agent"]
 
 [dependencies]
+async-trait.workspace = true
 auths-author = { workspace = true, features = ["std"] }
 auths-codec.workspace = true
+auths-config.workspace = true
+auths-connections.workspace = true
 auths-did-key = { workspace = true, features = ["std"] }
 auths-did-keri = { workspace = true, features = ["std"] }
 auths-errors.workspace = true
+auths-lifecycle.workspace = true
 auths-model.workspace = true
 auths-operations.workspace = true
 auths-operations-otel.workspace = true
 auths-ports.workspace = true
 auths-production-client.workspace = true
+auths-profile-kit.workspace = true
+auths-profile-runtime.workspace = true
+auths-receipts.workspace = true
+auths-opentofu.workspace = true
+auths-postgresql.workspace = true
 auths-raw-key.workspace = true
 auths-registries = { workspace = true, features = ["std"] }
 auths-signature.workspace = true
+auths-stripe.workspace = true
+auths-stores.workspace = true
 auths-verifier.workspace = true
 axum.workspace = true
 base64ct.workspace = true
+clap.workspace = true
 ed25519-dalek.workspace = true
 getrandom.workspace = true
 hex.workspace = true
@@ -31,13 +68,18 @@ minicbor.workspace = true
 postgres.workspace = true
 rustls.workspace = true
 rustls-pki-types.workspace = true
+rustix = { workspace = true, features = ["stdio"] }
 serde.workspace = true
 serde_json.workspace = true
+serde_json_canonicalizer.workspace = true
 sha2.workspace = true
+thiserror.workspace = true
+tempfile.workspace = true
 tokio.workspace = true
 tokio-postgres-rustls.workspace = true
 toml.workspace = true
 tower-http = { workspace = true, features = ["limit", "request-id", "timeout", "trace"] }
+zeroize.workspace = true
 
 [dev-dependencies]
 auths-did-web.workspace = true
@@ -45,7 +87,6 @@ auths-hsm-attested.workspace = true
 auths-spiffe-x509.workspace = true
 auths-testkit.workspace = true
 auths-webauthn.workspace = true
-tempfile.workspace = true
 tower.workspace = true
 
 [lints]

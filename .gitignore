@@ -1,6 +1,10 @@
 /target/
+/target-codex/
 /formal/.lake/
 /fuzz/target/
+**/__pycache__/
+*.egg-info/
+bindings/generated/*/python/build/
 .DS_Store
 *.profraw
 *.profdata

@@ -20,15 +20,9 @@ from types import MappingProxyType
 from typing import Any, Final, Literal, Mapping, Optional, Sequence, Tuple, cast
 
 from ._error_registry import ERROR_REGISTRY, UNRECOGNIZED_CODE
+from ._public import AuthsError as _RootAuthsError
 
 AuthsErrorCode = str
-
-ProductVerb = Literal["create", "delegate", "execute", "resume", "verify"]
-"""`auths_errors::ProductVerb` -- the five product operations.
-
-The wire field is `verb`. The `step` spelling and any sixth verb are deleted:
-`sign` is a stage of `create`/`delegate`, and `recover` has no Rust owner.
-"""
 
 MAX_TOKEN_BYTES: Final = 128
 MAX_TEXT_BYTES: Final = 256
@@ -152,7 +146,7 @@ class AuthsErrorDetails:
         )
 
 
-class AuthsError(Exception):
+class AuthsError(_RootAuthsError):
     """The one Auths exception. Raised by every path that fails."""
 
     def __init__(self, details: AuthsErrorDetails) -> None:
@@ -236,11 +230,11 @@ class AuthsError(Exception):
         return self.details.reason
 
     @property
-    def retry(self) -> RetryClass:
+    def retry(self) -> RetryClass:  # type: ignore[override]
         return self.details.retry
 
     @property
-    def effect(self) -> EffectState:
+    def effect(self) -> EffectState:  # type: ignore[override]
         return self.details.effect
 
     @property
@@ -291,25 +285,15 @@ WORKFLOW_REASON_CODES: Final[Mapping[str, str]] = MappingProxyType(
         "delegation-expanded": "core.authorization-denied",
         "invalid-delegation": "core.authorization-denied",
         # Input and configuration.
-        "invalid-action": "core.malformed-input",
         "invalid-authority": "core.malformed-input",
         "invalid-principal": "core.unauthenticated-principal",
-        "invalid-profile": "core.invalid-configuration",
         "invalid-provider": "core.invalid-configuration",
         "invalid-trusted-authority": "core.invalid-configuration",
         "approval-policy-mismatch": "core.invalid-configuration",
-        "profile-mismatch": "core.invalid-configuration",
         # State.
         "disposed": "core.workflow-terminal",
-        "gateway-conflict": "core.runtime-conflict",
         "transaction-consumed": "core.runtime-conflict",
         "transaction-expired": "core.runtime-conflict",
-        # The gateway entered the provider and cannot prove the outcome. Both
-        # are `mcp.handler-failed`: effect `possible`, reconcile before retry.
-        "gateway-cancelled": "mcp.handler-failed",
-        "gateway-failed": "mcp.handler-failed",
-        # The binding believed something Rust guarantees.
-        "native-authorization-failed": "core.internal-invariant",
     }
 )
 """Which Rust-owned code names each workflow failure site.
@@ -738,7 +722,6 @@ __all__ = [
     "CauseCategory",
     "EffectState",
     "EnteredBoundaries",
-    "ProductVerb",
     "ProviderFailureKind",
     "ProviderOperationError",
     "RecommendedAction",

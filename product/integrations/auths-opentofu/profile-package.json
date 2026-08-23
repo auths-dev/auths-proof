@@ -1,0 +1,165 @@
+{
+  "schema": "auths.profile-package/1",
+  "domain": {
+    "id": "opentofu",
+    "clientClass": "OpenTofu",
+    "rustPackage": "auths-opentofu",
+    "typescriptPackage": "@auths-dev/profile-opentofu",
+    "pythonDistribution": "auths-profile-opentofu",
+    "pythonModule": "auths_profiles.opentofu",
+    "connection": {
+      "providerKind": "opentofu",
+      "contract": "auths.opentofu.connection/1",
+      "descriptorSchema": "auths.opentofu.connection-descriptor/1",
+      "sources": {
+        "specification": "docs/specs/0043-opentofu-connection.md",
+        "descriptor": "product/integrations/auths-opentofu/src/connection/descriptor.rs",
+        "onboarding": "product/integrations/auths-opentofu/src/connection/onboarding.rs",
+        "credentials": "product/integrations/auths-opentofu/src/connection/credentials.rs",
+        "adminRoutes": "product/integrations/auths-opentofu/src/connection/admin_routes.rs"
+      },
+      "evidence": {
+        "fixtures": "product/integrations/auths-opentofu/fixtures/connection/v1",
+        "conformance": "product/integrations/auths-opentofu/tests/connection_conformance.rs"
+      }
+    }
+  },
+  "api": "api/profile-api.json",
+  "qualification": {
+    "family": [
+      "auths.opentofu.plan-preflight/1",
+      "auths.opentofu.saved-plan-apply/1"
+    ],
+    "adapter": "opentofu",
+    "targets": [
+      "linux-x86_64"
+    ],
+    "protectedEnvironment": "qualification-opentofu",
+    "commonScenarios": "auths.profile-qualification-common/1",
+    "domainScenarios": "qualification/scenarios-v1.json",
+    "requirements": "qualification/requirements-v1.json",
+    "providerMatrix": "qualification/provider-matrix-v1.json",
+    "operationPlans": "qualification/operation-plans-v1.json",
+    "failpointCoverage": "qualification/failpoint-coverage-v1.json",
+    "providerTruthSchema": "qualification/provider-truth-v1.schema.json",
+    "profileStateSnapshot": "profiles/opentofu-prepared-plans-v1/records.json"
+  },
+  "profiles": [
+    {
+      "id": "auths.opentofu.plan-preflight",
+      "version": 1,
+      "semanticSubject": "auths.opentofu.plan-preflight/1",
+      "effectId": "opentofu.plan-preflight.create",
+      "client": {
+        "group": "plans",
+        "method": "create",
+        "inputType": "PlanPreflightInput",
+        "successType": "PreparedPlan",
+        "partialType": null,
+        "progressType": null
+      },
+      "contracts": {
+        "canonicalAction": "auths.opentofu.plan-preflight-action/1",
+        "evaluator": "auths.opentofu.plan-preflight.evaluate/1",
+        "lifecycle": "auths.opentofu.plan-preflight-lifecycle/1",
+        "provider": "auths.opentofu.protected-planner/1",
+        "receipt": "auths.opentofu.plan-preflight-receipt/1",
+        "credentialScope": "opentofu.plan-preflight.create/1",
+        "configurationFormat": "auths.opentofu.verifier-configuration/1",
+        "errorOwner": "opentofu-plan-preflight",
+        "errorOwnerVersion": 1
+      },
+      "limits": {
+        "requestBytes": 4194304,
+        "responseBytes": 262144,
+        "receiptCount": 4,
+        "receiptBytes": 65536,
+        "executionMilliseconds": 300000,
+        "admissionsPerMinute": 120,
+        "activePerPrincipal": 16,
+        "unresolvedPerPrincipal": 8,
+        "durableBytesPerPrincipal": 268435456,
+        "tombstonesPerPrincipal": 100000,
+        "terminalRetentionSeconds": 2592000,
+        "idempotencyRetentionSeconds": 2592000
+      },
+      "sources": {
+        "specification": "docs/specs/0043-opentofu-connection.md",
+        "action": "product/integrations/auths-opentofu/src/local_agent.rs",
+        "evaluator": "product/integrations/auths-opentofu/src/decision.rs",
+        "command": "product/integrations/auths-opentofu/src/local_agent.rs",
+        "lifecycle": "product/integrations/auths-opentofu/src/prepared_store.rs",
+        "gateway": "product/integrations/auths-opentofu/src/local_provider.rs",
+        "reconciliation": "product/integrations/auths-opentofu/src/local_provider.rs",
+        "receipt": "product/integrations/auths-opentofu/src/local_agent.rs",
+        "errors": "product/integrations/auths-opentofu/errors/plan-preflight-v1.json",
+        "errorMapping": "product/integrations/auths-opentofu/src/local_agent.rs"
+      },
+      "evidence": {
+        "fixtures": "product/integrations/auths-opentofu/tests/generated_profile_api.rs",
+        "mutationCorpus": "product/integrations/auths-opentofu/src/decision.rs",
+        "providerRequests": "product/integrations/auths-opentofu/src/local_provider.rs",
+        "demo": "demos/opentofu-plan",
+        "liveContract": "product/integrations/auths-opentofu/preflight-implementation.md"
+      }
+    },
+    {
+      "id": "auths.opentofu.saved-plan-apply",
+      "version": 1,
+      "semanticSubject": "auths.opentofu.saved-plan-apply/1",
+      "effectId": "opentofu.saved-plan.apply",
+      "client": {
+        "group": "saved-plans",
+        "method": "apply",
+        "inputType": "ApplyPreparedPlanInput",
+        "successType": "ApplyResult",
+        "partialType": null,
+        "progressType": null
+      },
+      "contracts": {
+        "canonicalAction": "auths.opentofu.saved-plan-action/1",
+        "evaluator": "auths.opentofu.saved-plan-apply.evaluate/1",
+        "lifecycle": "auths.opentofu.saved-plan-lifecycle/1",
+        "provider": "auths.opentofu.fixed-argv-saved-plan-apply/1",
+        "receipt": "auths.opentofu.apply-receipt/1",
+        "credentialScope": "opentofu.saved-plan.apply/1",
+        "configurationFormat": "auths.opentofu.verifier-configuration/1",
+        "errorOwner": "opentofu-saved-plan",
+        "errorOwnerVersion": 1
+      },
+      "limits": {
+        "requestBytes": 4096,
+        "responseBytes": 262144,
+        "receiptCount": 4,
+        "receiptBytes": 65536,
+        "executionMilliseconds": 300000,
+        "admissionsPerMinute": 120,
+        "activePerPrincipal": 16,
+        "unresolvedPerPrincipal": 8,
+        "durableBytesPerPrincipal": 268435456,
+        "tombstonesPerPrincipal": 100000,
+        "terminalRetentionSeconds": 2592000,
+        "idempotencyRetentionSeconds": 2592000
+      },
+      "sources": {
+        "specification": "docs/specs/0008-opentofu-saved-plan-apply.md",
+        "action": "product/integrations/auths-opentofu/src/action.rs",
+        "evaluator": "product/integrations/auths-opentofu/src/decision.rs",
+        "command": "product/integrations/auths-opentofu/src/executor.rs",
+        "lifecycle": "product/integrations/auths-opentofu/src/lifecycle.rs",
+        "gateway": "product/integrations/auths-opentofu/src/ports.rs",
+        "reconciliation": "product/integrations/auths-opentofu/src/observe.rs",
+        "receipt": "product/integrations/auths-opentofu/src/receipts.rs",
+        "errors": "product/integrations/auths-opentofu/errors/saved-plan-v1.json",
+        "errorMapping": "product/integrations/auths-opentofu/src/errors.rs"
+      },
+      "evidence": {
+        "fixtures": "demos/opentofu-plan",
+        "mutationCorpus": "product/integrations/auths-opentofu/src/action.rs",
+        "providerRequests": "product/integrations/auths-opentofu/src/provider_request.rs",
+        "demo": "demos/opentofu-plan",
+        "liveContract": "demos/opentofu-plan/tests/live-contract.mjs"
+      }
+    }
+  ]
+}

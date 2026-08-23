@@ -111,7 +111,6 @@ auths-composition = "core"
 auths-cross-company-incident-edgeshield-demo = "demos"
 auths-formal-refinement = "core"
 auths-github = "product"
-auths-github-demo = "demos"
 auths-config = "product"
 auths-custody = "product"
 auths-custody-aws-kms = "product"
@@ -143,6 +142,8 @@ auths-ports = "core"
 auths-profile-api = "product"
 auths-profile-domains = "product"
 auths-profile-kit = "product"
+auths-qualification-evidence-source = "product"
+auths-qualification-supervisor = "product"
 auths-bounded-policy = "product"
 auths-bounded-policy-fuzz = "product"
 auths-lifecycle = "product"
@@ -189,6 +190,8 @@ auths-receipts = "product"
 auths-registries = "core"
 auths-resolver-did-web = "product"
 auths-production-client = "product"
+auths-connections = "product"
+auths-profile-runtime = "product"
 auths-node = "product"
 auths-runtime = "product"
 auths = "core"
@@ -300,70 +303,77 @@ status = "permanent"
 reason = "Non-production local signer and receipt-attestor keys are mechanism state, while Rust owns every signed preimage and verification meaning."
 
 [[binding_semantics.allowances]]
-path = "bindings/typescript/src/integrations.ts"
-pattern = "getRandomValues"
-status = "permanent"
-reason = "The development composition creates local session entropy; Rust consumes the derived keys but the random source is an integration mechanism."
-
-[[binding_semantics.allowances]]
-path = "bindings/typescript/src/integrations.ts"
-pattern = "DataView"
-status = "permanent"
-reason = "The development-only key derivation length-prefixes a local role label and does not define an Auths protocol or customer evidence format."
-
-[[binding_semantics.allowances]]
-path = "bindings/typescript/src/integrations.ts"
-pattern = "crypto.subtle"
-status = "permanent"
-reason = "The development-only composition derives local deterministic mechanism keys; Rust continues to own all Auths commitments and signing preimages."
-
-[[binding_semantics.allowances]]
-path = "bindings/typescript/src/internal/development-store-node.ts"
-pattern = "getRandomValues"
-status = "permanent"
-reason = "Recoverable development state requires a local session secret; the random source is mechanism state and carries no portable Auths meaning."
-
-[[binding_semantics.allowances]]
-path = "bindings/typescript/src/internal/development-store-node.ts"
-pattern = "JSON.stringify"
-status = "permanent"
-reason = "The disposable development store encodes its private local record envelope; signed and semantic Auths bytes remain Rust-owned and opaque."
-
-[[binding_semantics.allowances]]
-path = "bindings/typescript/src/internal/development-store-node.ts"
-pattern = "crypto.subtle"
-status = "permanent"
-reason = "The disposable development store hashes private local record names; it does not create a protocol commitment or verification result."
-
-[[binding_semantics.allowances]]
 path = "bindings/typescript/src/internal/receipt-attestation.ts"
 pattern = "JSON.stringify"
 status = "permanent"
 reason = "The development receipt signer serializes a bounded private attestation envelope around Rust-owned receipt claims and is not a protocol codec."
 
 [[binding_semantics.allowances]]
-path = "bindings/typescript/src/profiles/mcp/index.ts"
-pattern = "JSON.stringify"
-status = "permanent"
-reason = "MCP handler results are bounded provider payloads; Rust owns the action, execution and receipt commitments rather than this provider representation."
-
-[[binding_semantics.allowances]]
-path = "bindings/python/python/auths/integrations.py"
-pattern = "hashlib"
-status = "permanent"
-reason = "The Python development composition hashes private local record names and derives mechanism keys without defining portable Auths semantics."
-
-[[binding_semantics.allowances]]
-path = "bindings/python/python/auths/integrations.py"
-pattern = "secrets."
-status = "permanent"
-reason = "The Python development composition creates local session and file entropy; the values are mechanism state and never Auths protocol meaning."
-
-[[binding_semantics.allowances]]
-path = "bindings/typescript/src/profiles/mcp/index.ts"
+path = "bindings/typescript/src/session.ts"
 pattern = "getRandomValues"
 status = "permanent"
-reason = "Fresh local entropy for one action challenge. Randomness cannot come from an effect-free kernel; the authoring ABI receives the challenge and rejects an invalid one, so Rust still owns the rule."
+reason = "The local transport creates a fresh correlation request ID; the agent validates it only for response binding and it grants no authority or provider access."
+
+[[binding_semantics.allowances]]
+path = "bindings/typescript/src/profile-runtime.ts"
+pattern = "getRandomValues"
+status = "permanent"
+reason = "A generated client creates a fresh correlation request ID; Rust owns all action commitments, idempotency meaning, effect classification, and recovery semantics."
+
+[[binding_semantics.allowances]]
+path = "bindings/typescript/src/profile-runtime.ts"
+pattern = "crypto.subtle"
+status = "permanent"
+reason = "The digest is only an in-process coalescing-table key over already canonical input; it is never sent, persisted, signed, or used to authorize provider access."
+
+[[binding_semantics.allowances]]
+path = "bindings/typescript/src/testkit/index.ts"
+pattern = "crypto.subtle"
+status = "permanent"
+reason = "The testkit derives deterministic fixture commitments and temporary conformance identifiers; these values provide test isolation and carry no production authority."
+
+[[binding_semantics.allowances]]
+path = "bindings/python/python/auths/_public.py"
+pattern = "hashlib"
+status = "permanent"
+reason = "Runtime diagnostics hash the generated Rust-owned error registry artifact for negotiation; receipt commitments themselves are computed and checked by native Rust."
+
+[[binding_semantics.allowances]]
+path = "bindings/python/python/auths/identity/authoring.py"
+pattern = "hashlib"
+status = "permanent"
+reason = "The raw-key authoring convenience derives the display identity identifier from the same public key whose canonical descriptor is constructed and validated by native Rust."
+
+[[binding_semantics.allowances]]
+path = "bindings/python/python/auths/_session.py"
+pattern = "os.urandom"
+status = "permanent"
+reason = "The local transport creates a fresh correlation request ID; the agent validates it only for response binding and it grants no authority or provider access."
+
+[[binding_semantics.allowances]]
+path = "bindings/python/python/auths/profile_runtime.py"
+pattern = "os.urandom"
+status = "permanent"
+reason = "A generated client creates a fresh correlation request ID; Rust owns all action commitments, idempotency meaning, effect classification, and recovery semantics."
+
+[[binding_semantics.allowances]]
+path = "bindings/python/python/auths/profile_runtime.py"
+pattern = "hashlib"
+status = "permanent"
+reason = "The digest is only an in-process coalescing-table key over already canonical input; it is never sent, persisted, signed, or used to authorize provider access."
+
+[[binding_semantics.allowances]]
+path = "bindings/python/python/auths/testkit.py"
+pattern = "hashlib"
+status = "permanent"
+reason = "The testkit hashes a timestamp solely to create an isolated conformance-store name; the value is test mechanism state and carries no authorization meaning."
+
+[[binding_semantics.allowances]]
+path = "bindings/python/python/auths/verify.py"
+pattern = "hashlib"
+status = "permanent"
+reason = "The verifier computes redacted host inspection digests after native verification; these diagnostic projections neither authorize an action nor alter the native decision."
+
 [[binding_semantics.allowances]]
 path = "bindings/typescript/src/profiles/application/index.ts"
 pattern = "getRandomValues"

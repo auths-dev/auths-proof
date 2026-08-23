@@ -3,19 +3,15 @@ export const SDK_RUNTIME_CONTRACT = Object.freeze({
   sdkVersion: "1.0.0-rc.1",
   authoringAbi: 1,
   identityAbi: 1,
-  profiles: Object.freeze({
-    "auths.mcp": 1,
-  }),
+  profiles: Object.freeze({}),
   capabilities: Object.freeze([
-    "authority.delegate",
-    "authority.plans",
     "diagnostics.doctor",
     "identity.compact-v2",
-    "inspection.safe-projection",
-    "runtime.closed-execution",
+    "local-agent.session-v1",
+    "profile-operation.v1",
+    "profile-runtime.v1",
     "verification.batch-v1",
     "verification.single-v1",
-    "workflow.approval",
   ]),
 });
 

@@ -1,0 +1,233 @@
+export const CONFORMANCE_CATALOG_V2 = {
+  "schema": "auths.mechanism-profile-conformance/2",
+  "suiteVersion": 2,
+  "semanticSubject": "auths.mechanism-profile-conformance/2",
+  "contracts": [
+    {
+      "contract": "signer-custody",
+      "classification": "candidate-mechanism",
+      "evidence": [
+        "auths.mcp/2",
+        "auths.records/1"
+      ],
+      "disposition": "publish-framework"
+    },
+    {
+      "contract": "atomic-reservation-store",
+      "classification": "candidate-mechanism",
+      "evidence": [
+        "auths.mcp/2",
+        "auths.records/1"
+      ],
+      "disposition": "publish-framework"
+    },
+    {
+      "contract": "bounded-byte-transport",
+      "classification": "candidate-mechanism",
+      "evidence": [
+        "auths.remote-verification/1",
+        "auths.github.issue-address/2"
+      ],
+      "disposition": "retain-integrations"
+    },
+    {
+      "contract": "approval-transaction",
+      "classification": "candidate-mechanism",
+      "evidence": [
+        "auths.mcp/2"
+      ],
+      "disposition": "retain-internal"
+    },
+    {
+      "contract": "provider-gateway",
+      "classification": "profile-owned",
+      "evidence": [
+        "auths.mcp/2",
+        "auths.github.issue-address/2"
+      ],
+      "disposition": "retain-profile"
+    },
+    {
+      "contract": "provider-result",
+      "classification": "profile-owned",
+      "evidence": [
+        "auths.mcp/2",
+        "auths.github.issue-address/2"
+      ],
+      "disposition": "retain-profile"
+    },
+    {
+      "contract": "reconciliation",
+      "classification": "profile-owned",
+      "evidence": [
+        "auths.mcp/2",
+        "auths.github.issue-address/2"
+      ],
+      "disposition": "retain-profile"
+    }
+  ],
+  "suites": [
+    {
+      "id": "signer-custody/2",
+      "owner": "mechanism",
+      "cases": [
+        {
+          "id": "signer/transaction-binding",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/principal-binding",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/descriptor-binding",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/key-version-binding",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/object-binding",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/request-binding",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/expiry",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/duplicate",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/canonical-signature",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/evidence-binding",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/denied",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/cancelled",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/throttled",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/unavailable",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/revoked-key",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/disabled-key",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/provider-unknown",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/invalid-response",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/concurrent-reordering",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/disposal",
+          "classification": "deterministic"
+        },
+        {
+          "id": "signer/redaction",
+          "classification": "deterministic"
+        }
+      ]
+    },
+    {
+      "id": "atomic-reservation-store/2",
+      "owner": "mechanism",
+      "cases": [
+        {
+          "id": "atomic-store/acquire",
+          "classification": "deterministic"
+        },
+        {
+          "id": "atomic-store/exact-replay",
+          "classification": "deterministic"
+        },
+        {
+          "id": "atomic-store/conflict",
+          "classification": "deterministic"
+        },
+        {
+          "id": "atomic-store/concurrent-single-winner",
+          "classification": "deterministic"
+        },
+        {
+          "id": "atomic-store/bounded-record",
+          "classification": "deterministic"
+        },
+        {
+          "id": "atomic-store/isolated-instances",
+          "classification": "deterministic"
+        },
+        {
+          "id": "atomic-store/reopen-durability-claim",
+          "classification": "deterministic"
+        },
+        {
+          "id": "atomic-store/cancel-after-acquire",
+          "classification": "deterministic"
+        },
+        {
+          "id": "atomic-store/disposal",
+          "classification": "deterministic"
+        }
+      ]
+    },
+    {
+      "id": "bounded-byte-transport/2",
+      "owner": "mechanism",
+      "cases": [
+        {
+          "id": "byte-transport/exact-route-and-bytes",
+          "classification": "deterministic"
+        },
+        {
+          "id": "byte-transport/bounded-input",
+          "classification": "deterministic"
+        },
+        {
+          "id": "byte-transport/bounded-output",
+          "classification": "deterministic"
+        },
+        {
+          "id": "byte-transport/deadline",
+          "classification": "deterministic"
+        },
+        {
+          "id": "byte-transport/cancellation",
+          "classification": "deterministic"
+        },
+        {
+          "id": "byte-transport/disposal",
+          "classification": "deterministic"
+        }
+      ]
+    }
+  ]
+} as const;

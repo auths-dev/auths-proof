@@ -1,25 +1,14 @@
 {
-  "schema": "auths.python-adapter-contracts/1",
+  "schema": "auths.python-adapter-contracts/2",
   "package": "auths",
-  "contractVersion": 1,
+  "contractVersion": 2,
   "ports": {
-    "signer": 1,
-    "approval": 1,
+    "custodySigner": 2,
+    "reservationStore": 2,
+    "boundedTransport": 2,
     "identityMethod": 1,
     "signatureSuite": 1,
-    "identityResolver": 1,
-    "evidenceProvider": 1,
-    "statusProvider": 1,
-    "clock": 1,
-    "challengeStore": 1,
-    "budgetStore": 1,
-    "commandStore": 1,
-    "receiptStore": 1,
-    "telemetry": 1,
-    "gateway": 1,
-    "reconciler": 1,
-    "transport": 1,
-    "framework": 1
+    "identityResolver": 1
   },
   "qualification": {
     "required": [

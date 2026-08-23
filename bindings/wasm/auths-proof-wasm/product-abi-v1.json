@@ -8,14 +8,7 @@
     "verifyBatchV1",
     "configurationV1",
     "classifyErrorCodeV1",
-    "productionClientContractVersionV1",
-    "encodeProductionRequestV1",
-    "decodeProductionRequestV1",
-    "decodeProductionResponseV1",
-    "encodeProductionDelegationV1",
     "projectSdkEventV2",
-    "prepareAuthorizedDecisionReceiptV1",
-    "prepareApplicationExecutionReceiptV1",
     "attestDecisionReceiptV1",
     "attestExecutionReceiptV1",
     "verifyRawKeyReceiptV1",
@@ -26,7 +19,6 @@
     "developmentEd25519PublicKeyV1"
   ],
   "types": [
-    "ReceiptPreparationV1",
     "ProfileReceiptBindingsV1"
   ],
   "errorEnvelope": {

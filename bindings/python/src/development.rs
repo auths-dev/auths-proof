@@ -83,6 +83,11 @@ impl PyDevelopmentEd25519Key {
         PyBytes::new(py, &self.evidence)
     }
 
+    #[getter]
+    fn public_key<'py>(&self, py: Python<'py>) -> Bound<'py, PyBytes> {
+        PyBytes::new(py, self.signing_key.verifying_key().as_bytes())
+    }
+
     fn sign<'py>(&self, py: Python<'py>, preimage: &[u8]) -> Bound<'py, PyBytes> {
         let signature = self.signing_key.sign(preimage).to_bytes();
         PyBytes::new(py, &signature)

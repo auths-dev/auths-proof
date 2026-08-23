@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-receipts-report.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "binding", "language", "portableReceiptSchema", "operations", "status"],
+  "properties": {
+    "schema": {"const": "auths.profile-qualification-receipts-report/1"},
+    "binding": {"$ref": "profile-qualification-report-common.schema.json#/$defs/binding"},
+    "language": {"enum": ["rust", "python", "typescript"]},
+    "portableReceiptSchema": {"const": "auths.portable-receipt/1"},
+    "status": {"const": "passed"},
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "uniqueItems": true,
+      "x-auths-byteSortedBy": "operationId",
+      "items": {"$ref": "#/$defs/operation"}
+    }
+  },
+  "$defs": {
+    "receiptId": {"type": "string", "pattern": "^rcpt_[A-Za-z0-9_-]{43}$"},
+    "nullableReceiptId": {"oneOf": [{"$ref": "#/$defs/receiptId"}, {"type": "null"}]},
+    "nullableVerificationMethod": {"oneOf": [{"$ref": "profile-qualification.schema.json#/$defs/verificationMethod"}, {"type": "null"}]},
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operationId", "state", "decisionReceiptId", "executionReceiptId", "decisionVerificationMethod", "executionVerificationMethod", "linked", "profileClaimsMatch"],
+      "properties": {
+        "operationId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+        "state": {"enum": ["none", "decision-only", "linked-execution"]},
+        "decisionReceiptId": {"$ref": "#/$defs/nullableReceiptId"},
+        "executionReceiptId": {"$ref": "#/$defs/nullableReceiptId"},
+        "decisionVerificationMethod": {"$ref": "#/$defs/nullableVerificationMethod"},
+        "executionVerificationMethod": {"$ref": "#/$defs/nullableVerificationMethod"},
+        "linked": {"type": "boolean"},
+        "profileClaimsMatch": {"const": true}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"state": {"const": "none"}}, "required": ["state"]},
+          "then": {"properties": {"decisionReceiptId": {"type": "null"}, "executionReceiptId": {"type": "null"}, "decisionVerificationMethod": {"type": "null"}, "executionVerificationMethod": {"type": "null"}, "linked": {"const": false}}}
+        },
+        {
+          "if": {"properties": {"state": {"const": "decision-only"}}, "required": ["state"]},
+          "then": {"properties": {"decisionReceiptId": {"$ref": "#/$defs/receiptId"}, "executionReceiptId": {"type": "null"}, "decisionVerificationMethod": {"$ref": "profile-qualification.schema.json#/$defs/verificationMethod"}, "executionVerificationMethod": {"type": "null"}, "linked": {"const": false}}}
+        },
+        {
+          "if": {"properties": {"state": {"const": "linked-execution"}}, "required": ["state"]},
+          "then": {"properties": {"decisionReceiptId": {"$ref": "#/$defs/receiptId"}, "executionReceiptId": {"$ref": "#/$defs/receiptId"}, "decisionVerificationMethod": {"$ref": "profile-qualification.schema.json#/$defs/verificationMethod"}, "executionVerificationMethod": {"$ref": "profile-qualification.schema.json#/$defs/verificationMethod"}, "linked": {"const": true}}}
+        }
+      ]
+    }
+  },
+  "x-auths-semanticValidator": "profile-qualification-receipts-report/1"
+}

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-release-provenance-verification.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "verificationTool", "repositoryId", "sourceRepositoryUri", "sourceRepositoryDigest", "sourceRepositoryRef", "signerWorkflowUri", "signerWorkflowDigest", "oidcIssuer", "runnerEnvironment", "runnerInvocationUri", "predicateType", "subjectName", "subjectSha256", "verifiedTimestampsSha256", "rawVerificationSha256", "provenanceBundleSha256", "trustedRootSha256", "verifierSha256", "verifierVersion", "releaseBuildVerifierSha256"],
+  "properties": {
+    "schema": {"const": "auths.qualification-release-provenance-verification/1"},
+    "verificationTool": {"const": "gh-attestation-verify"},
+    "repositoryId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+    "sourceRepositoryUri": {"const": "https://github.com/auths-dev/auths-proof"},
+    "sourceRepositoryDigest": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+    "sourceRepositoryRef": {"const": "refs/heads/main"},
+    "signerWorkflowUri": {"const": "https://github.com/auths-dev/auths-proof/.github/workflows/release-builder.yml@refs/heads/main"},
+    "signerWorkflowDigest": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+    "oidcIssuer": {"const": "https://token.actions.githubusercontent.com"},
+    "runnerEnvironment": {"const": "github-hosted"},
+    "runnerInvocationUri": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^https://github\\.com/auths-dev/auths-proof/actions/runs/[0-9]+/attempts/[1-9][0-9]*$"},
+    "predicateType": {"const": "https://slsa.dev/provenance/v1"},
+    "subjectName": {"const": "release-build.json"},
+    "subjectSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "verifiedTimestampsSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "rawVerificationSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "provenanceBundleSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "trustedRootSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "verifierSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "verifierVersion": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "releaseBuildVerifierSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"}
+  }
+}

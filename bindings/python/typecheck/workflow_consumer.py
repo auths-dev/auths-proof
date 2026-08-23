@@ -1,9 +1,7 @@
-from auths import Auths
-from auths.profiles import McpToolAuthority
+from auths.protocol import RemoteVerifier
+from auths.verify import AuthorizedVerification, VerificationInput
 
 
-async def delegate_narrower(
-    auths: Auths,
-    authority: McpToolAuthority,
-) -> Auths:
-    return await auths.delegate(authority=authority, name="records-child")
+async def authorize(verifier: RemoteVerifier, value: VerificationInput) -> bool:
+    result = await verifier.verify(value)
+    return isinstance(result, AuthorizedVerification)

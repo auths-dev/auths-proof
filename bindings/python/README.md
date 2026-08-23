@@ -1,116 +1,133 @@
 # `auths`
 
-Auths proves what software may do, executes the exact protected action through
-a closed profile, and leaves a verifiable receipt.
+Auths lets an application call a protected provider operation through a local
+agent. The application selects a non-secret connection alias; the agent owns
+authorization, provider credentials, durable execution, recovery, and
+receipts.
 
 ## Install
 
 ```bash
-pip install auths
+pip install auths auths-profile-stripe
 ```
 
 Published wheels include the native implementation. Consumers do not need a
 Rust toolchain.
 
-## Protect one MCP action
+## Application API shape
+
+The generated clients below are the intended Stripe-like application surface.
+In this revision the real Stripe, PostgreSQL, and OpenTofu routes remain
+unqualified and are therefore not advertised by a production agent. Only the
+separately built synthetic testkit agent exposes the Stripe-shaped route.
 
 ```python
-from auths.integrations import development
-from auths.profiles import mcp
+import auths
+from auths_profiles.stripe import Stripe
 
 
-async def publish_report(arguments: dict[str, object]) -> object:
-    return {"published": True, "arguments": arguments}
-
-
-provider = mcp.development_provider(tools={"publish_report": publish_report})
-async with development.create_auths(
-    authority=mcp.allow_tools(("publish_report",)),
-) as auths:
-    result = await auths.execute(
-        action=mcp.call_tool(
-            name="publish_report",
-            arguments={"period": "weekly"},
-        ),
-        provider=provider,
+async with auths.connect() as session:
+    stripe = Stripe(session, connection="billing")
+    refund = await stripe.refunds.create(
+        payment_intent="pi_123",
+        amount=2_000,
+        currency="usd",
     )
-    print(result)
+    print(refund.id, refund.auths.receipt_ids)
 ```
 
-## Use a production runtime
+That is the application contract: connect to the local Auths agent, choose
+a generated domain client and optional connection alias, then call the domain
+method. There is no Auths application token, remote executor URL, or provider
+credential in application code. `AUTHS_AGENT_SOCKET` is optional non-secret
+local discovery configuration.
+
+The same open session can be shared by generated Stripe, PostgreSQL, OpenTofu,
+and future domain packages. Each package owns its domain vocabulary and typed
+results; the root SDK stays domain-neutral.
+
+Profiles that need trusted provider-derived evidence expose a typed preflight
+instead of accepting an untrusted provider artifact. For example, OpenTofu
+protects planning before it permits apply:
 
 ```python
-from auths.service import GitHubAgentTask, create_github_agent_client
+from auths_profiles.opentofu import OpenTofu, SourceFile
 
-auths = create_github_agent_client(endpoint="https://executor.example")
-boundary = await auths.boundary()
-task = await auths.delegate(GitHubAgentTask(
-    repository=boundary.repository,
-    issue_number=boundary.issue_number,
-    base_ref=boundary.base_ref,
-    base_revision=boundary.base_revision,
-    allowed_paths=boundary.allowed_paths,
-    protected_paths=boundary.protected_paths,
-    expires_in_seconds=boundary.maximum_expiry_seconds,
-    branch_budget=1,
-    draft_pull_request_budget=1,
-    agent_label="issue-agent",
-))
+
+opentofu = OpenTofu(session, connection="production")
+plan = await opentofu.plans.create(
+    source_files=(SourceFile(path="main.tf", contents="..."),),
+    variables=(),
+    dependency_lock="...",
+    modules=(),
+    workspace="production",
+)
+result = await opentofu.saved_plans.apply(prepared_plan=plan.prepared_plan)
 ```
 
-Continue with a candidate bundle file using the maintained
-[GitHub quickstart](../../docs/product/PRODUCTION_SDK_QUICKSTART.md). No
-protocol bytes or GitHub credential enter application code.
+The opaque prepared-plan token is bound to the workload, connection generation,
+configuration, backend state, and exact plan. The application never supplies
+provider credentials or asserts that its own plan is trusted.
 
-## Public modules
+For operator provisioning and clean-machine setup, see the
+[local-agent quickstart](../../docs/product/LOCAL_AGENT_SDK_QUICKSTART.md).
+For a new domain or provider kind, follow the
+[profile authoring guide](../../docs/product/PROFILE_AUTHORING.md).
 
-One wheel provides the same progressive topology as TypeScript:
+## Outcomes and recovery
 
-| Import | Purpose |
-| --- | --- |
-| `auths` | create, delegate, execute, resume, product results and errors |
-| `auths.identity` | standalone identity decoding and authentication |
-| `auths.verify` | effect-free proof, decision and receipt verification |
-| `auths.service` | generic five-verb operator-runtime transport |
-| `auths.profiles` | qualified MCP, OpenTofu, PostgreSQL and GitHub effect domains |
-| `auths.integrations` | maintained compositions and mechanism adapters |
-| `auths.framework` | proven signer and atomic-reservation contracts |
-| `auths.testkit` | deterministic fixtures and conformance suites |
+The ordinary domain method returns its success DTO directly. Use the adjacent
+`*_outcome` method when the application needs exhaustive handling of denial,
+conflict, partial completion, or durable recovery. Recovery handles and
+receipts are opaque SDK values and cannot be forged by constructing a dict.
+Each execution receipt is one canonical, self-contained container with its
+linked signed decision embedded; offline verification never needs a separate
+companion receipt argument.
 
-All public modules have explicit `__all__` and typed installed-wheel coverage.
-The root does not re-export the other modules. Internal security machinery
-remains private.
+```python
+outcome = await stripe.refunds.create_outcome(
+    payment_intent="pi_123",
+    amount=2_000,
+    currency="usd",
+)
+if isinstance(outcome, Completed):
+    print(outcome.value.id)
+elif isinstance(outcome, RecoveryRequired):
+    recovered = await stripe.refunds.recover(outcome.recovery)
+```
 
-## Identity without capabilities
+## Public compatibility surfaces
 
-`auths.identity` is independent of grants, approvals and execution. It carries
-method- and suite-labelled identity data without forcing an application into
-the protected workflow.
+`auths` contains the stable application session, operation, error, receipt,
+and recovery types. `auths.profile_runtime` is also public and versioned, but
+it is an extension compatibility surface for generated domain distributions,
+not a generic caller-defined execution API. Applications normally import only
+`auths` and one or more `auths_profiles.<domain>` packages.
 
-## Verification without effects
+Effect-free verification and identity helpers remain available at
+`auths.verify` and `auths.identity`. The exact installed module inventory is
+frozen in `api/public-api.txt` and `bindings/public-topology-v1.json`.
 
-`auths.verify` is deterministic and effect-free. Verification never becomes
-authorization and returns no executable handle. Differential tools belong to
-`auths.testkit`.
-
-## Resource ownership
-
-Use `async with` for the normal path. Explicit `await auths.aclose()` is also
-supported for applications that cannot use a context manager. Both forms are
-idempotent and close owned signers and native sessions.
-
-## Production boundary
-
-The development composition uses ephemeral keys and in-memory state. The
-generic remote client and the profile-specific GitHub launch path live at
-`auths.service`. Provider credentials remain behind
-the Rust profile gateway and are acquired only after Auths has authorized and
-durably claimed the exact action.
-
-Supported Python, platform, ABI and semantic-subject claims are recorded in
-`sdk-runtime-contract.json`. Public API and wheel-content snapshots reject
-undeclared or obsolete prelaunch modules.
-
-Run `python -m auths doctor` to inspect bounded installed runtime, ABI and
+Run `python -m auths doctor` to inspect bounded installed runtime, ABI, and
 profile facts. The report never reads application secrets or prints protocol
 payloads.
+
+The wheel's effect-free APIs support Windows. The stateful Unix-socket
+transport is implemented on macOS and Linux, while real provider profiles
+remain qualification-gated. Windows fails closed pending the named-pipe
+security implementation.
+
+## Capability status
+
+The closed product workflow is being relaunched under AP-SPEC-040. This README
+does not promote repository-local claims to an independently reviewed or
+published release.
+
+- Implementation tier: `full-workflow-sdk`
+- Evidence status: `repository-local-in-progress`
+- Promoted tier: `verifier-binding`
+- Publication status: `blocked`
+- Promotion status: `blocked`
+
+Publication, promotion, and independent-review status remain governed by
+`sdk-capability.json`.

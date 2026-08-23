@@ -14,6 +14,7 @@ mod digest;
 mod identifier;
 pub mod kernel;
 mod model;
+mod operation;
 mod registry;
 mod sealed;
 #[cfg(feature = "test-support")]
@@ -38,6 +39,11 @@ pub use model::{
     ReconciliationObservationV1, ReservationEntryV1, ReservationMode, ReservationRequestV1,
     ReservationSetError, ReservationSetV1, RevocationSnapshotV1, StoreTransactionV1,
     TransitionCommandV1, TransitionContextV1,
+};
+pub use operation::{
+    ClientRequestIdV1, ConnectionBindingCommitmentsV1, OperationEffectV1, OperationIdV1,
+    OperationProfileV1, OperationProjectionError, OperationProjectionV1, OperationStateV1,
+    PreparationBindingError, PreparationBindingV1,
 };
 pub use registry::{LifecycleRegistrationV1, LifecycleRegistryError, validate_lifecycle_registry};
 pub use sealed::{
@@ -69,6 +75,10 @@ pub const LIFECYCLE_RECEIPT_ID: &str = "auths.product.lifecycle-receipt-envelope
 pub const STORE_CONTRACT_ID: &str = "auths.product.lifecycle-store-contract/2";
 /// Immutable transition-semantics identity.
 pub const TRANSITION_ID: &str = "auths.product.lifecycle-transition/2";
+/// Immutable common operation-journal identity.
+pub const OPERATION_JOURNAL_ID: &str = "auths.profile-operation-journal/1";
+/// Immutable preparation-binding identity.
+pub const PREPARATION_BINDING_ID: &str = "auths.profile-operation-preparation/1";
 
 /// Maximum UTF-8 bytes in a workflow identity.
 pub const MAX_WORKFLOW_ID_BYTES: usize = 256;

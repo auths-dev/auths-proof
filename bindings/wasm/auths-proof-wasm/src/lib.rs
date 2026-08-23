@@ -29,9 +29,8 @@ use auths_model::{
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_production_client::{
-    PRODUCTION_CLIENT_CONTRACT_VERSION, ProductVerb, ProductionRequest, QualifiedProfile,
-    RecoveryReference, TransportFailure, decode_request, decode_response, encode_delegation_body,
-    encode_request, project_sdk_event_v2, transport_failure_response,
+    encode_qualification_client_result_frame, project_sdk_event_v2,
+    qualification_client_cancellation_result,
 };
 use auths_profile_api::ActionProfile;
 // The generic reference domain profiles (HTTP, Git, deployment, supply-chain,
@@ -52,15 +51,18 @@ use auths_profile_mcp::{
 use auths_receipts::{
     AttestedDecisionReceipt, AttestedExecutionReceipt, ConfiguredReceiptVerifier, DecisionClass,
     ExecutionOutcome, ReceiptDisclosure, ReceiptInspection, ReceiptSigner, ReceiptViewMode,
-    VerifiedReceiptMetadata, application_execution_lease_digest, decode_attested_decision,
-    decode_attested_execution, decode_decision, decode_execution, encode_attested_decision,
-    encode_attested_execution, encode_receipt_disclosure, inspect_attested_execution_receipt,
-    prepare_decision_receipt, prepare_execution_receipt, verify_attested_decision_bytes,
+    VerifiedReceiptMetadata, application_execution_lease_digest, decision_receipt_id,
+    decode_attested_decision, decode_attested_execution, decode_decision, decode_execution,
+    decode_portable_receipt, encode_attested_decision, encode_attested_execution,
+    encode_receipt_disclosure, execution_receipt_id, inspect_attested_execution_receipt,
+    portable_receipt_id, prepare_decision_receipt, prepare_execution_receipt,
+    prepare_profile_decision_receipt, verify_attested_decision_bytes,
     verify_attested_execution_bytes, verify_decision_attestation, verify_execution_attestation,
 };
 use auths_registries::ImmutableRegistries;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use sha2::{Digest as _, Sha256};
 use std::{collections::BTreeSet, fmt};
 use wasm_bindgen::prelude::*;
 
@@ -68,125 +70,6 @@ use wasm_bindgen::prelude::*;
 pub const AUTHORING_ABI_V1: u16 = 1;
 /// Version of the neutral identity ABI exposed independently of authority authoring.
 pub const IDENTITY_ABI_V1: u16 = 1;
-
-/// Version of the Rust-owned production client contract.
-#[must_use]
-#[wasm_bindgen(js_name = productionClientContractVersionV1)]
-pub fn production_client_contract_version_v1() -> u16 {
-    PRODUCTION_CLIENT_CONTRACT_VERSION
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ProductionRequestInput {
-    verb: String,
-    profile: String,
-    identity: Vec<u8>,
-    authority: Option<Vec<u8>>,
-    body: Option<Vec<u8>>,
-    recovery_reference: Option<String>,
-}
-
-/// Encodes one bounded canonical production-client request.
-///
-/// # Errors
-///
-/// Returns a JavaScript error for an unsupported verb, profile, malformed
-/// recovery reference, invalid request shape, or over-limit value.
-#[wasm_bindgen(js_name = encodeProductionRequestV1)]
-pub fn encode_production_request_v1(input: JsValue) -> Result<Vec<u8>, JsValue> {
-    let input: ProductionRequestInput =
-        serde_wasm_bindgen::from_value(input).map_err(|_| js_error("client.malformed"))?;
-    let request = ProductionRequest::new(
-        ProductVerb::parse(&input.verb).map_err(js_error)?,
-        QualifiedProfile::parse(&input.profile).map_err(js_error)?,
-        input.identity,
-        input.authority,
-        input.body,
-        input
-            .recovery_reference
-            .as_deref()
-            .map(RecoveryReference::parse)
-            .transpose()
-            .map_err(js_error)?,
-    )
-    .map_err(js_error)?;
-    encode_request(&request).map_err(js_error)
-}
-
-/// Parses one canonical production response and returns its inert projection.
-///
-/// # Errors
-///
-/// Returns a JavaScript error when the response is malformed, non-canonical,
-/// unsupported, or over the contract limit.
-#[wasm_bindgen(js_name = decodeProductionResponseV1)]
-pub fn decode_production_response_v1(input: &[u8]) -> Result<String, JsValue> {
-    decode_response(input)
-        .and_then(|response| response.projection_json())
-        .map_err(js_error)
-}
-
-/// Parses one canonical production request and returns its inert projection.
-///
-/// # Errors
-///
-/// Returns a JavaScript error when the request is malformed, non-canonical,
-/// unsupported, or over the contract limit.
-#[wasm_bindgen(js_name = decodeProductionRequestV1)]
-pub fn decode_production_request_v1(input: &[u8]) -> Result<String, JsValue> {
-    decode_request(input)
-        .and_then(|request| request.projection_json())
-        .map_err(js_error)
-}
-
-/// Projects one client-side transport failure under the Rust-owned contract.
-///
-/// The caller reports only what its transport can PROVE about the failure --
-/// whether any request byte was written -- and Rust decides the registry code
-/// and next call. A failure that is not provably before transmission, on a verb
-/// that applies an effect, is `core.outcome-unknown` with `reconcile`, never a
-/// code whose registered effect is `not-applied`. A language binding that chose
-/// this itself would be telling a caller that a possibly-applied `PostgreSQL`
-/// update is safe to blindly retry.
-///
-/// # Errors
-///
-/// Returns a JavaScript error for an unknown verb or an unknown failure kind.
-#[wasm_bindgen(js_name = productionTransportFailureV1)]
-pub fn production_transport_failure_v1(verb: &str, failure: &str) -> Result<String, JsValue> {
-    let verb = ProductVerb::parse(verb).map_err(js_error)?;
-    let failure = match failure {
-        "endpoint-unresolvable" => TransportFailure::EndpointUnresolvable,
-        "connection-refused" => TransportFailure::ConnectionRefused,
-        "connection-failed" => TransportFailure::ConnectionFailed,
-        "connection-lost" => TransportFailure::ConnectionLost,
-        "response-timeout" => TransportFailure::ResponseTimeout,
-        "cancelled" => TransportFailure::Cancelled,
-        "unusable-response" => TransportFailure::UnusableResponse,
-        _ => {
-            return Err(js_error(EngineError::Abi(
-                "unknown production transport failure",
-            )));
-        }
-    };
-    transport_failure_response(verb, failure)
-        .projection_json()
-        .map_err(js_error)
-}
-
-/// Encodes exact delegate subject and attenuation bytes under the Rust-owned contract.
-///
-/// # Errors
-///
-/// Returns a JavaScript error for empty or over-limit values.
-#[wasm_bindgen(js_name = encodeProductionDelegationV1)]
-pub fn encode_production_delegation_v1(
-    subject: &[u8],
-    attenuation: &[u8],
-) -> Result<Vec<u8>, JsValue> {
-    encode_delegation_body(subject, attenuation).map_err(js_error)
-}
 
 /// Parses and projects one privacy-safe SDK telemetry event in Rust.
 ///
@@ -199,6 +82,37 @@ pub fn project_sdk_event(input: JsValue) -> Result<String, JsValue> {
     let value: Value =
         serde_wasm_bindgen::from_value(input).map_err(|_| js_error("client.malformed"))?;
     project_sdk_event_v2(&value.to_string()).map_err(js_error)
+}
+
+/// Derives the Rust-owned cancellation result for a qualification request.
+///
+/// # Errors
+///
+/// Returns a JavaScript error unless `request_id` is exactly 16 bytes.
+#[wasm_bindgen(js_name = qualificationClientCancellationResultV1)]
+pub fn qualification_client_cancellation_result_v1(request_id: &[u8]) -> Result<Vec<u8>, JsValue> {
+    let request_id: &[u8; 16] = request_id
+        .try_into()
+        .map_err(|_| js_error(EngineError::Abi("invalid qualification request ID")))?;
+    Ok(qualification_client_cancellation_result(request_id).to_vec())
+}
+
+/// Encodes the Rust-owned qualification result transport frame.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for a malformed request ID, mode, or result.
+#[wasm_bindgen(js_name = encodeQualificationClientResultFrameV1)]
+pub fn encode_qualification_client_result_frame_v1(
+    mode: u8,
+    request_id: &[u8],
+    result: &[u8],
+) -> Result<Vec<u8>, JsValue> {
+    let request_id: &[u8; 16] = request_id
+        .try_into()
+        .map_err(|_| js_error(EngineError::Abi("invalid qualification request ID")))?;
+    encode_qualification_client_result_frame(mode, request_id, result)
+        .map_err(|_| js_error(EngineError::Abi("invalid qualification result frame")))
 }
 
 const MAX_VERIFICATION_BATCH_ITEMS: usize = 256;
@@ -3247,7 +3161,6 @@ impl McpExecutionSessionV1 {
         cause: Option<String>,
     ) -> Result<(), JsValue> {
         let effect = match effect {
-            "not-applied" => McpHandlerEffect::NotApplied,
             "applied" => McpHandlerEffect::Applied,
             "possible" => McpHandlerEffect::Possible,
             _ => return Err(js_error(EngineError::Abi("invalid MCP handler effect"))),
@@ -3582,6 +3495,53 @@ pub fn prepare_authorized_decision_receipt_v1(
         DecisionClass::Authorized,
         vec!["authorized".to_owned()],
         Timestamp::new(decided_at),
+        &[],
+        &signer,
+    )
+    .map_err(js_error)?;
+    Ok(receipt_preparation(prepared))
+}
+
+/// Prepares one qualified-profile decision receipt from canonical profile
+/// artifacts while retaining Rust ownership of commitments and IDs.
+///
+/// # Errors
+///
+/// Rejects invalid profiles, decisions, reasons, signers, or artifact bounds.
+#[allow(clippy::too_many_arguments)]
+#[wasm_bindgen(js_name = prepareProfileDecisionReceiptV2)]
+pub fn prepare_profile_decision_receipt_v2(
+    profile_id: &str,
+    profile_version: u16,
+    proof: &[u8],
+    action: &[u8],
+    context: &[u8],
+    decision: &str,
+    reasons: Vec<String>,
+    decided_at: u64,
+    verifier: &str,
+    verification_method: &str,
+    suite: &str,
+) -> Result<ReceiptPreparationV1, JsValue> {
+    let signer = receipt_signer(verifier, verification_method, suite).map_err(js_error)?;
+    let prepared = prepare_profile_decision_receipt(
+        ProfileRef::new(
+            ProfileId::parse(profile_id).map_err(js_error)?,
+            profile_version,
+        )
+        .map_err(js_error)?,
+        proof,
+        action,
+        context,
+        match decision {
+            "authorized" => DecisionClass::Authorized,
+            "denied" => DecisionClass::Denied,
+            "indeterminate" => DecisionClass::Indeterminate,
+            _ => return Err(js_error(EngineError::Abi("invalid receipt decision"))),
+        },
+        reasons,
+        Timestamp::new(decided_at),
+        &[],
         &signer,
     )
     .map_err(js_error)?;
@@ -3649,6 +3609,7 @@ pub fn prepare_application_execution_receipt_v1(
         },
         has_result.then_some(result),
         Timestamp::new(completed_at),
+        &[],
         &signer,
     )
     .map_err(js_error)?;
@@ -3749,6 +3710,256 @@ pub fn verify_raw_key_receipt_v1(
         _ => return Err(js_error(EngineError::Abi("unsupported receipt kind"))),
     }
     Ok(())
+}
+
+/// Validates one pinned receipt verification key before a trust policy is
+/// constructed.
+///
+/// # Errors
+///
+/// Rejects unsupported suites and malformed verification keys.
+#[wasm_bindgen(js_name = validateReceiptAnchorV1)]
+pub fn validate_receipt_anchor_v1(suite: &str, public_key: &[u8]) -> Result<(), JsValue> {
+    match suite {
+        auths_signature_core::ED25519_V1 => {
+            let placeholder = [0; 64];
+            match auths_signature_core::verify_ed25519(
+                public_key,
+                b"auths.receipt-anchor-validation/1",
+                &placeholder,
+            ) {
+                Err(auths_signature_core::Ed25519Error::InvalidKey) => {
+                    Err(js_error(EngineError::Abi("invalid receipt key")))
+                }
+                _ => Ok(()),
+            }
+        }
+        auths_signature_core::P256_SHA256_V1 => auths_signature_core::validate_p256_key(public_key)
+            .map_err(|_| js_error(EngineError::Abi("invalid receipt key"))),
+        _ => Err(js_error(EngineError::Abi("unsupported receipt suite"))),
+    }
+}
+
+/// Computes the exact Rust-owned commitment binding a portable profile
+/// payload to its decision or execution receipt.
+///
+/// # Errors
+///
+/// Rejects empty, oversized, or unknown receipt-kind inputs.
+#[wasm_bindgen(js_name = profileReceiptPayloadCommitmentV2)]
+pub fn profile_receipt_payload_commitment_v2(
+    kind: &str,
+    payload: &[u8],
+) -> Result<Vec<u8>, JsValue> {
+    if payload.is_empty() || payload.len() > 16 * 1024 * 1024 {
+        return Err(js_error(EngineError::Abi(
+            "receipt profile payload is outside bounds",
+        )));
+    }
+    let digest = match kind {
+        "decision" => {
+            auths_codec::domain_commitment("auths.profile-action.v2", payload).map_err(js_error)?
+        }
+        "execution" => Digest::new(Sha256::digest(payload).into()),
+        _ => return Err(js_error(EngineError::Abi("unsupported receipt kind"))),
+    };
+    Ok(digest.as_bytes().to_vec())
+}
+
+/// Rust-owned projection of one canonical `auths.portable-receipt/1`
+/// container. The projection exposes complete signed inner envelopes and
+/// their recomputed content IDs; it does not establish signature trust.
+#[wasm_bindgen]
+pub struct PortableReceiptProjectionV1 {
+    portable_receipt_id: String,
+    kind: &'static str,
+    decision_receipt_id: Vec<u8>,
+    execution_receipt_id: Option<Vec<u8>>,
+    attested_decision: Vec<u8>,
+    attested_execution: Option<Vec<u8>>,
+}
+
+#[wasm_bindgen]
+impl PortableReceiptProjectionV1 {
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = portableReceiptId)]
+    pub fn portable_receipt_id(&self) -> String {
+        self.portable_receipt_id.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn kind(&self) -> String {
+        self.kind.to_owned()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = decisionReceiptId)]
+    pub fn decision_receipt_id(&self) -> Vec<u8> {
+        self.decision_receipt_id.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = executionReceiptId)]
+    pub fn execution_receipt_id(&self) -> Option<Vec<u8>> {
+        self.execution_receipt_id.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = attestedDecision)]
+    pub fn attested_decision(&self) -> Vec<u8> {
+        self.attested_decision.clone()
+    }
+
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = attestedExecution)]
+    pub fn attested_execution(&self) -> Option<Vec<u8>> {
+        self.attested_execution.clone()
+    }
+}
+
+/// Decodes and canonicality-checks one linked portable receipt container.
+///
+/// # Errors
+///
+/// Rejects malformed, non-canonical, oversized, or incorrectly linked input.
+#[wasm_bindgen(js_name = decodePortableReceiptV1)]
+pub fn decode_portable_receipt_v1(input: &[u8]) -> Result<PortableReceiptProjectionV1, JsValue> {
+    let decoded = decode_portable_receipt(input).map_err(js_error)?;
+    let decision = decode_attested_decision(decoded.attested_decision()).map_err(js_error)?;
+    let decision_id = decision_receipt_id(decision.receipt()).map_err(js_error)?;
+    let execution = decoded
+        .attested_execution()
+        .map(|value| {
+            let attested = decode_attested_execution(value)?;
+            execution_receipt_id(attested.receipt())
+        })
+        .transpose()
+        .map_err(js_error)?;
+    Ok(PortableReceiptProjectionV1 {
+        portable_receipt_id: portable_receipt_id(input).map_err(js_error)?,
+        kind: if decoded.attested_execution().is_some() {
+            "execution"
+        } else {
+            "decision"
+        },
+        decision_receipt_id: decision_id.as_bytes().to_vec(),
+        execution_receipt_id: execution.map(|value| value.as_bytes().to_vec()),
+        attested_decision: decoded.attested_decision().to_vec(),
+        attested_execution: decoded.attested_execution().map(<[u8]>::to_vec),
+    })
+}
+
+/// Verifies one canonical receipt against an exact pinned public key and
+/// returns a bounded inert metadata projection.
+///
+/// # Errors
+///
+/// Rejects malformed bytes, ID/signer/suite mismatch, and invalid signatures.
+#[allow(clippy::too_many_arguments)]
+#[wasm_bindgen(js_name = verifyPinnedReceiptV1)]
+pub fn verify_pinned_receipt_v1(
+    kind: &str,
+    attested: &[u8],
+    expected_id: &[u8],
+    verifier: &str,
+    verification_method: &str,
+    suite: &str,
+    public_key: &[u8],
+) -> Result<Vec<u8>, JsValue> {
+    validate_receipt_anchor_v1(suite, public_key)?;
+    let expected_verifier = PrincipalId::parse(verifier).map_err(js_error)?;
+    let signer = ReceiptSigner::new(
+        expected_verifier.clone(),
+        VerificationMethod::parse(verification_method).map_err(js_error)?,
+        SignatureSuiteId::parse(suite).map_err(js_error)?,
+    );
+    let expected = auths_model::ReceiptId::new(receipt_array32(expected_id, "receipt id")?);
+    let metadata = match suite {
+        auths_signature_core::ED25519_V1 => {
+            let implementation = auths_signature::Ed25519Suite::new().map_err(js_error)?;
+            verify_pinned_receipt_metadata(
+                kind,
+                attested,
+                expected,
+                &expected_verifier,
+                signer,
+                public_key,
+                &implementation,
+            )?
+        }
+        auths_signature_core::P256_SHA256_V1 => {
+            let implementation = auths_signature::P256Sha256Suite::new().map_err(js_error)?;
+            verify_pinned_receipt_metadata(
+                kind,
+                attested,
+                expected,
+                &expected_verifier,
+                signer,
+                public_key,
+                &implementation,
+            )?
+        }
+        _ => return Err(js_error(EngineError::Abi("unsupported receipt suite"))),
+    };
+    serde_json::to_vec(&metadata)
+        .map_err(|_| js_error(EngineError::Abi("receipt metadata encoding failed")))
+}
+
+fn verify_pinned_receipt_metadata(
+    kind: &str,
+    attested: &[u8],
+    expected: auths_model::ReceiptId,
+    expected_verifier: &PrincipalId,
+    signer: ReceiptSigner,
+    public_key: &[u8],
+    implementation: &dyn SignatureSuite,
+) -> Result<Value, JsValue> {
+    let configured = ConfiguredReceiptVerifier::new(signer, public_key, implementation);
+    match kind {
+        "decision" => {
+            let verified =
+                verify_decision_attestation(attested, expected, expected_verifier, &configured)
+                    .map_err(js_error)?;
+            let receipt = verified.receipt();
+            Ok(serde_json::json!({
+                "kind": "decision",
+                "receiptId": hex::encode(expected.as_bytes()),
+                "profile": { "id": receipt.profile().id().as_str(), "version": receipt.profile().version() },
+                "decision": match receipt.decision() { DecisionClass::Authorized => "authorized", DecisionClass::Denied => "denied", DecisionClass::Indeterminate => "indeterminate" },
+                "reasons": receipt.reasons(),
+                "decidedAtUnixSeconds": receipt.decided_at().get().to_string(),
+                "decisionSigner": inspection_signer_json(verified.signer()),
+                "commitments": {
+                    "proof": hex::encode(receipt.proof_digest().as_bytes()),
+                    "action": hex::encode(receipt.action_digest().as_bytes()),
+                    "context": hex::encode(receipt.context_digest().as_bytes()),
+                    "principalStatus": hex::encode(receipt.principal_status().as_bytes()),
+                    "grantStatus": hex::encode(receipt.grant_status().as_bytes()),
+                },
+            }))
+        }
+        "execution" => {
+            let verified =
+                verify_execution_attestation(attested, expected, expected_verifier, &configured)
+                    .map_err(js_error)?;
+            let receipt = verified.receipt();
+            Ok(serde_json::json!({
+                "kind": "execution",
+                "decisionReceiptId": hex::encode(receipt.decision_receipt().as_bytes()),
+                "executionReceiptId": hex::encode(expected.as_bytes()),
+                "outcome": match receipt.outcome() { ExecutionOutcome::Succeeded => "succeeded", ExecutionOutcome::Failed => "failed", ExecutionOutcome::Indeterminate => "indeterminate" },
+                "completedAtUnixSeconds": receipt.completed_at().get().to_string(),
+                "executionSigner": inspection_signer_json(verified.signer()),
+                "commitments": {
+                    "executionLease": hex::encode(receipt.execution_lease().as_bytes()),
+                    "command": hex::encode(receipt.command_digest().as_bytes()),
+                    "result": receipt.result_digest().map(|value| hex::encode(value.as_bytes())),
+                },
+            }))
+        }
+        _ => Err(js_error(EngineError::Abi("unsupported receipt kind"))),
+    }
 }
 
 /// Verifies the structural link between one decision and execution receipt.
@@ -4946,8 +5157,8 @@ pub enum EngineError {
     Profile(auths_profile_api::ProfileContractError),
     /// General identity encoding or validation failed.
     Identity(auths_identity::IdentityError),
-    /// A bounded production-client request or response was invalid.
-    Client(auths_production_client::ProductionClientError),
+    /// A bounded telemetry event was invalid.
+    Telemetry(auths_production_client::TelemetryProjectionError),
     /// An MCP execution session rejected a transition or a bounded input.
     Session(auths_profile_mcp::McpSessionError),
     /// Receipt preparation, encoding, or attestation failed.
@@ -4982,7 +5193,7 @@ impl EngineError {
             | Self::Mcp(_)
             | Self::Profile(_)
             | Self::Identity(_)
-            | Self::Client(_)
+            | Self::Telemetry(_)
             | Self::Session(_)
             | Self::Receipt(_)
             | Self::Inspection(_)
@@ -5026,7 +5237,7 @@ impl fmt::Display for EngineError {
             // registry code for an error that previously reached JavaScript
             // as its own bare `Display`. They add no prefix, because callers
             // and tests match on the owning crate's stable code text.
-            Self::Client(error) => fmt::Display::fmt(error, formatter),
+            Self::Telemetry(error) => fmt::Display::fmt(error, formatter),
             Self::Session(error) => fmt::Display::fmt(error, formatter),
             Self::Receipt(error) => fmt::Display::fmt(error, formatter),
             Self::Inspection(error) => fmt::Display::fmt(error, formatter),
@@ -5097,9 +5308,9 @@ impl From<auths_identity::IdentityError> for EngineError {
     }
 }
 
-impl From<auths_production_client::ProductionClientError> for EngineError {
-    fn from(error: auths_production_client::ProductionClientError) -> Self {
-        Self::Client(error)
+impl From<auths_production_client::TelemetryProjectionError> for EngineError {
+    fn from(error: auths_production_client::TelemetryProjectionError) -> Self {
+        Self::Telemetry(error)
     }
 }
 

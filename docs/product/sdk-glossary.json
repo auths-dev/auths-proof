@@ -21,7 +21,7 @@
     "product": "protected action workflow",
     "component": "independently adoptable identity or verification",
     "service": "remote Auths service client",
-    "profile": "qualified effect-domain action family",
+    "profile": "versioned effect-domain action family; its route is usable only after qualification",
     "integration": "cross-domain mechanism or composition",
     "framework": "custom vertical construction",
     "testkit": "fixtures and conformance",
@@ -67,8 +67,7 @@
     "bindings/python/README.md",
     "docs/product/recipes/01_AUTHENTICATE_IDENTITY.md",
     "docs/product/recipes/02_VERIFY_AUTHORITY.md",
-    "docs/product/recipes/03_EXECUTE_ONE_ACTION.md",
-    "docs/product/recipes/04_DELEGATE_TO_AN_AGENT.md"
+    "docs/product/PRODUCTION_SDK_QUICKSTART.md"
   ],
   "forbiddenBeginnerTerms": [
     "advanced namespace",

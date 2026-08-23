@@ -132,6 +132,7 @@ jobs:
       - run: >-
           maturin build --profile python-extension --locked
           --manifest-path bindings/python/Cargo.toml
+          --features pyo3/extension-module
           --out target/python-release-wheels
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -233,7 +234,7 @@ jobs:
       - name: Check installed mypy consumer narrowing and negative boundaries
         run: >-
           python -m mypy --strict --warn-unused-ignores
-          consumer/bindings/python/typecheck/mcp_consumer.py
+          consumer/bindings/python/typecheck/profile_runtime_consumer.py
           consumer/bindings/python/typecheck/workflow_consumer.py
           consumer/bindings/python/typecheck/mypy_negative.py
       - name: Check strict Pyright source contract

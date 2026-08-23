@@ -1,15 +1,26 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Dict, Literal
 
-from auths.testkit import ConformanceMetadata, certify_atomic_store
+from auths.adapters.reservations import ReservationRecord
+from auths.testkit import run_reservation_store_conformance
+
+
+_BACKINGS: Dict[str, Dict[str, bytes]] = {}
 
 
 class AtomicStore:
-    def __init__(self) -> None:
-        self._records: dict[str, bytes] = {}
+    contract: Literal["atomic-reservation-store/2"] = "atomic-reservation-store/2"
+    kind: str = "installed-memory-reference"
+    durability: Literal["ephemeral"] = "ephemeral"
 
-    async def reserve(self, record):
+    def __init__(self, name: str) -> None:
+        self._records = _BACKINGS.setdefault(name, {})
+
+    async def reserve(
+        self, record: ReservationRecord
+    ) -> Literal["acquired", "exact-replay", "conflict"]:
         if len(record.value) > 262_144:
             raise ValueError("bounded record")
         current = self._records.get(record.key)
@@ -19,16 +30,17 @@ class AtomicStore:
         return "exact-replay" if current == record.commitment else "conflict"
 
     async def aclose(self) -> None:
-        pass
+        return None
+
+
+def open_store(name: str) -> AtomicStore:
+    return AtomicStore(name)
 
 
 async def main() -> None:
-    report = await certify_atomic_store(
-        AtomicStore,
-        ConformanceMetadata("installed.atomic-store", "1"),
-    )
+    report = await run_reservation_store_conformance(open_store)
     if not report.passed:
-        raise SystemExit(f"installed conformance failed: {report.results!r}")
+        raise SystemExit(f"installed conformance failed: {report.cases!r}")
 
 
 asyncio.run(main())
