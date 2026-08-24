@@ -7458,7 +7458,10 @@ mod tests {
             recovery_key_id: "recovery".into(),
             recovery_public_key_base64url: Base64UrlUnpadded::encode_string(&[9; 32]),
             receipt_trust_anchor_sha256: "c".repeat(64),
-            candidate_sandbox: candidate_sandbox(),
+            candidate_sandbox: QualificationCandidateSandboxPlanV1 {
+                workload_gid: context.agent_gid,
+                ..candidate_sandbox()
+            },
             phases: vec![context.phase.clone()],
             started_at_unix_seconds: NOW - 10,
             deadline_at_unix_seconds: NOW + 10,
