@@ -1,5 +1,6 @@
 use auths_profile_api::ActionProfile as _;
 use ed25519_dalek::{Signer as _, SigningKey};
+use sha2::Digest as _;
 use std::{env, fs, path::PathBuf};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -213,6 +214,31 @@ fn write_mcp_workflow_vectors(output: &std::path::Path) -> Result<(), Box<dyn st
         auths_model::AssurancePolicyId::parse("raw-key-baseline")?,
         auths_model::StatusPolicy::ExpiryOnly,
     )?;
+    let selected = template.accepted_registries();
+    let mut profiles = selected.profiles().to_vec();
+    profiles.push(canonical.profile().clone());
+    let mut budget_free_profiles = selected.budget_free_profiles().to_vec();
+    if auths_profile_mcp::budget_expression(canonical.profile())
+        == Some(auths_model::ProfileBudgetExpression::Inexpressible)
+    {
+        budget_free_profiles.push(canonical.profile().clone());
+    }
+    let registries = auths_model::AcceptedRegistries::new(
+        selected.manifest_id(),
+        selected.principal_methods().to_vec(),
+        selected.signature_suites().to_vec(),
+        selected.evidence_types().to_vec(),
+        selected.principal_status_methods().to_vec(),
+        selected.grant_status_methods().to_vec(),
+        selected.assurance_claims().to_vec(),
+        selected.assurance_implications().to_vec(),
+        selected.resource_matchers().to_vec(),
+        selected.budget_algebras().to_vec(),
+        selected.critical_extensions().to_vec(),
+        profiles,
+        selected.profile_policies().to_vec(),
+    )?
+    .with_budget_free_profiles(budget_free_profiles)?;
     let context = auths_model::TrustedContext::new(
         template.configuration(),
         template.composition(),
@@ -222,18 +248,7 @@ fn write_mcp_workflow_vectors(output: &std::path::Path) -> Result<(), Box<dyn st
         // bounded ceilings below would deny every MCP action: an absent request
         // would read as an unknown spend rather than the provable zero it is.
         // The value is read off the Rust profile, never asserted here.
-        template
-            .accepted_registries()
-            .clone()
-            .with_budget_free_profiles(
-                auths_profile_mcp::budget_expression(canonical.profile())
-                    .filter(|expression| {
-                        *expression == auths_model::ProfileBudgetExpression::Inexpressible
-                    })
-                    .map(|_| canonical.profile().clone())
-                    .into_iter()
-                    .collect(),
-            )?,
+        registries,
         call.audience()?,
         auths_model::Challenge::new([0x22; 32]),
         auths_model::Timestamp::new(50),
@@ -483,6 +498,14 @@ fn write_shared_workflow_projection(
         auths_model::VerificationMethod::parse(actor.as_str())?,
         auths_model::SignatureSuiteId::parse("ed25519-v1")?,
     );
+    let decision_claims = auths_receipts::encode_profile_receipt_claims(
+        canonical.profile(),
+        auths_receipts::ProfileReceiptClaimPhase::Decision,
+        &[auths_receipts::ProfileReceiptClaim::new(
+            "auths.mcp.action",
+            sha2::Sha256::digest(&action_cbor).into(),
+        )?],
+    )?;
     let decision_receipt = auths_receipts::prepare_decision_receipt(
         auths_codec::proof_digest(artifacts.proof())?,
         canonical,
@@ -490,10 +513,19 @@ fn write_shared_workflow_projection(
         auths_receipts::DecisionClass::Authorized,
         vec!["authorized".to_owned()],
         auths_model::Timestamp::new(60),
+        &decision_claims,
         &receipt_signer,
     )?;
     let result_bytes = br#"{"provider":"ok"}"#;
     let plan_digest = auths_model::Digest::new(*plan.plan().as_bytes());
+    let execution_claims = auths_receipts::encode_profile_receipt_claims(
+        canonical.profile(),
+        auths_receipts::ProfileReceiptClaimPhase::Execution,
+        &[auths_receipts::ProfileReceiptClaim::new(
+            "auths.mcp.command",
+            sha2::Sha256::digest(&action_cbor).into(),
+        )?],
+    )?;
     let execution_receipt = auths_receipts::prepare_execution_receipt(
         decision_receipt.id(),
         "workflow-fixture",
@@ -503,6 +535,7 @@ fn write_shared_workflow_projection(
         auths_receipts::ExecutionOutcome::Succeeded,
         Some(result_bytes),
         auths_model::Timestamp::new(70),
+        &execution_claims,
         &receipt_signer,
     )?;
     let execution_lease = auths_receipts::application_execution_lease_digest(

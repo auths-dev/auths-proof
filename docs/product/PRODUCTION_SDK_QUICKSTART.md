@@ -1,82 +1,98 @@
-# Production SDK quickstart
+# Production SDK contract: one typed provider operation
 
-TypeScript and Python expose the same five product verbs over the same
-Rust-owned contract. The SDK selects one maintained effect profile; the
-operator runtime owns authorization, durable lifecycle state, provider entry,
-reconciliation, and signed receipts.
+> **Qualification status:** this document shows the frozen application API,
+> not a currently promoted live-provider route. The production agent advertises
+> no Stripe, PostgreSQL, or OpenTofu effect profile until its exact revision has
+> completed the required live, crash, recovery, receipt, and independent-review
+> gates. The disposable testkit agent proves this API with a synthetic Stripe
+> provider only.
 
-## TypeScript
+Auths applications connect to a local agent and call a generated domain
+client. The application supplies domain input and, optionally, a non-secret
+connection alias. The agent owns workload authentication, authorization,
+provider credentials, durable execution, recovery, and receipts.
+
+## Application setup after profile qualification
+
+Install the root SDK and the generated package for the domain you need:
+
+```bash
+npm install @auths-dev/sdk @auths-dev/profile-stripe
+pip install auths auths-profile-stripe
+```
+
+TypeScript:
 
 ```ts
-import { createAuths } from "@auths-dev/sdk";
-import { githubIssueAddress } from "@auths-dev/sdk/profiles";
+import { connect } from "@auths-dev/sdk";
+import { Stripe } from "@auths-dev/profile-stripe";
 
-const auths = createAuths({
-  endpoint: "https://auths.example.com",
-  identity: publicIdentityBytes,
-  profile: githubIssueAddress(),
+await using session = await connect();
+const refund = await new Stripe(session, { connection: "billing" }).refunds.create({
+  paymentIntent: "pi_123",
+  amount: 2_000,
+  currency: "usd",
 });
-const created = await auths.create(authorityRequestBytes);
-if (created.kind !== "authority") throw new Error(created.code);
-const delegated = await auths.delegate(created, agentIdentityBytes, attenuationBytes);
-if (delegated.kind !== "authority") throw new Error(delegated.code);
-const result = await auths.execute(delegated, githubIssueActionBytes);
-if (result.kind === "recoverable") await auths.resume(result.reference);
+console.log(refund.id, refund.auths.receiptIds);
 ```
 
-## Python
+Python:
 
 ```python
-from auths import create_auths
-from auths.profiles import github_issue_address
+import auths
+from auths_profiles.stripe import Stripe
 
-auths = create_auths(
-    endpoint="https://auths.example.com",
-    identity=public_identity_bytes,
-    profile=github_issue_address(),
-)
-created = await auths.create(authority_request_bytes)
-if created.kind != "authority":
-    raise RuntimeError(created.code)
-delegated = await auths.delegate(created, agent_identity_bytes, attenuation_bytes)
-if delegated.kind != "authority":
-    raise RuntimeError(delegated.code)
-result = await auths.execute(delegated, github_issue_action_bytes)
-if result.kind == "recoverable":
-    await auths.resume(result.reference)
+async with auths.connect() as session:
+    refund = await Stripe(session, connection="billing").refunds.create(
+        payment_intent="pi_123",
+        amount=2_000,
+        currency="usd",
+    )
+    print(refund.id, refund.auths.receipt_ids)
 ```
 
-## What runs locally
+The ordinary application API has no Auths bearer token, remote executor URL,
+provider credential, arbitrary provider request, or caller-supplied authority.
+`AUTHS_AGENT_SOCKET` may select a local socket; it is not a credential.
 
-- The SDK applies strict endpoint, timeout, redirect, content-type, and response
-  size rules.
-- Packaged Rust code encodes requests and parses finite response variants.
-- Packaged Rust verification remains available offline.
-- Opaque authority, receipt, and recovery values cannot be forged through the
-  public SDK.
+## Operator setup after profile qualification
 
-## What contacts the runtime
+Before the application starts, a privileged operator:
 
-`create`, `delegate`, `execute`, and `resume` contact the configured HTTPS
-runtime. `verify` uses the same versioned endpoint when the configured profile
-requires runtime-owned status or lifecycle evidence. The runtime—not HTTP
-success—decides whether an effect is authorized.
+1. installs and starts the local Auths agent;
+2. provisions a provider connection through the separate admin listener;
+3. maps the observed workload identity to allowed profiles and connection
+   aliases; and
+4. verifies socket ownership and runs the bounded doctor command.
 
-The default client refuses redirects, non-HTTPS origins, unexpected media
-types, oversized responses, and unknown contract outcomes. It never returns raw
-provider errors or credential material.
+Provider secrets enter only the privileged administration flow. They are
+stored behind the configured credential store and never returned to the
+application or generated package. See
+[Local-agent SDK quickstart](LOCAL_AGENT_SDK_QUICKSTART.md) for the concrete
+operator/application split and clean-machine acceptance checks.
 
-## Finite outcomes
+Connection onboarding, rotation, disable, revocation, backup, and restore are
+covered by the
+[provider connection lifecycle runbook](../operations/PROVIDER_CONNECTION_LIFECYCLE_RUNBOOK.md).
 
-- `completed`: the protected effect reached a definite successful outcome and
-  carries a signed receipt;
-- `denied`: the request definitely lacks authority and must not be retried;
-- `indeterminate`: the runtime could not safely decide; use its retry class;
-- `recoverable`: use only the returned opaque reference with `resume`;
-- `verified`: the supplied authority satisfies the runtime's trusted context,
-  or the receipt is canonical and authentic under that runtime's receipt key;
-  and
-- `rejected`: verification definitely failed.
+## Failure and recovery
 
-See [production failures and recovery](recipes/06_PRODUCTION_FAILURES.md) for
-the fail-closed paths.
+The generated method returns the domain success value. Denial, unavailability,
+conflict, partial completion, and possible effect are represented by typed
+errors. If an effect may have happened, Auths returns a sealed recovery handle;
+the caller invokes the generated `recover` method and does not repeat the
+original operation.
+
+The same session can be shared by generated Stripe, PostgreSQL, OpenTofu, and
+future domain clients. Adding a domain package does not add credentials or
+provider-specific methods to the root SDK.
+
+See [profile recovery](../operations/PROFILE_RECOVERY_RUNBOOK.md) for the
+operator procedure and [profile authoring](PROFILE_AUTHORING.md) for adding an
+operation or provider kind.
+
+## Release status
+
+This is the AP-SPEC-040 prelaunch cutover contract. Repository-local checks are
+not independent review or publication authorization; the language-specific
+`sdk-capability.json` files remain authoritative for promotion status.

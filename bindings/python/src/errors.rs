@@ -46,6 +46,7 @@ pub(crate) enum Boundary {
     RuntimeUnavailable,
     /// The boundary could not classify the failure. Fails closed to
     /// `possible`: the caller must reconcile, never blindly retry.
+    #[cfg(test)]
     Unclassified,
 }
 
@@ -55,6 +56,7 @@ impl Boundary {
             Self::MalformedInput => "core.malformed-input",
             Self::AuthorizationDenied => "core.authorization-denied",
             Self::RuntimeUnavailable => "core.native-runtime-unavailable",
+            #[cfg(test)]
             Self::Unclassified => "core.outcome-unknown",
         }
     }

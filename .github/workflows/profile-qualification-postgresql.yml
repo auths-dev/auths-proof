@@ -1,0 +1,38 @@
+name: Qualify PostgreSQL profiles
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_revision:
+        description: Exact 40-character candidate Git revision
+        required: true
+        type: string
+      release_build_run_id:
+        description: Immutable successful official release workflow run ID
+        required: true
+        type: string
+      release_build_artifact_id:
+        description: Immutable canonical release-build artifact ID
+        required: true
+        type: string
+      release_build_artifact_digest:
+        description: SHA-256 of the uploaded canonical release-build archive
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  attestations: read
+  contents: read
+
+jobs:
+  qualify:
+    uses: ./.github/workflows/profile-qualification.yml
+    with:
+      candidate_revision: ${{ inputs.candidate_revision }}
+      release_build_run_id: ${{ inputs.release_build_run_id }}
+      release_build_artifact_id: ${{ inputs.release_build_artifact_id }}
+      release_build_artifact_digest: ${{ inputs.release_build_artifact_digest }}
+      domain: postgresql
+      target: linux-x86_64
+      protected_environment: qualification-postgresql

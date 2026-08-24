@@ -1,0 +1,33 @@
+{
+  "schema": "auths.profile-manifest/1",
+  "profile": "auths.github.issue-address/2",
+  "semanticSubject": "auths.github.issue-address/2",
+  "controlPlaneContract": "auths.github.issue-address/2",
+  "executionDomain": "auths.github.issue-address/1",
+  "description": "Versioned GitHub issue-address control plane over the existing exact branch and draft-PR action domain.",
+  "candidate": {
+    "maximumBundleBytes": 16777216,
+    "maximumGitObjects": 20000,
+    "maximumCommits": 64,
+    "maximumChangedFiles": 20000,
+    "maximumChangedPathBytes": 4194304,
+    "maximumAddedBytes": 67108864,
+    "maximumDeletedBytes": 67108864,
+    "maximumExpandedObjectBytes": 67108864,
+    "maximumPathBytes": 1024,
+    "maximumAllowPatterns": 128,
+    "maximumDenyPatterns": 128
+  },
+  "receipts": {
+    "schema": "auths.portable-receipt/1",
+    "maximumCount": 16,
+    "maximumAggregateBytes": 8388608,
+    "linkedExecutionReceipts": true
+  },
+  "durability": {
+    "providerResultBeforeObservation": true,
+    "minimumRecoveryRetentionSeconds": 7776000,
+    "minimumReceiptRetentionSeconds": 31536000,
+    "missingByKeyCreatesTombstone": true
+  }
+}

@@ -99,6 +99,7 @@ jobs:
       candidate_tag: ${{ inputs.candidate_tag }}
       run_label: official
     permissions:
+      actions: read
       artifact-metadata: write
       attestations: write
       contents: read
@@ -114,6 +115,7 @@ jobs:
       candidate_tag: ${{ inputs.candidate_tag }}
       run_label: reproduction
     permissions:
+      actions: read
       artifact-metadata: write
       attestations: write
       contents: read
@@ -220,10 +222,8 @@ jobs:
           [[ "$DISPATCH_ACTOR_ID" == 3743841 ]]
           [[ "$(git rev-parse HEAD)" == "$CANDIDATE_COMMIT" ]]
           [[ "$CANDIDATE_TAG" == "auths-v$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -1)" ]]
-      - name: Require complete independently reviewed assurance
-        run: >-
-          cargo xtask assurance verify
-          release/assurance/open-production-candidate-1/manifest.json
+      - name: Require all production profiles to have imported trusted qualification
+        run: cargo xtask profile qualification release-check
       - name: Refuse absent or unprotected promotion environment
         env:
           GH_TOKEN: ${{ github.token }}

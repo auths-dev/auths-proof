@@ -2,12 +2,12 @@
 
 #![forbid(unsafe_code)]
 
-mod production;
+mod agent;
 
-pub use production::{
-    CustodyAdapterFamily, EvidenceRequirement, ProductionCandidate, ProductionCandidateInput,
-    ProductionCandidateSummary, ProductionConfigError, ProductionConfigErrorCode,
-    ProductionExclusion, ProductionProfileId, ProductionTopologyClass, SdkLanguage,
+pub use agent::{
+    AgentConfig, AgentConfigError, AgentPlatform, AuthoritySourceConfig, ConnectionSelection,
+    ReceiptPublicKeyConfig, ReceiptSigningConfig, ReceiptSigningKeyConfig, ReceiptSigningRole,
+    WorkloadConfig, WorkloadSelector,
 };
 
 use auths_codec::context_digest;

@@ -28,7 +28,7 @@ vectors, and the WASM build.
 For focused work:
 
 ```sh
-cargo test --workspace --all-features
+cargo xtask product
 cargo xtask arch
 cargo xtask wire
 cargo xtask conformance

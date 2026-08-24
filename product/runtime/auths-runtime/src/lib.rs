@@ -3,7 +3,6 @@
 #![forbid(unsafe_code)]
 
 pub mod production;
-pub use auths_production_client as production_client;
 
 use async_trait::async_trait;
 use auths_codec::context_digest;
@@ -30,9 +29,10 @@ use auths_proof_exchange_model::{
 use auths_proof_exchange_port::{ProofExchangeService, ServiceError};
 use auths_receipts::{
     AttestedDecisionReceipt, AttestedExecutionReceipt, DecisionClass, DecisionReceipt,
-    ExecutionOutcome as ReceiptExecutionOutcome, ExecutionReceipt, ReceiptSigner,
-    decision_receipt_id, decision_signing_preimage, encode_attested_decision,
-    encode_attested_execution, execution_receipt_id, execution_signing_preimage,
+    ExecutionOutcome as ReceiptExecutionOutcome, ExecutionReceipt, ProfileReceiptClaim,
+    ProfileReceiptClaimPhase, ReceiptSigner, decision_receipt_id, decision_signing_preimage,
+    encode_attested_decision, encode_attested_execution, encode_profile_receipt_claims,
+    execution_receipt_id, execution_signing_preimage,
 };
 use auths_verifier::{VerificationOutcome, VerifiedAction};
 use sha2::{Digest as _, Sha256};
@@ -1212,6 +1212,16 @@ impl McpAuthorizationService {
             decision,
             vec![reason.into()],
             Timestamp::new(now),
+            encode_profile_receipt_claims(
+                canonical_action.profile(),
+                ProfileReceiptClaimPhase::Decision,
+                &[ProfileReceiptClaim::new(
+                    "auths.mcp.action",
+                    *raw_digest(canonical_action.body()).as_bytes(),
+                )
+                .ok()?],
+            )
+            .ok()?,
         )
         .ok()?;
         let identifier = decision_receipt_id(&receipt).ok()?;
@@ -1235,14 +1245,32 @@ impl McpAuthorizationService {
         outcome: ReceiptExecutionOutcome,
         result: Option<&[u8]>,
     ) -> bool {
-        let receipt = ExecutionReceipt::new(
+        let Ok(profile_claims) = encode_profile_receipt_claims(
+            verified.canonical_action().profile(),
+            ProfileReceiptClaimPhase::Execution,
+            &[
+                match ProfileReceiptClaim::new(
+                    "auths.mcp.command",
+                    *raw_digest(verified.canonical_action().body()).as_bytes(),
+                ) {
+                    Ok(claim) => claim,
+                    Err(_) => return false,
+                },
+            ],
+        ) else {
+            return false;
+        };
+        let Ok(receipt) = ExecutionReceipt::new(
             decision_receipt,
             lease_digest,
             raw_digest(verified.canonical_action().body()),
             outcome,
             result.map(raw_digest),
             Timestamp::new(self.clock.now()),
-        );
+            profile_claims,
+        ) else {
+            return false;
+        };
         let Ok(identifier) = execution_receipt_id(&receipt) else {
             return false;
         };

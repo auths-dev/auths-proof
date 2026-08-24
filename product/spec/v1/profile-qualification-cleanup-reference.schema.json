@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-cleanup-reference.schema.json",
+  "title": "Auths redacted qualification cleanup reference v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "runContext", "domain", "setupHandoffSha256", "providerDestinationSha256", "connectionAliasSha256", "providerNamespaceSha256", "resourceCommitments", "resourceRosterSha256", "resourceCount"],
+  "properties": {
+    "schema": {"const": "auths.profile-qualification-cleanup-reference/1"},
+    "runContext": {"$ref": "profile-qualification-setup-handoff.schema.json#/$defs/runContext"},
+    "domain": {"$ref": "profile-qualification.schema.json#/$defs/domain"},
+    "setupHandoffSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "providerDestinationSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "connectionAliasSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "providerNamespaceSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "resourceCommitments": {"type": "array", "minItems": 1, "maxItems": 128, "uniqueItems": true, "x-auths-byteSorted": true, "items": {"type": "string", "maxLength": 128, "pattern": "^[a-z][a-z0-9-]*-sha256:[0-9a-f]{64}$"}},
+    "resourceRosterSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+    "resourceCount": {"type": "integer", "minimum": 1, "maximum": 128}
+  },
+  "x-auths-semanticValidator": "profile-qualification-cleanup-reference/1"
+}

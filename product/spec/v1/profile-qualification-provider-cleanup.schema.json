@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-qualification-provider-cleanup.schema.json",
+  "title": "Auths protected provider cleanup observation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "repositoryId", "candidateRevision", "target", "protectedEnvironment", "runId", "runAttempt", "providerRunId", "observation", "completedAtUnixSeconds"],
+  "properties": {
+    "schema": {"const": "auths.profile-qualification-cleanup-provider-run/1"},
+    "repositoryId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+    "candidateRevision": {"$ref": "profile-qualification.schema.json#/$defs/revision"},
+    "target": {"$ref": "profile-qualification.schema.json#/$defs/target"},
+    "protectedEnvironment": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+    "runId": {"$ref": "profile-qualification.schema.json#/$defs/decimal32"},
+    "runAttempt": {"type": "integer", "minimum": 1, "maximum": 4294967295},
+    "providerRunId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"},
+    "observation": {"$ref": "#/$defs/observation"},
+    "completedAtUnixSeconds": {"type": "integer", "minimum": 1, "maximum": 18446744073709551615}
+  },
+  "$defs": {
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["providerDestinationSha256", "providerNamespaceSha256", "discoveredResourceCommitments", "destroyedResourceCommitments", "residualResourceCommitments", "credentialReauthenticationDenied"],
+      "properties": {
+        "providerDestinationSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "providerNamespaceSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"},
+        "discoveredResourceCommitments": {"$ref": "#/$defs/resourceCommitments"},
+        "destroyedResourceCommitments": {"$ref": "#/$defs/resourceCommitments"},
+        "residualResourceCommitments": {"$ref": "#/$defs/resourceCommitments"},
+        "credentialReauthenticationDenied": {"const": true}
+      }
+    },
+    "resourceCommitments": {"type": "array", "maxItems": 128, "uniqueItems": true, "x-auths-byteSorted": true, "items": {"type": "string", "maxLength": 128, "pattern": "^[a-z][a-z0-9-]*-sha256:[0-9a-f]{64}$"}}
+  },
+  "x-auths-semanticValidator": "profile-qualification-provider-cleanup/1"
+}

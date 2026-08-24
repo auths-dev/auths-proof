@@ -55,8 +55,8 @@ struct DomainRecord {
     migration_order: u8,
     package: String,
     package_path: String,
-    demo_package: String,
-    demo_path: String,
+    consumer_package: String,
+    consumer_path: String,
     spec: String,
     status: String,
     profiles: Vec<String>,
@@ -183,8 +183,8 @@ fn validate_bounded_domain_inventory(inventory: &BoundedDomainInventory) -> Resu
         for (label, value) in [
             ("package", domain.package.as_str()),
             ("package path", domain.package_path.as_str()),
-            ("demo package", domain.demo_package.as_str()),
-            ("demo path", domain.demo_path.as_str()),
+            ("consumer package", domain.consumer_package.as_str()),
+            ("consumer path", domain.consumer_path.as_str()),
             ("specification", domain.spec.as_str()),
             (
                 "evaluator entry point",
@@ -247,7 +247,7 @@ fn validate_bounded_domain_inventory(inventory: &BoundedDomainInventory) -> Resu
             }
         }
         require_repository_directory(&domain.package_path)?;
-        require_repository_directory(&domain.demo_path)?;
+        require_repository_directory(&domain.consumer_path)?;
         require_repository_directory(&domain.fixture_dir)?;
         validate_specification_status(domain)?;
         validate_scenarios(domain, &required_scenarios)?;
@@ -845,9 +845,9 @@ fn validate_compliance_registration(
             domain.package_path.as_str(),
         ),
         (
-            "demo",
-            domain.demo_package.as_str(),
-            domain.demo_path.as_str(),
+            "consumer",
+            domain.consumer_package.as_str(),
+            domain.consumer_path.as_str(),
         ),
     ] {
         let package = packages
@@ -916,7 +916,7 @@ fn write_bounded_domain_inventory_report(inventory: &BoundedDomainInventory) -> 
                 "id": domain.id,
                 "migration_order": domain.migration_order,
                 "package": domain.package,
-                "demo_package": domain.demo_package,
+                "consumer_package": domain.consumer_package,
                 "profiles": domain.profiles,
                 "fixture_dir": domain.fixture_dir,
                 "scenarios": domain.scenarios,

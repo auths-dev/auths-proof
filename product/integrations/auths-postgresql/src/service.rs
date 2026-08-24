@@ -717,6 +717,7 @@ fn validate_result(
     }
     if result.after_state_digest != action.after_state_digest
         || result.readback_commitment != action.after_state_digest
+        || result.transaction_isolation != crate::schema::IsolationLevelV1::Serializable
     {
         return Err(ServiceError::Port(PortError::AfterStateMismatch));
     }

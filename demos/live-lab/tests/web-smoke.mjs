@@ -158,10 +158,10 @@ for (const designToken of [
   );
 }
 
-const { loadVerifier } = await import(
+const { createVerifier } = await import(
   pathToFileURL(join(site, "vendor/dist/verify.js")).href
 );
-const auths = await loadVerifier();
+const auths = await createVerifier();
 const scenario = JSON.parse(
   await readFile(join(site, "assets/scenario.json"), "utf8"),
 );
@@ -173,7 +173,7 @@ for (const variant of scenario.variants) {
     readFile(join(site, variant.files.context)),
     readFile(join(site, variant.files.result)),
   ]);
-  const browser = auths.verify(proof, action, context);
+  const browser = auths.verify({ proof, action, trustedContext: context });
   assert.equal(browser.kind, variant.native.decision);
-  assert.deepEqual(Buffer.from(browser.resultCbor), nativeResult);
+  assert.deepEqual(Buffer.from(browser.decisionBytes), nativeResult);
 }

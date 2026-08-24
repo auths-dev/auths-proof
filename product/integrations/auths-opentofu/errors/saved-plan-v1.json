@@ -1,0 +1,25 @@
+{
+  "schema": "auths.error-registry-fragment/1",
+  "owner": "opentofu-saved-plan",
+  "ownerVersion": 1,
+  "definitions": [
+    {
+      "code": "opentofu.saved-plan-denied",
+      "operation": "execute",
+      "stage": "profile-evaluation",
+      "effect": "not-applied",
+      "retry": "satisfy-condition",
+      "action": "inspect-input",
+      "summary": "The saved plan failed its exact OpenTofu profile evaluation."
+    },
+    {
+      "code": "opentofu.apply-outcome-unknown",
+      "operation": "execute",
+      "stage": "provider-observation",
+      "effect": "possible",
+      "retry": "recover-only",
+      "action": "recover",
+      "summary": "The OpenTofu apply must be reconciled before another execution."
+    }
+  ]
+}

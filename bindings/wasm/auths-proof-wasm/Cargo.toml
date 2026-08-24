@@ -30,6 +30,7 @@ auths-registries.workspace = true
 auths-receipts.workspace = true
 auths-production-client.workspace = true
 auths-signature.workspace = true
+auths-signature-core.workspace = true
 auths-signature-ed25519.workspace = true
 auths-verifier.workspace = true
 ed25519-dalek.workspace = true

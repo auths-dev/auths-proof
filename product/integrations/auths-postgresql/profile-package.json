@@ -1,0 +1,165 @@
+{
+  "schema": "auths.profile-package/1",
+  "domain": {
+    "id": "postgresql",
+    "clientClass": "PostgreSQL",
+    "rustPackage": "auths-postgresql",
+    "typescriptPackage": "@auths-dev/profile-postgresql",
+    "pythonDistribution": "auths-profile-postgresql",
+    "pythonModule": "auths_profiles.postgresql",
+    "connection": {
+      "providerKind": "postgresql",
+      "contract": "auths.postgresql.connection/1",
+      "descriptorSchema": "auths.postgresql.connection-descriptor/1",
+      "sources": {
+        "specification": "docs/specs/0042-postgresql-connection.md",
+        "descriptor": "product/integrations/auths-postgresql/src/connection/descriptor.rs",
+        "onboarding": "product/integrations/auths-postgresql/src/connection/onboarding.rs",
+        "credentials": "product/integrations/auths-postgresql/src/connection/credentials.rs",
+        "adminRoutes": "product/integrations/auths-postgresql/src/connection/admin_routes.rs"
+      },
+      "evidence": {
+        "fixtures": "product/integrations/auths-postgresql/fixtures/connection/v1",
+        "conformance": "product/integrations/auths-postgresql/tests/connection_conformance.rs"
+      }
+    }
+  },
+  "api": "api/profile-api.json",
+  "qualification": {
+    "family": [
+      "auths.postgresql.bounded-update/1",
+      "auths.postgresql.update-preflight/1"
+    ],
+    "adapter": "postgresql",
+    "targets": [
+      "linux-x86_64"
+    ],
+    "protectedEnvironment": "qualification-postgresql",
+    "commonScenarios": "auths.profile-qualification-common/1",
+    "domainScenarios": "qualification/scenarios-v1.json",
+    "requirements": "qualification/requirements-v1.json",
+    "providerMatrix": "qualification/provider-matrix-v1.json",
+    "operationPlans": "qualification/operation-plans-v1.json",
+    "failpointCoverage": "qualification/failpoint-coverage-v1.json",
+    "providerTruthSchema": "qualification/provider-truth-v1.schema.json",
+    "profileStateSnapshot": "profiles/postgresql-prepared-updates-v1/records.json"
+  },
+  "profiles": [
+    {
+      "id": "auths.postgresql.bounded-update",
+      "version": 1,
+      "semanticSubject": "auths.postgresql.bounded-update/1",
+      "effectId": "postgresql.bounded-update.execute",
+      "client": {
+        "group": "updates",
+        "method": "execute",
+        "inputType": "PreparedUpdateInput",
+        "successType": "UpdateResult",
+        "partialType": null,
+        "progressType": null
+      },
+      "contracts": {
+        "canonicalAction": "auths.postgresql.bounded-update-action/1",
+        "evaluator": "auths.postgresql.bounded-update.evaluate/1",
+        "lifecycle": "auths.postgresql.bounded-update-lifecycle/1",
+        "provider": "auths.postgresql.serializable-ledger-update/1",
+        "receipt": "auths.postgresql.transaction-receipt/1",
+        "credentialScope": "postgresql.bounded-update.execute/1",
+        "configurationFormat": "auths.postgresql.verifier-configuration/1",
+        "errorOwner": "postgresql-bounded-update",
+        "errorOwnerVersion": 1
+      },
+      "limits": {
+        "requestBytes": 4096,
+        "responseBytes": 262144,
+        "receiptCount": 4,
+        "receiptBytes": 65536,
+        "executionMilliseconds": 30000,
+        "admissionsPerMinute": 600,
+        "activePerPrincipal": 64,
+        "unresolvedPerPrincipal": 16,
+        "durableBytesPerPrincipal": 67108864,
+        "tombstonesPerPrincipal": 100000,
+        "terminalRetentionSeconds": 2592000,
+        "idempotencyRetentionSeconds": 2592000
+      },
+      "sources": {
+        "specification": "docs/specs/0009-postgresql-bounded-data-changes.md",
+        "action": "product/integrations/auths-postgresql/src/action.rs",
+        "evaluator": "product/integrations/auths-postgresql/src/decision.rs",
+        "command": "product/integrations/auths-postgresql/src/executor.rs",
+        "lifecycle": "product/integrations/auths-postgresql/src/lifecycle.rs",
+        "gateway": "product/integrations/auths-postgresql/src/ports.rs",
+        "reconciliation": "product/integrations/auths-postgresql/src/service.rs",
+        "receipt": "product/integrations/auths-postgresql/src/receipts.rs",
+        "errors": "product/integrations/auths-postgresql/errors/bounded-update-v1.json",
+        "errorMapping": "product/integrations/auths-postgresql/src/decision.rs"
+      },
+      "evidence": {
+        "fixtures": "demos/postgresql-data-change",
+        "mutationCorpus": "product/integrations/auths-postgresql/src/action.rs",
+        "providerRequests": "product/integrations/auths-postgresql/src/compiler.rs",
+        "demo": "demos/postgresql-data-change",
+        "liveContract": "demos/postgresql-data-change/tests/live-contract.mjs"
+      }
+    },
+    {
+      "id": "auths.postgresql.update-preflight",
+      "version": 1,
+      "semanticSubject": "auths.postgresql.update-preflight/1",
+      "effectId": "postgresql.update-preflight.create",
+      "client": {
+        "group": "update-preflights",
+        "method": "create",
+        "inputType": "UpdatePreflightInput",
+        "successType": "PreparedUpdate",
+        "partialType": null,
+        "progressType": null
+      },
+      "contracts": {
+        "canonicalAction": "auths.postgresql.update-preflight-action/1",
+        "evaluator": "auths.postgresql.update-preflight.evaluate/1",
+        "lifecycle": "auths.postgresql.update-preflight-lifecycle/1",
+        "provider": "auths.postgresql.catalog-row-discovery/1",
+        "receipt": "auths.postgresql.update-preflight-receipt/1",
+        "credentialScope": "postgresql.update-preflight.create/1",
+        "configurationFormat": "auths.postgresql.verifier-configuration/1",
+        "errorOwner": "postgresql-update-preflight",
+        "errorOwnerVersion": 1
+      },
+      "limits": {
+        "requestBytes": 262144,
+        "responseBytes": 262144,
+        "receiptCount": 4,
+        "receiptBytes": 65536,
+        "executionMilliseconds": 30000,
+        "admissionsPerMinute": 600,
+        "activePerPrincipal": 64,
+        "unresolvedPerPrincipal": 16,
+        "durableBytesPerPrincipal": 67108864,
+        "tombstonesPerPrincipal": 100000,
+        "terminalRetentionSeconds": 2592000,
+        "idempotencyRetentionSeconds": 2592000
+      },
+      "sources": {
+        "specification": "docs/specs/0042-postgresql-connection.md",
+        "action": "product/integrations/auths-postgresql/src/local_agent.rs",
+        "evaluator": "product/integrations/auths-postgresql/src/decision.rs",
+        "command": "product/integrations/auths-postgresql/src/local_agent.rs",
+        "lifecycle": "product/integrations/auths-postgresql/src/prepared_store.rs",
+        "gateway": "product/integrations/auths-postgresql/src/local_provider.rs",
+        "reconciliation": "product/integrations/auths-postgresql/src/local_provider.rs",
+        "receipt": "product/integrations/auths-postgresql/src/local_agent.rs",
+        "errors": "product/integrations/auths-postgresql/errors/update-preflight-v1.json",
+        "errorMapping": "product/integrations/auths-postgresql/src/local_agent.rs"
+      },
+      "evidence": {
+        "fixtures": "product/integrations/auths-postgresql/tests/generated_profile_api.rs",
+        "mutationCorpus": "product/integrations/auths-postgresql/src/decision.rs",
+        "providerRequests": "product/integrations/auths-postgresql/src/local_provider.rs",
+        "demo": "demos/postgresql-data-change",
+        "liveContract": "product/integrations/auths-postgresql/preflight-implementation.md"
+      }
+    }
+  ]
+}

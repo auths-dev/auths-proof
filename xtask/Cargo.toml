@@ -29,24 +29,32 @@ auths-apps-testkit.workspace = true
 auths-bench-model.workspace = true
 auths-ci-plan = { path = "ci-plan", version = "1.0.0-rc.1" }
 auths-lab-matrix.workspace = true
+auths-lifecycle.workspace = true
 auths-github = { workspace = true, features = ["fixture-support"] }
 auths-kubernetes.workspace = true
-auths-opentofu.workspace = true
-auths-postgresql.workspace = true
+auths-opentofu = { workspace = true, features = ["qualification"] }
+auths-postgresql = { workspace = true, features = ["qualification"] }
 auths-production-client.workspace = true
+auths-profile-kit.workspace = true
+auths-profile-runtime.workspace = true
+auths-qualification-supervisor = { path = "../product/qualification/auths-qualification-supervisor" }
 auths-proof-exchange-testkit.workspace = true
 auths-radicle = { workspace = true, features = ["fixture-support"] }
 auths-records-api.workspace = true
-auths-stripe = { workspace = true, features = ["fixture-support"] }
+auths-stripe = { workspace = true, features = ["fixture-support", "qualification"] }
+auths-stores.workspace = true
+base64ct.workspace = true
 ed25519-dalek.workspace = true
 hex.workspace = true
+getrandom.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+serde_json_canonicalizer.workspace = true
 sha2.workspace = true
+rustix.workspace = true
 tar.workspace = true
+tempfile.workspace = true
 toml.workspace = true
 tokio.workspace = true
 zstd.workspace = true
-
-[dev-dependencies]
-tempfile.workspace = true
+zeroize.workspace = true

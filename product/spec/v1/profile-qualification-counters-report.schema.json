@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://auths.dev/spec/v1/profile-qualification-counters-report.schema.json",
+  "type": "object", "additionalProperties": false, "required": ["schema", "binding", "operations"],
+  "properties": {
+    "schema": {"const": "auths.profile-qualification-counters-report/1"}, "binding": {"$ref": "profile-qualification-report-common.schema.json#/$defs/binding"},
+    "operations": {"type": "array", "minItems": 1, "maxItems": 256, "items": {"type": "object", "additionalProperties": false, "required": ["operationId", "counters"], "properties": {"operationId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"}, "counters": {"$ref": "profile-qualification-report-common.schema.json#/$defs/counters"}}}}
+  }
+}

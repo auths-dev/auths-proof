@@ -1,0 +1,25 @@
+{
+  "schema": "auths.error-registry-fragment/1",
+  "owner": "opentofu-plan-preflight",
+  "ownerVersion": 1,
+  "definitions": [
+    {
+      "code": "opentofu.plan-preflight-denied",
+      "operation": "execute",
+      "stage": "profile-evaluation",
+      "effect": "not-applied",
+      "retry": "satisfy-condition",
+      "action": "inspect-input",
+      "summary": "The OpenTofu plan preflight failed its exact profile evaluation or protected-planner checks."
+    },
+    {
+      "code": "opentofu.plan-preflight-outcome-unknown",
+      "operation": "execute",
+      "stage": "provider-observation",
+      "effect": "possible",
+      "retry": "recover-only",
+      "action": "recover",
+      "summary": "Recovery must establish whether the OpenTofu prepared-plan record and artifact became ready."
+    }
+  ]
+}

@@ -19,9 +19,12 @@
   },
   "ownerConcepts": {
     "product": "protected action workflow",
+    "mechanism": "cross-domain mechanism adapters and lower-level contracts",
+    "extension": "advanced protocol and profile-runtime extension contracts",
+    "test": "fixtures and conformance for adapters and profiles",
     "component": "independently adoptable identity or verification",
     "service": "remote Auths service client",
-    "profile": "qualified effect-domain action family",
+    "profile": "versioned effect-domain action family; its route is usable only after qualification",
     "integration": "cross-domain mechanism or composition",
     "framework": "custom vertical construction",
     "testkit": "fixtures and conformance",
@@ -67,8 +70,7 @@
     "bindings/python/README.md",
     "docs/product/recipes/01_AUTHENTICATE_IDENTITY.md",
     "docs/product/recipes/02_VERIFY_AUTHORITY.md",
-    "docs/product/recipes/03_EXECUTE_ONE_ACTION.md",
-    "docs/product/recipes/04_DELEGATE_TO_AN_AGENT.md"
+    "docs/product/PRODUCTION_SDK_QUICKSTART.md"
   ],
   "forbiddenBeginnerTerms": [
     "advanced namespace",

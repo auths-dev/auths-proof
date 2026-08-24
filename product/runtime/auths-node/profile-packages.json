@@ -1,0 +1,61 @@
+{
+  "schema": "auths.profile-roster/2",
+  "packages": [
+    {
+      "domain": "opentofu",
+      "rustPackage": "auths-opentofu",
+      "manifestPath": "product/integrations/auths-opentofu/profile-package.json",
+      "profiles": [
+        {
+          "profile": "auths.opentofu.plan-preflight/1",
+          "state": "unqualified",
+          "testkitAvailable": false,
+          "targets": [],
+          "qualificationIds": []
+        },
+        {
+          "profile": "auths.opentofu.saved-plan-apply/1",
+          "state": "unqualified",
+          "testkitAvailable": false,
+          "targets": [],
+          "qualificationIds": []
+        }
+      ]
+    },
+    {
+      "domain": "postgresql",
+      "rustPackage": "auths-postgresql",
+      "manifestPath": "product/integrations/auths-postgresql/profile-package.json",
+      "profiles": [
+        {
+          "profile": "auths.postgresql.bounded-update/1",
+          "state": "unqualified",
+          "testkitAvailable": false,
+          "targets": [],
+          "qualificationIds": []
+        },
+        {
+          "profile": "auths.postgresql.update-preflight/1",
+          "state": "unqualified",
+          "testkitAvailable": false,
+          "targets": [],
+          "qualificationIds": []
+        }
+      ]
+    },
+    {
+      "domain": "stripe",
+      "rustPackage": "auths-stripe",
+      "manifestPath": "product/integrations/auths-stripe/profile-package.json",
+      "profiles": [
+        {
+          "profile": "auths.stripe.refund/1",
+          "state": "unqualified",
+          "testkitAvailable": true,
+          "targets": [],
+          "qualificationIds": []
+        }
+      ]
+    }
+  ]
+}

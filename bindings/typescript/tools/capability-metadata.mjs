@@ -53,7 +53,8 @@ if (
 }
 for (const statement of [
   "closed product workflow",
-  "This README does not promote those repository-local claims",
+  "There is no Auths application token",
+  "profile-runtime",
   "Publication, promotion, and independent-review status",
 ]) {
   if (!readme.includes(statement)) {

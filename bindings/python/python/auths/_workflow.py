@@ -19,17 +19,7 @@ from typing import (
     Union,
     cast,
     runtime_checkable,
-    TYPE_CHECKING,
 )
-
-if TYPE_CHECKING:
-    from .profiles._mcp import (
-        AuthorizationRequest,
-        McpAction,
-        McpAuthorizationResult,
-        McpPlan,
-        McpPlanAuthorizationResult,
-    )
 
 from ._native import (
     ApprovalPolicyReference,
@@ -1195,31 +1185,6 @@ class AttachedAgent:
         finally:
             if not transferred:
                 await _close_signer(signer)
-
-    async def authorize(
-        self,
-        action: McpAction,
-        *,
-        request: Optional[AuthorizationRequest] = None,
-    ) -> McpAuthorizationResult:
-        from .profiles._mcp import McpAction as _McpAction, _authorize_mcp
-
-        if type(action) is not _McpAction:
-            raise TypeError("action must belong to a qualified Auths profile")
-        return await _authorize_mcp(self, action, request)
-
-    async def authorize_plan(
-        self,
-        plan: McpPlan,
-        *,
-        approval_provider: Optional[ApprovalProvider] = None,
-        requests: Optional[Sequence[AuthorizationRequest]] = None,
-    ) -> McpPlanAuthorizationResult:
-        from .profiles._mcp import McpPlan as _McpPlan, _authorize_mcp_plan
-
-        if type(plan) is not _McpPlan:
-            raise TypeError("plan must belong to a qualified Auths profile")
-        return await _authorize_mcp_plan(self, plan, approval_provider, requests)
 
     async def aclose(self) -> None:
         if not await self._close(suppress_errors=False):

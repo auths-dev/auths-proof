@@ -1,4 +1,4 @@
-//! Exact `auths.mcp/1` profile and verified command decoder.
+//! Exact `auths.mcp/2` profile and verified command decoder.
 
 #![forbid(unsafe_code)]
 
@@ -23,11 +23,11 @@ use std::{fmt, string::String};
 /// Exact profile identifier.
 pub const PROFILE_ID: &str = "auths.mcp";
 /// Exact profile semantic version.
-pub const PROFILE_VERSION: u16 = 1;
+pub const PROFILE_VERSION: u16 = 2;
 /// Exact capability derived for MCP tool calls.
 pub const CAPABILITY: &str = "tools/call";
 /// Exact canonical JSON media type.
-pub const MEDIA_TYPE: &str = "application/vnd.auths.mcp-call.v1+json";
+pub const MEDIA_TYPE: &str = "application/vnd.auths.mcp-call.v2+json";
 /// Maximum service identifier bytes.
 pub const MAX_SERVICE_ID_BYTES: usize = 64;
 /// Maximum tool-name bytes.
@@ -233,7 +233,7 @@ impl McpToolCall {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct McpProfile;
 
-/// Reports whether `auths.mcp/1` canonical actions can express a requested
+/// Reports whether `auths.mcp/2` canonical actions can express a requested
 /// budget.
 ///
 /// The answer is read off [`McpProfile`]'s own
@@ -354,7 +354,7 @@ pub fn reference_canonicalize(untrusted: &[u8]) -> Result<CanonicalAction, Profi
     bytes.extend_from_slice(
         &serde_json::to_vec(&call.name).map_err(|_| ProfileContractError::Malformed)?,
     );
-    bytes.extend_from_slice(br#","profile":"auths.mcp","profile_version":1,"service":"#);
+    bytes.extend_from_slice(br#","profile":"auths.mcp","profile_version":2,"service":"#);
     bytes.extend_from_slice(
         &serde_json::to_vec(&call.service).map_err(|_| ProfileContractError::Malformed)?,
     );
@@ -580,7 +580,7 @@ mod tests {
 
     #[test]
     fn noncanonical_json_is_rejected() {
-        let input = br#"{ "profile":"auths.mcp","profile_version":1,"service":"reports","name":"read_report","arguments":{} }"#;
+        let input = br#"{ "profile":"auths.mcp","profile_version":2,"service":"reports","name":"read_report","arguments":{} }"#;
         assert_eq!(
             McpToolCall::from_canonical_bytes(input),
             Err(ProfileError::NonCanonical)
@@ -638,16 +638,18 @@ mod tests {
                 .unwrap();
             assert!(
                 canonical.requested_budget().is_none(),
-                "auths.mcp/1 canonicalization must never produce a requested budget"
+                "auths.mcp/2 canonicalization must never produce a requested budget"
             );
         }
         assert_eq!(
-            budget_expression(&ProfileRef::new(ProfileId::parse(PROFILE_ID).unwrap(), 1).unwrap()),
+            budget_expression(
+                &ProfileRef::new(ProfileId::parse(PROFILE_ID).unwrap(), PROFILE_VERSION).unwrap(),
+            ),
             Some(ProfileBudgetExpression::Inexpressible)
         );
         // A different version is a different profile and stays undeclared.
         assert_eq!(
-            budget_expression(&ProfileRef::new(ProfileId::parse(PROFILE_ID).unwrap(), 2).unwrap()),
+            budget_expression(&ProfileRef::new(ProfileId::parse(PROFILE_ID).unwrap(), 1).unwrap()),
             None
         );
         assert_eq!(

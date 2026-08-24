@@ -1,0 +1,331 @@
+{
+  "schema": "auths.profile-qualification-scenarios/2",
+  "domain": "stripe",
+  "programs": [
+    {
+      "id": "stripe-account-equality",
+      "cases": [
+        {
+          "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "account-equality",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "stripe-aggregate-budget",
+      "cases": [
+        {
+          "caseId": "contender-a",
+          "intentId": "contender-a",
+          "stimulus": "final-capacity-refund",
+          "role": "effect",
+          "group": 1,
+          "topology": "parallel",
+          "expectation": "group-multiset",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        },
+        {
+          "caseId": "contender-b",
+          "intentId": "contender-b",
+          "stimulus": "final-capacity-refund",
+          "role": "effect",
+          "group": 1,
+          "topology": "parallel",
+          "expectation": "group-multiset",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "stripe-api-version",
+      "cases": [
+        {
+          "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "stripe-command-bound-reread",
+      "cases": [
+        {
+          "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "stripe-evidence-read-count",
+      "cases": [
+        {
+          "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "primary",
+          "stage": "before-observer",
+          "hook": "verify-evidence-read-count"
+        }
+      ]
+    },
+    {
+      "id": "stripe-existing-refund",
+      "cases": [
+        {
+          "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "unrelated-refund",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "primary",
+          "stage": "before-provider",
+          "hook": "create-unrelated-refund"
+        },
+        {
+          "caseId": "primary",
+          "stage": "after-provider-before-response",
+          "hook": "force-reconcile"
+        }
+      ]
+    },
+    {
+      "id": "stripe-preparation-evidence-lease",
+      "cases": [
+        {
+          "caseId": "unauthorized",
+          "intentId": "unauthorized",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "expired",
+          "intentId": "expired",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 2,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "unavailable",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "cross-binding",
+          "intentId": "cross-binding",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 3,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "conflict",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        },
+        {
+          "caseId": "fresh",
+          "intentId": "fresh",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 4,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        },
+        {
+          "caseId": "exact-replay",
+          "intentId": "fresh",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 5,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "unauthorized",
+          "stage": "before-call",
+          "hook": "exercise-preparation-lease"
+        },
+        {
+          "caseId": "expired",
+          "stage": "before-call",
+          "hook": "exercise-preparation-lease"
+        },
+        {
+          "caseId": "cross-binding",
+          "stage": "before-call",
+          "hook": "exercise-preparation-lease"
+        },
+        {
+          "caseId": "fresh",
+          "stage": "before-call",
+          "hook": "exercise-preparation-lease"
+        },
+        {
+          "caseId": "exact-replay",
+          "stage": "before-call",
+          "hook": "exercise-preparation-lease"
+        }
+      ]
+    },
+    {
+      "id": "stripe-redaction",
+      "cases": [
+        {
+          "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "redaction-audit",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "stripe-refund-boundary",
+      "cases": [
+        {
+          "caseId": "maximum",
+          "intentId": "maximum",
+          "stimulus": "maximum-refund",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        },
+        {
+          "caseId": "maximum-plus-one",
+          "intentId": "maximum-plus-one",
+          "stimulus": "maximum-plus-one-refund",
+          "role": "effect",
+          "group": 2,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "denied",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 0
+        }
+      ],
+      "hooks": []
+    },
+    {
+      "id": "stripe-refundable-drift",
+      "cases": [
+        {
+          "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "not-applied",
+          "expectedEffect": "not-applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "primary",
+          "stage": "before-provider",
+          "hook": "reduce-refundable-amount"
+        }
+      ]
+    },
+    {
+      "id": "stripe-timeout-after-write",
+      "cases": [
+        {
+          "caseId": "primary",
+          "intentId": "primary",
+          "stimulus": "canonical",
+          "role": "effect",
+          "group": 1,
+          "topology": "serial",
+          "expectation": "exact",
+          "expectedOutcome": "completed",
+          "expectedEffect": "applied",
+          "expectedProviderCalls": 1
+        }
+      ],
+      "hooks": [
+        {
+          "caseId": "primary",
+          "stage": "after-provider-before-response",
+          "hook": "suppress-first-response"
+        }
+      ]
+    }
+  ]
+}

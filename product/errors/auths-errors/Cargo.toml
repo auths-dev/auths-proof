@@ -13,6 +13,7 @@ default = ["std"]
 std = []
 
 [dependencies]
+minicbor.workspace = true
 serde.workspace = true
 
 [lints]

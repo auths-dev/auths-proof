@@ -55,27 +55,20 @@ def main() -> None:
     wheel = Path(sys.argv[2])
     started = time.perf_counter()
     verify_module = importlib.import_module("auths.verify")
-    profiles_module = importlib.import_module("auths.profiles")
     native_module = importlib.import_module("auths._native")
     cold_initialize_ms = (time.perf_counter() - started) * 1000
 
-    item = (
-        (vectors / "workflow.proof.cbor").read_bytes(),
-        (vectors / "workflow.action.cbor").read_bytes(),
-        (vectors / "workflow.context.cbor").read_bytes(),
+    item = verify_module.VerificationInput(
+        proof=(vectors / "workflow.proof.cbor").read_bytes(),
+        action=(vectors / "workflow.action.cbor").read_bytes(),
+        trusted_context=(vectors / "workflow.context.cbor").read_bytes(),
     )
     verify = verify_module.verify
     verify_many = verify_module.verify_many
-    verify(*item)
+    verify(item)
     verify_many((item,) * 32)
-    single = _timings(lambda: verify(*item), 100)
+    single = _timings(lambda: verify(item), 100)
     batch = _timings(lambda: verify_many((item,) * 32), 100)
-    profile = profiles_module.mcp.profile(service="performance")
-    actions = tuple(
-        profile.call("read_record", {"index": index}) for index in range(64)
-    )
-    profile.plan(actions)
-    plans = _timings(lambda: profile.plan(actions), 100)
 
     tracemalloc.start()
     verify_many((item,) * 32)
@@ -95,7 +88,6 @@ def main() -> None:
             _native_boundary(native_module, 65536), 3
         ),
         "batch32MsP95": round(_p95(batch), 3),
-        "plan64MsP95": round(_p95(plans), 3),
         "verifyPeakBytes": verify_peak_bytes,
         "eventLoopYieldMsP95": round(_p95(asyncio.run(_event_loop_yields())), 3),
         "wheelBytes": wheel.stat().st_size,
@@ -136,7 +128,6 @@ def main() -> None:
             "pyO3BoundarySerializeMediumP95Ms",
             "pyO3BoundarySerializeMaximumP95Ms",
             "batch32MsP95",
-            "plan64MsP95",
             "eventLoopYieldMsP95",
         ):
             budget = baseline["measurements"][key] * runtime_threshold

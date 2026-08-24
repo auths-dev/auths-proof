@@ -5,12 +5,13 @@
 This package is a **consumer** transport. It ships no generic domain parser,
 no generic canonicalizer, and no reference action profile.
 
-`bindings/public-topology-v1.json` declares the qualified profiles:
+`bindings/public-topology-v1.json` currently declares no qualified effect
+profiles. The entries below are legacy transport/codec capabilities; they do
+not advertise or activate a local-agent provider route:
 
-| Qualified profile | Exposed here | How |
+| Profile-shaped codec | Exposed here | How |
 |---|---|---|
 | `auths.mcp/1` | yes | `prepareMcpActionV1`, `canonicalizeMcpPlanMemberV1`, `beginMcpExecutionV1`, `resumeMcpExecutionV1` |
-| `auths.github.issue-address/1` | routed only | `encodeProductionRequestV1` / `decodeProductionResponseV1` |
 | `auths.opentofu.saved-plan-apply/1` | routed only | as above |
 | `auths.postgresql.bounded-update/1` | routed only | as above |
 
@@ -31,14 +32,10 @@ their five `parseCanonical…ActionV1` counterparts, and the
 `product-abi-v1.json` records the removal and `tests/node-smoke.cjs` fails if
 any of them reappears.
 
-### Known disagreements
+### Qualification boundary
 
-1. `bindings/public-topology-v1.json` lists **four** `qualifiedProfiles`, but
-   `auths_production_client::QualifiedProfile`
-   (`product/runtime/auths-production-client/src/lib.rs:194-206`) has **three**
-   members: `auths.mcp/1` has no production-client route. The topology list is
-   a union of "profiles the product ships" and "profiles the service routes",
-   and nothing reconciles the two.
+1. Generated client distributions and codec support are not qualification
+   evidence. Production agents advertise only build-time-qualified routes.
 2. `prepareProfileActionV1`, `canonicalizeProfilePlanMemberV1`, and
    `commitProfilePlanV1` accept an arbitrary `profileId` string from
    JavaScript. `canonical_profile_action_native`

@@ -1,14 +1,15 @@
 # Auths recipes
 
-Choose the smallest outcome that matches what you need:
+These recipes cover the effect-free verification surface:
 
 1. [Authenticate an identity](01_AUTHENTICATE_IDENTITY.md) without authority or approval setup.
 2. [Verify existing authority](02_VERIFY_AUTHORITY.md) without gaining execution capability.
-3. [Execute one exact action](03_EXECUTE_ONE_ACTION.md) and verify its signed receipt.
-4. [Delegate to an agent](04_DELEGATE_TO_AN_AGENT.md) with narrower, expiring authority.
-5. [Run a cross-organization ordered plan](05_CROSS_ORGANIZATION_ORDERED_PLAN.md), restart after an ambiguous effect, and reconcile without duplicate provider entry.
-6. [Handle production failures and recovery](06_PRODUCTION_FAILURES.md) with finite outcomes and safe retry classes.
 
-The displayed TypeScript and Python programs are generated from the external-consumer sources in `bindings/recipes`. The installed-artifact runner executes every program, records wall-clock duration, checks each adversarial outcome, and verifies the recovered receipt from Recipe 5 in the other language.
+The displayed TypeScript and Python programs are generated from the
+external-consumer sources in `bindings/recipes`. The installed-artifact runner
+executes them against the packed root packages.
 
-Recipe 3's independent human-usability gate is recorded in `bindings/recipes/experience-evidence.json`. Automated success does not count as unfamiliar-developer evidence.
+Effectful applications use the local agent and a generated profile client.
+Start with the [production SDK quickstart](../PRODUCTION_SDK_QUICKSTART.md).
+The removed caller-handler, remote-token, and staged-delegation recipes are not
+compatibility examples for the AP-SPEC-040 relaunch.

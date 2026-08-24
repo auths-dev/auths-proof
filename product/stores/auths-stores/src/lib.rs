@@ -2,13 +2,43 @@
 
 #![forbid(unsafe_code)]
 
+/// Build-time sentinel used by the production agent to reject accidental
+/// linkage of its qualification-only journal evidence surface.
+#[doc(hidden)]
+pub const __QUALIFICATION_EVIDENCE_ENABLED: bool = cfg!(feature = "qualification-evidence");
+
+mod connection;
 mod lifecycle;
+mod operation;
+
+pub use connection::{
+    ConnectionStoreConfigurationError, PersistentConnectionStore, PersistentConnectionStoreError,
+};
 
 pub use lifecycle::{
     InMemoryLifecycleStore, LifecycleCapacityRuleV1, LifecycleStoreConfigurationError,
     PersistentLifecycleStore, PostgresLifecycleStore, PostgresPoolConfig, PostgresServerName,
     PostgresStoreConfig, PostgresStoreHealth, PostgresStoreSummary, PostgresTlsConfig,
     SecretConnectionString,
+};
+#[cfg(all(unix, feature = "qualification-evidence"))]
+pub use operation::read_persisted_qualification_boundaries_from_snapshot;
+pub use operation::{
+    JournalCompletionV1, JournalDecisionClassV1, JournalExecutionOutcomeV1,
+    JournalExecutionReceiptBasisV1, JournalReceiptV1, JournalRecordV1, JournalStatusV1,
+    OperationJournalConfigurationError, OperationJournalError, OperationJournalLimitsV1,
+    OperationMutationV1, PersistentOperationJournal, PreparationIdentityLookup,
+    PrepareJournalResult, TombstoneV1, generate_operation_id,
+};
+#[cfg(feature = "qualification-evidence")]
+pub use operation::{QualificationJournalBoundaryKindV1, QualificationJournalBoundaryV1};
+#[cfg(all(unix, any(feature = "qualification-evidence", test)))]
+pub use operation::{
+    open_persisted_operation_snapshot_at_for_qualification,
+    open_persisted_operation_snapshot_for_qualification,
+    read_persisted_operation_record_for_qualification,
+    read_persisted_operation_record_from_qualification_snapshot,
+    read_persisted_operation_records_from_qualification_snapshot,
 };
 
 use auths_model::{ActionId, BudgetCeiling, ReceiptId};
@@ -744,8 +774,9 @@ mod tests {
         SignatureSuiteId, StatusSnapshotId, Timestamp, VerificationMethod,
     };
     use auths_receipts::{
-        AttestedDecisionReceipt, DecisionClass, DecisionReceipt, ReceiptSigner,
-        decision_receipt_id, encode_attested_decision,
+        AttestedDecisionReceipt, DecisionClass, DecisionReceipt, ProfileReceiptClaim,
+        ProfileReceiptClaimPhase, ReceiptSigner, decision_receipt_id, encode_attested_decision,
+        encode_profile_receipt_claims,
     };
 
     struct FailingReceiptSink;
@@ -856,16 +887,24 @@ mod tests {
 
     #[test]
     fn local_spool_policy_persists_attested_receipt_on_primary_failure() {
+        let profile = ProfileRef::new(ProfileId::parse("auths.mcp").unwrap(), 1).unwrap();
+        let profile_claims = encode_profile_receipt_claims(
+            &profile,
+            ProfileReceiptClaimPhase::Decision,
+            &[ProfileReceiptClaim::new("auths.mcp.action", [6; 32]).unwrap()],
+        )
+        .unwrap();
         let receipt = DecisionReceipt::new(
             Digest::new([1; 32]),
             Digest::new([2; 32]),
             ContextDigest::new([3; 32]),
             StatusSnapshotId::new([4; 32]),
             StatusSnapshotId::new([5; 32]),
-            ProfileRef::new(ProfileId::parse("auths.mcp").unwrap(), 1).unwrap(),
+            profile,
             DecisionClass::Authorized,
             vec!["authorized".into()],
             Timestamp::new(10),
+            profile_claims,
         )
         .unwrap();
         let id = decision_receipt_id(&receipt).unwrap();

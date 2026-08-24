@@ -1,10 +1,16 @@
-import type { Auths } from "../../src/index.js";
+import type { Client } from "../../src/index.js";
+import type { IdentityClient } from "../../src/identity.js";
+import type { RemoteVerifier } from "../../src/protocol.js";
 
-declare function configuredAuths(): Promise<Auths>;
+declare function identityClient(): Promise<IdentityClient>;
+declare function remoteVerifier(): Promise<RemoteVerifier>;
+declare function session(): Promise<Client>;
 
 async function managed(): Promise<void> {
-  await using auths = await configuredAuths();
-  void auths.actor;
+  await using identity = await identityClient();
+  await using verifier = await remoteVerifier();
+  await using auths = await session();
+  void identity; void verifier; void auths;
 }
 
 void managed;

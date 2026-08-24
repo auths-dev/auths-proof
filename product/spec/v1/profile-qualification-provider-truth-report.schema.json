@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://auths.dev/spec/v1/profile-qualification-provider-truth-report.schema.json",
+  "type": "object", "additionalProperties": false, "required": ["schema", "binding", "operations"],
+  "properties": {
+    "schema": {"const": "auths.profile-qualification-provider-truth-report/1"}, "binding": {"$ref": "profile-qualification-report-common.schema.json#/$defs/binding"},
+    "operations": {"type": "array", "minItems": 1, "maxItems": 256, "items": {"type": "object", "additionalProperties": false, "required": ["operationId", "providerRunId", "providerVersion", "providerArtifactSha256", "effect", "providerCalls", "commitmentSha256", "domainFacts"], "properties": {"operationId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"}, "providerRunId": {"$ref": "profile-qualification.schema.json#/$defs/registeredToken"}, "providerVersion": {"$ref": "profile-qualification.schema.json#/$defs/toolchainValue"}, "providerArtifactSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"}, "effect": {"$ref": "profile-qualification-report-common.schema.json#/$defs/effect"}, "providerCalls": {"$ref": "profile-qualification-report-common.schema.json#/$defs/count"}, "commitmentSha256": {"$ref": "profile-qualification.schema.json#/$defs/digest"}, "domainFacts": {"type": "object"}}}}
+  }
+}

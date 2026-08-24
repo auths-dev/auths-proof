@@ -3,6 +3,12 @@
 version = 4
 
 [[package]]
+name = "adler2"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
+
+[[package]]
 name = "aead"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -394,7 +400,22 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "thiserror 2.0.19",
  "toml",
+]
+
+[[package]]
+name = "auths-connections"
+version = "1.0.0-rc.1"
+dependencies = [
+ "async-trait",
+ "base64ct",
+ "getrandom 0.3.4",
+ "minicbor",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 2.0.19",
+ "zeroize",
 ]
 
 [[package]]
@@ -503,6 +524,7 @@ dependencies = [
 name = "auths-errors"
 version = "1.0.0-rc.1"
 dependencies = [
+ "minicbor",
  "serde",
 ]
 
@@ -572,35 +594,6 @@ dependencies = [
  "subtle",
  "tempfile",
  "thiserror 2.0.19",
-]
-
-[[package]]
-name = "auths-github-demo"
-version = "1.0.0-rc.1"
-dependencies = [
- "auths-author",
- "auths-codec",
- "auths-github",
- "auths-lifecycle",
- "auths-model",
- "auths-ports",
- "auths-profile-api",
- "auths-raw-key",
- "auths-registries",
- "auths-runtime",
- "auths-sdk",
- "auths-signature",
- "auths-stores",
- "axum",
- "ed25519-dalek 2.2.0",
- "getrandom 0.3.4",
- "hex",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.19",
- "tokio",
- "tower-http 0.7.0",
 ]
 
 [[package]]
@@ -765,6 +758,7 @@ name = "auths-lifecycle"
 version = "1.0.0-rc.1"
 dependencies = [
  "auths-bounded-policy",
+ "base64ct",
  "postcard",
  "proptest",
  "serde",
@@ -839,56 +833,84 @@ dependencies = [
 name = "auths-node"
 version = "1.0.0-rc.1"
 dependencies = [
+ "async-trait",
  "auths-author",
  "auths-codec",
+ "auths-config",
+ "auths-connections",
  "auths-did-keri",
  "auths-did-key",
  "auths-did-web",
  "auths-errors",
  "auths-hsm-attested",
+ "auths-lifecycle",
  "auths-model",
+ "auths-opentofu",
  "auths-operations",
  "auths-operations-otel",
  "auths-ports",
+ "auths-postgresql",
  "auths-production-client",
+ "auths-profile-kit",
+ "auths-profile-runtime",
  "auths-raw-key",
+ "auths-receipts",
  "auths-registries",
  "auths-signature",
  "auths-spiffe-x509",
+ "auths-stores",
+ "auths-stripe",
  "auths-testkit",
  "auths-verifier",
  "auths-webauthn",
  "axum",
  "base64ct",
+ "clap",
  "ed25519-dalek 2.2.0",
  "getrandom 0.3.4",
  "hex",
  "minicbor",
  "postgres",
+ "rustix",
  "rustls",
  "rustls-pki-types",
  "serde",
  "serde_json",
+ "serde_json_canonicalizer",
  "sha2 0.10.9",
  "tempfile",
+ "thiserror 2.0.19",
  "tokio",
  "tokio-postgres-rustls",
  "toml",
  "tower",
  "tower-http 0.7.0",
+ "zeroize",
 ]
 
 [[package]]
 name = "auths-opentofu"
 version = "1.0.0-rc.1"
 dependencies = [
+ "async-trait",
  "auths-bounded-policy",
+ "auths-codec",
+ "auths-connections",
+ "auths-errors",
  "auths-lifecycle",
  "auths-model",
  "auths-profile-api",
+ "auths-profile-kit",
+ "auths-profile-runtime",
+ "auths-receipts",
  "auths-sdk",
  "auths-stores",
+ "base64ct",
+ "getrandom 0.3.4",
+ "hcl-rs",
  "hex",
+ "minicbor",
+ "rustix",
  "serde",
  "serde_json",
  "serde_json_canonicalizer",
@@ -896,6 +918,9 @@ dependencies = [
  "subtle",
  "tempfile",
  "thiserror 2.0.19",
+ "tokio",
+ "url",
+ "zeroize",
 ]
 
 [[package]]
@@ -958,12 +983,24 @@ version = "1.0.0-rc.1"
 dependencies = [
  "async-trait",
  "auths-bounded-policy",
+ "auths-codec",
+ "auths-connections",
+ "auths-errors",
  "auths-lifecycle",
  "auths-model",
  "auths-profile-api",
+ "auths-profile-kit",
+ "auths-profile-runtime",
+ "auths-receipts",
  "auths-sdk",
  "auths-stores",
+ "base64ct",
+ "getrandom 0.3.4",
  "hex",
+ "minicbor",
+ "rustix",
+ "rustls",
+ "rustls-pki-types",
  "serde",
  "serde_json",
  "serde_json_canonicalizer",
@@ -971,8 +1008,12 @@ dependencies = [
  "subtle",
  "tempfile",
  "thiserror 2.0.19",
+ "tokio",
+ "tokio-postgres",
+ "tokio-postgres-rustls",
  "unicode-normalization",
  "uuid",
+ "zeroize",
 ]
 
 [[package]]
@@ -1011,9 +1052,12 @@ name = "auths-production-client"
 version = "1.0.0-rc.1"
 dependencies = [
  "base64ct",
+ "getrandom 0.3.4",
  "minicbor",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -1048,9 +1092,13 @@ dependencies = [
  "auths-model",
  "auths-profile-api",
  "auths-verifier",
+ "base64ct",
+ "ed25519-dalek 2.2.0",
  "hex",
+ "minicbor",
  "serde",
  "serde_json",
+ "serde_json_canonicalizer",
  "sha2 0.10.9",
  "thiserror 2.0.19",
 ]
@@ -1070,6 +1118,18 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_json_canonicalizer",
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "auths-profile-runtime"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-connections",
+ "auths-lifecycle",
+ "auths-stores",
+ "hex",
+ "serde",
  "sha2 0.10.9",
 ]
 
@@ -1272,6 +1332,7 @@ dependencies = [
  "auths-registries",
  "auths-sdk",
  "auths-signature",
+ "auths-signature-core",
  "auths-signature-ed25519",
  "auths-verifier",
  "ed25519-dalek 2.2.0",
@@ -1305,6 +1366,7 @@ dependencies = [
  "auths-receipts",
  "auths-registries",
  "auths-signature",
+ "auths-signature-core",
  "auths-signature-ed25519",
  "auths-testkit",
  "auths-verifier",
@@ -1317,6 +1379,67 @@ dependencies = [
  "serde_json_canonicalizer",
  "sha2 0.10.9",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "auths-qualification-evidence-source"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-config",
+ "auths-connections",
+ "auths-errors",
+ "auths-lifecycle",
+ "auths-model",
+ "auths-opentofu",
+ "auths-postgresql",
+ "auths-production-client",
+ "auths-profile-kit",
+ "auths-profile-runtime",
+ "auths-receipts",
+ "auths-stores",
+ "auths-stripe",
+ "base64ct",
+ "ed25519-dalek 2.2.0",
+ "hex",
+ "minicbor",
+ "rustix",
+ "serde",
+ "serde_json",
+ "serde_json_canonicalizer",
+ "sha2 0.10.9",
+ "tempfile",
+ "tokio",
+ "zeroize",
+]
+
+[[package]]
+name = "auths-qualification-supervisor"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-config",
+ "auths-lifecycle",
+ "auths-model",
+ "auths-profile-kit",
+ "auths-qualification-evidence-source",
+ "auths-receipts",
+ "auths-stores",
+ "base64ct",
+ "ed25519-dalek 2.2.0",
+ "goblin",
+ "hex",
+ "libc",
+ "rustix",
+ "seccompiler",
+ "serde",
+ "serde_json",
+ "serde_json_canonicalizer",
+ "sha2 0.10.9",
+ "tar",
+ "tempfile",
+ "toml",
+ "zeroize",
+ "zip",
+ "zstd",
 ]
 
 [[package]]
@@ -1405,8 +1528,14 @@ dependencies = [
  "auths-codec",
  "auths-model",
  "auths-ports",
+ "auths-signature",
+ "base64ct",
  "minicbor",
+ "serde",
+ "serde_json",
+ "serde_json_canonicalizer",
  "sha2 0.10.9",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -1504,7 +1633,6 @@ dependencies = [
  "auths-lifecycle",
  "auths-model",
  "auths-operations",
- "auths-production-client",
  "auths-profile-api",
  "auths-profile-mcp",
  "auths-proof-exchange-model",
@@ -1591,20 +1719,27 @@ name = "auths-stores"
 version = "1.0.0-rc.1"
 dependencies = [
  "auths-bounded-policy",
+ "auths-connections",
  "auths-lifecycle",
  "auths-model",
  "auths-proof-exchange-model",
  "auths-receipts",
  "auths-runtime",
+ "base64ct",
+ "getrandom 0.3.4",
  "hex",
  "minicbor",
+ "postcard",
  "postgres",
  "r2d2",
  "r2d2_postgres",
+ "rustix",
  "rustls",
  "rustls-pki-types",
+ "serde",
  "sha2 0.10.9",
  "tempfile",
+ "thiserror 2.0.19",
  "tokio-postgres-rustls",
 ]
 
@@ -1612,21 +1747,32 @@ dependencies = [
 name = "auths-stripe"
 version = "1.0.0-rc.1"
 dependencies = [
+ "async-trait",
  "auths-author",
  "auths-bounded-policy",
  "auths-codec",
+ "auths-connections",
+ "auths-errors",
  "auths-lifecycle",
  "auths-model",
  "auths-ports",
  "auths-profile-api",
+ "auths-profile-kit",
+ "auths-profile-runtime",
  "auths-raw-key",
+ "auths-receipts",
  "auths-registries",
  "auths-runtime",
  "auths-sdk",
  "auths-signature",
+ "auths-stores",
+ "base64ct",
  "ed25519-dalek 2.2.0",
  "hex",
+ "minicbor",
  "proptest",
+ "reqwest",
+ "rustix",
  "serde",
  "serde_json",
  "serde_json_canonicalizer",
@@ -1634,6 +1780,8 @@ dependencies = [
  "subtle",
  "tempfile",
  "thiserror 2.0.19",
+ "tokio",
+ "zeroize",
 ]
 
 [[package]]
@@ -2403,6 +2551,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "crc32fast"
+version = "1.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8498c871161e1742aaa9d52551b2d6ebdd4c3d45a3be423e3728f33b955be550"
+dependencies = [
+ "cfg-if",
+]
+
+[[package]]
 name = "critical-section"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2902,6 +3059,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b7ac824320a75a52197e8f2d787f6a38b6718bb6897a35142d749af3c0e8f4fe"
 
 [[package]]
+name = "flate2"
+version = "1.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "843fba2746e448b37e26a819579957415c8cef339bf08564fe8b7ddbd959573c"
+dependencies = [
+ "miniz_oxide",
+ "zlib-rs",
+]
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3132,6 +3299,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "goblin"
+version = "0.10.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17582616a7718cca54cec18e534a76c7c4aec11a8b9a85695712f262fd15a4c8"
+dependencies = [
+ "log",
+ "plain",
+ "scroll",
+]
+
+[[package]]
 name = "group"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3144,9 +3322,9 @@ dependencies = [
 
 [[package]]
 name = "h2"
-version = "0.4.15"
+version = "0.4.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6cb093c84e8bd9b188d4c4a8cb6579fc016968d14c99882163cd3ff402a4f155"
+checksum = "a9f37a958b41b3b19ee2707c06439c0e9e547e847223eb791ecb0cb821c65e27"
 dependencies = [
  "atomic-waker",
  "bytes",
@@ -3170,6 +3348,46 @@ dependencies = [
  "allocator-api2",
  "equivalent",
  "foldhash",
+]
+
+[[package]]
+name = "hcl-edit"
+version = "0.9.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a67cc5751cb5996669b9780cd738d4541a76c2d5f2f10c17af4965c5a03a5f5"
+dependencies = [
+ "fnv",
+ "hcl-primitives",
+ "pratt",
+ "vecmap-rs",
+ "winnow 1.0.4",
+]
+
+[[package]]
+name = "hcl-primitives"
+version = "0.1.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd662a8afeca01b5b5318f35baed70017b9f854bfa38bdcdadb87de946a49071"
+dependencies = [
+ "itoa",
+ "kstring",
+ "ryu",
+ "serde",
+ "unicode-ident",
+]
+
+[[package]]
+name = "hcl-rs"
+version = "0.19.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "212c6fce17a8b9e0eab43ccf61c8bc5d2c51fc24ad52d19bd1d2be2eeba22d02"
+dependencies = [
+ "hcl-edit",
+ "hcl-primitives",
+ "indexmap",
+ "itoa",
+ "serde",
+ "vecmap-rs",
 ]
 
 [[package]]
@@ -3533,6 +3751,8 @@ checksum = "d466e9454f08e4a911e14806c24e16fba1b4c121d1ea474396f396069cf949d9"
 dependencies = [
  "equivalent",
  "hashbrown",
+ "serde",
+ "serde_core",
 ]
 
 [[package]]
@@ -3840,6 +4060,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "kstring"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "558bf9508a558512042d3095138b1f7b8fe90c5467d94f9f1da28b3731c5dbd1"
+dependencies = [
+ "serde",
+ "static_assertions",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3995,6 +4225,16 @@ name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
+
+[[package]]
+name = "miniz_oxide"
+version = "0.8.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fa76a2c86f704bdb222d66965fb3d63269ce38518b83cb0575fca855ebb6316"
+dependencies = [
+ "adler2",
+ "simd-adler32",
+]
 
 [[package]]
 name = "mio"
@@ -4637,6 +4877,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19f132c84eca552bf34cab8ec81f1c1dcc229b811638f9d283dceabe58c5569e"
 
 [[package]]
+name = "plain"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
+
+[[package]]
 name = "plist"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4760,6 +5006,12 @@ checksum = "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9"
 dependencies = [
  "zerocopy",
 ]
+
+[[package]]
+name = "pratt"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17e0a4425d076f0718b820673a38fbf3747080c61017eeb0dd79bc7e472b8bb8"
 
 [[package]]
 name = "prefix-trie"
@@ -5147,6 +5399,7 @@ dependencies = [
  "rustls-platform-verifier",
  "serde",
  "serde_json",
+ "serde_urlencoded",
  "sync_wrapper",
  "tokio",
  "tokio-rustls",
@@ -5421,6 +5674,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
+name = "scroll"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1257cd4248b4132760d6524d6dda4e053bc648c9070b960929bf50cfb1e7add"
+dependencies = [
+ "scroll_derive",
+]
+
+[[package]]
+name = "scroll_derive"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed76efe62313ab6610570951494bdaa81568026e0318eaa55f167de70eeea67d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "sec1"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5432,6 +5705,15 @@ dependencies = [
  "pkcs8 0.10.2",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "seccompiler"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4ae55de56877481d112a559bbc12667635fdaf5e005712fd4e2b2fa50ffc884"
+dependencies = [
+ "libc",
 ]
 
 [[package]]
@@ -5681,6 +5963,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "simd-adler32"
+version = "0.3.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a219298ac11a56ea9a6d2120044824d6f01aeb034955e7af7bc16858527deea"
+
+[[package]]
 name = "simd_cesu8"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5781,6 +6069,12 @@ name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
+
+[[package]]
+name = "static_assertions"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "stringprep"
@@ -6373,6 +6667,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
+name = "typed-path"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e28f89b80c87b8fb0cf04ab448d5dd0dd0ade2f8891bae878de66a75a28600e"
+
+[[package]]
 name = "typenum"
 version = "1.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6481,6 +6781,15 @@ name = "valuable"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
+
+[[package]]
+name = "vecmap-rs"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "58c1dc449b873236909c7f325adf395071c209047737d831183e95c692413adf"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "version_check"
@@ -7120,13 +7429,17 @@ dependencies = [
  "auths-hsm-attested",
  "auths-kubernetes",
  "auths-lab-matrix",
+ "auths-lifecycle",
  "auths-model",
  "auths-opentofu",
  "auths-ports",
  "auths-postgresql",
  "auths-production-client",
+ "auths-profile-kit",
  "auths-profile-mcp",
+ "auths-profile-runtime",
  "auths-proof-exchange-testkit",
+ "auths-qualification-supervisor",
  "auths-radicle",
  "auths-raw-key",
  "auths-receipts",
@@ -7134,19 +7447,25 @@ dependencies = [
  "auths-registries",
  "auths-signature",
  "auths-spiffe-x509",
+ "auths-stores",
  "auths-stripe",
  "auths-testkit",
  "auths-verifier",
  "auths-webauthn",
+ "base64ct",
  "ed25519-dalek 2.2.0",
+ "getrandom 0.3.4",
  "hex",
+ "rustix",
  "serde",
  "serde_json",
+ "serde_json_canonicalizer",
  "sha2 0.10.9",
  "tar",
  "tempfile",
  "tokio",
  "toml",
+ "zeroize",
  "zstd",
 ]
 
@@ -7275,6 +7594,25 @@ dependencies = [
  "quote",
  "syn 2.0.119",
 ]
+
+[[package]]
+name = "zip"
+version = "8.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d04a6b5381502aa6087c94c669499eb1602eb9c5e8198e534de571f7154809b"
+dependencies = [
+ "crc32fast",
+ "flate2",
+ "indexmap",
+ "memchr",
+ "typed-path",
+]
+
+[[package]]
+name = "zlib-rs"
+version = "0.6.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34b31d188d9d685a4f9c7b46d6e36631b07058d2cfe190267adce54dc230bf12"
 
 [[package]]
 name = "zmij"

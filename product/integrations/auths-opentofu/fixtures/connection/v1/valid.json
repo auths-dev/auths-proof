@@ -1,0 +1,1 @@
+{"allowedScopes":["opentofu.plan-preflight.create/1","opentofu.saved-plan.apply/1"],"backendIdentity":"state.example.test/auths-prod","backendKind":"s3","schema":"auths.opentofu.connection-descriptor/1","workspacePrefix":"auths-"}

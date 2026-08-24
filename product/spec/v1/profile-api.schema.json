@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://auths.dev/spec/v1/profile-api.schema.json",
+  "title": "Auths restricted profile API v1",
+  "$defs": {
+    "typeName": {"type": "string", "pattern": "^[A-Z][A-Za-z0-9]{0,63}$"},
+    "fieldName": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]{0,63}$"},
+    "node": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["kind"], "properties": {"kind": {"const": "boolean"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "bits", "minimum", "maximum"], "properties": {"kind": {"enum": ["uint", "int"]}, "bits": {"enum": [8, 16, 32, 64]}, "minimum": {"type": "string", "pattern": "^-?(0|[1-9][0-9]*)$"}, "maximum": {"type": "string", "pattern": "^-?(0|[1-9][0-9]*)$"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "minimumBytes", "maximumBytes", "alphabet"], "properties": {"kind": {"const": "string"}, "minimumBytes": {"type": "integer", "minimum": 0, "maximum": 65536}, "maximumBytes": {"type": "integer", "minimum": 1, "maximum": 65536}, "alphabet": {"enum": ["utf8", "ascii-graphic", "registered-token", "lower-token", "lower-hex", "base64url"]}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "minimumBytes", "maximumBytes"], "properties": {"kind": {"const": "bytes"}, "minimumBytes": {"type": "integer", "minimum": 0, "maximum": 16777216}, "maximumBytes": {"type": "integer", "minimum": 1, "maximum": 16777216}, "sourceConvenience": {"enum": ["file"]}, "sensitive": {"type": "boolean"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "values"], "properties": {"kind": {"const": "enum"}, "values": {"type": "array", "minItems": 1, "maxItems": 64, "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$"}}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "name"], "properties": {"kind": {"const": "ref"}, "name": {"$ref": "#/$defs/typeName"}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "item", "minimumItems", "maximumItems"], "properties": {"kind": {"const": "list"}, "item": {"$ref": "#/$defs/node"}, "minimumItems": {"type": "integer", "minimum": 0, "maximum": 4096}, "maximumItems": {"type": "integer", "minimum": 1, "maximum": 4096}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "fields"], "properties": {"kind": {"const": "record"}, "fields": {"type": "array", "maxItems": 1024, "items": {"type": "object", "additionalProperties": false, "required": ["name", "value", "sensitive"], "properties": {"name": {"$ref": "#/$defs/fieldName"}, "value": {"$ref": "#/$defs/node"}, "sensitive": {"type": "boolean"}}}}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "variants"], "properties": {"kind": {"const": "union"}, "variants": {"type": "array", "minItems": 1, "maxItems": 16, "items": {"type": "object", "additionalProperties": false, "required": ["tag", "value"], "properties": {"tag": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$"}, "value": {"$ref": "#/$defs/node"}}}}}}
+      ]
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "types"],
+  "properties": {
+    "schema": {"const": "auths.profile-api/1"},
+    "types": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 128,
+      "propertyNames": {"$ref": "#/$defs/typeName"},
+      "additionalProperties": {"$ref": "#/$defs/node"}
+    }
+  }
+}

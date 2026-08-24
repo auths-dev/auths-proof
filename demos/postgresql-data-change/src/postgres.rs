@@ -11,9 +11,9 @@ use std::{
 
 use async_trait::async_trait;
 use auths_postgresql::{
-    CredentialProvider, DigestHex, NamedValueV1, ObservedRowV1, PortError, PostgresCredential,
-    PostgresEvidenceV1, Reconciliation, TransactionGateway, TransactionResult, TypedValueV1,
-    VerifiedBoundedUpdateCommand, VerifiedPostgresReconciliationCommand,
+    CredentialProvider, DigestHex, IsolationLevelV1, NamedValueV1, ObservedRowV1, PortError,
+    PostgresCredential, PostgresEvidenceV1, Reconciliation, TransactionGateway, TransactionResult,
+    TypedValueV1, VerifiedBoundedUpdateCommand, VerifiedPostgresReconciliationCommand,
     canonical::canonical_digest,
 };
 use rustls::{ClientConfig, RootCertStore};
@@ -29,6 +29,7 @@ const MAX_SERIALIZATION_RETRIES: usize = 3;
 
 trait BoundedUpdateCommandView {
     fn action(&self) -> &auths_postgresql::PostgresBoundedUpdateV1;
+    fn claim_id(&self) -> &str;
     fn evidence(&self) -> &PostgresEvidenceV1;
     fn compiled(&self) -> &auths_postgresql::CompiledBoundedUpdate;
 }
@@ -36,6 +37,10 @@ trait BoundedUpdateCommandView {
 impl BoundedUpdateCommandView for VerifiedBoundedUpdateCommand {
     fn action(&self) -> &auths_postgresql::PostgresBoundedUpdateV1 {
         self.action()
+    }
+
+    fn claim_id(&self) -> &str {
+        self.claim_id()
     }
 
     fn evidence(&self) -> &PostgresEvidenceV1 {
@@ -50,6 +55,10 @@ impl BoundedUpdateCommandView for VerifiedBoundedUpdateCommand {
 impl BoundedUpdateCommandView for VerifiedPostgresReconciliationCommand {
     fn action(&self) -> &auths_postgresql::PostgresBoundedUpdateV1 {
         self.action()
+    }
+
+    fn claim_id(&self) -> &str {
+        self.claim_id()
     }
 
     fn evidence(&self) -> &PostgresEvidenceV1 {
@@ -429,6 +438,7 @@ fn execute_fixture(
         ledger_commitment,
         readback_commitment: action.after_state_digest.clone(),
         server_version: current.server_version.clone(),
+        transaction_isolation: IsolationLevelV1::Serializable,
         transaction_started_at: now,
         committed_at: now.saturating_add(1),
         reconciled: false,
@@ -520,6 +530,13 @@ async fn execute_live(
         .start()
         .await
         .map_err(map_transaction_error)?;
+    let transaction_isolation: String = transaction
+        .query_one("SELECT current_setting('transaction_isolation')", &[])
+        .await
+        .map_err(map_transaction_error)?
+        .get(0);
+    let transaction_isolation = IsolationLevelV1::try_from(transaction_isolation.as_str())
+        .map_err(|_| PortError::InvalidConfiguration)?;
     set_session(&transaction, command).await?;
     if fault == PostgresFault::StatementTimeout {
         transaction
@@ -565,11 +582,13 @@ async fn execute_live(
         command.claim_id(),
         action.after_state_digest.clone(),
         action.intent.expected_row_count,
+        transaction_isolation.as_str(),
         committed_at,
     ))
     .map_err(|_| PortError::DatabaseExecution)?;
     finalize_ledger(
         &transaction,
+        command,
         &action_digest,
         action.intent.expected_row_count,
         &ledger_commitment,
@@ -605,6 +624,7 @@ async fn execute_live(
                 ledger_commitment,
                 readback_commitment,
                 server_version,
+                transaction_isolation,
                 transaction_started_at: now,
                 committed_at,
                 reconciled: false,
@@ -676,13 +696,9 @@ async fn reserve_ledger(
     let action = command.action();
     let relation_oid = i64::from(action.relation_oid);
     let started = i64::try_from(now).map_err(|_| PortError::InvalidConfiguration)?;
-    transaction
-        .execute(
-            "INSERT INTO auths_internal.auths_execution_ledger
-             (action_digest, claim_id, profile, relation_oid, tenant_commitment,
-              row_set_digest, before_state_digest, after_state_digest,
-              transaction_started_at)
-             VALUES ($1, $2, $3, $4::bigint::oid, $5, $6, $7, $8, to_timestamp($9::bigint))",
+    let prepared: bool = transaction
+        .query_one(
+            "SELECT auths_internal.auths_prepare_execution($1,$2,$3,$4::bigint::oid,$5,$6,$7,$8,$9)",
             &[
                 &action_digest.as_str(),
                 &command.claim_id(),
@@ -696,12 +712,18 @@ async fn reserve_ledger(
             ],
         )
         .await
-        .map_err(map_transaction_error)?;
-    Ok(())
+        .map_err(map_transaction_error)?
+        .get(0);
+    if prepared {
+        Ok(())
+    } else {
+        Err(PortError::DatabaseExecution)
+    }
 }
 
 async fn finalize_ledger(
     transaction: &Transaction<'_>,
+    command: &VerifiedBoundedUpdateCommand,
     action_digest: &DigestHex,
     affected_rows: u32,
     commitment: &DigestHex,
@@ -709,22 +731,29 @@ async fn finalize_ledger(
 ) -> Result<(), PortError> {
     let affected = i32::try_from(affected_rows).map_err(|_| PortError::CardinalityMismatch)?;
     let committed = i64::try_from(committed_at).map_err(|_| PortError::InvalidConfiguration)?;
-    let count = transaction
-        .execute(
-            "UPDATE auths_internal.auths_execution_ledger
-             SET affected_rows = $2, result_commitment = $3,
-                 committed_at = to_timestamp($4::bigint), receipt_digest = $3
-             WHERE action_digest = $1 AND committed_at IS NULL",
+    let action = command.action();
+    let relation_oid = i64::from(action.relation_oid);
+    let finalized: bool = transaction
+        .query_one(
+            "SELECT auths_internal.auths_finalize_execution($1,$2,$3,$4::bigint::oid,$5,$6,$7,$8,$9,$10,$11)",
             &[
                 &action_digest.as_str(),
+                &command.claim_id(),
+                &action.intent.profile,
+                &relation_oid,
+                &action.tenant_commitment.as_str(),
+                &action.row_set_digest.as_str(),
+                &action.before_state_digest.as_str(),
+                &action.after_state_digest.as_str(),
                 &affected,
                 &commitment.as_str(),
                 &committed,
             ],
         )
         .await
-        .map_err(map_transaction_error)?;
-    if count == 1 {
+        .map_err(map_transaction_error)?
+        .get(0);
+    if finalized {
         Ok(())
     } else {
         Err(PortError::DatabaseExecution)
@@ -902,24 +931,43 @@ async fn reconcile_live(
         .map_err(|_| PortError::DatabaseExecution)?;
     let row = client
         .query_opt(
-            "SELECT affected_rows, after_state_digest, result_commitment,
-                    EXTRACT(EPOCH FROM transaction_started_at)::bigint,
-                    EXTRACT(EPOCH FROM committed_at)::bigint,
-                    current_setting('server_version')
-             FROM auths_internal.auths_execution_ledger
-             WHERE action_digest = $1 AND committed_at IS NOT NULL",
-            &[&action_digest.as_str()],
+            "SELECT action_digest, claim_id, profile, relation_oid::bigint,
+                    tenant_commitment, row_set_digest, before_state_digest,
+                    after_state_digest, affected_rows, result_commitment,
+                    transaction_isolation, transaction_started_at, committed_at
+             FROM auths_internal.auths_read_execution($1)",
+            &[&command.claim_id()],
         )
         .await
         .map_err(|_| PortError::DatabaseExecution)?;
     let Some(row) = row else {
         return Ok(Reconciliation::NotCommitted);
     };
-    let affected: i32 = row.get(0);
-    let after: String = row.get(1);
-    let commitment: String = row.get(2);
-    let started: i64 = row.get(3);
-    let committed: i64 = row.get(4);
+    let affected: i32 = row.get(8);
+    let after: String = row.get(7);
+    let commitment: String = row.get(9);
+    let started: i64 = row.get(11);
+    let committed: i64 = row.get(12);
+    let transaction_isolation: String = row.get(10);
+    let transaction_isolation = IsolationLevelV1::try_from(transaction_isolation.as_str())
+        .map_err(|_| PortError::DatabaseExecution)?;
+    let expected_commitment = canonical_digest(&(
+        action_digest.clone(),
+        command.claim_id(),
+        command.action().after_state_digest.clone(),
+        u32::try_from(affected).map_err(|_| PortError::DatabaseExecution)?,
+        transaction_isolation.as_str(),
+        u64::try_from(committed).map_err(|_| PortError::DatabaseExecution)?,
+    ))
+    .map_err(|_| PortError::DatabaseExecution)?;
+    if row.get::<_, String>(0) != action_digest.as_str()
+        || row.get::<_, String>(1) != command.claim_id()
+        || row.get::<_, String>(2) != command.action().intent.profile
+        || DigestHex::parse(commitment.clone()).map_err(|_| PortError::DatabaseExecution)?
+            != expected_commitment
+    {
+        return Err(PortError::DatabaseExecution);
+    }
     let Ok(readback_commitment) = readback_with_client(&client, command).await else {
         return Ok(Reconciliation::Unavailable);
     };
@@ -929,7 +977,12 @@ async fn reconcile_live(
         ledger_commitment: DigestHex::parse(commitment)
             .map_err(|_| PortError::DatabaseExecution)?,
         readback_commitment,
-        server_version: row.get(5),
+        server_version: client
+            .query_one("SELECT current_setting('server_version')", &[])
+            .await
+            .map_err(|_| PortError::DatabaseExecution)?
+            .get(0),
+        transaction_isolation,
         transaction_started_at: u64::try_from(started).map_err(|_| PortError::DatabaseExecution)?,
         committed_at: u64::try_from(committed).map_err(|_| PortError::DatabaseExecution)?,
         reconciled: true,

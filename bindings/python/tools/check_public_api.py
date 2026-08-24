@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import difflib
 import importlib
 import json
 from pathlib import Path
@@ -38,9 +39,19 @@ def main() -> None:
         snapshot.parent.mkdir(parents=True, exist_ok=True)
         snapshot.write_text(actual)
         return
-    if snapshot.read_text() != actual:
+    expected = snapshot.read_text()
+    if expected != actual:
+        difference = "".join(
+            difflib.unified_diff(
+                expected.splitlines(keepends=True),
+                actual.splitlines(keepends=True),
+                fromfile=str(snapshot),
+                tofile="installed-runtime",
+            )
+        )
         raise SystemExit(
-            "installed Python public API drifted; review exports and update api/public-api.txt"
+            "installed Python public API drifted; review exports and update "
+            f"api/public-api.txt\n{difference}"
         )
     print("Python public API snapshot passed")
 

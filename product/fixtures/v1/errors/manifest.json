@@ -353,6 +353,31 @@
     },
     {
       "schema": "auths.error/1",
+      "family": "internal",
+      "code": "core.terminal-receipt-integrity-failed",
+      "operation": "resume",
+      "stage": "receipt",
+      "summary": "core.terminal-receipt-integrity-failed",
+      "correlationId": "fixture:core.terminal-receipt-integrity-failed",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "contact-support",
+      "executionReference": "execution:core.terminal-receipt-integrity-failed",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
       "family": "input",
       "code": "core.authorization-denied",
       "operation": "verify",
@@ -419,6 +444,2206 @@
         "provider": false
       },
       "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "runtime",
+      "code": "client.agent-unavailable",
+      "operation": "connect",
+      "stage": "local-agent",
+      "summary": "Local Auths agent unavailable",
+      "correlationId": "fixture:client-agent-unavailable",
+      "retry": "conditional",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-configuration",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "configuration",
+      "code": "client.profile-unavailable",
+      "operation": "connect",
+      "stage": "negotiation",
+      "summary": "Profile unavailable",
+      "correlationId": "fixture:client-profile-unavailable",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "install-compatible-runtime",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "configuration",
+      "code": "client.profile-contract-mismatch",
+      "operation": "connect",
+      "stage": "negotiation",
+      "summary": "Profile contract mismatch",
+      "correlationId": "fixture:client-profile-contract-mismatch",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "install-compatible-runtime",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "configuration",
+      "code": "connection.contract-mismatch",
+      "operation": "execute",
+      "stage": "connection-resolution",
+      "summary": "Provider connection contract mismatch",
+      "correlationId": "fixture:connection-contract-mismatch",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "install-compatible-runtime",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "runtime",
+      "code": "connection.credential-unavailable",
+      "operation": "execute",
+      "stage": "credential",
+      "summary": "Provider credential unavailable before entry",
+      "correlationId": "fixture:connection-credential-unavailable",
+      "retry": "safe",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "retry-execution",
+      "executionReference": "execution:connection-credential-unavailable",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "configuration",
+      "code": "connection.unavailable",
+      "operation": "execute",
+      "stage": "connection-resolution",
+      "summary": "Provider connection unavailable",
+      "correlationId": "fixture:connection-unavailable",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-configuration",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "operation.admission-exhausted",
+      "operation": "execute",
+      "stage": "admission",
+      "summary": "Operation admission exhausted",
+      "correlationId": "fixture:operation-admission-exhausted",
+      "retry": "conditional",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "retry-execution",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "operation.idempotency-conflict",
+      "operation": "execute",
+      "stage": "reservation",
+      "summary": "Idempotency commitment conflict",
+      "correlationId": "fixture:operation-idempotency-conflict",
+      "retry": "unknown",
+      "effect": "possible",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": true,
+        "credential": false,
+        "provider": true
+      },
+      "recommendedAction": "resume-and-reconcile",
+      "executionReference": "execution:operation-idempotency-conflict",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "operation.outcome-unknown",
+      "operation": "execute",
+      "stage": "provider",
+      "summary": "Operation outcome unknown",
+      "correlationId": "fixture:operation-outcome-unknown",
+      "retry": "unknown",
+      "effect": "possible",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": true
+      },
+      "recommendedAction": "resume-and-reconcile",
+      "executionReference": "execution:operation-outcome-unknown",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "operation.recovery-unavailable",
+      "operation": "recover",
+      "stage": "reconciliation",
+      "summary": "Operation recovery unavailable",
+      "correlationId": "fixture:operation-recovery-unavailable",
+      "retry": "unknown",
+      "effect": "possible",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": true
+      },
+      "recommendedAction": "resume-and-reconcile",
+      "executionReference": "execution:operation-recovery-unavailable",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "runtime",
+      "code": "operation.timed-out",
+      "operation": "execute",
+      "stage": "pre-provider",
+      "summary": "Operation timed out before provider entry",
+      "correlationId": "fixture:operation-timed-out",
+      "retry": "safe",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "retry-execution",
+      "executionReference": "execution:operation-timed-out",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "profile",
+      "code": "opentofu.plan-preflight-denied",
+      "operation": "execute",
+      "stage": "profile-evaluation",
+      "summary": "OpenTofu plan preflight denied",
+      "correlationId": "fixture:opentofu-plan-preflight-denied",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "opentofu.plan-preflight-outcome-unknown",
+      "operation": "execute",
+      "stage": "provider-observation",
+      "summary": "OpenTofu plan preflight outcome unknown",
+      "correlationId": "fixture:opentofu-plan-preflight-outcome-unknown",
+      "retry": "unknown",
+      "effect": "possible",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": true
+      },
+      "recommendedAction": "resume-and-reconcile",
+      "executionReference": "execution:opentofu-plan-preflight-outcome-unknown",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "profile",
+      "code": "opentofu.saved-plan-denied",
+      "operation": "execute",
+      "stage": "profile-evaluation",
+      "summary": "OpenTofu saved plan denied",
+      "correlationId": "fixture:opentofu-saved-plan-denied",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "opentofu.apply-outcome-unknown",
+      "operation": "execute",
+      "stage": "provider-observation",
+      "summary": "OpenTofu apply outcome unknown",
+      "correlationId": "fixture:opentofu-apply-outcome-unknown",
+      "retry": "unknown",
+      "effect": "possible",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": true
+      },
+      "recommendedAction": "resume-and-reconcile",
+      "executionReference": "execution:opentofu-apply-outcome-unknown",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "profile",
+      "code": "postgresql.preflight-denied",
+      "operation": "execute",
+      "stage": "profile-evaluation",
+      "summary": "PostgreSQL update preflight denied",
+      "correlationId": "fixture:postgresql-update-preflight-denied",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "postgresql.preflight-outcome-unknown",
+      "operation": "execute",
+      "stage": "provider-observation",
+      "summary": "PostgreSQL update preflight outcome unknown",
+      "correlationId": "fixture:postgresql-update-preflight-outcome-unknown",
+      "retry": "unknown",
+      "effect": "possible",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": true
+      },
+      "recommendedAction": "resume-and-reconcile",
+      "executionReference": "execution:postgresql-update-preflight-outcome-unknown",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "profile",
+      "code": "postgresql.update-denied",
+      "operation": "execute",
+      "stage": "profile-evaluation",
+      "summary": "PostgreSQL update denied",
+      "correlationId": "fixture:postgresql-update-denied",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "postgresql.update-outcome-unknown",
+      "operation": "execute",
+      "stage": "provider-observation",
+      "summary": "PostgreSQL update outcome unknown",
+      "correlationId": "fixture:postgresql-update-outcome-unknown",
+      "retry": "unknown",
+      "effect": "possible",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": true
+      },
+      "recommendedAction": "resume-and-reconcile",
+      "executionReference": "execution:postgresql-update-outcome-unknown",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "profile",
+      "code": "stripe.refund-denied",
+      "operation": "execute",
+      "stage": "profile-evaluation",
+      "summary": "Stripe refund denied",
+      "correlationId": "fixture:stripe-refund-denied",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "stripe.refund-outcome-unknown",
+      "operation": "execute",
+      "stage": "provider-observation",
+      "summary": "Stripe refund outcome unknown",
+      "correlationId": "fixture:stripe-refund-outcome-unknown",
+      "retry": "unknown",
+      "effect": "possible",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": true
+      },
+      "recommendedAction": "resume-and-reconcile",
+      "executionReference": "execution:stripe-refund-outcome-unknown",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "core.receipt-malformed",
+      "operation": "verify",
+      "stage": "receipt",
+      "summary": "core.receipt-malformed",
+      "correlationId": "fixture:core.receipt-malformed",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "core.receipt-signature-invalid",
+      "operation": "verify",
+      "stage": "receipt",
+      "summary": "core.receipt-signature-invalid",
+      "correlationId": "fixture:core.receipt-signature-invalid",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "inspect-receipt",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "profile",
+      "code": "core.receipt-signer-untrusted",
+      "operation": "verify",
+      "stage": "receipt",
+      "summary": "core.receipt-signer-untrusted",
+      "correlationId": "fixture:core.receipt-signer-untrusted",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-configuration",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "profile",
+      "code": "core.receipt-profile-denied",
+      "operation": "verify",
+      "stage": "receipt",
+      "summary": "core.receipt-profile-denied",
+      "correlationId": "fixture:core.receipt-profile-denied",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-configuration",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "core.receipt-expired",
+      "operation": "verify",
+      "stage": "receipt",
+      "summary": "core.receipt-expired",
+      "correlationId": "fixture:core.receipt-expired",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "inspect-receipt",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "runtime",
+      "code": "core.receipt-trust-indeterminate",
+      "operation": "verify",
+      "stage": "receipt",
+      "summary": "core.receipt-trust-indeterminate",
+      "correlationId": "fixture:core.receipt-trust-indeterminate",
+      "retry": "conditional",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "runtime",
+      "code": "core.verification-capacity",
+      "operation": "verify",
+      "stage": "admission",
+      "summary": "core.verification-capacity",
+      "correlationId": "fixture:core.verification-capacity",
+      "retry": "safe",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "retry-execution",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "configuration",
+      "code": "remote.authentication-failed",
+      "operation": "verify",
+      "stage": "channel-authentication",
+      "summary": "remote.authentication-failed",
+      "correlationId": "fixture:remote.authentication-failed",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-configuration",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "runtime",
+      "code": "remote.response-malformed",
+      "operation": "verify",
+      "stage": "remote-response",
+      "summary": "remote.response-malformed",
+      "correlationId": "fixture:remote.response-malformed",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "contact-support",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "runtime",
+      "code": "remote.transport-unavailable",
+      "operation": "verify",
+      "stage": "transport",
+      "summary": "remote.transport-unavailable",
+      "correlationId": "fixture:remote.transport-unavailable",
+      "retry": "safe",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "retry-execution",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "runtime",
+      "code": "remote.timeout",
+      "operation": "verify",
+      "stage": "transport",
+      "summary": "remote.timeout",
+      "correlationId": "fixture:remote.timeout",
+      "retry": "safe",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "retry-execution",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "mcp.receipt-invalid",
+      "operation": "verify",
+      "stage": "receipt-profile-payload",
+      "summary": "mcp.receipt-invalid",
+      "correlationId": "fixture:mcp.receipt-invalid",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "inspect-receipt",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "runtime",
+      "code": "mcp.admission-capacity",
+      "operation": "execute",
+      "stage": "admission",
+      "summary": "mcp.admission-capacity",
+      "correlationId": "fixture:mcp.admission-capacity",
+      "retry": "safe",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "retry-execution",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "runtime",
+      "code": "mcp.delegation-capacity",
+      "operation": "delegate",
+      "stage": "admission",
+      "summary": "mcp.delegation-capacity",
+      "correlationId": "fixture:mcp.delegation-capacity",
+      "retry": "safe",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "retry-execution",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "mcp.recovery-not-found",
+      "operation": "resume",
+      "stage": "lifecycle-store",
+      "summary": "mcp.recovery-not-found",
+      "correlationId": "fixture:mcp.recovery-not-found",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "mcp.recovery-kind-mismatch",
+      "operation": "resume",
+      "stage": "lifecycle-store",
+      "summary": "mcp.recovery-kind-mismatch",
+      "correlationId": "fixture:mcp.recovery-kind-mismatch",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "identity.packet-malformed",
+      "operation": "decode",
+      "stage": "identity-packet",
+      "summary": "identity.packet-malformed",
+      "correlationId": "fixture:identity.packet-malformed",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "configuration",
+      "code": "identity.method-unsupported",
+      "operation": "decode",
+      "stage": "identity-method",
+      "summary": "identity.method-unsupported",
+      "correlationId": "fixture:identity.method-unsupported",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-configuration",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "profile",
+      "code": "identity.not-found",
+      "operation": "resolve",
+      "stage": "identity-resolution",
+      "summary": "identity.not-found",
+      "correlationId": "fixture:identity.not-found",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "profile",
+      "code": "identity.resolution-rejected",
+      "operation": "resolve",
+      "stage": "identity-resolution",
+      "summary": "identity.resolution-rejected",
+      "correlationId": "fixture:identity.resolution-rejected",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "runtime",
+      "code": "identity.resolution-indeterminate",
+      "operation": "resolve",
+      "stage": "identity-resolution",
+      "summary": "identity.resolution-indeterminate",
+      "correlationId": "fixture:identity.resolution-indeterminate",
+      "retry": "safe",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "retry-execution",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "identity.evidence-expired",
+      "operation": "validate",
+      "stage": "identity-evidence",
+      "summary": "identity.evidence-expired",
+      "correlationId": "fixture:identity.evidence-expired",
+      "retry": "conditional",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "profile",
+      "code": "identity.validation-rejected",
+      "operation": "validate",
+      "stage": "identity-validation",
+      "summary": "identity.validation-rejected",
+      "correlationId": "fixture:identity.validation-rejected",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "runtime",
+      "code": "identity.validation-indeterminate",
+      "operation": "validate",
+      "stage": "identity-validation",
+      "summary": "identity.validation-indeterminate",
+      "correlationId": "fixture:identity.validation-indeterminate",
+      "retry": "safe",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "retry-execution",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "profile",
+      "code": "identity.relationship-denied",
+      "operation": "authenticate",
+      "stage": "identity-relationship",
+      "summary": "identity.relationship-denied",
+      "correlationId": "fixture:identity.relationship-denied",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "identity.signature-invalid",
+      "operation": "authenticate",
+      "stage": "identity-signature",
+      "summary": "identity.signature-invalid",
+      "correlationId": "fixture:identity.signature-invalid",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "runtime",
+      "code": "identity.authentication-indeterminate",
+      "operation": "authenticate",
+      "stage": "identity-authenticator",
+      "summary": "identity.authentication-indeterminate",
+      "correlationId": "fixture:identity.authentication-indeterminate",
+      "retry": "safe",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "retry-execution",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "configuration",
+      "code": "github.boundary-invalid",
+      "operation": "create",
+      "stage": "boundary",
+      "summary": "github.boundary-invalid",
+      "correlationId": "fixture:github.boundary-invalid",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-configuration",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "profile",
+      "code": "github.attenuation-denied",
+      "operation": "delegate",
+      "stage": "delegation",
+      "summary": "github.attenuation-denied",
+      "correlationId": "fixture:github.attenuation-denied",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "github.delegation-outcome-unknown",
+      "operation": "delegate",
+      "stage": "delegation",
+      "summary": "github.delegation-outcome-unknown",
+      "correlationId": "fixture:github.delegation-outcome-unknown",
+      "retry": "unknown",
+      "effect": "possible",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": true
+      },
+      "recommendedAction": "resume-and-reconcile",
+      "executionReference": "execution:github.delegation-outcome-unknown",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "github.workflow-proof-invalid",
+      "operation": "execute",
+      "stage": "workflow-proof",
+      "summary": "github.workflow-proof-invalid",
+      "correlationId": "fixture:github.workflow-proof-invalid",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "github.workflow-expired",
+      "operation": "execute",
+      "stage": "expiry",
+      "summary": "github.workflow-expired",
+      "correlationId": "fixture:github.workflow-expired",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "github.workflow-cancelled",
+      "operation": "execute",
+      "stage": "cancellation",
+      "summary": "github.workflow-cancelled",
+      "correlationId": "fixture:github.workflow-cancelled",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "profile",
+      "code": "github.executor-audience-mismatch",
+      "operation": "execute",
+      "stage": "audience",
+      "summary": "github.executor-audience-mismatch",
+      "correlationId": "fixture:github.executor-audience-mismatch",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-configuration",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "profile",
+      "code": "github.repository-mismatch",
+      "operation": "execute",
+      "stage": "repository-boundary",
+      "summary": "github.repository-mismatch",
+      "correlationId": "fixture:github.repository-mismatch",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "github.repository-renamed-or-transferred",
+      "operation": "execute",
+      "stage": "repository-boundary",
+      "summary": "github.repository-renamed-or-transferred",
+      "correlationId": "fixture:github.repository-renamed-or-transferred",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "profile",
+      "code": "github.issue-mismatch",
+      "operation": "execute",
+      "stage": "issue-boundary",
+      "summary": "github.issue-mismatch",
+      "correlationId": "fixture:github.issue-mismatch",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "github.issue-not-open",
+      "operation": "execute",
+      "stage": "issue-boundary",
+      "summary": "github.issue-not-open",
+      "correlationId": "fixture:github.issue-not-open",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "github.base-revision-mismatch",
+      "operation": "execute",
+      "stage": "base-revision",
+      "summary": "github.base-revision-mismatch",
+      "correlationId": "fixture:github.base-revision-mismatch",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "github.branch-already-exists",
+      "operation": "execute",
+      "stage": "branch-precondition",
+      "summary": "github.branch-already-exists",
+      "correlationId": "fixture:github.branch-already-exists",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": "execution:github.branch-already-exists",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "github.pull-request-already-exists",
+      "operation": "execute",
+      "stage": "pull-request-precondition",
+      "summary": "github.pull-request-already-exists",
+      "correlationId": "fixture:github.pull-request-already-exists",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": "execution:github.pull-request-already-exists",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "github.candidate-bundle-malformed",
+      "operation": "verify",
+      "stage": "candidate-inspection",
+      "summary": "github.candidate-bundle-malformed",
+      "correlationId": "fixture:github.candidate-bundle-malformed",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "github.candidate-limit-exceeded",
+      "operation": "verify",
+      "stage": "candidate-inspection",
+      "summary": "github.candidate-limit-exceeded",
+      "correlationId": "fixture:github.candidate-limit-exceeded",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "profile",
+      "code": "github.candidate-not-descendant",
+      "operation": "verify",
+      "stage": "candidate-inspection",
+      "summary": "github.candidate-not-descendant",
+      "correlationId": "fixture:github.candidate-not-descendant",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "profile",
+      "code": "github.merge-commit-denied",
+      "operation": "verify",
+      "stage": "candidate-inspection",
+      "summary": "github.merge-commit-denied",
+      "correlationId": "fixture:github.merge-commit-denied",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "github.unsupported-git-object",
+      "operation": "verify",
+      "stage": "candidate-inspection",
+      "summary": "github.unsupported-git-object",
+      "correlationId": "fixture:github.unsupported-git-object",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "profile",
+      "code": "github.path-not-allowed",
+      "operation": "verify",
+      "stage": "candidate-inspection",
+      "summary": "github.path-not-allowed",
+      "correlationId": "fixture:github.path-not-allowed",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "profile",
+      "code": "github.path-explicitly-denied",
+      "operation": "verify",
+      "stage": "candidate-inspection",
+      "summary": "github.path-explicitly-denied",
+      "correlationId": "fixture:github.path-explicitly-denied",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "profile",
+      "code": "github.file-mode-denied",
+      "operation": "verify",
+      "stage": "candidate-inspection",
+      "summary": "github.file-mode-denied",
+      "correlationId": "fixture:github.file-mode-denied",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "runtime",
+      "code": "github.repository-automation-policy-mismatch",
+      "operation": "execute",
+      "stage": "repository-evidence",
+      "summary": "github.repository-automation-policy-mismatch",
+      "correlationId": "fixture:github.repository-automation-policy-mismatch",
+      "retry": "conditional",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "github.branch-budget-exhausted",
+      "operation": "execute",
+      "stage": "branch-reservation",
+      "summary": "github.branch-budget-exhausted",
+      "correlationId": "fixture:github.branch-budget-exhausted",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "github.pull-request-budget-exhausted",
+      "operation": "execute",
+      "stage": "pull-request-reservation",
+      "summary": "github.pull-request-budget-exhausted",
+      "correlationId": "fixture:github.pull-request-budget-exhausted",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "runtime",
+      "code": "github.evidence-missing",
+      "operation": "execute",
+      "stage": "provider-evidence",
+      "summary": "github.evidence-missing",
+      "correlationId": "fixture:github.evidence-missing",
+      "retry": "conditional",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "runtime",
+      "code": "github.evidence-stale",
+      "operation": "execute",
+      "stage": "provider-evidence",
+      "summary": "github.evidence-stale",
+      "correlationId": "fixture:github.evidence-stale",
+      "retry": "conditional",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "configuration",
+      "code": "github.verifier-configuration-mismatch",
+      "operation": "execute",
+      "stage": "required-executed",
+      "summary": "github.verifier-configuration-mismatch",
+      "correlationId": "fixture:github.verifier-configuration-mismatch",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-configuration",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "github.exact-action-mismatch",
+      "operation": "execute",
+      "stage": "exact-action",
+      "summary": "github.exact-action-mismatch",
+      "correlationId": "fixture:github.exact-action-mismatch",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "github.candidate-substituted",
+      "operation": "execute",
+      "stage": "exact-candidate-claim",
+      "summary": "github.candidate-substituted",
+      "correlationId": "fixture:github.candidate-substituted",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "correct-input",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "internal",
+      "code": "github.credential-boundary-failed",
+      "operation": "execute",
+      "stage": "credential-boundary",
+      "summary": "github.credential-boundary-failed",
+      "correlationId": "fixture:github.credential-boundary-failed",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "contact-support",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "github.branch-rejected",
+      "operation": "execute",
+      "stage": "branch-result",
+      "summary": "github.branch-rejected",
+      "correlationId": "fixture:github.branch-rejected",
+      "retry": "conditional",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": "execution:github.branch-rejected",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "github.pull-request-rejected",
+      "operation": "execute",
+      "stage": "pull-request-result",
+      "summary": "github.pull-request-rejected",
+      "correlationId": "fixture:github.pull-request-rejected",
+      "retry": "conditional",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "satisfy-condition",
+      "executionReference": "execution:github.pull-request-rejected",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "runtime",
+      "code": "github.delegation-capacity",
+      "operation": "delegate",
+      "stage": "admission",
+      "summary": "github.delegation-capacity",
+      "correlationId": "fixture:github.delegation-capacity",
+      "retry": "safe",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "retry-execution",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "runtime",
+      "code": "github.execution-capacity",
+      "operation": "execute",
+      "stage": "admission",
+      "summary": "github.execution-capacity",
+      "correlationId": "fixture:github.execution-capacity",
+      "retry": "safe",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "retry-execution",
+      "executionReference": null,
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "github.branch-outcome-unknown",
+      "operation": "execute",
+      "stage": "branch-observation",
+      "summary": "github.branch-outcome-unknown",
+      "correlationId": "fixture:github.branch-outcome-unknown",
+      "retry": "unknown",
+      "effect": "possible",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": true
+      },
+      "recommendedAction": "resume-and-reconcile",
+      "executionReference": "execution:github.branch-outcome-unknown",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "provider",
+      "code": "github.pull-request-outcome-unknown",
+      "operation": "execute",
+      "stage": "pull-request-observation",
+      "summary": "github.pull-request-outcome-unknown",
+      "correlationId": "fixture:github.pull-request-outcome-unknown",
+      "retry": "unknown",
+      "effect": "possible",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": true
+      },
+      "recommendedAction": "resume-and-reconcile",
+      "executionReference": "execution:github.pull-request-outcome-unknown",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "github.workflow-terminal-applied",
+      "operation": "resume",
+      "stage": "recovery",
+      "summary": "github.workflow-terminal-applied",
+      "correlationId": "fixture:github.workflow-terminal-applied",
+      "retry": "conditional",
+      "effect": "applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "inspect-receipt",
+      "executionReference": "execution:github.workflow-terminal-applied",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "state",
+      "code": "github.workflow-terminal-not-applied",
+      "operation": "resume",
+      "stage": "recovery",
+      "summary": "github.workflow-terminal-not-applied",
+      "correlationId": "fixture:github.workflow-terminal-not-applied",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "inspect-receipt",
+      "executionReference": "execution:github.workflow-terminal-not-applied",
+      "decisionReference": null,
+      "receiptReference": null,
+      "causes": [
+        "unknown"
+      ]
+    },
+    {
+      "schema": "auths.error/1",
+      "family": "input",
+      "code": "github.receipt-invalid",
+      "operation": "verify",
+      "stage": "receipt-profile-payload",
+      "summary": "github.receipt-invalid",
+      "correlationId": "fixture:github.receipt-invalid",
+      "retry": "never",
+      "effect": "not-applied",
+      "entered": {
+        "approval": false,
+        "signer": false,
+        "state": false,
+        "credential": false,
+        "provider": false
+      },
+      "recommendedAction": "inspect-receipt",
       "executionReference": null,
       "decisionReference": null,
       "receiptReference": null,

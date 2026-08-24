@@ -90,21 +90,19 @@ expired artifact, or unresolved question about the exact bytes.
 
 ## 4. Create the exact owner authorization
 
-Before creating release authorization, the candidate's assurance manifest must
-name the exact prepared image, packages, provenance, configuration, schema, and
-semantic freeze. Record all required test evidence, the completed qualification
-window, and independent reviews, then sign with a key listed in
-`release/assurance/trusted-signers.json`. This command must succeed offline:
+Before creating release authorization, require the exact prepared artifacts,
+configuration, schemas, semantic freeze, and all five production profiles to
+be bound by imported live-provider qualification. This command must succeed
+offline:
 
 ```console
-cargo xtask assurance verify \
-  release/assurance/open-production-candidate-1/manifest.json
+cargo xtask profile qualification release-check
 ```
 
-The verifier rejects a shorter or internally inconsistent window, undisclosed
-or overlapping gaps, missing and non-passing evidence, modified reports,
-unresolved critical or high findings, untrusted signers, and stale candidate
-digests. Do not create owner authorization when it fails.
+The verifier rejects an empty, partial, extra, stale, or internally inconsistent
+qualification set, any unverified attestation, and any mismatch among the
+five-profile roster, index, and launch projection. Do not create owner
+authorization when it fails.
 
 Create the record only after Step 3 passes. The canonical representation is
 UTF-8 compact JSON in the field order below with exactly one trailing newline.

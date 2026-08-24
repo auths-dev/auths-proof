@@ -6,7 +6,7 @@ use sha2::{Digest as _, Sha256};
 use crate::{McpCommand, PROFILE_ID, PROFILE_VERSION};
 use auths_model::SignedGrant;
 
-pub const MCP_SESSION_SEMANTIC_SUBJECT: &str = "auths.mcp-session/1";
+pub const MCP_SESSION_SEMANTIC_SUBJECT: &str = "auths.mcp-session/2";
 pub const MAX_APPLICATION_REQUEST_ID_BYTES: usize = 128;
 pub const MAX_HANDLER_OUTPUT_BYTES: usize = 1024 * 1024;
 pub const MAX_HANDLER_OUTPUT_DEPTH: usize = 32;
@@ -14,14 +14,14 @@ pub const MAX_HANDLER_COUNT: usize = 128;
 pub const MAX_SAFE_ERROR_BYTES: usize = 256;
 pub const MAX_HANDLER_DURATION_MS: u64 = 300_000;
 pub const DEFAULT_HANDLER_DURATION_MS: u64 = 30_000;
-pub const MCP_AUTHORITY_COMMITMENT_SUBJECT: &str = "auths.mcp-authority-chain/1";
+pub const MCP_AUTHORITY_COMMITMENT_SUBJECT: &str = "auths.mcp-authority-chain/2";
 const MAX_RECOVERY_RECORD_BYTES: usize = 2 * 1024 * 1024;
 
 type HmacSha256 = Hmac<Sha256>;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct McpProfileLimitsV1 {
+pub struct McpProfileLimitsV2 {
     pub tool_count: usize,
     pub tool_name_bytes: usize,
     pub input_bytes: usize,
@@ -34,8 +34,8 @@ pub struct McpProfileLimitsV1 {
 }
 
 #[must_use]
-pub const fn mcp_profile_limits_v1() -> McpProfileLimitsV1 {
-    McpProfileLimitsV1 {
+pub const fn mcp_profile_limits_v2() -> McpProfileLimitsV2 {
+    McpProfileLimitsV2 {
         tool_count: MAX_HANDLER_COUNT,
         tool_name_bytes: crate::MAX_TOOL_NAME_BYTES,
         input_bytes: crate::MAX_CANONICAL_CALL_BYTES,
@@ -87,7 +87,6 @@ pub enum McpCause {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum McpHandlerEffect {
-    NotApplied,
     Applied,
     Possible,
 }
@@ -123,11 +122,10 @@ impl McpHandlerResult {
                 }
                 Some(value)
             }
-            (McpHandlerEffect::Applied, None)
-            | (McpHandlerEffect::NotApplied | McpHandlerEffect::Possible, Some(_)) => {
+            (McpHandlerEffect::Applied, None) | (McpHandlerEffect::Possible, Some(_)) => {
                 return Err(McpSessionError::InvalidHandlerOutput);
             }
-            (McpHandlerEffect::NotApplied | McpHandlerEffect::Possible, None) => None,
+            (McpHandlerEffect::Possible, None) => None,
         };
         Ok(Self {
             effect,
@@ -504,11 +502,11 @@ impl McpExecutionSession {
         let canonical = serde_json_canonicalizer::to_vec(&record)
             .map_err(|_| McpSessionError::InvalidRecoveryRecord)?;
         if canonical != record_json
-            || record.schema != "auths.mcp-recovery/1"
+            || record.schema != "auths.mcp-recovery/2"
             || record.semantic_subject != MCP_SESSION_SEMANTIC_SUBJECT
             || record.profile != PROFILE_ID
             || record.profile_version != PROFILE_VERSION
-            || !reference.starts_with(&format!("mcp1.{}.", record.execution_id))
+            || !reference.starts_with(&format!("mcp2.{}.", record.execution_id))
         {
             return Err(McpSessionError::InvalidRecoveryRecord);
         }
@@ -809,9 +807,6 @@ impl McpExecutionSession {
 
     fn accept_effect(&mut self, result: McpHandlerResult) -> Result<(), McpSessionError> {
         self.state = match result.effect {
-            McpHandlerEffect::NotApplied => SessionState::Terminal(McpTerminal::NotApplied {
-                execution_id: self.execution_id.clone(),
-            }),
             McpHandlerEffect::Applied => {
                 let output = result.output.ok_or(McpSessionError::InvalidHandlerOutput)?;
                 let receipt = self.receipt(&output, result.cause)?;
@@ -831,7 +826,7 @@ impl McpExecutionSession {
         let output_bytes = serde_json_canonicalizer::to_vec(output)
             .map_err(|_| McpSessionError::InvalidHandlerOutput)?;
         let receipt = ReceiptProjection {
-            schema: "auths.mcp-receipt/1",
+            schema: "auths.mcp-receipt/2",
             semantic_subject: MCP_SESSION_SEMANTIC_SUBJECT,
             profile: PROFILE_ID,
             profile_version: PROFILE_VERSION,
@@ -858,7 +853,7 @@ impl McpExecutionSession {
             .transpose()
             .map_err(|_| McpSessionError::InvalidRecoveryRecord)?;
         let record = RecoveryRecord {
-            schema: "auths.mcp-recovery/1".into(),
+            schema: "auths.mcp-recovery/2".into(),
             semantic_subject: MCP_SESSION_SEMANTIC_SUBJECT.into(),
             profile: PROFILE_ID.into(),
             profile_version: PROFILE_VERSION,
@@ -937,7 +932,7 @@ fn create_reference(
         .map_err(|_| McpSessionError::InvalidExecutionReference)?;
     mac.update(record);
     Ok(McpExecutionReference(format!(
-        "mcp1.{execution_id}.{}",
+        "mcp2.{execution_id}.{}",
         hex::encode(mac.finalize().into_bytes())
     )))
 }

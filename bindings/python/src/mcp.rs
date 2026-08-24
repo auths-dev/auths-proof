@@ -469,7 +469,6 @@ impl PyMcpExecutionSession {
         cause: Option<&str>,
     ) -> PyResult<()> {
         let effect = match effect {
-            "not-applied" => McpHandlerEffect::NotApplied,
             "applied" => McpHandlerEffect::Applied,
             "possible" => McpHandlerEffect::Possible,
             _ => return Err(crate::errors::malformed_input("invalid MCP handler effect")),

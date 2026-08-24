@@ -18,12 +18,16 @@ const input = {
 
 test("telemetry schema rejects sensitive and unbounded fields", async () => {
   assert.equal((await authsEvent(input)).schemaVersion, "auths.telemetry/2");
+  const malformedInput = (error) => error?.issue?.code === "core.malformed-input";
   for (const key of [
     "proof", "signature.bytes", "private-key", "provider_body", "credential", "customer.id",
   ]) {
-    await assert.rejects(authsEvent({ ...input, attributes: { [key]: "value" } }), /invalid-body/);
+    await assert.rejects(authsEvent({ ...input, attributes: { [key]: "value" } }), malformedInput);
   }
-  await assert.rejects(authsEvent({ ...input, attributes: { code: "x".repeat(257) } }), /invalid-body/);
+  await assert.rejects(
+    authsEvent({ ...input, attributes: { code: "x".repeat(257) } }),
+    malformedInput,
+  );
 });
 
 test("exporter failure is observational and support bundles are deterministic", async () => {

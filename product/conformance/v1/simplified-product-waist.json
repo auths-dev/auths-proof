@@ -26,8 +26,8 @@
       "expected": "command-not-authentic",
       "evidence": {
         "rust": "bindings/python/src/mcp.rs",
-        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
-        "python": "bindings/python/tests/test_mcp_workflow.py"
+        "typescript": "bindings/typescript/test/contract/nonforgeability.ts",
+        "python": "bindings/python/tests/test_public_api_v2.py"
       }
     },
     {
@@ -36,8 +36,8 @@
       "expected": "command-non-serializable",
       "evidence": {
         "rust": "bindings/python/src/mcp.rs",
-        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
-        "python": "bindings/python/tests/test_mcp_workflow.py"
+        "typescript": "bindings/typescript/test/contract/nonforgeability.ts",
+        "python": "bindings/python/tests/test_public_api_v2.py"
       }
     },
     {
@@ -46,8 +46,8 @@
       "expected": "command-non-copyable",
       "evidence": {
         "rust": "bindings/python/src/mcp.rs",
-        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
-        "python": "bindings/python/tests/test_mcp_workflow.py"
+        "typescript": "bindings/typescript/test/contract/nonforgeability.ts",
+        "python": "bindings/python/tests/test_public_api_v2.py"
       }
     },
     {
@@ -56,8 +56,8 @@
       "expected": "command-non-subclassable",
       "evidence": {
         "rust": "bindings/python/src/mcp.rs",
-        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
-        "python": "bindings/python/tests/test_mcp_workflow.py"
+        "typescript": "bindings/typescript/test/contract/nonforgeability.ts",
+        "python": "bindings/python/tests/test_public_api_v2.py"
       }
     },
     {
@@ -66,8 +66,8 @@
       "expected": "command-not-authentic",
       "evidence": {
         "rust": "bindings/python/src/mcp.rs",
-        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
-        "python": "bindings/python/tests/test_mcp_workflow.py"
+        "typescript": "bindings/typescript/test/contract/nonforgeability.ts",
+        "python": "bindings/python/tests/test_public_api_v2.py"
       }
     },
     {
@@ -76,8 +76,8 @@
       "expected": "action-commitment-mismatch",
       "evidence": {
         "rust": "bindings/wasm/auths-proof-wasm/examples/generate-node-vectors.rs",
-        "typescript": "bindings/typescript/test/integration/scenario-corpus.test.js",
-        "python": "bindings/python/tests/test_api.py"
+        "typescript": "bindings/typescript/test/integration/authorization-plans.test.js",
+        "python": "bindings/python/tests/test_native_authoring.py"
       }
     },
     {
@@ -86,8 +86,8 @@
       "expected": "proof-mismatch",
       "evidence": {
         "rust": "bindings/wasm/auths-proof-wasm/examples/generate-node-vectors.rs",
-        "typescript": "bindings/typescript/test/integration/scenario-corpus.test.js",
-        "python": "bindings/python/tests/test_api.py"
+        "typescript": "bindings/typescript/test/integration/authorization-plans.test.js",
+        "python": "bindings/python/tests/test_native_authoring.py"
       }
     },
     {
@@ -96,8 +96,8 @@
       "expected": "context-commitment-mismatch",
       "evidence": {
         "rust": "bindings/wasm/auths-proof-wasm/examples/generate-node-vectors.rs",
-        "typescript": "bindings/typescript/test/integration/scenario-corpus.test.js",
-        "python": "bindings/python/tests/test_api.py"
+        "typescript": "bindings/typescript/test/integration/authorization-plans.test.js",
+        "python": "bindings/python/tests/test_native_authoring.py"
       }
     },
     {
@@ -106,8 +106,8 @@
       "expected": "profile-mismatch",
       "evidence": {
         "rust": "bindings/python/src/mcp.rs",
-        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
-        "python": "bindings/python/tests/test_mcp_workflow.py"
+        "typescript": "bindings/typescript/test/contract/nonforgeability.ts",
+        "python": "bindings/python/tests/test_public_api_v2.py"
       }
     },
     {
@@ -127,7 +127,7 @@
       "evidence": {
         "rust": "bindings/python/src/mcp.rs",
         "typescript": "bindings/typescript/test/integration/authorization-plans.test.js",
-        "python": "bindings/python/tests/test_mcp_workflow.py"
+        "python": "bindings/python/tests/test_public_api_v2.py"
       }
     },
     {
@@ -207,7 +207,7 @@
       "evidence": {
         "rust": "product/runtime/auths-lifecycle/src/transition.rs",
         "typescript": "bindings/typescript/test/unit/runtime-contract.test.js",
-        "python": "bindings/python/tests/test_mcp_workflow.py"
+        "python": "bindings/python/tests/test_profile_runtime_v1.py"
       }
     },
     {
@@ -217,7 +217,7 @@
       "evidence": {
         "rust": "product/runtime/auths-lifecycle/src/transition.rs",
         "typescript": "bindings/typescript/test/unit/runtime-contract.test.js",
-        "python": "bindings/python/tests/test_mcp_workflow.py"
+        "python": "bindings/python/tests/test_profile_runtime_v1.py"
       }
     },
     {
@@ -227,7 +227,7 @@
       "evidence": {
         "rust": "product/runtime/auths-lifecycle/src/transition.rs",
         "typescript": "bindings/typescript/test/unit/runtime-contract.test.js",
-        "python": "bindings/python/tests/test_mcp_workflow.py"
+        "python": "bindings/python/tests/test_profile_runtime_v1.py"
       }
     },
     {
@@ -237,7 +237,7 @@
       "evidence": {
         "rust": "product/runtime/auths-lifecycle/src/transition.rs",
         "typescript": "bindings/typescript/test/unit/runtime-contract.test.js",
-        "python": "bindings/python/tests/test_mcp_workflow.py"
+        "python": "bindings/python/tests/test_profile_runtime_v1.py"
       }
     },
     {
@@ -246,8 +246,8 @@
       "expected": "reservation-required",
       "evidence": {
         "rust": "product/runtime/auths-lifecycle/src/transition.rs",
-        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
-        "python": "bindings/python/tests/test_mcp_workflow.py"
+        "typescript": "bindings/typescript/test/contract/nonforgeability.ts",
+        "python": "bindings/python/tests/test_public_api_v2.py"
       }
     },
     {
@@ -256,8 +256,8 @@
       "expected": "provider-not-entered",
       "evidence": {
         "rust": "product/runtime/auths-runtime/src/lib.rs",
-        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
-        "python": "bindings/python/tests/test_mcp_workflow.py"
+        "typescript": "bindings/typescript/test/contract/nonforgeability.ts",
+        "python": "bindings/python/tests/test_public_api_v2.py"
       }
     },
     {
@@ -266,8 +266,8 @@
       "expected": "provider-not-entered",
       "evidence": {
         "rust": "product/runtime/auths-runtime/src/lib.rs",
-        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
-        "python": "bindings/python/tests/test_mcp_workflow.py"
+        "typescript": "bindings/typescript/test/contract/nonforgeability.ts",
+        "python": "bindings/python/tests/test_public_api_v2.py"
       }
     },
     {
@@ -276,8 +276,8 @@
       "expected": "cancelled-not-applied",
       "evidence": {
         "rust": "product/runtime/auths-lifecycle/src/transition.rs",
-        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
-        "python": "bindings/python/tests/test_mcp_workflow.py"
+        "typescript": "bindings/typescript/test/contract/nonforgeability.ts",
+        "python": "bindings/python/tests/test_public_api_v2.py"
       }
     },
     {
@@ -286,8 +286,8 @@
       "expected": "outcome-unknown",
       "evidence": {
         "rust": "product/runtime/auths-lifecycle/src/transition.rs",
-        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
-        "python": "bindings/python/tests/test_mcp_workflow.py"
+        "typescript": "bindings/typescript/test/contract/nonforgeability.ts",
+        "python": "bindings/python/tests/test_public_api_v2.py"
       }
     },
     {
@@ -296,8 +296,8 @@
       "expected": "safe-to-retry",
       "evidence": {
         "rust": "product/runtime/auths-lifecycle/src/transition.rs",
-        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
-        "python": "bindings/python/tests/test_mcp_workflow.py"
+        "typescript": "bindings/typescript/test/contract/nonforgeability.ts",
+        "python": "bindings/python/tests/test_public_api_v2.py"
       }
     },
     {
@@ -306,8 +306,8 @@
       "expected": "applied-failure",
       "evidence": {
         "rust": "product/runtime/auths-lifecycle/src/transition.rs",
-        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
-        "python": "bindings/python/tests/test_mcp_workflow.py"
+        "typescript": "bindings/typescript/test/contract/nonforgeability.ts",
+        "python": "bindings/python/tests/test_public_api_v2.py"
       }
     },
     {
@@ -316,8 +316,8 @@
       "expected": "outcome-unknown",
       "evidence": {
         "rust": "product/runtime/auths-lifecycle/src/transition.rs",
-        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
-        "python": "bindings/python/tests/test_mcp_workflow.py"
+        "typescript": "bindings/typescript/test/contract/nonforgeability.ts",
+        "python": "bindings/python/tests/test_public_api_v2.py"
       }
     },
     {
@@ -326,8 +326,8 @@
       "expected": "transport-is-not-authority",
       "evidence": {
         "rust": "exchange/crates/auths-proof-exchange-port/src/lib.rs",
-        "typescript": "bindings/typescript/test/integration/identity.test.js",
-        "python": "bindings/python/tests/test_conformance.py"
+        "typescript": "bindings/typescript/test/contract/nonforgeability.ts",
+        "python": "bindings/python/tests/test_native_boundary_contract.py"
       }
     },
     {
@@ -336,8 +336,8 @@
       "expected": "receipt-commitment-mismatch",
       "evidence": {
         "rust": "product/receipts/auths-receipts/src/lib.rs",
-        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
-        "python": "bindings/python/tests/test_mcp_workflow.py"
+        "typescript": "bindings/typescript/test/unit/portable-receipt-v1.test.js",
+        "python": "bindings/python/tests/test_portable_receipt_v1.py"
       }
     },
     {
@@ -346,8 +346,8 @@
       "expected": "receipt-link-mismatch",
       "evidence": {
         "rust": "product/receipts/auths-receipts/src/lib.rs",
-        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
-        "python": "bindings/python/tests/test_mcp_workflow.py"
+        "typescript": "bindings/typescript/test/unit/portable-receipt-v1.test.js",
+        "python": "bindings/python/tests/test_portable_receipt_v1.py"
       }
     },
     {
@@ -356,8 +356,8 @@
       "expected": "semantic-agreement",
       "evidence": {
         "rust": "bindings/wasm/auths-proof-wasm/examples/generate-node-vectors.rs",
-        "typescript": "bindings/typescript/test/integration/profiles/mcp.test.js",
-        "python": "bindings/python/tests/test_mcp_workflow.py"
+        "typescript": "bindings/typescript/test/unit/portable-receipt-v1.test.js",
+        "python": "bindings/python/tests/test_portable_receipt_v1.py"
       }
     },
     {

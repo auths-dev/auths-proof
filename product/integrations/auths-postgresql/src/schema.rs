@@ -295,6 +295,27 @@ pub enum IsolationLevelV1 {
     Serializable,
 }
 
+impl IsolationLevelV1 {
+    /// Exact PostgreSQL spelling sampled from `current_setting`.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Serializable => "serializable",
+        }
+    }
+}
+
+impl TryFrom<&str> for IsolationLevelV1 {
+    type Error = ValidationError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "serializable" => Ok(Self::Serializable),
+            _ => Err(ValidationError::InvalidConfiguration),
+        }
+    }
+}
+
 /// Immutable verifier policy, included in decision receipts.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -468,6 +489,20 @@ impl PostgresVerifierConfigurationV1 {
     #[must_use]
     pub fn allows_database(&self, database: &PgIdentifier) -> bool {
         self.allowed_databases.binary_search(database).is_ok()
+    }
+
+    #[must_use]
+    pub fn first_database(&self) -> Option<&PgIdentifier> {
+        (self.allowed_databases.len() == 1)
+            .then(|| self.allowed_databases.first())
+            .flatten()
+    }
+
+    #[must_use]
+    pub fn first_database_audience(&self) -> Option<&str> {
+        (self.allowed_database_audiences.len() == 1)
+            .then(|| self.allowed_database_audiences.first().map(String::as_str))
+            .flatten()
     }
 
     #[must_use]
