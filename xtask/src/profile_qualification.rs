@@ -5945,11 +5945,7 @@ impl ProcessProtectedPhaseGuard {
         ) else {
             return false;
         };
-        #[cfg(target_vendor = "apple")]
-        let same_device = named.st_dev as u64 == captured.dev();
-        #[cfg(not(target_vendor = "apple"))]
-        let same_device = named.st_dev == captured.dev();
-        if !same_device || named.st_ino != captured.ino() {
+        if named.st_dev != captured.dev() || named.st_ino != captured.ino() {
             return false;
         }
         rustix::fs::unlinkat(
@@ -6092,11 +6088,7 @@ impl ProcessProtectedPhaseGuard {
         ) else {
             return;
         };
-        #[cfg(target_vendor = "apple")]
-        let same_device = named.st_dev as u64 == captured.dev();
-        #[cfg(not(target_vendor = "apple"))]
-        let same_device = named.st_dev == captured.dev();
-        if !same_device || named.st_ino != captured.ino() {
+        if named.st_dev != captured.dev() || named.st_ino != captured.ino() {
             return;
         }
         let _ = rustix::fs::unlinkat(
