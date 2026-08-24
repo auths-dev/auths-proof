@@ -1,8 +1,8 @@
 //! Local-agent protocol framing and effect-free SDK telemetry projection.
 //!
 //! The prelaunch remote production request protocol was deleted. Provider
-//! effects are available only through the generated local-agent operation and
-//! recovery routes in [`local_agent`].
+//! effects are available only through this crate's generated local-agent
+//! operation and recovery routes.
 
 mod local_agent;
 
