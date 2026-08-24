@@ -1277,12 +1277,25 @@ impl ExecutorJournal {
     }
 
     #[cfg(all(target_os = "linux", feature = "qualification-failpoints"))]
+    fn current_record(
+        &self,
+        principal: &str,
+        operation_id: &OperationIdV1,
+    ) -> Result<JournalRecordV1, auths_stores::OperationJournalError> {
+        match self.inner.status(principal, operation_id)? {
+            Some(JournalStatusV1::Record(record)) => Ok(record),
+            Some(JournalStatusV1::Tombstone(_)) | None => {
+                Err(auths_stores::OperationJournalError::NotFound)
+            }
+        }
+    }
+
+    #[cfg(all(target_os = "linux", feature = "qualification-failpoints"))]
     fn checkpoint_after_reservation(&self) -> Result<(), LocalAgentFailure> {
-        self.gate
-            .as_ref()
-            .ok_or(LocalAgentFailure::Internal)?
-            .checkpoint_after_reservation()
-            .map_err(|()| LocalAgentFailure::Internal)
+        self.gate.as_ref().map_or(Ok(()), |gate| {
+            gate.checkpoint_after_reservation()
+                .map_err(|()| LocalAgentFailure::Internal)
+        })
     }
 
     #[cfg(all(target_os = "linux", feature = "qualification-failpoints"))]
@@ -1308,10 +1321,10 @@ impl ExecutorJournal {
     ) -> Result<PrepareJournalResult, auths_stores::OperationJournalError> {
         #[cfg(all(target_os = "linux", feature = "qualification-failpoints"))]
         {
-            let claim = self
-                .gate
-                .as_ref()
-                .ok_or(auths_stores::OperationJournalError::Unavailable)?
+            let Some(gate) = self.gate.as_ref() else {
+                return self.inner.prepare(record, now_unix_seconds);
+            };
+            let claim = gate
                 .claim()
                 .map_err(|()| auths_stores::OperationJournalError::Unavailable)?;
             let result = self.inner.prepare(record, now_unix_seconds);
@@ -1338,10 +1351,16 @@ impl ExecutorJournal {
     ) -> Result<JournalRecordV1, auths_stores::OperationJournalError> {
         #[cfg(all(target_os = "linux", feature = "qualification-failpoints"))]
         {
-            let reservation = self
-                .gate
-                .as_ref()
-                .ok_or(auths_stores::OperationJournalError::Unavailable)?
+            let Some(gate) = self.gate.as_ref() else {
+                return self.inner.mutate_operation(
+                    principal,
+                    operation_id,
+                    expected_revision,
+                    mutation,
+                    now_unix_seconds,
+                );
+            };
+            let reservation = gate
                 .reserve()
                 .map_err(|()| auths_stores::OperationJournalError::Unavailable)?;
             let before = self.boundary_count()?;
@@ -1373,10 +1392,10 @@ impl ExecutorJournal {
         operation_id: &OperationIdV1,
         candidate: &PreparationBindingV1,
     ) -> Result<JournalRecordV1, auths_stores::OperationJournalError> {
-        let reservation = self
-            .gate
-            .as_ref()
-            .ok_or(auths_stores::OperationJournalError::Unavailable)?
+        let Some(gate) = self.gate.as_ref() else {
+            return self.current_record(candidate.principal(), operation_id);
+        };
+        let reservation = gate
             .reserve()
             .map_err(|()| auths_stores::OperationJournalError::Unavailable)?;
         let before = self.boundary_count()?;
@@ -1395,10 +1414,10 @@ impl ExecutorJournal {
         operation_id: &OperationIdV1,
         request_id: ClientRequestIdV1,
     ) -> Result<JournalRecordV1, auths_stores::OperationJournalError> {
-        let reservation = self
-            .gate
-            .as_ref()
-            .ok_or(auths_stores::OperationJournalError::Unavailable)?
+        let Some(gate) = self.gate.as_ref() else {
+            return self.current_record(principal, operation_id);
+        };
+        let reservation = gate
             .reserve()
             .map_err(|()| auths_stores::OperationJournalError::Unavailable)?;
         let before = self.boundary_count()?;
@@ -1418,10 +1437,10 @@ impl ExecutorJournal {
         request_id: ClientRequestIdV1,
         completion: Option<JournalCompletionV1>,
     ) -> Result<JournalRecordV1, auths_stores::OperationJournalError> {
-        let reservation = self
-            .gate
-            .as_ref()
-            .ok_or(auths_stores::OperationJournalError::Unavailable)?
+        let Some(gate) = self.gate.as_ref() else {
+            return self.current_record(principal, operation_id);
+        };
+        let reservation = gate
             .reserve()
             .map_err(|()| auths_stores::OperationJournalError::Unavailable)?;
         let before = self.boundary_count()?;
