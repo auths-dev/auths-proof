@@ -1,4 +1,4 @@
-freeze_version = 174
+freeze_version = 175
 
 # Semantic identity counters live outside the xtask source tree deliberately.
 # The formal source closure binds xtask's executable code, while the semantic
@@ -47,7 +47,7 @@ freeze_version = 174
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/v1/manifest.sha256.json" = 1
 "auths.identity.protocol" = 44
 "auths.modular-components" = 10
-"auths.portable-abi-bindings" = 71
+"auths.portable-abi-bindings" = 72
 "auths.product.bounded-domains" = 15
 "auths.product.bounded-policy" = 2
 "auths.product.configuration-commitments" = 1
@@ -58,7 +58,7 @@ freeze_version = 174
 "auths.product.github-issue-address-v2" = 3
 "auths.product.lifecycle" = 13
 "auths.product.mcp-closed-execution" = 19
-"auths.product.mechanism-profile-conformance" = 7
+"auths.product.mechanism-profile-conformance" = 8
 "auths.product.operations" = 5
 "auths.product.profile-qualification-launch" = 13
 "auths.product.public-sdk-contract" = 58
@@ -68,4 +68,4 @@ freeze_version = 174
 "auths.product.vocabulary" = 15
 "auths.release.benchmark-contract" = 1
 "auths.release.evolution-contract" = 34
-"auths.release.public-surface" = 172
+"auths.release.public-surface" = 173

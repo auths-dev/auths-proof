@@ -242,11 +242,11 @@ packages = ["auths-assurance", "auths-byte-channel-memory", "auths-codec", "auth
 
 [[release_order]]
 tier = 2
-packages = ["auths-authority", "auths-did-keri", "auths-did-key", "auths-raw-key", "auths-receipts", "auths-registries", "auths-signature"]
+packages = ["auths-authority", "auths-did-keri", "auths-did-key", "auths-raw-key", "auths-registries", "auths-signature"]
 
 [[release_order]]
 tier = 3
-packages = ["auths-author", "auths-verifier"]
+packages = ["auths-author", "auths-receipts", "auths-verifier"]
 
 [[release_order]]
 tier = 4
