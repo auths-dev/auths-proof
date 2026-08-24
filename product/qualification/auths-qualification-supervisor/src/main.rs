@@ -4338,7 +4338,7 @@ mod tests {
             .mode(0o600)
             .open(&stage)
             .unwrap();
-        interrupted.write_all(&expected[..13]).unwrap();
+        interrupted.write_all(&expected).unwrap();
         interrupted.sync_all().unwrap();
         drop(interrupted);
 
