@@ -2,7 +2,6 @@ use crate::*;
 
 const MANIFEST: &str = "product/conformance/v1/mechanism-profile-conformance.json";
 const TYPESCRIPT: &str = "bindings/typescript/src/generated/mechanism-conformance.ts";
-const PYTHON: &str = "bindings/python/python/auths/_mechanism_conformance.py";
 const MANIFEST_V2: &str = "product/conformance/v2/mechanism-profile-conformance.json";
 const TYPESCRIPT_V2: &str = "bindings/typescript/src/generated/mechanism-conformance-v2.ts";
 const PYTHON_V2: &str = "bindings/python/python/auths/_mechanism_conformance_v2.py";
@@ -13,13 +12,12 @@ pub(crate) fn mechanism_conformance(update: bool) -> Result<(), String> {
     let catalog_v2 =
         auths_testkit::mechanism_conformance::mechanism_profile_conformance_catalog_v2();
     catalog_v2.validate()?;
-    let (encoded, typescript, python) = encode_catalog(&catalog, "CONFORMANCE_CATALOG")?;
+    let (encoded, typescript, _) = encode_catalog(&catalog, "CONFORMANCE_CATALOG")?;
     let (encoded_v2, typescript_v2, python_v2) =
         encode_catalog(&catalog_v2, "CONFORMANCE_CATALOG_V2")?;
     let artifacts = [
         (MANIFEST, encoded),
         (TYPESCRIPT, typescript.into_bytes()),
-        (PYTHON, python.into_bytes()),
         (MANIFEST_V2, encoded_v2),
         (TYPESCRIPT_V2, typescript_v2.into_bytes()),
         (PYTHON_V2, python_v2.into_bytes()),

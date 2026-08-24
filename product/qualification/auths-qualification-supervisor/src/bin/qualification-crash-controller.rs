@@ -7,6 +7,21 @@
 //! agent's delegated cgroup.
 
 #![forbid(unsafe_code)]
+#![allow(
+    clippy::assigning_clones,
+    clippy::collapsible_if,
+    clippy::if_not_else,
+    clippy::items_after_statements,
+    clippy::large_stack_arrays,
+    clippy::map_unwrap_or,
+    clippy::needless_borrow,
+    clippy::redundant_closure_for_method_calls,
+    clippy::similar_names,
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    clippy::used_underscore_binding,
+    clippy::while_let_loop
+)]
 
 #[cfg(target_os = "linux")]
 mod linux {
@@ -2694,7 +2709,7 @@ mod linux {
                 return Err("Supervisor phase signer differs from protected source trust".into());
             }
             self.append.append(
-                intent,
+                &intent,
                 false,
                 deadline,
                 |sequence, previous_event_sha256| {
@@ -2735,7 +2750,7 @@ mod linux {
                 hex::decode(record.intent_sha256().map_err(string_error)?).map_err(string_error)?;
             let mut retained_context = None;
             let (event, event_bytes) = self.append.resume_or_append(
-                intent,
+                &intent,
                 deadline,
                 |sequence, previous_event_sha256| {
                     let mut ordered = record.clone();

@@ -234,7 +234,7 @@ owner_pr = "AP34-PR3"
 
 [[release_order]]
 tier = 0
-packages = ["auths-algebra-kernel", "auths-bounded-policy", "auths-byte-channel", "auths-errors", "auths-identity", "auths-model", "auths-multikey", "auths-production-client", "auths-proof-exchange-model", "auths-raw-key-core", "auths-signature-core"]
+packages = ["auths-algebra-kernel", "auths-bounded-policy", "auths-byte-channel", "auths-errors", "auths-identity", "auths-model", "auths-multikey", "auths-proof-exchange-model", "auths-raw-key-core", "auths-signature-core"]
 
 [[release_order]]
 tier = 1
@@ -242,11 +242,11 @@ packages = ["auths-assurance", "auths-byte-channel-memory", "auths-codec", "auth
 
 [[release_order]]
 tier = 2
-packages = ["auths-authority", "auths-did-keri", "auths-did-key", "auths-raw-key", "auths-receipts", "auths-registries", "auths-signature"]
+packages = ["auths-authority", "auths-did-keri", "auths-did-key", "auths-raw-key", "auths-registries", "auths-signature"]
 
 [[release_order]]
 tier = 3
-packages = ["auths-author", "auths-verifier"]
+packages = ["auths-author", "auths-receipts", "auths-verifier"]
 
 [[release_order]]
 tier = 4

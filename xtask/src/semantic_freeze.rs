@@ -294,6 +294,7 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
                 "core/crates/auths-model/src/lib.rs".to_owned(),
                 "core/spec/v1/auths-proof.cddl".to_owned(),
                 "bindings/wasm/auths-proof-wasm/authoring-abi-v1.json".to_owned(),
+                "bindings/wasm/auths-proof-wasm/product-abi-v1.json".to_owned(),
                 "bindings/wasm/auths-proof-wasm/src/lib.rs".to_owned(),
                 "bindings/typescript/src".to_owned(),
                 "bindings/python/src".to_owned(),

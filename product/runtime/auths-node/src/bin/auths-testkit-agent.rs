@@ -178,7 +178,7 @@ fn effective_uid() -> Result<u32, Box<dyn std::error::Error>> {
         .ok_or("kernel process credentials are unavailable")?;
     line.split_ascii_whitespace()
         .nth(2)
-        .ok_or_else(|| "kernel effective UID is unavailable".into())?
+        .ok_or("kernel effective UID is unavailable")?
         .parse()
         .map_err(Into::into)
 }

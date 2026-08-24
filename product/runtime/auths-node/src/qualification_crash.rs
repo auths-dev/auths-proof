@@ -76,7 +76,8 @@ impl QualificationJournalBoundaryGate {
         if !crash_identity_valid
             || agent_generation == 0
             || controller_pid == 0
-            || rustix::process::Pid::as_raw(rustix::process::getppid()) != controller_pid as i32
+            || rustix::process::Pid::as_raw(rustix::process::getppid())
+                != controller_pid.cast_signed()
         {
             return Err(());
         }

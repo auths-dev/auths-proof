@@ -1819,7 +1819,6 @@ impl QualificationInstalledClientInvocation {
     }
 
     /// Returns the bounded canonical case-input document for stdin.
-    #[must_use]
     pub fn canonical_input(&self) -> Result<Vec<u8>, QualificationHarnessError> {
         Base64UrlUnpadded::decode_vec(&self.canonical_input_base64url)
             .map_err(|_| QualificationHarnessError::InvalidPhaseClient)

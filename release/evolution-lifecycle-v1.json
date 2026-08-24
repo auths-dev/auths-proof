@@ -13,6 +13,42 @@
   ],
   "errors": [
     {
+      "code": "client.agent-unavailable",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "client.profile-contract-mismatch",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "client.profile-unavailable",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "connection.contract-mismatch",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "connection.credential-unavailable",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "connection.unavailable",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
       "code": "core.authorization-denied",
       "status": "active",
       "replacement": null,
@@ -73,6 +109,42 @@
       "finalProducingVersion": null
     },
     {
+      "code": "core.receipt-expired",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "core.receipt-malformed",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "core.receipt-profile-denied",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "core.receipt-signature-invalid",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "core.receipt-signer-untrusted",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "core.receipt-trust-indeterminate",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
       "code": "core.runtime-cancelled",
       "status": "active",
       "replacement": null,
@@ -91,6 +163,12 @@
       "finalProducingVersion": null
     },
     {
+      "code": "core.terminal-receipt-integrity-failed",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
       "code": "core.unauthenticated-principal",
       "status": "active",
       "replacement": null,
@@ -104,6 +182,12 @@
     },
     {
       "code": "core.unsupported-semantic-subject",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "core.verification-capacity",
       "status": "active",
       "replacement": null,
       "finalProducingVersion": null
@@ -223,7 +307,325 @@
       "finalProducingVersion": null
     },
     {
+      "code": "github.attenuation-denied",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.base-revision-mismatch",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.boundary-invalid",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.branch-already-exists",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.branch-budget-exhausted",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.branch-outcome-unknown",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.branch-rejected",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.candidate-bundle-malformed",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.candidate-limit-exceeded",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.candidate-not-descendant",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.candidate-substituted",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.credential-boundary-failed",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.delegation-capacity",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.delegation-outcome-unknown",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.evidence-missing",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.evidence-stale",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.exact-action-mismatch",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.execution-capacity",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.executor-audience-mismatch",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.file-mode-denied",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.issue-mismatch",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.issue-not-open",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.merge-commit-denied",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.path-explicitly-denied",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.path-not-allowed",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.pull-request-already-exists",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.pull-request-budget-exhausted",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.pull-request-outcome-unknown",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.pull-request-rejected",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.receipt-invalid",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.repository-automation-policy-mismatch",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.repository-mismatch",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.repository-renamed-or-transferred",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.unsupported-git-object",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.verifier-configuration-mismatch",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.workflow-cancelled",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.workflow-expired",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.workflow-proof-invalid",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.workflow-terminal-applied",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "github.workflow-terminal-not-applied",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "identity.authentication-indeterminate",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "identity.evidence-expired",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "identity.method-unsupported",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "identity.not-found",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "identity.packet-malformed",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "identity.relationship-denied",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "identity.resolution-indeterminate",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "identity.resolution-rejected",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "identity.signature-invalid",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "identity.validation-indeterminate",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "identity.validation-rejected",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "mcp.admission-capacity",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
       "code": "mcp.cancelled-before-entry",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "mcp.delegation-capacity",
       "status": "active",
       "replacement": null,
       "finalProducingVersion": null
@@ -247,6 +649,12 @@
       "finalProducingVersion": null
     },
     {
+      "code": "mcp.receipt-invalid",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
       "code": "mcp.receipt-persist-failed",
       "status": "active",
       "replacement": null,
@@ -259,6 +667,18 @@
       "finalProducingVersion": null
     },
     {
+      "code": "mcp.recovery-kind-mismatch",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "mcp.recovery-not-found",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
       "code": "mcp.replay",
       "status": "active",
       "replacement": null,
@@ -266,6 +686,60 @@
     },
     {
       "code": "mcp.reservation-conflict",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "opentofu.apply-outcome-unknown",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "opentofu.plan-preflight-denied",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "opentofu.plan-preflight-outcome-unknown",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "opentofu.saved-plan-denied",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "operation.admission-exhausted",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "operation.idempotency-conflict",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "operation.outcome-unknown",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "operation.recovery-unavailable",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "operation.timed-out",
       "status": "active",
       "replacement": null,
       "finalProducingVersion": null
@@ -296,6 +770,66 @@
     },
     {
       "code": "plan.resume-reference-invalid",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "postgresql.preflight-denied",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "postgresql.preflight-outcome-unknown",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "postgresql.update-denied",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "postgresql.update-outcome-unknown",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "remote.authentication-failed",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "remote.response-malformed",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "remote.timeout",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "remote.transport-unavailable",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "stripe.refund-denied",
+      "status": "active",
+      "replacement": null,
+      "finalProducingVersion": null
+    },
+    {
+      "code": "stripe.refund-outcome-unknown",
       "status": "active",
       "replacement": null,
       "finalProducingVersion": null

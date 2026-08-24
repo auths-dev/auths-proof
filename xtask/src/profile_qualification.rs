@@ -5945,7 +5945,7 @@ impl ProcessProtectedPhaseGuard {
         ) else {
             return false;
         };
-        if named.st_dev as u64 != captured.dev() || named.st_ino != captured.ino() {
+        if named.st_dev != captured.dev() || named.st_ino != captured.ino() {
             return false;
         }
         rustix::fs::unlinkat(
@@ -6088,7 +6088,7 @@ impl ProcessProtectedPhaseGuard {
         ) else {
             return;
         };
-        if named.st_dev as u64 != captured.dev() || named.st_ino != captured.ino() {
+        if named.st_dev != captured.dev() || named.st_ino != captured.ino() {
             return;
         }
         let _ = rustix::fs::unlinkat(
@@ -13240,8 +13240,24 @@ fn validate_repository_qualification_key_separation(
     attestation: &QualificationTrustRegistry,
 ) -> Result<(), String> {
     let observer = load_observer_trust_registry(repository)?;
-    let sources = load_evidence_source_trust_registry(repository)?;
-    let ledgers = load_evidence_ledger_trust_registry(repository)?;
+    let source_bytes = read_bounded(&repository.join(EVIDENCE_SOURCE_TRUST_PATH), 262_144)?;
+    let ledger_bytes = read_bounded(&repository.join(EVIDENCE_LEDGER_TRUST_PATH), 262_144)?;
+    if attestation.identities().next().is_none()
+        && observer.identities().next().is_none()
+        && source_bytes
+            == b"{\"keys\":[],\"schema\":\"auths.profile-qualification-evidence-source-trust/1\"}\n"
+        && ledger_bytes
+            == b"{\"keys\":[],\"schema\":\"auths.profile-qualification-evidence-ledger-trust/1\"}\n"
+    {
+        // The checked all-empty family is the documented pre-ceremony repository state.
+        // Runtime parsers remain strict, and any partial population reaches the complete
+        // separation validation below and fails closed.
+        return Ok(());
+    }
+    let sources =
+        QualificationEvidenceSourceTrustRegistry::from_json(&source_bytes).map_err(string_error)?;
+    let ledgers =
+        QualificationEvidenceLedgerTrustRegistry::from_json(&ledger_bytes).map_err(string_error)?;
     validate_qualification_key_separation(
         attestation
             .identities()

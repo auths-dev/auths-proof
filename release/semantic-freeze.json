@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 158,
+  "freezeVersion": 179,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -90,7 +90,7 @@
     },
     {
       "id": "auths.frozen-bytes/architecture/dependency-graph.json",
-      "version": 34,
+      "version": 36,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -98,7 +98,7 @@
       "owners": [
         "architecture/dependency-graph.json"
       ],
-      "sha256": "118db82462864c195b83414becdbb42b7fa8df7b3f721434e570f12439a5d3d9"
+      "sha256": "a7c81a97b42cf7800765b1f6e962c1ddb27365941dd8e11d3d6f7ec3042a1aff"
     },
     {
       "id": "auths.frozen-bytes/bindings/wasm/auths-proof-wasm/identity-abi-v1.json",
@@ -198,7 +198,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/assurance-manifest-v1.toml",
-      "version": 17,
+      "version": 18,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -206,7 +206,7 @@
       "owners": [
         "formal/assurance-manifest-v1.toml"
       ],
-      "sha256": "c3918c9c4f4aa655efac439658f1e4ea3c2d9d70db562888d0c3926d465fa0aa"
+      "sha256": "cdcb328eddae351ceb8f04dd7f0c5d73cb0898dae2ecea137fb60753530c6e8f"
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/generated",
@@ -234,7 +234,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/source-closure.json",
-      "version": 24,
+      "version": 30,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -242,7 +242,7 @@
       "owners": [
         "formal/qualification/aeneas/source-closure.json"
       ],
-      "sha256": "57e23e20ee95ddd488bde6a21e7270e57c55517a205a6d05b9e2f7874f0e3cbd"
+      "sha256": "1e641c66264d67f65ca9d432ad881555dadf0dee3a7264c9c346ccd01efb283b"
     },
     {
       "id": "auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json",
@@ -546,7 +546,7 @@
     },
     {
       "id": "auths.identity.protocol",
-      "version": 43,
+      "version": 44,
       "classification": "frozen-meaning",
       "categories": [
         "identity-protocol-versions",
@@ -569,7 +569,7 @@
         "core/fixtures/identity/v1/vectors.json",
         "core/spec/identity/v1"
       ],
-      "sha256": "10c27b5142cf3de903f004d9f89af1f99d3224175c0124a3c4c81ad55d78ef0a"
+      "sha256": "5b098866a4699f371a993ebd97e1e26b5e9cef28cb4dd245096ef986147d00e5"
     },
     {
       "id": "auths.modular-components",
@@ -607,7 +607,7 @@
     },
     {
       "id": "auths.portable-abi-bindings",
-      "version": 68,
+      "version": 72,
       "classification": "frozen-meaning",
       "categories": [
         "portable-abi",
@@ -620,15 +620,16 @@
         "bindings/python/src",
         "bindings/typescript/src",
         "bindings/wasm/auths-proof-wasm/authoring-abi-v1.json",
+        "bindings/wasm/auths-proof-wasm/product-abi-v1.json",
         "bindings/wasm/auths-proof-wasm/src/lib.rs",
         "core/crates/auths-model/src/lib.rs",
         "core/spec/v1/auths-proof.cddl"
       ],
-      "sha256": "87ef6d6b74f803bcd924f56f0b2c331eb7b9894e298e11b51d56a889cf310bb7"
+      "sha256": "ba88ddc790c4f11711a5b3e1fa2e71c533ea1e7c077da05eb431e8c924398896"
     },
     {
       "id": "auths.product.bounded-domains",
-      "version": 14,
+      "version": 15,
       "classification": "frozen-meaning",
       "categories": [
         "bounded-domain-inventory",
@@ -649,7 +650,7 @@
         "product/integrations/auths-records-api/src",
         "product/integrations/auths-stripe/src"
       ],
-      "sha256": "6871fb436e4f867baec733fe25869e62d6ed25d69d24c38592db1d11b53b0191"
+      "sha256": "ced32750afce2691cd2eb9c19360ec0c0513549cff28acc42235db2a8216bcdd"
     },
     {
       "id": "auths.product.bounded-policy",
@@ -746,7 +747,7 @@
     },
     {
       "id": "auths.product.facade",
-      "version": 19,
+      "version": 20,
       "classification": "frozen-meaning",
       "categories": [
         "small-shared-root",
@@ -765,7 +766,7 @@
         "bindings/typescript/src/profile-runtime.ts",
         "bindings/typescript/src/session.ts"
       ],
-      "sha256": "2bf6754edbcf99e25e126dc1923e8fcd6ec110cfe0942efd9104746314a828c5"
+      "sha256": "5bb45e457864b1f226bae539556c231eedb80f4cb4e25184d8a10fc3f0ef4ea0"
     },
     {
       "id": "auths.product.github-issue-address-v2",
@@ -830,7 +831,7 @@
     },
     {
       "id": "auths.product.mechanism-profile-conformance",
-      "version": 6,
+      "version": 8,
       "classification": "frozen-meaning",
       "categories": [
         "contract-inventory",
@@ -848,7 +849,7 @@
         "product/conformance/v2/mechanism-profile-conformance.json",
         "xtask/src/mechanism_conformance.rs"
       ],
-      "sha256": "a110922cd98c7c82657a3cf8b9660af713354708c327f1844ba21f93bcf6cfdd"
+      "sha256": "b80fd914e1d4afb4a08ebb4c5e20bedfa2b527db888f1fc57c8eab80bb1b8558"
     },
     {
       "id": "auths.product.operations",
@@ -874,7 +875,7 @@
     },
     {
       "id": "auths.product.profile-qualification-launch",
-      "version": 8,
+      "version": 13,
       "classification": "frozen-meaning",
       "categories": [
         "profile-roster-v2",
@@ -893,11 +894,11 @@
         "xtask/src/profile_codegen.rs",
         "xtask/src/profile_qualification.rs"
       ],
-      "sha256": "8c9f353ef7ce58cae619b59e0775b6a9dba72a6bd70275c332c4d9a681c0b7a3"
+      "sha256": "4e4720631cd0ca3f2fbd0eea3cd57e9dc2ad1d2c8bfaafa912fc2333d6462bd3"
     },
     {
       "id": "auths.product.public-sdk-contract",
-      "version": 58,
+      "version": 59,
       "classification": "frozen-meaning",
       "categories": [
         "rust-sdk-contract",
@@ -915,7 +916,7 @@
         "product/runtime/auths-runtime/src",
         "product/sdk/auths-sdk/src"
       ],
-      "sha256": "1a262195b8b6aec195e598b29e2a2dc8a042aebaffe9e03cfba2523aa9986d02"
+      "sha256": "9f88d3dfe1659d716e2e5e30b3b06810a636c0d20aa43e3b2c6b41c10e732bcf"
     },
     {
       "id": "auths.product.receipts",
@@ -953,7 +954,7 @@
     },
     {
       "id": "auths.product.simplified-waist",
-      "version": 10,
+      "version": 11,
       "classification": "frozen-meaning",
       "categories": [
         "product-waist-invariants",
@@ -969,11 +970,11 @@
         "product/conformance/v1/simplified-product-waist.json",
         "xtask/src/product_waist.rs"
       ],
-      "sha256": "4857754424f6dea8fe9a86686b51540ad51ac302431c35bae7e31432e66936b5"
+      "sha256": "e0b98f24a916b05347b7f4216df46cfe2de0486eaec03456b627e4ec92f730e7"
     },
     {
       "id": "auths.product.vocabulary",
-      "version": 13,
+      "version": 15,
       "classification": "frozen-meaning",
       "categories": [
         "customer-vocabulary",
@@ -991,7 +992,7 @@
         "product/sdk/auths-sdk/Cargo.toml",
         "xtask/src/sdk_vocabulary.rs"
       ],
-      "sha256": "ad6516e57d3bff8ef0db54a0283df5e9ba65322c54f7319c56a4664f98519dbc"
+      "sha256": "86e28cf206d2f57c1eb2b86d257fd4250de66f012a415e91ea7b90489a983cb3"
     },
     {
       "id": "auths.release.benchmark-contract",
@@ -1012,7 +1013,7 @@
     },
     {
       "id": "auths.release.evolution-contract",
-      "version": 27,
+      "version": 34,
       "classification": "frozen-meaning",
       "categories": [
         "version-axes",
@@ -1033,11 +1034,11 @@
         "release/fixtures/evolution",
         "xtask/src/evolution_policy.rs"
       ],
-      "sha256": "06790d71b9c1c7c5d6d2c3464f00725a162099a0632e658d9987d5bc70c70d29"
+      "sha256": "e6f827c995fdd2a2de067e1d9dee9ff3ff6fc84f70422d3a4e563561431b9ce5"
     },
     {
       "id": "auths.release.public-surface",
-      "version": 156,
+      "version": 177,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1127,7 +1128,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "ad4248c9014e71cb498c88342a014a14ba90ea5283592e3396dfd83c7ea35305"
+      "sha256": "4283e181a68528ce053b6cb9edb4a869d4c402feac97ead754b695737246727e"
     }
   ]
 }

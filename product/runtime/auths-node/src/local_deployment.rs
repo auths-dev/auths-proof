@@ -326,6 +326,7 @@ impl LocalAgentResources {
     /// Opens qualification resources with the one bounded journal gate used
     /// by both ordinary and crash qualification runs.
     #[cfg(all(target_os = "linux", feature = "qualification-failpoints"))]
+    #[allow(clippy::too_many_arguments)]
     pub fn open_qualification(
         config: &LocalAgentDeploymentConfig,
         receipt_config: &ReceiptSigningConfig,
@@ -395,7 +396,7 @@ impl LocalAgentResources {
                 controller_nonce_sha256,
                 controller_pid,
             )
-            .map_err(|_| LocalAgentDeploymentError::InvalidConfiguration)?,
+            .map_err(|()| LocalAgentDeploymentError::InvalidConfiguration)?,
         ));
         Ok(resources)
     }

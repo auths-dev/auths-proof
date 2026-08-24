@@ -936,6 +936,7 @@ impl RegisteredProfile {
     }
 
     #[cfg(all(target_os = "linux", feature = "qualification-failpoints"))]
+    #[allow(unreachable_patterns)]
     pub(crate) fn finalize_qualification_reconcile_result(
         self,
         context: &LocalOperationContext,

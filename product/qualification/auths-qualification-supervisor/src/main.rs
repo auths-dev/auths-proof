@@ -5,6 +5,7 @@
 //! independently sourced event signature has been verified.
 
 #![forbid(unsafe_code)]
+#![allow(clippy::similar_names, clippy::too_many_lines)]
 
 use auths_config::{AgentConfig, AgentPlatform};
 use auths_profile_kit::{
@@ -1677,6 +1678,7 @@ fn validate_broker_store_before_cleanup(
 }
 
 #[cfg(target_os = "linux")]
+#[allow(clippy::case_sensitive_file_extension_comparisons)]
 fn live_retained_process_count(runtime: &File, runtime_device: u64) -> Result<u32, String> {
     let pids = File::from(
         openat(
@@ -1957,7 +1959,7 @@ fn verify_cleanup_root_name(parent: &File, name: &str, directory: &File) -> Resu
         || actual.st_ino != expected.ino()
         || actual.st_uid != expected.uid()
         || actual.st_gid != expected.gid()
-        || u32::from(actual.st_mode) & 0o777 != expected.mode() & 0o777
+        || actual.st_mode & 0o777 != expected.mode() & 0o777
     {
         return Err("row cleanup root name changed while pinned".into());
     }
@@ -2187,7 +2189,7 @@ fn materialize_agent_signing_key(arguments: &[String]) -> Result<(), String> {
         .map_err(|_| "agent signing seed is not canonical base64url".to_owned())?;
     if decoded.len() != seed.len()
         || Base64UrlUnpadded::encode_string(seed.as_ref()) != *encoded
-        || seed.as_ref() == &[0_u8; 32]
+        || seed.as_ref() == [0_u8; 32]
     {
         return Err("agent signing seed is not one nonzero Ed25519 seed".into());
     }
@@ -2885,7 +2887,7 @@ fn serve_append_session(arguments: &[String]) -> Result<(), String> {
             &plan,
             &trust,
             &event_bytes,
-            event,
+            &event,
             verification_now,
         )?;
         let marker_sha256 = Sha256::digest(
@@ -2971,21 +2973,21 @@ fn append_verified_event_locked(
     plan: &QualificationEvidenceLedgerPlanV1,
     trust: &QualificationEvidenceSourceTrustRegistry,
     event_bytes: &[u8],
-    event: QualificationEvidenceEvent,
+    event: &QualificationEvidenceEvent,
     now: u64,
 ) -> Result<bool, String> {
     let source_context_sha256 = plan.source_context_sha256().map_err(string_error)?;
-    if read_private_file_at(&provider_ledger, "ledger-plan.json", 262_144)? != plan_bytes {
+    if read_private_file_at(provider_ledger, "ledger-plan.json", 262_144)? != plan_bytes {
         return Err("ledger plan differs from the fixed provider-run plan".into());
     }
-    if read_private_file_optional(&provider_ledger, "finalization.json", MAX_EVENT_BYTES)?.is_some()
+    if read_private_file_optional(provider_ledger, "finalization.json", MAX_EVENT_BYTES)?.is_some()
     {
         return Err("signed source ledger is already durably finalized".into());
     }
-    let source_records = ensure_private_child_directory(&provider_ledger, "source-records")?;
+    let source_records = ensure_private_child_directory(provider_ledger, "source-records")?;
     let role_directory =
         ensure_private_child_directory(&source_records, source_token(event.source))?;
-    let index_root = ensure_private_child_directory(&provider_ledger, "event-markers")?;
+    let index_root = ensure_private_child_directory(provider_ledger, "event-markers")?;
     let rows = read_event_markers(&index_root)?;
     let expected_sequence = u32::try_from(rows.len() + 1).map_err(string_error)?;
     if event.sequence != expected_sequence {
@@ -4336,7 +4338,7 @@ mod tests {
             .mode(0o600)
             .open(&stage)
             .unwrap();
-        interrupted.write_all(&expected[..13]).unwrap();
+        interrupted.write_all(&expected).unwrap();
         interrupted.sync_all().unwrap();
         drop(interrupted);
 

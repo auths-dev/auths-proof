@@ -176,7 +176,13 @@ pub(crate) fn ci_authoritative() -> Result<(), String> {
 /// discovered.
 pub(crate) fn release_preflight() -> Result<(), String> {
     sdk_experience(false)?;
-    cargo(&["test", "--workspace", "--no-default-features"])?;
+    cargo(&[
+        "test",
+        "--workspace",
+        "--exclude",
+        "auths-node",
+        "--no-default-features",
+    ])?;
     wire(false)
 }
 

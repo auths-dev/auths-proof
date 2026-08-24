@@ -87,6 +87,7 @@ pub struct QualificationPythonRuntimeExternalFile {
 /// The protected sandbox launcher repeats this projection while copying the
 /// same closure into its private read-only root, closing the check/use gap.
 #[cfg(unix)]
+#[allow(clippy::too_many_lines)]
 pub fn qualification_python_runtime_closure(
     executable: &Path,
 ) -> Result<QualificationPythonRuntimeClosure, String> {
@@ -193,7 +194,7 @@ pub fn qualification_python_runtime_closure(
         );
         let mut member = Sha256::new();
         let mut member_bytes = 0_u64;
-        let mut chunk = [0_u8; 65_536];
+        let mut chunk = vec![0_u8; 65_536].into_boxed_slice();
         loop {
             let length = file.read(&mut chunk).map_err(string_error)?;
             if length == 0 {
@@ -269,6 +270,7 @@ pub fn qualification_python_runtime_closure(
 }
 
 #[cfg(target_os = "linux")]
+#[allow(clippy::too_many_lines)]
 fn qualification_python_external_closure(
     runtime_root: &Path,
     elf_files: &[PathBuf],
@@ -360,12 +362,10 @@ fn qualification_python_external_closure(
                     sha256: hex::encode(Sha256::digest(&dependency_bytes)),
                     bytes: u64::try_from(dependency_bytes.len()).map_err(string_error)?,
                 };
-                if let Some(prior) = external.insert(destination.clone(), value.clone()) {
-                    if prior != value {
-                        return Err(
-                            "qualification Python dependency destination is ambiguous".into()
-                        );
-                    }
+                if let Some(prior) = external.insert(destination.clone(), value.clone())
+                    && prior != value
+                {
+                    return Err("qualification Python dependency destination is ambiguous".into());
                 }
             }
             pending.push((dependency, destination));

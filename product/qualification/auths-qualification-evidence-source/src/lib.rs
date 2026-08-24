@@ -6,7 +6,13 @@
 //! reader is not implemented fail closed and never expose a generic signer.
 
 #![forbid(unsafe_code)]
-#![allow(clippy::missing_errors_doc)]
+// The protected readers deliberately keep each phase protocol in one auditable
+// flow, and their generated route signatures preserve the domain API shape.
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::too_many_lines,
+    clippy::type_complexity
+)]
 
 #[cfg(target_os = "linux")]
 mod generated {
@@ -2124,11 +2130,9 @@ fn authorize_provider_proxy_request(
         .binding()
         .connection()
         .ok_or_else(|| "ProviderProxy authorization has no connection binding".to_owned())?;
-    let configuration_sha256: [u8; 32] = request
-        .configuration()
-        .map(Sha256::digest)
-        .map(Into::into)
-        .unwrap_or([0; 32]);
+    let configuration_sha256: [u8; 32] = request.configuration().map_or([0; 32], |configuration| {
+        Sha256::digest(configuration).into()
+    });
     if format!(
         "{}/{}",
         record.binding().profile().id(),
@@ -2698,7 +2702,7 @@ fn append_provider_proxy_observation(
     appender
         .lock()
         .map_err(string_error)?
-        .resume_or_append_record(intent, deadline, move |sequence, previous| {
+        .resume_or_append_record(&intent, deadline, move |sequence, previous| {
             record.context.sequence = sequence;
             record.context.previous_event_sha256 = previous;
             record.to_json().map_err(string_error)
@@ -3037,7 +3041,7 @@ fn run_credential_broker_reader(arguments: &[String]) -> Result<(), String> {
                 thread::spawn(move || {
                     let _permit = permit;
                     if let Err(error) =
-                        handle_credential_broker_connection(shared, stream, deadline)
+                        handle_credential_broker_connection(&shared, stream, deadline)
                     {
                         let _ = failures.send(error);
                     }
@@ -3147,7 +3151,7 @@ fn load_credential_broker_stores(
 
 #[cfg(target_os = "linux")]
 fn handle_credential_broker_connection(
-    shared: Arc<CredentialBrokerShared>,
+    shared: &CredentialBrokerShared,
     mut stream: UnixStream,
     deadline: Instant,
 ) -> Result<(), String> {
@@ -3165,13 +3169,7 @@ fn handle_credential_broker_connection(
             return Err("CredentialBroker redemption peer differs from ProviderProxy trust".into());
         }
         peer.verify_unchanged()?;
-        return redeem_credential_for_provider_proxy(
-            &shared,
-            &mut stream,
-            &peer,
-            request,
-            deadline,
-        );
+        return redeem_credential_for_provider_proxy(shared, &mut stream, &peer, request, deadline);
     }
     if peer.uid() != shared.plan.agent_uid
         || peer.gid() != shared.plan.agent_gid
@@ -3183,7 +3181,7 @@ fn handle_credential_broker_connection(
         return Err("CredentialBroker lease request exceeds its hard bound".into());
     }
     let request = QualificationCredentialLeaseRequest::from_cbor(request)
-        .map_err(|_| "CredentialBroker lease request is malformed".to_owned())?;
+        .map_err(|()| "CredentialBroker lease request is malformed".to_owned())?;
     peer.verify_unchanged()?;
     if request.source_context_sha256()
         != &decode_digest(&shared.plan.source_context_sha256().map_err(string_error)?)?
@@ -3198,7 +3196,7 @@ fn handle_credential_broker_connection(
         return Err("CredentialBroker request differs from the immutable phase".into());
     }
     if mode == CREDENTIAL_BROKER_CLOSE_RETRY {
-        retry_credential_lease_close(&shared, &request, deadline)?;
+        retry_credential_lease_close(shared, &request, deadline)?;
         peer.verify_unchanged()?;
         if write_source_session_frame_before(&mut stream, &[1], deadline).is_ok() {
             let _ = stream.shutdown(Shutdown::Write);
@@ -3208,16 +3206,16 @@ fn handle_credential_broker_connection(
     if mode != CREDENTIAL_BROKER_ACQUIRE {
         return Err("CredentialBroker lease request mode is invalid".into());
     }
-    let Some(mut response) = acquire_credential_lease(&shared, &request, deadline)? else {
+    let Some(mut response) = acquire_credential_lease(shared, &request, deadline)? else {
         let _ = stream.shutdown(Shutdown::Both);
         return Ok(());
     };
     if shared.phase.failpoint == Some(QualificationFailpoint::AfterLease)
-        && !credential_broker_checkpoint(&shared, SOURCE_CHECKPOINT_AFTER_LEASE, deadline)?
+        && !credential_broker_checkpoint(shared, SOURCE_CHECKPOINT_AFTER_LEASE, deadline)?
     {
         response.fill(0);
-        close_credential_lease(&shared, &request, deadline)?;
-        credential_broker_checkpoint_clean(&shared, deadline)?;
+        close_credential_lease(shared, &request, deadline)?;
+        credential_broker_checkpoint_clean(shared, deadline)?;
         let _ = stream.shutdown(Shutdown::Both);
         return Ok(());
     }
@@ -3226,20 +3224,20 @@ fn handle_credential_broker_connection(
         .is_err()
     {
         response.fill(0);
-        detach_credential_lease(&shared, &request, deadline)?;
+        detach_credential_lease(shared, &request, deadline)?;
         return Ok(());
     }
     response.fill(0);
     match read_source_session_frame_before(&mut stream, deadline)? {
         Some(frame) if frame == [1] => {
             peer.verify_unchanged()?;
-            close_credential_lease(&shared, &request, deadline)?;
+            close_credential_lease(shared, &request, deadline)?;
             if write_source_session_frame_before(&mut stream, &[1], deadline).is_ok() {
                 let _ = stream.shutdown(Shutdown::Write);
             }
             Ok(())
         }
-        None => detach_credential_lease(&shared, &request, deadline),
+        None => detach_credential_lease(shared, &request, deadline),
         Some(_) => Err("CredentialBroker agent returned a malformed lease close".into()),
     }
 }
@@ -3728,11 +3726,11 @@ fn append_credential_observation_mode(
         )
     };
     if retry_only {
-        appender.append.append(intent, true, deadline, &mut sign)?;
+        appender.append.append(&intent, true, deadline, &mut sign)?;
     } else {
         appender
             .append
-            .resume_or_append(intent, deadline, &mut sign)?;
+            .resume_or_append(&intent, deadline, &mut sign)?;
     }
     Ok(())
 }
@@ -3763,13 +3761,13 @@ fn sign_one_fixed_source_record(
     }
     write_source_session_frame_before(&mut signer, record, deadline)?;
     signer.shutdown(Shutdown::Write).map_err(string_error)?;
-    let signed = read_source_session_frame_before(&mut signer, deadline)?
+    let signed_event_bytes = read_source_session_frame_before(&mut signer, deadline)?
         .ok_or_else(|| "CredentialBroker signer returned no event".to_owned())?;
     if read_source_session_frame_before(&mut signer, deadline)?.is_some() {
         return Err("CredentialBroker signer returned trailing data".into());
     }
     peer.verify_unchanged()?;
-    Ok(signed)
+    Ok(signed_event_bytes)
 }
 
 #[cfg(target_os = "linux")]
@@ -3961,7 +3959,7 @@ fn run_receipt_verifier_reader(arguments: &[String]) -> Result<(), String> {
             let intent = hex::decode(source_record.intent_sha256().map_err(string_error)?)
                 .map_err(string_error)?;
             appender.resume_or_append_record(
-                intent,
+                &intent,
                 deadline,
                 |sequence, previous_event_sha256| {
                     source_record.context.sequence = sequence;
@@ -4233,7 +4231,7 @@ fn run_profile_state_reader(arguments: &[String]) -> Result<(), String> {
                 let intent = hex::decode(source_record.intent_sha256().map_err(string_error)?)
                     .map_err(string_error)?;
                 appender.resume_or_append_record(
-                    intent,
+                    &intent,
                     deadline,
                     |sequence, previous_event_sha256| {
                         source_record.context.sequence = sequence;
@@ -4561,7 +4559,7 @@ fn run_provider_observer_reader_with_credential(
             let intent = hex::decode(source_record.intent_sha256().map_err(string_error)?)
                 .map_err(string_error)?;
             appender.resume_or_append_record(
-                intent,
+                &intent,
                 deadline,
                 |sequence, previous_event_sha256| {
                     source_record.context.sequence = sequence;
@@ -4950,7 +4948,7 @@ impl QualificationSourceAppendSession {
     /// exact retained event rather than creating a duplicate.
     pub fn append(
         &self,
-        intent: Vec<u8>,
+        intent: &[u8],
         retry: bool,
         deadline: Instant,
         mut sign_event: impl FnMut(u32, String) -> Result<Vec<u8>, String>,
@@ -4960,17 +4958,15 @@ impl QualificationSourceAppendSession {
     }
 
     /// Resumes an exact retained intent when present, or appends it once when
-    /// absent. ReceiptVerifier uses this for deterministic multi-event rosters
+    /// absent. `ReceiptVerifier` uses this for deterministic multi-event rosters
     /// so a reader restart after any durable prefix cannot duplicate evidence.
     pub fn resume_or_append(
         &self,
-        intent: Vec<u8>,
+        intent: &[u8],
         deadline: Instant,
         mut sign_event: impl FnMut(u32, String) -> Result<Vec<u8>, String>,
     ) -> Result<(QualificationEvidenceEvent, Vec<u8>), String> {
-        if let Some(retained) =
-            self.append_transaction(intent.clone(), true, deadline, &mut sign_event)?
-        {
+        if let Some(retained) = self.append_transaction(intent, true, deadline, &mut sign_event)? {
             return Ok(retained);
         }
         self.append_transaction(intent, false, deadline, &mut sign_event)?
@@ -4979,7 +4975,7 @@ impl QualificationSourceAppendSession {
 
     fn append_transaction(
         &self,
-        intent: Vec<u8>,
+        intent: &[u8],
         retry: bool,
         deadline: Instant,
         sign_event: &mut impl FnMut(u32, String) -> Result<Vec<u8>, String>,
@@ -5019,7 +5015,7 @@ impl QualificationSourceAppendSession {
             }
             let mut transaction = Vec::with_capacity(33);
             transaction.push(u8::from(retrying));
-            transaction.extend_from_slice(&intent);
+            transaction.extend_from_slice(intent);
             if let Err(error) =
                 write_source_session_frame_before(&mut sequencer, &transaction, deadline)
             {
@@ -5064,12 +5060,12 @@ impl QualificationSourceAppendSession {
                     thread::sleep(Duration::from_millis(10));
                     continue;
                 }
-                match read_source_session_frame_before(&mut sequencer, deadline) {
-                    Ok(Some(signed)) => signed,
-                    Ok(None) | Err(_) => {
-                        thread::sleep(Duration::from_millis(10));
-                        continue;
-                    }
+                if let Ok(Some(signed)) = read_source_session_frame_before(&mut sequencer, deadline)
+                {
+                    signed
+                } else {
+                    thread::sleep(Duration::from_millis(10));
+                    continue;
                 }
             } else {
                 let signed = sign_event(sequence, previous_event_sha256.clone())?;
@@ -5107,17 +5103,17 @@ impl QualificationSourceAppendSession {
                 || event.previous_event_sha256 != previous_event_sha256
                 || hex::decode(event.intent_sha256().map_err(string_error)?)
                     .map_err(string_error)?
+                    .as_slice()
                     != intent
             {
                 return Err("source signer changed the reader-owned event".into());
             }
-            let acknowledgement = match read_source_session_frame_before(&mut sequencer, deadline) {
-                Ok(Some(acknowledgement)) => acknowledgement,
-                Ok(None) | Err(_) => {
-                    retrying = true;
-                    thread::sleep(Duration::from_millis(10));
-                    continue;
-                }
+            let Ok(Some(acknowledgement)) =
+                read_source_session_frame_before(&mut sequencer, deadline)
+            else {
+                retrying = true;
+                thread::sleep(Duration::from_millis(10));
+                continue;
             };
             let expected = hex::decode(qualification_event_marker_sha256(
                 event.sequence,
@@ -5199,7 +5195,7 @@ impl FixedSourceAppendSession {
 
     fn append_record(
         &mut self,
-        intent: Vec<u8>,
+        intent: &[u8],
         retry: bool,
         deadline: Instant,
         mut record_for_ordering: impl FnMut(u32, String) -> Result<Vec<u8>, String>,
@@ -5214,12 +5210,12 @@ impl FixedSourceAppendSession {
                 move |sequence, previous_event_sha256| {
                     let record_bytes = record_for_ordering(sequence, previous_event_sha256)?;
                     write_source_session_frame_before(signer, &record_bytes, deadline)?;
-                    let signed =
-                        read_source_session_frame_before(signer, deadline)?.ok_or_else(|| {
+                    let signed_event_bytes = read_source_session_frame_before(signer, deadline)?
+                        .ok_or_else(|| {
                             "fixed source signer closed before returning an event".to_owned()
                         })?;
                     signer_peer.verify_unchanged()?;
-                    Ok(signed)
+                    Ok(signed_event_bytes)
                 },
             )
             .map(|(event, _)| event)
@@ -5227,7 +5223,7 @@ impl FixedSourceAppendSession {
 
     fn resume_or_append_record(
         &mut self,
-        intent: Vec<u8>,
+        intent: &[u8],
         deadline: Instant,
         mut record_for_ordering: impl FnMut(u32, String) -> Result<Vec<u8>, String>,
     ) -> Result<QualificationEvidenceEvent, String> {
@@ -5237,12 +5233,12 @@ impl FixedSourceAppendSession {
             .resume_or_append(intent, deadline, move |sequence, previous_event_sha256| {
                 let record_bytes = record_for_ordering(sequence, previous_event_sha256)?;
                 write_source_session_frame_before(signer, &record_bytes, deadline)?;
-                let signed =
-                    read_source_session_frame_before(signer, deadline)?.ok_or_else(|| {
+                let signed_event_bytes = read_source_session_frame_before(signer, deadline)?
+                    .ok_or_else(|| {
                         "fixed source signer closed before returning an event".to_owned()
                     })?;
                 signer_peer.verify_unchanged()?;
-                Ok(signed)
+                Ok(signed_event_bytes)
             })
             .map(|(event, _)| event)
     }
@@ -5256,7 +5252,7 @@ impl FixedSourceAppendSession {
         let intent =
             hex::decode(record.intent_sha256().map_err(string_error)?).map_err(string_error)?;
         self.append_record(
-            intent,
+            &intent,
             retry,
             deadline,
             move |sequence, previous_event_sha256| {
@@ -5552,10 +5548,11 @@ impl ClientTransportGuard<'_> {
         } else {
             None
         };
-        if let Some(operation_id) = operation_id.as_deref() {
-            if state.operations.len() >= 1_024 && !state.operations.contains_key(operation_id) {
-                return Err("ClientProxy operation state exceeds its hard bound".into());
-            }
+        if let Some(operation_id) = operation_id.as_deref()
+            && state.operations.len() >= 1_024
+            && !state.operations.contains_key(operation_id)
+        {
+            return Err("ClientProxy operation state exceeds its hard bound".into());
         }
         let attempt = state
             .attempts
@@ -6075,6 +6072,7 @@ fn run_client_proxy_reader(_arguments: &[String]) -> Result<(), String> {
 }
 
 #[cfg(target_os = "linux")]
+#[allow(clippy::if_not_else)]
 fn relay_client_proxy_connection(
     mut client: UnixStream,
     shared: &ClientProxyShared,
@@ -6250,9 +6248,8 @@ fn relay_client_proxy_connection(
         &request_bytes,
         deadline,
     )?;
-    let response = match decode_local_agent_http_response(&response_bytes) {
-        Ok(response) => response,
-        Err(_) => return Ok(()),
+    let Ok(response) = decode_local_agent_http_response(&response_bytes) else {
+        return Ok(());
     };
     let session_response = if request.path() == "/v1/session" && response.status() == 200 {
         let request = decode_session_request(request.body()).map_err(string_error)?;
@@ -6297,7 +6294,10 @@ fn relay_client_proxy_connection(
     }
     if let (Some(transport), Some(outcome)) = (transport.as_ref(), outcome.as_ref())
         && let Some(expected) = transport.expected_operation_id.as_deref()
-        && outcome.operation_id().map(|operation| operation.as_str()) != Some(expected)
+        && outcome
+            .operation_id()
+            .map(auths_production_client::OperationId::as_str)
+            != Some(expected)
     {
         return Err("ClientProxy response changed the operation identity".into());
     }
@@ -6311,13 +6311,11 @@ fn relay_client_proxy_connection(
             return Ok(());
         }
     };
-    if delivered {
-        if client.shutdown(Shutdown::Write).is_err() {
-            if let Some(transport) = transport {
-                transport.finish(false, outcome.as_ref())?;
-            }
-            return Ok(());
+    if delivered && client.shutdown(Shutdown::Write).is_err() {
+        if let Some(transport) = transport {
+            transport.finish(false, outcome.as_ref())?;
         }
+        return Ok(());
     }
     if client_peer.verify_unchanged().is_err() {
         if let Some(transport) = transport {
@@ -7268,10 +7266,9 @@ fn read_http_message_before(
         }
         if let Some(length) =
             local_agent_http_message_length(&bytes, maximum).map_err(string_error)?
+            && bytes.len() == length
         {
-            if bytes.len() == length {
-                return Ok(bytes);
-            }
+            return Ok(bytes);
         }
         match stream.read(&mut buffer) {
             Ok(0) => return Err(format!("{label} ended before its complete frame")),
@@ -7983,7 +7980,7 @@ fn run_journal_decision(arguments: &[String]) -> Result<(), String> {
     );
     let mut seed = None;
     let (_, event) = append.append(
-        intent,
+        &intent,
         append_retry,
         deadline,
         |sequence, previous_event_sha256| {
@@ -8377,7 +8374,7 @@ fn run_journal_boundary_session_with_seed(
             let intent = hex::decode(unsigned.intent_sha256().map_err(string_error)?)
                 .map_err(string_error)?;
             let (_, signed) =
-                append.resume_or_append(intent, deadline, |sequence, previous_event_sha256| {
+                append.resume_or_append(&intent, deadline, |sequence, previous_event_sha256| {
                     let mut event = unsigned.clone();
                     event.sequence = sequence;
                     event.previous_event_sha256 = previous_event_sha256;
@@ -9571,7 +9568,7 @@ fn hash_peer_executable(pid: i32) -> Result<String, String> {
     }
     let mut digest = Sha256::new();
     let mut total = 0_u64;
-    let mut buffer = [0_u8; 65_536];
+    let mut buffer = vec![0_u8; 65_536].into_boxed_slice();
     loop {
         let read = file.read(&mut buffer).map_err(string_error)?;
         if read == 0 {
@@ -9702,8 +9699,7 @@ fn read_seed_from_stdin_before(deadline: Instant) -> Result<Zeroizing<String>, S
     let restored = rustix::fs::fcntl_setfl(&stdin, original).map_err(string_error);
     match (result, restored) {
         (Ok(seed), Ok(())) => Ok(seed),
-        (Err(error), _) => Err(error),
-        (Ok(_), Err(error)) => Err(error),
+        (Err(error), _) | (Ok(_), Err(error)) => Err(error),
     }
 }
 
@@ -10057,7 +10053,7 @@ mod tests {
     use ed25519_dalek::{Signer as _, SigningKey};
     use std::{
         fs::{self, OpenOptions},
-        os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _, symlink},
+        os::unix::fs::{OpenOptionsExt as _, symlink},
     };
 
     #[test]

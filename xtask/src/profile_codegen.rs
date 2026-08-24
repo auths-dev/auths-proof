@@ -1935,6 +1935,7 @@ fn render_root_profile_roster(repository: &Path, roster: &ProfileRoster) -> Resu
     }
 
     #[cfg(all(target_os = "linux", feature = "qualification-failpoints"))]
+    #[allow(unreachable_patterns)]
     pub(crate) fn finalize_qualification_reconcile_result(
         self,
         context: &LocalOperationContext,
