@@ -92,6 +92,11 @@ macro_rules! identity_identifier {
 
         impl $name {
             /// Parses one bounded identity-layer registry identifier.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`IdentityError`] when `value` is empty, exceeds the
+            /// identifier's bound, or contains a non-registry character.
             pub fn parse(value: &str) -> Result<Self, IdentityError> {
                 validate_identifier(value, $maximum)?;
                 Ok(Self(value.into()))
