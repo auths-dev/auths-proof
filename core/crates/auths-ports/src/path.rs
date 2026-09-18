@@ -26,6 +26,11 @@ pub struct CertificateDer(BoundedBytes<MAX_CERTIFICATE_BYTES>);
 
 impl CertificateDer {
     /// Constructs one bounded DER certificate.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PathError::Malformed`] unless `bytes` is exactly one complete
+    /// DER sequence, or [`PathError::LimitExceeded`] when it is oversized.
     pub fn new(bytes: Vec<u8>) -> Result<Self, PathError> {
         if !is_complete_der_sequence(&bytes) {
             return Err(PathError::Malformed);
@@ -54,6 +59,11 @@ pub struct ExtendedKeyUsage(BoundedBytes<MAX_EKU_OID_BYTES>);
 
 impl ExtendedKeyUsage {
     /// Constructs an EKU from DER OID content octets.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PathError::Malformed`] for invalid OID content and
+    /// [`PathError::LimitExceeded`] when the encoding is oversized.
     pub fn from_der_content(bytes: Vec<u8>) -> Result<Self, PathError> {
         if bytes.is_empty() || bytes[0] > 119 {
             return Err(PathError::Malformed);
@@ -67,12 +77,22 @@ impl ExtendedKeyUsage {
     }
 
     /// Client-authentication EKU (`1.3.6.1.5.5.7.3.2`).
+    ///
+    /// # Panics
+    ///
+    /// Panics only if the internal registered OID exceeds the compile-time
+    /// EKU bound, which would be an implementation defect.
     #[must_use]
     pub fn client_auth() -> Self {
         Self(BoundedBytes::new(CLIENT_AUTH_OID.to_vec()).expect("registered EKU is bounded"))
     }
 
     /// Code-signing EKU (`1.3.6.1.5.5.7.3.3`).
+    ///
+    /// # Panics
+    ///
+    /// Panics only if the internal registered OID exceeds the compile-time
+    /// EKU bound, which would be an implementation defect.
     #[must_use]
     pub fn code_signing() -> Self {
         Self(BoundedBytes::new(CODE_SIGNING_OID.to_vec()).expect("registered EKU is bounded"))
@@ -91,6 +111,11 @@ pub struct PathVerifierId(String);
 
 impl PathVerifierId {
     /// Parses one bounded identifier.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PathError::Malformed`] when the identifier is empty,
+    /// oversized, or contains control or whitespace bytes.
     pub fn parse(value: &str) -> Result<Self, PathError> {
         if value.is_empty()
             || value.len() > MAX_PATH_VERIFIER_ID_BYTES
@@ -141,6 +166,12 @@ impl VerifiedLeaf {
     ///
     /// This constructor is public so independent crates can implement the
     /// port. It copies the leaf and verification instant from `input`.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`PathError`] when the path exceeds its bound, the requested
+    /// instant is outside the leaf validity window, or the SPKI is malformed
+    /// or oversized.
     pub fn from_path_input(
         input: &PathInput<'_>,
         not_before: Timestamp,
@@ -210,6 +241,12 @@ impl VerifiedLeaf {
     }
 
     /// Derives the configured suite-specific verification-key form.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PathError::Malformed`] for an invalid SPKI encoding or
+    /// [`PathError::UnsupportedKeyForm`] when the requested projection does
+    /// not apply to the verified key.
     pub fn key_bytes(&self, form: KeyForm) -> Result<Vec<u8>, PathError> {
         match form {
             KeyForm::SubjectPublicKeyInfoDer => Ok(self.spki.as_slice().to_vec()),
@@ -237,6 +274,11 @@ pub trait CertificatePathVerifier {
     /// Returns a conservative work bound for one supplied chain length.
     fn maximum_work_units(&self, chain_length: usize) -> u64;
     /// Verifies a path and returns exact leaf facts.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`PathError`] describing the deterministic reason the path
+    /// could not be verified under the supplied anchors, instant, and EKU.
     fn verify(&self, input: PathInput<'_>) -> Result<VerifiedLeaf, PathError>;
 }
 

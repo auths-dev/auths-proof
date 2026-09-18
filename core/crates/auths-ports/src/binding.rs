@@ -19,6 +19,11 @@ pub struct JwsAlgorithmName(String);
 
 impl JwsAlgorithmName {
     /// Parses a bounded asymmetric JWS algorithm name.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BindingError::InvalidJwsAlgorithm`] when the name is empty,
+    /// oversized, malformed, symmetric, or the unsecured `none` algorithm.
     pub fn parse(value: &str) -> Result<Self, BindingError> {
         if value.is_empty()
             || value.len() > MAX_JWS_ALGORITHM_BYTES
@@ -48,6 +53,12 @@ pub struct AlgorithmIdentifierDer(BoundedBytes<MAX_ALGORITHM_IDENTIFIER_BYTES>);
 
 impl AlgorithmIdentifierDer {
     /// Parses one complete DER sequence.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BindingError::InvalidAlgorithmIdentifier`] for malformed or
+    /// trailing DER and [`BindingError::Bound`] when the encoding exceeds the
+    /// configured bound.
     pub fn new(bytes: Vec<u8>) -> Result<Self, BindingError> {
         validate_complete_der_sequence(&bytes)?;
         Ok(Self(BoundedBytes::new(bytes).map_err(BindingError::Bound)?))
@@ -146,6 +157,11 @@ pub struct AlgorithmBindingSet {
 
 impl AlgorithmBindingSet {
     /// Constructs bindings against an exact registered suite set.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`BindingError`] when the set is empty or oversized, contains
+    /// duplicate selectors, or names a suite absent from `suites`.
     pub fn new(
         bindings: Vec<AlgorithmBinding>,
         suites: &[&dyn SignatureSuite],
