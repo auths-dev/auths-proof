@@ -13,7 +13,6 @@ use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_raw_key::RawKeyMethod;
 use auths_registries::ImmutableRegistries;
 use auths_signature::{Ed25519Suite, P256Sha256Suite};
-use auths_spiffe_x509::SpiffeX509Method;
 use auths_verifier::{VerificationOutcome, verify_explained};
 use auths_webauthn::WebAuthnMethod;
 use std::{env, fs, path::PathBuf, process::ExitCode};
@@ -102,7 +101,8 @@ fn run() -> Result<u8, String> {
     let hsm = HsmAttestedMethod::new(auths_testkit::hsm_corpus_records())
         .map_err(|error| error.to_string())?;
     let (domains, status) = auths_testkit::spiffe_corpus_context();
-    let spiffe = SpiffeX509Method::new(domains, status).map_err(|error| error.to_string())?;
+    let spiffe =
+        auths_testkit::spiffe_corpus_method(domains, status).map_err(|error| error.to_string())?;
     let ed25519 = Ed25519Suite::new().map_err(|error| error.to_string())?;
     let p256 = P256Sha256Suite::new().map_err(|error| error.to_string())?;
     let methods: [&dyn PrincipalMethod; 7] = [

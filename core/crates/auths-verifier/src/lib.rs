@@ -3372,7 +3372,7 @@ mod tests {
         let hsm = auths_hsm_attested::HsmAttestedMethod::new(auths_testkit::hsm_corpus_records())
             .unwrap();
         let (spiffe_trust, spiffe_status) = auths_testkit::spiffe_corpus_context();
-        let spiffe = auths_spiffe_x509::SpiffeX509Method::new(spiffe_trust, spiffe_status).unwrap();
+        let spiffe = auths_testkit::spiffe_corpus_method(spiffe_trust, spiffe_status).unwrap();
         let ed25519 = Ed25519Suite::new().unwrap();
         let p256 = auths_signature::P256Sha256Suite::new().unwrap();
         let methods: [&dyn auths_ports::PrincipalMethod; 7] = [
@@ -3710,7 +3710,7 @@ mod tests {
         let hsm = auths_hsm_attested::HsmAttestedMethod::new(auths_testkit::hsm_corpus_records())
             .unwrap();
         let (spiffe_trust, spiffe_status) = auths_testkit::spiffe_corpus_context();
-        let spiffe = auths_spiffe_x509::SpiffeX509Method::new(spiffe_trust, spiffe_status).unwrap();
+        let spiffe = auths_testkit::spiffe_corpus_method(spiffe_trust, spiffe_status).unwrap();
         let ed25519 = Ed25519Suite::new().unwrap();
         let p256 = auths_signature::P256Sha256Suite::new().unwrap();
         let methods: [&dyn auths_ports::PrincipalMethod; 7] = [

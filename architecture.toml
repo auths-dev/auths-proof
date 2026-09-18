@@ -76,6 +76,7 @@ no_std_packages = [
   "auths-model",
   "auths-multikey",
   "auths-ports",
+  "auths-path-webpki",
   "auths-proof",
   "auths-raw-key",
   "auths-raw-key-core",
@@ -139,6 +140,7 @@ auths-records-api = "product"
 auths-records-demo = "demos"
 auths-explain = "product"
 auths-ports = "core"
+auths-path-webpki = "core"
 auths-profile-api = "product"
 auths-profile-domains = "product"
 auths-profile-kit = "product"
@@ -218,6 +220,10 @@ roots = [
 ]
 allowed_workspace_dependencies = ["auths-identity", "auths-identity-raw-key", "auths-model", "auths-raw-key-core", "auths-signature-core"]
 
+[dependency_boundaries.principal-adapters]
+roots = ["auths-hsm-attested", "auths-spiffe-x509", "auths-webauthn"]
+allowed_workspace_dependencies = ["auths-model", "auths-ports"]
+
 [dependency_boundaries.iroh-transport]
 roots = ["auths-iroh"]
 allowed_workspace_dependencies = ["auths-byte-channel"]
@@ -249,6 +255,7 @@ allowed_workspace_dependencies = [
   "auths-model",
   "auths-multikey",
   "auths-ports",
+  "auths-path-webpki",
   "auths-raw-key",
   "auths-raw-key-core",
   "auths-registries",

@@ -5945,7 +5945,9 @@ impl ProcessProtectedPhaseGuard {
         ) else {
             return false;
         };
-        if named.st_dev != captured.dev() || named.st_ino != captured.ino() {
+        if u64::try_from(named.st_dev).ok() != Some(captured.dev())
+            || u64::try_from(named.st_ino).ok() != Some(captured.ino())
+        {
             return false;
         }
         rustix::fs::unlinkat(
@@ -6088,7 +6090,9 @@ impl ProcessProtectedPhaseGuard {
         ) else {
             return;
         };
-        if named.st_dev != captured.dev() || named.st_ino != captured.ino() {
+        if u64::try_from(named.st_dev).ok() != Some(captured.dev())
+            || u64::try_from(named.st_ino).ok() != Some(captured.ino())
+        {
             return;
         }
         let _ = rustix::fs::unlinkat(

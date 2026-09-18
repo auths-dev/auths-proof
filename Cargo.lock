@@ -535,6 +535,7 @@ dependencies = [
  "auths-codec",
  "auths-hsm-attested",
  "auths-model",
+ "auths-signature",
  "auths-spiffe-x509",
  "auths-webauthn",
  "ed25519-dalek 2.2.0",
@@ -602,9 +603,9 @@ version = "1.0.0-rc.1"
 dependencies = [
  "auths-model",
  "auths-ports",
+ "auths-signature",
  "base64ct",
  "ed25519-dalek 2.2.0",
- "p256",
  "sha2 0.10.9",
 ]
 
@@ -1718,13 +1719,11 @@ name = "auths-spiffe-x509"
 version = "1.0.0-rc.1"
 dependencies = [
  "auths-model",
+ "auths-path-webpki",
  "auths-ports",
+ "auths-signature",
  "base64ct",
- "p256",
  "rcgen",
- "ring",
- "rustls-pki-types",
- "rustls-webpki",
  "sha2 0.10.9",
  "x509-parser",
 ]
@@ -2079,6 +2078,7 @@ dependencies = [
  "auths-hsm-attested",
  "auths-model",
  "auths-multikey",
+ "auths-path-webpki",
  "auths-ports",
  "auths-raw-key",
  "auths-registries",
@@ -2124,6 +2124,7 @@ version = "1.0.0-rc.1"
 dependencies = [
  "auths-model",
  "auths-ports",
+ "auths-signature",
  "base64ct",
  "p256",
  "serde_json",

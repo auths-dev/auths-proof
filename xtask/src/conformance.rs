@@ -76,7 +76,7 @@ pub(crate) fn adversarial_conformance(args: Vec<String>) -> Result<(), String> {
     let hsm = auths_hsm_attested::HsmAttestedMethod::new(auths_testkit::hsm_corpus_records())
         .map_err(|error| error.to_string())?;
     let (spiffe_trust, spiffe_status) = auths_testkit::spiffe_corpus_context();
-    let spiffe = auths_spiffe_x509::SpiffeX509Method::new(spiffe_trust, spiffe_status)
+    let spiffe = auths_testkit::spiffe_corpus_method(spiffe_trust, spiffe_status)
         .map_err(|error| error.to_string())?;
     let ed25519 = auths_signature::Ed25519Suite::new().map_err(|error| error.to_string())?;
     let p256 = auths_signature::P256Sha256Suite::new().map_err(|error| error.to_string())?;
@@ -201,7 +201,7 @@ pub(crate) fn target_conformance() -> Result<(), String> {
     let hsm = auths_hsm_attested::HsmAttestedMethod::new(auths_testkit::hsm_corpus_records())
         .map_err(|error| error.to_string())?;
     let (spiffe_trust, spiffe_status) = auths_testkit::spiffe_corpus_context();
-    let spiffe = auths_spiffe_x509::SpiffeX509Method::new(spiffe_trust, spiffe_status)
+    let spiffe = auths_testkit::spiffe_corpus_method(spiffe_trust, spiffe_status)
         .map_err(|error| error.to_string())?;
     let ed25519 = auths_signature::Ed25519Suite::new().map_err(|error| error.to_string())?;
     let p256 = auths_signature::P256Sha256Suite::new().map_err(|error| error.to_string())?;
@@ -263,7 +263,7 @@ pub(crate) fn semantic_digest_value() -> Result<String, String> {
     let hsm = auths_hsm_attested::HsmAttestedMethod::new(auths_testkit::hsm_corpus_records())
         .map_err(|error| error.to_string())?;
     let (spiffe_trust, spiffe_status) = auths_testkit::spiffe_corpus_context();
-    let spiffe = auths_spiffe_x509::SpiffeX509Method::new(spiffe_trust, spiffe_status)
+    let spiffe = auths_testkit::spiffe_corpus_method(spiffe_trust, spiffe_status)
         .map_err(|error| error.to_string())?;
     let ed25519 = auths_signature::Ed25519Suite::new().map_err(|error| error.to_string())?;
     let p256 = auths_signature::P256Sha256Suite::new().map_err(|error| error.to_string())?;
@@ -445,7 +445,7 @@ pub(crate) fn generated_vectors() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> 
     let hsm = auths_hsm_attested::HsmAttestedMethod::new(auths_testkit::hsm_corpus_records())
         .map_err(|error| error.to_string())?;
     let (spiffe_trust, spiffe_status) = auths_testkit::spiffe_corpus_context();
-    let spiffe = auths_spiffe_x509::SpiffeX509Method::new(spiffe_trust, spiffe_status)
+    let spiffe = auths_testkit::spiffe_corpus_method(spiffe_trust, spiffe_status)
         .map_err(|error| error.to_string())?;
     let ed25519 = auths_signature::Ed25519Suite::new().map_err(|error| error.to_string())?;
     let p256 = auths_signature::P256Sha256Suite::new().map_err(|error| error.to_string())?;

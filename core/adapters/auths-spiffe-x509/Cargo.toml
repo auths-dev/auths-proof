@@ -15,9 +15,6 @@ std = [
     "auths-model/std",
     "auths-ports/std",
     "base64ct/std",
-    "p256/std",
-    "rustls-pki-types/std",
-    "rustls-webpki/std",
     "sha2/std",
 ]
 
@@ -25,16 +22,12 @@ std = [
 auths-model.workspace = true
 auths-ports.workspace = true
 base64ct.workspace = true
-p256.workspace = true
-rustls-pki-types.workspace = true
-rustls-webpki.workspace = true
 sha2.workspace = true
 x509-parser.workspace = true
 
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-ring = { workspace = true, features = ["wasm32_unknown_unknown_js"] }
-
 [dev-dependencies]
+auths-path-webpki.workspace = true
+auths-signature.workspace = true
 rcgen = "=0.13.2"
 
 [lints]

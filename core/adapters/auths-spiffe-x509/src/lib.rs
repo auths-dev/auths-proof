@@ -10,17 +10,19 @@
 
 extern crate alloc;
 
-use alloc::{format, string::String, vec, vec::Vec};
+use alloc::{boxed::Box, format, string::String, vec, vec::Vec};
 use auths_model::{
     AdapterConfigurationId, AdapterId, AssuranceClaim, AssuranceClaimId, ClaimParameterId,
     EvidenceId, EvidenceSourceId, EvidenceTypeId, MediaType, ModelError, PrincipalId,
     PrincipalMethodId, Timestamp, VerificationMethod,
 };
-use auths_ports::{ControlEvidence, PrincipalControlError, PrincipalControlInput, PrincipalMethod};
+use auths_ports::{
+    AlgorithmBindingSet, CertificateDer as AuthsCertificateDer, CertificatePathVerifier,
+    ControlEvidence, ExtendedKeyUsage, PathError, PathInput, PrincipalControlError,
+    PrincipalControlInput, PrincipalMethod, TrustAnchorSet,
+};
 use base64ct::{Base64UrlUnpadded, Encoding as _};
-use core::{fmt, str, time::Duration};
-use p256::ecdsa::VerifyingKey as P256Key;
-use rustls_pki_types::{CertificateDer, UnixTime};
+use core::{fmt, str};
 use sha2::{Digest as _, Sha256};
 use x509_parser::{extensions::GeneralName, parse_x509_certificate};
 
@@ -31,8 +33,6 @@ pub const SPIFFE_X509_MEDIA_TYPE: &str = "application/vnd.auths.spiffe-x509-svid
 /// SPIFFE principal prefix.
 pub const PRINCIPAL_PREFIX: &str = "spiffe://";
 const EVIDENCE_DOMAIN: &[u8] = b"AUTHS-SPIFFE-X509\x00\x01";
-const ED25519_SUITE: &str = "ed25519-v1";
-const P256_SUITE: &str = "p256-sha256-v1";
 const MAX_CHAIN_CERTIFICATES: usize = 8;
 const MAX_CERTIFICATE_BYTES: usize = 16 * 1024;
 const MAX_CHAIN_BYTES: usize = 32 * 1024;
@@ -45,6 +45,7 @@ const MAX_STATUS_RECORDS: usize = 512;
 pub struct SpiffeTrustDomain {
     name: String,
     roots: Vec<Vec<u8>>,
+    anchors: TrustAnchorSet,
     require_status: bool,
 }
 
@@ -60,25 +61,25 @@ impl SpiffeTrustDomain {
         mut roots: Vec<Vec<u8>>,
         require_status: bool,
     ) -> Result<Self, SpiffeError> {
-        if !valid_trust_domain(&name)
-            || roots.is_empty()
-            || roots.len() > MAX_ROOTS
-            || roots.iter().any(|root| {
-                root.is_empty()
-                    || root.len() > MAX_CERTIFICATE_BYTES
-                    || webpki::anchor_from_trusted_cert(&CertificateDer::from(root.as_slice()))
-                        .is_err()
-            })
-        {
+        if !valid_trust_domain(&name) || roots.is_empty() || roots.len() > MAX_ROOTS {
             return Err(SpiffeError::InvalidTrustBundle);
         }
         roots.sort();
         if roots.windows(2).any(|window| window[0] == window[1]) {
             return Err(SpiffeError::InvalidTrustBundle);
         }
+        let anchors = roots
+            .iter()
+            .cloned()
+            .map(AuthsCertificateDer::new)
+            .collect::<Result<Vec<_>, _>>()
+            .ok()
+            .and_then(|anchors| TrustAnchorSet::new(anchors).ok())
+            .ok_or(SpiffeError::InvalidTrustBundle)?;
         Ok(Self {
             name,
             roots,
+            anchors,
             require_status,
         })
     }
@@ -253,6 +254,8 @@ pub struct SpiffeX509Method {
     source: EvidenceSourceId,
     trust_domains: Vec<SpiffeTrustDomain>,
     status: Vec<SpiffeStatusRecord>,
+    path_verifier: Box<dyn CertificatePathVerifier>,
+    key_bindings: AlgorithmBindingSet,
 }
 
 impl SpiffeX509Method {
@@ -264,6 +267,8 @@ impl SpiffeX509Method {
     pub fn new(
         mut trust_domains: Vec<SpiffeTrustDomain>,
         mut status: Vec<SpiffeStatusRecord>,
+        path_verifier: Box<dyn CertificatePathVerifier>,
+        key_bindings: AlgorithmBindingSet,
     ) -> Result<Self, SpiffeError> {
         if trust_domains.len() > MAX_TRUST_DOMAINS || status.len() > MAX_STATUS_RECORDS {
             return Err(SpiffeError::LimitExceeded);
@@ -290,6 +295,8 @@ impl SpiffeX509Method {
             source: EvidenceSourceId::parse(SPIFFE_X509_V1)?,
             trust_domains,
             status,
+            path_verifier,
+            key_bindings,
         })
     }
 }
@@ -320,6 +327,9 @@ impl PrincipalMethod for SpiffeX509Method {
             components.push(status.observed_at.get().to_be_bytes().to_vec());
             components.push(status.valid_until.get().to_be_bytes().to_vec());
         }
+        components.push(self.path_verifier.id().as_str().as_bytes().to_vec());
+        components.push(self.path_verifier.configuration_id().as_bytes().to_vec());
+        components.push(self.key_bindings.configuration_id().as_bytes().to_vec());
         auths_ports::configuration_id(
             SPIFFE_X509_V1.as_bytes(),
             components.iter().map(Vec::as_slice),
@@ -327,7 +337,10 @@ impl PrincipalMethod for SpiffeX509Method {
     }
 
     fn maximum_work_units(&self) -> u64 {
-        120
+        120_u64.saturating_add(
+            self.path_verifier
+                .maximum_work_units(MAX_CHAIN_CERTIFICATES),
+        )
     }
 
     fn verify_control(
@@ -352,16 +365,43 @@ impl PrincipalMethod for SpiffeX509Method {
         }
         let evidence = selected.ok_or(PrincipalControlError::MissingEvidence)?;
         let chain = SpiffeX509Evidence::decode(evidence.bytes()).map_err(map_evidence_error)?;
-        verify_path(&chain, trust, input.evaluation_time)
-            .map_err(|_| PrincipalControlError::InvalidEvidence)?;
+        let certificates = chain
+            .certificates
+            .iter()
+            .cloned()
+            .map(AuthsCertificateDer::new)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(map_path_error)?;
+        let verified = self
+            .path_verifier
+            .verify(PathInput {
+                leaf: &certificates[0],
+                intermediates: &certificates[1..],
+                anchors: &trust.anchors,
+                at: input.evaluation_time,
+                required_eku: &ExtendedKeyUsage::client_auth(),
+            })
+            .map_err(map_path_error)?;
         let parsed = parse_leaf(&chain.certificates[0])
             .map_err(|_| PrincipalControlError::InvalidEvidence)?;
+        if verified.der().as_bytes() != chain.certificates[0]
+            || verified.spki() != parsed.spki.as_slice()
+        {
+            return Err(PrincipalControlError::ExternalFactUnavailable);
+        }
         if parsed.principal != *input.principal {
             return Err(PrincipalControlError::PrincipalMethodMismatch);
         }
-        if parsed.suite.as_str() != input.signature_suite.as_str() {
+        let selection = self
+            .key_bindings
+            .select_spki(verified.spki_algorithm())
+            .ok_or(PrincipalControlError::ExternalFactUnavailable)?;
+        if selection.suite() != input.signature_suite {
             return Err(PrincipalControlError::SignatureSuiteMismatch);
         }
+        let public_key = verified
+            .key_bytes(selection.key_form())
+            .map_err(map_path_error)?;
         let method = svid_verification_method(input.principal, chain.leaf_digest())
             .map_err(|_| PrincipalControlError::InvalidEvidence)?;
         if &method != input.verification_method {
@@ -407,7 +447,7 @@ impl PrincipalMethod for SpiffeX509Method {
             )?);
         }
         ControlEvidence::new(
-            parsed.public_key,
+            public_key,
             claims,
             vec![EvidenceId::new(*evidence.id().as_bytes())],
             self.adapter.clone(),
@@ -417,44 +457,9 @@ impl PrincipalMethod for SpiffeX509Method {
     }
 }
 
-fn verify_path(
-    chain: &SpiffeX509Evidence,
-    trust: &SpiffeTrustDomain,
-    evaluation_time: Timestamp,
-) -> Result<(), SpiffeError> {
-    let leaf_der = CertificateDer::from(chain.certificates[0].as_slice());
-    let leaf = webpki::EndEntityCert::try_from(&leaf_der).map_err(|_| SpiffeError::InvalidChain)?;
-    let intermediates: Vec<_> = chain.certificates[1..]
-        .iter()
-        .map(|certificate| CertificateDer::from(certificate.as_slice()))
-        .collect();
-    let root_der: Vec<_> = trust
-        .roots
-        .iter()
-        .map(|root| CertificateDer::from(root.as_slice()))
-        .collect();
-    let anchors = root_der
-        .iter()
-        .map(webpki::anchor_from_trusted_cert)
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|_| SpiffeError::InvalidTrustBundle)?;
-    leaf.verify_for_usage(
-        webpki::ALL_VERIFICATION_ALGS,
-        &anchors,
-        &intermediates,
-        UnixTime::since_unix_epoch(Duration::from_secs(evaluation_time.get())),
-        webpki::KeyUsage::client_auth(),
-        None,
-        None,
-    )
-    .map_err(|_| SpiffeError::InvalidChain)?;
-    Ok(())
-}
-
 struct ParsedLeaf {
     principal: PrincipalId,
-    suite: auths_model::SignatureSuiteId,
-    public_key: Vec<u8>,
+    spki: Vec<u8>,
 }
 
 fn parse_leaf(der: &[u8]) -> Result<ParsedLeaf, SpiffeError> {
@@ -482,28 +487,20 @@ fn parse_leaf(der: &[u8]) -> Result<ParsedLeaf, SpiffeError> {
     if !eku.value.client_auth {
         return Err(SpiffeError::InvalidCertificate);
     }
-    let subject_key = certificate.public_key();
-    let algorithm = subject_key.algorithm.algorithm.to_id_string();
-    let key = subject_key.subject_public_key.data.as_ref();
-    let (suite, public_key) = match algorithm.as_str() {
-        "1.3.101.112" if key.len() == 32 => (
-            auths_model::SignatureSuiteId::parse(ED25519_SUITE)?,
-            key.to_vec(),
-        ),
-        "1.2.840.10045.2.1" => {
-            let key = P256Key::from_sec1_bytes(key).map_err(|_| SpiffeError::InvalidCertificate)?;
-            (
-                auths_model::SignatureSuiteId::parse(P256_SUITE)?,
-                key.to_encoded_point(true).as_bytes().to_vec(),
-            )
-        }
-        _ => return Err(SpiffeError::UnsupportedKey),
-    };
     Ok(ParsedLeaf {
         principal,
-        suite,
-        public_key,
+        spki: certificate.public_key().raw.to_vec(),
     })
+}
+
+fn map_path_error(error: PathError) -> PrincipalControlError {
+    match error {
+        PathError::LimitExceeded => PrincipalControlError::ResourceLimitExceeded,
+        PathError::UnsupportedAlgorithm
+        | PathError::UnsupportedKeyForm
+        | PathError::UntrustedAnchor => PrincipalControlError::ExternalFactUnavailable,
+        _ => PrincipalControlError::InvalidEvidence,
+    }
 }
 
 /// Derives the leaf-specific verification method.
@@ -638,10 +635,6 @@ pub enum SpiffeError {
     InvalidEvidence,
     /// A certificate is malformed or outside the SVID profile.
     InvalidCertificate,
-    /// Path building, validity, constraints, or EKU verification failed.
-    InvalidChain,
-    /// The leaf public-key algorithm is unsupported.
-    UnsupportedKey,
     /// A lifecycle status fact is malformed.
     InvalidStatus,
     /// A target bound was exceeded.
@@ -662,8 +655,6 @@ impl fmt::Display for SpiffeError {
             Self::InvalidTrustBundle => formatter.write_str("invalid SPIFFE trust bundle"),
             Self::InvalidEvidence => formatter.write_str("invalid X.509-SVID evidence"),
             Self::InvalidCertificate => formatter.write_str("invalid X.509-SVID certificate"),
-            Self::InvalidChain => formatter.write_str("invalid X.509-SVID path"),
-            Self::UnsupportedKey => formatter.write_str("unsupported X.509-SVID key"),
             Self::InvalidStatus => formatter.write_str("invalid X.509-SVID status"),
             Self::LimitExceeded => formatter.write_str("X.509-SVID resource limit exceeded"),
         }
@@ -677,7 +668,12 @@ impl std::error::Error for SpiffeError {}
 mod tests {
     use super::*;
     use auths_model::{Digest, EvidenceObject, SignatureSuiteId};
-    use auths_ports::{ControlPurpose, PrincipalControlInput};
+    use auths_path_webpki::WebPkiPathVerifier;
+    use auths_ports::{
+        AlgorithmBinding, AlgorithmIdentifierDer, ControlPurpose, KeyForm, PrincipalControlInput,
+        SignatureSuite,
+    };
+    use auths_signature::{Ed25519Suite, P256Sha256Suite};
     use rcgen::{
         BasicConstraints, CertificateParams, ExtendedKeyUsagePurpose, IsCa, KeyPair,
         KeyUsagePurpose, SanType,
@@ -701,6 +697,39 @@ mod tests {
             .to_vec()
     }
 
+    fn spiffe_method(
+        trust: Vec<SpiffeTrustDomain>,
+        status: Vec<SpiffeStatusRecord>,
+    ) -> SpiffeX509Method {
+        let ed25519 = Ed25519Suite::new().unwrap();
+        let p256 = P256Sha256Suite::new().unwrap();
+        let suites: [&dyn SignatureSuite; 2] = [&ed25519, &p256];
+        let bindings = AlgorithmBindingSet::new(
+            vec![
+                AlgorithmBinding::Spki {
+                    algorithm: AlgorithmIdentifierDer::new(vec![
+                        0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70,
+                    ])
+                    .unwrap(),
+                    suite: ed25519.id().clone(),
+                    key_form: KeyForm::BitStringContents,
+                },
+                AlgorithmBinding::Spki {
+                    algorithm: AlgorithmIdentifierDer::new(vec![
+                        0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01, 0x06,
+                        0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07,
+                    ])
+                    .unwrap(),
+                    suite: p256.id().clone(),
+                    key_form: KeyForm::Sec1Compressed,
+                },
+            ],
+            &suites,
+        )
+        .unwrap();
+        SpiffeX509Method::new(trust, status, Box::new(WebPkiPathVerifier::new()), bindings).unwrap()
+    }
+
     #[test]
     fn trust_roots_are_canonical_and_configuration_bound() {
         let first = trust_anchor(1);
@@ -719,19 +748,14 @@ mod tests {
         .unwrap();
         assert_eq!(forward.roots(), reverse.roots());
 
-        let forward_id = SpiffeX509Method::new(vec![forward], Vec::new())
-            .unwrap()
-            .configuration_id();
-        let reverse_id = SpiffeX509Method::new(vec![reverse], Vec::new())
-            .unwrap()
-            .configuration_id();
+        let forward_id = spiffe_method(vec![forward], Vec::new()).configuration_id();
+        let reverse_id = spiffe_method(vec![reverse], Vec::new()).configuration_id();
         assert_eq!(forward_id, reverse_id);
 
-        let changed_id = SpiffeX509Method::new(
+        let changed_id = spiffe_method(
             vec![SpiffeTrustDomain::new("auths.example".to_string(), vec![first], false).unwrap()],
             Vec::new(),
         )
-        .unwrap()
         .configuration_id();
         assert_ne!(forward_id, changed_id);
 
@@ -793,12 +817,12 @@ mod tests {
         )
         .unwrap();
         let refs = [&object];
-        let method = SpiffeX509Method::new(vec![trust.clone()], vec![status]).unwrap();
+        let method = spiffe_method(vec![trust.clone()], vec![status]);
         let control = method
             .verify_control(PrincipalControlInput {
                 principal: &principal,
                 verification_method: &method_id,
-                signature_suite: &SignatureSuiteId::parse(P256_SUITE).unwrap(),
+                signature_suite: &SignatureSuiteId::parse("p256-sha256-v1").unwrap(),
                 purpose: ControlPurpose::CapabilityInvocation,
                 signing_preimage: b"exact Auths preimage",
                 signature: b"test signature",
@@ -821,12 +845,12 @@ mod tests {
             Timestamp::new(1_800_000_000),
         )
         .unwrap();
-        let revoked_method = SpiffeX509Method::new(vec![trust], vec![revoked]).unwrap();
+        let revoked_method = spiffe_method(vec![trust], vec![revoked]);
         let error = revoked_method
             .verify_control(PrincipalControlInput {
                 principal: &principal,
                 verification_method: &method_id,
-                signature_suite: &SignatureSuiteId::parse(P256_SUITE).unwrap(),
+                signature_suite: &SignatureSuiteId::parse("p256-sha256-v1").unwrap(),
                 purpose: ControlPurpose::CapabilityInvocation,
                 signing_preimage: b"exact Auths preimage",
                 signature: b"test signature",

@@ -179,14 +179,15 @@ impl std::error::Error for EvidenceAssemblyError {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use auths_model::{SignatureSuiteId, Timestamp};
+    use auths_model::Timestamp;
+    use auths_signature::Ed25519Suite;
     use ed25519_dalek::SigningKey;
 
     #[test]
     fn hsm_evidence_changes_with_the_auths_transaction() {
         let key = SigningKey::from_bytes(&[31; 32]);
         let record = HsmKeyRecord::new(
-            SignatureSuiteId::parse("ed25519-v1").unwrap(),
+            &Ed25519Suite::new().unwrap(),
             key.verifying_key().to_bytes().to_vec(),
             "pkcs11-v1".into(),
             "reference-hsm".into(),

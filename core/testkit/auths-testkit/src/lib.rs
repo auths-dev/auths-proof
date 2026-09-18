@@ -34,11 +34,13 @@ use auths_model::{
     VerificationMethod, VerifierConfigurationId, VerifierLimits,
 };
 use auths_multikey::{Multikey, MultikeyType};
+use auths_path_webpki::WebPkiPathVerifier;
+use auths_ports::{AlgorithmBinding, AlgorithmBindingSet, AlgorithmIdentifierDer, KeyForm};
 use auths_raw_key::{RAW_KEY_MEDIA_TYPE, RAW_KEY_V1, RawKeyDescriptor, RawKeyType};
-use auths_signature::{ED25519_V1, P256_SHA256_V1};
+use auths_signature::{ED25519_V1, Ed25519Suite, P256_SHA256_V1, P256Sha256Suite};
 use auths_spiffe_x509::{
-    SPIFFE_X509_MEDIA_TYPE, SPIFFE_X509_V1, SpiffeStatusRecord, SpiffeTrustDomain,
-    SpiffeX509Evidence, svid_verification_method,
+    SPIFFE_X509_MEDIA_TYPE, SPIFFE_X509_V1, SpiffeError, SpiffeStatusRecord, SpiffeTrustDomain,
+    SpiffeX509Evidence, SpiffeX509Method, svid_verification_method,
 };
 use auths_webauthn::{
     CounterPolicy, WEBAUTHN_MEDIA_TYPE, WEBAUTHN_V1, WebAuthnCredential, WebAuthnEvidence,
@@ -495,13 +497,10 @@ fn webauthn_credential(seed: u8) -> (P256SigningKey, WebAuthnCredential) {
     scalar[31] = seed.max(1);
     let key = P256SigningKey::from_bytes((&scalar).into()).expect("fixed WebAuthn scalar");
     let point = key.verifying_key().to_encoded_point(true);
-    let public_key: [u8; 33] = point
-        .as_bytes()
-        .try_into()
-        .expect("compressed WebAuthn key");
     let credential = WebAuthnCredential::new(
         vec![seed; 16],
-        public_key,
+        &P256Sha256Suite::new().expect("P-256 suite"),
+        point.as_bytes().to_vec(),
         "auths.example".to_string(),
         vec!["https://auths.example".to_string()],
         true,
@@ -517,7 +516,7 @@ fn webauthn_credential(seed: u8) -> (P256SigningKey, WebAuthnCredential) {
 fn hsm_record(seed: u8) -> (Ed25519SigningKey, HsmKeyRecord) {
     let key = Ed25519SigningKey::from_bytes(&[seed; 32]);
     let record = HsmKeyRecord::new(
-        SignatureSuiteId::parse(ED25519_V1).expect("suite"),
+        &Ed25519Suite::new().expect("Ed25519 suite"),
         key.verifying_key().to_bytes().to_vec(),
         "pkcs11-v1".to_string(),
         "auths-test-hsm".to_string(),
@@ -845,8 +844,7 @@ pub fn corpus_configuration_id() -> VerifierConfigurationId {
         let hsm =
             auths_hsm_attested::HsmAttestedMethod::new(hsm_corpus_records()).expect("HSM method");
         let (spiffe_trust, spiffe_status) = spiffe_corpus_context();
-        let spiffe = auths_spiffe_x509::SpiffeX509Method::new(spiffe_trust, spiffe_status)
-            .expect("SPIFFE method");
+        let spiffe = spiffe_corpus_method(spiffe_trust, spiffe_status).expect("SPIFFE method");
         let ed25519 = auths_signature::Ed25519Suite::new().expect("Ed25519 suite");
         let p256 = auths_signature::P256Sha256Suite::new().expect("P-256 suite");
         let methods: [&dyn auths_ports::PrincipalMethod; 7] = [
@@ -1625,6 +1623,45 @@ pub fn spiffe_corpus_context() -> (Vec<SpiffeTrustDomain>, Vec<SpiffeStatusRecor
     let first = spiffe_material(61);
     let second = spiffe_material(65);
     (vec![first.trust], vec![first.status, second.status])
+}
+
+/// Constructs the corpus SPIFFE method through the shared path and binding
+/// ports.
+///
+/// # Errors
+///
+/// Returns an adapter error if the supplied corpus context is invalid.
+pub fn spiffe_corpus_method(
+    trust: Vec<SpiffeTrustDomain>,
+    status: Vec<SpiffeStatusRecord>,
+) -> Result<SpiffeX509Method, SpiffeError> {
+    let ed25519 = Ed25519Suite::new().expect("registered Ed25519 suite");
+    let p256 = P256Sha256Suite::new().expect("registered P-256 suite");
+    let suites: [&dyn auths_ports::SignatureSuite; 2] = [&ed25519, &p256];
+    let bindings = AlgorithmBindingSet::new(
+        vec![
+            AlgorithmBinding::Spki {
+                algorithm: AlgorithmIdentifierDer::new(vec![
+                    0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70,
+                ])
+                .expect("Ed25519 algorithm identifier"),
+                suite: SignatureSuiteId::parse(ED25519_V1).expect("Ed25519 suite identifier"),
+                key_form: KeyForm::BitStringContents,
+            },
+            AlgorithmBinding::Spki {
+                algorithm: AlgorithmIdentifierDer::new(vec![
+                    0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01, 0x06, 0x08,
+                    0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07,
+                ])
+                .expect("P-256 algorithm identifier"),
+                suite: SignatureSuiteId::parse(P256_SHA256_V1).expect("P-256 suite identifier"),
+                key_form: KeyForm::Sec1Compressed,
+            },
+        ],
+        &suites,
+    )
+    .expect("corpus SPIFFE bindings");
+    SpiffeX509Method::new(trust, status, Box::new(WebPkiPathVerifier::new()), bindings)
 }
 
 /// A valid bundled document without verifier-local trust is indeterminate.
