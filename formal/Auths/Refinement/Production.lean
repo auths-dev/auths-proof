@@ -542,6 +542,8 @@ def PermissionPrefixMissing
         PermissionPrefixMissing currentSet.val index.val permission := by
       simpa using prefixMissing
     unfold auths_model.permission_set_contains_loop.body
+    unfold auths_model.bounded.BoundedSet.len
+    unfold auths_model.bounded.BoundedSet.as_slice
     dsimp only
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentSet.val.length := by
@@ -624,6 +626,8 @@ def PermissionPrefixContained
         PermissionPrefixContained currentChild.val parent.val index.val := by
       simpa using prefixContained
     unfold auths_model.permission_set_is_subset_loop.body
+    unfold auths_model.bounded.BoundedSet.len
+    unfold auths_model.bounded.BoundedSet.as_slice
     dsimp only
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentChild.val.length := by
@@ -740,6 +744,8 @@ def AudiencePrefixMissing
         AudiencePrefixMissing currentSet.val index.val audience := by
       simpa using prefixMissing
     unfold auths_model.audience_set_contains_loop.body
+    unfold auths_model.bounded.BoundedSet.len
+    unfold auths_model.bounded.BoundedSet.as_slice
     dsimp only
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentSet.val.length := by
@@ -823,6 +829,8 @@ def AudiencePrefixContained
         AudiencePrefixContained currentChild.val parent.val index.val := by
       simpa using prefixContained
     unfold auths_model.audience_set_is_subset_loop.body
+    unfold auths_model.bounded.BoundedSet.len
+    unfold auths_model.bounded.BoundedSet.as_slice
     dsimp only
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentChild.val.length := by
@@ -932,6 +940,8 @@ def DigestPrefixMissing
         DigestPrefixMissing currentSet.val index.val digest := by
       simpa using prefixMissing
     unfold auths_model.body_digest_set_contains_loop.body
+    unfold auths_model.bounded.BoundedSet.len
+    unfold auths_model.bounded.BoundedSet.as_slice
     dsimp only
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentSet.val.length := by
@@ -1014,6 +1024,8 @@ def DigestPrefixContained
         DigestPrefixContained currentChild.val parent.val index.val := by
       simpa using prefixContained
     unfold auths_model.body_digest_set_is_subset_loop.body
+    unfold auths_model.bounded.BoundedSet.len
+    unfold auths_model.bounded.BoundedSet.as_slice
     dsimp only
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentChild.val.length := by
@@ -1097,6 +1109,8 @@ def DigestPrefixOnly
         DigestPrefixOnly currentSet.val index.val digest := by
       simpa using prefixOnly
     unfold auths_model.body_digest_set_only_contains_loop.body
+    unfold auths_model.bounded.BoundedSet.len
+    unfold auths_model.bounded.BoundedSet.as_slice
     dsimp only
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentSet.val.length := by
