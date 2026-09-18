@@ -127,7 +127,7 @@ pub enum SigstoreError {
 }
 impl fmt::Display for SigstoreError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "sigstore.{:?}", self)
+        write!(f, "sigstore.{self:?}")
     }
 }
 
@@ -146,6 +146,12 @@ pub struct RekorLog {
     kind: LogKind,
 }
 impl RekorLog {
+    /// Constructs one configured Rekor log verifier.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigurationError`] when the log key or binding is invalid,
+    /// the suite is unregistered, or a configured bound is exceeded.
     pub fn new(
         origin: CheckpointOrigin,
         note_key_name: NoteName,
@@ -163,7 +169,7 @@ impl RekorLog {
             return Err(ConfigurationError::LogBinding);
         };
         let parsed =
-            spki_algorithm_identifier(&spki).map_err(|_| ConfigurationError::LogAlgorithm)?;
+            spki_algorithm_identifier(&spki).map_err(|()| ConfigurationError::LogAlgorithm)?;
         if parsed != algorithm.as_bytes() {
             return Err(ConfigurationError::LogAlgorithm);
         }
@@ -171,7 +177,7 @@ impl RekorLog {
             .iter()
             .find(|candidate| candidate.id() == suite)
             .ok_or(ConfigurationError::UnregisteredSuite)?;
-        let key = project_key(&spki, *key_form).map_err(|_| ConfigurationError::InvalidKey)?;
+        let key = project_key(&spki, *key_form).map_err(|()| ConfigurationError::InvalidKey)?;
         implementation
             .validate_key(&key)
             .map_err(|_| ConfigurationError::InvalidKey)?;
@@ -217,6 +223,7 @@ pub struct IssuerPolicy {
     profile: FulcioIssuerProfile,
 }
 impl IssuerPolicy {
+    #[must_use]
     pub fn new(url: IssuerUrl, profile: FulcioIssuerProfile) -> Self {
         Self { url, profile }
     }
@@ -239,6 +246,12 @@ pub type IssuerPolicySet = BoundedSet<IssuerPolicy, MAX_ISSUERS>;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct LeafValidity(u64);
 impl LeafValidity {
+    /// Constructs the maximum permitted Fulcio leaf validity.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigurationError`] when `seconds` is zero or exceeds the
+    /// adapter's fixed maximum.
     pub fn new(seconds: u64) -> Result<Self, ConfigurationError> {
         if seconds == 0 || seconds > MAX_LEAF_VALIDITY {
             return Err(ConfigurationError::LeafValidity);
@@ -268,6 +281,12 @@ pub struct SigstoreKeylessMethod<'a> {
 }
 impl<'a> SigstoreKeylessMethod<'a> {
     #[allow(clippy::too_many_arguments)]
+    /// Constructs a keyless Sigstore principal method.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigurationError`] when identifiers, bindings, log policy,
+    /// issuer policy, or configured bounds are invalid.
     pub fn new(
         anchors: TrustAnchorSet,
         path_verifier: &'a dyn CertificatePathVerifier,
@@ -306,9 +325,16 @@ impl<'a> SigstoreKeylessMethod<'a> {
             suites,
         })
     }
+    /// Verifies keyless signing evidence and returns its control evidence.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SigstoreError`] for malformed or inconsistent evidence,
+    /// failed transparency/path/signature checks, or rejected workload policy.
+    #[allow(clippy::too_many_lines)]
     pub fn verify_detailed(
         &self,
-        input: PrincipalControlInput<'_>,
+        input: &PrincipalControlInput<'_>,
     ) -> Result<ControlEvidence, SigstoreError> {
         let (principal_issuer, principal_subject) = parse_principal(input.principal.as_str())?;
         let issuer = self
@@ -458,8 +484,8 @@ impl<'a> SigstoreKeylessMethod<'a> {
         let AlgorithmBinding::Spki { key_form, .. } = log.binding else {
             return Err(SigstoreError::SuiteContract);
         };
-        let key =
-            project_key(log.spki.as_slice(), key_form).map_err(|_| SigstoreError::SuiteContract)?;
+        let key = project_key(log.spki.as_slice(), key_form)
+            .map_err(|()| SigstoreError::SuiteContract)?;
         suite
             .verify(SignatureInput {
                 verification_key: &key,
@@ -548,7 +574,7 @@ impl PrincipalMethod for SigstoreKeylessMethod<'_> {
         &self,
         input: PrincipalControlInput<'_>,
     ) -> Result<ControlEvidence, PrincipalControlError> {
-        self.verify_detailed(input).map_err(map_error)
+        self.verify_detailed(&input).map_err(map_error)
     }
 }
 
@@ -595,6 +621,12 @@ fn project_key(spki: &[u8], form: KeyForm) -> Result<Vec<u8>, ()> {
         }
     }
 }
+/// Derives the certificate-bound verification method for one principal.
+///
+/// # Errors
+///
+/// Returns [`auths_model::ModelError`] when the resulting method identifier
+/// violates model bounds or syntax.
 pub fn verification_method(
     principal: &str,
     leaf: &[u8],
@@ -621,42 +653,44 @@ fn parse_principal(value: &str) -> Result<(IssuerUrl, Subject), SigstoreError> {
         Subject::parse(&subject).map_err(|_| SigstoreError::PrincipalSyntax)?,
     ))
 }
-fn pct(v: &str) -> Result<String, SigstoreError> {
-    let b = v.as_bytes();
-    let mut o = Vec::new();
-    let mut i = 0;
-    while i < b.len() {
-        if b[i] == b'%' {
-            let p = b.get(i + 1..i + 3).ok_or(SigstoreError::PrincipalSyntax)?;
-            o.push((hx(p[0])? << 4) | hx(p[1])?);
-            i += 3;
+fn pct(value: &str) -> Result<String, SigstoreError> {
+    let bytes = value.as_bytes();
+    let mut decoded = Vec::new();
+    let mut offset = 0;
+    while offset < bytes.len() {
+        if bytes[offset] == b'%' {
+            let pair = bytes
+                .get(offset + 1..offset + 3)
+                .ok_or(SigstoreError::PrincipalSyntax)?;
+            decoded.push((hx(pair[0])? << 4) | hx(pair[1])?);
+            offset += 3;
         } else {
-            o.push(b[i]);
-            i += 1;
+            decoded.push(bytes[offset]);
+            offset += 1;
         }
     }
-    String::from_utf8(o).map_err(|_| SigstoreError::PrincipalSyntax)
+    String::from_utf8(decoded).map_err(|_| SigstoreError::PrincipalSyntax)
 }
-fn hx(b: u8) -> Result<u8, SigstoreError> {
-    match b {
-        b'0'..=b'9' => Ok(b - b'0'),
-        b'A'..=b'F' => Ok(b - b'A' + 10),
+fn hx(byte: u8) -> Result<u8, SigstoreError> {
+    match byte {
+        b'0'..=b'9' => Ok(byte - b'0'),
+        b'A'..=b'F' => Ok(byte - b'A' + 10),
         _ => Err(SigstoreError::PrincipalSyntax),
     }
 }
-fn encode(v: &[u8]) -> String {
-    const H: &[u8; 16] = b"0123456789ABCDEF";
-    let mut o = String::new();
-    for b in v {
-        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~') {
-            o.push(char::from(*b));
+fn encode(value: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+    let mut encoded = String::new();
+    for byte in value {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
+            encoded.push(char::from(*byte));
         } else {
-            o.push('%');
-            o.push(char::from(H[usize::from(b >> 4)]));
-            o.push(char::from(H[usize::from(b & 15)]));
+            encoded.push('%');
+            encoded.push(char::from(HEX[usize::from(byte >> 4)]));
+            encoded.push(char::from(HEX[usize::from(byte & 15)]));
         }
     }
-    o
+    encoded
 }
 fn assurance_claims(
     admitted: &identity::AdmittedWorkload,

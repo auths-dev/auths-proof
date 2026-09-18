@@ -14,6 +14,12 @@ macro_rules! note_text {
         #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
         pub struct $name(String);
         impl $name {
+            /// Parses one bounded transparency-note text field.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`CheckpointError`] when the value is empty, exceeds
+            /// its bound, contains a line break, or has surrounding space.
             pub fn parse(value: &str) -> Result<Self, CheckpointError> {
                 if value.is_empty()
                     || value.len() > $maximum
@@ -50,6 +56,12 @@ pub struct Checkpoint {
     pub signatures: Vec<NoteSignature>,
 }
 impl Checkpoint {
+    /// Parses one signed transparency-log checkpoint envelope.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CheckpointError`] when the envelope is malformed, exceeds a
+    /// bound, or contains an invalid or missing note signature.
     pub fn parse(bytes: &[u8]) -> Result<Self, CheckpointError> {
         if bytes.is_empty()
             || bytes.len() > MAX_CHECKPOINT_BYTES
@@ -59,7 +71,7 @@ impl Checkpoint {
         }
         let text = core::str::from_utf8(bytes).map_err(|_| CheckpointError::Syntax)?;
         let separator = text.find("\n\n").ok_or(CheckpointError::Syntax)?;
-        let body = bytes[..separator + 1].to_vec();
+        let body = bytes[..=separator].to_vec();
         let mut lines = text[..separator].lines();
         let origin = CheckpointOrigin::parse(lines.next().ok_or(CheckpointError::Syntax)?)?;
         let tree_size = lines

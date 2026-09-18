@@ -3,6 +3,12 @@ extern crate alloc;
 use auths_model::Digest;
 use sha2::{Digest as _, Sha256};
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MerkleError {
+    InvalidTree,
+}
+
+#[must_use]
 pub fn leaf_hash(body: &[u8]) -> Digest {
     let mut hasher = Sha256::new();
     hasher.update([0]);
@@ -10,9 +16,20 @@ pub fn leaf_hash(body: &[u8]) -> Digest {
     Digest::new(hasher.finalize().into())
 }
 
-pub fn fold(index: u64, tree_size: u64, leaf: Digest, hashes: &[Digest]) -> Result<Digest, ()> {
+/// Reconstructs an RFC 6962 root from one inclusion path.
+///
+/// # Errors
+///
+/// Returns [`MerkleError`] when the tree coordinates or path length are
+/// inconsistent.
+pub fn fold(
+    index: u64,
+    tree_size: u64,
+    leaf: Digest,
+    hashes: &[Digest],
+) -> Result<Digest, MerkleError> {
     if tree_size == 0 || index >= tree_size || hashes.len() != path_length(index, tree_size)? {
-        return Err(());
+        return Err(MerkleError::InvalidTree);
     }
     let mut node = leaf;
     let mut position = index;
@@ -31,21 +48,27 @@ pub fn fold(index: u64, tree_size: u64, leaf: Digest, hashes: &[Digest]) -> Resu
         last >>= 1;
     }
     if last != 0 {
-        return Err(());
+        return Err(MerkleError::InvalidTree);
     }
     Ok(node)
 }
 
-pub fn path_length(index: u64, tree_size: u64) -> Result<usize, ()> {
+/// Returns the required inclusion-path length for one tree coordinate.
+///
+/// # Errors
+///
+/// Returns [`MerkleError`] when the tree is empty, the index is outside the
+/// tree, or the path length overflows.
+pub fn path_length(index: u64, tree_size: u64) -> Result<usize, MerkleError> {
     if tree_size == 0 || index >= tree_size {
-        return Err(());
+        return Err(MerkleError::InvalidTree);
     }
     let mut length = 0usize;
     let mut position = index;
     let mut last = tree_size - 1;
     while last != 0 {
         if position & 1 == 1 || position < last {
-            length = length.checked_add(1).ok_or(())?;
+            length = length.checked_add(1).ok_or(MerkleError::InvalidTree)?;
         }
         position >>= 1;
         last >>= 1;

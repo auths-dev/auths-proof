@@ -43,7 +43,7 @@ impl LeafCertificate {
         }
         let spki = certificate.public_key().raw.to_vec();
         let algorithm = spki_algorithm_identifier(&spki)
-            .map_err(|_| ChainError::Malformed)?
+            .map_err(|()| ChainError::Malformed)?
             .to_vec();
         Ok(Self {
             der,
@@ -82,6 +82,12 @@ pub struct CertificateChain {
     intermediates: Vec<CertificateDer>,
 }
 impl CertificateChain {
+    /// Decodes and validates one canonical bounded certificate chain.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ChainError`] when the chain is malformed, non-canonical,
+    /// exceeds a bound, or its leaf validity exceeds `maximum_validity`.
     pub fn parse(bytes: &[u8], maximum_validity: u64) -> Result<Self, ChainError> {
         let mut decoder = Decoder::new(bytes);
         let count = decoder
@@ -118,6 +124,12 @@ impl CertificateChain {
             intermediates,
         })
     }
+    /// Encodes one canonical bounded certificate chain.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ChainError`] when the chain is empty, exceeds a bound, or
+    /// cannot be represented canonically.
     pub fn encode(certificates: &[Vec<u8>]) -> Result<Vec<u8>, ChainError> {
         encode_certificates(certificates)
     }

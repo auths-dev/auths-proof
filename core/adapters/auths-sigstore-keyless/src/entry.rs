@@ -12,6 +12,10 @@ pub const MAX_ENTRY_BODY_BYTES: usize = 16_384;
 pub const MAX_ENTRY_SIGNATURE_BYTES: usize = 16_384;
 pub const MAX_PROOF_HASHES: usize = 64;
 pub const MAX_SET_BYTES: usize = 2048;
+const HASHED_REKORD_PREFIX: &str = "{\"apiVersion\":\"0.0.1\",\"kind\":\"hashedrekord\",\"spec\":{\"data\":{\"hash\":{\"algorithm\":\"sha256\",\"value\":\"";
+const HASHED_REKORD_MIDDLE: &str = "\"}},\"signature\":{\"content\":\"";
+const HASHED_REKORD_PUBLIC_KEY: &str = "\",\"publicKey\":{\"content\":\"";
+const HASHED_REKORD_SUFFIX: &str = "\"}}}}";
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct LogId([u8; 32]);
@@ -39,14 +43,18 @@ impl HashedRekordBody {
             return Err(EntryError::Limit);
         }
         let text = core::str::from_utf8(&raw).map_err(|_| EntryError::Body)?;
-        const PREFIX: &str = "{\"apiVersion\":\"0.0.1\",\"kind\":\"hashedrekord\",\"spec\":{\"data\":{\"hash\":{\"algorithm\":\"sha256\",\"value\":\"";
-        const MIDDLE: &str = "\"}},\"signature\":{\"content\":\"";
-        const PUBLIC: &str = "\",\"publicKey\":{\"content\":\"";
-        const SUFFIX: &str = "\"}}}}";
-        let remainder = text.strip_prefix(PREFIX).ok_or(EntryError::Body)?;
-        let (digest, remainder) = remainder.split_once(MIDDLE).ok_or(EntryError::Body)?;
-        let (signature, remainder) = remainder.split_once(PUBLIC).ok_or(EntryError::Body)?;
-        let certificate = remainder.strip_suffix(SUFFIX).ok_or(EntryError::Body)?;
+        let remainder = text
+            .strip_prefix(HASHED_REKORD_PREFIX)
+            .ok_or(EntryError::Body)?;
+        let (digest, remainder) = remainder
+            .split_once(HASHED_REKORD_MIDDLE)
+            .ok_or(EntryError::Body)?;
+        let (signature, remainder) = remainder
+            .split_once(HASHED_REKORD_PUBLIC_KEY)
+            .ok_or(EntryError::Body)?;
+        let certificate = remainder
+            .strip_suffix(HASHED_REKORD_SUFFIX)
+            .ok_or(EntryError::Body)?;
         if digest.len() != 64
             || !digest
                 .bytes()
@@ -99,6 +107,13 @@ pub struct RekorEntry {
     pub signed_entry_timestamp: BoundedBytes<MAX_SET_BYTES>,
 }
 impl RekorEntry {
+    /// Parses one canonical bounded Rekor entry evidence object.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EntryError`] when the entry is malformed, non-canonical,
+    /// exceeds a bound, or contains inconsistent checkpoint/proof fields.
+    #[allow(clippy::too_many_lines)]
     pub fn parse(bytes: &[u8]) -> Result<Self, EntryError> {
         let mut decoder = Decoder::new(bytes);
         let count = decoder
@@ -127,7 +142,7 @@ impl RekorEntry {
                             .map_err(|_| EntryError::Cbor)?
                             .as_bytes()
                             .to_vec(),
-                    )
+                    );
                 }
                 "hashes" => {
                     let length = decoder
@@ -150,7 +165,7 @@ impl RekorEntry {
                     hashes = Some(values);
                 }
                 "integrated_time" => {
-                    integrated = Some(decoder.u64().map_err(|_| EntryError::Cbor)?)
+                    integrated = Some(decoder.u64().map_err(|_| EntryError::Cbor)?);
                 }
                 "log_id" => {
                     log_id = Some(
@@ -159,11 +174,11 @@ impl RekorEntry {
                             .map_err(|_| EntryError::Cbor)?
                             .try_into()
                             .map_err(|_| EntryError::Cbor)?,
-                    )
+                    );
                 }
                 "log_index" => log_index = Some(decoder.u64().map_err(|_| EntryError::Cbor)?),
                 "signed_entry_timestamp" => {
-                    set = Some(decoder.bytes().map_err(|_| EntryError::Cbor)?.to_vec())
+                    set = Some(decoder.bytes().map_err(|_| EntryError::Cbor)?.to_vec());
                 }
                 "tree_size" => tree_size = Some(decoder.u64().map_err(|_| EntryError::Cbor)?),
                 _ => return Err(EntryError::Cbor),
@@ -220,6 +235,13 @@ impl RekorEntry {
     }
 }
 
+/// Encodes the canonical bounded field map for one Rekor entry.
+///
+/// # Errors
+///
+/// Returns [`EntryError`] if a field count or value cannot be represented by
+/// the canonical CBOR encoder.
+#[allow(clippy::too_many_arguments)]
 pub fn encode_fields(
     body: &[u8],
     checkpoint: &str,

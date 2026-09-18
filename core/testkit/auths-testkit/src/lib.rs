@@ -1638,6 +1638,11 @@ pub fn spiffe_corpus_context() -> (Vec<SpiffeTrustDomain>, Vec<SpiffeStatusRecor
 /// # Errors
 ///
 /// Returns an adapter error if the supplied corpus context is invalid.
+///
+/// # Panics
+///
+/// Panics only if a built-in suite or algorithm identifier violates its
+/// compile-time registry contract.
 pub fn spiffe_corpus_method(
     trust: Vec<SpiffeTrustDomain>,
     status: Vec<SpiffeStatusRecord>,

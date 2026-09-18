@@ -83,7 +83,7 @@ fn independent_github_policy_joins_agree_on_immutable_ids() {
     assert!(
         profile
             .admit(&fulcio::FulcioWorkloadIdentity::GithubActions(
-                fulcio_identity.clone()
+                Box::new(fulcio_identity.clone())
             ))
             .is_ok()
     );
@@ -100,7 +100,7 @@ fn independent_github_policy_joins_agree_on_immutable_ids() {
     assert!(
         rejected
             .admit(&fulcio::FulcioWorkloadIdentity::GithubActions(
-                fulcio_identity
+                Box::new(fulcio_identity)
             ))
             .is_err()
     );

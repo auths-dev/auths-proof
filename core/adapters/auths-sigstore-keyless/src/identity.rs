@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{string::String, vec::Vec};
+use alloc::{boxed::Box, string::String, vec::Vec};
 use auths_model::{BoundedSet, Digest};
 use auths_ports::VerifiedLeaf;
 use sha2::{Digest as _, Sha256};
@@ -16,6 +16,12 @@ macro_rules! text {
         #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
         pub struct $name(String);
         impl $name {
+            /// Parses one bounded Fulcio identity field.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`ExtensionError`] when the field is empty, exceeds its
+            /// bound, or violates its field-specific syntax.
             pub fn parse(value: &str) -> Result<Self, ExtensionError> {
                 if value.is_empty() || value.len() > $max || !($valid)(value) {
                     return Err(ExtensionError::InvalidValue);
@@ -46,13 +52,20 @@ text!(GitRef, 256, |v: &str| v.starts_with("refs/")
     && !v.contains(' '));
 text!(WorkflowPath, 256, |v: &str| v
     .starts_with(".github/workflows/")
-    && (v.ends_with(".yml") || v.ends_with(".yaml"))
+    && v.rsplit_once('.')
+        .is_some_and(|(_, extension)| matches!(extension, "yml" | "yaml"))
     && !v.contains(".."));
 text!(RunInvocationUri, 1024, https);
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Repository(String);
 impl Repository {
+    /// Parses one canonical `owner/repository` name.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ExtensionError`] when the repository is malformed or exceeds
+    /// its bound.
     pub fn parse(value: &str) -> Result<Self, ExtensionError> {
         let mut p = value.split('/');
         let a = p.next().unwrap_or("");
@@ -81,6 +94,12 @@ impl Repository {
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct RepositoryOwner(String);
 impl RepositoryOwner {
+    /// Parses one canonical repository owner.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ExtensionError`] when the owner is malformed or exceeds its
+    /// bound.
     pub fn parse(value: &str) -> Result<Self, ExtensionError> {
         if value.is_empty()
             || value.len() > 64
@@ -102,6 +121,12 @@ macro_rules! id {
         #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
         pub struct $name(u64);
         impl $name {
+            /// Parses one positive canonical decimal identifier.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`ExtensionError`] when the value is zero, has a
+            /// leading zero, is non-decimal, or exceeds `u64`.
             pub fn parse(v: &str) -> Result<Self, ExtensionError> {
                 if v.is_empty() || v.starts_with('0') || !v.bytes().all(|b| b.is_ascii_digit()) {
                     return Err(ExtensionError::InvalidValue);
@@ -124,6 +149,12 @@ id!(RepositoryOwnerId);
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct CommitSha(String);
 impl CommitSha {
+    /// Parses one lowercase SHA-1 commit identifier.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ExtensionError`] unless the value is exactly 40 lowercase
+    /// hexadecimal digits, optionally prefixed by `sha1:`.
     pub fn parse(v: &str) -> Result<Self, ExtensionError> {
         let v = v.strip_prefix("sha1:").unwrap_or(v);
         if v.len() != 40
@@ -146,6 +177,11 @@ pub enum RunnerEnvironment {
     SelfHosted,
 }
 impl RunnerEnvironment {
+    /// Parses one supported GitHub Actions runner environment.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ExtensionError`] for an unknown environment label.
     pub fn parse(v: &str) -> Result<Self, ExtensionError> {
         match v {
             "github-hosted" => Ok(Self::GithubHosted),
@@ -215,7 +251,7 @@ pub struct FulcioGithubIdentity {
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum FulcioWorkloadIdentity {
     Generic(FulcioGenericIdentity),
-    GithubActions(FulcioGithubIdentity),
+    GithubActions(Box<FulcioGithubIdentity>),
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -260,6 +296,12 @@ pub struct AdmittedWorkload {
 }
 
 impl FulcioIssuerProfile {
+    /// Applies the configured issuer profile to one extracted workload.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolicyRejection`] when the identity kind does not match the
+    /// profile or no configured policy admits it.
     pub fn admit(
         &self,
         identity: &FulcioWorkloadIdentity,
@@ -416,7 +458,7 @@ impl FulcioFacts {
                 } else {
                     ReusableWorkflow::Present(signer)
                 };
-                Ok(FulcioWorkloadIdentity::GithubActions(
+                Ok(FulcioWorkloadIdentity::GithubActions(Box::new(
                     FulcioGithubIdentity {
                         issuer: self.issuer,
                         subject: self.subject,
@@ -456,7 +498,7 @@ impl FulcioFacts {
                         )?)
                         .map_err(SigstoreError::Extension)?,
                     },
-                ))
+                )))
             }
         }
     }
