@@ -5422,7 +5422,7 @@ mod tests {
         #[test]
         fn body_digest_sets_are_canonical(bytes in prop::collection::vec(any::<u8>(), 1..257)) {
             let mut unique = bytes.clone();
-            unique.sort();
+            unique.sort_unstable();
             unique.dedup();
             let digests: Vec<_> = unique.iter().map(|byte| digest(*byte)).collect();
             let set = BodyDigestSet::new(digests).expect("generated set is bounded");
