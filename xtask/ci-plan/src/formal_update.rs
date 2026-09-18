@@ -608,6 +608,13 @@ mod tests {
     }
 
     #[test]
+    fn repository_policy_allows_generated_assurance_manifest() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let (policy, _) = Policy::load(&repository.join(POLICY_PATH)).expect("repository policy");
+        assert!(policy.allows("formal/assurance-manifest-v1.toml"));
+    }
+
+    #[test]
     fn artifact_round_trip_stages_only_the_hashed_allowlisted_file() {
         let (_temporary, root, _artifact, options) = fixture();
         fs::write(

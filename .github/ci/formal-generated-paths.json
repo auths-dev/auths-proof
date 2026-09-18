@@ -1,7 +1,8 @@
 {
   "schema": "auths-proof-formal-generated-paths/v1",
-  "version": 1,
+  "version": 2,
   "exact_paths": [
+    "formal/assurance-manifest-v1.toml",
     "formal/qualification/aeneas/source-closure.json",
     "formal/Auths/Generated/Algebra.lean",
     "core/crates/auths-algebra-kernel/src/generated.rs"
