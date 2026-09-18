@@ -1525,13 +1525,13 @@ fn modular_package_smoke() -> Result<(), String> {
             "[package]\nname = \"identity-consumer\"\nversion = \"0.0.0\"\nedition = \"2024\"\npublish = false\n\n[workspace]\n\n[dependencies]\nauths-identity = {{ path = {:?} }}\n",
             identity
         ),
-        r#"use auths_identity::{IdentityError, IdentityMethod, PublicIdentity};
+        r#"use auths_identity::{IdentityError, IdentityMethod, IdentityMethodId, PublicIdentity};
 
 struct CustomerMethod;
 
 impl IdentityMethod for CustomerMethod {
-    fn method_id(&self) -> &'static str {
-        "customer:p256:v1"
+    fn method_id(&self) -> IdentityMethodId {
+        IdentityMethodId::parse("customer:p256:v1").unwrap()
     }
 
     fn validate(&self, identity: &PublicIdentity) -> Result<(), IdentityError> {

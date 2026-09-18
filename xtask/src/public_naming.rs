@@ -649,9 +649,11 @@ fn validate_current_coordinates() -> Result<(), String> {
             "auths-identity-authority",
             "auths-identity-raw-key",
             "auths-iroh",
+            "auths-path-webpki",
             "auths-runtime",
             "auths-sdk",
-            "auths-signature-ed25519"
+            "auths-signature-ed25519",
+            "auths-signature-rsa-pkcs1-sha256"
         ])
         || semantic["publicSurface"]["releaseArtifactFamilies"]
             != json!([

@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 207,
+  "freezeVersion": 209,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -577,7 +577,7 @@
     },
     {
       "id": "auths.modular-components",
-      "version": 14,
+      "version": 15,
       "classification": "frozen-meaning",
       "categories": [
         "published-neutral-ports",
@@ -607,7 +607,7 @@
         "exchange/crates/auths-byte-channel/README.md",
         "xtask/src/fixtures.rs"
       ],
-      "sha256": "3c3323f6e876f402e1a42376017fbc38865a1f51361d8ae377d2aad126b661d2"
+      "sha256": "cfbb6d337caf5266b33f28094f94d6c08af4c09ebe9a142d55fc4bb553c3f84b"
     },
     {
       "id": "auths.portable-abi-bindings",
@@ -1042,7 +1042,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 205,
+      "version": 207,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1134,7 +1134,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "2e1aa9c4220476407c37d5e72d707bbc5c85de398fed89474a5cc31a54c091ec"
+      "sha256": "bbcdd5446968417675fa5cf582e048a4ff1aaef140b6066b4079e3ed00373c98"
     }
   ]
 }
