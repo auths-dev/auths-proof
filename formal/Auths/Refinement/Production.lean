@@ -544,7 +544,7 @@ def PermissionPrefixMissing
     unfold auths_model.permission_set_contains_loop.body
     unfold auths_model.bounded.BoundedSet.len
     unfold auths_model.bounded.BoundedSet.as_slice
-    dsimp only
+    simp only [bind_tc_ok]
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentSet.val.length := by
         simpa using withinBounds
@@ -628,7 +628,7 @@ def PermissionPrefixContained
     unfold auths_model.permission_set_is_subset_loop.body
     unfold auths_model.bounded.BoundedSet.len
     unfold auths_model.bounded.BoundedSet.as_slice
-    dsimp only
+    simp only [bind_tc_ok]
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentChild.val.length := by
         simpa using withinBounds
@@ -746,7 +746,7 @@ def AudiencePrefixMissing
     unfold auths_model.audience_set_contains_loop.body
     unfold auths_model.bounded.BoundedSet.len
     unfold auths_model.bounded.BoundedSet.as_slice
-    dsimp only
+    simp only [bind_tc_ok]
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentSet.val.length := by
         simpa using withinBounds
@@ -831,7 +831,7 @@ def AudiencePrefixContained
     unfold auths_model.audience_set_is_subset_loop.body
     unfold auths_model.bounded.BoundedSet.len
     unfold auths_model.bounded.BoundedSet.as_slice
-    dsimp only
+    simp only [bind_tc_ok]
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentChild.val.length := by
         simpa using withinBounds
@@ -942,7 +942,7 @@ def DigestPrefixMissing
     unfold auths_model.body_digest_set_contains_loop.body
     unfold auths_model.bounded.BoundedSet.len
     unfold auths_model.bounded.BoundedSet.as_slice
-    dsimp only
+    simp only [bind_tc_ok]
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentSet.val.length := by
         simpa using withinBounds
@@ -1026,7 +1026,7 @@ def DigestPrefixContained
     unfold auths_model.body_digest_set_is_subset_loop.body
     unfold auths_model.bounded.BoundedSet.len
     unfold auths_model.bounded.BoundedSet.as_slice
-    dsimp only
+    simp only [bind_tc_ok]
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentChild.val.length := by
         simpa using withinBounds
@@ -1111,7 +1111,7 @@ def DigestPrefixOnly
     unfold auths_model.body_digest_set_only_contains_loop.body
     unfold auths_model.bounded.BoundedSet.len
     unfold auths_model.bounded.BoundedSet.as_slice
-    dsimp only
+    simp only [bind_tc_ok]
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentSet.val.length := by
         simpa using withinBounds
