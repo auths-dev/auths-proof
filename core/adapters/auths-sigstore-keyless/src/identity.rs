@@ -52,8 +52,10 @@ text!(GitRef, 256, |v: &str| v.starts_with("refs/")
     && !v.contains(' '));
 text!(WorkflowPath, 256, |v: &str| v
     .starts_with(".github/workflows/")
-    && v.rsplit_once('.')
-        .is_some_and(|(_, extension)| matches!(extension, "yml" | "yaml"))
+    && v.rsplit_once('.').is_some_and(|(_, extension)| matches!(
+        extension,
+        "yml" | "yaml"
+    ))
     && !v.contains(".."));
 text!(RunInvocationUri, 1024, https);
 
