@@ -313,6 +313,24 @@ impl SpiffeX509Method {
             key_bindings,
         })
     }
+
+    fn select_evidence<'a>(
+        &self,
+        evidence: &'a [&'a auths_model::EvidenceObject],
+    ) -> Result<&'a auths_model::EvidenceObject, PrincipalControlError> {
+        let mut selected = None;
+        for item in evidence
+            .iter()
+            .copied()
+            .filter(|item| item.evidence_type() == &self.evidence_type)
+        {
+            if selected.is_some() || item.media_type() != &self.media_type {
+                return Err(PrincipalControlError::InvalidEvidence);
+            }
+            selected = Some(item);
+        }
+        selected.ok_or(PrincipalControlError::MissingEvidence)
+    }
 }
 
 impl PrincipalMethod for SpiffeX509Method {
@@ -371,16 +389,7 @@ impl PrincipalMethod for SpiffeX509Method {
             .iter()
             .find(|candidate| candidate.name == trust_domain)
             .ok_or(PrincipalControlError::ExternalFactUnavailable)?;
-        let mut selected = None;
-        for evidence in input.evidence {
-            if evidence.evidence_type() == &self.evidence_type {
-                if selected.is_some() || evidence.media_type() != &self.media_type {
-                    return Err(PrincipalControlError::InvalidEvidence);
-                }
-                selected = Some(*evidence);
-            }
-        }
-        let evidence = selected.ok_or(PrincipalControlError::MissingEvidence)?;
+        let evidence = self.select_evidence(input.evidence)?;
         let chain = SpiffeX509Evidence::decode(evidence.bytes()).map_err(map_evidence_error)?;
         let certificates = chain
             .certificates
