@@ -58,6 +58,20 @@ impl fmt::Display for P256Error {
 
 impl core::error::Error for P256Error {}
 
+/// Validates one canonical Ed25519 public key.
+///
+/// # Errors
+///
+/// Rejects malformed Ed25519 verification material.
+pub fn validate_ed25519_key(verification_key: &[u8]) -> Result<(), Ed25519Error> {
+    let key_bytes: &[u8; 32] = verification_key
+        .try_into()
+        .map_err(|_| Ed25519Error::InvalidKey)?;
+    VerifyingKey::from_bytes(key_bytes)
+        .map(|_| ())
+        .map_err(|_| Ed25519Error::InvalidKey)
+}
+
 /// Verifies an Ed25519 signature with the repository's one strict implementation.
 ///
 /// This primitive assigns no protocol meaning to `message`; each caller remains responsible for
@@ -71,6 +85,7 @@ pub fn verify_ed25519(
     message: &[u8],
     signature: &[u8],
 ) -> Result<(), Ed25519Error> {
+    validate_ed25519_key(verification_key)?;
     let key_bytes: &[u8; 32] = verification_key
         .try_into()
         .map_err(|_| Ed25519Error::InvalidKey)?;

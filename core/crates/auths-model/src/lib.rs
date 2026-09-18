@@ -6,6 +6,10 @@
 
 extern crate alloc;
 
+mod bounded;
+
+pub use bounded::{BoundError, BoundedBytes, BoundedSet};
+
 use alloc::{
     collections::BTreeSet,
     string::{String, ToString},

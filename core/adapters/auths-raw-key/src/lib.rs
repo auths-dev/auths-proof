@@ -273,7 +273,7 @@ impl PrincipalMethod for RawKeyV2Method {
         let evidence = selected.ok_or(PrincipalControlError::MissingEvidence)?;
         let descriptor = RawKeyDescriptorV2::decode(evidence.bytes())
             .map_err(|_| PrincipalControlError::InvalidEvidence)?;
-        if descriptor.suite_id() != input.signature_suite.as_str() {
+        if descriptor.suite_id() != input.signature_suite {
             return Err(PrincipalControlError::SignatureSuiteMismatch);
         }
         let principal = PrincipalId::parse(&descriptor.identifier())
@@ -348,6 +348,7 @@ mod tests {
                     signature_suite: &SignatureSuiteId::parse(ED25519_V1).unwrap(),
                     purpose: auths_ports::ControlPurpose::CapabilityInvocation,
                     signing_preimage: b"test",
+                    signature: b"test signature",
                     asserted_signing_time: Timestamp::new(0),
                     evidence: &refs,
                     evaluation_time: Timestamp::new(0),
@@ -358,7 +359,11 @@ mod tests {
 
     #[test]
     fn generalized_descriptor_matches_the_authority_principal() {
-        let descriptor = RawKeyDescriptorV2::new("example-pq-v1", vec![7; 4096]).unwrap();
+        let descriptor = RawKeyDescriptorV2::new(
+            SignatureSuiteId::parse("example-pq-v1").unwrap(),
+            vec![7; 4096],
+        )
+        .unwrap();
         let principal = PrincipalId::parse(&descriptor.identifier()).unwrap();
         let evidence = EvidenceObject::new(
             EvidenceId::from_digest(Digest::ZERO),
@@ -377,6 +382,7 @@ mod tests {
                     signature_suite: &SignatureSuiteId::parse("example-pq-v1").unwrap(),
                     purpose: auths_ports::ControlPurpose::CapabilityInvocation,
                     signing_preimage: b"test",
+                    signature: b"test signature",
                     asserted_signing_time: Timestamp::new(0),
                     evidence: &refs,
                     evaluation_time: Timestamp::new(0),

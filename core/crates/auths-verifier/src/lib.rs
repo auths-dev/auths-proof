@@ -1852,6 +1852,7 @@ fn verify_signed(
                     signature_suite: descriptor.suite(),
                     purpose,
                     signing_preimage,
+                    signature: signature.signature().as_slice(),
                     asserted_signing_time,
                     evidence: &evidence,
                     evaluation_time: context.evaluation_time(),

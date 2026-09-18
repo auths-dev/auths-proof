@@ -7,6 +7,7 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 use auths_identity::{IdentityError, IdentityMethod, PublicIdentity, ValidatedIdentity};
+use auths_model::SignatureSuiteId;
 use auths_raw_key_core::RawKeyDescriptorV2;
 
 pub use auths_raw_key_core::{RAW_KEY_V2, V2_PRINCIPAL_PREFIX as PRINCIPAL_PREFIX};
@@ -23,12 +24,14 @@ impl RawKeyIdentityMethod {
         suite_id: &str,
         public_key: Vec<u8>,
     ) -> Result<ValidatedIdentity, IdentityError> {
+        let suite_id =
+            SignatureSuiteId::parse(suite_id).map_err(|_| IdentityError::InvalidIdentity)?;
         let descriptor =
             RawKeyDescriptorV2::new(suite_id, public_key).map_err(map_raw_key_error)?;
         PublicIdentity::new(
             RAW_KEY_V2,
             &descriptor.identifier(),
-            descriptor.suite_id(),
+            descriptor.suite_id().as_str(),
             descriptor.public_key().to_vec(),
         )?
         .validate(&Self)
@@ -44,9 +47,10 @@ impl IdentityMethod for RawKeyIdentityMethod {
         if identity.method_id() != RAW_KEY_V2 {
             return Err(IdentityError::UnsupportedIdentityMethod);
         }
-        let descriptor =
-            RawKeyDescriptorV2::new(identity.suite_id(), identity.public_key().to_vec())
-                .map_err(map_raw_key_error)?;
+        let suite_id = SignatureSuiteId::parse(identity.suite_id())
+            .map_err(|_| IdentityError::InvalidIdentity)?;
+        let descriptor = RawKeyDescriptorV2::new(suite_id, identity.public_key().to_vec())
+            .map_err(map_raw_key_error)?;
         let expected = descriptor.identifier();
         if expected != identity.identity_id() {
             return Err(IdentityError::InvalidIdentity);

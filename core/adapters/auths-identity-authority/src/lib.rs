@@ -75,9 +75,9 @@ impl PrincipalFromIdentity for RawKeyV2AuthorityBridge {
         if identity.method_id() != RAW_KEY_V2 {
             return Err(IdentityPromotionError::UnsupportedMethod);
         }
-        let descriptor =
-            RawKeyDescriptorV2::new(identity.suite_id(), identity.public_key().to_vec())
-                .map_err(|_| IdentityPromotionError::InvalidIdentity)?;
+        let suite = SignatureSuiteId::parse(identity.suite_id())?;
+        let descriptor = RawKeyDescriptorV2::new(suite.clone(), identity.public_key().to_vec())
+            .map_err(|_| IdentityPromotionError::InvalidIdentity)?;
         if descriptor.identifier() != identity.identity_id() {
             return Err(IdentityPromotionError::InvalidIdentity);
         }
@@ -94,7 +94,7 @@ impl PrincipalFromIdentity for RawKeyV2AuthorityBridge {
         let signature = SignatureDescriptor::new(
             PrincipalMethodId::parse(identity.method_id())?,
             VerificationMethod::parse(identity.identity_id())?,
-            SignatureSuiteId::parse(identity.suite_id())?,
+            suite,
         );
         Ok(AuthorityIdentity {
             principal,

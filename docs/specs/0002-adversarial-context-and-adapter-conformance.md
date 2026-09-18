@@ -531,6 +531,11 @@ Required cases:
 
 ## 8. Mutation engine
 
+Port-level conformance metadata lives under `core/conformance/v1/ports/`.
+`signature-suite.json`, `algorithm-binding.json`, and `path-verifier.json`
+define the AP-SPEC-047 structural, selection, and certificate-path cases that
+implementations run in addition to adapter-level adversarial cases.
+
 ### 8.1 Typed mutation API
 
 Mutations operate on builders before canonical encoding whenever possible:

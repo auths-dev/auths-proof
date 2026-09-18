@@ -413,6 +413,7 @@ fn run_control(
         signature_suite: &suite,
         purpose: ControlPurpose::CapabilityInvocation,
         signing_preimage,
+        signature: b"adversarial-signature",
         asserted_signing_time: Timestamp::new(50),
         evidence: &evidence_refs,
         evaluation_time: Timestamp::new(50),

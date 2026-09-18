@@ -4,6 +4,7 @@ use auths_identity::{
     PublicIdentity, SignedIdentityMessage,
 };
 use auths_identity_raw_key::RawKeyIdentityMethod;
+use auths_model::SignatureSuiteId;
 use auths_raw_key_core::{ED25519_V1, RAW_KEY_V2, RawKeyDescriptorV2};
 use ed25519_dalek::{Signer as _, SigningKey};
 use serde_json::json;
@@ -18,7 +19,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let public_key = signing_key.verifying_key().to_bytes();
     let validated = RawKeyIdentityMethod::identity(ED25519_V1, public_key.to_vec())?;
     let identity = validated.into_public_identity();
-    let descriptor = RawKeyDescriptorV2::new(ED25519_V1, public_key.to_vec())?;
+    let descriptor =
+        RawKeyDescriptorV2::new(SignatureSuiteId::parse(ED25519_V1)?, public_key.to_vec())?;
     let public_packet = IdentityPacket::PublicIdentity(identity.clone()).encode()?;
     let message = b"auths identity vector v1";
     let signing_preimage = SignedIdentityMessage::signing_preimage(&identity, message)?;

@@ -1,0 +1,1 @@
+{"schema":"auths-proof-port-conformance/v1","port":"signature-suite","claims":["validate-key-is-structural","validate-key-acceptance-implies-verify-does-not-return-invalid-key","configuration-is-committed"],"negative_cases":["empty-key","malformed-key","wrong-key-form","wrong-signature-form","changed-preimage"]}

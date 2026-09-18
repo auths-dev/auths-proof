@@ -6,6 +6,7 @@
 extern crate alloc;
 
 use alloc::{format, string::String, vec::Vec};
+use auths_model::SignatureSuiteId;
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 use core::fmt;
 use sha2::{Digest as _, Sha256};
@@ -28,9 +29,6 @@ pub const V1_PRINCIPAL_PREFIX: &str = "key:sha256:";
 pub const V2_PRINCIPAL_PREFIX: &str = "key:sha256-v2:";
 /// Maximum generalized verification-material size.
 pub const MAX_RAW_KEY_BYTES: usize = 128 * 1024;
-/// Maximum generalized signature-suite identifier size.
-pub const MAX_SUITE_ID_BYTES: usize = 128;
-
 const V1_DOMAIN: &[u8] = b"AUTHS-RAW-KEY\0\x01";
 const V2_DOMAIN: &[u8] = b"AUTHS-RAW-KEY\0\x02";
 
@@ -127,7 +125,7 @@ pub fn identifier_v1(key_type: RawKeyTypeV1, public_key: &[u8]) -> Result<String
 /// Canonical generalized raw-key descriptor for caller-selected suites.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RawKeyDescriptorV2 {
-    suite_id: String,
+    suite_id: SignatureSuiteId,
     public_key: Vec<u8>,
 }
 
@@ -137,15 +135,7 @@ impl RawKeyDescriptorV2 {
     /// # Errors
     ///
     /// Rejects invalid suite identifiers and empty or oversized key material.
-    pub fn new(suite_id: &str, public_key: Vec<u8>) -> Result<Self, RawKeyError> {
-        if suite_id.is_empty()
-            || suite_id.len() > MAX_SUITE_ID_BYTES
-            || suite_id
-                .bytes()
-                .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace())
-        {
-            return Err(RawKeyError::InvalidSuite);
-        }
+    pub fn new(suite_id: SignatureSuiteId, public_key: Vec<u8>) -> Result<Self, RawKeyError> {
         if public_key.is_empty() || public_key.len() > MAX_RAW_KEY_BYTES {
             return Err(RawKeyError::InvalidKey);
         }
@@ -157,7 +147,7 @@ impl RawKeyDescriptorV2 {
 
     #[must_use]
     /// Returns the descriptor's signature-suite identifier.
-    pub fn suite_id(&self) -> &str {
+    pub const fn suite_id(&self) -> &SignatureSuiteId {
         &self.suite_id
     }
 
@@ -176,15 +166,15 @@ impl RawKeyDescriptorV2 {
     /// validated below the encoded integer bounds.
     pub fn encode(&self) -> Vec<u8> {
         let mut output = Vec::with_capacity(
-            V2_DOMAIN.len() + 2 + self.suite_id.len() + 4 + self.public_key.len(),
+            V2_DOMAIN.len() + 2 + self.suite_id.as_str().len() + 4 + self.public_key.len(),
         );
         output.extend_from_slice(V2_DOMAIN);
         output.extend_from_slice(
-            &u16::try_from(self.suite_id.len())
+            &u16::try_from(self.suite_id.as_str().len())
                 .expect("validated suite identifiers fit in u16")
                 .to_be_bytes(),
         );
-        output.extend_from_slice(self.suite_id.as_bytes());
+        output.extend_from_slice(self.suite_id.as_str().as_bytes());
         output.extend_from_slice(
             &u32::try_from(self.public_key.len())
                 .expect("validated public keys fit in u32")
@@ -214,6 +204,7 @@ impl RawKeyDescriptorV2 {
         if cursor != input.len() {
             return Err(RawKeyError::InvalidEncoding);
         }
+        let suite_id = SignatureSuiteId::parse(suite_id).map_err(|_| RawKeyError::InvalidSuite)?;
         let descriptor = Self::new(suite_id, public_key)?;
         if descriptor.encode().as_slice() != input {
             return Err(RawKeyError::InvalidEncoding);
@@ -303,7 +294,11 @@ mod tests {
 
     #[test]
     fn v2_round_trip_supports_arbitrary_bounded_key_shapes() {
-        let descriptor = RawKeyDescriptorV2::new("example-pq-v1", alloc::vec![7; 4096]).unwrap();
+        let descriptor = RawKeyDescriptorV2::new(
+            SignatureSuiteId::parse("example-pq-v1").unwrap(),
+            alloc::vec![7; 4096],
+        )
+        .unwrap();
         assert_eq!(
             RawKeyDescriptorV2::decode(&descriptor.encode()).unwrap(),
             descriptor
@@ -315,9 +310,10 @@ mod tests {
     fn versioned_families_cannot_be_confused() {
         let key = [7; 32];
         let v1 = identifier_v1(RawKeyTypeV1::Ed25519, &key).unwrap();
-        let v2 = RawKeyDescriptorV2::new(ED25519_V1, key.to_vec())
-            .unwrap()
-            .identifier();
+        let v2 =
+            RawKeyDescriptorV2::new(SignatureSuiteId::parse(ED25519_V1).unwrap(), key.to_vec())
+                .unwrap()
+                .identifier();
         assert_ne!(v1, v2);
         assert!(v1.starts_with("key:sha256:"));
         assert!(v2.starts_with("key:sha256-v2:"));

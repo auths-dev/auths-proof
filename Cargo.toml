@@ -9,6 +9,7 @@ members = [
     "core/crates/auths-model",
     "core/crates/auths-codec",
     "core/crates/auths-ports",
+    "core/crates/auths-path-webpki",
     "core/crates/auths-registries",
     "core/crates/auths-signature",
     "core/crates/auths-signature-core",
@@ -132,6 +133,7 @@ auths = { version = "1.0.0-rc.1", path = "core/crates/auths", default-features =
 auths-model = { version = "1.0.0-rc.1", path = "core/crates/auths-model", default-features = false }
 auths-codec = { version = "1.0.0-rc.1", path = "core/crates/auths-codec", default-features = false }
 auths-ports = { version = "1.0.0-rc.1", path = "core/crates/auths-ports", default-features = false }
+auths-path-webpki = { version = "1.0.0-rc.1", path = "core/crates/auths-path-webpki", default-features = false }
 auths-registries = { version = "1.0.0-rc.1", path = "core/crates/auths-registries", default-features = false }
 auths-signature = { version = "1.0.0-rc.1", path = "core/crates/auths-signature", default-features = false }
 auths-identity = { version = "1.0.0-rc.1", path = "core/crates/auths-identity", default-features = false }

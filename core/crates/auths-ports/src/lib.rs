@@ -5,7 +5,18 @@
 
 extern crate alloc;
 
+pub mod binding;
 pub mod diagnostics;
+pub mod path;
+
+pub use binding::{
+    AlgorithmBinding, AlgorithmBindingSet, AlgorithmIdentifierDer, BindingError, JwsAlgorithmName,
+    JwsSelection, KeyForm, SpkiSelection,
+};
+pub use path::{
+    CertificateDer, CertificatePathVerifier, ExtendedKeyUsage, PathError, PathInput,
+    PathVerifierId, TrustAnchorSet, VerifiedLeaf,
+};
 
 use alloc::vec::Vec;
 use auths_model::{
@@ -171,6 +182,8 @@ pub struct PrincipalControlInput<'a> {
     pub purpose: ControlPurpose,
     /// Exact domain-separated bytes signed by the principal.
     pub signing_preimage: &'a [u8],
+    /// Exact signature bytes from the signed object's signature envelope.
+    pub signature: &'a [u8],
     /// Statement time against which historical controller state is evaluated.
     pub asserted_signing_time: Timestamp,
     /// Evidence objects explicitly bound to the signed statement.
@@ -248,6 +261,16 @@ pub trait SignatureSuite {
     /// Returns a canonical commitment to the suite implementation
     /// configuration.
     fn configuration_id(&self) -> AdapterConfigurationId;
+
+    /// Validates the exact structural verification-key representation accepted
+    /// by this suite.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SignatureError::InvalidKey`] when the bytes cannot be used by
+    /// [`Self::verify`]. A key accepted here must not later cause `verify` to
+    /// return `InvalidKey`.
+    fn validate_key(&self, verification_key: &[u8]) -> Result<(), SignatureError>;
 
     /// Verifies the exact signing preimage.
     ///

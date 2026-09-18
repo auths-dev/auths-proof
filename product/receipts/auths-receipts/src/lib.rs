@@ -2231,6 +2231,14 @@ mod tests {
             auths_ports::configuration_id(self.id.as_str().as_bytes(), core::iter::empty())
         }
 
+        fn validate_key(&self, verification_key: &[u8]) -> Result<(), SignatureError> {
+            if verification_key == [7] {
+                Ok(())
+            } else {
+                Err(SignatureError::InvalidKey)
+            }
+        }
+
         fn verify(&self, input: SignatureInput<'_>) -> Result<(), SignatureError> {
             if input.verification_key != [7] {
                 return Err(SignatureError::InvalidKey);

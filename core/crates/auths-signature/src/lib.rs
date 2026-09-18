@@ -6,7 +6,10 @@
 use auths_model::{AdapterConfigurationId, ModelError, SignatureSuiteId};
 use auths_ports::{SignatureError, SignatureInput, SignatureSuite};
 pub use auths_signature_core::{ED25519_V1, P256_SHA256_V1};
-use auths_signature_core::{Ed25519Error, P256Error, verify_ed25519, verify_p256_sha256};
+use auths_signature_core::{
+    Ed25519Error, P256Error, validate_ed25519_key, validate_p256_key, verify_ed25519,
+    verify_p256_sha256,
+};
 
 /// RFC 8032 Ed25519 verification over the complete signing preimage.
 pub struct Ed25519Suite {
@@ -34,6 +37,10 @@ impl SignatureSuite for Ed25519Suite {
 
     fn configuration_id(&self) -> AdapterConfigurationId {
         auths_ports::configuration_id(ED25519_V1.as_bytes(), core::iter::empty())
+    }
+
+    fn validate_key(&self, verification_key: &[u8]) -> Result<(), SignatureError> {
+        validate_ed25519_key(verification_key).map_err(|_| SignatureError::InvalidKey)
     }
 
     fn verify(&self, input: SignatureInput<'_>) -> Result<(), SignatureError> {
@@ -80,6 +87,10 @@ impl SignatureSuite for P256Sha256Suite {
 
     fn configuration_id(&self) -> AdapterConfigurationId {
         auths_ports::configuration_id(P256_SHA256_V1.as_bytes(), core::iter::empty())
+    }
+
+    fn validate_key(&self, verification_key: &[u8]) -> Result<(), SignatureError> {
+        validate_p256_key(verification_key).map_err(|_| SignatureError::InvalidKey)
     }
 
     fn verify(&self, input: SignatureInput<'_>) -> Result<(), SignatureError> {
