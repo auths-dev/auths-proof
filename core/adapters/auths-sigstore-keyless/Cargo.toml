@@ -1,0 +1,32 @@
+[package]
+name = "auths-sigstore-keyless"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Offline Sigstore keyless principal-control adapter for Auths"
+publish = false
+
+[features]
+default = ["std"]
+std = ["auths-model/std", "auths-ports/std", "base64ct/std", "minicbor/std", "sha2/std"]
+
+[dependencies]
+auths-model.workspace = true
+auths-ports.workspace = true
+base64ct.workspace = true
+minicbor.workspace = true
+sha2.workspace = true
+x509-parser.workspace = true
+
+[dev-dependencies]
+auths-oidc-workload.workspace = true
+auths-path-webpki.workspace = true
+auths-signature.workspace = true
+ed25519-dalek.workspace = true
+rcgen = "=0.13.2"
+
+[lints]
+workspace = true

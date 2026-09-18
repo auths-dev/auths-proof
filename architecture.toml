@@ -71,6 +71,7 @@ no_std_packages = [
   "auths-did-web",
   "auths-hsm-attested",
   "auths-oidc-workload",
+  "auths-sigstore-keyless",
   "auths-identity",
   "auths-identity-authority",
   "auths-identity-raw-key",
@@ -126,6 +127,7 @@ auths-errors = "product"
 auths-evidence-assemblers = "product"
 auths-hsm-attested = "core"
 auths-oidc-workload = "core"
+auths-sigstore-keyless = "core"
 auths-lab-matrix = "demos"
 auths-lab-wasm-bench = "demos"
 auths-live-lab = "demos"
@@ -142,6 +144,7 @@ auths-postgresql-demo = "demos"
 auths-records-api = "product"
 auths-records-demo = "demos"
 auths-explain = "product"
+auths-sigstore-bundle-import = "product"
 auths-ports = "core"
 auths-path-webpki = "core"
 auths-profile-api = "product"
@@ -225,7 +228,7 @@ roots = [
 allowed_workspace_dependencies = ["auths-identity", "auths-identity-raw-key", "auths-model", "auths-raw-key-core", "auths-signature-core"]
 
 [dependency_boundaries.principal-adapters]
-roots = ["auths-hsm-attested", "auths-oidc-workload", "auths-spiffe-x509", "auths-webauthn"]
+roots = ["auths-hsm-attested", "auths-oidc-workload", "auths-sigstore-keyless", "auths-spiffe-x509", "auths-webauthn"]
 allowed_workspace_dependencies = ["auths-model", "auths-ports", "auths-raw-key-core"]
 
 [dependency_boundaries.iroh-transport]

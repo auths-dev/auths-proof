@@ -1319,6 +1319,7 @@ dependencies = [
  "auths-raw-key",
  "auths-registries",
  "auths-signature",
+ "auths-sigstore-keyless",
  "auths-spiffe-x509",
  "auths-verifier",
  "auths-webauthn",
@@ -1737,6 +1738,33 @@ dependencies = [
  "rsa",
  "sha2 0.10.9",
  "signature 2.2.0",
+]
+
+[[package]]
+name = "auths-sigstore-bundle-import"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-model",
+ "auths-sigstore-keyless",
+ "base64ct",
+ "serde_json",
+]
+
+[[package]]
+name = "auths-sigstore-keyless"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-model",
+ "auths-oidc-workload",
+ "auths-path-webpki",
+ "auths-ports",
+ "auths-signature",
+ "base64ct",
+ "ed25519-dalek 2.2.0",
+ "minicbor",
+ "rcgen",
+ "sha2 0.10.9",
+ "x509-parser",
 ]
 
 [[package]]

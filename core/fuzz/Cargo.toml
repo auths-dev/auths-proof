@@ -18,6 +18,7 @@ auths-did-keri.workspace = true
 auths-did-web.workspace = true
 auths-hsm-attested.workspace = true
 auths-oidc-workload.workspace = true
+auths-sigstore-keyless.workspace = true
 auths-spiffe-x509.workspace = true
 auths-multikey.workspace = true
 auths-raw-key.workspace = true

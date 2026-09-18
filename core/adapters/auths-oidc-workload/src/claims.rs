@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{vec, vec::Vec};
+use alloc::{string::ToString, vec, vec::Vec};
 use auths_model::{AssuranceClaim, AssuranceClaimId, ClaimParameterId, EvidenceSourceId};
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 

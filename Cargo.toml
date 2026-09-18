@@ -35,6 +35,7 @@ members = [
     "core/adapters/auths-hsm-attested",
     "core/adapters/auths-spiffe-x509",
     "core/adapters/auths-oidc-workload",
+    "core/adapters/auths-sigstore-keyless",
     "core/adapters/auths-signature-rsa-pkcs1-sha256",
     "core/fuzz",
     "exchange/crates/auths-proof-exchange",
@@ -89,6 +90,7 @@ members = [
     "product/qualification/auths-qualification-supervisor",
     "product/qualification/auths-qualification-evidence-source",
     "product/tools/auths-explain",
+    "product/tools/auths-sigstore-bundle-import",
     "demos/testkit/auths-apps-testkit",
     "demos/live-lab",
     "demos/live-service",
@@ -160,6 +162,7 @@ auths-webauthn = { version = "1.0.0-rc.1", path = "core/adapters/auths-webauthn"
 auths-hsm-attested = { version = "1.0.0-rc.1", path = "core/adapters/auths-hsm-attested", default-features = false }
 auths-spiffe-x509 = { version = "1.0.0-rc.1", path = "core/adapters/auths-spiffe-x509", default-features = false }
 auths-oidc-workload = { version = "1.0.0-rc.1", path = "core/adapters/auths-oidc-workload", default-features = false }
+auths-sigstore-keyless = { version = "1.0.0-rc.1", path = "core/adapters/auths-sigstore-keyless", default-features = false }
 auths-signature-rsa-pkcs1-sha256 = { version = "1.0.0-rc.1", path = "core/adapters/auths-signature-rsa-pkcs1-sha256", default-features = false }
 auths-proof-exchange = { version = "1.0.0-rc.1", path = "exchange/crates/auths-proof-exchange" }
 auths-byte-channel = { version = "1.0.0-rc.1", path = "exchange/crates/auths-byte-channel" }
@@ -195,6 +198,7 @@ auths-operations-otel = { version = "1.0.0-rc.1", path = "product/operations/aut
 auths-sdk = { version = "1.0.0-rc.1", path = "product/sdk/auths-sdk" }
 auths-profile-kit = { version = "1.0.0-rc.1", path = "product/sdk/auths-profile-kit" }
 auths-errors = { version = "1.0.0-rc.1", path = "product/errors/auths-errors", default-features = false }
+auths-sigstore-bundle-import = { version = "1.0.0-rc.1", path = "product/tools/auths-sigstore-bundle-import" }
 auths-bounded-policy = { version = "1.0.0-rc.1", path = "product/policy/auths-bounded-policy", default-features = false }
 auths-enforcement = { version = "1.0.0-rc.1", path = "product/integrations/auths-enforcement" }
 auths-resolver-did-web = { version = "1.0.0-rc.1", path = "product/integrations/auths-resolver-did-web" }

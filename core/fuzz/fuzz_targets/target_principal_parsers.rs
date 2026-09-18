@@ -7,6 +7,7 @@ use auths_hsm_attested::HsmAttestationEvidence;
 use auths_multikey::Multikey;
 use auths_oidc_workload::jws::CompactJws;
 use auths_raw_key::RawKeyDescriptor;
+use auths_sigstore_keyless::{chain::CertificateChain, checkpoint::Checkpoint, entry::RekorEntry};
 use auths_spiffe_x509::SpiffeX509Evidence;
 use auths_webauthn::WebAuthnEvidence;
 use libfuzzer_sys::fuzz_target;
@@ -17,6 +18,9 @@ fuzz_target!(|data: &[u8]| {
     let _ = DidWebEvidence::decode(data);
     let _ = HsmAttestationEvidence::decode(data);
     let _ = CompactJws::parse(data);
+    let _ = CertificateChain::parse(data, auths_sigstore_keyless::MAX_LEAF_VALIDITY);
+    let _ = Checkpoint::parse(data);
+    let _ = RekorEntry::parse(data);
     let _ = SpiffeX509Evidence::decode(data);
     let _ = RawKeyDescriptor::decode(data);
     let _ = WebAuthnEvidence::decode(data);

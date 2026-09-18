@@ -99,6 +99,8 @@ digraph auths_architecture {
   "auths-signature-core" [group="core"];
   "auths-signature-ed25519" [group="core"];
   "auths-signature-rsa-pkcs1-sha256" [group="core"];
+  "auths-sigstore-bundle-import" [group="product"];
+  "auths-sigstore-keyless" [group="core"];
   "auths-spiffe-x509" [group="core"];
   "auths-stores" [group="product"];
   "auths-stripe" [group="product"];
@@ -444,6 +446,7 @@ digraph auths_architecture {
   "auths-proof-fuzz" -> "auths-raw-key" [label="normal"];
   "auths-proof-fuzz" -> "auths-registries" [label="normal"];
   "auths-proof-fuzz" -> "auths-signature" [label="normal"];
+  "auths-proof-fuzz" -> "auths-sigstore-keyless" [label="normal"];
   "auths-proof-fuzz" -> "auths-spiffe-x509" [label="normal"];
   "auths-proof-fuzz" -> "auths-verifier" [label="normal"];
   "auths-proof-fuzz" -> "auths-webauthn" [label="normal"];
@@ -619,6 +622,13 @@ digraph auths_architecture {
   "auths-signature-ed25519" -> "auths-signature-core" [label="normal"];
   "auths-signature-rsa-pkcs1-sha256" -> "auths-model" [label="normal"];
   "auths-signature-rsa-pkcs1-sha256" -> "auths-ports" [label="normal"];
+  "auths-sigstore-bundle-import" -> "auths-model" [label="normal"];
+  "auths-sigstore-bundle-import" -> "auths-sigstore-keyless" [label="normal"];
+  "auths-sigstore-keyless" -> "auths-model" [label="normal"];
+  "auths-sigstore-keyless" -> "auths-oidc-workload" [label="dev"];
+  "auths-sigstore-keyless" -> "auths-path-webpki" [label="dev"];
+  "auths-sigstore-keyless" -> "auths-ports" [label="normal"];
+  "auths-sigstore-keyless" -> "auths-signature" [label="dev"];
   "auths-spiffe-x509" -> "auths-model" [label="normal"];
   "auths-spiffe-x509" -> "auths-path-webpki" [label="dev"];
   "auths-spiffe-x509" -> "auths-ports" [label="normal"];

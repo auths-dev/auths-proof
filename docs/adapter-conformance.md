@@ -67,6 +67,16 @@ repository and make an accurate compatibility claim by following this process.
 4. Bind the authenticated workload identity to the exact statement key and
    verification method, then run the adapter-specific adversarial manifest.
 
+The in-tree reference adapters are:
+
+- `auths-oidc-workload`, for closed, pinned OIDC workload tokens;
+- `auths-sigstore-keyless`, for offline Fulcio certificate and Rekor evidence.
+
+The Sigstore adapter consumes `CertificatePathVerifier`,
+`AlgorithmBindingSet`, and registered `SignatureSuite` implementations. Its
+path, key-selection, and signature dependencies retain their own independent
+conformance claims.
+
 ## Byte-channel adapters
 
 1. Implement `auths_byte_channel::BoundedByteChannel` without importing
