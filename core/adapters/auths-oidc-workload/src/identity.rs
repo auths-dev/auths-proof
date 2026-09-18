@@ -156,10 +156,9 @@ numeric_id!(RepositoryOwnerId);
 
 text_type!(WorkflowPath, 256, |value: &str| {
     (value.starts_with(".github/workflows/")
-        && value.rsplit_once('.').is_some_and(|(_, extension)| matches!(
-            extension,
-            "yml" | "yaml"
-        )))
+        && value
+            .rsplit_once('.')
+            .is_some_and(|(_, extension)| matches!(extension, "yml" | "yaml")))
         && !value.split('/').any(|segment| segment == "..")
 });
 text_type!(GitRef, 256, |value: &str| {
