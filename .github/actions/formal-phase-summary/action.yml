@@ -1,0 +1,34 @@
+name: Summarize a formal CI phase
+description: Record bounded timing and execution-mode diagnostics for one formal phase.
+
+inputs:
+  phase:
+    description: Stable formal phase name.
+    required: true
+  started-at:
+    description: Unix timestamp captured before phase setup.
+    required: true
+  execution:
+    description: Whether work executed, reused evidence, or aggregated results.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Record formal phase timing
+      shell: bash
+      env:
+        AUTHS_FORMAL_PHASE: ${{ inputs.phase }}
+        AUTHS_FORMAL_STARTED_AT: ${{ inputs.started-at }}
+        AUTHS_FORMAL_EXECUTION: ${{ inputs.execution }}
+      run: |
+        set -euo pipefail
+        finished_at="$(date +%s)"
+        duration="$((finished_at - AUTHS_FORMAL_STARTED_AT))"
+        {
+          echo "### Formal phase: ${AUTHS_FORMAL_PHASE}"
+          echo
+          echo "- Duration: **${duration}s**"
+          echo "- Execution: **${AUTHS_FORMAL_EXECUTION}**"
+          echo "- Runner: \`${RUNNER_OS}/${RUNNER_ARCH}\`"
+        } >> "$GITHUB_STEP_SUMMARY"

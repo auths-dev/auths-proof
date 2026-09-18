@@ -293,6 +293,49 @@ pub(crate) fn validate_source_closure(root: &Path) -> Result<String, String> {
     synchronize_source_closure(root, &qualification, false)
 }
 
+/// Validate that protected-branch translation evidence applies byte-for-byte
+/// to the committed generated artifacts in this checkout. The caller is
+/// responsible for obtaining the evidence from a successful protected-base
+/// workflow run; this function rejects a cache, partial run, or stale digest.
+pub(crate) fn validate_reusable_translation(
+    root: &Path,
+    evidence_path: &Path,
+) -> Result<String, String> {
+    let qualification = load_qualification(root)?;
+    validate_manifest(root, &qualification)?;
+    ensure_clean_extraction_environment(root, &qualification)?;
+    let closure_digest = synchronize_source_closure(root, &qualification, false)?;
+    validate_generated_inventory(root, &qualification)?;
+    validate_translation_reports(root, &qualification)?;
+    validate_warning_inventory(root, &qualification)?;
+
+    let evidence: Value = serde_json::from_slice(
+        &fs::read(evidence_path)
+            .map_err(|error| format!("could not read {}: {error}", evidence_path.display()))?,
+    )
+    .map_err(|error| {
+        format!(
+            "invalid reusable translation evidence {}: {error}",
+            evidence_path.display()
+        )
+    })?;
+    let generated_digest = generated_artifact_digest(root)?;
+    if evidence["schema"].as_str() != Some("auths-proof-aeneas-qualification-evidence/v1")
+        || evidence["decision"].as_str() != Some(qualification.decision.as_str())
+        || evidence["source_closure_sha256"].as_str() != Some(closure_digest.as_str())
+        || evidence["generated_artifacts_sha256"].as_str() != Some(generated_digest.as_str())
+        || evidence["clean_reproduction"].as_str() != Some("byte-identical")
+        || evidence["compiled_external_axioms"].as_u64() != Some(0)
+    {
+        return Err(
+            "protected-base translation evidence does not apply to the current committed artifacts"
+                .to_owned(),
+        );
+    }
+    write_evidence(root, &qualification, &closure_digest, true)?;
+    Ok(closure_digest)
+}
+
 /// Qualifies the Aeneas translation, translation-first.
 ///
 /// `build_and_audit` compiles Lean and runs the compiled assurance audit. It is
@@ -310,6 +353,70 @@ pub(crate) fn qualify(
     update: bool,
     build_and_audit: &dyn Fn() -> Result<(), String>,
 ) -> Result<(), String> {
+    let (qualification, closure_digest) =
+        reproduce_translation(root, attenuation_dimensions, update)?;
+
+    // Everything below reads the generated Lean just synchronized by the
+    // reproducer, so the compiled gate runs here and not a step earlier.
+    build_and_audit()?;
+
+    validate_generated_inventory(root, &qualification)?;
+    validate_translation_reports(root, &qualification)?;
+    validate_workflow_gates(root)?;
+    build_qualification_cases(root, &qualification)?;
+    validate_warning_inventory(root, &qualification)?;
+    run_rust_qualification_cases(root)?;
+    write_evidence(root, &qualification, &closure_digest, true)?;
+
+    println!("Existing claim audit:              PASS");
+    println!("Hosted/release formal gate:        CONFIGURED");
+    println!("Production source closure:         {closure_digest}");
+    println!("Shipping/extraction cfg parity:    PASS");
+    println!("Lean/Aeneas compatibility:         PASS");
+    println!(
+        "External models and axioms:        {} reviewed, 0 unreviewed",
+        qualification.external_models.len()
+    );
+    println!(
+        "Qualification cases:               {}/{} PASS",
+        qualification.case_modules.len() + 1,
+        qualification.case_modules.len() + 1
+    );
+    println!("Clean reproduction:                byte-identical");
+    println!(
+        "Decision:                           {}",
+        qualification.decision
+    );
+    println!("ADR:                                {}", qualification.adr);
+    Ok(())
+}
+
+/// Reproduce the generated Lean twice without compiling authored proofs.
+///
+/// Hosted CI uses this phase to separate translator determinism from Lean
+/// compilation. The complete developer command still calls [`qualify`], which
+/// composes this exact reproducer with the authoritative build and audits.
+pub(crate) fn reproduce_only(
+    root: &Path,
+    attenuation_dimensions: &[String],
+    update: bool,
+) -> Result<String, String> {
+    let (qualification, closure_digest) =
+        reproduce_translation(root, attenuation_dimensions, update)?;
+    validate_generated_inventory(root, &qualification)?;
+    validate_translation_reports(root, &qualification)?;
+    validate_warning_inventory(root, &qualification)?;
+    write_evidence(root, &qualification, &closure_digest, true)?;
+    println!("Production source closure:         {closure_digest}");
+    println!("Clean reproduction:                byte-identical");
+    Ok(closure_digest)
+}
+
+fn reproduce_translation(
+    root: &Path,
+    attenuation_dimensions: &[String],
+    update: bool,
+) -> Result<(Qualification, String), String> {
     let qualification = load_qualification(root)?;
     validate_manifest(root, &qualification)?;
     if !update {
@@ -343,40 +450,7 @@ pub(crate) fn qualify(
     synchronize_aeneas_output(root, &first, update)?;
     synchronize_reviewed_bridges(root, attenuation_dimensions, update)?;
     let closure_digest = synchronize_source_closure(root, &qualification, update)?;
-
-    // Everything below reads the generated Lean just synchronized above, so the
-    // compiled gate runs here and not a step earlier.
-    build_and_audit()?;
-
-    validate_generated_inventory(root, &qualification)?;
-    validate_translation_reports(root, &qualification)?;
-    validate_workflow_gates(root)?;
-    build_qualification_cases(root, &qualification)?;
-    validate_warning_inventory(root, &qualification)?;
-    run_rust_qualification_cases(root)?;
-    write_evidence(root, &qualification, &closure_digest, true)?;
-
-    println!("Existing claim audit:              PASS");
-    println!("Hosted/release formal gate:        CONFIGURED");
-    println!("Production source closure:         {closure_digest}");
-    println!("Shipping/extraction cfg parity:    PASS");
-    println!("Lean/Aeneas compatibility:         PASS");
-    println!(
-        "External models and axioms:        {} reviewed, 0 unreviewed",
-        qualification.external_models.len()
-    );
-    println!(
-        "Qualification cases:               {}/{} PASS",
-        qualification.case_modules.len() + 1,
-        qualification.case_modules.len() + 1
-    );
-    println!("Clean reproduction:                byte-identical");
-    println!(
-        "Decision:                           {}",
-        qualification.decision
-    );
-    println!("ADR:                                {}", qualification.adr);
-    Ok(())
+    Ok((qualification, closure_digest))
 }
 
 fn load_qualification(root: &Path) -> Result<Qualification, String> {
@@ -1266,38 +1340,40 @@ fn validate_ci_workflow_gates(ci: &str) -> Result<(), String> {
             "kani-verifier --version 0.67.0",
             "cargo xtask ci preflight",
             "cargo xtask ci authoritative",
-            "cargo xtask ci formal-translation",
+            "cargo xtask ci formal-proof-fast",
+            "cargo xtask ci formal-translation-reproduce",
+            "cargo xtask ci formal-translation-reuse",
+            "cargo xtask ci formal-lean-authoritative",
+            "cargo xtask ci formal-kani",
+            "cargo xtask ci formal-evidence",
             "cargo xtask ci compliance",
             "target/formal/",
         ],
     )?;
-    if ci
-        .matches("cargo xtask formal qualify aeneas --update")
-        .count()
-        != 1
-        || ci
-            .matches("cargo xtask ci formal-post-qualification")
-            .count()
-            != 1
+    let proof_job = workflow_job_source(ci, "formal-proof-fast")?;
+    if !proof_job.contains("needs: [ci-plan, formal-update-gate]")
+        || ["nix build", "kani-verifier", "formal-translation-reproduce"]
+            .iter()
+            .any(|forbidden| proof_job.contains(forbidden))
     {
         return Err(
-            "hosted PR CI must reproduce/update exactly once and then run exactly one non-reproducing post-qualification gate".to_owned(),
+            "hosted fast proof gate must precede and exclude Aeneas, Charon, and Kani setup"
+                .to_owned(),
         );
     }
-    let formal_job = ci
-        .split_once("\n  formal-translation-run:")
-        .and_then(|(_, tail)| tail.split_once("\n  compliance-run:"))
-        .map(|(job, _)| job)
-        .ok_or("hosted CI omits the formal-translation-run job boundary")?;
-    if !formal_job.contains("compiler-cache: \"false\"") {
+    let formal_job = workflow_job_source(ci, "formal-translation-run")?;
+    if !formal_job.contains("compiler-cache: \"false\"")
+        || !formal_job.contains("needs.formal-proof-fast.result == 'success'")
+        || formal_job.contains("setup-lean")
+        || formal_job.contains("kani-verifier")
+    {
         return Err(
-            "hosted formal translation must disable the compiler cache and its semantic Rust environment overrides"
+            "hosted translation must wait for fast Lean, disable compiler caching, and exclude Lean/Kani"
                 .to_owned(),
         );
     }
     for job_name in [
         "authoritative-run",
-        "formal-translation-run",
         "compliance-run",
         "dependencies-run",
         "secrets-run",
@@ -1313,6 +1389,38 @@ fn validate_ci_workflow_gates(ci: &str) -> Result<(), String> {
                 "hosted CI job `{job_name}` can start before the repository preflight succeeds"
             ));
         }
+    }
+    for job_name in ["formal-translation-run", "formal-kani-run"] {
+        let job = workflow_job_source(ci, job_name)?;
+        if !job.contains("repository-preflight")
+            || !job.contains("needs.repository-preflight.result == 'success'")
+            || !job.contains("formal-proof-fast")
+        {
+            return Err(format!(
+                "hosted formal job `{job_name}` can start before fast proof and repository preflight succeed"
+            ));
+        }
+    }
+    let lean_job = workflow_job_source(ci, "formal-lean-authoritative-run")?;
+    if !lean_job.contains("needs.formal-translation-run.result == 'success'")
+        || !lean_job.contains("cargo xtask ci formal-lean-authoritative")
+    {
+        return Err("authoritative Lean can start without qualified translation".to_owned());
+    }
+    let evidence_job = workflow_job_source(ci, "formal-evidence-run")?;
+    for required in [
+        "needs.formal-translation-run.result == 'success'",
+        "needs.formal-lean-authoritative-run.result == 'success'",
+        "needs.formal-lean-authoritative-run.outputs.update_required != 'true'",
+        "needs.formal-kani-run.result == 'success'",
+    ] {
+        if !evidence_job.contains(required) {
+            return Err(format!("formal evidence aggregator omits required result `{required}`"));
+        }
+    }
+    let gate_job = workflow_job_source(ci, "formal-translation")?;
+    if !gate_job.contains("needs: [ci-plan, formal-evidence-run]") {
+        return Err("formal-translation gate does not consume the sole evidence aggregator".to_owned());
     }
     let compliance_job = workflow_job_source(ci, "compliance-run")?;
     if !compliance_job.contains("if: always() && hashFiles('target/compliance/**') != ''") {
@@ -2069,7 +2177,62 @@ fn format_command_failure(arguments: &[String], directory: &Path, output: &Outpu
 mod tests {
     use super::*;
 
-    const CI_GATES: &str = "uses: ./.github/actions/setup-lean\nkani-verifier --version 0.67.0\ncargo xtask ci preflight\ncargo xtask ci authoritative\ncargo xtask ci formal-translation\ntarget/formal/\n  authoritative-run:\nneeds: [ci-plan, formal-update-gate, repository-preflight]\nneeds.repository-preflight.result == 'success'\n  formal-translation-run:\nneeds: [ci-plan, formal-update-gate, repository-preflight]\nneeds.repository-preflight.result == 'success'\ncompiler-cache: \"false\"\ncargo xtask formal qualify aeneas --update\ncargo xtask ci formal-post-qualification\n  compliance-run:\nneeds: [ci-plan, formal-update-gate, repository-preflight]\nneeds.repository-preflight.result == 'success'\ncargo xtask ci compliance\nif: always() && hashFiles('target/compliance/**') != ''\n  dependencies-run:\nneeds: [ci-plan, formal-update-gate, repository-preflight]\nneeds.repository-preflight.result == 'success'\n  secrets-run:\nneeds: [ci-plan, formal-update-gate, repository-preflight]\nneeds.repository-preflight.result == 'success'\n  opentofu-live-run:\nneeds: [ci-plan, formal-update-gate, repository-preflight]\nneeds.repository-preflight.result == 'success'\n  postgresql-live-run:\nneeds: [ci-plan, formal-update-gate, repository-preflight]\nneeds.repository-preflight.result == 'success'\n  records-api-live-run:\nneeds: [ci-plan, formal-update-gate, repository-preflight]\nneeds.repository-preflight.result == 'success'\n";
+    const CI_GATES: &str = r#"uses: ./.github/actions/setup-lean
+kani-verifier --version 0.67.0
+cargo xtask ci preflight
+cargo xtask ci authoritative
+target/formal/
+  authoritative-run:
+needs: [ci-plan, formal-update-gate, repository-preflight]
+needs.repository-preflight.result == 'success'
+  formal-proof-fast:
+needs: [ci-plan, formal-update-gate]
+cargo xtask ci formal-proof-fast
+  formal-translation-run:
+needs: [ci-plan, formal-update-gate, repository-preflight, formal-proof-fast]
+needs.repository-preflight.result == 'success'
+needs.formal-proof-fast.result == 'success'
+compiler-cache: "false"
+cargo xtask ci formal-translation-reproduce
+cargo xtask ci formal-translation-reuse
+  formal-kani-run:
+needs: [ci-plan, formal-update-gate, repository-preflight, formal-proof-fast]
+needs.repository-preflight.result == 'success'
+needs.formal-proof-fast.result == 'success'
+cargo xtask ci formal-kani
+  formal-lean-authoritative-run:
+needs: [ci-plan, formal-update-gate, repository-preflight, formal-proof-fast, formal-translation-run]
+needs.formal-translation-run.result == 'success'
+cargo xtask ci formal-lean-authoritative
+  formal-evidence-run:
+needs.formal-translation-run.result == 'success'
+needs.formal-lean-authoritative-run.result == 'success'
+needs.formal-lean-authoritative-run.outputs.update_required != 'true'
+needs.formal-kani-run.result == 'success'
+cargo xtask ci formal-evidence
+  compliance-run:
+needs: [ci-plan, formal-update-gate, repository-preflight]
+needs.repository-preflight.result == 'success'
+cargo xtask ci compliance
+if: always() && hashFiles('target/compliance/**') != ''
+  dependencies-run:
+needs: [ci-plan, formal-update-gate, repository-preflight]
+needs.repository-preflight.result == 'success'
+  secrets-run:
+needs: [ci-plan, formal-update-gate, repository-preflight]
+needs.repository-preflight.result == 'success'
+  opentofu-live-run:
+needs: [ci-plan, formal-update-gate, repository-preflight]
+needs.repository-preflight.result == 'success'
+  postgresql-live-run:
+needs: [ci-plan, formal-update-gate, repository-preflight]
+needs.repository-preflight.result == 'success'
+  records-api-live-run:
+needs: [ci-plan, formal-update-gate, repository-preflight]
+needs.repository-preflight.result == 'success'
+  formal-translation:
+needs: [ci-plan, formal-evidence-run]
+"#;
     const BUILDER_GATES: &str = "leanprover/lean-action@\nkani-verifier --version 0.67.0\ncargo xtask release-check\ncargo xtask formal qualify aeneas\n";
 
     #[test]

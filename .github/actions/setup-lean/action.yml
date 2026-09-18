@@ -10,6 +10,14 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Restore pinned Lean and third-party Lake dependencies
+      uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+      with:
+        path: |
+          ~/.elan
+          formal/.lake/packages
+        key: formal-lean-deps-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('formal/lean-toolchain', 'formal/lake-manifest.json') }}
+
     - name: Install pinned Lean toolchain
       shell: bash
       env:
@@ -64,3 +72,10 @@ runs:
         "${HOME}/.elan/bin/elan" default "${lean_toolchain}"
         "${HOME}/.elan/bin/lean" --version
         "${HOME}/.elan/bin/lake" --version
+
+    - name: Restore the pinned Mathlib binary cache
+      shell: bash
+      working-directory: formal
+      run: |
+        set -euo pipefail
+        lake exe cache get

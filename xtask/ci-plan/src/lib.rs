@@ -507,12 +507,65 @@ struct Plan {
     changes: Vec<Change>,
     changed_packages: Vec<String>,
     phases: BTreeMap<String, PhasePlan>,
+    formal: FormalCiPlanV1,
     projected_runner_minutes: u64,
     comprehensive_runner_minutes: u64,
     observed_comprehensive_runner_minutes: f64,
     projected_savings_runner_minutes: f64,
     projected_monthly_scheduled_runner_minutes: f64,
     regression_warning: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum FormalPlanReason {
+    NotRequired,
+    ComprehensiveEvent,
+    ClassificationUncertain,
+    FormalClosureChanged,
+    ProtectedBaseEvidenceRequired,
+}
+
+impl FormalPlanReason {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::NotRequired => "not_required",
+            Self::ComprehensiveEvent => "comprehensive_event",
+            Self::ClassificationUncertain => "classification_uncertain",
+            Self::FormalClosureChanged => "formal_closure_changed",
+            Self::ProtectedBaseEvidenceRequired => "protected_base_evidence_required",
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct PlannedFormalPhase {
+    required: bool,
+    reason: FormalPlanReason,
+    base_digest: Option<String>,
+    head_digest: String,
+}
+
+#[derive(Debug, Serialize)]
+struct FormalCiPlanV1 {
+    schema: &'static str,
+    head_sha: String,
+    proof: PlannedFormalPhase,
+    translation: PlannedFormalPhase,
+    kani: PlannedFormalPhase,
+    toolchain: PlannedFormalPhase,
+    evidence: PlannedFormalPhase,
+    cold_required: bool,
+    cold_reason: FormalPlanReason,
+}
+
+#[derive(Clone, Copy)]
+enum FormalClosureKind {
+    Proof,
+    Translation,
+    Kani,
+    Toolchain,
+    Evidence,
 }
 
 fn generate_plan(options: &Options) -> Result<(), String> {
@@ -711,7 +764,7 @@ fn generate_plan(options: &Options) -> Result<(), String> {
         .collect();
     let mut projected = 0;
     let mut comprehensive_minutes = 0;
-    let phase_plans = phases
+    let phase_plans: BTreeMap<String, PhasePlan> = phases
         .into_iter()
         .map(|(id, accumulator)| {
             let minutes = *phase_baselines.get(id.as_str()).unwrap_or(&0);
@@ -745,6 +798,17 @@ fn generate_plan(options: &Options) -> Result<(), String> {
 
     let observed_minutes = baseline.observed_minutes(&options.workflow)?;
     let monthly_minutes = baseline.projected_monthly_minutes(&options.workflow);
+    let formal = build_formal_ci_plan(
+        &options.root,
+        &base,
+        &head,
+        comprehensive,
+        !errors.is_empty(),
+        phase_plans
+            .get("formal_translation")
+            .is_some_and(|phase| phase.required),
+        &changes,
+    )?;
     let plan = Plan {
         schema: PLAN_SCHEMA,
         manifest_version: loaded.manifest.version,
@@ -764,6 +828,7 @@ fn generate_plan(options: &Options) -> Result<(), String> {
         changes,
         changed_packages: changed_package_names.into_iter().collect(),
         phases: phase_plans,
+        formal,
         projected_runner_minutes: projected,
         comprehensive_runner_minutes: comprehensive_minutes,
         observed_comprehensive_runner_minutes: round_tenth(observed_minutes),
@@ -813,6 +878,204 @@ fn require_phase(
         .ok_or_else(|| format!("unknown phase {phase}"))?
         .require(reason, path, rule, package);
     Ok(())
+}
+
+fn build_formal_ci_plan(
+    root: &Path,
+    base: &str,
+    head: &str,
+    comprehensive: bool,
+    classification_uncertain: bool,
+    formal_required: bool,
+    changes: &[Change],
+) -> Result<FormalCiPlanV1, String> {
+    let changed_paths = changes
+        .iter()
+        .flat_map(|change| {
+            change
+                .old_path
+                .iter()
+                .map(String::as_str)
+                .chain(std::iter::once(change.path.as_str()))
+        })
+        .collect::<BTreeSet<_>>();
+    let base_revision = (!comprehensive && base != "none").then_some(base);
+    let phase = |kind: FormalClosureKind,
+                 required: bool,
+                 reason: FormalPlanReason|
+     -> Result<PlannedFormalPhase, String> {
+        Ok(PlannedFormalPhase {
+            required,
+            reason,
+            base_digest: base_revision
+                .map(|revision| digest_formal_closure(root, Some(revision), kind))
+                .transpose()?,
+            head_digest: digest_formal_closure(root, None, kind)?,
+        })
+    };
+    let changed = |kind| {
+        comprehensive
+            || classification_uncertain
+            || changed_paths
+                .iter()
+                .any(|path| formal_closure_contains(path, kind))
+    };
+    let translation_changed = changed(FormalClosureKind::Translation);
+    let toolchain_changed = changed(FormalClosureKind::Toolchain);
+    let evidence_changed = changed(FormalClosureKind::Evidence);
+    let cold_required = formal_required
+        && (translation_changed || toolchain_changed || evidence_changed);
+    let default_reason = if !formal_required {
+        FormalPlanReason::NotRequired
+    } else if classification_uncertain {
+        FormalPlanReason::ClassificationUncertain
+    } else if comprehensive {
+        FormalPlanReason::ComprehensiveEvent
+    } else {
+        FormalPlanReason::FormalClosureChanged
+    };
+    let translation_reason = if !formal_required {
+        FormalPlanReason::NotRequired
+    } else if cold_required {
+        default_reason
+    } else {
+        FormalPlanReason::ProtectedBaseEvidenceRequired
+    };
+    Ok(FormalCiPlanV1 {
+        schema: "auths-proof-formal-ci-plan/v1",
+        head_sha: head.to_owned(),
+        proof: phase(FormalClosureKind::Proof, formal_required, default_reason)?,
+        translation: phase(
+            FormalClosureKind::Translation,
+            formal_required,
+            translation_reason,
+        )?,
+        // Until protected-branch Kani attestations are published, every formal
+        // run executes Kani. The independent closure digest makes later reuse
+        // an additive planner change rather than workflow path matching.
+        kani: phase(FormalClosureKind::Kani, formal_required, default_reason)?,
+        toolchain: phase(
+            FormalClosureKind::Toolchain,
+            formal_required && toolchain_changed,
+            if formal_required && toolchain_changed {
+                default_reason
+            } else {
+                FormalPlanReason::NotRequired
+            },
+        )?,
+        evidence: phase(
+            FormalClosureKind::Evidence,
+            formal_required && evidence_changed,
+            if formal_required && evidence_changed {
+                default_reason
+            } else {
+                FormalPlanReason::NotRequired
+            },
+        )?,
+        cold_required,
+        cold_reason: if cold_required {
+            default_reason
+        } else if formal_required {
+            FormalPlanReason::ProtectedBaseEvidenceRequired
+        } else {
+            FormalPlanReason::NotRequired
+        },
+    })
+}
+
+fn digest_formal_closure(
+    root: &Path,
+    revision: Option<&str>,
+    kind: FormalClosureKind,
+) -> Result<String, String> {
+    let listing = match revision {
+        Some(revision) => git_stdout(root, &["ls-tree", "-r", "--name-only", revision])?,
+        None => git_stdout(root, &["ls-files"] )?,
+    };
+    let mut paths = listing
+        .lines()
+        .filter(|path| formal_closure_contains(path, kind))
+        .collect::<Vec<_>>();
+    paths.sort_unstable();
+    paths.dedup();
+    let mut digest = Sha256::new();
+    for path in paths {
+        let bytes = match revision {
+            Some(revision) => {
+                let object = format!("{revision}:{path}");
+                let output = ProcessCommand::new("git")
+                    .args(["show", object.as_str()])
+                    .current_dir(root)
+                    .output()
+                    .map_err(|error| format!("could not read {object}: {error}"))?;
+                if !output.status.success() {
+                    return Err(format!(
+                        "git show {object} failed: {}",
+                        String::from_utf8_lossy(&output.stderr).trim()
+                    ));
+                }
+                output.stdout
+            }
+            None => fs::read(root.join(path))
+                .map_err(|error| format!("could not read formal closure input {path}: {error}"))?,
+        };
+        digest.update(path.as_bytes());
+        digest.update([0]);
+        digest.update(bytes);
+        digest.update([0xff]);
+    }
+    Ok(hex::encode(digest.finalize()))
+}
+
+fn formal_closure_contains(path: &str, kind: FormalClosureKind) -> bool {
+    let translated_package = path.starts_with("core/crates/auths-model/")
+        || path.starts_with("core/crates/auths-algebra-kernel/")
+        || path.starts_with("core/crates/auths-authority/")
+        || path.starts_with("product/runtime/auths-lifecycle/")
+        || path.starts_with("product/policy/auths-bounded-policy/");
+    let cargo_semantics = matches!(path, "Cargo.toml" | "Cargo.lock" | ".cargo/config.toml");
+    match kind {
+        FormalClosureKind::Proof => {
+            path.starts_with("formal/") || path == "xtask/src/formal.rs"
+        }
+        FormalClosureKind::Translation => {
+            translated_package
+                || cargo_semantics
+                || matches!(
+                    path,
+                    "formal/algebra-contract-v1.toml"
+                        | "formal/qualification/aeneas/qualification.toml"
+                        | "formal/qualification/aeneas/source-closure.json"
+                        | "xtask/src/formal.rs"
+                        | "xtask/src/formal_qualification.rs"
+                )
+        }
+        FormalClosureKind::Kani => {
+            translated_package
+                || cargo_semantics
+                || path.starts_with("product/integrations/auths-stripe/")
+                || matches!(
+                    path,
+                    "formal/translation-toolchain.lock" | "xtask/src/formal.rs"
+                )
+        }
+        FormalClosureKind::Toolchain => matches!(
+            path,
+            "formal/translation-toolchain.lock"
+                | "formal/lean-toolchain"
+                | "formal/lake-manifest.json"
+                | ".github/actions/setup-lean/action.yml"
+                | ".github/actions/setup-rust-cache/action.yml"
+        ),
+        FormalClosureKind::Evidence => {
+            path == ".github/workflows/ci.yml"
+                || path == ".github/workflows/formal-artifact-updater.yml"
+                || path == ".github/ci/phase-ownership.toml"
+                || path == ".github/ci/formal-update-policy-v1.toml"
+                || path.starts_with("xtask/ci-plan/")
+                || matches!(path, "xtask/src/formal.rs" | "xtask/src/formal_qualification.rs")
+        }
+    }
 }
 
 fn apply_dependency_closure(
@@ -2105,14 +2368,39 @@ fn write_json(path: &Path, value: &impl Serialize) -> Result<(), String> {
 fn write_github_output(path: &Path, plan: &Plan, plan_path: &Path) -> Result<(), String> {
     let mut output = String::new();
     for (phase, decision) in &plan.phases {
+        if phase == "formal_translation" {
+            continue;
+        }
         output.push_str(&format!("{phase}_required={}\n", decision.required));
         output.push_str(&format!(
             "{phase}_reason={}\n",
             decision.reason.replace(['\n', '\r'], " ")
         ));
     }
+    for (name, decision) in [
+        ("formal_proof", &plan.formal.proof),
+        ("formal_translation", &plan.formal.translation),
+        ("formal_kani", &plan.formal.kani),
+    ] {
+        output.push_str(&format!("{name}_required={}\n", decision.required));
+        output.push_str(&format!("{name}_reason={}\n", decision.reason.as_str()));
+    }
+    output.push_str(&format!(
+        "formal_cold_required={}\nformal_cold_reason={}\n",
+        plan.formal.cold_required,
+        plan.formal.cold_reason.as_str()
+    ));
+    output.push_str(&format!(
+        "formal_proof_digest={}\nformal_translation_digest={}\nformal_kani_digest={}\nformal_toolchain_digest={}\nformal_evidence_digest={}\n",
+        plan.formal.proof.head_digest,
+        plan.formal.translation.head_digest,
+        plan.formal.kani.head_digest,
+        plan.formal.toolchain.head_digest,
+        plan.formal.evidence.head_digest
+    ));
     output.push_str(&format!("classification={}\n", plan.classification));
     output.push_str(&format!("plan_path={}\n", plan_path.display()));
+    output.push_str(&format!("formal_plan_path={}\n", plan_path.display()));
     append_file(path, output.as_bytes())
 }
 
@@ -2134,6 +2422,31 @@ fn write_summary(path: &Path, plan: &Plan) -> Result<(), String> {
             decision.reason.replace('|', "\\|")
         ));
     }
+    summary.push_str("\n### Formal input closures\n\n| Closure | Decision | Reason | Base digest | Head digest |\n| --- | --- | --- | --- | --- |\n");
+    for (name, decision) in [
+        ("proof", &plan.formal.proof),
+        ("translation", &plan.formal.translation),
+        ("kani", &plan.formal.kani),
+        ("toolchain", &plan.formal.toolchain),
+        ("evidence", &plan.formal.evidence),
+    ] {
+        summary.push_str(&format!(
+            "| `{name}` | {} | `{}` | `{}` | `{}` |\n",
+            if decision.required { "run" } else { "skip" },
+            decision.reason.as_str(),
+            decision.base_digest.as_deref().unwrap_or("none"),
+            decision.head_digest
+        ));
+    }
+    summary.push_str(&format!(
+        "\nCold translation: **{}** (`{}`).\n",
+        if plan.formal.cold_required {
+            "required"
+        } else {
+            "reuse protected-base evidence"
+        },
+        plan.formal.cold_reason.as_str()
+    ));
     if !plan.classification_errors.is_empty() {
         summary.push_str("\n### Fail-closed classification errors\n\n");
         for error in &plan.classification_errors {
@@ -2262,6 +2575,43 @@ serde = "2"
         assert!(!exact.matches("nested/Cargo.lock"));
         assert!(prefix.matches("docs/specs/example.md"));
         assert!(!prefix.matches("documentation/file"));
+    }
+
+    #[test]
+    fn formal_closures_separate_authored_proofs_from_translation_inputs() {
+        let proof = "formal/Auths/Refinement/Production.lean";
+        assert!(formal_closure_contains(proof, FormalClosureKind::Proof));
+        assert!(!formal_closure_contains(
+            proof,
+            FormalClosureKind::Translation
+        ));
+        assert!(!formal_closure_contains(proof, FormalClosureKind::Kani));
+
+        let translated = "core/crates/auths-model/src/lib.rs";
+        assert!(formal_closure_contains(
+            translated,
+            FormalClosureKind::Translation
+        ));
+        assert!(formal_closure_contains(
+            translated,
+            FormalClosureKind::Kani
+        ));
+    }
+
+    #[test]
+    fn formal_control_plane_changes_force_toolchain_or_evidence_closures() {
+        assert!(formal_closure_contains(
+            "formal/translation-toolchain.lock",
+            FormalClosureKind::Toolchain
+        ));
+        assert!(formal_closure_contains(
+            ".github/workflows/ci.yml",
+            FormalClosureKind::Evidence
+        ));
+        assert!(formal_closure_contains(
+            "xtask/ci-plan/src/lib.rs",
+            FormalClosureKind::Evidence
+        ));
     }
 
     #[test]

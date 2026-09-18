@@ -28,9 +28,18 @@ single `release` job is also mapped in the manifest and remains a stable gate.
 
 Cargo downloads and installed Cargo tools are cached, while complete `target/`
 directories are deliberately not cached. Authoritative, compliance, and
-records API compilation share `sccache`. Formal extraction remains isolated
-behind the pinned Nix/Aeneas/Lean/Kani toolchain and uses the public Cachix
-substitute configured in the workflow.
+records API compilation share `sccache`. The formal path is decomposed into an
+early Lean feedback job, translation reproduction or protected-base reuse, a
+clean authoritative Lean build, an independent Kani job, and one exact-revision
+evidence aggregator. Only the stable `formal-translation` gate reports the
+final decision.
+
+The pinned Lean toolchain and third-party Lake packages are cached by exact
+toolchain/manifest identity. Repository-owned Lean build outputs are never
+accepted as authoritative evidence: the authoritative job deletes them before
+its full build. Proof-only pull requests may reuse a successful byte-identical
+translation record from the exact protected base SHA; translation, toolchain,
+and evidence-control-plane changes always force two clean reproductions.
 
 `baseline.json` records the pre-optimization runner-minute evidence from issue
 #24. Planner artifacts include projected savings and monthly scheduled cost.

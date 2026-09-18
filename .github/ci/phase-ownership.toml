@@ -359,6 +359,30 @@ gate = false
 
 [[workflow_jobs]]
 file = ".github/workflows/ci.yml"
+job = "formal-proof-fast"
+phase = "formal_translation"
+gate = false
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "formal-kani-run"
+phase = "formal_translation"
+gate = false
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "formal-lean-authoritative-run"
+phase = "formal_translation"
+gate = false
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "formal-evidence-run"
+phase = "formal_translation"
+gate = false
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
 job = "compliance"
 phase = "compliance"
 gate = true
