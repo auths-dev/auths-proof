@@ -11,8 +11,13 @@ jobs:
   compatibility:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+          compiler-cache: "false"
       - name: Exercise the offline adapter
         run: cargo test -p auths-oidc-workload
       - name: Record redacted GitHub token vocabulary
@@ -29,7 +34,7 @@ jobs:
           jq -n --argjson header "${header}" --argjson payload "${payload}" \
             '{schema:"auths.github-oidc-vocabulary/1",header_names:($header|keys|sort),claim_names:($payload|keys|sort)}' \
             > oidc-vocabulary.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: oidc-vocabulary
           path: oidc-vocabulary.json
