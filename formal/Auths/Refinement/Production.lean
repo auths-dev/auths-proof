@@ -550,7 +550,7 @@ def PermissionPrefixMissing
         simpa using withinBounds
       step with Slice.index_usize_spec
           (v := alloc.vec.Vec.deref currentSet) (i := index)
-          (hbound := by simpa using indexWithin) as
+          (hbound := by simpa [alloc.vec.Vec.deref] using indexWithin) as
         ⟨currentPermission, currentPermissionEq⟩
       have currentInSet : currentPermission ∈ currentSet.val := by
         rw [currentPermissionEq]
@@ -637,7 +637,7 @@ def PermissionPrefixContained
         simpa using withinBounds
       step with Slice.index_usize_spec
           (v := alloc.vec.Vec.deref currentChild) (i := index)
-          (hbound := by simpa using indexWithin) as
+          (hbound := by simpa [alloc.vec.Vec.deref] using indexWithin) as
         ⟨currentPermission, currentPermissionEq⟩
       have currentInChild : currentPermission ∈ currentChild.val := by
         rw [currentPermissionEq]
@@ -758,7 +758,7 @@ def AudiencePrefixMissing
         simpa using withinBounds
       step with Slice.index_usize_spec
           (v := alloc.vec.Vec.deref currentSet) (i := index)
-          (hbound := by simpa using indexWithin) as
+          (hbound := by simpa [alloc.vec.Vec.deref] using indexWithin) as
         ⟨currentAudience, currentAudienceEq⟩
       have currentInSet : currentAudience ∈ currentSet.val := by
         rw [currentAudienceEq]
@@ -846,7 +846,7 @@ def AudiencePrefixContained
         simpa using withinBounds
       step with Slice.index_usize_spec
           (v := alloc.vec.Vec.deref currentChild) (i := index)
-          (hbound := by simpa using indexWithin) as
+          (hbound := by simpa [alloc.vec.Vec.deref] using indexWithin) as
         ⟨currentAudience, currentAudienceEq⟩
       have currentInChild : currentAudience ∈ currentChild.val := by
         rw [currentAudienceEq]
@@ -960,7 +960,7 @@ def DigestPrefixMissing
         simpa using withinBounds
       step with Slice.index_usize_spec
           (v := alloc.vec.Vec.deref currentSet) (i := index)
-          (hbound := by simpa using indexWithin) as
+          (hbound := by simpa [alloc.vec.Vec.deref] using indexWithin) as
         ⟨currentDigest, currentDigestEq⟩
       have currentInSet : currentDigest ∈ currentSet.val := by
         rw [currentDigestEq]
@@ -1047,7 +1047,7 @@ def DigestPrefixContained
         simpa using withinBounds
       step with Slice.index_usize_spec
           (v := alloc.vec.Vec.deref currentChild) (i := index)
-          (hbound := by simpa using indexWithin) as
+          (hbound := by simpa [alloc.vec.Vec.deref] using indexWithin) as
         ⟨currentDigest, currentDigestEq⟩
       have currentInChild : currentDigest ∈ currentChild.val := by
         rw [currentDigestEq]
@@ -1135,7 +1135,7 @@ def DigestPrefixOnly
         simpa using withinBounds
       step with Slice.index_usize_spec
           (v := alloc.vec.Vec.deref currentSet) (i := index)
-          (hbound := by simpa using indexWithin) as
+          (hbound := by simpa [alloc.vec.Vec.deref] using indexWithin) as
         ⟨currentDigest, currentDigestEq⟩
       have currentInSet : currentDigest ∈ currentSet.val := by
         rw [currentDigestEq]
