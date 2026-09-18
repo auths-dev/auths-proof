@@ -548,7 +548,9 @@ def PermissionPrefixMissing
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentSet.val.length := by
         simpa using withinBounds
-      step as ⟨currentPermission, currentPermissionEq⟩
+      step with Slice.index_usize_spec
+          (hbound := by simpa using indexWithin) as
+        ⟨currentPermission, currentPermissionEq⟩
       have currentInSet : currentPermission ∈ currentSet.val := by
         rw [currentPermissionEq]
         exact List.getElem_mem indexWithin
@@ -632,7 +634,9 @@ def PermissionPrefixContained
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentChild.val.length := by
         simpa using withinBounds
-      step as ⟨currentPermission, currentPermissionEq⟩
+      step with Slice.index_usize_spec
+          (hbound := by simpa using indexWithin) as
+        ⟨currentPermission, currentPermissionEq⟩
       have currentInChild : currentPermission ∈ currentChild.val := by
         rw [currentPermissionEq]
         exact List.getElem_mem indexWithin
@@ -750,7 +754,9 @@ def AudiencePrefixMissing
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentSet.val.length := by
         simpa using withinBounds
-      step as ⟨currentAudience, currentAudienceEq⟩
+      step with Slice.index_usize_spec
+          (hbound := by simpa using indexWithin) as
+        ⟨currentAudience, currentAudienceEq⟩
       have currentInSet : currentAudience ∈ currentSet.val := by
         rw [currentAudienceEq]
         exact List.getElem_mem indexWithin
@@ -835,7 +841,9 @@ def AudiencePrefixContained
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentChild.val.length := by
         simpa using withinBounds
-      step as ⟨currentAudience, currentAudienceEq⟩
+      step with Slice.index_usize_spec
+          (hbound := by simpa using indexWithin) as
+        ⟨currentAudience, currentAudienceEq⟩
       have currentInChild : currentAudience ∈ currentChild.val := by
         rw [currentAudienceEq]
         exact List.getElem_mem indexWithin
@@ -946,7 +954,9 @@ def DigestPrefixMissing
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentSet.val.length := by
         simpa using withinBounds
-      step as ⟨currentDigest, currentDigestEq⟩
+      step with Slice.index_usize_spec
+          (hbound := by simpa using indexWithin) as
+        ⟨currentDigest, currentDigestEq⟩
       have currentInSet : currentDigest ∈ currentSet.val := by
         rw [currentDigestEq]
         exact List.getElem_mem indexWithin
@@ -1030,7 +1040,9 @@ def DigestPrefixContained
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentChild.val.length := by
         simpa using withinBounds
-      step as ⟨currentDigest, currentDigestEq⟩
+      step with Slice.index_usize_spec
+          (hbound := by simpa using indexWithin) as
+        ⟨currentDigest, currentDigestEq⟩
       have currentInChild : currentDigest ∈ currentChild.val := by
         rw [currentDigestEq]
         exact List.getElem_mem indexWithin
@@ -1115,7 +1127,9 @@ def DigestPrefixOnly
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentSet.val.length := by
         simpa using withinBounds
-      step as ⟨currentDigest, currentDigestEq⟩
+      step with Slice.index_usize_spec
+          (hbound := by simpa using indexWithin) as
+        ⟨currentDigest, currentDigestEq⟩
       have currentInSet : currentDigest ∈ currentSet.val := by
         rw [currentDigestEq]
         exact List.getElem_mem indexWithin
