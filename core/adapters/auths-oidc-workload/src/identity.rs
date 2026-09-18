@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{string::String, vec::Vec};
+use alloc::{boxed::Box, string::String, vec::Vec};
 use auths_model::{BoundedSet, Digest};
 use sha2::{Digest as _, Sha256};
 
@@ -13,6 +13,12 @@ macro_rules! text_type {
         #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
         pub struct $name(String);
         impl $name {
+            /// Parses one bounded OIDC identity field.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`OidcError`] when the field is empty, exceeds its
+            /// bound, or violates its field-specific syntax.
             pub fn parse(value: &str) -> Result<Self, OidcError> {
                 if value.is_empty() || value.len() > $max || !($validate)(value) {
                     return Err(OidcError::Claims(crate::ClaimError::InvalidValue));
@@ -52,6 +58,12 @@ text_type!(Subject, 1024, no_control);
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Repository(String);
 impl Repository {
+    /// Parses one canonical `owner/repository` name.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OidcError`] when the repository is malformed or exceeds its
+    /// bound.
     pub fn parse(value: &str) -> Result<Self, OidcError> {
         let mut parts = value.split('/');
         let owner = parts.next().unwrap_or_default();
@@ -84,6 +96,11 @@ fn repo_byte(byte: u8) -> bool {
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct RepositoryOwner(String);
 impl RepositoryOwner {
+    /// Parses one canonical repository owner.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OidcError`] when the owner is malformed or exceeds its bound.
     pub fn parse(value: &str) -> Result<Self, OidcError> {
         if value.is_empty()
             || value.len() > 64
@@ -106,6 +123,12 @@ macro_rules! numeric_id {
         #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
         pub struct $name(u64);
         impl $name {
+            /// Parses one positive canonical decimal identifier.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`OidcError`] when the value is zero, has a leading
+            /// zero, is non-decimal, or exceeds `u64`.
             pub fn parse(value: &str) -> Result<Self, OidcError> {
                 if value.is_empty()
                     || value.starts_with('0')
@@ -133,7 +156,10 @@ numeric_id!(RepositoryOwnerId);
 
 text_type!(WorkflowPath, 256, |value: &str| {
     (value.starts_with(".github/workflows/")
-        && (value.ends_with(".yml") || value.ends_with(".yaml")))
+        && value.rsplit_once('.').is_some_and(|(_, extension)| matches!(
+            extension,
+            "yml" | "yaml"
+        )))
         && !value.split('/').any(|segment| segment == "..")
 });
 text_type!(GitRef, 256, |value: &str| {
@@ -154,6 +180,12 @@ text_type!(EventName, 64, |value: &str| value
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct CommitSha(String);
 impl CommitSha {
+    /// Parses one lowercase SHA-1 commit identifier.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OidcError`] unless the value is exactly 40 lowercase
+    /// hexadecimal digits.
     pub fn parse(value: &str) -> Result<Self, OidcError> {
         if value.len() != 40
             || !value
@@ -176,6 +208,11 @@ pub enum RunnerEnvironment {
     SelfHosted,
 }
 impl RunnerEnvironment {
+    /// Parses one supported GitHub Actions runner environment.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OidcError`] for an unknown environment label.
     pub fn parse(value: &str) -> Result<Self, OidcError> {
         match value {
             "github-hosted" => Ok(Self::GithubHosted),
@@ -235,6 +272,12 @@ pub struct GithubIdentity {
     pub event: Option<EventName>,
 }
 impl GithubIdentity {
+    /// Validates cross-field invariants for a GitHub workload identity.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OidcError`] when owner, repository, or workflow fields are
+    /// inconsistent.
     pub fn new(mut value: Self) -> Result<Self, OidcError> {
         if value.owner.as_str() != value.repository.owner()
             || value.workflow.reference.repository != value.repository
@@ -254,7 +297,7 @@ impl GithubIdentity {
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum WorkloadIdentity {
     Generic(GenericIdentity),
-    GithubActions(GithubIdentity),
+    GithubActions(Box<GithubIdentity>),
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -348,6 +391,12 @@ impl AdmittedWorkload {
 }
 
 impl IssuerProfile {
+    /// Applies the configured issuer profile to one workload identity.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PolicyRejection`] when the identity kind does not match the
+    /// profile or no configured policy admits it.
     pub fn admit(&self, identity: &WorkloadIdentity) -> Result<AdmittedWorkload, PolicyRejection> {
         let encoded = match (self, identity) {
             (Self::Generic { policies }, WorkloadIdentity::Generic(identity)) => policies
@@ -403,11 +452,23 @@ impl IssuerProfile {
     }
 }
 
+/// Constructs one bounded generic workload policy set.
+///
+/// # Errors
+///
+/// Returns [`ConfigurationError`] when values are duplicated or exceed the
+/// configured bound.
 pub fn generic_policy_set(
     values: Vec<GenericPolicy>,
 ) -> Result<GenericPolicySet, ConfigurationError> {
     BoundedSet::new(values).map_err(ConfigurationError::Policies)
 }
+/// Constructs one bounded GitHub workload policy set.
+///
+/// # Errors
+///
+/// Returns [`ConfigurationError`] when values are duplicated or exceed the
+/// configured bound.
 pub fn github_policy_set(values: Vec<GithubPolicy>) -> Result<GithubPolicySet, ConfigurationError> {
     BoundedSet::new(values).map_err(ConfigurationError::Policies)
 }

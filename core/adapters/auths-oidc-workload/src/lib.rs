@@ -108,7 +108,7 @@ pub enum OidcError {
 
 impl fmt::Display for OidcError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "oidc.{:?}", self)
+        write!(formatter, "oidc.{self:?}")
     }
 }
 
@@ -119,6 +119,12 @@ pub struct PinnedIssuerKey {
     material: BoundedBytes<MAX_KEY_MATERIAL_BYTES>,
 }
 impl PinnedIssuerKey {
+    /// Constructs one pinned issuer verification key.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigurationError`] when the binding is not JWS, its suite
+    /// is unregistered, or the key material is invalid or oversized.
     pub fn new(
         kid: KeyId,
         binding: AlgorithmBinding,
@@ -176,6 +182,12 @@ pub struct Issuer {
     lifetime: TokenLifetime,
 }
 impl Issuer {
+    /// Constructs one bounded issuer configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigurationError`] when keys are duplicated or exceed the
+    /// configured issuer-key bound.
     pub fn new(
         url: IssuerUrl,
         keys: Vec<PinnedIssuerKey>,
@@ -221,6 +233,12 @@ pub struct OidcWorkloadMethod<'a> {
     suites: &'a [&'a dyn SignatureSuite],
 }
 impl<'a> OidcWorkloadMethod<'a> {
+    /// Constructs an OIDC workload principal method.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigurationError`] when issuers are invalid, a suite is
+    /// unregistered, or a configured bound is exceeded.
     pub fn new(
         issuers: Vec<Issuer>,
         suites: &'a [&'a dyn SignatureSuite],
@@ -254,9 +272,15 @@ impl<'a> OidcWorkloadMethod<'a> {
         })
     }
 
+    /// Verifies one OIDC workload token and bound key descriptor.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OidcError`] for malformed or inconsistent evidence, failed
+    /// token verification, invalid time/audience binding, or policy rejection.
     pub fn verify_detailed(
         &self,
-        input: PrincipalControlInput<'_>,
+        input: &PrincipalControlInput<'_>,
     ) -> Result<ControlEvidence, OidcError> {
         let (principal_issuer, principal_subject) = parse_principal(input.principal.as_str())?;
         let issuer = self
@@ -317,8 +341,8 @@ impl<'a> OidcWorkloadMethod<'a> {
         if descriptor.suite_id() != input.signature_suite {
             return Err(OidcError::WorkloadSuiteMismatch);
         }
-        let issued = claims.common().window.issued().get();
-        let expires = claims.common().window.expires().get();
+        let issued_at = claims.common().window.issued().get();
+        let expires_at = claims.common().window.expires().get();
         let identity = claims.into_identity()?;
         let admitted = issuer
             .profile
@@ -327,7 +351,7 @@ impl<'a> OidcWorkloadMethod<'a> {
         let mut assurance = claims::assurance_claims(&admitted, &self.source)
             .map_err(|_| OidcError::LimitExceeded)?;
         assurance.push(
-            claims::token_window_claim(issued, expires, &self.source)
+            claims::token_window_claim(issued_at, expires_at, &self.source)
                 .map_err(|_| OidcError::LimitExceeded)?,
         );
         ControlEvidence::new(
@@ -365,10 +389,10 @@ impl<'a> OidcWorkloadMethod<'a> {
                 if token.replace(item).is_some() {
                     return Err(OidcError::DuplicateToken);
                 }
-            } else if item.media_type() == &self.descriptor_media {
-                if descriptor.replace(item).is_some() {
-                    return Err(OidcError::DuplicateKeyDescriptor);
-                }
+            } else if item.media_type() == &self.descriptor_media
+                && descriptor.replace(item).is_some()
+            {
+                return Err(OidcError::DuplicateKeyDescriptor);
             }
         }
         Ok((
@@ -425,7 +449,7 @@ impl PrincipalMethod for OidcWorkloadMethod<'_> {
         &self,
         input: PrincipalControlInput<'_>,
     ) -> Result<ControlEvidence, PrincipalControlError> {
-        self.verify_detailed(input).map_err(map_error)
+        self.verify_detailed(&input).map_err(map_error)
     }
 }
 
@@ -438,6 +462,12 @@ pub fn audience_commitment(descriptor: &RawKeyDescriptorV2) -> String {
     )
 }
 
+/// Derives the token-bound verification method for one principal.
+///
+/// # Errors
+///
+/// Returns [`auths_model::ModelError`] when the resulting method identifier
+/// violates model bounds or syntax.
 pub fn verification_method(
     principal: &str,
     token: &[u8],
@@ -447,6 +477,12 @@ pub fn verification_method(
     VerificationMethod::parse(&format!("{principal}#oidc-{}", &encoded[..16]))
 }
 
+/// Constructs the canonical OIDC workload principal identifier.
+///
+/// # Errors
+///
+/// Returns [`auths_model::ModelError`] when the encoded principal exceeds a
+/// model bound or violates principal syntax.
 pub fn principal(
     issuer: &IssuerUrl,
     subject: &Subject,

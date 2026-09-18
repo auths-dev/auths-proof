@@ -1,15 +1,35 @@
 extern crate alloc;
 
-use alloc::string::String;
+use alloc::{boxed::Box, string::String};
 
 use crate::{
     ClaimError, OidcError, github,
-    identity::*,
+    identity::{
+        Actor, CommitSha, Environment, EventName, GenericIdentity, GitRef, GithubIdentity,
+        IssuerProfile, IssuerUrl, Repository, RepositoryId, RepositoryOwner, RepositoryOwnerId,
+        ReusableWorkflow, RunnerEnvironment, Subject, WorkflowIdentity, WorkflowRef,
+        WorkloadIdentity,
+    },
     json::{JsonValue, flat_object},
     window::{TokenLifetime, TokenWindow},
 };
 
 pub const MAX_CLAIM_BYTES: usize = 1024;
+const IGNORED_GITHUB_CLAIMS: &[&str] = &[
+    "actor_id",
+    "base_ref",
+    "check_run_id",
+    "enterprise",
+    "enterprise_id",
+    "head_ref",
+    "ref_protected",
+    "ref_type",
+    "repository_visibility",
+    "run_attempt",
+    "run_id",
+    "run_number",
+    "workflow",
+];
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AudienceClaim(String);
@@ -49,10 +69,17 @@ pub struct GithubClaims {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ClaimSet {
     Generic(CommonClaims),
-    GithubActions(GithubClaims),
+    GithubActions(Box<GithubClaims>),
 }
 
 impl ClaimSet {
+    /// Parses and validates one closed OIDC claim set for an issuer profile.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OidcError`] when claims are malformed, inconsistent,
+    /// unexpected for the profile, or outside configured bounds.
+    #[allow(clippy::too_many_lines)]
     pub fn parse(
         payload: &[u8],
         profile: &IssuerProfile,
@@ -69,7 +96,7 @@ impl ClaimSet {
         let sub = Subject::parse(&take_string(&mut members, "sub")?)?;
         let aud = match take(&mut members, "aud")? {
             JsonValue::String(v) | JsonValue::OneStringArray(v) => AudienceClaim(v),
-            _ => return Err(OidcError::Claims(ClaimError::WrongType)),
+            JsonValue::Integer(_) => return Err(OidcError::Claims(ClaimError::WrongType)),
         };
         let iat = take_integer(&mut members, "iat")?;
         let exp = take_integer(&mut members, "exp")?;
@@ -125,26 +152,11 @@ impl ClaimSet {
                 let event_name = take_optional_string(&mut members, "event_name")?
                     .map(|v| EventName::parse(&v))
                     .transpose()?;
-                const IGNORED: &[&str] = &[
-                    "actor_id",
-                    "base_ref",
-                    "check_run_id",
-                    "enterprise",
-                    "enterprise_id",
-                    "head_ref",
-                    "ref_protected",
-                    "ref_type",
-                    "repository_visibility",
-                    "run_attempt",
-                    "run_id",
-                    "run_number",
-                    "workflow",
-                ];
-                members.retain(|(name, _)| !IGNORED.contains(&name.as_str()));
+                members.retain(|(name, _)| !IGNORED_GITHUB_CLAIMS.contains(&name.as_str()));
                 if !members.is_empty() {
                     return Err(OidcError::Claims(ClaimError::UnknownMember));
                 }
-                Ok(Self::GithubActions(GithubClaims {
+                Ok(Self::GithubActions(Box::new(GithubClaims {
                     common,
                     repository,
                     repository_id,
@@ -160,7 +172,7 @@ impl ClaimSet {
                     runner_environment,
                     actor,
                     event_name,
-                }))
+                })))
             }
         }
     }
@@ -172,38 +184,46 @@ impl ClaimSet {
             Self::GithubActions(v) => &v.common,
         }
     }
+    /// Converts validated claims into a policy-ready workload identity.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OidcError`] when cross-field GitHub identity invariants fail.
     pub fn into_identity(self) -> Result<WorkloadIdentity, OidcError> {
         match self {
             Self::Generic(value) => Ok(WorkloadIdentity::Generic(GenericIdentity {
                 issuer: value.iss,
                 subject: value.sub,
             })),
-            Self::GithubActions(value) => Ok(WorkloadIdentity::GithubActions(GithubIdentity::new(
-                GithubIdentity {
-                    issuer: value.common.iss,
-                    subject: value.common.sub,
-                    repository: value.repository,
-                    repository_id: value.repository_id,
-                    owner: value.repository_owner,
-                    owner_id: value.repository_owner_id,
-                    workflow: WorkflowIdentity {
-                        reference: value.workflow_ref,
-                        commit: value.workflow_sha,
-                    },
-                    job_workflow: match (value.job_workflow_ref, value.job_workflow_sha) {
-                        (Some(reference), Some(commit)) => {
-                            ReusableWorkflow::Present(WorkflowIdentity { reference, commit })
-                        }
-                        _ => ReusableWorkflow::Absent,
-                    },
-                    git_ref: value.git_ref,
-                    sha: value.sha,
-                    environment: value.environment,
-                    runner: value.runner_environment,
-                    actor: value.actor,
-                    event: value.event_name,
-                },
-            )?)),
+            Self::GithubActions(value) => {
+                let value = *value;
+                Ok(WorkloadIdentity::GithubActions(Box::new(
+                    GithubIdentity::new(GithubIdentity {
+                        issuer: value.common.iss,
+                        subject: value.common.sub,
+                        repository: value.repository,
+                        repository_id: value.repository_id,
+                        owner: value.repository_owner,
+                        owner_id: value.repository_owner_id,
+                        workflow: WorkflowIdentity {
+                            reference: value.workflow_ref,
+                            commit: value.workflow_sha,
+                        },
+                        job_workflow: match (value.job_workflow_ref, value.job_workflow_sha) {
+                            (Some(reference), Some(commit)) => {
+                                ReusableWorkflow::Present(WorkflowIdentity { reference, commit })
+                            }
+                            _ => ReusableWorkflow::Absent,
+                        },
+                        git_ref: value.git_ref,
+                        sha: value.sha,
+                        environment: value.environment,
+                        runner: value.runner_environment,
+                        actor: value.actor,
+                        event: value.event_name,
+                    })?,
+                )))
+            }
         }
     }
 }

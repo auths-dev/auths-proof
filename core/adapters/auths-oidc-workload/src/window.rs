@@ -8,6 +8,12 @@ pub const MAX_TOKEN_LIFETIME: u64 = 86_400;
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct TokenLifetime(u64);
 impl TokenLifetime {
+    /// Constructs a bounded maximum token lifetime.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::ConfigurationError`] when `seconds` is zero or exceeds
+    /// the adapter maximum.
     pub fn new(seconds: u64) -> Result<Self, crate::ConfigurationError> {
         if seconds == 0 || seconds > MAX_TOKEN_LIFETIME {
             return Err(crate::ConfigurationError::Lifetime);
@@ -27,6 +33,12 @@ pub struct TokenWindow {
     not_before: Option<Timestamp>,
 }
 impl TokenWindow {
+    /// Constructs and validates a token validity window.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ClaimError`] when timestamps are inconsistent, exceed the
+    /// configured lifetime, or cannot be evaluated safely.
     pub fn new(
         iat: u64,
         exp: u64,
@@ -48,6 +60,12 @@ impl TokenWindow {
             not_before: nbf.map(Timestamp::new),
         })
     }
+    /// Admits an evaluation instant against this token window.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OidcError`] when `now` falls outside the skew-adjusted window
+    /// or a bound overflows.
     pub fn admits_live(self, now: Timestamp) -> Result<AdmittedLiveTime, OidcError> {
         let earliest = self.issued.get().saturating_sub(CLOCK_SKEW);
         if now.get() < earliest {

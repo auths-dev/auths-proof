@@ -14,6 +14,12 @@ pub const MAX_TOKEN_BYTES: usize = 16_384;
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct KeyId(String);
 impl KeyId {
+    /// Parses one bounded JWS key identifier.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`JwsError`] when the identifier is empty, exceeds its bound,
+    /// or contains non-graphic bytes.
     pub fn parse(value: &str) -> Result<Self, JwsError> {
         if value.is_empty() || value.len() > 256 || !value.bytes().all(|b| b.is_ascii_graphic()) {
             return Err(JwsError::InvalidKid);
@@ -42,6 +48,12 @@ pub struct CompactJws {
     pub signature: Vec<u8>,
 }
 impl CompactJws {
+    /// Parses one bounded compact JWS with a closed protected header.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`JwsError`] when the compact encoding, protected header, or a
+    /// configured bound is invalid.
     pub fn parse(input: &[u8]) -> Result<Self, JwsError> {
         if input.is_empty() || input.len() > MAX_TOKEN_BYTES {
             return Err(JwsError::Limit);
@@ -89,7 +101,7 @@ impl CompactJws {
                 "alg" => {
                     alg = Some(
                         JwsAlgorithmName::parse(&value).map_err(|_| JwsError::InvalidAlgorithm)?,
-                    )
+                    );
                 }
                 "kid" => kid = Some(KeyId::parse(&value)?),
                 "typ" => typ = Some(value),

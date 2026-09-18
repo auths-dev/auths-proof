@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 196,
+  "freezeVersion": 197,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -550,7 +550,7 @@
     },
     {
       "id": "auths.identity.protocol",
-      "version": 56,
+      "version": 57,
       "classification": "frozen-meaning",
       "categories": [
         "identity-protocol-versions",
@@ -1042,7 +1042,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 194,
+      "version": 195,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1134,7 +1134,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "c241ee019772a10417a7ce59e86e9c996e49bab7d96f6979fc7460588b2643a5"
+      "sha256": "c0538d7c0ff79707ca67b8601a79ffa4c17af093c7d410fe31bee5818d17fd83"
     }
   ]
 }
