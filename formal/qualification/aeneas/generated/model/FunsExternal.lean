@@ -21,8 +21,9 @@ private def compareLists {T : Type} (cmpOrdInst : core.cmp.Ord T) :
   | [], _ :: _ => ok .lt
   | _ :: _, [] => ok .gt
   | left :: leftTail, right :: rightTail => do
-      match ← cmpOrdInst.cmp left right with
-      | .eq => compareLists cmpOrdInst leftTail rightTail
+      let ordering ← cmpOrdInst.cmp left right
+      match ordering with
+      | Ordering.eq => compareLists cmpOrdInst leftTail rightTail
       | ordering => ok ordering
 
 @[rust_fun "core::array::{core::cmp::Ord<[@T; @N]>}::cmp"]

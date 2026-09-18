@@ -912,8 +912,9 @@ private def compareLists {T : Type} (cmpOrdInst : core.cmp.Ord T) :\n\
   | [], _ :: _ => ok .lt\n\
   | _ :: _, [] => ok .gt\n\
   | left :: leftTail, right :: rightTail => do\n\
-      match ← cmpOrdInst.cmp left right with\n\
-      | .eq => compareLists cmpOrdInst leftTail rightTail\n\
+      let ordering ← cmpOrdInst.cmp left right\n\
+      match ordering with\n\
+      | Ordering.eq => compareLists cmpOrdInst leftTail rightTail\n\
       | ordering => ok ordering\n\
 \n\
 @[rust_fun \"core::array::{core::cmp::Ord<[@T; @N]>}::cmp\"]\n\
