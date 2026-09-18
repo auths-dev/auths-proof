@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 189,
+  "freezeVersion": 190,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -550,7 +550,7 @@
     },
     {
       "id": "auths.identity.protocol",
-      "version": 49,
+      "version": 50,
       "classification": "frozen-meaning",
       "categories": [
         "identity-protocol-versions",
@@ -573,7 +573,7 @@
         "core/fixtures/identity/v1/vectors.json",
         "core/spec/identity/v1"
       ],
-      "sha256": "e47a44901004478207c125718252e8b723175220f1c8b8e194fa8072d4e5464b"
+      "sha256": "a60778a0fe3e46d69d2399d1fb74b0d4e06da3b3adada990883b1f51f33470fe"
     },
     {
       "id": "auths.modular-components",
@@ -1042,7 +1042,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 187,
+      "version": 188,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1134,7 +1134,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "a7dd262d8f73382960eb9d2dbdaed6633e521af1d6bc00d3ff24dfb4cc86c171"
+      "sha256": "013b28b5330d5f72d3feaa7049f6ae4e4f7a75b6026aa403355c61908c0f9368"
     }
   ]
 }

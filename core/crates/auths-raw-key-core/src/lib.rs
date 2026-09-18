@@ -140,7 +140,7 @@ impl RawKeyDescriptorV2 {
             return Err(RawKeyError::InvalidKey);
         }
         Ok(Self {
-            suite_id: suite_id.into(),
+            suite_id,
             public_key,
         })
     }
