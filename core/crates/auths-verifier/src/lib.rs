@@ -2076,7 +2076,7 @@ fn validate_attachments(
             .iter()
             .find(|attachment| attachment.digest() == descriptor.digest());
         let Some(detached) = detached else {
-            if descriptor.required() {
+            if matches!(descriptor.presence(), auths_model::Presence::Required) {
                 return Err(VerificationFailure::Denied(DenialReason::AttachmentMissing));
             }
             continue;
@@ -2093,7 +2093,13 @@ fn validate_attachments(
                 DenialReason::AttachmentDigestMismatch,
             ));
         }
-        if descriptor.encrypted() && !descriptor.opaque_allowed() {
+        if matches!(
+            descriptor.confidentiality(),
+            auths_model::Confidentiality::Encrypted
+        ) && matches!(
+            descriptor.opacity(),
+            auths_model::Opacity::MustBeInspectable
+        ) {
             return Err(VerificationFailure::Denied(
                 DenialReason::OpaqueAttachmentNotAllowed,
             ));

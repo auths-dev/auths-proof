@@ -56,6 +56,13 @@ pub enum CounterPolicy {
     GreaterThan(u32),
 }
 
+/// User-verification policy compiled from registration state.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum UserVerification {
+    Required,
+    Discouraged,
+}
+
 /// Verifier-local immutable `WebAuthn` credential registration.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WebAuthnCredential {
@@ -67,7 +74,7 @@ pub struct WebAuthnCredential {
     public_key: BoundedBytes<MAX_WEBAUTHN_PUBLIC_KEY_BYTES>,
     rp_id: String,
     origins: Vec<String>,
-    require_user_verification: bool,
+    user_verification: UserVerification,
     counter_policy: CounterPolicy,
     attestation_level: Option<String>,
     observed_at: Timestamp,
@@ -88,7 +95,7 @@ impl WebAuthnCredential {
         public_key: Vec<u8>,
         rp_id: String,
         mut origins: Vec<String>,
-        require_user_verification: bool,
+        user_verification: UserVerification,
         counter_policy: CounterPolicy,
         attestation_level: Option<String>,
         observed_at: Timestamp,
@@ -129,7 +136,7 @@ impl WebAuthnCredential {
             public_key,
             rp_id,
             origins,
-            require_user_verification,
+            user_verification,
             counter_policy,
             attestation_level,
             observed_at,
@@ -181,8 +188,8 @@ impl WebAuthnCredential {
 
     /// Returns whether user verification is mandatory.
     #[must_use]
-    pub const fn require_user_verification(&self) -> bool {
-        self.require_user_verification
+    pub const fn user_verification(&self) -> UserVerification {
+        self.user_verification
     }
 
     /// Returns the registered signature-counter policy.
@@ -369,7 +376,10 @@ impl PrincipalMethod for WebAuthnMethod {
             for origin in &credential.origins {
                 components.push(origin.as_bytes().to_vec());
             }
-            components.push(vec![u8::from(credential.require_user_verification)]);
+            components.push(vec![u8::from(matches!(
+                credential.user_verification,
+                UserVerification::Required
+            ))]);
             components.push(match credential.counter_policy {
                 CounterPolicy::Disabled => vec![0],
                 CounterPolicy::GreaterThan(counter) => {
@@ -435,7 +445,8 @@ impl PrincipalMethod for WebAuthnMethod {
         }
         let flags = assertion.authenticator_data[32];
         if flags & FLAG_USER_PRESENT == 0
-            || (credential.require_user_verification && flags & FLAG_USER_VERIFIED == 0)
+            || (matches!(credential.user_verification, UserVerification::Required)
+                && flags & FLAG_USER_VERIFIED == 0)
         {
             return Err(PrincipalControlError::InvalidEvidence);
         }
@@ -724,7 +735,7 @@ mod tests {
             point.as_bytes().to_vec(),
             "auths.example".to_string(),
             vec!["https://auths.example".to_string()],
-            true,
+            UserVerification::Required,
             CounterPolicy::GreaterThan(4),
             Some("non-exportable".to_string()),
             Timestamp::new(10),

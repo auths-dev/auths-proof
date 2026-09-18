@@ -39,6 +39,13 @@ const MAX_RECORDS: usize = 256;
 const MAX_TEXT: usize = 128;
 
 /// Verifier-local result of one reviewed HSM attestation profile.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Exportability {
+    NonExportable,
+    Exportable,
+}
+
+/// Verifier-local result of one reviewed HSM attestation profile.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HsmKeyRecord {
     principal: PrincipalId,
@@ -51,7 +58,7 @@ pub struct HsmKeyRecord {
     protection_level: String,
     key_handle_digest: [u8; 32],
     device_chain_digest: [u8; 32],
-    non_exportable: bool,
+    exportability: Exportability,
     observed_at: Timestamp,
     valid_until: Timestamp,
 }
@@ -72,7 +79,7 @@ impl HsmKeyRecord {
         protection_level: String,
         key_handle_digest: [u8; 32],
         device_chain_digest: [u8; 32],
-        non_exportable: bool,
+        exportability: Exportability,
         observed_at: Timestamp,
         valid_until: Timestamp,
     ) -> Result<Self, HsmError> {
@@ -107,7 +114,7 @@ impl HsmKeyRecord {
             protection_level,
             key_handle_digest,
             device_chain_digest,
-            non_exportable,
+            exportability,
             observed_at,
             valid_until,
         })
@@ -169,8 +176,8 @@ impl HsmKeyRecord {
 
     /// Returns whether the key was observed as non-exportable.
     #[must_use]
-    pub const fn non_exportable(&self) -> bool {
-        self.non_exportable
+    pub const fn exportability(&self) -> Exportability {
+        self.exportability
     }
 
     /// Returns when the attestation was observed.
@@ -194,7 +201,7 @@ pub struct HsmAttestationEvidence {
     protection_level: String,
     key_handle_digest: [u8; 32],
     device_chain_digest: [u8; 32],
-    non_exportable: bool,
+    exportability: Exportability,
     transaction_digest: [u8; 32],
 }
 
@@ -208,7 +215,7 @@ impl HsmAttestationEvidence {
             protection_level: record.protection_level.clone(),
             key_handle_digest: record.key_handle_digest,
             device_chain_digest: record.device_chain_digest,
-            non_exportable: record.non_exportable,
+            exportability: record.exportability,
             transaction_digest: Sha256::digest(signing_preimage).into(),
         }
     }
@@ -226,7 +233,10 @@ impl HsmAttestationEvidence {
         write_text(&mut output, &self.protection_level)?;
         output.extend_from_slice(&self.key_handle_digest);
         output.extend_from_slice(&self.device_chain_digest);
-        output.push(u8::from(self.non_exportable));
+        output.push(u8::from(matches!(
+            self.exportability,
+            Exportability::NonExportable
+        )));
         output.extend_from_slice(&self.transaction_digest);
         Ok(output)
     }
@@ -247,9 +257,9 @@ impl HsmAttestationEvidence {
         let protection_level = reader.text()?;
         let key_handle_digest = reader.array()?;
         let device_chain_digest = reader.array()?;
-        let non_exportable = match reader.byte()? {
-            0 => false,
-            1 => true,
+        let exportability = match reader.byte()? {
+            0 => Exportability::Exportable,
+            1 => Exportability::NonExportable,
             _ => return Err(HsmError::InvalidEvidence),
         };
         let transaction_digest = reader.array()?;
@@ -262,7 +272,7 @@ impl HsmAttestationEvidence {
             protection_level,
             key_handle_digest,
             device_chain_digest,
-            non_exportable,
+            exportability,
             transaction_digest,
         })
     }
@@ -324,7 +334,10 @@ impl PrincipalMethod for HsmAttestedMethod {
             components.push(record.protection_level.as_bytes().to_vec());
             components.push(record.key_handle_digest.to_vec());
             components.push(record.device_chain_digest.to_vec());
-            components.push(vec![u8::from(record.non_exportable)]);
+            components.push(vec![u8::from(matches!(
+                record.exportability,
+                Exportability::NonExportable
+            ))]);
             components.push(record.observed_at.get().to_be_bytes().to_vec());
             components.push(record.valid_until.get().to_be_bytes().to_vec());
         }
@@ -377,7 +390,7 @@ impl PrincipalMethod for HsmAttestedMethod {
             || attestation.protection_level != record.protection_level
             || attestation.key_handle_digest != record.key_handle_digest
             || attestation.device_chain_digest != record.device_chain_digest
-            || attestation.non_exportable != record.non_exportable
+            || attestation.exportability != record.exportability
             || attestation.transaction_digest
                 != <[u8; 32]>::from(Sha256::digest(input.signing_preimage))
         {
@@ -388,7 +401,7 @@ impl PrincipalMethod for HsmAttestedMethod {
             ("provider", record.provider.as_str()),
             ("level", record.protection_level.as_str()),
         ];
-        if record.non_exportable {
+        if matches!(record.exportability, Exportability::NonExportable) {
             parameters.push(("exportability", "non-exportable"));
         }
         let claims = vec![
@@ -575,7 +588,7 @@ mod tests {
             "fips-140-3-level-3".to_string(),
             [1; 32],
             [2; 32],
-            true,
+            Exportability::NonExportable,
             Timestamp::new(10),
             Timestamp::new(30),
         )

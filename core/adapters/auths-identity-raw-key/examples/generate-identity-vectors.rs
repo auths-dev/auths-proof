@@ -39,9 +39,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut trailing = public_packet.clone();
     trailing.push(0);
     let forged = PublicIdentity::new(
-        identity.method_id(),
+        identity.method_id().as_str(),
         identity.identity_id(),
-        identity.suite_id(),
+        identity.suite_id().as_str(),
         vec![9; public_key.len()],
     )?;
     let forged_relationship = IdentityPacket::PublicIdentity(forged).encode()?;

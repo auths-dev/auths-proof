@@ -938,10 +938,10 @@ fn identity_descriptor_value(descriptor: &IdentityDescriptor) -> Value {
             serde_json::json!({
                 "relationshipId": relationship.relationship_id(),
                 "purpose": relationship.purpose(),
-                "suiteId": relationship.suite_id(),
+                "suiteId": relationship.suite_id().as_str(),
                 "verificationMaterial": relationship.verification_material().iter().map(|material| {
                     serde_json::json!({
-                        "materialId": material.material_id(),
+                        "materialId": material.material_id().as_str(),
                         "bytes": material.bytes(),
                     })
                 }).collect::<Vec<_>>(),
@@ -949,7 +949,7 @@ fn identity_descriptor_value(descriptor: &IdentityDescriptor) -> Value {
         })
         .collect::<Vec<_>>();
     serde_json::json!({
-        "methodId": descriptor.method_id(),
+        "methodId": descriptor.method_id().as_str(),
         "identityId": descriptor.identity_id(),
         "methodMaterial": descriptor.method_material(),
         "relationships": relationships,
@@ -1015,9 +1015,9 @@ pub struct IdentityFieldsV2 {
 impl From<&PublicIdentity> for IdentityFieldsV2 {
     fn from(identity: &PublicIdentity) -> Self {
         Self {
-            method_id: identity.method_id().to_owned(),
+            method_id: identity.method_id().as_str().to_owned(),
             identity_id: identity.identity_id().to_owned(),
-            suite_id: identity.suite_id().to_owned(),
+            suite_id: identity.suite_id().as_str().to_owned(),
             public_key: identity.public_key().to_vec(),
         }
     }

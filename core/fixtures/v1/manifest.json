@@ -47,7 +47,7 @@
         "origins": [
           "https://auths.example"
         ],
-        "require_user_verification": true,
+        "user_verification": "Required",
         "counter_policy": {
           "kind": "greater-than",
           "value": 0
@@ -65,7 +65,7 @@
         "origins": [
           "https://auths.example"
         ],
-        "require_user_verification": true,
+        "user_verification": "Required",
         "counter_policy": {
           "kind": "greater-than",
           "value": 0
@@ -86,7 +86,7 @@
         "protection_level": "non-exportable",
         "key_handle_digest": "2929292929292929292929292929292929292929292929292929292929292929",
         "device_chain_digest": "2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a",
-        "non_exportable": true,
+        "exportability": "NonExportable",
         "observed_at": 40,
         "valid_until": 60
       },
@@ -100,7 +100,7 @@
         "protection_level": "non-exportable",
         "key_handle_digest": "2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d",
         "device_chain_digest": "2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e",
-        "non_exportable": true,
+        "exportability": "NonExportable",
         "observed_at": 40,
         "valid_until": 60
       }
@@ -112,19 +112,19 @@
           "roots": [
             "308201353081e8a00302010202013c300506032b65703021311f301d06035504030c16726367656e2073656c66207369676e656420636572743020170d3730303130313030303030305a180f32303939303130313030303030305a3021311f301d06035504030c16726367656e2073656c66207369676e65642063657274302a300506032b65700321005526f742941711b3bc530ba44ff6f6dab0f0ab71af832f41a7fe3b9fdaed9c60a3433041300f0603551d0f0101ff04050303078600301d0603551d0e04160414c8d9297cb8efc16c628f96cf0d16af41e65d9939300f0603551d130101ff040530030101ff300506032b6570034100ffea82cabe23a5123d01469da752e40b3c1bdc69032859629af284eebc3ed50bddaed956240d73d54d8b6a65b5418efb789df4c2635b9a5611e23be150ce5f0f"
           ],
-          "require_status": true
+          "status_requirement": "Required"
         }
       ],
       "status": [
         {
           "leaf_digest": "b20ac04447d668bfff409a28cb362037df88ef83f24f4f06c3615b3f6ca7f6ce",
-          "active": true,
+          "status": "Active",
           "observed_at": 40,
           "valid_until": 60
         },
         {
           "leaf_digest": "f5dc0f70f8402d4f2245e6d121fc62885f36dede49aa335ff77c3784bd3c5ef1",
-          "active": true,
+          "status": "Active",
           "observed_at": 40,
           "valid_until": 60
         }

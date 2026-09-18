@@ -3,7 +3,7 @@
 #![no_std]
 #![forbid(unsafe_code)]
 
-use auths_identity::{IdentityError, SignatureVerifier};
+use auths_identity::{IdentityError, IdentitySuiteId, SignatureVerifier};
 use auths_signature_core::{Ed25519Error, verify_ed25519};
 
 pub use auths_signature_core::ED25519_V1;
@@ -11,8 +11,8 @@ pub use auths_signature_core::ED25519_V1;
 pub struct Ed25519Verifier;
 
 impl SignatureVerifier for Ed25519Verifier {
-    fn suite_id(&self) -> &'static str {
-        ED25519_V1
+    fn suite_id(&self) -> IdentitySuiteId {
+        IdentitySuiteId::parse(ED25519_V1).expect("registered Ed25519 identity suite")
     }
 
     fn verify(

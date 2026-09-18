@@ -179,6 +179,7 @@ impl std::error::Error for EvidenceAssemblyError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use auths_hsm_attested::Exportability;
     use auths_model::Timestamp;
     use auths_signature::Ed25519Suite;
     use ed25519_dalek::SigningKey;
@@ -194,7 +195,7 @@ mod tests {
             "hardware".into(),
             [1; 32],
             [2; 32],
-            true,
+            Exportability::NonExportable,
             Timestamp::new(1),
             Timestamp::new(10),
         )

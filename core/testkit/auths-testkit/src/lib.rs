@@ -14,24 +14,24 @@ use auths_did_keri::{
 use auths_did_key::{DID_KEY_MEDIA_TYPE, DID_KEY_V1, DidKeyEvidence};
 use auths_did_web::{DID_WEB_MEDIA_TYPE, DID_WEB_V1, DidWebEvidence, DidWebTrustRecord};
 use auths_hsm_attested::{
-    HSM_ATTESTED_MEDIA_TYPE, HSM_ATTESTED_V1, HsmAttestationEvidence, HsmKeyRecord,
+    Exportability, HSM_ATTESTED_MEDIA_TYPE, HSM_ATTESTED_V1, HsmAttestationEvidence, HsmKeyRecord,
 };
 use auths_model::{
     AcceptedRegistries, ActionConstraint, ActionEnvelope, AssuranceClaimId, AssurancePolicy,
     AssurancePolicyId, AssuranceQuantifier, AssuranceRequirement, AttachmentDescriptor,
     AttachmentDigest, Audience, AudienceSet, AuthorizationPlan, BudgetAlgebraId, BudgetCeiling,
     BundleHeader, CanonicalAction, CapabilityId, Challenge, ChannelBindingId,
-    CompositionRequirement, ControlBinding, CriticalExtension, CriticalExtensions, DenialReason,
-    DetachedAttachment, Digest, DispositionId, EvidenceId, EvidenceObject, EvidenceTypeId,
-    ExtensionId, FreshnessLimit, GrantId, GrantState, GrantStatement, GrantStatusSnapshot,
-    GrantStatusStatement, LimitKind, MediaType, ParticipantRole, Permission, PermissionSet, PlanId,
-    PrincipalId, PrincipalMethodId, PrincipalState, PrincipalStatusSnapshot,
-    PrincipalStatusStatement, ProfileId, ProfilePolicyId, ProfileRef, ProofBundle, ProofRef,
-    PurposeId, RegistryManifestId, Requirement, ResourceId, ResourceMatcherId, SignatureBytes,
-    SignatureDescriptor, SignatureEnvelope, SignatureSuiteId, SignedAction, SignedGrant,
-    SignedGrantStatus, SignedPrincipalStatus, StatementRef, StatusMethodId, StatusPolicy,
-    StatusSnapshotId, Timestamp, TrustAnchor, TrustAnchorId, TrustedContext, ValidityWindow,
-    VerificationMethod, VerifierConfigurationId, VerifierLimits,
+    CompositionRequirement, Confidentiality, ControlBinding, CriticalExtension, CriticalExtensions,
+    DenialReason, DetachedAttachment, Digest, DispositionId, EvidenceId, EvidenceObject,
+    EvidenceTypeId, ExtensionId, FreshnessLimit, GrantId, GrantState, GrantStatement,
+    GrantStatusSnapshot, GrantStatusStatement, LimitKind, MediaType, Opacity, ParticipantRole,
+    Permission, PermissionSet, PlanId, Presence, PrincipalId, PrincipalMethodId, PrincipalState,
+    PrincipalStatusSnapshot, PrincipalStatusStatement, ProfileId, ProfilePolicyId, ProfileRef,
+    ProofBundle, ProofRef, PurposeId, RegistryManifestId, Requirement, ResourceId,
+    ResourceMatcherId, SignatureBytes, SignatureDescriptor, SignatureEnvelope, SignatureSuiteId,
+    SignedAction, SignedGrant, SignedGrantStatus, SignedPrincipalStatus, StatementRef,
+    StatusMethodId, StatusPolicy, StatusSnapshotId, Timestamp, TrustAnchor, TrustAnchorId,
+    TrustedContext, ValidityWindow, VerificationMethod, VerifierConfigurationId, VerifierLimits,
 };
 use auths_multikey::{Multikey, MultikeyType};
 use auths_path_webpki::WebPkiPathVerifier;
@@ -39,11 +39,13 @@ use auths_ports::{AlgorithmBinding, AlgorithmBindingSet, AlgorithmIdentifierDer,
 use auths_raw_key::{RAW_KEY_MEDIA_TYPE, RAW_KEY_V1, RawKeyDescriptor, RawKeyType};
 use auths_signature::{ED25519_V1, Ed25519Suite, P256_SHA256_V1, P256Sha256Suite};
 use auths_spiffe_x509::{
-    SPIFFE_X509_MEDIA_TYPE, SPIFFE_X509_V1, SpiffeError, SpiffeStatusRecord, SpiffeTrustDomain,
-    SpiffeX509Evidence, SpiffeX509Method, svid_verification_method,
+    LeafStatus, SPIFFE_X509_MEDIA_TYPE, SPIFFE_X509_V1, SpiffeError, SpiffeStatusRecord,
+    SpiffeTrustDomain, SpiffeX509Evidence, SpiffeX509Method, StatusRequirement,
+    svid_verification_method,
 };
 use auths_webauthn::{
-    CounterPolicy, WEBAUTHN_MEDIA_TYPE, WEBAUTHN_V1, WebAuthnCredential, WebAuthnEvidence,
+    CounterPolicy, UserVerification, WEBAUTHN_MEDIA_TYPE, WEBAUTHN_V1, WebAuthnCredential,
+    WebAuthnEvidence,
 };
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 use ed25519_dalek::{Signer as _, SigningKey as Ed25519SigningKey, pkcs8::EncodePrivateKey as _};
@@ -503,7 +505,7 @@ fn webauthn_credential(seed: u8) -> (P256SigningKey, WebAuthnCredential) {
         point.as_bytes().to_vec(),
         "auths.example".to_string(),
         vec!["https://auths.example".to_string()],
-        true,
+        UserVerification::Required,
         CounterPolicy::GreaterThan(0),
         Some("non-exportable".to_string()),
         Timestamp::new(40),
@@ -523,7 +525,7 @@ fn hsm_record(seed: u8) -> (Ed25519SigningKey, HsmKeyRecord) {
         "non-exportable".to_string(),
         [seed; 32],
         [seed.wrapping_add(1); 32],
-        true,
+        Exportability::NonExportable,
         Timestamp::new(40),
         Timestamp::new(60),
     )
@@ -594,11 +596,16 @@ fn spiffe_material_with_client_auth(seed: u8, client_auth: bool) -> SpiffeMateri
         trust: SpiffeTrustDomain::new(
             "auths.example".to_string(),
             vec![ca_certificate.der().to_vec()],
-            true,
+            StatusRequirement::Required,
         )
         .expect("SPIFFE trust"),
-        status: SpiffeStatusRecord::new(leaf_digest, true, Timestamp::new(40), Timestamp::new(60))
-            .expect("SVID status"),
+        status: SpiffeStatusRecord::new(
+            leaf_digest,
+            LeafStatus::Active,
+            Timestamp::new(40),
+            Timestamp::new(60),
+        )
+        .expect("SVID status"),
     }
 }
 
@@ -4611,12 +4618,20 @@ fn attachment_fixture(
             u64::try_from(bytes.len()).expect("small attachment")
         },
         DispositionId::parse("authorization-input").expect("disposition"),
-        matches!(
+        if matches!(
             variation,
             AttachmentVariation::OpaqueAllowed | AttachmentVariation::OpaqueDenied
-        ),
-        true,
-        matches!(variation, AttachmentVariation::OpaqueAllowed),
+        ) {
+            Confidentiality::Encrypted
+        } else {
+            Confidentiality::Plain
+        },
+        Presence::Required,
+        if matches!(variation, AttachmentVariation::OpaqueAllowed) {
+            Opacity::OpaqueAllowed
+        } else {
+            Opacity::MustBeInspectable
+        },
     );
     let descriptors = match variation {
         AttachmentVariation::Unused => Vec::new(),

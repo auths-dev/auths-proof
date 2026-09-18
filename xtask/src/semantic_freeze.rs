@@ -5,7 +5,7 @@ use crate::*;
 const INVENTORY_PATH: &str = "release/semantic-freeze.json";
 const INVENTORY_SCHEMA: &str = "auths.semantic-freeze/1";
 const VERSIONS_PATH: &str = "release/semantic-freeze-versions.toml";
-const PUBLIC_RUST_ROOTS: [&str; 10] = [
+const PUBLIC_RUST_ROOTS: [&str; 11] = [
     "auths",
     "auths-byte-channel",
     "auths-byte-channel-memory",
@@ -13,11 +13,12 @@ const PUBLIC_RUST_ROOTS: [&str; 10] = [
     "auths-identity-authority",
     "auths-identity-raw-key",
     "auths-iroh",
+    "auths-path-webpki",
     "auths-runtime",
     "auths-sdk",
     "auths-signature-ed25519",
 ];
-const PUBLIC_RUST_CLOSURE: [&str; 41] = [
+const PUBLIC_RUST_CLOSURE: [&str; 42] = [
     "auths",
     "auths-algebra-kernel",
     "auths-assurance",
@@ -42,6 +43,7 @@ const PUBLIC_RUST_CLOSURE: [&str; 41] = [
     "auths-model",
     "auths-multikey",
     "auths-operations",
+    "auths-path-webpki",
     "auths-ports",
     "auths-profile-api",
     "auths-profile-domains",

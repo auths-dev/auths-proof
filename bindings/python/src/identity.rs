@@ -257,9 +257,9 @@ fn projection(packet: &IdentityPacket) -> PyIdentityProjection {
         ),
     };
     PyIdentityProjection {
-        method_id: identity.method_id().to_owned(),
+        method_id: identity.method_id().as_str().to_owned(),
         identity_id: identity.identity_id().to_owned(),
-        suite_id: identity.suite_id().to_owned(),
+        suite_id: identity.suite_id().as_str().to_owned(),
         public_key: identity.public_key().to_vec(),
         packet_kind,
         message,
@@ -269,7 +269,7 @@ fn projection(packet: &IdentityPacket) -> PyIdentityProjection {
 
 fn descriptor_projection(descriptor: &IdentityDescriptor) -> PyIdentityDescriptorProjection {
     PyIdentityDescriptorProjection {
-        method_id: descriptor.method_id().to_owned(),
+        method_id: descriptor.method_id().as_str().to_owned(),
         identity_id: descriptor.identity_id().to_owned(),
         method_material: descriptor.method_material().to_vec(),
         relationships: descriptor
@@ -279,12 +279,15 @@ fn descriptor_projection(descriptor: &IdentityDescriptor) -> PyIdentityDescripto
                 (
                     relationship.relationship_id().to_owned(),
                     relationship.purpose().to_owned(),
-                    relationship.suite_id().to_owned(),
+                    relationship.suite_id().as_str().to_owned(),
                     relationship
                         .verification_material()
                         .iter()
                         .map(|material| {
-                            (material.material_id().to_owned(), material.bytes().to_vec())
+                            (
+                                material.material_id().as_str().to_owned(),
+                                material.bytes().to_vec(),
+                            )
                         })
                         .collect(),
                 )

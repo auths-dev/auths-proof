@@ -6,7 +6,9 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use auths_identity::{IdentityError, IdentityMethod, PublicIdentity, ValidatedIdentity};
+use auths_identity::{
+    IdentityError, IdentityMethod, IdentityMethodId, PublicIdentity, ValidatedIdentity,
+};
 use auths_model::SignatureSuiteId;
 use auths_raw_key_core::RawKeyDescriptorV2;
 
@@ -39,15 +41,15 @@ impl RawKeyIdentityMethod {
 }
 
 impl IdentityMethod for RawKeyIdentityMethod {
-    fn method_id(&self) -> &'static str {
-        RAW_KEY_V2
+    fn method_id(&self) -> IdentityMethodId {
+        IdentityMethodId::parse(RAW_KEY_V2).expect("registered raw-key identity method")
     }
 
     fn validate(&self, identity: &PublicIdentity) -> Result<(), IdentityError> {
-        if identity.method_id() != RAW_KEY_V2 {
+        if identity.method_id().as_str() != RAW_KEY_V2 {
             return Err(IdentityError::UnsupportedIdentityMethod);
         }
-        let suite_id = SignatureSuiteId::parse(identity.suite_id())
+        let suite_id = SignatureSuiteId::parse(identity.suite_id().as_str())
             .map_err(|_| IdentityError::InvalidIdentity)?;
         let descriptor = RawKeyDescriptorV2::new(suite_id, identity.public_key().to_vec())
             .map_err(map_raw_key_error)?;
@@ -82,7 +84,7 @@ mod tests {
         ] {
             let identity = RawKeyIdentityMethod::identity(suite, alloc::vec![7; length]).unwrap();
             identity.as_public_identity().validate(&method).unwrap();
-            assert_eq!(identity.suite_id(), suite);
+            assert_eq!(identity.suite_id().as_str(), suite);
             assert!(identity.identity_id().starts_with(PRINCIPAL_PREFIX));
         }
     }

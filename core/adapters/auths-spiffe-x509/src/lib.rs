@@ -41,12 +41,26 @@ const MAX_ROOTS: usize = 16;
 const MAX_STATUS_RECORDS: usize = 512;
 
 /// Verifier-local SPIFFE trust bundle and status policy.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StatusRequirement {
+    Required,
+    NotRequired,
+}
+
+/// Lifecycle state established for a leaf certificate.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LeafStatus {
+    Active,
+    Revoked,
+}
+
+/// Verifier-local SPIFFE trust bundle and status policy.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SpiffeTrustDomain {
     name: String,
     roots: Vec<Vec<u8>>,
     anchors: TrustAnchorSet,
-    require_status: bool,
+    status_requirement: StatusRequirement,
 }
 
 impl SpiffeTrustDomain {
@@ -59,7 +73,7 @@ impl SpiffeTrustDomain {
     pub fn new(
         name: String,
         mut roots: Vec<Vec<u8>>,
-        require_status: bool,
+        status_requirement: StatusRequirement,
     ) -> Result<Self, SpiffeError> {
         if !valid_trust_domain(&name) || roots.is_empty() || roots.len() > MAX_ROOTS {
             return Err(SpiffeError::InvalidTrustBundle);
@@ -80,7 +94,7 @@ impl SpiffeTrustDomain {
             name,
             roots,
             anchors,
-            require_status,
+            status_requirement,
         })
     }
 
@@ -98,8 +112,8 @@ impl SpiffeTrustDomain {
 
     /// Returns whether current leaf status is mandatory.
     #[must_use]
-    pub const fn requires_status(&self) -> bool {
-        self.require_status
+    pub const fn status_requirement(&self) -> StatusRequirement {
+        self.status_requirement
     }
 }
 
@@ -107,7 +121,7 @@ impl SpiffeTrustDomain {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SpiffeStatusRecord {
     leaf_digest: [u8; 32],
-    active: bool,
+    status: LeafStatus,
     observed_at: Timestamp,
     valid_until: Timestamp,
 }
@@ -120,7 +134,7 @@ impl SpiffeStatusRecord {
     /// Rejects inverted observation windows.
     pub fn new(
         leaf_digest: [u8; 32],
-        active: bool,
+        status: LeafStatus,
         observed_at: Timestamp,
         valid_until: Timestamp,
     ) -> Result<Self, SpiffeError> {
@@ -129,7 +143,7 @@ impl SpiffeStatusRecord {
         }
         Ok(Self {
             leaf_digest,
-            active,
+            status,
             observed_at,
             valid_until,
         })
@@ -143,8 +157,8 @@ impl SpiffeStatusRecord {
 
     /// Returns whether the leaf was active.
     #[must_use]
-    pub const fn is_active(&self) -> bool {
-        self.active
+    pub const fn status(&self) -> LeafStatus {
+        self.status
     }
 
     /// Returns when this status was observed.
@@ -319,11 +333,14 @@ impl PrincipalMethod for SpiffeX509Method {
             for root in &trust.roots {
                 components.push(root.clone());
             }
-            components.push(vec![u8::from(trust.require_status)]);
+            components.push(vec![u8::from(matches!(
+                trust.status_requirement,
+                StatusRequirement::Required
+            ))]);
         }
         for status in &self.status {
             components.push(status.leaf_digest.to_vec());
-            components.push(vec![u8::from(status.active)]);
+            components.push(vec![u8::from(matches!(status.status, LeafStatus::Active))]);
             components.push(status.observed_at.get().to_be_bytes().to_vec());
             components.push(status.valid_until.get().to_be_bytes().to_vec());
         }
@@ -412,10 +429,10 @@ impl PrincipalMethod for SpiffeX509Method {
                 && status.observed_at <= input.evaluation_time
                 && input.evaluation_time <= status.valid_until
         });
-        if status.is_some_and(|status| !status.active) {
+        if status.is_some_and(|status| matches!(status.status, LeafStatus::Revoked)) {
             return Err(PrincipalControlError::PrincipalRevoked);
         }
-        if trust.require_status && status.is_none() {
+        if matches!(trust.status_requirement, StatusRequirement::Required) && status.is_none() {
             return Err(PrincipalControlError::ExternalFactUnavailable);
         }
         let mut claims = vec![
@@ -737,13 +754,13 @@ mod tests {
         let forward = SpiffeTrustDomain::new(
             "auths.example".to_string(),
             vec![first.clone(), second.clone()],
-            false,
+            StatusRequirement::NotRequired,
         )
         .unwrap();
         let reverse = SpiffeTrustDomain::new(
             "auths.example".to_string(),
             vec![second.clone(), first.clone()],
-            false,
+            StatusRequirement::NotRequired,
         )
         .unwrap();
         assert_eq!(forward.roots(), reverse.roots());
@@ -753,7 +770,14 @@ mod tests {
         assert_eq!(forward_id, reverse_id);
 
         let changed_id = spiffe_method(
-            vec![SpiffeTrustDomain::new("auths.example".to_string(), vec![first], false).unwrap()],
+            vec![
+                SpiffeTrustDomain::new(
+                    "auths.example".to_string(),
+                    vec![first],
+                    StatusRequirement::NotRequired,
+                )
+                .unwrap(),
+            ],
             Vec::new(),
         )
         .configuration_id();
@@ -763,7 +787,7 @@ mod tests {
             SpiffeTrustDomain::new(
                 "auths.example".to_string(),
                 vec![second.clone(), second],
-                false,
+                StatusRequirement::NotRequired,
             ),
             Err(SpiffeError::InvalidTrustBundle)
         );
@@ -797,12 +821,15 @@ mod tests {
         let leaf = leaf_params.signed_by(&leaf_key, &ca, &ca_key).unwrap();
         let evidence = SpiffeX509Evidence::new(vec![leaf.der().to_vec()]).unwrap();
         let digest = evidence.leaf_digest();
-        let trust =
-            SpiffeTrustDomain::new("auths.example".to_string(), vec![ca.der().to_vec()], true)
-                .unwrap();
+        let trust = SpiffeTrustDomain::new(
+            "auths.example".to_string(),
+            vec![ca.der().to_vec()],
+            StatusRequirement::Required,
+        )
+        .unwrap();
         let status = SpiffeStatusRecord::new(
             digest,
-            true,
+            LeafStatus::Active,
             Timestamp::new(1_700_000_000),
             Timestamp::new(1_800_000_000),
         )
@@ -840,7 +867,7 @@ mod tests {
 
         let revoked = SpiffeStatusRecord::new(
             digest,
-            false,
+            LeafStatus::Revoked,
             Timestamp::new(1_700_000_000),
             Timestamp::new(1_800_000_000),
         )

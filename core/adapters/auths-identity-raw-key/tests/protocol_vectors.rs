@@ -11,8 +11,8 @@ use serde_json::Value;
 struct FrozenEd25519;
 
 impl auths_identity::SignatureVerifier for FrozenEd25519 {
-    fn suite_id(&self) -> &'static str {
-        ED25519_V1
+    fn suite_id(&self) -> auths_identity::IdentitySuiteId {
+        auths_identity::IdentitySuiteId::parse(ED25519_V1).unwrap()
     }
 
     fn verify(

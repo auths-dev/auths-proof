@@ -72,10 +72,10 @@ impl PrincipalFromIdentity for RawKeyV2AuthorityBridge {
         &self,
         identity: &ValidatedIdentity,
     ) -> Result<AuthorityIdentity, IdentityPromotionError> {
-        if identity.method_id() != RAW_KEY_V2 {
+        if identity.method_id().as_str() != RAW_KEY_V2 {
             return Err(IdentityPromotionError::UnsupportedMethod);
         }
-        let suite = SignatureSuiteId::parse(identity.suite_id())?;
+        let suite = SignatureSuiteId::parse(identity.suite_id().as_str())?;
         let descriptor = RawKeyDescriptorV2::new(suite.clone(), identity.public_key().to_vec())
             .map_err(|_| IdentityPromotionError::InvalidIdentity)?;
         if descriptor.identifier() != identity.identity_id() {
@@ -92,7 +92,7 @@ impl PrincipalFromIdentity for RawKeyV2AuthorityBridge {
             encoded,
         )?;
         let signature = SignatureDescriptor::new(
-            PrincipalMethodId::parse(identity.method_id())?,
+            PrincipalMethodId::parse(identity.method_id().as_str())?,
             VerificationMethod::parse(identity.identity_id())?,
             suite,
         );
@@ -137,14 +137,14 @@ impl core::error::Error for IdentityPromotionError {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use auths_identity::{IdentityError, IdentityMethod, PublicIdentity};
+    use auths_identity::{IdentityError, IdentityMethod, IdentityMethodId, PublicIdentity};
     use auths_identity_raw_key::RawKeyIdentityMethod;
 
     struct PermissiveRawKeyMethod;
 
     impl IdentityMethod for PermissiveRawKeyMethod {
-        fn method_id(&self) -> &str {
-            RAW_KEY_V2
+        fn method_id(&self) -> IdentityMethodId {
+            IdentityMethodId::parse(RAW_KEY_V2).unwrap()
         }
 
         fn validate(&self, _: &PublicIdentity) -> Result<(), IdentityError> {
@@ -177,11 +177,11 @@ mod tests {
         assert_eq!(authority.verification_material(), identity.public_key());
         assert_eq!(
             authority.signature_descriptor().principal_method().as_str(),
-            identity.method_id()
+            identity.method_id().as_str()
         );
         assert_eq!(
             authority.signature_descriptor().suite().as_str(),
-            identity.suite_id()
+            identity.suite_id().as_str()
         );
     }
 }

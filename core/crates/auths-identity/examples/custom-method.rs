@@ -1,10 +1,10 @@
-use auths_identity::{IdentityError, IdentityMethod, PublicIdentity};
+use auths_identity::{IdentityError, IdentityMethod, IdentityMethodId, PublicIdentity};
 
 struct ExampleP256Method;
 
 impl IdentityMethod for ExampleP256Method {
-    fn method_id(&self) -> &'static str {
-        "example:p256:v1"
+    fn method_id(&self) -> IdentityMethodId {
+        IdentityMethodId::parse("example:p256:v1").unwrap()
     }
 
     fn validate(&self, identity: &PublicIdentity) -> Result<(), IdentityError> {

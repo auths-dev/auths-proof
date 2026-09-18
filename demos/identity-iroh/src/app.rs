@@ -204,8 +204,8 @@ async fn status(State(state): State<AppState>) -> Json<StatusResponse> {
     Json(StatusResponse {
         schema: API_SCHEMA,
         server_principal: state.server_identity.identity_id().into(),
-        server_identity_method: state.server_identity.method_id().into(),
-        server_signature_suite: state.server_identity.suite_id().into(),
+        server_identity_method: state.server_identity.method_id().as_str().into(),
+        server_signature_suite: state.server_identity.suite_id().as_str().into(),
         server_public_key: hex::encode(state.server_identity.public_key()),
         server_iroh_endpoint_id: hex::encode(state.server_endpoint.id().as_bytes()),
         capability_api_required: false,
@@ -516,8 +516,8 @@ fn result_copy(experiment: Experiment, verified: bool) -> (&'static str, &'stati
 fn identity_view(identity: &PublicIdentity) -> IdentityView {
     IdentityView {
         principal: identity.identity_id().into(),
-        method: identity.method_id().into(),
-        suite: identity.suite_id().into(),
+        method: identity.method_id().as_str().into(),
+        suite: identity.suite_id().as_str().into(),
         public_key: hex::encode(identity.public_key()),
     }
 }

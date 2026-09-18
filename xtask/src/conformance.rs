@@ -643,7 +643,7 @@ pub(crate) fn corpus_adapter_context() -> Value {
                 "public_key": hex::encode(credential.public_key()),
                 "rp_id": credential.rp_id(),
                 "origins": credential.origins(),
-                "require_user_verification": credential.require_user_verification(),
+                "user_verification": format!("{:?}", credential.user_verification()),
                 "counter_policy": counter_policy,
                 "attestation_level": credential.attestation_level(),
                 "observed_at": credential.observed_at().get(),
@@ -664,7 +664,7 @@ pub(crate) fn corpus_adapter_context() -> Value {
                 "protection_level": record.protection_level(),
                 "key_handle_digest": hex::encode(record.key_handle_digest()),
                 "device_chain_digest": hex::encode(record.device_chain_digest()),
-                "non_exportable": record.non_exportable(),
+                "exportability": format!("{:?}", record.exportability()),
                 "observed_at": record.observed_at().get(),
                 "valid_until": record.valid_until().get(),
             })
@@ -677,7 +677,7 @@ pub(crate) fn corpus_adapter_context() -> Value {
             json!({
                 "name": trust.name(),
                 "roots": trust.roots().iter().map(hex::encode).collect::<Vec<_>>(),
-                "require_status": trust.requires_status(),
+                "status_requirement": format!("{:?}", trust.status_requirement()),
             })
         })
         .collect::<Vec<_>>();
@@ -686,7 +686,7 @@ pub(crate) fn corpus_adapter_context() -> Value {
         .map(|record| {
             json!({
                 "leaf_digest": hex::encode(record.leaf_digest()),
-                "active": record.is_active(),
+                "status": format!("{:?}", record.status()),
                 "observed_at": record.observed_at().get(),
                 "valid_until": record.valid_until().get(),
             })
