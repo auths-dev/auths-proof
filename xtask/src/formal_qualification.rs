@@ -13,7 +13,7 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "dd329a08f632fafdcd536ff4bba53ef67d8a9574240baeca54365097a47a9ee0";
+    "fcc75e6aeb66f47520c54ba934de113ea4efa861378d3522690971ed7d9fb452";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
     (
@@ -891,8 +891,10 @@ fn synchronize_reviewed_bridges(
 fn render_model_external() -> String {
     "-- REVIEWED TRANSPARENT MODEL FOR AN AENEAS STANDARD-LIBRARY EXTERNAL.\n\
 --\n\
--- Rust `String::as_bytes` is represented by Aeneas' exact UTF-8 `Str`\n\
--- conversion. This file contains no authority semantics and no axiom.\n\
+-- Rust string equality and ordering use Lean's exact String instances,\n\
+-- `String::as_bytes` uses Aeneas' exact UTF-8 `Str` conversion, and fixed\n\
+-- arrays are compared lexicographically through the translated element\n\
+-- `Ord` instance. This file contains no authority semantics and no axiom.\n\
 import Aeneas\n\
 import qualification.aeneas.generated.model.Types\n\
 \n\
@@ -903,6 +905,33 @@ set_option linter.hashCommand false\n\
 set_option linter.unusedVariables false\n\
 set_option maxHeartbeats 1000000\n\
 set_option maxRecDepth 2048\n\
+\n\
+private def compareLists {T : Type} (cmpOrdInst : core.cmp.Ord T) :\n\
+    List T → List T → Result Ordering\n\
+  | [], [] => ok .eq\n\
+  | [], _ :: _ => ok .lt\n\
+  | _ :: _, [] => ok .gt\n\
+  | left :: leftTail, right :: rightTail => do\n\
+      match ← cmpOrdInst.cmp left right with\n\
+      | .eq => compareLists cmpOrdInst leftTail rightTail\n\
+      | ordering => ok ordering\n\
+\n\
+@[rust_fun \"core::array::{core::cmp::Ord<[@T; @N]>}::cmp\"]\n\
+def Array.Insts.CoreCmpOrd.cmp\n\
+    {T : Type} {N : Std.Usize} (cmpOrdInst : core.cmp.Ord T)\n\
+    (left right : Array T N) : Result Ordering :=\n\
+  compareLists cmpOrdInst left.val right.val\n\
+\n\
+@[rust_fun\n\
+  \"alloc::string::{core::cmp::PartialEq<alloc::string::String, alloc::string::String>}::eq\"]\n\
+def alloc.string.String.Insts.CoreCmpPartialEqString.eq\n\
+    (left right : String) : Result Bool :=\n\
+  ok (left == right)\n\
+\n\
+@[rust_fun \"alloc::string::{core::cmp::Ord<alloc::string::String>}::cmp\"]\n\
+def alloc.string.String.Insts.CoreCmpOrd.cmp\n\
+    (left right : String) : Result Ordering :=\n\
+  ok (compare left right)\n\
 \n\
 @[rust_fun \"alloc::string::{alloc::string::String}::as_bytes\"]\n\
 def alloc.string.String.as_bytes (value : String) : Result (Slice Std.U8) :=\n\
