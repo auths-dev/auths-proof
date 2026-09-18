@@ -80,8 +80,8 @@ impl CertificatePathVerifier for WebPkiPathVerifier {
 
     fn verify(&self, input: PathInput<'_>) -> Result<VerifiedLeaf, PathError> {
         let leaf_der = WebPkiCertificateDer::from(input.leaf.as_bytes());
-        let leaf = webpki::EndEntityCert::try_from(&leaf_der)
-            .map_err(|error| map_webpki_error(&error))?;
+        let leaf =
+            webpki::EndEntityCert::try_from(&leaf_der).map_err(|error| map_webpki_error(&error))?;
         let intermediates: Vec<_> = input
             .intermediates
             .iter()
