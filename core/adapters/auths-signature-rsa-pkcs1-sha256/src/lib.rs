@@ -5,7 +5,7 @@
 
 use auths_model::{AdapterConfigurationId, ModelError, SignatureSuiteId};
 use auths_ports::{SignatureError, SignatureInput, SignatureSuite};
-use rsa::{RsaPublicKey, pkcs1::DecodeRsaPublicKey, pkcs1v15};
+use rsa::{RsaPublicKey, pkcs1::DecodeRsaPublicKey, pkcs1v15, traits::PublicKeyParts as _};
 use sha2::Sha256;
 use signature::Verifier as _;
 
@@ -15,6 +15,12 @@ pub struct RsaPkcs1Sha256Suite {
     id: SignatureSuiteId,
 }
 impl RsaPkcs1Sha256Suite {
+    /// Constructs the registered RSA PKCS#1 SHA-256 suite.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelError`] if the built-in suite identifier violates the
+    /// model registry grammar.
     pub fn new() -> Result<Self, ModelError> {
         Ok(Self {
             id: SignatureSuiteId::parse(RSA_PKCS1_SHA256_V1)?,
@@ -22,7 +28,6 @@ impl RsaPkcs1Sha256Suite {
     }
     fn key(bytes: &[u8]) -> Result<RsaPublicKey, SignatureError> {
         let key = RsaPublicKey::from_pkcs1_der(bytes).map_err(|_| SignatureError::InvalidKey)?;
-        use rsa::traits::PublicKeyParts as _;
         if !matches!(key.n().bits(), 2048 | 3072 | 4096)
             || key.e() != &rsa::BigUint::from(65_537_u32)
         {
