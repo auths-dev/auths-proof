@@ -473,15 +473,17 @@ fn clear_repository_lean_outputs(formal_root: &Path) -> Result<(), String> {
 }
 
 fn current_git_head() -> Result<String, String> {
-    Ok(command_output_in("git", &["rev-parse", "HEAD"], &root(), None)?
-        .trim()
-        .to_owned())
+    Ok(
+        command_output_in("git", &["rev-parse", "HEAD"], &root(), None)?
+            .trim()
+            .to_owned(),
+    )
 }
 
 fn formal_toolchain_digest() -> Result<String, String> {
     let path = root().join("formal/translation-toolchain.lock");
-    let bytes = fs::read(&path)
-        .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+    let bytes =
+        fs::read(&path).map_err(|error| format!("could not read {}: {error}", path.display()))?;
     Ok(hex::encode(Sha256::digest(bytes)))
 }
 
@@ -503,15 +505,9 @@ fn write_formal_phase_result(
         head_sha: current_git_head()?,
         run_id: required_formal_environment("GITHUB_RUN_ID")?,
         run_attempt: required_formal_environment("GITHUB_RUN_ATTEMPT")?,
-        planned_closure_sha256: required_formal_digest(
-            "AUTHS_FORMAL_PHASE_CLOSURE_SHA256",
-        )?,
-        toolchain_closure_sha256: required_formal_digest(
-            "AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256",
-        )?,
-        evidence_closure_sha256: required_formal_digest(
-            "AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256",
-        )?,
+        planned_closure_sha256: required_formal_digest("AUTHS_FORMAL_PHASE_CLOSURE_SHA256")?,
+        toolchain_closure_sha256: required_formal_digest("AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256")?,
+        evidence_closure_sha256: required_formal_digest("AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256")?,
         toolchain_lock_sha256: formal_toolchain_digest()?,
         source_closure_sha256: source_closure_sha256.to_owned(),
         execution: execution.to_owned(),
@@ -525,8 +521,7 @@ fn write_formal_phase_result(
     let mut bytes = serde_json::to_vec_pretty(&result)
         .map_err(|error| format!("could not encode formal {phase} result: {error}"))?;
     bytes.push(b'\n');
-    fs::write(&path, bytes)
-        .map_err(|error| format!("could not write {}: {error}", path.display()))
+    fs::write(&path, bytes).map_err(|error| format!("could not write {}: {error}", path.display()))
 }
 
 fn required_formal_digest(variable: &str) -> Result<String, String> {
@@ -573,12 +568,16 @@ fn validate_kani_toolchain() -> Result<(), String> {
     let rust = command_output_in("rustc", &["--version"], &root(), None)?;
     let rust_version = required("rust", "shipping")?;
     if !rust.contains(&format!("rustc {rust_version} ")) {
-        return Err(format!("formal shipping Rust drift: expected {rust_version}, found {rust}"));
+        return Err(format!(
+            "formal shipping Rust drift: expected {rust_version}, found {rust}"
+        ));
     }
     let kani = command_output_in("kani", &["--version"], &root(), None)?;
     let kani_version = required("kani", "version")?;
     if !kani.contains(kani_version) {
-        return Err(format!("formal Kani drift: expected {kani_version}, found {kani}"));
+        return Err(format!(
+            "formal Kani drift: expected {kani_version}, found {kani}"
+        ));
     }
     Ok(())
 }
@@ -898,9 +897,7 @@ fn validate_shipping_rust_toolchain(formal_root: &Path) -> Result<(), String> {
             .map_err(|error| format!("could not read {}: {error}", path.display()))?,
     )
     .map_err(|error| format!("invalid formal toolchain lock {}: {error}", path.display()))?;
-    if lock.get("schema").and_then(toml::Value::as_str)
-        != Some("auths-proof-formal-toolchain/v1")
-    {
+    if lock.get("schema").and_then(toml::Value::as_str) != Some("auths-proof-formal-toolchain/v1") {
         return Err("unsupported formal toolchain lock schema".to_owned());
     }
     let shipping_rust = lock

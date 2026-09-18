@@ -923,8 +923,8 @@ fn build_formal_ci_plan(
     let translation_changed = changed(FormalClosureKind::Translation);
     let toolchain_changed = changed(FormalClosureKind::Toolchain);
     let evidence_changed = changed(FormalClosureKind::Evidence);
-    let cold_required = formal_required
-        && (translation_changed || toolchain_changed || evidence_changed);
+    let cold_required =
+        formal_required && (translation_changed || toolchain_changed || evidence_changed);
     let default_reason = if !formal_required {
         FormalPlanReason::NotRequired
     } else if classification_uncertain {
@@ -990,7 +990,7 @@ fn digest_formal_closure(
 ) -> Result<String, String> {
     let listing = match revision {
         Some(revision) => git_stdout(root, &["ls-tree", "-r", "--name-only", revision])?,
-        None => git_stdout(root, &["ls-files"] )?,
+        None => git_stdout(root, &["ls-files"])?,
     };
     let mut paths = listing
         .lines()
@@ -1035,9 +1035,7 @@ fn formal_closure_contains(path: &str, kind: FormalClosureKind) -> bool {
         || path.starts_with("product/policy/auths-bounded-policy/");
     let cargo_semantics = matches!(path, "Cargo.toml" | "Cargo.lock" | ".cargo/config.toml");
     match kind {
-        FormalClosureKind::Proof => {
-            path.starts_with("formal/") || path == "xtask/src/formal.rs"
-        }
+        FormalClosureKind::Proof => path.starts_with("formal/") || path == "xtask/src/formal.rs",
         FormalClosureKind::Translation => {
             translated_package
                 || cargo_semantics
@@ -1073,7 +1071,10 @@ fn formal_closure_contains(path: &str, kind: FormalClosureKind) -> bool {
                 || path == ".github/ci/phase-ownership.toml"
                 || path == ".github/ci/formal-update-policy-v1.toml"
                 || path.starts_with("xtask/ci-plan/")
-                || matches!(path, "xtask/src/formal.rs" | "xtask/src/formal_qualification.rs")
+                || matches!(
+                    path,
+                    "xtask/src/formal.rs" | "xtask/src/formal_qualification.rs"
+                )
         }
     }
 }
@@ -2592,10 +2593,7 @@ serde = "2"
             translated,
             FormalClosureKind::Translation
         ));
-        assert!(formal_closure_contains(
-            translated,
-            FormalClosureKind::Kani
-        ));
+        assert!(formal_closure_contains(translated, FormalClosureKind::Kani));
     }
 
     #[test]

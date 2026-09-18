@@ -1415,12 +1415,16 @@ fn validate_ci_workflow_gates(ci: &str) -> Result<(), String> {
         "needs.formal-kani-run.result == 'success'",
     ] {
         if !evidence_job.contains(required) {
-            return Err(format!("formal evidence aggregator omits required result `{required}`"));
+            return Err(format!(
+                "formal evidence aggregator omits required result `{required}`"
+            ));
         }
     }
     let gate_job = workflow_job_source(ci, "formal-translation")?;
     if !gate_job.contains("needs: [ci-plan, formal-evidence-run]") {
-        return Err("formal-translation gate does not consume the sole evidence aggregator".to_owned());
+        return Err(
+            "formal-translation gate does not consume the sole evidence aggregator".to_owned(),
+        );
     }
     let compliance_job = workflow_job_source(ci, "compliance-run")?;
     if !compliance_job.contains("if: always() && hashFiles('target/compliance/**') != ''") {

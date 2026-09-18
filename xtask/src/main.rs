@@ -93,9 +93,7 @@ fn dispatch(arguments: impl IntoIterator<Item = String>) -> Result<(), String> {
                     ci_formal_translation_reproduce()
                 }
                 [phase] if phase == "formal-translation-reuse" => ci_formal_translation_reuse(),
-                [phase] if phase == "formal-lean-authoritative" => {
-                    ci_formal_lean_authoritative()
-                }
+                [phase] if phase == "formal-lean-authoritative" => ci_formal_lean_authoritative(),
                 [phase] if phase == "formal-kani" => ci_formal_kani(),
                 [phase] if phase == "formal-evidence" => ci_formal_evidence(),
                 [phase] if phase == "compliance" => ci_compliance(),
