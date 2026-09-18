@@ -12,6 +12,13 @@ pub enum ImportError {
     Evidence,
 }
 
+/// Imports a Sigstore bundle into canonical chain and Rekor-entry evidence.
+///
+/// # Errors
+///
+/// Returns [`ImportError`] when JSON is malformed, the bundle shape or digest
+/// algorithm is unsupported, encoded material is invalid, or canonical Auths
+/// evidence cannot be constructed.
 pub fn import_bundle(bytes: &[u8]) -> Result<(Vec<u8>, Vec<u8>), ImportError> {
     let bundle: Value = serde_json::from_slice(bytes).map_err(|_| ImportError::Json)?;
     if bundle["mediaType"] != "application/vnd.dev.sigstore.bundle.v0.3+json" {
