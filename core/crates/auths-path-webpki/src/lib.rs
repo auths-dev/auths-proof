@@ -31,6 +31,11 @@ pub struct WebPkiPathVerifier {
 
 impl WebPkiPathVerifier {
     /// Constructs the fixed `webpki-v1` implementation.
+    ///
+    /// # Panics
+    ///
+    /// Panics only if the built-in `webpki-v1` identifier violates the
+    /// repository's identifier grammar.
     #[must_use]
     pub fn new() -> Self {
         let id = PathVerifierId::parse(IMPLEMENTATION_ID)
@@ -75,7 +80,8 @@ impl CertificatePathVerifier for WebPkiPathVerifier {
 
     fn verify(&self, input: PathInput<'_>) -> Result<VerifiedLeaf, PathError> {
         let leaf_der = WebPkiCertificateDer::from(input.leaf.as_bytes());
-        let leaf = webpki::EndEntityCert::try_from(&leaf_der).map_err(map_webpki_error)?;
+        let leaf = webpki::EndEntityCert::try_from(&leaf_der)
+            .map_err(|error| map_webpki_error(&error))?;
         let intermediates: Vec<_> = input
             .intermediates
             .iter()
@@ -91,7 +97,7 @@ impl CertificatePathVerifier for WebPkiPathVerifier {
             .iter()
             .map(webpki::anchor_from_trusted_cert)
             .collect::<Result<Vec<_>, _>>()
-            .map_err(map_webpki_error)?;
+            .map_err(|error| map_webpki_error(&error))?;
         let key_usage = required_key_usage(input.required_eku.as_der_content())?;
 
         leaf.verify_for_usage(
@@ -103,7 +109,7 @@ impl CertificatePathVerifier for WebPkiPathVerifier {
             None,
             None,
         )
-        .map_err(map_webpki_error)?;
+        .map_err(|error| map_webpki_error(&error))?;
 
         let (remainder, certificate) =
             parse_x509_certificate(input.leaf.as_bytes()).map_err(|_| PathError::Malformed)?;
@@ -184,7 +190,7 @@ fn der_tlv(bytes: &[u8], expected_tag: u8) -> Result<(usize, usize), PathError> 
 }
 
 #[allow(deprecated)]
-fn map_webpki_error(error: webpki::Error) -> PathError {
+fn map_webpki_error(error: &webpki::Error) -> PathError {
     match error {
         webpki::Error::CertExpired { .. } => PathError::Expired,
         webpki::Error::CertNotValidYet { .. } => PathError::NotYetValid,
