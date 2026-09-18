@@ -1,0 +1,35 @@
+name: OIDC workload live compatibility
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Exercise the offline adapter
+        run: cargo test -p auths-oidc-workload
+      - name: Record redacted GitHub token vocabulary
+        shell: bash
+        run: |
+          set -euo pipefail
+          audience="auths-oidc-workload-v1:compatibility-probe"
+          response="$(curl --fail-with-body --silent --show-error \
+            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${audience}")"
+          token="$(jq -r '.value' <<<"${response}")"
+          header="$(cut -d. -f1 <<<"${token}" | tr '_-' '/+' | base64 -d 2>/dev/null || true)"
+          payload="$(cut -d. -f2 <<<"${token}" | tr '_-' '/+' | base64 -d 2>/dev/null || true)"
+          jq -n --argjson header "${header}" --argjson payload "${payload}" \
+            '{schema:"auths.github-oidc-vocabulary/1",header_names:($header|keys|sort),claim_names:($payload|keys|sort)}' \
+            > oidc-vocabulary.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oidc-vocabulary
+          path: oidc-vocabulary.json

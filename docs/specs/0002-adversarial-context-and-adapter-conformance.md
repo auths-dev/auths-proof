@@ -58,6 +58,7 @@ a named seed, mutation identifier, and immutable configuration digest.
 | WebAuthn | [`core/adapters/auths-webauthn/src/lib.rs`](../../core/adapters/auths-webauthn/src/lib.rs) | credential registrations, origins, RP IDs, counters, validity, attestation policy |
 | HSM-attested | [`core/adapters/auths-hsm-attested/src/lib.rs`](../../core/adapters/auths-hsm-attested/src/lib.rs) | reviewed key and device records |
 | SPIFFE X.509 | [`core/adapters/auths-spiffe-x509/src/lib.rs`](../../core/adapters/auths-spiffe-x509/src/lib.rs) | trust-domain roots and optional leaf status |
+| OIDC workload | [`core/adapters/auths-oidc-workload/src/lib.rs`](../../core/adapters/auths-oidc-workload/src/lib.rs) | pinned issuer keys, profiles, policies, and token lifetime |
 
 ## 2. Conformance claims
 

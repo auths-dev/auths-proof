@@ -56,6 +56,17 @@ repository and make an accurate compatibility claim by following this process.
 4. Commit to the implementation, backend, enabled algorithms, and relevant
    dependency version, then run `core/conformance/v1/ports/path-verifier.json`.
 
+## Workload principal adapters
+
+1. Keep token or certificate acquisition outside the adapter and accept only
+   bounded immutable evidence.
+2. Pin issuer keys, algorithm bindings, workload policies, and time bounds in
+   the configuration commitment.
+3. Parse protected headers and claims through a closed vocabulary; reject
+   unknown decision-affecting input.
+4. Bind the authenticated workload identity to the exact statement key and
+   verification method, then run the adapter-specific adversarial manifest.
+
 ## Byte-channel adapters
 
 1. Implement `auths_byte_channel::BoundedByteChannel` without importing

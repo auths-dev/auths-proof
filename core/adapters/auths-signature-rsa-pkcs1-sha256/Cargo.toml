@@ -1,0 +1,23 @@
+[package]
+name = "auths-signature-rsa-pkcs1-sha256"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "RSA PKCS#1 v1.5 with SHA-256 signature suite for Auths"
+
+[features]
+default = ["std"]
+std = ["auths-model/std", "auths-ports/std", "rsa/std", "sha2/std"]
+
+[dependencies]
+auths-model.workspace = true
+auths-ports.workspace = true
+rsa.workspace = true
+sha2 = { workspace = true, features = ["oid"] }
+signature.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,413 @@
+extern crate alloc;
+
+use alloc::{string::String, vec::Vec};
+use auths_model::{BoundedSet, Digest};
+use sha2::{Digest as _, Sha256};
+
+use crate::{ConfigurationError, OidcError};
+
+pub const MAX_POLICIES: usize = 64;
+
+macro_rules! text_type {
+    ($name:ident, $max:expr, $validate:expr) => {
+        #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+        pub struct $name(String);
+        impl $name {
+            pub fn parse(value: &str) -> Result<Self, OidcError> {
+                if value.is_empty() || value.len() > $max || !($validate)(value) {
+                    return Err(OidcError::Claims(crate::ClaimError::InvalidValue));
+                }
+                Ok(Self(value.into()))
+            }
+            #[must_use]
+            pub fn as_str(&self) -> &str {
+                &self.0
+            }
+        }
+    };
+}
+
+fn no_control(value: &str) -> bool {
+    !value.bytes().any(|byte| byte.is_ascii_control())
+}
+
+fn issuer_url(value: &str) -> bool {
+    let Some(rest) = value.strip_prefix("https://") else {
+        return false;
+    };
+    let authority = rest.split('/').next().unwrap_or_default();
+    !authority.is_empty()
+        && !authority.contains('@')
+        && !value.contains(['?', '#'])
+        && !value
+            .bytes()
+            .any(|byte| byte.is_ascii_control() || byte == b' ')
+        && authority.bytes().all(|byte| !byte.is_ascii_uppercase())
+        && !authority.ends_with(":443")
+}
+
+text_type!(IssuerUrl, 512, issuer_url);
+text_type!(Subject, 1024, no_control);
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct Repository(String);
+impl Repository {
+    pub fn parse(value: &str) -> Result<Self, OidcError> {
+        let mut parts = value.split('/');
+        let owner = parts.next().unwrap_or_default();
+        let name = parts.next().unwrap_or_default();
+        if value.len() > 256
+            || owner.is_empty()
+            || name.is_empty()
+            || parts.next().is_some()
+            || !owner.bytes().all(repo_byte)
+            || !name.bytes().all(repo_byte)
+        {
+            return Err(OidcError::Claims(crate::ClaimError::InvalidValue));
+        }
+        Ok(Self(value.to_ascii_lowercase()))
+    }
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+    #[must_use]
+    pub fn owner(&self) -> &str {
+        self.0.split_once('/').map_or("", |pair| pair.0)
+    }
+}
+
+fn repo_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-')
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct RepositoryOwner(String);
+impl RepositoryOwner {
+    pub fn parse(value: &str) -> Result<Self, OidcError> {
+        if value.is_empty()
+            || value.len() > 64
+            || !value
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        {
+            return Err(OidcError::Claims(crate::ClaimError::InvalidValue));
+        }
+        Ok(Self(value.to_ascii_lowercase()))
+    }
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+macro_rules! numeric_id {
+    ($name:ident) => {
+        #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+        pub struct $name(u64);
+        impl $name {
+            pub fn parse(value: &str) -> Result<Self, OidcError> {
+                if value.is_empty()
+                    || value.starts_with('0')
+                    || !value.bytes().all(|b| b.is_ascii_digit())
+                {
+                    return Err(OidcError::Claims(crate::ClaimError::InvalidValue));
+                }
+                let value = value
+                    .parse::<u64>()
+                    .map_err(|_| OidcError::Claims(crate::ClaimError::InvalidValue))?;
+                if value == 0 {
+                    return Err(OidcError::Claims(crate::ClaimError::InvalidValue));
+                }
+                Ok(Self(value))
+            }
+            #[must_use]
+            pub const fn get(self) -> u64 {
+                self.0
+            }
+        }
+    };
+}
+numeric_id!(RepositoryId);
+numeric_id!(RepositoryOwnerId);
+
+text_type!(WorkflowPath, 256, |value: &str| {
+    (value.starts_with(".github/workflows/")
+        && (value.ends_with(".yml") || value.ends_with(".yaml")))
+        && !value.split('/').any(|segment| segment == "..")
+});
+text_type!(GitRef, 256, |value: &str| {
+    value.starts_with("refs/")
+        && !value.contains("..")
+        && !value.contains("//")
+        && !value.bytes().any(|b| b.is_ascii_control() || b == b' ')
+});
+text_type!(Environment, 256, no_control);
+text_type!(Actor, 64, |value: &str| {
+    let base = value.strip_suffix("[bot]").unwrap_or(value);
+    !base.is_empty() && base.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+});
+text_type!(EventName, 64, |value: &str| value
+    .bytes()
+    .all(|b| b.is_ascii_lowercase() || b == b'_'));
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct CommitSha(String);
+impl CommitSha {
+    pub fn parse(value: &str) -> Result<Self, OidcError> {
+        if value.len() != 40
+            || !value
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        {
+            return Err(OidcError::Claims(crate::ClaimError::InvalidValue));
+        }
+        Ok(Self(value.into()))
+    }
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum RunnerEnvironment {
+    GithubHosted,
+    SelfHosted,
+}
+impl RunnerEnvironment {
+    pub fn parse(value: &str) -> Result<Self, OidcError> {
+        match value {
+            "github-hosted" => Ok(Self::GithubHosted),
+            "self-hosted" => Ok(Self::SelfHosted),
+            _ => Err(OidcError::Claims(crate::ClaimError::InvalidValue)),
+        }
+    }
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::GithubHosted => "github-hosted",
+            Self::SelfHosted => "self-hosted",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct WorkflowRef {
+    pub repository: Repository,
+    pub path: WorkflowPath,
+    pub git_ref: GitRef,
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct WorkflowIdentity {
+    pub reference: WorkflowRef,
+    pub commit: CommitSha,
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum ReusableWorkflow {
+    Absent,
+    Present(WorkflowIdentity),
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct GenericIdentity {
+    pub issuer: IssuerUrl,
+    pub subject: Subject,
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct GithubIdentity {
+    pub issuer: IssuerUrl,
+    pub subject: Subject,
+    pub repository: Repository,
+    pub repository_id: RepositoryId,
+    pub owner: RepositoryOwner,
+    pub owner_id: RepositoryOwnerId,
+    pub workflow: WorkflowIdentity,
+    pub job_workflow: ReusableWorkflow,
+    pub git_ref: GitRef,
+    pub sha: CommitSha,
+    pub environment: Option<Environment>,
+    pub runner: Option<RunnerEnvironment>,
+    pub actor: Option<Actor>,
+    pub event: Option<EventName>,
+}
+impl GithubIdentity {
+    pub fn new(mut value: Self) -> Result<Self, OidcError> {
+        if value.owner.as_str() != value.repository.owner()
+            || value.workflow.reference.repository != value.repository
+        {
+            return Err(OidcError::Claims(crate::ClaimError::InconsistentIdentity));
+        }
+        if let ReusableWorkflow::Present(job) = &value.job_workflow
+            && job.reference.repository.as_str().is_empty()
+        {
+            return Err(OidcError::Claims(crate::ClaimError::InconsistentIdentity));
+        }
+        value.repository.0.make_ascii_lowercase();
+        Ok(value)
+    }
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum WorkloadIdentity {
+    Generic(GenericIdentity),
+    GithubActions(GithubIdentity),
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum WorkflowPin {
+    Exact {
+        path: WorkflowPath,
+        git_ref: GitRef,
+        commit: CommitSha,
+    },
+    AnyRef {
+        path: WorkflowPath,
+    },
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct GenericPolicy {
+    pub subject: Subject,
+}
+impl GenericPolicy {
+    #[must_use]
+    pub fn admits(&self, identity: &GenericIdentity) -> bool {
+        self.subject == identity.subject
+    }
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct GithubPolicy {
+    pub repository_id: RepositoryId,
+    pub owner_id: RepositoryOwnerId,
+    pub workflow: Option<WorkflowPin>,
+    pub git_ref: Option<GitRef>,
+    pub environment: Option<Environment>,
+}
+impl GithubPolicy {
+    #[must_use]
+    pub fn admits(&self, identity: &GithubIdentity) -> bool {
+        self.repository_id == identity.repository_id
+            && self.owner_id == identity.owner_id
+            && self.workflow.as_ref().is_none_or(|pin| match pin {
+                WorkflowPin::Exact {
+                    path,
+                    git_ref,
+                    commit,
+                } => {
+                    identity.workflow.reference.path == *path
+                        && identity.workflow.reference.git_ref == *git_ref
+                        && identity.workflow.commit == *commit
+                }
+                WorkflowPin::AnyRef { path } => identity.workflow.reference.path == *path,
+            })
+            && self
+                .git_ref
+                .as_ref()
+                .is_none_or(|value| identity.git_ref == *value)
+            && self
+                .environment
+                .as_ref()
+                .is_none_or(|value| identity.environment.as_ref() == Some(value))
+    }
+}
+
+pub type GenericPolicySet = BoundedSet<GenericPolicy, MAX_POLICIES>;
+pub type GithubPolicySet = BoundedSet<GithubPolicy, MAX_POLICIES>;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum IssuerProfile {
+    Generic { policies: GenericPolicySet },
+    GithubActions { policies: GithubPolicySet },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PolicyRejection {
+    ProfileMismatch,
+    NoPolicyAdmits,
+}
+
+#[derive(Clone, Debug)]
+pub struct AdmittedWorkload {
+    identity: WorkloadIdentity,
+    policy_digest: Digest,
+}
+impl AdmittedWorkload {
+    #[must_use]
+    pub const fn identity(&self) -> &WorkloadIdentity {
+        &self.identity
+    }
+    #[must_use]
+    pub const fn policy_digest(&self) -> Digest {
+        self.policy_digest
+    }
+}
+
+impl IssuerProfile {
+    pub fn admit(&self, identity: &WorkloadIdentity) -> Result<AdmittedWorkload, PolicyRejection> {
+        let encoded = match (self, identity) {
+            (Self::Generic { policies }, WorkloadIdentity::Generic(identity)) => policies
+                .as_slice()
+                .iter()
+                .find(|policy| policy.admits(identity))
+                .map(|p| p.subject.as_str().as_bytes().to_vec()),
+            (Self::GithubActions { policies }, WorkloadIdentity::GithubActions(identity)) => {
+                policies
+                    .as_slice()
+                    .iter()
+                    .find(|policy| policy.admits(identity))
+                    .map(|p| {
+                        let mut bytes = Vec::new();
+                        bytes.extend_from_slice(&p.repository_id.get().to_be_bytes());
+                        bytes.extend_from_slice(&p.owner_id.get().to_be_bytes());
+                        bytes
+                    })
+            }
+            _ => return Err(PolicyRejection::ProfileMismatch),
+        }
+        .ok_or(PolicyRejection::NoPolicyAdmits)?;
+        Ok(AdmittedWorkload {
+            identity: identity.clone(),
+            policy_digest: Digest::new(Sha256::digest(encoded).into()),
+        })
+    }
+
+    pub(crate) fn configuration_components(&self) -> Vec<Vec<u8>> {
+        match self {
+            Self::Generic { policies } => policies
+                .as_slice()
+                .iter()
+                .map(|p| p.subject.as_str().as_bytes().to_vec())
+                .collect(),
+            Self::GithubActions { policies } => policies
+                .as_slice()
+                .iter()
+                .map(|p| {
+                    let mut value = Vec::new();
+                    value.extend_from_slice(&p.repository_id.get().to_be_bytes());
+                    value.extend_from_slice(&p.owner_id.get().to_be_bytes());
+                    if let Some(reference) = &p.git_ref {
+                        value.extend_from_slice(reference.as_str().as_bytes());
+                    }
+                    if let Some(environment) = &p.environment {
+                        value.extend_from_slice(environment.as_str().as_bytes());
+                    }
+                    value
+                })
+                .collect(),
+        }
+    }
+}
+
+pub fn generic_policy_set(
+    values: Vec<GenericPolicy>,
+) -> Result<GenericPolicySet, ConfigurationError> {
+    BoundedSet::new(values).map_err(ConfigurationError::Policies)
+}
+pub fn github_policy_set(values: Vec<GithubPolicy>) -> Result<GithubPolicySet, ConfigurationError> {
+    BoundedSet::new(values).map_err(ConfigurationError::Policies)
+}

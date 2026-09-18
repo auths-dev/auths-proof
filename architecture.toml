@@ -70,6 +70,7 @@ no_std_packages = [
   "auths-did-key",
   "auths-did-web",
   "auths-hsm-attested",
+  "auths-oidc-workload",
   "auths-identity",
   "auths-identity-authority",
   "auths-identity-raw-key",
@@ -84,6 +85,7 @@ no_std_packages = [
   "auths-signature",
   "auths-signature-core",
   "auths-signature-ed25519",
+  "auths-signature-rsa-pkcs1-sha256",
   "auths-spiffe-x509",
   "auths-verifier",
   "auths-webauthn",
@@ -123,6 +125,7 @@ auths-enforcement = "product"
 auths-errors = "product"
 auths-evidence-assemblers = "product"
 auths-hsm-attested = "core"
+auths-oidc-workload = "core"
 auths-lab-matrix = "demos"
 auths-lab-wasm-bench = "demos"
 auths-live-lab = "demos"
@@ -201,6 +204,7 @@ auths-sdk = "product"
 auths-signature = "core"
 auths-signature-core = "core"
 auths-signature-ed25519 = "core"
+auths-signature-rsa-pkcs1-sha256 = "core"
 auths-spiffe-x509 = "core"
 auths-stores = "product"
 auths-testkit = "core"
@@ -221,8 +225,8 @@ roots = [
 allowed_workspace_dependencies = ["auths-identity", "auths-identity-raw-key", "auths-model", "auths-raw-key-core", "auths-signature-core"]
 
 [dependency_boundaries.principal-adapters]
-roots = ["auths-hsm-attested", "auths-spiffe-x509", "auths-webauthn"]
-allowed_workspace_dependencies = ["auths-model", "auths-ports"]
+roots = ["auths-hsm-attested", "auths-oidc-workload", "auths-spiffe-x509", "auths-webauthn"]
+allowed_workspace_dependencies = ["auths-model", "auths-ports", "auths-raw-key-core"]
 
 [dependency_boundaries.iroh-transport]
 roots = ["auths-iroh"]

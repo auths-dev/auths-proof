@@ -126,8 +126,12 @@ pub(crate) fn arch(update: bool) -> Result<(), String> {
                 .as_str()
                 .ok_or("dependency has no name")?;
             let dependency_layer = policy.packages.get(dependency_name);
-            const PRINCIPAL_ADAPTERS: [&str; 3] =
-                ["auths-hsm-attested", "auths-spiffe-x509", "auths-webauthn"];
+            const PRINCIPAL_ADAPTERS: [&str; 4] = [
+                "auths-hsm-attested",
+                "auths-oidc-workload",
+                "auths-spiffe-x509",
+                "auths-webauthn",
+            ];
             const PRINCIPAL_CRYPTO_DEPENDENCIES: [&str; 7] = [
                 "ed25519-dalek",
                 "p256",

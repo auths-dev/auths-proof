@@ -50,6 +50,7 @@ digraph auths_architecture {
   "auths-model" [group="core"];
   "auths-multikey" [group="core"];
   "auths-node" [group="product"];
+  "auths-oidc-workload" [group="core"];
   "auths-opentofu" [group="product"];
   "auths-opentofu-demo" [group="demos"];
   "auths-operations" [group="product"];
@@ -97,6 +98,7 @@ digraph auths_architecture {
   "auths-signature" [group="core"];
   "auths-signature-core" [group="core"];
   "auths-signature-ed25519" [group="core"];
+  "auths-signature-rsa-pkcs1-sha256" [group="core"];
   "auths-spiffe-x509" [group="core"];
   "auths-stores" [group="product"];
   "auths-stripe" [group="product"];
@@ -311,6 +313,10 @@ digraph auths_architecture {
   "auths-node" -> "auths-testkit" [label="dev"];
   "auths-node" -> "auths-verifier" [label="normal"];
   "auths-node" -> "auths-webauthn" [label="dev"];
+  "auths-oidc-workload" -> "auths-model" [label="normal"];
+  "auths-oidc-workload" -> "auths-ports" [label="normal"];
+  "auths-oidc-workload" -> "auths-raw-key-core" [label="normal"];
+  "auths-oidc-workload" -> "auths-signature" [label="dev"];
   "auths-opentofu" -> "auths-bounded-policy" [label="normal"];
   "auths-opentofu" -> "auths-codec" [label="normal"];
   "auths-opentofu" -> "auths-connections" [label="normal"];
@@ -433,6 +439,7 @@ digraph auths_architecture {
   "auths-proof-fuzz" -> "auths-hsm-attested" [label="normal"];
   "auths-proof-fuzz" -> "auths-model" [label="normal"];
   "auths-proof-fuzz" -> "auths-multikey" [label="normal"];
+  "auths-proof-fuzz" -> "auths-oidc-workload" [label="normal"];
   "auths-proof-fuzz" -> "auths-ports" [label="normal"];
   "auths-proof-fuzz" -> "auths-raw-key" [label="normal"];
   "auths-proof-fuzz" -> "auths-registries" [label="normal"];
@@ -610,6 +617,8 @@ digraph auths_architecture {
   "auths-signature" -> "auths-signature-ed25519" [label="dev"];
   "auths-signature-ed25519" -> "auths-identity" [label="normal"];
   "auths-signature-ed25519" -> "auths-signature-core" [label="normal"];
+  "auths-signature-rsa-pkcs1-sha256" -> "auths-model" [label="normal"];
+  "auths-signature-rsa-pkcs1-sha256" -> "auths-ports" [label="normal"];
   "auths-spiffe-x509" -> "auths-model" [label="normal"];
   "auths-spiffe-x509" -> "auths-path-webpki" [label="dev"];
   "auths-spiffe-x509" -> "auths-ports" [label="normal"];

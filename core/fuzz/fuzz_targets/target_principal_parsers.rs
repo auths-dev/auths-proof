@@ -5,6 +5,7 @@ use auths_did_key::DidKeyEvidence;
 use auths_did_web::DidWebEvidence;
 use auths_hsm_attested::HsmAttestationEvidence;
 use auths_multikey::Multikey;
+use auths_oidc_workload::jws::CompactJws;
 use auths_raw_key::RawKeyDescriptor;
 use auths_spiffe_x509::SpiffeX509Evidence;
 use auths_webauthn::WebAuthnEvidence;
@@ -15,6 +16,7 @@ fuzz_target!(|data: &[u8]| {
     let _ = KeriEvidence::decode(data, KeriLimits::standard());
     let _ = DidWebEvidence::decode(data);
     let _ = HsmAttestationEvidence::decode(data);
+    let _ = CompactJws::parse(data);
     let _ = SpiffeX509Evidence::decode(data);
     let _ = RawKeyDescriptor::decode(data);
     let _ = WebAuthnEvidence::decode(data);

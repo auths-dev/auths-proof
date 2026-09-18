@@ -44,9 +44,9 @@ pub(crate) fn adversarial_conformance(args: Vec<String>) -> Result<(), String> {
 
     let adapters_root = root().join("core/conformance/v1/adapters");
     let adapters = files_with_extension(&adapters_root, "json")?;
-    if adapters.len() != 7 {
+    if adapters.len() != 8 {
         return Err(format!(
-            "expected seven principal adapter manifests, found {}",
+            "expected eight principal adapter manifests, found {}",
             adapters.len()
         ));
     }
