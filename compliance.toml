@@ -306,6 +306,9 @@ transports = []
 configuration_inputs = ["sigstore-bundle-v0.3"]
 security_state = ["offline-certificate-chain", "offline-rekor-entry"]
 
+[packages.auths-sigstore-bundle-import.claims]
+core-api-consumer = ["product/tools/auths-sigstore-bundle-import/src/lib.rs#rejects_wrong_media_type_and_tlog_cardinality"]
+
 [packages.auths-lab-matrix]
 kind = "cargo"
 layer = "demos"
