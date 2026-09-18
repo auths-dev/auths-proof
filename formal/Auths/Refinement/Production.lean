@@ -552,6 +552,7 @@ def PermissionPrefixMissing
           (v := alloc.vec.Vec.deref currentSet) (i := index)
           (hbound := by simpa [alloc.vec.Vec.deref] using indexWithin) as
         ⟨currentPermission, currentPermissionEq⟩
+      simp only [alloc.vec.Vec.deref] at currentPermissionEq
       have currentInSet : currentPermission ∈ currentSet.val := by
         rw [currentPermissionEq]
         exact List.getElem_mem indexWithin
@@ -639,6 +640,7 @@ def PermissionPrefixContained
           (v := alloc.vec.Vec.deref currentChild) (i := index)
           (hbound := by simpa [alloc.vec.Vec.deref] using indexWithin) as
         ⟨currentPermission, currentPermissionEq⟩
+      simp only [alloc.vec.Vec.deref] at currentPermissionEq
       have currentInChild : currentPermission ∈ currentChild.val := by
         rw [currentPermissionEq]
         exact List.getElem_mem indexWithin
@@ -760,6 +762,7 @@ def AudiencePrefixMissing
           (v := alloc.vec.Vec.deref currentSet) (i := index)
           (hbound := by simpa [alloc.vec.Vec.deref] using indexWithin) as
         ⟨currentAudience, currentAudienceEq⟩
+      simp only [alloc.vec.Vec.deref] at currentAudienceEq
       have currentInSet : currentAudience ∈ currentSet.val := by
         rw [currentAudienceEq]
         exact List.getElem_mem indexWithin
@@ -848,6 +851,7 @@ def AudiencePrefixContained
           (v := alloc.vec.Vec.deref currentChild) (i := index)
           (hbound := by simpa [alloc.vec.Vec.deref] using indexWithin) as
         ⟨currentAudience, currentAudienceEq⟩
+      simp only [alloc.vec.Vec.deref] at currentAudienceEq
       have currentInChild : currentAudience ∈ currentChild.val := by
         rw [currentAudienceEq]
         exact List.getElem_mem indexWithin
@@ -962,6 +966,7 @@ def DigestPrefixMissing
           (v := alloc.vec.Vec.deref currentSet) (i := index)
           (hbound := by simpa [alloc.vec.Vec.deref] using indexWithin) as
         ⟨currentDigest, currentDigestEq⟩
+      simp only [alloc.vec.Vec.deref] at currentDigestEq
       have currentInSet : currentDigest ∈ currentSet.val := by
         rw [currentDigestEq]
         exact List.getElem_mem indexWithin
@@ -1049,6 +1054,7 @@ def DigestPrefixContained
           (v := alloc.vec.Vec.deref currentChild) (i := index)
           (hbound := by simpa [alloc.vec.Vec.deref] using indexWithin) as
         ⟨currentDigest, currentDigestEq⟩
+      simp only [alloc.vec.Vec.deref] at currentDigestEq
       have currentInChild : currentDigest ∈ currentChild.val := by
         rw [currentDigestEq]
         exact List.getElem_mem indexWithin
@@ -1137,6 +1143,7 @@ def DigestPrefixOnly
           (v := alloc.vec.Vec.deref currentSet) (i := index)
           (hbound := by simpa [alloc.vec.Vec.deref] using indexWithin) as
         ⟨currentDigest, currentDigestEq⟩
+      simp only [alloc.vec.Vec.deref] at currentDigestEq
       have currentInSet : currentDigest ∈ currentSet.val := by
         rw [currentDigestEq]
         exact List.getElem_mem indexWithin
