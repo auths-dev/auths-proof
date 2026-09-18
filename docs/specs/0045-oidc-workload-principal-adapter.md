@@ -647,7 +647,7 @@ AP-SPEC-048 and is not a prerequisite for this new adapter.
 An RS256 suite is required to consume GitHub Actions tokens and does not
 exist in the workspace. It is delivered as a separate crate,
 `auths-signature-rsa-pkcs1-sha256`, implementing `SignatureSuite` with
-identifier `rsa-pkcs1-sha256-v1` over `rsa` (`default-features = false`),
+identifier `rsa-pkcs1-sha256-v1` over `ring` (`default-features = false`),
 accepting only 2048, 3072, and 4096-bit moduli with exponent 65537 encoded
 as DER `RSAPublicKey`. It is reviewed as a suite under the existing suite
 rules, not as part of this adapter. A deployment that pins only ES256 or

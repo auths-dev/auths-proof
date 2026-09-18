@@ -10,14 +10,12 @@ description = "RSA PKCS#1 v1.5 with SHA-256 signature suite for Auths"
 
 [features]
 default = ["std"]
-std = ["auths-model/std", "auths-ports/std", "rsa/std", "sha2/std"]
+std = ["auths-model/std", "auths-ports/std", "ring/std"]
 
 [dependencies]
 auths-model.workspace = true
 auths-ports.workspace = true
-rsa.workspace = true
-sha2 = { workspace = true, features = ["oid"] }
-signature.workspace = true
+ring = { workspace = true, features = ["alloc"] }
 
 [lints]
 workspace = true

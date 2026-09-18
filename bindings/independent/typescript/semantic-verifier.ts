@@ -1017,7 +1017,7 @@ function webauthnControl(
   if (
     Buffer.from(authenticator.slice(0, 32)).compare(rpDigest) !== 0 ||
     (flags & 1) === 0 ||
-    (record.require_user_verification && (flags & 4) === 0) ||
+    (record.user_verification === "Required" && (flags & 4) === 0) ||
     (record.counter_policy.kind === "greater-than" &&
       (counter === 0 || counter <= record.counter_policy.value))
   ) throw denied("principal-method-mismatch");
@@ -1076,7 +1076,7 @@ function hsmControl(
     level !== record.protection_level ||
     Buffer.from(handle).compare(Buffer.from(record.key_handle_digest, "hex")) !== 0 ||
     Buffer.from(device).compare(Buffer.from(record.device_chain_digest, "hex")) !== 0 ||
-    (nonExportable === 1) !== record.non_exportable ||
+    (nonExportable === 1) !== (record.exportability === "NonExportable") ||
     Buffer.from(transaction).compare(sha256(preimage)) !== 0
   ) throw denied("principal-method-mismatch");
   const observedAt = BigInt(record.observed_at);
@@ -1134,8 +1134,10 @@ function spiffeControl(
     BigInt(candidate.observed_at) <= evaluationTime &&
     evaluationTime <= BigInt(candidate.valid_until)
   );
-  if (status && !status.active) throw denied("principal-revoked");
-  if (trust.require_status && !status) throw indeterminate("external-fact-unavailable");
+  if (status && status.status !== "Active") throw denied("principal-revoked");
+  if (trust.status_requirement === "Required" && !status) {
+    throw indeterminate("external-fact-unavailable");
+  }
   const claims: Claim[] = [
     { kind: "pki-chain-validated", observedAt: evaluationTime },
     { kind: "workload-attested", observedAt: evaluationTime },

@@ -242,7 +242,7 @@ packages = ["auths-assurance", "auths-byte-channel-memory", "auths-codec", "auth
 
 [[release_order]]
 tier = 2
-packages = ["auths-authority", "auths-did-keri", "auths-did-key", "auths-raw-key", "auths-registries", "auths-signature"]
+packages = ["auths-authority", "auths-did-keri", "auths-did-key", "auths-path-webpki", "auths-raw-key", "auths-registries", "auths-signature", "auths-signature-rsa-pkcs1-sha256"]
 
 [[release_order]]
 tier = 3
