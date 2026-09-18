@@ -12844,35 +12844,7 @@
     {
       "source": "auths-signature-rsa-pkcs1-sha256",
       "source_layer": "core",
-      "target": "rsa",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": [
-        "sha2"
-      ]
-    },
-    {
-      "source": "auths-signature-rsa-pkcs1-sha256",
-      "source_layer": "core",
-      "target": "sha2",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": [
-        "oid"
-      ]
-    },
-    {
-      "source": "auths-signature-rsa-pkcs1-sha256",
-      "source_layer": "core",
-      "target": "signature",
+      "target": "ring",
       "target_layer": null,
       "scope": "external",
       "kind": "normal",
