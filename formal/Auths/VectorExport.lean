@@ -18,6 +18,8 @@ def thresholdVector (required authorized indeterminate : Nat) : String :=
     "}"
 
 def thresholdVectors : List String :=
+  -- Keep the sampled counts within the deployment bound; the threshold
+  -- theorems themselves are unbounded and do not depend on this enumeration.
   (List.range Generated.exhaustiveThresholdBound).flatMap fun requiredIndex =>
     let required := requiredIndex + 1
     (List.range (Generated.exhaustiveThresholdBound + 1)).flatMap fun authorized =>
