@@ -23,8 +23,10 @@ require those names, not the implementation jobs ending in `-run`. A gate
 passes only when the planner safely skipped its implementation or the required
 implementation succeeded.
 
-The release workflow is intentionally comprehensive rather than selective; its
-single `release` job is also mapped in the manifest and remains a stable gate.
+The release workflow is intentionally comprehensive rather than selective. Its
+preparation and promotion jobs are mapped individually; `compare-and-stage`
+and `promote-github-prerelease` are the final gates for their respective
+operations.
 
 Cargo downloads and installed Cargo tools are cached, while complete `target/`
 directories are deliberately not cached. Authoritative, compliance, and

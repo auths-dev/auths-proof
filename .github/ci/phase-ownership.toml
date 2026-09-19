@@ -545,6 +545,36 @@ gate = false
 
 [[workflow_jobs]]
 file = ".github/workflows/release.yml"
-job = "release"
+job = "preparation-entry-gate"
+phase = "release"
+gate = false
+
+[[workflow_jobs]]
+file = ".github/workflows/release.yml"
+job = "official-preparation"
+phase = "release"
+gate = false
+
+[[workflow_jobs]]
+file = ".github/workflows/release.yml"
+job = "reproduction-preparation"
+phase = "release"
+gate = false
+
+[[workflow_jobs]]
+file = ".github/workflows/release.yml"
+job = "compare-and-stage"
+phase = "release"
+gate = true
+
+[[workflow_jobs]]
+file = ".github/workflows/release.yml"
+job = "promotion-entry-gate"
+phase = "release"
+gate = false
+
+[[workflow_jobs]]
+file = ".github/workflows/release.yml"
+job = "promote-github-prerelease"
 phase = "release"
 gate = true
