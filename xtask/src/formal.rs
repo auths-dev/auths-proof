@@ -2091,17 +2091,37 @@ mod phase_ordering {
         let body = qualification
             .split_once("pub(crate) fn qualify(")
             .expect("qualify is defined")
-            .1;
+            .1
+            .split_once("\n}\n")
+            .expect("qualify body ends")
+            .0;
+        let reproduce = body
+            .find("reproduce_translation(")
+            .expect("qualify reproduces and synchronizes translation before compiling");
         let call = body.find("build_and_audit()").expect(
             "qualify must invoke the compiled gate; without it qualification \
              could report success on Lean that never compiled",
         );
-        let synchronize = body
-            .find("synchronize_reviewed_bridges(")
-            .expect("qualify synchronizes reviewed bridges");
         assert!(
-            call > synchronize,
-            "the compiled gate must run AFTER bridges are synchronized"
+            call > reproduce,
+            "the compiled gate must run AFTER translation reproduction"
+        );
+        let reproducer = qualification
+            .split_once("fn reproduce_translation(")
+            .expect("shared reproducer is defined")
+            .1
+            .split_once("\n}\n")
+            .expect("shared reproducer body ends")
+            .0;
+        let translate = reproducer
+            .find("reproduce(root,")
+            .expect("shared reproducer translates source");
+        let synchronize = reproducer
+            .find("synchronize_reviewed_bridges(")
+            .expect("shared reproducer synchronizes reviewed bridges");
+        assert!(
+            translate < synchronize,
+            "the shared reproducer must synchronize bridges after translation"
         );
         let evidence = body
             .find("write_evidence(")

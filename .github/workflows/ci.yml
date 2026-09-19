@@ -573,6 +573,7 @@ jobs:
           path: |
             target/formal/lean-assurance-audit.json
             target/formal/logs/lean-authoritative.log
+            formal/assurance-manifest-v1.toml
           if-no-files-found: warn
           retention-days: 90
       - name: Record authoritative Lean timing
