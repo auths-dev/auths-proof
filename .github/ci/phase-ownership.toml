@@ -132,6 +132,18 @@ value = "demos/"
 phases = ["authoritative", "compliance", "secrets"]
 
 [[rules]]
+id = "examples"
+kind = "prefix"
+value = "examples/"
+phases = ["authoritative", "compliance", "secrets"]
+
+[[rules]]
+id = "interoperability-fixtures"
+kind = "prefix"
+value = "fixtures/"
+phases = ["authoritative", "compliance", "secrets", "release"]
+
+[[rules]]
 id = "bindings"
 kind = "prefix"
 value = "bindings/"
@@ -216,6 +228,30 @@ value = "docs/"
 phases = ["secrets"]
 
 [[rules]]
+id = "protocol-contracts"
+kind = "prefix"
+value = "protocol/"
+phases = ["authoritative", "compliance", "secrets", "release"]
+
+[[rules]]
+id = "release-control-and-evidence"
+kind = "prefix"
+value = "release/"
+phases = ["authoritative", "compliance", "secrets", "release"]
+
+[[rules]]
+id = "repository-scripts"
+kind = "prefix"
+value = "scripts/"
+phases = ["authoritative", "secrets"]
+
+[[rules]]
+id = "published-pdfs"
+kind = "prefix"
+value = "output/pdf/"
+phases = ["secrets", "release"]
+
+[[rules]]
 id = "agent-control"
 kind = "prefix"
 value = ".agents/"
@@ -286,6 +322,36 @@ id = "root-documentation"
 kind = "exact"
 value = "README.md"
 phases = ["secrets"]
+
+[[rules]]
+id = "pre-commit-policy"
+kind = "exact"
+value = ".pre-commit-config.yaml"
+phases = ["authoritative", "secrets"]
+
+[[rules]]
+id = "bounded-domain-inventory"
+kind = "exact"
+value = "bounded-domains.toml"
+phases = ["authoritative", "compliance", "secrets", "release"]
+
+[[rules]]
+id = "stripe-profile-inventory"
+kind = "exact"
+value = "stripe-profiles.toml"
+phases = ["authoritative", "compliance", "secrets", "release"]
+
+[[rules]]
+id = "public-api-chatgpt-notes"
+kind = "exact"
+value = "public_api_chatgpt.md"
+phases = ["secrets", "release"]
+
+[[rules]]
+id = "public-api-claude-notes"
+kind = "exact"
+value = "public_api_claude.md"
+phases = ["secrets", "release"]
 
 [[rules]]
 id = "contribution-policy"
