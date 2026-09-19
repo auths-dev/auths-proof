@@ -359,6 +359,14 @@ whose translation closure is unchanged, the job SHOULD reuse a successful
 translation artifact from an earlier workflow run or the protected base
 branch.
 
+If both clean reproductions are byte-identical but differ from the committed
+generated inventory, a same-repository pull request MUST package only the
+allowlisted generated paths through the bounded formal-update policy. The job
+MUST publish that update for the trusted updater, fail before authoritative
+Lean or evidence aggregation, and qualify only after the updater's unsigned
+commit triggers a new exact-head run. Non-pull-request events fail without
+writeback.
+
 The job MUST publish generated Lean, translation reports, the source-closure
 record, and a signed workflow attestation. It MUST NOT run the authored Lean
 proof build or Kani.
@@ -612,8 +620,10 @@ Every failure summary MUST include:
 - the next required action without suggesting an unsafe bypass.
 
 The updater bot remains responsible for bounded generated changes. A proof
-failure MUST NOT be reported as generated drift, and generated drift MUST stop
-before expensive CI exactly as it does today.
+failure MUST NOT be reported as generated drift. Drift detectable from the
+lightweight source closure MUST stop before expensive CI; drift discoverable
+only by executing the pinned translator MUST stop immediately after the
+translation phase and before authoritative Lean or evidence aggregation.
 
 ## 11. Security and failure behavior
 

@@ -363,9 +363,10 @@ pub(crate) fn ci_formal_proof_fast() -> Result<(), String> {
 /// Authoritative translation-only phase: two clean reproductions, byte
 /// comparison, and generated/report validation without compiling Lean.
 pub(crate) fn ci_formal_translation_reproduce() -> Result<(), String> {
+    let update = std::env::var("AUTHS_FORMAL_UPDATE_MODE").as_deref() == Ok("true");
     let attenuation_dimensions = prepare_formal_reproduction(false)?;
     let closure_digest =
-        formal_qualification::reproduce_only(&root(), &attenuation_dimensions, false)?;
+        formal_qualification::reproduce_only(&root(), &attenuation_dimensions, update)?;
     write_formal_phase_result("translation", &closure_digest, "executed", 2)?;
     println!("Formal translation phase: PASS (two byte-identical reproductions)");
     Ok(())
@@ -2187,6 +2188,8 @@ mod phase_ordering {
             .split_once("\n}\n")
             .expect("function body")
             .0;
+        assert!(translation.contains("AUTHS_FORMAL_UPDATE_MODE"));
+        assert!(translation.contains("&attenuation_dimensions, update"));
         assert!(translation.contains("reproduce_only("));
         assert!(!translation.contains("build_and_audit_formal("));
         assert!(!translation.contains("run_kani_harnesses("));

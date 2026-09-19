@@ -1364,11 +1364,16 @@ fn validate_ci_workflow_gates(ci: &str) -> Result<(), String> {
     let formal_job = workflow_job_source(ci, "formal-translation-run")?;
     if !formal_job.contains("compiler-cache: \"false\"")
         || !formal_job.contains("needs.formal-proof-fast.result == 'success'")
+        || !formal_job.contains("AUTHS_FORMAL_UPDATE_MODE")
+        || !formal_job.contains("formal-update-artifact create")
+        || !formal_job.contains("Preserve the bounded translation update")
+        || !formal_job
+            .contains("Stop qualification until generated translation is committed")
         || formal_job.contains("setup-lean")
         || formal_job.contains("kani-verifier")
     {
         return Err(
-            "hosted translation must wait for fast Lean, disable compiler caching, and exclude Lean/Kani"
+            "hosted translation must wait for fast Lean, disable compiler caching, package bounded generated drift, and exclude Lean/Kani"
                 .to_owned(),
         );
     }
@@ -2197,6 +2202,10 @@ needs: [ci-plan, formal-update-gate, repository-preflight, formal-proof-fast]
 needs.repository-preflight.result == 'success'
 needs.formal-proof-fast.result == 'success'
 compiler-cache: "false"
+AUTHS_FORMAL_UPDATE_MODE
+formal-update-artifact create
+Preserve the bounded translation update
+Stop qualification until generated translation is committed
 cargo xtask ci formal-translation-reproduce
 cargo xtask ci formal-translation-reuse
   formal-kani-run:

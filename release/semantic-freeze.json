@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 219,
+  "freezeVersion": 220,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -238,7 +238,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/source-closure.json",
-      "version": 39,
+      "version": 40,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -246,7 +246,7 @@
       "owners": [
         "formal/qualification/aeneas/source-closure.json"
       ],
-      "sha256": "1663f110b816122fac0c572710362e22d2d3b17849e394fcf0303766e1febb88"
+      "sha256": "ed4d88377c2a9c0da78e9d8b5a38f172d2c00cfdae7bf0756f36adc025559759"
     },
     {
       "id": "auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json",
@@ -1017,7 +1017,7 @@
     },
     {
       "id": "auths.release.evolution-contract",
-      "version": 37,
+      "version": 38,
       "classification": "frozen-meaning",
       "categories": [
         "version-axes",
@@ -1038,11 +1038,11 @@
         "release/fixtures/evolution",
         "xtask/src/evolution_policy.rs"
       ],
-      "sha256": "18624fca411d08e6256cc8188dfd4f5b77a6daaa34ac1c834c9160a3c8437ddb"
+      "sha256": "0375fd12c2f847893883ae0a0a85e2ccad90969aedcddd66433660cdf3144963"
     },
     {
       "id": "auths.release.public-surface",
-      "version": 217,
+      "version": 220,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1134,7 +1134,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "bdf42a812857e8f12d81d4a105e018afc295054413be1e11a16e4555853d5cce"
+      "sha256": "0a9974eecc9b89ef9801748a07ec5395edd85e732c97825dfe2a6555eace81c5"
     }
   ]
 }

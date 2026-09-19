@@ -353,10 +353,37 @@ jobs:
         env:
           AUTHS_AENEAS_BIN: ${{ github.workspace }}/target/formal-tools/bin/aeneas
           AUTHS_CHARON_BIN: ${{ github.workspace }}/target/formal-tools/bin/charon
+          AUTHS_FORMAL_UPDATE_MODE: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
           AUTHS_FORMAL_PHASE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_translation_digest }}
           AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_toolchain_digest }}
           AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_evidence_digest }}
         run: cargo xtask ci formal-translation-reproduce
+      - id: formal-update
+        name: Package a bounded translation update
+        if: github.event_name == 'pull_request' && needs.ci-plan.outputs.formal_cold_required == 'true'
+        run: >-
+          cargo run --locked -p auths-ci-plan --
+          formal-update-artifact create
+          --repository "${{ github.repository }}"
+          --workflow "${{ github.workflow }}"
+          --run-id "${{ github.run_id }}"
+          --run-attempt "${{ github.run_attempt }}"
+          --base-sha "${{ github.event.pull_request.base.sha }}"
+          --head-sha "${{ github.event.pull_request.head.sha }}"
+      - name: Preserve the bounded translation update
+        if: steps.formal-update.outputs.update_required == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-formal-update-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/formal-update/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 9
+      - name: Stop qualification until generated translation is committed
+        if: steps.formal-update.outputs.update_required == 'true'
+        run: |
+          echo "Generated Aeneas output drifted; the bounded updater will commit the reviewed artifact set."
+          exit 1
       - name: Locate protected-base translation evidence
         if: needs.ci-plan.outputs.formal_cold_required != 'true'
         env:
@@ -383,6 +410,7 @@ jobs:
           AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_evidence_digest }}
         run: cargo xtask ci formal-translation-reuse
       - name: Preserve reusable translation evidence
+        if: steps.formal-update.outputs.update_required != 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: auths-formal-translation-${{ github.run_id }}-${{ github.run_attempt }}
@@ -390,6 +418,7 @@ jobs:
           if-no-files-found: error
           retention-days: 90
       - name: Preserve translation phase result
+        if: steps.formal-update.outputs.update_required != 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: auths-formal-phase-translation-${{ github.run_id }}-${{ github.run_attempt }}
