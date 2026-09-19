@@ -324,7 +324,7 @@ pub(crate) fn formal(skip_kani: bool, update: bool) -> Result<(), String> {
 
 const FORMAL_PHASE_RESULT_SCHEMA: &str = "auths-proof-formal-phase-result/v1";
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct FormalPhaseResult {
     schema: String,
@@ -339,6 +339,16 @@ struct FormalPhaseResult {
     source_closure_sha256: String,
     execution: String,
     reproduction_count: u8,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    reused_from: Option<FormalReuseProducer>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct FormalReuseProducer {
+    run_id: String,
+    run_attempt: String,
+    head_sha: String,
 }
 
 /// Early Lean rejection gate. This intentionally emits no qualification
@@ -372,16 +382,108 @@ pub(crate) fn ci_formal_translation_reproduce() -> Result<(), String> {
     Ok(())
 }
 
-/// Reuse protected-base translation evidence after the planner proves that
-/// the translation, toolchain, and evidence closures are unchanged.
+/// Reuse protected-base or successful same-PR translation evidence only when
+/// the current translation, toolchain, and evidence closures all match.
 pub(crate) fn ci_formal_translation_reuse() -> Result<(), String> {
     let evidence = std::env::var_os("AUTHS_REUSED_TRANSLATION_EVIDENCE")
         .map(PathBuf::from)
         .ok_or("AUTHS_REUSED_TRANSLATION_EVIDENCE is required")?;
     let closure_digest = formal_qualification::validate_reusable_translation(&root(), &evidence)?;
-    write_formal_phase_result("translation", &closure_digest, "reused-protected-base", 2)?;
-    println!("Formal translation phase: REUSED (protected-base evidence)");
+    let prior = std::env::var_os("AUTHS_REUSED_TRANSLATION_PHASE_RESULT").map(PathBuf::from);
+    let producer = if let Some(path) = prior {
+        let bytes = fs::read(&path)
+            .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+        let result: FormalPhaseResult = serde_json::from_slice(&bytes)
+            .map_err(|error| format!("invalid reusable phase result: {error}"))?;
+        Some(validate_reusable_translation_phase(&result, &closure_digest)?)
+    } else {
+        None
+    };
+    let execution = if producer.is_some() {
+        "reused-pr-run"
+    } else {
+        "reused-protected-base"
+    };
+    write_formal_phase_result_with_producer(
+        "translation",
+        &closure_digest,
+        execution,
+        2,
+        producer,
+    )?;
+    println!("Formal translation phase: REUSED ({execution})");
     Ok(())
+}
+
+fn validate_reusable_translation_phase(
+    prior: &FormalPhaseResult,
+    source_closure_sha256: &str,
+) -> Result<FormalReuseProducer, String> {
+    let producer = FormalReuseProducer {
+        run_id: required_formal_environment("AUTHS_REUSED_RUN_ID")?,
+        run_attempt: required_formal_environment("AUTHS_REUSED_RUN_ATTEMPT")?,
+        head_sha: required_formal_environment("AUTHS_REUSED_HEAD_SHA")?,
+    };
+    let current_run_id = required_formal_environment("GITHUB_RUN_ID")?;
+    let translation_closure = required_formal_digest("AUTHS_FORMAL_PHASE_CLOSURE_SHA256")?;
+    let toolchain_closure = required_formal_digest("AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256")?;
+    let evidence_closure = required_formal_digest("AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256")?;
+    let toolchain_lock = formal_toolchain_digest()?;
+    let expected = FormalReuseInputs {
+        current_run_id: &current_run_id,
+        source_closure_sha256,
+        translation_closure_sha256: &translation_closure,
+        toolchain_closure_sha256: &toolchain_closure,
+        evidence_closure_sha256: &evidence_closure,
+        toolchain_lock_sha256: &toolchain_lock,
+    };
+    let matches = reusable_translation_result_matches(prior, &producer, &expected);
+    if !matches {
+        return Err(
+            "prior translation phase does not apply to the current exact inputs".to_owned(),
+        );
+    }
+    Ok(producer)
+}
+
+#[derive(Clone, Copy)]
+struct FormalReuseInputs<'a> {
+    current_run_id: &'a str,
+    source_closure_sha256: &'a str,
+    translation_closure_sha256: &'a str,
+    toolchain_closure_sha256: &'a str,
+    evidence_closure_sha256: &'a str,
+    toolchain_lock_sha256: &'a str,
+}
+
+fn reusable_translation_result_matches(
+    prior: &FormalPhaseResult,
+    producer: &FormalReuseProducer,
+    expected: &FormalReuseInputs<'_>,
+) -> bool {
+    producer.run_id != expected.current_run_id
+        && producer.run_id.parse::<u64>().is_ok()
+        && producer.run_attempt.parse::<u32>().is_ok()
+        && producer.head_sha.len() == 40
+        && producer
+            .head_sha
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+        && prior.schema == FORMAL_PHASE_RESULT_SCHEMA
+        && prior.phase == "translation"
+        && prior.run_id == producer.run_id
+        && prior.run_attempt == producer.run_attempt
+        && prior.head_sha == producer.head_sha
+        && prior.planned_closure_sha256 == expected.translation_closure_sha256
+        && prior.toolchain_closure_sha256 == expected.toolchain_closure_sha256
+        && prior.evidence_closure_sha256 == expected.evidence_closure_sha256
+        && prior.toolchain_lock_sha256 == expected.toolchain_lock_sha256
+        && prior.source_closure_sha256 == expected.source_closure_sha256
+        && matches!(
+            prior.execution.as_str(),
+            "executed" | "reused-protected-base" | "reused-pr-run"
+        )
+        && prior.reproduction_count == 2
 }
 
 /// Clean authoritative Lean build plus the existing assurance, qualification,
@@ -445,7 +547,13 @@ pub(crate) fn ci_formal_evidence() -> Result<(), String> {
             || result.toolchain_lock_sha256 != expected_toolchain_lock
             || result.source_closure_sha256 != expected_closure
             || expected_execution.is_some_and(|expected| result.execution != expected)
-            || (phase == "translation" && result.reproduction_count != 2)
+            || (phase == "translation"
+                && (result.reproduction_count != 2
+                    || !matches!(
+                        result.execution.as_str(),
+                        "executed" | "reused-protected-base" | "reused-pr-run"
+                    )
+                    || (result.execution == "reused-pr-run" && result.reused_from.is_none())))
         {
             return Err(format!(
                 "formal {phase} evidence is stale, malformed, or does not apply to head {expected_head}"
@@ -500,6 +608,22 @@ fn write_formal_phase_result(
     execution: &str,
     reproduction_count: u8,
 ) -> Result<(), String> {
+    write_formal_phase_result_with_producer(
+        phase,
+        source_closure_sha256,
+        execution,
+        reproduction_count,
+        None,
+    )
+}
+
+fn write_formal_phase_result_with_producer(
+    phase: &str,
+    source_closure_sha256: &str,
+    execution: &str,
+    reproduction_count: u8,
+    reused_from: Option<FormalReuseProducer>,
+) -> Result<(), String> {
     let result = FormalPhaseResult {
         schema: FORMAL_PHASE_RESULT_SCHEMA.to_owned(),
         phase: phase.to_owned(),
@@ -513,6 +637,7 @@ fn write_formal_phase_result(
         source_closure_sha256: source_closure_sha256.to_owned(),
         execution: execution.to_owned(),
         reproduction_count,
+        reused_from,
     };
     let path = formal_phase_result_path(phase);
     if let Some(parent) = path.parent() {
@@ -2045,6 +2170,75 @@ mod phase_ordering {
                 "lean_declaration": expected_mutation_declaration(identifier),
             })).collect::<Vec<_>>()
         })
+    }
+
+    #[test]
+    fn same_pr_translation_reuse_requires_exact_successful_phase() {
+        let digest = "a".repeat(64);
+        let producer = FormalReuseProducer {
+            run_id: "123".to_owned(),
+            run_attempt: "1".to_owned(),
+            head_sha: "b".repeat(40),
+        };
+        let prior = FormalPhaseResult {
+            schema: FORMAL_PHASE_RESULT_SCHEMA.to_owned(),
+            phase: "translation".to_owned(),
+            head_sha: producer.head_sha.clone(),
+            run_id: producer.run_id.clone(),
+            run_attempt: producer.run_attempt.clone(),
+            planned_closure_sha256: digest.clone(),
+            toolchain_closure_sha256: digest.clone(),
+            evidence_closure_sha256: digest.clone(),
+            toolchain_lock_sha256: digest.clone(),
+            source_closure_sha256: digest.clone(),
+            execution: "executed".to_owned(),
+            reproduction_count: 2,
+            reused_from: None,
+        };
+        let expected = FormalReuseInputs {
+            current_run_id: "456",
+            source_closure_sha256: &digest,
+            translation_closure_sha256: &digest,
+            toolchain_closure_sha256: &digest,
+            evidence_closure_sha256: &digest,
+            toolchain_lock_sha256: &digest,
+        };
+        let applies = |result: &FormalPhaseResult, source: &FormalReuseProducer| {
+            reusable_translation_result_matches(result, source, &expected)
+        };
+        assert!(applies(&prior, &producer));
+        let mut stale = prior.clone();
+        stale.planned_closure_sha256 = "c".repeat(64);
+        assert!(!applies(&stale, &producer));
+        stale = prior.clone();
+        stale.evidence_closure_sha256 = "c".repeat(64);
+        assert!(!applies(&stale, &producer));
+        stale = prior.clone();
+        stale.toolchain_closure_sha256 = "c".repeat(64);
+        assert!(!applies(&stale, &producer));
+        stale = prior.clone();
+        stale.toolchain_lock_sha256 = "c".repeat(64);
+        assert!(!applies(&stale, &producer));
+        stale = prior.clone();
+        stale.source_closure_sha256 = "c".repeat(64);
+        assert!(!applies(&stale, &producer));
+        stale = prior.clone();
+        stale.reproduction_count = 1;
+        assert!(!applies(&stale, &producer));
+        stale = prior.clone();
+        stale.execution = "fast-feedback".to_owned();
+        assert!(!applies(&stale, &producer));
+        stale = prior.clone();
+        stale.head_sha = "c".repeat(40);
+        assert!(!applies(&stale, &producer));
+        let mut wrong_producer = producer.clone();
+        wrong_producer.run_attempt = "2".to_owned();
+        assert!(!applies(&prior, &wrong_producer));
+        let same_run = FormalReuseInputs {
+            current_run_id: "123",
+            ..expected
+        };
+        assert!(!reusable_translation_result_matches(&prior, &producer, &same_run));
     }
 
     /// `formal qualify aeneas` must never compile Lean before it reproduces the

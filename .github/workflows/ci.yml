@@ -330,8 +330,58 @@ jobs:
         with:
           toolchain: 1.97.1
           compiler-cache: "false"
+      - id: prior-pr-translation
+        name: Reuse a successful same-PR translation only for identical inputs
+        if: github.event_name == 'pull_request' && needs.ci-plan.outputs.formal_cold_required == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTHS_PR_NUMBER: ${{ github.event.pull_request.number }}
+          AUTHS_FORMAL_PHASE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_translation_digest }}
+          AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_toolchain_digest }}
+          AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_evidence_digest }}
+        run: |
+          set -euo pipefail
+          echo 'reused=false' >> "$GITHUB_OUTPUT"
+          runs="$(gh api --method GET "repos/${GITHUB_REPOSITORY}/actions/runs" -f branch="$GITHUB_HEAD_REF" -f event=pull_request -f per_page=50)" || exit 0
+          mkdir -p target/reused-formal/pr-candidate
+          while IFS=$'\t' read -r run_id attempt head_sha; do
+            [[ "$run_id" != "$GITHUB_RUN_ID" ]] || continue
+            jobs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100")" || continue
+            jq -e --arg sha "$head_sha" '.jobs | any(.name == "formal translation" and .conclusion == "success" and .head_sha == $sha)' <<< "$jobs" >/dev/null || continue
+            artifacts="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100")" || continue
+            evidence_id="$(jq -r --arg name "auths-formal-translation-${run_id}-${attempt}" '.artifacts | map(select(.name == $name and .expired == false and .size_in_bytes <= 1048576)) | first | .id // empty' <<< "$artifacts")" || continue
+            phase_id="$(jq -r --arg name "auths-formal-phase-translation-${run_id}-${attempt}" '.artifacts | map(select(.name == $name and .expired == false and .size_in_bytes <= 1048576)) | first | .id // empty' <<< "$artifacts")" || continue
+            [[ -n "$evidence_id" && -n "$phase_id" ]] || continue
+            evidence_zip=target/reused-formal/pr-candidate/evidence.zip
+            phase_zip=target/reused-formal/pr-candidate/phase.zip
+            gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${evidence_id}/zip" > "$evidence_zip" || continue
+            gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${phase_id}/zip" > "$phase_zip" || continue
+            [[ "$(unzip -Z1 "$evidence_zip")" == 'aeneas-qualification.json' ]] || continue
+            [[ "$(unzip -Z1 "$phase_zip")" == 'translation.json' ]] || continue
+            evidence_size="$(unzip -l "$evidence_zip" | awk '$4 == "aeneas-qualification.json" {print $1}')" || continue
+            phase_size="$(unzip -l "$phase_zip" | awk '$4 == "translation.json" {print $1}')" || continue
+            [[ "$evidence_size" =~ ^[0-9]+$ && "$phase_size" =~ ^[0-9]+$ ]] || continue
+            [[ "$evidence_size" -le 1048576 && "$phase_size" -le 1048576 ]] || continue
+            evidence_path=target/reused-formal/pr-candidate/aeneas-qualification.json
+            phase_path=target/reused-formal/pr-candidate/translation.json
+            unzip -p "$evidence_zip" aeneas-qualification.json > "$evidence_path" || continue
+            unzip -p "$phase_zip" translation.json > "$phase_path" || continue
+            [[ "$(wc -c < "$evidence_path")" -le 1048576 && "$(wc -c < "$phase_path")" -le 1048576 ]] || continue
+            if AUTHS_REUSED_TRANSLATION_EVIDENCE="$evidence_path" \
+               AUTHS_REUSED_TRANSLATION_PHASE_RESULT="$phase_path" \
+               AUTHS_REUSED_RUN_ID="$run_id" \
+               AUTHS_REUSED_RUN_ATTEMPT="$attempt" \
+               AUTHS_REUSED_HEAD_SHA="$head_sha" \
+               cargo xtask ci formal-translation-reuse; then
+              echo 'reused=true' >> "$GITHUB_OUTPUT"
+              echo "Translation reused successful PR run ${run_id}, attempt ${attempt}, head ${head_sha}" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+          done < <(jq -r --arg repo "$GITHUB_REPOSITORY" --argjson pr "$AUTHS_PR_NUMBER" '.workflow_runs | map(select(.name == "CI" and .head_repository.full_name == $repo and any(.pull_requests[]?; .number == $pr))) | .[:20][] | [.id, .run_attempt, .head_sha] | @tsv' <<< "$runs")
+          echo 'No applicable successful same-PR translation; using two clean reproductions.' >> "$GITHUB_STEP_SUMMARY"
       - name: Reclaim disk for cold translation
-        if: needs.ci-plan.outputs.formal_cold_required == 'true'
+        if: needs.ci-plan.outputs.formal_cold_required == 'true' && steps.prior-pr-translation.outputs.reused != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -339,14 +389,14 @@ jobs:
           sudo docker system prune --all --force
           sudo apt-get clean
       - name: Install pinned Nix with the public Aeneas Cachix substitute
-        if: needs.ci-plan.outputs.formal_cold_required == 'true'
+        if: needs.ci-plan.outputs.formal_cold_required == 'true' && steps.prior-pr-translation.outputs.reused != 'true'
         uses: cachix/install-nix-action@ab739621df7a23f52766f9ccc97f38da6b7af14f # v31.10.5
         with:
           extra_nix_config: |
             extra-substituters = https://hacl.cachix.org
             extra-trusted-public-keys = hacl.cachix.org-1:FzsZ2xsByOwKwIWNPII7yMOelJNDZ12mDAj3d1eGX0c=
       - name: Acquire pinned Aeneas and Charon
-        if: needs.ci-plan.outputs.formal_cold_required == 'true'
+        if: needs.ci-plan.outputs.formal_cold_required == 'true' && steps.prior-pr-translation.outputs.reused != 'true'
         run: >-
           nix build
           --print-build-logs
@@ -355,7 +405,7 @@ jobs:
           github:AeneasVerif/aeneas/3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0#aeneas
           --out-link target/formal-tools
       - name: Reproduce translation twice
-        if: needs.ci-plan.outputs.formal_cold_required == 'true'
+        if: needs.ci-plan.outputs.formal_cold_required == 'true' && steps.prior-pr-translation.outputs.reused != 'true'
         env:
           AUTHS_AENEAS_BIN: ${{ github.workspace }}/target/formal-tools/bin/aeneas
           AUTHS_CHARON_BIN: ${{ github.workspace }}/target/formal-tools/bin/charon
@@ -366,7 +416,7 @@ jobs:
         run: cargo xtask ci formal-translation-reproduce
       - id: formal-update
         name: Package a bounded translation update
-        if: github.event_name == 'pull_request' && needs.ci-plan.outputs.formal_cold_required == 'true'
+        if: github.event_name == 'pull_request' && needs.ci-plan.outputs.formal_cold_required == 'true' && steps.prior-pr-translation.outputs.reused != 'true'
         env:
           AUTHS_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
@@ -443,7 +493,7 @@ jobs:
         with:
           phase: translation
           started-at: ${{ env.AUTHS_FORMAL_STARTED_AT }}
-          execution: ${{ needs.ci-plan.outputs.formal_cold_required == 'true' && 'executed-cold' || 'reused-protected-base' }}
+          execution: ${{ steps.prior-pr-translation.outputs.reused == 'true' && 'reused-pr-run' || needs.ci-plan.outputs.formal_cold_required == 'true' && 'executed-cold' || 'reused-protected-base' }}
 
   formal-kani-run:
     name: formal Kani
