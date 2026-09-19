@@ -401,6 +401,24 @@ gate = true
 
 [[workflow_jobs]]
 file = ".github/workflows/ci.yml"
+job = "formal-update-preflight"
+phase = "formal_translation"
+gate = false
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "formal-update-gate"
+phase = "formal_translation"
+gate = false
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "repository-preflight"
+phase = "planner"
+gate = false
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
 job = "authoritative"
 phase = "authoritative"
 gate = true
@@ -518,6 +536,12 @@ file = ".github/workflows/ci.yml"
 job = "records-api-live-run"
 phase = "records_api_live"
 gate = false
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "ci-qualified"
+phase = "planner"
+gate = true
 
 [[workflow_jobs]]
 file = ".github/workflows/formal-artifact-updater.yml"
