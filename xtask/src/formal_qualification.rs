@@ -1367,8 +1367,7 @@ fn validate_ci_workflow_gates(ci: &str) -> Result<(), String> {
         || !formal_job.contains("AUTHS_FORMAL_UPDATE_MODE")
         || !formal_job.contains("formal-update-artifact create")
         || !formal_job.contains("Preserve the bounded translation update")
-        || !formal_job
-            .contains("Stop qualification until generated translation is committed")
+        || !formal_job.contains("Stop qualification until generated translation is committed")
         || formal_job.contains("setup-lean")
         || formal_job.contains("kani-verifier")
     {
