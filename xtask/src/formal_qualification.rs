@@ -395,7 +395,10 @@ pub(crate) fn qualify(
 ///
 /// Hosted CI uses this phase to separate translator determinism from Lean
 /// compilation. The complete developer command still calls [`qualify`], which
-/// composes this exact reproducer with the authoritative build and audits.
+/// composes this exact reproducer with the authoritative build and audits. The
+/// pinned Lake package warning inventory is audited by authoritative Lean,
+/// where that dependency checkout exists, rather than coupling translation to
+/// Lean setup.
 pub(crate) fn reproduce_only(
     root: &Path,
     attenuation_dimensions: &[String],
@@ -405,7 +408,6 @@ pub(crate) fn reproduce_only(
         reproduce_translation(root, attenuation_dimensions, update)?;
     validate_generated_inventory(root, &qualification)?;
     validate_translation_reports(root, &qualification)?;
-    validate_warning_inventory(root, &qualification)?;
     write_evidence(root, &qualification, &closure_digest, true)?;
     println!("Production source closure:         {closure_digest}");
     println!("Clean reproduction:                byte-identical");
