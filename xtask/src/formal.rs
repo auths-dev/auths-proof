@@ -395,7 +395,10 @@ pub(crate) fn ci_formal_translation_reuse() -> Result<(), String> {
             .map_err(|error| format!("could not read {}: {error}", path.display()))?;
         let result: FormalPhaseResult = serde_json::from_slice(&bytes)
             .map_err(|error| format!("invalid reusable phase result: {error}"))?;
-        Some(validate_reusable_translation_phase(&result, &closure_digest)?)
+        Some(validate_reusable_translation_phase(
+            &result,
+            &closure_digest,
+        )?)
     } else {
         None
     };
@@ -2238,7 +2241,9 @@ mod phase_ordering {
             current_run_id: "123",
             ..expected
         };
-        assert!(!reusable_translation_result_matches(&prior, &producer, &same_run));
+        assert!(!reusable_translation_result_matches(
+            &prior, &producer, &same_run
+        ));
     }
 
     /// `formal qualify aeneas` must never compile Lean before it reproduces the

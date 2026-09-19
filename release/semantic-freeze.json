@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 227,
+  "freezeVersion": 228,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -202,7 +202,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/assurance-manifest-v1.toml",
-      "version": 21,
+      "version": 22,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -210,7 +210,7 @@
       "owners": [
         "formal/assurance-manifest-v1.toml"
       ],
-      "sha256": "226e51065c410888493455cb62febe1d87ad192cd9b278524a0a8902f7bf0441"
+      "sha256": "774163fec575600364f2fab3c89d830b5ab386f980d842d60215da05c1e60d44"
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/generated",
@@ -238,7 +238,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/source-closure.json",
-      "version": 44,
+      "version": 45,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -246,7 +246,7 @@
       "owners": [
         "formal/qualification/aeneas/source-closure.json"
       ],
-      "sha256": "ef43acfd26b7a65d1b4142216e1685b0f7987c764debe284c283e85fbba8bd86"
+      "sha256": "6da737b5f56f9d12d3cac088a49b561900c290d900aa6d6f85b7720097da05db"
     },
     {
       "id": "auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json",
@@ -1017,7 +1017,7 @@
     },
     {
       "id": "auths.release.evolution-contract",
-      "version": 42,
+      "version": 43,
       "classification": "frozen-meaning",
       "categories": [
         "version-axes",
@@ -1042,7 +1042,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 227,
+      "version": 228,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1134,7 +1134,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "341f9ecd336c73f3b8bc429118b1e49b22ca049bcd4a9a4252e56990e43f1827"
+      "sha256": "72caec8af5bcfbc0fc2ac0c8dc4a4184671b3dcaf0f0f1182a45ad467ef39d35"
     }
   ]
 }
