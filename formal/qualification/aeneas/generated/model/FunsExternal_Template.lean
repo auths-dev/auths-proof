@@ -15,6 +15,32 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 2048
 open auths_model
 
+/-- [core::array::{impl core::cmp::Ord for [T; N]}::cmp]:
+    Source: '/rustc/library/core/src/array/mod.rs', lines 438:4-438:45
+    Name pattern: [core::array::{core::cmp::Ord<[@T; @N]>}::cmp]
+    Visibility: public -/
+@[rust_fun "core::array::{core::cmp::Ord<[@T; @N]>}::cmp"]
+axiom Array.Insts.CoreCmpOrd.cmp
+  {T : Type} {N : Std.Usize} (cmpOrdInst : core.cmp.Ord T) :
+  Array T N → Array T N → Result Ordering
+
+/-- [alloc::string::{impl core::cmp::PartialEq<alloc::string::String> for alloc::string::String}::eq]:
+    Source: '/rustc/library/alloc/src/string.rs', lines 350:9-350:18
+    Name pattern: [alloc::string::{core::cmp::PartialEq<alloc::string::String, alloc::string::String>}::eq]
+    Visibility: public -/
+@[rust_fun
+  "alloc::string::{core::cmp::PartialEq<alloc::string::String, alloc::string::String>}::eq"]
+axiom alloc.string.String.Insts.CoreCmpPartialEqString.eq
+  : String → String → Result Bool
+
+/-- [alloc::string::{impl core::cmp::Ord for alloc::string::String}::cmp]:
+    Source: '/rustc/library/alloc/src/string.rs', lines 350:36-350:39
+    Name pattern: [alloc::string::{core::cmp::Ord<alloc::string::String>}::cmp]
+    Visibility: public -/
+@[rust_fun "alloc::string::{core::cmp::Ord<alloc::string::String>}::cmp"]
+axiom alloc.string.String.Insts.CoreCmpOrd.cmp
+  : String → String → Result Ordering
+
 /-- [alloc::string::{alloc::string::String}::as_bytes]:
     Source: '/rustc/library/alloc/src/string.rs', lines 1454:4-1454:41
     Name pattern: [alloc::string::{alloc::string::String}::as_bytes]

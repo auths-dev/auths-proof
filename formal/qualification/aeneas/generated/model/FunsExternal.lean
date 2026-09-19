@@ -16,32 +16,32 @@ set_option maxHeartbeats 1000000
 set_option maxRecDepth 2048
 
 private def compareLists {T : Type} (cmpOrdInst : core.cmp.Ord T) :
-    List T → List T → Result Ordering
-  | [], [] => ok .eq
-  | [], _ :: _ => ok .lt
-  | _ :: _, [] => ok .gt
-  | left :: leftTail, right :: rightTail => do
-      let ordering ← cmpOrdInst.cmp left right
-      match ordering with
-      | Ordering.eq => compareLists cmpOrdInst leftTail rightTail
-      | ordering => ok ordering
+List T → List T → Result Ordering
+| [], [] => ok .eq
+| [], _ :: _ => ok .lt
+| _ :: _, [] => ok .gt
+| left :: leftTail, right :: rightTail => do
+let ordering ← cmpOrdInst.cmp left right
+match ordering with
+| Ordering.eq => compareLists cmpOrdInst leftTail rightTail
+| ordering => ok ordering
 
 @[rust_fun "core::array::{core::cmp::Ord<[@T; @N]>}::cmp"]
 def Array.Insts.CoreCmpOrd.cmp
-    {T : Type} {N : Std.Usize} (cmpOrdInst : core.cmp.Ord T)
-    (left right : Array T N) : Result Ordering :=
-  compareLists cmpOrdInst left.val right.val
+{T : Type} {N : Std.Usize} (cmpOrdInst : core.cmp.Ord T)
+(left right : Array T N) : Result Ordering :=
+compareLists cmpOrdInst left.val right.val
 
 @[rust_fun
-  "alloc::string::{core::cmp::PartialEq<alloc::string::String, alloc::string::String>}::eq"]
+"alloc::string::{core::cmp::PartialEq<alloc::string::String, alloc::string::String>}::eq"]
 def alloc.string.String.Insts.CoreCmpPartialEqString.eq
-    (left right : String) : Result Bool :=
-  ok (left == right)
+(left right : String) : Result Bool :=
+ok (left == right)
 
 @[rust_fun "alloc::string::{core::cmp::Ord<alloc::string::String>}::cmp"]
 def alloc.string.String.Insts.CoreCmpOrd.cmp
-    (left right : String) : Result Ordering :=
-  ok (compare left right)
+(left right : String) : Result Ordering :=
+ok (compare left right)
 
 @[rust_fun "alloc::string::{alloc::string::String}::as_bytes"]
 def alloc.string.String.as_bytes (value : String) : Result (Slice Std.U8) :=
