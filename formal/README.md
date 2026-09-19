@@ -78,3 +78,17 @@ developer machine.
 the compiled theorem inventory and transitive axioms, the qualified production
 translation, generated-source drift, generated-vector drift, Rust refinement
 tests, domain property tests, and Kani harnesses.
+
+## Hosted CI feedback and qualification
+
+The pull-request check named **formal proof fast (feedback, not qualification)**
+compiles the committed Lean sources first. It does not install Aeneas, Charon,
+or Kani, and its success is not formal assurance evidence. After it passes,
+translation and Kani run in parallel; a separate clean Lean build and an
+exact-revision evidence gate make the final decision.
+
+A proof-only follow-up may reuse a successful earlier translation job when
+the translation, toolchain, source, and evidence inputs still match. Changes
+to those inputs require two fresh, byte-identical reproductions. The complete
+qualified path remains in hosted CI; contributors do not need to install the
+formal toolchains locally to receive proof diagnostics.
