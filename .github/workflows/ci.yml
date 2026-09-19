@@ -347,27 +347,30 @@ jobs:
           mkdir -p target/reused-formal/pr-candidate
           while IFS=$'\t' read -r run_id attempt head_sha; do
             [[ "$run_id" != "$GITHUB_RUN_ID" ]] || continue
+            artifacts="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100")" || continue
+            phase_id="$(jq -r --arg name "auths-formal-phase-translation-${run_id}-${attempt}" '.artifacts | map(select(.name == $name and .expired == false and .size_in_bytes <= 1048576)) | first | .id // empty' <<< "$artifacts")" || continue
+            [[ -n "$phase_id" ]] || continue
+            phase_zip=target/reused-formal/pr-candidate/phase.zip
+            gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${phase_id}/zip" > "$phase_zip" || continue
+            [[ "$(unzip -Z1 "$phase_zip")" == 'translation.json' ]] || continue
+            phase_size="$(unzip -l "$phase_zip" | awk '$4 == "translation.json" {print $1}')" || continue
+            [[ "$phase_size" =~ ^[0-9]+$ && "$phase_size" -le 1048576 ]] || continue
+            phase_path=target/reused-formal/pr-candidate/translation.json
+            unzip -p "$phase_zip" translation.json > "$phase_path" || continue
+            [[ "$(wc -c < "$phase_path")" -le 1048576 ]] || continue
+            jq -e --arg translation "$AUTHS_FORMAL_PHASE_CLOSURE_SHA256" --arg toolchain "$AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256" --arg evidence "$AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256" '.planned_closure_sha256 == $translation and .toolchain_closure_sha256 == $toolchain and .evidence_closure_sha256 == $evidence and .reproduction_count == 2' "$phase_path" >/dev/null || continue
             jobs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100")" || continue
             jq -e --arg sha "$head_sha" '.jobs | any(.name == "formal translation" and .conclusion == "success" and .head_sha == $sha)' <<< "$jobs" >/dev/null || continue
-            artifacts="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100")" || continue
             evidence_id="$(jq -r --arg name "auths-formal-translation-${run_id}-${attempt}" '.artifacts | map(select(.name == $name and .expired == false and .size_in_bytes <= 1048576)) | first | .id // empty' <<< "$artifacts")" || continue
-            phase_id="$(jq -r --arg name "auths-formal-phase-translation-${run_id}-${attempt}" '.artifacts | map(select(.name == $name and .expired == false and .size_in_bytes <= 1048576)) | first | .id // empty' <<< "$artifacts")" || continue
-            [[ -n "$evidence_id" && -n "$phase_id" ]] || continue
+            [[ -n "$evidence_id" ]] || continue
             evidence_zip=target/reused-formal/pr-candidate/evidence.zip
-            phase_zip=target/reused-formal/pr-candidate/phase.zip
             gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${evidence_id}/zip" > "$evidence_zip" || continue
-            gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${phase_id}/zip" > "$phase_zip" || continue
             [[ "$(unzip -Z1 "$evidence_zip")" == 'aeneas-qualification.json' ]] || continue
-            [[ "$(unzip -Z1 "$phase_zip")" == 'translation.json' ]] || continue
             evidence_size="$(unzip -l "$evidence_zip" | awk '$4 == "aeneas-qualification.json" {print $1}')" || continue
-            phase_size="$(unzip -l "$phase_zip" | awk '$4 == "translation.json" {print $1}')" || continue
-            [[ "$evidence_size" =~ ^[0-9]+$ && "$phase_size" =~ ^[0-9]+$ ]] || continue
-            [[ "$evidence_size" -le 1048576 && "$phase_size" -le 1048576 ]] || continue
+            [[ "$evidence_size" =~ ^[0-9]+$ && "$evidence_size" -le 1048576 ]] || continue
             evidence_path=target/reused-formal/pr-candidate/aeneas-qualification.json
-            phase_path=target/reused-formal/pr-candidate/translation.json
             unzip -p "$evidence_zip" aeneas-qualification.json > "$evidence_path" || continue
-            unzip -p "$phase_zip" translation.json > "$phase_path" || continue
-            [[ "$(wc -c < "$evidence_path")" -le 1048576 && "$(wc -c < "$phase_path")" -le 1048576 ]] || continue
+            [[ "$(wc -c < "$evidence_path")" -le 1048576 ]] || continue
             if AUTHS_REUSED_TRANSLATION_EVIDENCE="$evidence_path" \
                AUTHS_REUSED_TRANSLATION_PHASE_RESULT="$phase_path" \
                AUTHS_REUSED_RUN_ID="$run_id" \
@@ -378,7 +381,7 @@ jobs:
               echo "Translation reused successful PR run ${run_id}, attempt ${attempt}, head ${head_sha}" >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
-          done < <(jq -r --arg repo "$GITHUB_REPOSITORY" --argjson pr "$AUTHS_PR_NUMBER" '.workflow_runs | map(select(.name == "CI" and .head_repository.full_name == $repo and any(.pull_requests[]?; .number == $pr))) | .[:20][] | [.id, .run_attempt, .head_sha] | @tsv' <<< "$runs")
+          done < <(jq -r --arg repo "$GITHUB_REPOSITORY" --argjson pr "$AUTHS_PR_NUMBER" '.workflow_runs | map(select(.name == "CI" and .head_repository.full_name == $repo and any(.pull_requests[]?; .number == $pr))) | .[:10][] | [.id, .run_attempt, .head_sha] | @tsv' <<< "$runs")
           echo 'No applicable successful same-PR translation; using two clean reproductions.' >> "$GITHUB_STEP_SUMMARY"
       - name: Reclaim disk for cold translation
         if: needs.ci-plan.outputs.formal_cold_required == 'true' && steps.prior-pr-translation.outputs.reused != 'true'
