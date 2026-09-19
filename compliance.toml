@@ -259,7 +259,7 @@ independent-semantic-implementation = [
 kind = "cargo"
 layer = "product"
 path = "product/integrations/auths-evidence-assemblers"
-core_apis = ["auths-codec", "auths-hsm-attested", "auths-model", "auths-spiffe-x509", "auths-webauthn"]
+core_apis = ["auths-codec", "auths-hsm-attested", "auths-model", "auths-signature", "auths-spiffe-x509", "auths-webauthn"]
 protocol_versions = ["auths-proof/v1"]
 wire_objects = ["EvidenceObject"]
 fixture_suites = []
@@ -290,6 +290,24 @@ security_state = []
 
 [packages.auths-explain.claims]
 operational-diagnostics = ["product/tools/auths-explain/src/main.rs#audit_disclosure_requires_file_output"]
+
+[packages.auths-sigstore-bundle-import]
+kind = "cargo"
+layer = "product"
+path = "product/tools/auths-sigstore-bundle-import"
+core_apis = ["auths-model", "auths-sigstore-keyless"]
+protocol_versions = ["auths-proof/v1", "sigstore-bundle/v0.3"]
+wire_objects = ["SigstoreCertificateChainEvidence", "SigstoreRekorEntryEvidence"]
+fixture_suites = []
+principal_families = ["sigstore-keyless-v1"]
+signature_families = ["provider-selected"]
+profiles = []
+transports = []
+configuration_inputs = ["sigstore-bundle-v0.3"]
+security_state = ["offline-certificate-chain", "offline-rekor-entry"]
+
+[packages.auths-sigstore-bundle-import.claims]
+core-api-consumer = ["product/tools/auths-sigstore-bundle-import/src/lib.rs#rejects_wrong_media_type_and_tlog_cardinality"]
 
 [packages.auths-lab-matrix]
 kind = "cargo"

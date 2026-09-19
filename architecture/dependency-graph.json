@@ -252,6 +252,11 @@
       "path": "product/runtime/auths-node"
     },
     {
+      "name": "auths-oidc-workload",
+      "layer": "core",
+      "path": "core/adapters/auths-oidc-workload"
+    },
+    {
       "name": "auths-opentofu",
       "layer": "product",
       "path": "product/integrations/auths-opentofu"
@@ -270,6 +275,11 @@
       "name": "auths-operations-otel",
       "layer": "product",
       "path": "product/operations/auths-operations-otel"
+    },
+    {
+      "name": "auths-path-webpki",
+      "layer": "core",
+      "path": "core/crates/auths-path-webpki"
     },
     {
       "name": "auths-ports",
@@ -480,6 +490,21 @@
       "name": "auths-signature-ed25519",
       "layer": "core",
       "path": "core/adapters/auths-signature-ed25519"
+    },
+    {
+      "name": "auths-signature-rsa-pkcs1-sha256",
+      "layer": "core",
+      "path": "core/adapters/auths-signature-rsa-pkcs1-sha256"
+    },
+    {
+      "name": "auths-sigstore-bundle-import",
+      "layer": "product",
+      "path": "product/tools/auths-sigstore-bundle-import"
+    },
+    {
+      "name": "auths-sigstore-keyless",
+      "layer": "core",
+      "path": "core/adapters/auths-sigstore-keyless"
     },
     {
       "name": "auths-spiffe-x509",
@@ -2639,6 +2664,18 @@
     {
       "source": "auths-evidence-assemblers",
       "source_layer": "product",
+      "target": "auths-signature",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-evidence-assemblers",
+      "source_layer": "product",
       "target": "auths-spiffe-x509",
       "target_layer": "core",
       "scope": "internal",
@@ -3216,6 +3253,18 @@
     {
       "source": "auths-hsm-attested",
       "source_layer": "core",
+      "target": "auths-signature",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-hsm-attested",
+      "source_layer": "core",
       "target": "base64ct",
       "target_layer": null,
       "scope": "external",
@@ -3233,29 +3282,13 @@
       "target": "ed25519-dalek",
       "target_layer": null,
       "scope": "external",
-      "kind": "normal",
+      "kind": "dev",
       "target_condition": null,
       "optional": false,
       "default_features": false,
       "features": [
         "alloc",
         "zeroize"
-      ]
-    },
-    {
-      "source": "auths-hsm-attested",
-      "source_layer": "core",
-      "target": "p256",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": [
-        "alloc",
-        "ecdsa",
-        "pkcs8"
       ]
     },
     {
@@ -3550,6 +3583,18 @@
       "source": "auths-identity-raw-key",
       "source_layer": "core",
       "target": "auths-identity",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-identity-raw-key",
+      "source_layer": "core",
+      "target": "auths-model",
       "target_layer": "core",
       "scope": "internal",
       "kind": "normal",
@@ -5622,6 +5667,95 @@
       ]
     },
     {
+      "source": "auths-oidc-workload",
+      "source_layer": "core",
+      "target": "auths-model",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-oidc-workload",
+      "source_layer": "core",
+      "target": "auths-ports",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-oidc-workload",
+      "source_layer": "core",
+      "target": "auths-raw-key-core",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-oidc-workload",
+      "source_layer": "core",
+      "target": "auths-signature",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-oidc-workload",
+      "source_layer": "core",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-oidc-workload",
+      "source_layer": "core",
+      "target": "ed25519-dalek",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "zeroize"
+      ]
+    },
+    {
+      "source": "auths-oidc-workload",
+      "source_layer": "core",
+      "target": "sha2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
       "source": "auths-opentofu",
       "source_layer": "product",
       "target": "async-trait",
@@ -6377,6 +6511,97 @@
       "target_condition": null,
       "optional": false,
       "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-path-webpki",
+      "source_layer": "core",
+      "target": "auths-model",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-path-webpki",
+      "source_layer": "core",
+      "target": "auths-ports",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-path-webpki",
+      "source_layer": "core",
+      "target": "rcgen",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-path-webpki",
+      "source_layer": "core",
+      "target": "ring",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": "cfg(target_arch = \"wasm32\")",
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "wasm32_unknown_unknown_js"
+      ]
+    },
+    {
+      "source": "auths-path-webpki",
+      "source_layer": "core",
+      "target": "rustls-pki-types",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-path-webpki",
+      "source_layer": "core",
+      "target": "rustls-webpki",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "ring"
+      ]
+    },
+    {
+      "source": "auths-path-webpki",
+      "source_layer": "core",
+      "target": "x509-parser",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
       "features": []
     },
     {
@@ -8756,6 +8981,18 @@
     {
       "source": "auths-proof-fuzz",
       "source_layer": "core",
+      "target": "auths-oidc-workload",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-proof-fuzz",
+      "source_layer": "core",
       "target": "auths-ports",
       "target_layer": "core",
       "scope": "internal",
@@ -8793,6 +9030,18 @@
       "source": "auths-proof-fuzz",
       "source_layer": "core",
       "target": "auths-signature",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-proof-fuzz",
+      "source_layer": "core",
+      "target": "auths-sigstore-keyless",
       "target_layer": "core",
       "scope": "internal",
       "kind": "normal",
@@ -11042,6 +11291,18 @@
     {
       "source": "auths-raw-key-core",
       "source_layer": "core",
+      "target": "auths-model",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-raw-key-core",
+      "source_layer": "core",
       "target": "base64ct",
       "target_layer": null,
       "scope": "external",
@@ -12557,6 +12818,240 @@
       ]
     },
     {
+      "source": "auths-signature-rsa-pkcs1-sha256",
+      "source_layer": "core",
+      "target": "auths-model",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-signature-rsa-pkcs1-sha256",
+      "source_layer": "core",
+      "target": "auths-ports",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-signature-rsa-pkcs1-sha256",
+      "source_layer": "core",
+      "target": "ring",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-sigstore-bundle-import",
+      "source_layer": "product",
+      "target": "auths-model",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-sigstore-bundle-import",
+      "source_layer": "product",
+      "target": "auths-sigstore-keyless",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-sigstore-bundle-import",
+      "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "std"
+      ]
+    },
+    {
+      "source": "auths-sigstore-bundle-import",
+      "source_layer": "product",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order",
+        "std"
+      ]
+    },
+    {
+      "source": "auths-sigstore-keyless",
+      "source_layer": "core",
+      "target": "auths-model",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-sigstore-keyless",
+      "source_layer": "core",
+      "target": "auths-oidc-workload",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-sigstore-keyless",
+      "source_layer": "core",
+      "target": "auths-path-webpki",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-sigstore-keyless",
+      "source_layer": "core",
+      "target": "auths-ports",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-sigstore-keyless",
+      "source_layer": "core",
+      "target": "auths-signature",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-sigstore-keyless",
+      "source_layer": "core",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-sigstore-keyless",
+      "source_layer": "core",
+      "target": "ed25519-dalek",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "zeroize"
+      ]
+    },
+    {
+      "source": "auths-sigstore-keyless",
+      "source_layer": "core",
+      "target": "minicbor",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-sigstore-keyless",
+      "source_layer": "core",
+      "target": "rcgen",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-sigstore-keyless",
+      "source_layer": "core",
+      "target": "sha2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-sigstore-keyless",
+      "source_layer": "core",
+      "target": "x509-parser",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
       "source": "auths-spiffe-x509",
       "source_layer": "core",
       "target": "auths-model",
@@ -12571,10 +13066,34 @@
     {
       "source": "auths-spiffe-x509",
       "source_layer": "core",
+      "target": "auths-path-webpki",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-spiffe-x509",
+      "source_layer": "core",
       "target": "auths-ports",
       "target_layer": "core",
       "scope": "internal",
       "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-spiffe-x509",
+      "source_layer": "core",
+      "target": "auths-signature",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
       "target_condition": null,
       "optional": false,
       "default_features": false,
@@ -12597,22 +13116,6 @@
     {
       "source": "auths-spiffe-x509",
       "source_layer": "core",
-      "target": "p256",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": [
-        "alloc",
-        "ecdsa",
-        "pkcs8"
-      ]
-    },
-    {
-      "source": "auths-spiffe-x509",
-      "source_layer": "core",
       "target": "rcgen",
       "target_layer": null,
       "scope": "external",
@@ -12621,49 +13124,6 @@
       "optional": false,
       "default_features": true,
       "features": []
-    },
-    {
-      "source": "auths-spiffe-x509",
-      "source_layer": "core",
-      "target": "ring",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": "cfg(target_arch = \"wasm32\")",
-      "optional": false,
-      "default_features": false,
-      "features": [
-        "wasm32_unknown_unknown_js"
-      ]
-    },
-    {
-      "source": "auths-spiffe-x509",
-      "source_layer": "core",
-      "target": "rustls-pki-types",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": [
-        "alloc"
-      ]
-    },
-    {
-      "source": "auths-spiffe-x509",
-      "source_layer": "core",
-      "target": "rustls-webpki",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": [
-        "alloc",
-        "ring"
-      ]
     },
     {
       "source": "auths-spiffe-x509",
@@ -16159,6 +16619,20 @@
     {
       "source": "auths-testkit",
       "source_layer": "core",
+      "target": "auths-path-webpki",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-testkit",
+      "source_layer": "core",
       "target": "auths-ports",
       "target_layer": "core",
       "scope": "internal",
@@ -16612,6 +17086,18 @@
     {
       "source": "auths-webauthn",
       "source_layer": "core",
+      "target": "auths-signature",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-webauthn",
+      "source_layer": "core",
       "target": "base64ct",
       "target_layer": null,
       "scope": "external",
@@ -16629,7 +17115,7 @@
       "target": "p256",
       "target_layer": null,
       "scope": "external",
-      "kind": "normal",
+      "kind": "dev",
       "target_condition": null,
       "optional": false,
       "default_features": false,

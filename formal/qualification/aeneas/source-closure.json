@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "616fcfae33e76019a1e9c59dfc886375b8e2f92dbf381fb2074a7df7bfa5f741",
+  "digest": "e2d9c5a0ed1d1ae7fa26e8898eff8e6b7a483eea57c806d0645bf4285cb1756e",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -8,12 +8,12 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "e6c6fdf11a611a9245729b0c304c1686491d96c015f4c6518d8592f5b226dfeb",
+      "sha256": "51fdbc455e353b23bbf11bb6f7d975623580a2cba927e6cb1ba0703f72a1f094",
       "normalization": "translated-cargo-closure-v1"
     },
     {
       "path": "Cargo.toml",
-      "sha256": "9ea035b4cf5e691cf3eccec9a8b12f31678c3cd2d3b0cac3e258556f874eec77"
+      "sha256": "a155d5d0aea570ae6cbf3c022d3893e962c80c155088e47e141d8e7e38804db4"
     },
     {
       "path": "core/crates/auths-algebra-kernel/Cargo.toml",
@@ -40,8 +40,12 @@
       "sha256": "565c15302b0cc9270db1e28efa3862804846850ba933cc17aea8abcec4a65987"
     },
     {
+      "path": "core/crates/auths-model/src/bounded.rs",
+      "sha256": "f90496abc0a06c028b4d850af6ddab7d850bfafeaa3d042f1b1246a41d8bbbc9"
+    },
+    {
       "path": "core/crates/auths-model/src/lib.rs",
-      "sha256": "95fcccddeacd3fb3c250d820e7b4bd3f81ad0377659798168b3ed2fc8315deba"
+      "sha256": "e75ced325aa563549a2153e22cec5a06ddc8d5b9f083618a2b7ea77fac91be5b"
     },
     {
       "path": "formal/algebra-contract-v1.toml",
@@ -69,7 +73,7 @@
     },
     {
       "path": "formal/qualification/aeneas/qualification.toml",
-      "sha256": "2bd827b534c14ebeb0a72afe483a2fb9298a9c4c806a36fe4ecebdad584773fd"
+      "sha256": "2c9f9272696f5ee2c6d93e6a8daf675cf04f737aa2ac7dd5095fee11c96f8cfb"
     },
     {
       "path": "formal/translation-toolchain.lock",
@@ -189,11 +193,11 @@
     },
     {
       "path": "xtask/ci-plan/src/formal_update.rs",
-      "sha256": "668e3b714a0cd07b8c8c32ed658cf7bdcc07439a36f9e0edebcdc65529f54ab4"
+      "sha256": "e84f716061bb1349c9db025b3a9466e7fb7f3f27d20e5a0039d65e120b7da07e"
     },
     {
       "path": "xtask/ci-plan/src/lib.rs",
-      "sha256": "4eb58cb21ef8006b121121deaceda029bd66d4a6955fb40c12813fc3af758e9a"
+      "sha256": "072046cc239dc43f8eae763ba5a5cf0d9f8f7580bbb0086219b433c83d3f64b4"
     },
     {
       "path": "xtask/ci-plan/src/main.rs",
@@ -201,7 +205,7 @@
     },
     {
       "path": "xtask/src/architecture.rs",
-      "sha256": "3344b796e095c16fd679416f5610544006fd356df31e914a6d0463fdeee84fc2"
+      "sha256": "b988b6e12bbba847dd3bdc1c40457239ba9cefc67f4b207fc2fa48620930d62a"
     },
     {
       "path": "xtask/src/benchmark.rs",
@@ -229,7 +233,7 @@
     },
     {
       "path": "xtask/src/conformance.rs",
-      "sha256": "788f2b838e9553bbfb66fc6eb7382c394a73534c638fdce17c3633b3b807622d"
+      "sha256": "b94e8764d875acbabc5f7455c6155f92491d8a32e3421ab66872b74462474ba3"
     },
     {
       "path": "xtask/src/error_registry.rs",
@@ -241,15 +245,15 @@
     },
     {
       "path": "xtask/src/fixtures.rs",
-      "sha256": "8a6db6c3274a1d333fda4e386161dbb38a9cb5053a10191dafd31763b546c28a"
+      "sha256": "7179d0248add72abd1d1c7523aaab523a4e119439d8ffeb7f9fe0ea48524eb1f"
     },
     {
       "path": "xtask/src/formal.rs",
-      "sha256": "4c00c10761c5e0e13699943d25b7e248cb465bd44a7612e9cb8e4702a46b6e1c"
+      "sha256": "02116c687b7eefe43fd754ed3baf745db49f23a92079ac39f4a7ff6f748f1016"
     },
     {
       "path": "xtask/src/formal_qualification.rs",
-      "sha256": "dee7d3dc4c5f8ed62e426365c98de9bb3cf62a00c493525ab3bbd08d4dcc37a5"
+      "sha256": "1c111e99f9334a797087adb2b9eff9ebc8c29d866c3f5de68c346f0330916d2c"
     },
     {
       "path": "xtask/src/fuzz.rs",
@@ -261,7 +265,7 @@
     },
     {
       "path": "xtask/src/main.rs",
-      "sha256": "f186eeb1e84f13dd16f0161c74b32fa2ada2e8cb1a29ebb2823f05c4f8176e02"
+      "sha256": "65c8e82e2568fe11e3fa9bf71052cfa62fc45bbda1fa444b77e50f1048765f07"
     },
     {
       "path": "xtask/src/mcp_session_contract.rs",
@@ -289,7 +293,7 @@
     },
     {
       "path": "xtask/src/profile_qualification.rs",
-      "sha256": "64a5645dba584d7fabef274e5baec5bcb5c344d5f9bb91e1d72c46fdb8e74572"
+      "sha256": "5e8ecb946f099b53edacfec2caf17ba300140b52f23f49a7d1331060e43d0402"
     },
     {
       "path": "xtask/src/profile_qualification_adapters.rs",
@@ -305,7 +309,7 @@
     },
     {
       "path": "xtask/src/public_naming.rs",
-      "sha256": "f7e54745289a1b29866e4d18dcc19e4771326b08873b98aabc67be8b8742d9b0"
+      "sha256": "9ae55f318f5852efc70f1d5846cd77736d0ba76a0173c2b1b05a6c15e5d68de7"
     },
     {
       "path": "xtask/src/release.rs",
@@ -325,7 +329,7 @@
     },
     {
       "path": "xtask/src/semantic_freeze.rs",
-      "sha256": "d663aba81b352e401a6eb06fa116f31d5e56d2f62cea36f615530dfda81c8b26"
+      "sha256": "36d7d21a6193ccb1b6e28b3d249383549f1b3fd9c52fa6d7144cc4fc76dc114c"
     },
     {
       "path": "xtask/src/stripe.rs",

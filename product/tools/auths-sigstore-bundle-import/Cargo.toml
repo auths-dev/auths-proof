@@ -1,0 +1,19 @@
+[package]
+name = "auths-sigstore-bundle-import"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Offline Sigstore bundle to Auths evidence converter"
+publish = false
+
+[dependencies]
+auths-model.workspace = true
+auths-sigstore-keyless = { workspace = true, features = ["std"] }
+base64ct = { workspace = true, features = ["std"] }
+serde_json = { workspace = true, features = ["std"] }
+
+[lints]
+workspace = true

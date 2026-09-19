@@ -20,11 +20,11 @@ use auths_model::{
     EvidenceId, EvidenceSourceId, EvidenceTypeId, MediaType, ModelError, PrincipalId,
     PrincipalMethodId, SignatureSuiteId, Timestamp, VerificationMethod,
 };
-use auths_ports::{ControlEvidence, PrincipalControlError, PrincipalControlInput, PrincipalMethod};
+use auths_ports::{
+    ControlEvidence, PrincipalControlError, PrincipalControlInput, PrincipalMethod, SignatureSuite,
+};
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 use core::{fmt, str};
-use ed25519_dalek::VerifyingKey as Ed25519Key;
-use p256::ecdsa::VerifyingKey as P256Key;
 use sha2::{Digest as _, Sha256};
 
 /// Exact target V1 principal-method and evidence identifier.
@@ -35,10 +35,15 @@ pub const HSM_ATTESTED_MEDIA_TYPE: &str = "application/vnd.auths.hsm-attested.v1
 pub const PRINCIPAL_PREFIX: &str = "hsm:";
 const EVIDENCE_DOMAIN: &[u8] = b"AUTHS-HSM-ATTESTED\x00\x01";
 const PRINCIPAL_DOMAIN: &[u8] = b"AUTHS-HSM-PRINCIPAL\x00\x01";
-const ED25519_SUITE: &str = "ed25519-v1";
-const P256_SUITE: &str = "p256-sha256-v1";
 const MAX_RECORDS: usize = 256;
 const MAX_TEXT: usize = 128;
+
+/// Verifier-local result of one reviewed HSM attestation profile.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Exportability {
+    NonExportable,
+    Exportable,
+}
 
 /// Verifier-local result of one reviewed HSM attestation profile.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -46,13 +51,14 @@ pub struct HsmKeyRecord {
     principal: PrincipalId,
     verification_method: VerificationMethod,
     suite: SignatureSuiteId,
+    suite_configuration_id: AdapterConfigurationId,
     public_key: Vec<u8>,
     profile: String,
     provider: String,
     protection_level: String,
     key_handle_digest: [u8; 32],
     device_chain_digest: [u8; 32],
-    non_exportable: bool,
+    exportability: Exportability,
     observed_at: Timestamp,
     valid_until: Timestamp,
 }
@@ -66,18 +72,20 @@ impl HsmKeyRecord {
     /// inverted validity windows.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        suite: SignatureSuiteId,
+        suite: &dyn SignatureSuite,
         public_key: Vec<u8>,
         profile: String,
         provider: String,
         protection_level: String,
         key_handle_digest: [u8; 32],
         device_chain_digest: [u8; 32],
-        non_exportable: bool,
+        exportability: Exportability,
         observed_at: Timestamp,
         valid_until: Timestamp,
     ) -> Result<Self, HsmError> {
-        validate_key(&suite, &public_key)?;
+        suite
+            .validate_key(&public_key)
+            .map_err(|_| HsmError::InvalidVerificationKey)?;
         if !valid_text(&profile)
             || !valid_text(&provider)
             || !valid_text(&protection_level)
@@ -87,7 +95,7 @@ impl HsmKeyRecord {
         }
         let mut hasher = Sha256::new();
         hasher.update(PRINCIPAL_DOMAIN);
-        hasher.update(suite.as_str().as_bytes());
+        hasher.update(suite.id().as_str().as_bytes());
         hasher.update([0]);
         hasher.update(&public_key);
         hasher.update(key_handle_digest);
@@ -98,14 +106,15 @@ impl HsmKeyRecord {
         Ok(Self {
             principal,
             verification_method,
-            suite,
+            suite: suite.id().clone(),
+            suite_configuration_id: suite.configuration_id(),
             public_key,
             profile,
             provider,
             protection_level,
             key_handle_digest,
             device_chain_digest,
-            non_exportable,
+            exportability,
             observed_at,
             valid_until,
         })
@@ -167,8 +176,8 @@ impl HsmKeyRecord {
 
     /// Returns whether the key was observed as non-exportable.
     #[must_use]
-    pub const fn non_exportable(&self) -> bool {
-        self.non_exportable
+    pub const fn exportability(&self) -> Exportability {
+        self.exportability
     }
 
     /// Returns when the attestation was observed.
@@ -192,7 +201,7 @@ pub struct HsmAttestationEvidence {
     protection_level: String,
     key_handle_digest: [u8; 32],
     device_chain_digest: [u8; 32],
-    non_exportable: bool,
+    exportability: Exportability,
     transaction_digest: [u8; 32],
 }
 
@@ -206,7 +215,7 @@ impl HsmAttestationEvidence {
             protection_level: record.protection_level.clone(),
             key_handle_digest: record.key_handle_digest,
             device_chain_digest: record.device_chain_digest,
-            non_exportable: record.non_exportable,
+            exportability: record.exportability,
             transaction_digest: Sha256::digest(signing_preimage).into(),
         }
     }
@@ -224,7 +233,10 @@ impl HsmAttestationEvidence {
         write_text(&mut output, &self.protection_level)?;
         output.extend_from_slice(&self.key_handle_digest);
         output.extend_from_slice(&self.device_chain_digest);
-        output.push(u8::from(self.non_exportable));
+        output.push(u8::from(matches!(
+            self.exportability,
+            Exportability::NonExportable
+        )));
         output.extend_from_slice(&self.transaction_digest);
         Ok(output)
     }
@@ -245,9 +257,9 @@ impl HsmAttestationEvidence {
         let protection_level = reader.text()?;
         let key_handle_digest = reader.array()?;
         let device_chain_digest = reader.array()?;
-        let non_exportable = match reader.byte()? {
-            0 => false,
-            1 => true,
+        let exportability = match reader.byte()? {
+            0 => Exportability::Exportable,
+            1 => Exportability::NonExportable,
             _ => return Err(HsmError::InvalidEvidence),
         };
         let transaction_digest = reader.array()?;
@@ -260,7 +272,7 @@ impl HsmAttestationEvidence {
             protection_level,
             key_handle_digest,
             device_chain_digest,
-            non_exportable,
+            exportability,
             transaction_digest,
         })
     }
@@ -315,13 +327,17 @@ impl PrincipalMethod for HsmAttestedMethod {
             components.push(record.principal.as_str().as_bytes().to_vec());
             components.push(record.verification_method.as_str().as_bytes().to_vec());
             components.push(record.suite.as_str().as_bytes().to_vec());
+            components.push(record.suite_configuration_id.as_bytes().to_vec());
             components.push(record.public_key.clone());
             components.push(record.profile.as_bytes().to_vec());
             components.push(record.provider.as_bytes().to_vec());
             components.push(record.protection_level.as_bytes().to_vec());
             components.push(record.key_handle_digest.to_vec());
             components.push(record.device_chain_digest.to_vec());
-            components.push(vec![u8::from(record.non_exportable)]);
+            components.push(vec![u8::from(matches!(
+                record.exportability,
+                Exportability::NonExportable
+            ))]);
             components.push(record.observed_at.get().to_be_bytes().to_vec());
             components.push(record.valid_until.get().to_be_bytes().to_vec());
         }
@@ -374,7 +390,7 @@ impl PrincipalMethod for HsmAttestedMethod {
             || attestation.protection_level != record.protection_level
             || attestation.key_handle_digest != record.key_handle_digest
             || attestation.device_chain_digest != record.device_chain_digest
-            || attestation.non_exportable != record.non_exportable
+            || attestation.exportability != record.exportability
             || attestation.transaction_digest
                 != <[u8; 32]>::from(Sha256::digest(input.signing_preimage))
         {
@@ -385,7 +401,7 @@ impl PrincipalMethod for HsmAttestedMethod {
             ("provider", record.provider.as_str()),
             ("level", record.protection_level.as_str()),
         ];
-        if record.non_exportable {
+        if matches!(record.exportability, Exportability::NonExportable) {
             parameters.push(("exportability", "non-exportable"));
         }
         let claims = vec![
@@ -418,23 +434,6 @@ impl PrincipalMethod for HsmAttestedMethod {
             55,
         )
     }
-}
-
-fn validate_key(suite: &SignatureSuiteId, public_key: &[u8]) -> Result<(), HsmError> {
-    match suite.as_str() {
-        ED25519_SUITE => {
-            let bytes: [u8; 32] = public_key.try_into().map_err(|_| HsmError::InvalidRecord)?;
-            Ed25519Key::from_bytes(&bytes).map_err(|_| HsmError::InvalidRecord)?;
-        }
-        P256_SUITE => {
-            P256Key::from_sec1_bytes(public_key).map_err(|_| HsmError::InvalidRecord)?;
-            if public_key.len() != 33 {
-                return Err(HsmError::InvalidRecord);
-            }
-        }
-        _ => return Err(HsmError::UnsupportedSuite),
-    }
-    Ok(())
 }
 
 fn valid_text(value: &str) -> bool {
@@ -543,8 +542,8 @@ pub enum HsmError {
     InvalidRecord,
     /// The evidence contract is malformed or contradictory.
     InvalidEvidence,
-    /// The selected suite is outside the target HSM profile.
-    UnsupportedSuite,
+    /// The selected suite rejected the verification-key representation.
+    InvalidVerificationKey,
     /// A target bound was exceeded.
     LimitExceeded,
 }
@@ -561,7 +560,7 @@ impl fmt::Display for HsmError {
             Self::Model(error) => write!(formatter, "invalid Auths model value: {error}"),
             Self::InvalidRecord => formatter.write_str("invalid HSM attestation record"),
             Self::InvalidEvidence => formatter.write_str("invalid HSM attestation evidence"),
-            Self::UnsupportedSuite => formatter.write_str("unsupported HSM signature suite"),
+            Self::InvalidVerificationKey => formatter.write_str("invalid HSM verification key"),
             Self::LimitExceeded => formatter.write_str("HSM evidence resource limit exceeded"),
         }
     }
@@ -575,20 +574,21 @@ mod tests {
     use super::*;
     use auths_model::{Digest, EvidenceObject};
     use auths_ports::{ControlPurpose, PrincipalControlInput};
+    use auths_signature::Ed25519Suite;
     use ed25519_dalek::SigningKey;
 
     #[test]
     fn attestation_and_transaction_are_both_bound() {
         let key = SigningKey::from_bytes(&[51; 32]);
         let record = HsmKeyRecord::new(
-            SignatureSuiteId::parse(ED25519_SUITE).unwrap(),
+            &Ed25519Suite::new().unwrap(),
             key.verifying_key().to_bytes().to_vec(),
             "pkcs11-v1".to_string(),
             "example-hsm".to_string(),
             "fips-140-3-level-3".to_string(),
             [1; 32],
             [2; 32],
-            true,
+            Exportability::NonExportable,
             Timestamp::new(10),
             Timestamp::new(30),
         )
@@ -608,9 +608,10 @@ mod tests {
             .verify_control(PrincipalControlInput {
                 principal: record.principal(),
                 verification_method: record.verification_method(),
-                signature_suite: &SignatureSuiteId::parse(ED25519_SUITE).unwrap(),
+                signature_suite: &SignatureSuiteId::parse("ed25519-v1").unwrap(),
                 purpose: ControlPurpose::CapabilityInvocation,
                 signing_preimage: preimage,
+                signature: b"test signature",
                 asserted_signing_time: Timestamp::new(20),
                 evidence: &refs,
                 evaluation_time: Timestamp::new(20),
@@ -627,9 +628,10 @@ mod tests {
             .verify_control(PrincipalControlInput {
                 principal: record.principal(),
                 verification_method: record.verification_method(),
-                signature_suite: &SignatureSuiteId::parse(ED25519_SUITE).unwrap(),
+                signature_suite: &SignatureSuiteId::parse("ed25519-v1").unwrap(),
                 purpose: ControlPurpose::CapabilityInvocation,
                 signing_preimage: b"a different Auths transaction",
+                signature: b"test signature",
                 asserted_signing_time: Timestamp::new(20),
                 evidence: &refs,
                 evaluation_time: Timestamp::new(20),

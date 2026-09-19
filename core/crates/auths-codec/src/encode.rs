@@ -928,12 +928,25 @@ fn encode_attachment(
     key(encoder, 3)?;
     text(encoder, attachment.disposition().as_str())?;
     key(encoder, 4)?;
-    encoder.bool(attachment.encrypted()).map_err(encode_error)?;
+    encoder
+        .bool(matches!(
+            attachment.confidentiality(),
+            auths_model::Confidentiality::Encrypted
+        ))
+        .map_err(encode_error)?;
     key(encoder, 5)?;
-    encoder.bool(attachment.required()).map_err(encode_error)?;
+    encoder
+        .bool(matches!(
+            attachment.presence(),
+            auths_model::Presence::Required
+        ))
+        .map_err(encode_error)?;
     key(encoder, 6)?;
     encoder
-        .bool(attachment.opaque_allowed())
+        .bool(matches!(
+            attachment.opacity(),
+            auths_model::Opacity::OpaqueAllowed
+        ))
         .map_err(encode_error)?;
     Ok(())
 }

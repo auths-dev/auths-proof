@@ -1,15 +1,15 @@
 use std::error::Error;
 
 use auths_identity::{
-    IdentityError, IdentityMethod, IdentityPacket, PublicIdentity, SignatureVerifier,
-    SignedIdentityMessage,
+    IdentityError, IdentityMethod, IdentityMethodId, IdentityPacket, IdentitySuiteId,
+    PublicIdentity, SignatureVerifier, SignedIdentityMessage,
 };
 
 struct ExampleMethod;
 
 impl IdentityMethod for ExampleMethod {
-    fn method_id(&self) -> &'static str {
-        "example-key-v1"
+    fn method_id(&self) -> IdentityMethodId {
+        IdentityMethodId::parse("example-key-v1").unwrap()
     }
 
     fn validate(&self, identity: &PublicIdentity) -> Result<(), IdentityError> {
@@ -22,8 +22,8 @@ impl IdentityMethod for ExampleMethod {
 struct ExampleSuite;
 
 impl SignatureVerifier for ExampleSuite {
-    fn suite_id(&self) -> &'static str {
-        "example-signature-v1"
+    fn suite_id(&self) -> IdentitySuiteId {
+        IdentitySuiteId::parse("example-signature-v1").unwrap()
     }
 
     fn verify(

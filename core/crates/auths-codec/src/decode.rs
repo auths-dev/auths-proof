@@ -670,9 +670,21 @@ fn attachment(decoder: &mut V1Decoder<'_>) -> Result<AttachmentDescriptor, Codec
         media_type,
         byte_length,
         disposition,
-        encrypted,
-        required,
-        opaque_allowed,
+        if encrypted {
+            auths_model::Confidentiality::Encrypted
+        } else {
+            auths_model::Confidentiality::Plain
+        },
+        if required {
+            auths_model::Presence::Required
+        } else {
+            auths_model::Presence::Optional
+        },
+        if opaque_allowed {
+            auths_model::Opacity::OpaqueAllowed
+        } else {
+            auths_model::Opacity::MustBeInspectable
+        },
     ))
 }
 

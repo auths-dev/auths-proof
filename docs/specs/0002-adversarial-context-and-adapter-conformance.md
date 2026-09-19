@@ -58,6 +58,8 @@ a named seed, mutation identifier, and immutable configuration digest.
 | WebAuthn | [`core/adapters/auths-webauthn/src/lib.rs`](../../core/adapters/auths-webauthn/src/lib.rs) | credential registrations, origins, RP IDs, counters, validity, attestation policy |
 | HSM-attested | [`core/adapters/auths-hsm-attested/src/lib.rs`](../../core/adapters/auths-hsm-attested/src/lib.rs) | reviewed key and device records |
 | SPIFFE X.509 | [`core/adapters/auths-spiffe-x509/src/lib.rs`](../../core/adapters/auths-spiffe-x509/src/lib.rs) | trust-domain roots and optional leaf status |
+| OIDC workload | [`core/adapters/auths-oidc-workload/src/lib.rs`](../../core/adapters/auths-oidc-workload/src/lib.rs) | pinned issuer keys, profiles, policies, and token lifetime |
+| Sigstore keyless | [`core/adapters/auths-sigstore-keyless/src/lib.rs`](../../core/adapters/auths-sigstore-keyless/src/lib.rs) | Fulcio anchors, Rekor keys, algorithm bindings, issuer policies, and path verifier |
 
 ## 2. Conformance claims
 
@@ -530,6 +532,11 @@ Required cases:
 - root or status record mutation changes configuration ID.
 
 ## 8. Mutation engine
+
+Port-level conformance metadata lives under `core/conformance/v1/ports/`.
+`signature-suite.json`, `algorithm-binding.json`, and `path-verifier.json`
+define the AP-SPEC-047 structural, selection, and certificate-path cases that
+implementations run in addition to adapter-level adversarial cases.
 
 ### 8.1 Typed mutation API
 

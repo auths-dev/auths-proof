@@ -38,17 +38,17 @@ type counterContext struct {
 }
 
 type webauthnContext struct {
-	CredentialID            string         `json:"credential_id"`
-	Principal               string         `json:"principal"`
-	VerificationMethod      string         `json:"verification_method"`
-	PublicKey               string         `json:"public_key"`
-	RPID                    string         `json:"rp_id"`
-	Origins                 []string       `json:"origins"`
-	RequireUserVerification bool           `json:"require_user_verification"`
-	CounterPolicy           counterContext `json:"counter_policy"`
-	AttestationLevel        *string        `json:"attestation_level"`
-	ObservedAt              uint64         `json:"observed_at"`
-	ValidUntil              uint64         `json:"valid_until"`
+	CredentialID       string         `json:"credential_id"`
+	Principal          string         `json:"principal"`
+	VerificationMethod string         `json:"verification_method"`
+	PublicKey          string         `json:"public_key"`
+	RPID               string         `json:"rp_id"`
+	Origins            []string       `json:"origins"`
+	UserVerification   string         `json:"user_verification"`
+	CounterPolicy      counterContext `json:"counter_policy"`
+	AttestationLevel   *string        `json:"attestation_level"`
+	ObservedAt         uint64         `json:"observed_at"`
+	ValidUntil         uint64         `json:"valid_until"`
 }
 
 type hsmContext struct {
@@ -61,20 +61,20 @@ type hsmContext struct {
 	ProtectionLevel    string `json:"protection_level"`
 	KeyHandleDigest    string `json:"key_handle_digest"`
 	DeviceChainDigest  string `json:"device_chain_digest"`
-	NonExportable      bool   `json:"non_exportable"`
+	Exportability      string `json:"exportability"`
 	ObservedAt         uint64 `json:"observed_at"`
 	ValidUntil         uint64 `json:"valid_until"`
 }
 
 type spiffeTrustContext struct {
-	Name          string   `json:"name"`
-	Roots         []string `json:"roots"`
-	RequireStatus bool     `json:"require_status"`
+	Name              string   `json:"name"`
+	Roots             []string `json:"roots"`
+	StatusRequirement string   `json:"status_requirement"`
 }
 
 type spiffeStatusContext struct {
 	LeafDigest string `json:"leaf_digest"`
-	Active     bool   `json:"active"`
+	Status     string `json:"status"`
 	ObservedAt uint64 `json:"observed_at"`
 	ValidUntil uint64 `json:"valid_until"`
 }
@@ -716,7 +716,7 @@ func webauthnControl(
 	rpDigest := sha256.Sum256([]byte(credential.RPID))
 	flags := authenticator[32]
 	if !bytes.Equal(authenticator[:32], rpDigest[:]) ||
-		flags&1 == 0 || (credential.RequireUserVerification && flags&4 == 0) {
+		flags&1 == 0 || (credential.UserVerification == "Required" && flags&4 == 0) {
 		return controlResult{}, denied("principal-method-mismatch")
 	}
 	counter := binary.BigEndian.Uint32(authenticator[33:37])
@@ -817,7 +817,7 @@ func hsmControl(
 		reader.at != len(reader.body) || profile != record.Profile ||
 		provider != record.Provider || level != record.ProtectionLevel ||
 		!bytes.Equal(handle, expectedHandle) || !bytes.Equal(device, expectedDevice) ||
-		(nonExportable == 1) != record.NonExportable ||
+		(nonExportable == 1) != (record.Exportability == "NonExportable") ||
 		!bytes.Equal(transaction, expectedTransaction[:]) {
 		return controlResult{}, denied("principal-method-mismatch")
 	}
@@ -943,10 +943,10 @@ func spiffeControl(
 			break
 		}
 	}
-	if status != nil && !status.Active {
+	if status != nil && status.Status != "Active" {
 		return controlResult{}, denied("principal-revoked")
 	}
-	if trust.RequireStatus && status == nil {
+	if trust.StatusRequirement == "Required" && status == nil {
 		return controlResult{}, indeterminate("external-fact-unavailable")
 	}
 	now := evaluationTime

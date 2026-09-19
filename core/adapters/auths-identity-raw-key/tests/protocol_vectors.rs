@@ -11,8 +11,8 @@ use serde_json::Value;
 struct FrozenEd25519;
 
 impl auths_identity::SignatureVerifier for FrozenEd25519 {
-    fn suite_id(&self) -> &'static str {
-        ED25519_V1
+    fn suite_id(&self) -> auths_identity::IdentitySuiteId {
+        auths_identity::IdentitySuiteId::parse(ED25519_V1).unwrap()
     }
 
     fn verify(
@@ -56,7 +56,11 @@ fn checked_in_identity_vectors_match_all_semantic_owners() {
     let signing_key = SigningKey::from_bytes(&bytes(valid, "seedHex").try_into().unwrap());
     let public_key = signing_key.verifying_key().to_bytes();
     assert_eq!(bytes(valid, "publicKeyHex"), public_key);
-    let descriptor = RawKeyDescriptorV2::new(ED25519_V1, public_key.to_vec()).unwrap();
+    let descriptor = RawKeyDescriptorV2::new(
+        auths_model::SignatureSuiteId::parse(ED25519_V1).unwrap(),
+        public_key.to_vec(),
+    )
+    .unwrap();
     assert_eq!(bytes(valid, "rawKeyDescriptorHex"), descriptor.encode());
     assert_eq!(valid["identityId"], descriptor.identifier());
 

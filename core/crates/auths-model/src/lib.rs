@@ -6,12 +6,16 @@
 
 extern crate alloc;
 
+mod bounded;
+
+pub use bounded::{BoundError, BoundedBytes, BoundedSet};
+
 use alloc::{
     collections::BTreeSet,
     string::{String, ToString},
     vec::Vec,
 };
-use core::{cmp::Ordering, fmt};
+use core::fmt;
 use subtle::ConstantTimeEq;
 
 pub const PROTOCOL_V1: u16 = 1;
@@ -110,29 +114,6 @@ fn parse_bounded(value: &str, maximum: usize, error: ModelError) -> Result<Strin
 
 fn byte_slices_equal(left: &[u8], right: &[u8]) -> bool {
     left == right
-}
-
-fn compare_byte_slices(left: &[u8], right: &[u8]) -> Ordering {
-    let common_length = if left.len() < right.len() {
-        left.len()
-    } else {
-        right.len()
-    };
-    let mut index = 0;
-    while index < common_length {
-        if left[index] < right[index] {
-            return Ordering::Less;
-        }
-        if left[index] > right[index] {
-            return Ordering::Greater;
-        }
-        index += 1;
-    }
-    match (left.len() < right.len(), left.len() > right.len()) {
-        (true, _) => Ordering::Less,
-        (false, true) => Ordering::Greater,
-        (false, false) => Ordering::Equal,
-    }
 }
 
 macro_rules! bounded_string {
@@ -544,24 +525,13 @@ impl Permission {
     }
 }
 
-fn compare_permissions(left: &Permission, right: &Permission) -> Ordering {
-    let capability_order =
-        compare_byte_slices(left.capability.0.as_bytes(), right.capability.0.as_bytes());
-    match capability_order {
-        Ordering::Less => return Ordering::Less,
-        Ordering::Greater => return Ordering::Greater,
-        Ordering::Equal => {}
-    }
-    compare_byte_slices(left.resource.0.as_bytes(), right.resource.0.as_bytes())
-}
-
 fn permissions_equal(left: &Permission, right: &Permission) -> bool {
     byte_slices_equal(left.capability.0.as_bytes(), right.capability.0.as_bytes())
         && byte_slices_equal(left.resource.0.as_bytes(), right.resource.0.as_bytes())
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PermissionSet(Vec<Permission>);
+pub struct PermissionSet(BoundedSet<Permission, HARD_MAX_PERMISSIONS>);
 
 impl PermissionSet {
     /// Constructs a sorted, duplicate-free, non-empty permission set.
@@ -570,19 +540,18 @@ impl PermissionSet {
     ///
     /// Returns [`ModelError::InvalidPermissionSet`] when the set is empty or
     /// exceeds [`HARD_MAX_PERMISSIONS`].
-    pub fn new(mut permissions: Vec<Permission>) -> Result<Self, ModelError> {
-        if permissions.is_empty() || permissions.len() > HARD_MAX_PERMISSIONS {
-            return Err(ModelError::InvalidPermissionSet);
-        }
-        permissions.sort_by(compare_permissions);
-        permissions
-            .dedup_by(|left, right| matches!(compare_permissions(left, right), Ordering::Equal));
-        Ok(Self(permissions))
+    pub fn new(permissions: Vec<Permission>) -> Result<Self, ModelError> {
+        BoundedSet::new(permissions)
+            .map(Self)
+            .map_err(|error| match error {
+                BoundError::Duplicate => ModelError::DuplicatePermission,
+                BoundError::Empty | BoundError::AboveMaximum => ModelError::InvalidPermissionSet,
+            })
     }
 
     #[must_use]
     pub fn as_slice(&self) -> &[Permission] {
-        &self.0
+        self.0.as_slice()
     }
 
     #[must_use]
@@ -602,7 +571,7 @@ impl PermissionSet {
 pub fn permission_set_contains(set: &PermissionSet, permission: &Permission) -> bool {
     let mut index = 0;
     while index < set.0.len() {
-        if permissions_equal(&set.0[index], permission) {
+        if permissions_equal(&set.0.as_slice()[index], permission) {
             return true;
         }
         index += 1;
@@ -616,7 +585,7 @@ pub fn permission_set_contains(set: &PermissionSet, permission: &Permission) -> 
 pub fn permission_set_is_subset(child: &PermissionSet, parent: &PermissionSet) -> bool {
     let mut child_index = 0;
     while child_index < child.0.len() {
-        if !permission_set_contains(parent, &child.0[child_index]) {
+        if !permission_set_contains(parent, &child.0.as_slice()[child_index]) {
             return false;
         }
         child_index += 1;
@@ -625,11 +594,7 @@ pub fn permission_set_is_subset(child: &PermissionSet, parent: &PermissionSet) -
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AudienceSet(Vec<Audience>);
-
-fn compare_audiences(left: &Audience, right: &Audience) -> Ordering {
-    compare_byte_slices(left.0.as_bytes(), right.0.as_bytes())
-}
+pub struct AudienceSet(BoundedSet<Audience, HARD_MAX_AUDIENCES>);
 
 fn audiences_equal(left: &Audience, right: &Audience) -> bool {
     byte_slices_equal(left.0.as_bytes(), right.0.as_bytes())
@@ -642,18 +607,18 @@ impl AudienceSet {
     ///
     /// Returns [`ModelError::InvalidAudienceSet`] when the set is empty or
     /// exceeds [`HARD_MAX_AUDIENCES`].
-    pub fn new(mut audiences: Vec<Audience>) -> Result<Self, ModelError> {
-        if audiences.is_empty() || audiences.len() > HARD_MAX_AUDIENCES {
-            return Err(ModelError::InvalidAudienceSet);
-        }
-        audiences.sort_by(compare_audiences);
-        audiences.dedup_by(|left, right| matches!(compare_audiences(left, right), Ordering::Equal));
-        Ok(Self(audiences))
+    pub fn new(audiences: Vec<Audience>) -> Result<Self, ModelError> {
+        BoundedSet::new(audiences)
+            .map(Self)
+            .map_err(|error| match error {
+                BoundError::Duplicate => ModelError::DuplicateAudience,
+                BoundError::Empty | BoundError::AboveMaximum => ModelError::InvalidAudienceSet,
+            })
     }
 
     #[must_use]
     pub fn as_slice(&self) -> &[Audience] {
-        &self.0
+        self.0.as_slice()
     }
 
     #[must_use]
@@ -673,7 +638,7 @@ impl AudienceSet {
 pub fn audience_set_contains(set: &AudienceSet, audience: &Audience) -> bool {
     let mut index = 0;
     while index < set.0.len() {
-        if audiences_equal(&set.0[index], audience) {
+        if audiences_equal(&set.0.as_slice()[index], audience) {
             return true;
         }
         index += 1;
@@ -687,7 +652,7 @@ pub fn audience_set_contains(set: &AudienceSet, audience: &Audience) -> bool {
 pub fn audience_set_is_subset(child: &AudienceSet, parent: &AudienceSet) -> bool {
     let mut child_index = 0;
     while child_index < child.0.len() {
-        if !audience_set_contains(parent, &child.0[child_index]) {
+        if !audience_set_contains(parent, &child.0.as_slice()[child_index]) {
             return false;
         }
         child_index += 1;
@@ -697,11 +662,7 @@ pub fn audience_set_is_subset(child: &AudienceSet, parent: &AudienceSet) -> bool
 
 /// Canonically ordered, non-empty set of action body digests.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct BodyDigestSet(Vec<Digest>);
-
-fn compare_digests(left: &Digest, right: &Digest) -> Ordering {
-    compare_byte_slices(left.0.as_slice(), right.0.as_slice())
-}
+pub struct BodyDigestSet(BoundedSet<Digest, HARD_MAX_BODY_DIGESTS>);
 
 fn digests_equal(left: &Digest, right: &Digest) -> bool {
     byte_slices_equal(left.0.as_slice(), right.0.as_slice())
@@ -714,19 +675,19 @@ impl BodyDigestSet {
     ///
     /// Returns [`ModelError::InvalidActionConstraint`] when `digests` is
     /// empty or exceeds [`HARD_MAX_BODY_DIGESTS`].
-    pub fn new(mut digests: Vec<Digest>) -> Result<Self, ModelError> {
-        if digests.is_empty() || digests.len() > HARD_MAX_BODY_DIGESTS {
-            return Err(ModelError::InvalidActionConstraint);
-        }
-        digests.sort_by(compare_digests);
-        digests.dedup_by(|left, right| matches!(compare_digests(left, right), Ordering::Equal));
-        Ok(Self(digests))
+    pub fn new(digests: Vec<Digest>) -> Result<Self, ModelError> {
+        BoundedSet::new(digests)
+            .map(Self)
+            .map_err(|error| match error {
+                BoundError::Duplicate => ModelError::DuplicateBodyDigest,
+                BoundError::Empty | BoundError::AboveMaximum => ModelError::InvalidActionConstraint,
+            })
     }
 
     /// Returns canonical digests in ascending byte order.
     #[must_use]
     pub fn as_slice(&self) -> &[Digest] {
-        &self.0
+        self.0.as_slice()
     }
 
     /// Reports whether the set contains `digest`.
@@ -748,7 +709,7 @@ impl BodyDigestSet {
 pub fn body_digest_set_contains(set: &BodyDigestSet, digest: &Digest) -> bool {
     let mut index = 0;
     while index < set.0.len() {
-        if digests_equal(&set.0[index], digest) {
+        if digests_equal(&set.0.as_slice()[index], digest) {
             return true;
         }
         index += 1;
@@ -762,7 +723,7 @@ pub fn body_digest_set_contains(set: &BodyDigestSet, digest: &Digest) -> bool {
 pub fn body_digest_set_is_subset(child: &BodyDigestSet, parent: &BodyDigestSet) -> bool {
     let mut child_index = 0;
     while child_index < child.0.len() {
-        if !body_digest_set_contains(parent, &child.0[child_index]) {
+        if !body_digest_set_contains(parent, &child.0.as_slice()[child_index]) {
             return false;
         }
         child_index += 1;
@@ -780,7 +741,7 @@ pub fn body_digest_set_is_subset(child: &BodyDigestSet, parent: &BodyDigestSet) 
 pub fn body_digest_set_only_contains(set: &BodyDigestSet, digest: &Digest) -> bool {
     let mut index = 0;
     while index < set.0.len() {
-        if !digests_equal(&set.0[index], digest) {
+        if !digests_equal(&set.0.as_slice()[index], digest) {
             return false;
         }
         index += 1;
@@ -2576,15 +2537,36 @@ impl GrantStatusSnapshot {
     }
 }
 
+/// Attachment confidentiality classification.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub enum Confidentiality {
+    Encrypted,
+    Plain,
+}
+
+/// Whether detached attachment bytes are mandatory.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub enum Presence {
+    Required,
+    Optional,
+}
+
+/// Whether encrypted bytes may remain opaque to the verifier.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub enum Opacity {
+    OpaqueAllowed,
+    MustBeInspectable,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct AttachmentDescriptor {
     digest: AttachmentDigest,
     media_type: MediaType,
     byte_length: u64,
     disposition: DispositionId,
-    encrypted: bool,
-    required: bool,
-    opaque_allowed: bool,
+    confidentiality: Confidentiality,
+    presence: Presence,
+    opacity: Opacity,
 }
 
 impl AttachmentDescriptor {
@@ -2594,18 +2576,18 @@ impl AttachmentDescriptor {
         media_type: MediaType,
         byte_length: u64,
         disposition: DispositionId,
-        encrypted: bool,
-        required: bool,
-        opaque_allowed: bool,
+        confidentiality: Confidentiality,
+        presence: Presence,
+        opacity: Opacity,
     ) -> Self {
         Self {
             digest,
             media_type,
             byte_length,
             disposition,
-            encrypted,
-            required,
-            opaque_allowed,
+            confidentiality,
+            presence,
+            opacity,
         }
     }
     #[must_use]
@@ -2625,18 +2607,18 @@ impl AttachmentDescriptor {
         &self.disposition
     }
     #[must_use]
-    pub const fn encrypted(&self) -> bool {
-        self.encrypted
+    pub const fn confidentiality(&self) -> Confidentiality {
+        self.confidentiality
     }
     /// Reports whether missing detached bytes are an authorization failure.
     #[must_use]
-    pub const fn required(&self) -> bool {
-        self.required
+    pub const fn presence(&self) -> Presence {
+        self.presence
     }
     /// Reports whether encrypted content may remain semantically opaque.
     #[must_use]
-    pub const fn opaque_allowed(&self) -> bool {
-        self.opaque_allowed
+    pub const fn opacity(&self) -> Opacity {
+        self.opacity
     }
 }
 
@@ -4705,12 +4687,15 @@ pub enum ModelError {
     InvalidResource,
     InvalidAudience,
     InvalidAudienceSet,
+    DuplicateAudience,
     InvalidMediaType,
     InvalidRegistryId,
     InvalidExtensionId,
     InvalidValidity,
     InvalidPermissionSet,
+    DuplicatePermission,
     InvalidActionConstraint,
+    DuplicateBodyDigest,
     InvalidCanonicalAction,
     InvalidExtension,
     DuplicateExtension,
@@ -4742,12 +4727,15 @@ impl fmt::Display for ModelError {
             Self::InvalidResource => "invalid resource",
             Self::InvalidAudience => "invalid audience",
             Self::InvalidAudienceSet => "invalid audience set",
+            Self::DuplicateAudience => "duplicate audience",
             Self::InvalidMediaType => "invalid media type",
             Self::InvalidRegistryId => "invalid registry identifier",
             Self::InvalidExtensionId => "invalid extension identifier",
             Self::InvalidValidity => "invalid validity window",
             Self::InvalidPermissionSet => "invalid permission set",
+            Self::DuplicatePermission => "duplicate permission",
             Self::InvalidActionConstraint => "invalid action constraint",
+            Self::DuplicateBodyDigest => "duplicate body digest",
             Self::InvalidCanonicalAction => "invalid canonical action",
             Self::InvalidExtension => "invalid critical extension",
             Self::DuplicateExtension => "duplicate critical extension",
@@ -4831,6 +4819,37 @@ mod kani_harnesses {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const IDENTITY_IDENTIFIER_VECTOR_V1: &str = r#"{"schema":"auths-identity-identifier-conformance/v1","maximum_utf8_bytes":128,"valid":["a","raw-key-v2","p256-sha256-v1","xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"],"invalid":["","contains space","contains\ttab","contains\nnewline","contains\u00a0space","contains\u0007control","xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]}"#;
+
+    #[test]
+    fn shared_identifier_vectors_match_the_model_registry_grammar() {
+        assert_eq!(
+            include_str!("../../../conformance/v1/identity-identifiers.json").trim(),
+            IDENTITY_IDENTIFIER_VECTOR_V1
+        );
+        for value in [
+            "a",
+            "raw-key-v2",
+            "p256-sha256-v1",
+            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        ] {
+            assert!(PrincipalMethodId::parse(value).is_ok());
+            assert!(SignatureSuiteId::parse(value).is_ok());
+        }
+        for value in [
+            "",
+            "contains space",
+            "contains\ttab",
+            "contains\nnewline",
+            "contains\u{00a0}space",
+            "contains\u{0007}control",
+            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        ] {
+            assert!(PrincipalMethodId::parse(value).is_err());
+            assert!(SignatureSuiteId::parse(value).is_err());
+        }
+    }
     use proptest::prelude::*;
 
     fn digest(byte: u8) -> Digest {
@@ -4987,6 +5006,22 @@ mod tests {
         assert_eq!(
             BodyDigestSet::new(over_limit),
             Err(ModelError::InvalidActionConstraint)
+        );
+
+        let duplicate_permission = permission(1);
+        assert_eq!(
+            PermissionSet::new(vec![duplicate_permission.clone(), duplicate_permission]),
+            Err(ModelError::DuplicatePermission)
+        );
+        let duplicate_audience = audience(1);
+        assert_eq!(
+            AudienceSet::new(vec![duplicate_audience.clone(), duplicate_audience]),
+            Err(ModelError::DuplicateAudience)
+        );
+        let duplicate_digest = Digest::new([1; 32]);
+        assert_eq!(
+            BodyDigestSet::new(vec![duplicate_digest, duplicate_digest]),
+            Err(ModelError::DuplicateBodyDigest)
         );
     }
 
@@ -5272,8 +5307,10 @@ mod tests {
 
         #[test]
         fn permission_subset_is_reflexive_transitive_and_antisymmetric(
-            bytes in prop::collection::vec(any::<u8>(), 1..=128),
+            mut bytes in prop::collection::vec(any::<u8>(), 1..=128),
         ) {
+            bytes.sort_unstable();
+            bytes.dedup();
             let grand = PermissionSet::new(
                 bytes.iter().map(|byte| permission(usize::from(*byte))).collect()
             ).expect("non-empty bounded permission set");
@@ -5297,8 +5334,10 @@ mod tests {
 
         #[test]
         fn audience_subset_is_reflexive_transitive_and_antisymmetric(
-            bytes in prop::collection::vec(any::<u8>(), 1..=128),
+            mut bytes in prop::collection::vec(any::<u8>(), 1..=128),
         ) {
+            bytes.sort_unstable();
+            bytes.dedup();
             let grand = AudienceSet::new(
                 bytes.iter().map(|byte| audience(usize::from(*byte))).collect()
             ).expect("non-empty bounded audience set");
@@ -5322,8 +5361,10 @@ mod tests {
 
         #[test]
         fn body_digest_subset_is_reflexive_transitive_and_antisymmetric(
-            bytes in prop::collection::vec(any::<u8>(), 1..=128),
+            mut bytes in prop::collection::vec(any::<u8>(), 1..=128),
         ) {
+            bytes.sort_unstable();
+            bytes.dedup();
             let grand = BodyDigestSet::new(bytes.iter().map(|byte| digest(*byte)).collect())
                 .expect("non-empty bounded digest set");
             let middle_len = grand.as_slice().len().div_ceil(2);
@@ -5380,10 +5421,13 @@ mod tests {
 
         #[test]
         fn body_digest_sets_are_canonical(bytes in prop::collection::vec(any::<u8>(), 1..257)) {
-            let digests: Vec<_> = bytes.iter().map(|byte| digest(*byte)).collect();
+            let mut unique = bytes.clone();
+            unique.sort_unstable();
+            unique.dedup();
+            let digests: Vec<_> = unique.iter().map(|byte| digest(*byte)).collect();
             let set = BodyDigestSet::new(digests).expect("generated set is bounded");
             prop_assert!(set.as_slice().windows(2).all(|window| window[0] < window[1]));
-            for byte in bytes {
+            for byte in unique {
                 prop_assert!(set.contains(&digest(byte)));
             }
         }

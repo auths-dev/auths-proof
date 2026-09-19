@@ -45,7 +45,7 @@ structure auths_algebra_kernel.RootLinkage (Identity : Type) where
   grant_issuer : Identity
 
 /-- [auths_model::GrantAuthorityView]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1364:0-1364:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1325:0-1325:33
     Name pattern: [auths_model::GrantAuthorityView]
     Visibility: public -/
 @[rust_type "auths_model::GrantAuthorityView"]
@@ -65,7 +65,7 @@ structure auths_model.GrantAuthorityView where
   extensions : auths_model.CriticalExtensions
 
 /-- [auths_model::ScopeAuthorityView]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1384:0-1384:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1345:0-1345:33
     Name pattern: [auths_model::ScopeAuthorityView]
     Visibility: public -/
 @[rust_type "auths_model::ScopeAuthorityView"]
@@ -82,7 +82,7 @@ structure auths_model.ScopeAuthorityView where
   extensions : auths_model.CriticalExtensions
 
 /-- [auths_model::ActionAuthorityView]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1592:0-1592:34
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1553:0-1553:34
     Name pattern: [auths_model::ActionAuthorityView]
     Visibility: public -/
 @[rust_type "auths_model::ActionAuthorityView"]
@@ -97,7 +97,7 @@ structure auths_model.ActionAuthorityView where
   terminal_grant : Option auths_model.GrantId
 
 /-- [auths_model::DenialReason]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4474:0-4474:21
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4456:0-4456:21
     Name pattern: [auths_model::DenialReason]
     Visibility: public -/
 @[discriminant isize, rust_type "auths_model::DenialReason"]

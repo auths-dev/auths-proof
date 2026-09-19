@@ -17,14 +17,15 @@ use alloc::{
     vec::Vec,
 };
 use auths_model::{
-    AdapterConfigurationId, AdapterId, AssuranceClaim, AssuranceClaimId, ClaimParameterId,
-    EvidenceId, EvidenceSourceId, EvidenceTypeId, MediaType, ModelError, PrincipalId,
-    PrincipalMethodId, Timestamp, VerificationMethod,
+    AdapterConfigurationId, AdapterId, AssuranceClaim, AssuranceClaimId, BoundedBytes,
+    ClaimParameterId, EvidenceId, EvidenceSourceId, EvidenceTypeId, MediaType, ModelError,
+    PrincipalId, PrincipalMethodId, SignatureSuiteId, Timestamp, VerificationMethod,
 };
-use auths_ports::{ControlEvidence, PrincipalControlError, PrincipalControlInput, PrincipalMethod};
+use auths_ports::{
+    ControlEvidence, PrincipalControlError, PrincipalControlInput, PrincipalMethod, SignatureSuite,
+};
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 use core::{fmt, str};
-use p256::ecdsa::VerifyingKey;
 use serde_json::{Map, Value};
 use sha2::{Digest as _, Sha256};
 
@@ -34,13 +35,13 @@ pub const WEBAUTHN_V1: &str = "webauthn-v1";
 pub const WEBAUTHN_MEDIA_TYPE: &str = "application/vnd.auths.webauthn-assertion.v1";
 /// Principal scheme for credential-scoped `WebAuthn` principals.
 pub const PRINCIPAL_PREFIX: &str = "webauthn:";
-/// P-256/SHA-256 is the mandatory target `WebAuthn` suite.
-pub const P256_SUITE: &str = "p256-sha256-v1";
 const EVIDENCE_DOMAIN: &[u8] = b"AUTHS-WEBAUTHN\x00\x01";
 const MAX_CREDENTIAL_ID: usize = 1024;
 const MAX_AUTHENTICATOR_DATA: usize = 1024;
 const MAX_CLIENT_DATA: usize = 4096;
 const MAX_CREDENTIALS: usize = 256;
+/// Maximum opaque verification-key bytes stored in a credential record.
+pub const MAX_WEBAUTHN_PUBLIC_KEY_BYTES: usize = 4096;
 const MAX_ORIGINS: usize = 16;
 const AUTHENTICATOR_DATA_MINIMUM: usize = 37;
 const FLAG_USER_PRESENT: u8 = 0x01;
@@ -55,16 +56,25 @@ pub enum CounterPolicy {
     GreaterThan(u32),
 }
 
+/// User-verification policy compiled from registration state.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum UserVerification {
+    Required,
+    Discouraged,
+}
+
 /// Verifier-local immutable `WebAuthn` credential registration.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WebAuthnCredential {
     credential_id: Vec<u8>,
     principal: PrincipalId,
     verification_method: VerificationMethod,
-    public_key: [u8; 33],
+    suite: SignatureSuiteId,
+    suite_configuration_id: AdapterConfigurationId,
+    public_key: BoundedBytes<MAX_WEBAUTHN_PUBLIC_KEY_BYTES>,
     rp_id: String,
     origins: Vec<String>,
-    require_user_verification: bool,
+    user_verification: UserVerification,
     counter_policy: CounterPolicy,
     attestation_level: Option<String>,
     observed_at: Timestamp,
@@ -81,10 +91,11 @@ impl WebAuthnCredential {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         credential_id: Vec<u8>,
-        public_key: [u8; 33],
+        suite: &dyn SignatureSuite,
+        public_key: Vec<u8>,
         rp_id: String,
         mut origins: Vec<String>,
-        require_user_verification: bool,
+        user_verification: UserVerification,
         counter_policy: CounterPolicy,
         attestation_level: Option<String>,
         observed_at: Timestamp,
@@ -103,7 +114,11 @@ impl WebAuthnCredential {
         {
             return Err(WebAuthnError::InvalidCredential);
         }
-        VerifyingKey::from_sec1_bytes(&public_key).map_err(|_| WebAuthnError::InvalidCredential)?;
+        suite
+            .validate_key(&public_key)
+            .map_err(|_| WebAuthnError::InvalidVerificationKey)?;
+        let public_key =
+            BoundedBytes::new(public_key).map_err(|_| WebAuthnError::InvalidVerificationKey)?;
         origins.sort();
         if origins.windows(2).any(|window| window[0] == window[1]) {
             return Err(WebAuthnError::InvalidCredential);
@@ -116,10 +131,12 @@ impl WebAuthnCredential {
             credential_id,
             principal,
             verification_method,
+            suite: suite.id().clone(),
+            suite_configuration_id: suite.configuration_id(),
             public_key,
             rp_id,
             origins,
-            require_user_verification,
+            user_verification,
             counter_policy,
             attestation_level,
             observed_at,
@@ -145,10 +162,16 @@ impl WebAuthnCredential {
         &self.credential_id
     }
 
-    /// Returns the compressed SEC1 P-256 verification key.
+    /// Returns the exact registered verification key.
     #[must_use]
-    pub const fn public_key(&self) -> &[u8; 33] {
-        &self.public_key
+    pub fn public_key(&self) -> &[u8] {
+        self.public_key.as_slice()
+    }
+
+    /// Returns the registered signature suite.
+    #[must_use]
+    pub const fn suite(&self) -> &SignatureSuiteId {
+        &self.suite
     }
 
     /// Returns the exact relying-party identifier.
@@ -165,8 +188,8 @@ impl WebAuthnCredential {
 
     /// Returns whether user verification is mandatory.
     #[must_use]
-    pub const fn require_user_verification(&self) -> bool {
-        self.require_user_verification
+    pub const fn user_verification(&self) -> UserVerification {
+        self.user_verification
     }
 
     /// Returns the registered signature-counter policy.
@@ -340,7 +363,9 @@ impl PrincipalMethod for WebAuthnMethod {
             components.push(credential.credential_id.clone());
             components.push(credential.principal.as_str().as_bytes().to_vec());
             components.push(credential.verification_method.as_str().as_bytes().to_vec());
-            components.push(credential.public_key.to_vec());
+            components.push(credential.suite.as_str().as_bytes().to_vec());
+            components.push(credential.suite_configuration_id.as_bytes().to_vec());
+            components.push(credential.public_key.as_slice().to_vec());
             components.push(credential.rp_id.as_bytes().to_vec());
             components.push(
                 u64::try_from(credential.origins.len())
@@ -351,7 +376,10 @@ impl PrincipalMethod for WebAuthnMethod {
             for origin in &credential.origins {
                 components.push(origin.as_bytes().to_vec());
             }
-            components.push(vec![u8::from(credential.require_user_verification)]);
+            components.push(vec![u8::from(matches!(
+                credential.user_verification,
+                UserVerification::Required
+            ))]);
             components.push(match credential.counter_policy {
                 CounterPolicy::Disabled => vec![0],
                 CounterPolicy::GreaterThan(counter) => {
@@ -385,14 +413,14 @@ impl PrincipalMethod for WebAuthnMethod {
         if !input.principal.as_str().starts_with(PRINCIPAL_PREFIX) {
             return Err(PrincipalControlError::PrincipalMethodMismatch);
         }
-        if input.signature_suite.as_str() != P256_SUITE {
-            return Err(PrincipalControlError::SignatureSuiteMismatch);
-        }
         let credential = self
             .credentials
             .iter()
             .find(|credential| credential.principal == *input.principal)
             .ok_or(PrincipalControlError::ExternalFactUnavailable)?;
+        if &credential.suite != input.signature_suite {
+            return Err(PrincipalControlError::SignatureSuiteMismatch);
+        }
         if &credential.verification_method != input.verification_method {
             return Err(PrincipalControlError::VerificationMethodMismatch);
         }
@@ -417,7 +445,8 @@ impl PrincipalMethod for WebAuthnMethod {
         }
         let flags = assertion.authenticator_data[32];
         if flags & FLAG_USER_PRESENT == 0
-            || (credential.require_user_verification && flags & FLAG_USER_VERIFIED == 0)
+            || (matches!(credential.user_verification, UserVerification::Required)
+                && flags & FLAG_USER_VERIFIED == 0)
         {
             return Err(PrincipalControlError::InvalidEvidence);
         }
@@ -458,7 +487,7 @@ impl PrincipalMethod for WebAuthnMethod {
         )?;
         let signature_message = assertion.signature_message();
         ControlEvidence::new(
-            credential.public_key.to_vec(),
+            credential.public_key.as_slice().to_vec(),
             claims,
             vec![EvidenceId::new(*evidence.id().as_bytes())],
             self.adapter.clone(),
@@ -654,6 +683,8 @@ pub enum WebAuthnError {
     Model(ModelError),
     /// The credential registration is invalid.
     InvalidCredential,
+    /// The selected suite rejected the verification-key representation.
+    InvalidVerificationKey,
     /// The assertion evidence envelope is invalid.
     InvalidEvidence,
     /// The client data is outside the closed target profile.
@@ -673,6 +704,9 @@ impl fmt::Display for WebAuthnError {
         match self {
             Self::Model(error) => write!(formatter, "invalid Auths model value: {error}"),
             Self::InvalidCredential => formatter.write_str("invalid WebAuthn credential record"),
+            Self::InvalidVerificationKey => {
+                formatter.write_str("invalid WebAuthn verification key")
+            }
             Self::InvalidEvidence => formatter.write_str("invalid WebAuthn assertion evidence"),
             Self::InvalidClientData => formatter.write_str("invalid WebAuthn client data"),
             Self::LimitExceeded => formatter.write_str("WebAuthn resource limit exceeded"),
@@ -688,19 +722,20 @@ mod tests {
     use super::*;
     use auths_model::{Digest, EvidenceObject, SignatureSuiteId};
     use auths_ports::{ControlPurpose, PrincipalControlInput};
+    use auths_signature::P256Sha256Suite;
     use p256::ecdsa::SigningKey;
 
     #[test]
     fn ceremony_message_binds_exact_auths_preimage() {
         let signing_key = SigningKey::from_bytes((&[7u8; 32]).into()).unwrap();
         let point = signing_key.verifying_key().to_encoded_point(true);
-        let public_key: [u8; 33] = point.as_bytes().try_into().unwrap();
         let credential = WebAuthnCredential::new(
             b"credential-1".to_vec(),
-            public_key,
+            &P256Sha256Suite::new().unwrap(),
+            point.as_bytes().to_vec(),
             "auths.example".to_string(),
             vec!["https://auths.example".to_string()],
-            true,
+            UserVerification::Required,
             CounterPolicy::GreaterThan(4),
             Some("non-exportable".to_string()),
             Timestamp::new(10),
@@ -733,9 +768,10 @@ mod tests {
             .verify_control(PrincipalControlInput {
                 principal: credential.principal(),
                 verification_method: credential.verification_method(),
-                signature_suite: &SignatureSuiteId::parse(P256_SUITE).unwrap(),
+                signature_suite: &SignatureSuiteId::parse("p256-sha256-v1").unwrap(),
                 purpose: ControlPurpose::CapabilityInvocation,
                 signing_preimage: preimage,
+                signature: b"test signature",
                 asserted_signing_time: Timestamp::new(20),
                 evidence: &refs,
                 evaluation_time: Timestamp::new(20),
@@ -759,9 +795,10 @@ mod tests {
             .verify_control(PrincipalControlInput {
                 principal: credential.principal(),
                 verification_method: credential.verification_method(),
-                signature_suite: &SignatureSuiteId::parse(P256_SUITE).unwrap(),
+                signature_suite: &SignatureSuiteId::parse("p256-sha256-v1").unwrap(),
                 purpose: ControlPurpose::CapabilityInvocation,
                 signing_preimage: b"a different Auths signing preimage",
+                signature: b"test signature",
                 asserted_signing_time: Timestamp::new(20),
                 evidence: &refs,
                 evaluation_time: Timestamp::new(20),

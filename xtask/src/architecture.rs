@@ -126,6 +126,32 @@ pub(crate) fn arch(update: bool) -> Result<(), String> {
                 .as_str()
                 .ok_or("dependency has no name")?;
             let dependency_layer = policy.packages.get(dependency_name);
+            const PRINCIPAL_ADAPTERS: [&str; 5] = [
+                "auths-hsm-attested",
+                "auths-oidc-workload",
+                "auths-sigstore-keyless",
+                "auths-spiffe-x509",
+                "auths-webauthn",
+            ];
+            const PRINCIPAL_CRYPTO_DEPENDENCIES: [&str; 7] = [
+                "ed25519-dalek",
+                "p256",
+                "ring",
+                "rsa",
+                "rustls-pki-types",
+                "rustls-webpki",
+                "webpki",
+            ];
+            let kind = dependency["kind"].as_str().unwrap_or("normal");
+            if kind != "dev"
+                && PRINCIPAL_ADAPTERS.contains(&name)
+                && PRINCIPAL_CRYPTO_DEPENDENCIES.contains(&dependency_name)
+            {
+                return Err(format!(
+                    "principal adapter owns a forbidden crypto/path dependency: \
+                     {name} -> {dependency_name}"
+                ));
+            }
             if let Some(dependency_layer) = dependency_layer {
                 if !layer.allowed_dependencies.contains(dependency_layer) {
                     return Err(format!(
@@ -133,10 +159,12 @@ pub(crate) fn arch(update: bool) -> Result<(), String> {
                          {name} -> {dependency_name}"
                     ));
                 }
-                internal_edges
-                    .entry(name.to_owned())
-                    .or_default()
-                    .insert(dependency_name.to_owned());
+                if kind != "dev" {
+                    internal_edges
+                        .entry(name.to_owned())
+                        .or_default()
+                        .insert(dependency_name.to_owned());
+                }
             }
             if layer_name == "core"
                 && dependency_layer.is_none()
@@ -149,7 +177,6 @@ pub(crate) fn arch(update: bool) -> Result<(), String> {
                     "core capability dependency is forbidden: {name} -> {dependency_name}"
                 ));
             }
-            let kind = dependency["kind"].as_str().unwrap_or("normal");
             let uses_default_features = dependency["uses_default_features"]
                 .as_bool()
                 .unwrap_or(true);

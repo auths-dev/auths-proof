@@ -15,6 +15,7 @@ auths-spiffe-x509.workspace = true
 auths-webauthn.workspace = true
 
 [dev-dependencies]
+auths-signature.workspace = true
 ed25519-dalek.workspace = true
 
 [lints]

@@ -1,0 +1,1 @@
+{"schema":"auths-proof-port-conformance/v1","port":"certificate-path-verifier","implementation":"webpki-v1","claims":["caller-supplied-time","caller-supplied-anchors","required-eku","verified-leaf-public-construction","configuration-is-committed"],"negative_cases":["malformed-leaf","unknown-anchor","expired","not-yet-valid","missing-eku","unsupported-algorithm","path-limit"]}

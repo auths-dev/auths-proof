@@ -5945,7 +5945,11 @@ impl ProcessProtectedPhaseGuard {
         ) else {
             return false;
         };
-        if named.st_dev != captured.dev() || named.st_ino != captured.ino() {
+        #[cfg(target_os = "linux")]
+        let same_device = named.st_dev == captured.dev();
+        #[cfg(not(target_os = "linux"))]
+        let same_device = u64::try_from(named.st_dev).ok() == Some(captured.dev());
+        if !same_device || named.st_ino != captured.ino() {
             return false;
         }
         rustix::fs::unlinkat(
@@ -6088,7 +6092,11 @@ impl ProcessProtectedPhaseGuard {
         ) else {
             return;
         };
-        if named.st_dev != captured.dev() || named.st_ino != captured.ino() {
+        #[cfg(target_os = "linux")]
+        let same_device = named.st_dev == captured.dev();
+        #[cfg(not(target_os = "linux"))]
+        let same_device = u64::try_from(named.st_dev).ok() == Some(captured.dev());
+        if !same_device || named.st_ino != captured.ino() {
             return;
         }
         let _ = rustix::fs::unlinkat(

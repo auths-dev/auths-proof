@@ -75,10 +75,8 @@ jobs:
               per_page: 100,
             });
             const preflight = jobs.filter((job) => job.name === 'formal-update preflight');
-            const formal = jobs.filter((job) => job.name === 'formal-translation implementation');
             const preflightSucceeded = preflight.length === 1 && preflight[0].conclusion === 'success';
-            const formalSucceeded = formal.length === 1 && formal[0].conclusion === 'success';
-            if (!preflightSucceeded && !formalSucceeded) throw new Error('No approved unprivileged generator succeeded exactly once.');
+            if (!preflightSucceeded) throw new Error('The bounded unprivileged preflight generator did not succeed exactly once.');
             core.setOutput('artifact_found', 'true');
             core.setOutput('artifact_name', artifactName);
             core.setOutput('pr_number', String(pull.number));

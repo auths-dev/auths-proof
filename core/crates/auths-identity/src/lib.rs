@@ -85,10 +85,45 @@ const SIGNING_DOMAIN: &[u8] = IDENTITY_SIGNING_DOMAIN_V2;
 const PUBLIC_IDENTITY_TAG: u8 = 1;
 const SIGNED_MESSAGE_TAG: u8 = 2;
 
+macro_rules! identity_identifier {
+    ($name:ident, $maximum:expr) => {
+        #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+        pub struct $name(String);
+
+        impl $name {
+            /// Parses one bounded identity-layer registry identifier.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`IdentityError`] when `value` is empty, exceeds the
+            /// identifier's bound, or contains a non-registry character.
+            pub fn parse(value: &str) -> Result<Self, IdentityError> {
+                validate_identifier(value, $maximum)?;
+                Ok(Self(value.into()))
+            }
+
+            #[must_use]
+            pub fn as_str(&self) -> &str {
+                &self.0
+            }
+        }
+
+        impl fmt::Display for $name {
+            fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str(&self.0)
+            }
+        }
+    };
+}
+
+identity_identifier!(IdentityMethodId, MAX_METHOD_ID_BYTES);
+identity_identifier!(IdentitySuiteId, MAX_SUITE_ID_BYTES);
+identity_identifier!(MaterialId, MAX_RELATIONSHIP_ID_BYTES);
+
 /// Method-owned identity data that does not assume an embedded key or credential shape.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct IdentityDescriptor {
-    method_id: String,
+    method_id: IdentityMethodId,
     identity_id: String,
     method_material: Vec<u8>,
     relationships: Vec<VerificationRelationship>,
@@ -110,7 +145,7 @@ impl IdentityDescriptor {
         method_material: Vec<u8>,
         relationships: Vec<VerificationRelationship>,
     ) -> Result<Self, IdentityError> {
-        validate_identifier(method_id, MAX_METHOD_ID_BYTES)?;
+        let method_id = IdentityMethodId::parse(method_id)?;
         validate_identifier(identity_id, MAX_IDENTITY_ID_BYTES)?;
         if method_material.len() > MAX_METHOD_MATERIAL_BYTES
             || relationships.len() > MAX_RELATIONSHIPS
@@ -135,7 +170,7 @@ impl IdentityDescriptor {
             return Err(IdentityError::Limit);
         }
         Ok(Self {
-            method_id: method_id.into(),
+            method_id,
             identity_id: identity_id.into(),
             method_material,
             relationships,
@@ -144,7 +179,7 @@ impl IdentityDescriptor {
 
     /// Returns the identity method selected by the descriptor.
     #[must_use]
-    pub fn method_id(&self) -> &str {
+    pub const fn method_id(&self) -> &IdentityMethodId {
         &self.method_id
     }
 
@@ -182,17 +217,17 @@ impl IdentityDescriptor {
     pub fn encode(&self) -> Result<Vec<u8>, IdentityError> {
         let mut output = Vec::new();
         output.extend_from_slice(IDENTITY_DESCRIPTOR_WIRE_MAGIC_V1);
-        encode_text(&mut output, &self.method_id)?;
+        encode_text(&mut output, self.method_id.as_str())?;
         encode_text(&mut output, &self.identity_id)?;
         encode_bytes(&mut output, &self.method_material)?;
         encode_count(&mut output, self.relationships.len())?;
         for relationship in &self.relationships {
             encode_text(&mut output, relationship.relationship_id())?;
             encode_text(&mut output, relationship.purpose())?;
-            encode_text(&mut output, relationship.suite_id())?;
+            encode_text(&mut output, relationship.suite_id().as_str())?;
             encode_count(&mut output, relationship.verification_material().len())?;
             for material in relationship.verification_material() {
-                encode_text(&mut output, material.material_id())?;
+                encode_text(&mut output, material.material_id().as_str())?;
                 encode_bytes(&mut output, material.bytes())?;
             }
         }
@@ -304,7 +339,7 @@ impl IdentityDescriptor {
 pub struct VerificationRelationship {
     relationship_id: String,
     purpose: String,
-    suite_id: String,
+    suite_id: IdentitySuiteId,
     verification_material: Vec<VerificationMaterial>,
 }
 
@@ -323,7 +358,7 @@ impl VerificationRelationship {
     ) -> Result<Self, IdentityError> {
         validate_identifier(relationship_id, MAX_RELATIONSHIP_ID_BYTES)?;
         validate_identifier(purpose, MAX_PURPOSE_ID_BYTES)?;
-        validate_identifier(suite_id, MAX_SUITE_ID_BYTES)?;
+        let suite_id = IdentitySuiteId::parse(suite_id)?;
         if verification_material.is_empty()
             || verification_material.len() > MAX_MATERIALS_PER_RELATIONSHIP
         {
@@ -340,7 +375,7 @@ impl VerificationRelationship {
         Ok(Self {
             relationship_id: relationship_id.into(),
             purpose: purpose.into(),
-            suite_id: suite_id.into(),
+            suite_id,
             verification_material,
         })
     }
@@ -356,7 +391,7 @@ impl VerificationRelationship {
     }
 
     #[must_use]
-    pub fn suite_id(&self) -> &str {
+    pub const fn suite_id(&self) -> &IdentitySuiteId {
         &self.suite_id
     }
 
@@ -369,7 +404,7 @@ impl VerificationRelationship {
 /// One separately labelled opaque input to a signature suite.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerificationMaterial {
-    material_id: String,
+    material_id: MaterialId,
     bytes: Vec<u8>,
 }
 
@@ -380,18 +415,15 @@ impl VerificationMaterial {
     ///
     /// Rejects malformed identifiers and empty or oversized material.
     pub fn new(material_id: &str, bytes: Vec<u8>) -> Result<Self, IdentityError> {
-        validate_identifier(material_id, MAX_RELATIONSHIP_ID_BYTES)?;
+        let material_id = MaterialId::parse(material_id)?;
         if bytes.is_empty() || bytes.len() > MAX_VERIFICATION_MATERIAL_BYTES {
             return Err(IdentityError::InvalidVerificationMaterial);
         }
-        Ok(Self {
-            material_id: material_id.into(),
-            bytes,
-        })
+        Ok(Self { material_id, bytes })
     }
 
     #[must_use]
-    pub fn material_id(&self) -> &str {
+    pub const fn material_id(&self) -> &MaterialId {
         &self.material_id
     }
 
@@ -403,7 +435,7 @@ impl VerificationMaterial {
 
 /// Replaceable validator for a general, method-owned identity descriptor.
 pub trait IdentityDescriptorMethod {
-    fn method_id(&self) -> &str;
+    fn method_id(&self) -> IdentityMethodId;
     /// Validates stable identity, method material, and relationship semantics.
     ///
     /// # Errors
@@ -435,9 +467,9 @@ impl ValidatedIdentityDescriptor {
 /// Algorithm-neutral public identity and verification key.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PublicIdentity {
-    method_id: String,
+    method_id: IdentityMethodId,
     identity_id: String,
-    suite_id: String,
+    suite_id: IdentitySuiteId,
     public_key: Vec<u8>,
 }
 
@@ -454,22 +486,22 @@ impl PublicIdentity {
         suite_id: &str,
         public_key: Vec<u8>,
     ) -> Result<Self, IdentityError> {
-        validate_identifier(method_id, MAX_METHOD_ID_BYTES)?;
+        let method_id = IdentityMethodId::parse(method_id)?;
         validate_identifier(identity_id, MAX_IDENTITY_ID_BYTES)?;
-        validate_identifier(suite_id, MAX_SUITE_ID_BYTES)?;
+        let suite_id = IdentitySuiteId::parse(suite_id)?;
         if public_key.is_empty() || public_key.len() > MAX_PUBLIC_KEY_BYTES {
             return Err(IdentityError::InvalidPublicKey);
         }
         Ok(Self {
-            method_id: method_id.into(),
+            method_id,
             identity_id: identity_id.into(),
-            suite_id: suite_id.into(),
+            suite_id,
             public_key,
         })
     }
 
     #[must_use]
-    pub fn method_id(&self) -> &str {
+    pub const fn method_id(&self) -> &IdentityMethodId {
         &self.method_id
     }
 
@@ -479,7 +511,7 @@ impl PublicIdentity {
     }
 
     #[must_use]
-    pub fn suite_id(&self) -> &str {
+    pub const fn suite_id(&self) -> &IdentitySuiteId {
         &self.suite_id
     }
 
@@ -496,13 +528,13 @@ impl PublicIdentity {
     /// general model's stricter relationship construction.
     pub fn to_descriptor(&self) -> Result<IdentityDescriptor, IdentityError> {
         IdentityDescriptor::new(
-            &self.method_id,
+            self.method_id.as_str(),
             &self.identity_id,
             Vec::new(),
             alloc::vec![VerificationRelationship::new(
                 "default-signing",
                 "authentication",
-                &self.suite_id,
+                self.suite_id.as_str(),
                 alloc::vec![VerificationMaterial::new(
                     "default-key",
                     self.public_key.clone(),
@@ -531,9 +563,9 @@ impl PublicIdentity {
 
     fn encode_descriptor(&self) -> Result<Vec<u8>, IdentityError> {
         let mut output = Vec::new();
-        encode_text(&mut output, &self.method_id)?;
+        encode_text(&mut output, self.method_id.as_str())?;
         encode_text(&mut output, &self.identity_id)?;
-        encode_text(&mut output, &self.suite_id)?;
+        encode_text(&mut output, self.suite_id.as_str())?;
         encode_bytes(&mut output, &self.public_key)?;
         Ok(output)
     }
@@ -559,7 +591,7 @@ impl ValidatedIdentity {
 
     /// Returns the validated identity method identifier.
     #[must_use]
-    pub fn method_id(&self) -> &str {
+    pub const fn method_id(&self) -> &IdentityMethodId {
         self.identity.method_id()
     }
 
@@ -571,7 +603,7 @@ impl ValidatedIdentity {
 
     /// Returns the validated signature-suite identifier.
     #[must_use]
-    pub fn suite_id(&self) -> &str {
+    pub const fn suite_id(&self) -> &IdentitySuiteId {
         self.identity.suite_id()
     }
 
@@ -590,7 +622,7 @@ impl ValidatedIdentity {
 
 /// Replaceable identity-method implementation such as raw key, DID, or X.509.
 pub trait IdentityMethod {
-    fn method_id(&self) -> &str;
+    fn method_id(&self) -> IdentityMethodId;
     /// Validates the method-specific identity relationship.
     ///
     /// # Errors
@@ -601,7 +633,7 @@ pub trait IdentityMethod {
 
 /// Replaceable signature-suite implementation.
 pub trait SignatureVerifier {
-    fn suite_id(&self) -> &str;
+    fn suite_id(&self) -> IdentitySuiteId;
     /// Verifies one exact signing preimage using suite-specific bytes.
     ///
     /// # Errors
@@ -839,8 +871,8 @@ fn validate_identifier(value: &str, maximum: usize) -> Result<(), IdentityError>
     if value.is_empty()
         || value.len() > maximum
         || value
-            .bytes()
-            .any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace())
+            .chars()
+            .any(|character| character.is_control() || character.is_whitespace())
     {
         return Err(IdentityError::InvalidIdentity);
     }
@@ -982,10 +1014,43 @@ impl core::error::Error for IdentityError {}
 mod tests {
     use super::*;
 
+    const IDENTIFIER_VECTOR_V1: &str = r#"{"schema":"auths-identity-identifier-conformance/v1","maximum_utf8_bytes":128,"valid":["a","raw-key-v2","p256-sha256-v1","xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"],"invalid":["","contains space","contains\ttab","contains\nnewline","contains\u00a0space","contains\u0007control","xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]}"#;
+
+    #[test]
+    fn shared_identifier_vectors_match_the_identity_grammar() {
+        assert_eq!(
+            include_str!("../../../conformance/v1/identity-identifiers.json").trim(),
+            IDENTIFIER_VECTOR_V1
+        );
+        for value in [
+            "a",
+            "raw-key-v2",
+            "p256-sha256-v1",
+            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        ] {
+            assert!(IdentityMethodId::parse(value).is_ok());
+            assert!(IdentitySuiteId::parse(value).is_ok());
+            assert!(MaterialId::parse(value).is_ok());
+        }
+        for value in [
+            "",
+            "contains space",
+            "contains\ttab",
+            "contains\nnewline",
+            "contains\u{00a0}space",
+            "contains\u{0007}control",
+            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        ] {
+            assert!(IdentityMethodId::parse(value).is_err());
+            assert!(IdentitySuiteId::parse(value).is_err());
+            assert!(MaterialId::parse(value).is_err());
+        }
+    }
+
     struct AnyMethod;
     impl IdentityMethod for AnyMethod {
-        fn method_id(&self) -> &'static str {
-            "example-method-v1"
+        fn method_id(&self) -> IdentityMethodId {
+            IdentityMethodId::parse("example-method-v1").unwrap()
         }
         fn validate(&self, identity: &PublicIdentity) -> Result<(), IdentityError> {
             (identity.identity_id() == "example:alice")
@@ -996,8 +1061,8 @@ mod tests {
 
     struct VariableLengthSuite;
     impl SignatureVerifier for VariableLengthSuite {
-        fn suite_id(&self) -> &'static str {
-            "example-pq-v1"
+        fn suite_id(&self) -> IdentitySuiteId {
+            IdentitySuiteId::parse("example-pq-v1").unwrap()
         }
         fn verify(
             &self,
@@ -1014,8 +1079,8 @@ mod tests {
     struct GeneralMethod;
 
     impl IdentityDescriptorMethod for GeneralMethod {
-        fn method_id(&self) -> &'static str {
-            "example-method-v2"
+        fn method_id(&self) -> IdentityMethodId {
+            IdentityMethodId::parse("example-method-v2").unwrap()
         }
 
         fn validate(&self, descriptor: &IdentityDescriptor) -> Result<(), IdentityError> {
@@ -1151,7 +1216,9 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            hybrid_identity.relationships()[0].verification_material()[1].material_id(),
+            hybrid_identity.relationships()[0].verification_material()[1]
+                .material_id()
+                .as_str(),
             "post-quantum"
         );
 

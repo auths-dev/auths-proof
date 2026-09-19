@@ -15,12 +15,14 @@ application, or related to a transport peer. The crate has no capability,
 approval, policy, authority, network, or product-runtime dependency.
 
 ```rust
-use auths_identity::{IdentityError, IdentityMethod, PublicIdentity};
+use auths_identity::{IdentityError, IdentityMethod, IdentityMethodId, PublicIdentity};
 
 struct MyMethod;
 
 impl IdentityMethod for MyMethod {
-    fn method_id(&self) -> &'static str { "example:p256:v1" }
+    fn method_id(&self) -> IdentityMethodId {
+        IdentityMethodId::parse("example:p256:v1").expect("registered method")
+    }
 
     fn validate(&self, identity: &PublicIdentity) -> Result<(), IdentityError> {
         if identity.public_key().len() == 33 { Ok(()) }

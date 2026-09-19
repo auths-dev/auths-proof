@@ -1,4 +1,4 @@
-freeze_version = 179
+freeze_version = 230
 
 # Semantic identity counters live outside the xtask source tree deliberately.
 # The formal source closure binds xtask's executable code, while the semantic
@@ -6,20 +6,20 @@ freeze_version = 179
 # made the two generated artifacts hash each other and therefore unable to
 # converge. This file is a reviewed release input, never an automatic output.
 [entries]
-"auths.core.protocol" = 18
-"auths.frozen-bytes/architecture/dependency-graph.json" = 36
+"auths.core.protocol" = 21
+"auths.frozen-bytes/architecture/dependency-graph.json" = 40
 "auths.frozen-bytes/bindings/wasm/auths-proof-wasm/identity-abi-v1.json" = 4
 "auths.frozen-bytes/bounded-domains.toml" = 2
 "auths.frozen-bytes/core/conformance/v1/manifest.json" = 1
 "auths.frozen-bytes/core/explanations/v1/fact-inventory.json" = 1
 "auths.frozen-bytes/core/fixtures/identity/v1/vectors.json" = 1
-"auths.frozen-bytes/core/fixtures/v1/manifest.json" = 4
+"auths.frozen-bytes/core/fixtures/v1/manifest.json" = 6
 "auths.frozen-bytes/core/formal-vectors/v1/manifest.json" = 1
 "auths.frozen-bytes/demos/benchmarks/profiles/release.toml" = 1
-"auths.frozen-bytes/formal/assurance-manifest-v1.toml" = 18
-"auths.frozen-bytes/formal/qualification/aeneas/generated" = 6
-"auths.frozen-bytes/formal/qualification/aeneas/qualification.toml" = 5
-"auths.frozen-bytes/formal/qualification/aeneas/source-closure.json" = 30
+"auths.frozen-bytes/formal/assurance-manifest-v1.toml" = 23
+"auths.frozen-bytes/formal/qualification/aeneas/generated" = 9
+"auths.frozen-bytes/formal/qualification/aeneas/qualification.toml" = 6
+"auths.frozen-bytes/formal/qualification/aeneas/source-closure.json" = 46
 "auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json" = 1
 "auths.frozen-bytes/product/conformance/v1/simplified-product-waist.json" = 3
 "auths.frozen-bytes/product/fixtures/v1/bounded-policy/manifest.json" = 2
@@ -45,9 +45,9 @@ freeze_version = 179
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-create/v1/manifest.sha256.json" = 1
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-modify/v1/manifest.sha256.json" = 1
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/v1/manifest.sha256.json" = 1
-"auths.identity.protocol" = 44
-"auths.modular-components" = 10
-"auths.portable-abi-bindings" = 72
+"auths.identity.protocol" = 60
+"auths.modular-components" = 15
+"auths.portable-abi-bindings" = 75
 "auths.product.bounded-domains" = 15
 "auths.product.bounded-policy" = 2
 "auths.product.configuration-commitments" = 1
@@ -57,15 +57,15 @@ freeze_version = 179
 "auths.product.facade" = 20
 "auths.product.github-issue-address-v2" = 3
 "auths.product.lifecycle" = 13
-"auths.product.mcp-closed-execution" = 19
+"auths.product.mcp-closed-execution" = 20
 "auths.product.mechanism-profile-conformance" = 8
 "auths.product.operations" = 5
-"auths.product.profile-qualification-launch" = 13
-"auths.product.public-sdk-contract" = 59
-"auths.product.receipts" = 11
+"auths.product.profile-qualification-launch" = 15
+"auths.product.public-sdk-contract" = 62
+"auths.product.receipts" = 12
 "auths.product.release-assurance" = 5
 "auths.product.simplified-waist" = 11
 "auths.product.vocabulary" = 15
 "auths.release.benchmark-contract" = 1
-"auths.release.evolution-contract" = 34
-"auths.release.public-surface" = 177
+"auths.release.evolution-contract" = 45
+"auths.release.public-surface" = 230

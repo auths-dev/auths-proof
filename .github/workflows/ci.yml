@@ -14,6 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
+  actions: read
   contents: read
 
 jobs:
@@ -26,6 +27,18 @@ jobs:
       authoritative_reason: ${{ steps.plan.outputs.authoritative_reason }}
       formal_translation_required: ${{ steps.plan.outputs.formal_translation_required }}
       formal_translation_reason: ${{ steps.plan.outputs.formal_translation_reason }}
+      formal_proof_required: ${{ steps.plan.outputs.formal_proof_required }}
+      formal_proof_reason: ${{ steps.plan.outputs.formal_proof_reason }}
+      formal_kani_required: ${{ steps.plan.outputs.formal_kani_required }}
+      formal_kani_reason: ${{ steps.plan.outputs.formal_kani_reason }}
+      formal_cold_required: ${{ steps.plan.outputs.formal_cold_required }}
+      formal_cold_reason: ${{ steps.plan.outputs.formal_cold_reason }}
+      formal_plan_path: ${{ steps.plan.outputs.formal_plan_path }}
+      formal_proof_digest: ${{ steps.plan.outputs.formal_proof_digest }}
+      formal_translation_digest: ${{ steps.plan.outputs.formal_translation_digest }}
+      formal_kani_digest: ${{ steps.plan.outputs.formal_kani_digest }}
+      formal_toolchain_digest: ${{ steps.plan.outputs.formal_toolchain_digest }}
+      formal_evidence_digest: ${{ steps.plan.outputs.formal_evidence_digest }}
       compliance_required: ${{ steps.plan.outputs.compliance_required }}
       compliance_reason: ${{ steps.plan.outputs.compliance_reason }}
       dependencies_required: ${{ steps.plan.outputs.dependencies_required }}
@@ -41,6 +54,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup-rust-cache
@@ -91,15 +105,21 @@ jobs:
           --output target/formal/source-closure.expected.json
       - id: formal-update
         name: Package a bounded generated update
-        run: >-
-          cargo run --locked -p auths-ci-plan --
-          formal-update-artifact create
-          --repository "${{ github.repository }}"
-          --workflow "${{ github.workflow }}"
-          --run-id "${{ github.run_id }}"
-          --run-attempt "${{ github.run_attempt }}"
-          --base-sha "${{ github.event.pull_request.base.sha }}"
-          --head-sha "${{ github.event.pull_request.head.sha }}"
+        env:
+          AUTHS_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin "$AUTHS_BASE_SHA"
+          mkdir -p target/formal
+          git show "${AUTHS_BASE_SHA}:.github/ci/formal-generated-paths.json" > target/formal/trusted-generated-paths.json
+          cargo run --locked -p auths-ci-plan -- formal-update-artifact create \
+            --repository "${{ github.repository }}" \
+            --workflow "${{ github.workflow }}" \
+            --run-id "${{ github.run_id }}" \
+            --run-attempt "${{ github.run_attempt }}" \
+            --base-sha "$AUTHS_BASE_SHA" \
+            --head-sha "${{ github.event.pull_request.head.sha }}" \
+            --policy target/formal/trusted-generated-paths.json
       - name: Preserve the bounded generated update
         if: steps.formal-update.outputs.update_required == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -144,6 +164,8 @@ jobs:
       needs.formal-update-gate.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    outputs:
+      update_required: ${{ steps.formal-update.outputs.update_required || 'false' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -223,73 +245,161 @@ jobs:
           phase: authoritative
           started-at: ${{ env.AUTHS_PHASE_STARTED }}
 
+  formal-proof-fast:
+    name: formal proof fast (feedback, not qualification)
+    needs: [ci-plan, formal-update-gate]
+    if: >-
+      !cancelled() &&
+      needs.ci-plan.result == 'success' &&
+      needs.formal-update-gate.result == 'success' &&
+      needs.ci-plan.outputs.formal_proof_required == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Start formal phase timing
+        run: echo "AUTHS_FORMAL_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+          compiler-cache: "false"
+      - id: lean-setup
+        uses: ./.github/actions/setup-lean
+      - name: Compile the highest-value proofs, then the complete Lean libraries
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/formal/logs
+          cargo xtask ci formal-proof-fast 2>&1 | tee target/formal/logs/proof-fast.log
+      - name: Summarize fast feedback
+        if: always()
+        run: |
+          {
+            echo "### Formal proof fast feedback"
+            echo
+            echo "This is an early Lean rejection gate, not qualification evidence."
+            echo "It installs neither Aeneas, Charon, nor Kani."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve the complete fast Lean log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-formal-proof-fast-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/formal/logs/proof-fast.log
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Preserve warmed pinned Lean dependencies after failure
+        if: always() && steps.lean-setup.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          path: |
+            ~/.elan
+            formal/.lake/packages
+          key: formal-lean-deps-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('formal/lean-toolchain', 'formal/lake-manifest.json') }}
+      - name: Record fast proof timing
+        if: always()
+        uses: ./.github/actions/formal-phase-summary
+        with:
+          phase: proof-fast
+          started-at: ${{ env.AUTHS_FORMAL_STARTED_AT }}
+          execution: executed-no-qualification
+
   formal-translation-run:
-    name: formal-translation implementation
-    needs: [ci-plan, formal-update-gate, repository-preflight]
+    name: formal translation
+    needs: [ci-plan, formal-update-gate, repository-preflight, formal-proof-fast]
     if: >-
       !cancelled() &&
       needs.ci-plan.result == 'success' &&
       needs.formal-update-gate.result == 'success' &&
       needs.repository-preflight.result == 'success' &&
+      needs.formal-proof-fast.result == 'success' &&
       needs.ci-plan.outputs.formal_translation_required == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 120
-    outputs:
-      update_required: ${{ steps.formal-update.outputs.update_required || 'false' }}
+    timeout-minutes: 100
     steps:
+      - name: Start formal phase timing
+        run: echo "AUTHS_FORMAL_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - name: Verify the exact formal candidate before expensive setup
-        env:
-          AUTHS_EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          set -euo pipefail
-          actual_head_sha="$(git rev-parse HEAD)"
-          if [[ "$actual_head_sha" != "$AUTHS_EXPECTED_HEAD_SHA" ]]; then
-            echo "::error::Formal candidate mismatch: expected ${AUTHS_EXPECTED_HEAD_SHA}, found ${actual_head_sha}."
-            exit 1
-          fi
-          echo "Formal candidate: ${actual_head_sha}" >> "$GITHUB_STEP_SUMMARY"
-      - name: Start telemetry
-        run: echo "AUTHS_PHASE_STARTED=$(date +%s)" >> "$GITHUB_ENV"
       - uses: ./.github/actions/setup-rust-cache
         with:
           toolchain: 1.97.1
           compiler-cache: "false"
-      - name: Check production source closure before formal setup
-        if: github.event_name != 'pull_request'
-        run: >-
-          cargo run --locked -p auths-ci-plan --
-          formal-source-closure check
-          --output target/formal/source-closure.expected.json
-      - name: Reclaim disk for the pinned formal toolchain
+      - id: prior-pr-translation
+        name: Reuse a successful same-PR translation only for identical inputs
+        if: github.event_name == 'pull_request' && needs.ci-plan.outputs.formal_cold_required == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTHS_PR_NUMBER: ${{ github.event.pull_request.number }}
+          AUTHS_FORMAL_PHASE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_translation_digest }}
+          AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_toolchain_digest }}
+          AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_evidence_digest }}
+        run: |
+          set -euo pipefail
+          echo 'reused=false' >> "$GITHUB_OUTPUT"
+          runs="$(gh api --method GET "repos/${GITHUB_REPOSITORY}/actions/runs" -f branch="$GITHUB_HEAD_REF" -f event=pull_request -f per_page=50)" || exit 0
+          mkdir -p target/reused-formal/pr-candidate
+          while IFS=$'\t' read -r run_id attempt head_sha; do
+            [[ "$run_id" != "$GITHUB_RUN_ID" ]] || continue
+            artifacts="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100")" || continue
+            phase_id="$(jq -r --arg name "auths-formal-phase-translation-${run_id}-${attempt}" '.artifacts | map(select(.name == $name and .expired == false and .size_in_bytes <= 1048576)) | first | .id // empty' <<< "$artifacts")" || continue
+            [[ -n "$phase_id" ]] || continue
+            phase_zip=target/reused-formal/pr-candidate/phase.zip
+            gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${phase_id}/zip" > "$phase_zip" || continue
+            [[ "$(unzip -Z1 "$phase_zip")" == 'translation.json' ]] || continue
+            phase_size="$(unzip -l "$phase_zip" | awk '$4 == "translation.json" {print $1}')" || continue
+            [[ "$phase_size" =~ ^[0-9]+$ && "$phase_size" -le 1048576 ]] || continue
+            phase_path=target/reused-formal/pr-candidate/translation.json
+            unzip -p "$phase_zip" translation.json > "$phase_path" || continue
+            [[ "$(wc -c < "$phase_path")" -le 1048576 ]] || continue
+            jq -e --arg translation "$AUTHS_FORMAL_PHASE_CLOSURE_SHA256" --arg toolchain "$AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256" --arg evidence "$AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256" '.planned_closure_sha256 == $translation and .toolchain_closure_sha256 == $toolchain and .evidence_closure_sha256 == $evidence and .reproduction_count == 2' "$phase_path" >/dev/null || continue
+            jobs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100")" || continue
+            jq -e --arg sha "$head_sha" '.jobs | any(.name == "formal translation" and .conclusion == "success" and .head_sha == $sha)' <<< "$jobs" >/dev/null || continue
+            evidence_id="$(jq -r --arg name "auths-formal-translation-${run_id}-${attempt}" '.artifacts | map(select(.name == $name and .expired == false and .size_in_bytes <= 1048576)) | first | .id // empty' <<< "$artifacts")" || continue
+            [[ -n "$evidence_id" ]] || continue
+            evidence_zip=target/reused-formal/pr-candidate/evidence.zip
+            gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${evidence_id}/zip" > "$evidence_zip" || continue
+            [[ "$(unzip -Z1 "$evidence_zip")" == 'aeneas-qualification.json' ]] || continue
+            evidence_size="$(unzip -l "$evidence_zip" | awk '$4 == "aeneas-qualification.json" {print $1}')" || continue
+            [[ "$evidence_size" =~ ^[0-9]+$ && "$evidence_size" -le 1048576 ]] || continue
+            evidence_path=target/reused-formal/pr-candidate/aeneas-qualification.json
+            unzip -p "$evidence_zip" aeneas-qualification.json > "$evidence_path" || continue
+            [[ "$(wc -c < "$evidence_path")" -le 1048576 ]] || continue
+            if AUTHS_REUSED_TRANSLATION_EVIDENCE="$evidence_path" \
+               AUTHS_REUSED_TRANSLATION_PHASE_RESULT="$phase_path" \
+               AUTHS_REUSED_RUN_ID="$run_id" \
+               AUTHS_REUSED_RUN_ATTEMPT="$attempt" \
+               AUTHS_REUSED_HEAD_SHA="$head_sha" \
+               cargo xtask ci formal-translation-reuse; then
+              echo 'reused=true' >> "$GITHUB_OUTPUT"
+              echo "Translation reused successful PR run ${run_id}, attempt ${attempt}, head ${head_sha}" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+          done < <(jq -r --arg repo "$GITHUB_REPOSITORY" --argjson pr "$AUTHS_PR_NUMBER" '.workflow_runs | map(select(.name == "CI" and .head_repository.full_name == $repo and any(.pull_requests[]?; .number == $pr))) | .[:10][] | [.id, .run_attempt, .head_sha] | @tsv' <<< "$runs")
+          echo 'No applicable successful same-PR translation; using two clean reproductions.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Reclaim disk for cold translation
+        if: needs.ci-plan.outputs.formal_cold_required == 'true' && steps.prior-pr-translation.outputs.reused != 'true'
         shell: bash
         run: |
           set -euo pipefail
-          df -h /
-          sudo rm -rf \
-            /opt/ghc \
-            /opt/hostedtoolcache/CodeQL \
-            /usr/local/.ghcup \
-            /usr/local/lib/android \
-            /usr/share/dotnet
+          sudo rm -rf /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/.ghcup /usr/local/lib/android /usr/share/dotnet
           sudo docker system prune --all --force
           sudo apt-get clean
-          available_kib="$(df --output=avail / | tail -n 1 | tr -d ' ')"
-          minimum_kib="$((25 * 1024 * 1024))"
-          if (( available_kib < minimum_kib )); then
-            echo "::error::Formal translation requires 25 GiB free; found $((available_kib / 1024 / 1024)) GiB."
-            exit 1
-          fi
       - name: Install pinned Nix with the public Aeneas Cachix substitute
+        if: needs.ci-plan.outputs.formal_cold_required == 'true' && steps.prior-pr-translation.outputs.reused != 'true'
         uses: cachix/install-nix-action@ab739621df7a23f52766f9ccc97f38da6b7af14f # v31.10.5
         with:
           extra_nix_config: |
             extra-substituters = https://hacl.cachix.org
             extra-trusted-public-keys = hacl.cachix.org-1:FzsZ2xsByOwKwIWNPII7yMOelJNDZ12mDAj3d1eGX0c=
-      - name: Build pinned Aeneas and Charon
+      - name: Acquire pinned Aeneas and Charon
+        if: needs.ci-plan.outputs.formal_cold_required == 'true' && steps.prior-pr-translation.outputs.reused != 'true'
         run: >-
           nix build
           --print-build-logs
@@ -297,40 +407,35 @@ jobs:
           --cores 2
           github:AeneasVerif/aeneas/3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0#aeneas
           --out-link target/formal-tools
-      - uses: ./.github/actions/setup-lean
-      - name: Install pinned Kani
-        run: |
-          cargo install kani-verifier --version 0.67.0 --locked
-          cargo kani setup
-          kani --version
-      - name: Reproduce and verify exact production translation
-        if: github.event_name != 'pull_request'
+      - name: Reproduce translation twice
+        if: needs.ci-plan.outputs.formal_cold_required == 'true' && steps.prior-pr-translation.outputs.reused != 'true'
         env:
           AUTHS_AENEAS_BIN: ${{ github.workspace }}/target/formal-tools/bin/aeneas
           AUTHS_CHARON_BIN: ${{ github.workspace }}/target/formal-tools/bin/charon
-        run: cargo xtask ci formal-translation
-      - name: Reproduce and update generated artifacts without write credentials
-        if: github.event_name == 'pull_request'
-        env:
-          AUTHS_AENEAS_BIN: ${{ github.workspace }}/target/formal-tools/bin/aeneas
-          AUTHS_CHARON_BIN: ${{ github.workspace }}/target/formal-tools/bin/charon
-        run: cargo xtask formal qualify aeneas --update
+          AUTHS_FORMAL_UPDATE_MODE: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
+          AUTHS_FORMAL_PHASE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_translation_digest }}
+          AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_toolchain_digest }}
+          AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_evidence_digest }}
+        run: cargo xtask ci formal-translation-reproduce
       - id: formal-update
-        name: Package a bounded generated update
-        if: github.event_name == 'pull_request'
-        run: >-
-          cargo run --locked -p auths-ci-plan --
-          formal-update-artifact create
-          --repository "${{ github.repository }}"
-          --workflow "${{ github.workflow }}"
-          --run-id "${{ github.run_id }}"
-          --run-attempt "${{ github.run_attempt }}"
-          --base-sha "${{ github.event.pull_request.base.sha }}"
-          --head-sha "${{ github.event.pull_request.head.sha }}"
-      - name: Run semantic and bounded checks without reproducing a second time
-        if: github.event_name == 'pull_request'
-        run: cargo xtask ci formal-post-qualification
-      - name: Preserve the bounded generated update
+        name: Package a bounded translation update
+        if: github.event_name == 'pull_request' && needs.ci-plan.outputs.formal_cold_required == 'true' && steps.prior-pr-translation.outputs.reused != 'true'
+        env:
+          AUTHS_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin "$AUTHS_BASE_SHA"
+          mkdir -p target/formal
+          git show "${AUTHS_BASE_SHA}:.github/ci/formal-generated-paths.json" > target/formal/trusted-generated-paths.json
+          cargo run --locked -p auths-ci-plan -- formal-update-artifact create \
+            --repository "${{ github.repository }}" \
+            --workflow "${{ github.workflow }}" \
+            --run-id "${{ github.run_id }}" \
+            --run-attempt "${{ github.run_attempt }}" \
+            --base-sha "$AUTHS_BASE_SHA" \
+            --head-sha "${{ github.event.pull_request.head.sha }}" \
+            --policy target/formal/trusted-generated-paths.json
+      - name: Preserve the bounded translation update
         if: steps.formal-update.outputs.update_required == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -339,21 +444,259 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           compression-level: 9
-      - name: Preserve translation evidence
-        if: always()
+      - name: Stop qualification until generated translation is committed
+        if: steps.formal-update.outputs.update_required == 'true'
+        run: |
+          echo "Generated Aeneas output drifted; the bounded updater will commit the reviewed artifact set."
+          exit 1
+      - name: Locate protected-base translation evidence
+        if: needs.ci-plan.outputs.formal_cold_required != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTHS_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_id="$(gh api --method GET "repos/${GITHUB_REPOSITORY}/actions/runs" -f head_sha="$AUTHS_BASE_SHA" -f status=success -f per_page=50 --jq '.workflow_runs | map(select(.name == "CI" and .event == "push" and .head_branch == "main")) | first | .id')"
+          [[ -n "$run_id" && "$run_id" != null ]]
+          artifact_name="$(gh api --method GET "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts" --jq '.artifacts | map(select(.expired == false and (.name | startswith("auths-formal-translation-")))) | first | .name')"
+          [[ -n "$artifact_name" && "$artifact_name" != null ]]
+          mkdir -p target/reused-formal
+          gh run download "$run_id" --name "$artifact_name" --dir target/reused-formal
+          mapfile -t evidence < <(find target/reused-formal -type f -name aeneas-qualification.json)
+          [[ "${#evidence[@]}" == 1 ]]
+          echo "AUTHS_REUSED_TRANSLATION_EVIDENCE=${evidence[0]}" >> "$GITHUB_ENV"
+          echo "Translation: protected-base run ${run_id}, artifact ${artifact_name}" >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify and bind protected-base translation evidence
+        if: needs.ci-plan.outputs.formal_cold_required != 'true'
+        env:
+          AUTHS_FORMAL_PHASE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_translation_digest }}
+          AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_toolchain_digest }}
+          AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_evidence_digest }}
+        run: cargo xtask ci formal-translation-reuse
+      - name: Preserve reusable translation evidence
+        if: steps.formal-update.outputs.update_required != 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: auths-formal-translation-${{ github.run_id }}-${{ github.run_attempt }}
-          path: target/formal/
+          path: target/formal/aeneas-qualification.json
           if-no-files-found: error
           retention-days: 90
-          compression-level: 9
-      - name: Record formal telemetry
-        if: always()
-        uses: ./.github/actions/phase-telemetry
+      - name: Preserve translation phase result
+        if: steps.formal-update.outputs.update_required != 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          phase: formal-translation
-          started-at: ${{ env.AUTHS_PHASE_STARTED }}
+          name: auths-formal-phase-translation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/formal/phase-results/translation.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Record translation timing
+        if: always()
+        uses: ./.github/actions/formal-phase-summary
+        with:
+          phase: translation
+          started-at: ${{ env.AUTHS_FORMAL_STARTED_AT }}
+          execution: ${{ steps.prior-pr-translation.outputs.reused == 'true' && 'reused-pr-run' || needs.ci-plan.outputs.formal_cold_required == 'true' && 'executed-cold' || 'reused-protected-base' }}
+
+  formal-kani-run:
+    name: formal Kani
+    needs: [ci-plan, formal-update-gate, repository-preflight, formal-proof-fast]
+    if: >-
+      !cancelled() &&
+      needs.ci-plan.result == 'success' &&
+      needs.formal-update-gate.result == 'success' &&
+      needs.repository-preflight.result == 'success' &&
+      needs.formal-proof-fast.result == 'success' &&
+      needs.ci-plan.outputs.formal_kani_required == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Start formal phase timing
+        run: echo "AUTHS_FORMAL_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+          compiler-cache: "false"
+      - name: Install pinned Kani
+        run: |
+          cargo install kani-verifier --version 0.67.0 --locked
+          cargo kani setup
+          kani --version
+      - name: Run every gated Kani harness
+        env:
+          AUTHS_FORMAL_PHASE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_kani_digest }}
+          AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_toolchain_digest }}
+          AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_evidence_digest }}
+        run: cargo xtask ci formal-kani
+      - name: Preserve Kani phase result
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-formal-phase-kani-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/formal/phase-results/kani.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Record Kani timing
+        if: always()
+        uses: ./.github/actions/formal-phase-summary
+        with:
+          phase: kani
+          started-at: ${{ env.AUTHS_FORMAL_STARTED_AT }}
+          execution: executed-complete-harness-set
+
+  formal-lean-authoritative-run:
+    name: formal Lean authoritative
+    needs: [ci-plan, formal-update-gate, repository-preflight, formal-proof-fast, formal-translation-run]
+    if: >-
+      !cancelled() &&
+      needs.ci-plan.result == 'success' &&
+      needs.formal-update-gate.result == 'success' &&
+      needs.repository-preflight.result == 'success' &&
+      needs.formal-proof-fast.result == 'success' &&
+      needs.formal-translation-run.result == 'success' &&
+      needs.ci-plan.outputs.formal_proof_required == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Start formal phase timing
+        run: echo "AUTHS_FORMAL_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+          compiler-cache: "false"
+      - uses: ./.github/actions/setup-lean
+      - name: Clean and rebuild authoritative Lean evidence
+        shell: bash
+        env:
+          AUTHS_FORMAL_UPDATE_MODE: ${{ github.event_name == 'pull_request' }}
+          AUTHS_FORMAL_PHASE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_proof_digest }}
+          AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_toolchain_digest }}
+          AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_evidence_digest }}
+        run: |
+          set -euo pipefail
+          mkdir -p target/formal/logs
+          cargo xtask ci formal-lean-authoritative 2>&1 | tee target/formal/logs/lean-authoritative.log
+      - id: formal-update
+        name: Package a bounded assurance-manifest update
+        if: github.event_name == 'pull_request'
+        env:
+          AUTHS_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin "$AUTHS_BASE_SHA"
+          mkdir -p target/formal
+          git show "${AUTHS_BASE_SHA}:.github/ci/formal-generated-paths.json" > target/formal/trusted-generated-paths.json
+          cargo run --locked -p auths-ci-plan -- formal-update-artifact create \
+            --repository "${{ github.repository }}" \
+            --workflow "${{ github.workflow }}" \
+            --run-id "${{ github.run_id }}" \
+            --run-attempt "${{ github.run_attempt }}" \
+            --base-sha "$AUTHS_BASE_SHA" \
+            --head-sha "${{ github.event.pull_request.head.sha }}" \
+            --policy target/formal/trusted-generated-paths.json
+      - name: Preserve the bounded assurance update
+        if: steps.formal-update.outputs.update_required == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-formal-update-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/formal-update/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 9
+      - name: Preserve authoritative Lean phase result
+        if: steps.formal-update.outputs.update_required != 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-formal-phase-lean-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/formal/phase-results/lean.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Preserve authoritative Lean diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-formal-lean-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            target/formal/lean-assurance-audit.json
+            target/formal/logs/lean-authoritative.log
+            formal/assurance-manifest-v1.toml
+          if-no-files-found: warn
+          retention-days: 90
+      - name: Record authoritative Lean timing
+        if: always()
+        uses: ./.github/actions/formal-phase-summary
+        with:
+          phase: lean-authoritative
+          started-at: ${{ env.AUTHS_FORMAL_STARTED_AT }}
+          execution: executed-clean-root-outputs
+
+  formal-evidence-run:
+    name: formal evidence
+    needs: [ci-plan, formal-update-gate, formal-translation-run, formal-lean-authoritative-run, formal-kani-run]
+    if: >-
+      !cancelled() &&
+      needs.ci-plan.result == 'success' &&
+      needs.formal-update-gate.result == 'success' &&
+      needs.formal-translation-run.result == 'success' &&
+      needs.formal-lean-authoritative-run.result == 'success' &&
+      needs.formal-lean-authoritative-run.outputs.update_required != 'true' &&
+      needs.formal-kani-run.result == 'success' &&
+      needs.ci-plan.outputs.formal_translation_required == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Start formal phase timing
+        run: echo "AUTHS_FORMAL_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+          compiler-cache: "false"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: auths-formal-phase-translation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/formal/phase-results
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: auths-formal-phase-lean-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/formal/phase-results
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: auths-formal-phase-kani-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/formal/phase-results
+      - name: Aggregate exact-revision formal evidence
+        env:
+          AUTHS_FORMAL_PHASE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_evidence_digest }}
+          AUTHS_FORMAL_PROOF_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_proof_digest }}
+          AUTHS_FORMAL_TRANSLATION_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_translation_digest }}
+          AUTHS_FORMAL_KANI_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_kani_digest }}
+          AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_toolchain_digest }}
+          AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_evidence_digest }}
+        run: cargo xtask ci formal-evidence
+      - name: Preserve aggregate formal evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-formal-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/formal/phase-results/evidence.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Record evidence aggregation timing
+        if: always()
+        uses: ./.github/actions/formal-phase-summary
+        with:
+          phase: evidence
+          started-at: ${{ env.AUTHS_FORMAL_STARTED_AT }}
+          execution: aggregated-exact-revision-results
 
   compliance-run:
     name: compliance implementation
@@ -776,7 +1119,7 @@ jobs:
   formal-translation:
     name: formal-translation
     if: ${{ !cancelled() }}
-    needs: [ci-plan, formal-translation-run]
+    needs: [ci-plan, formal-evidence-run]
     runs-on: ubuntu-latest
     steps:
       - name: Enforce planned result
@@ -784,12 +1127,11 @@ jobs:
           PLANNER: ${{ needs.ci-plan.result }}
           REQUIRED: ${{ needs.ci-plan.outputs.formal_translation_required }}
           REASON: ${{ needs.ci-plan.outputs.formal_translation_reason }}
-          RUN_RESULT: ${{ needs.formal-translation-run.result }}
-          UPDATE_REQUIRED: ${{ needs.formal-translation-run.outputs.update_required }}
+          RUN_RESULT: ${{ needs.formal-evidence-run.result }}
         run: |
-          echo "Decision: ${REQUIRED}; implementation: ${RUN_RESULT}; generated update: ${UPDATE_REQUIRED}; ${REASON}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Decision: ${REQUIRED}; evidence: ${RUN_RESULT}; ${REASON}" >> "$GITHUB_STEP_SUMMARY"
           [[ "$PLANNER" == success ]]
-          [[ "$REQUIRED" == true && "$RUN_RESULT" == success && "$UPDATE_REQUIRED" != true ]] || [[ "$REQUIRED" == false && "$RUN_RESULT" == skipped ]]
+          [[ "$REQUIRED" == true && "$RUN_RESULT" == success ]] || [[ "$REQUIRED" == false && "$RUN_RESULT" == skipped ]]
 
   compliance:
     name: compliance

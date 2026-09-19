@@ -26,15 +26,56 @@ repository and make an accurate compatibility claim by following this process.
 
 ## Signature-suite adapters
 
-1. Implement `auths_identity::SignatureVerifier` under one stable suite
-   identifier.
-2. Verify the exact signing preimage supplied by `auths-identity`; do not
-   reconstruct or reinterpret application messages inside the adapter.
-3. Reject wrong key shapes, wrong signature shapes, changed message bytes,
+1. Implement `auths_ports::SignatureSuite` under one stable suite identifier.
+2. Implement `validate_key` as the exact structural gate used by `verify`; a
+   key accepted by it must not later produce `SignatureError::InvalidKey`.
+3. Verify the exact signing preimage supplied by the caller; do not reconstruct
+   or reinterpret application messages inside the adapter.
+4. Reject wrong key shapes, wrong signature shapes, changed message bytes,
    unknown suite labels, and non-canonical encodings.
-4. Use a reviewed cryptographic implementation and document algorithm,
-   parameter, key-encoding, signature-encoding, and side-channel assumptions.
-5. Cross-check deterministic vectors against an independent implementation.
+5. Run `core/conformance/v1/ports/signature-suite.json`, use a reviewed
+   cryptographic implementation, and cross-check vectors independently.
+
+## Algorithm-binding adapters
+
+1. Construct `auths_ports::AlgorithmBindingSet` only from registered suites.
+2. Keep JWS names and complete DER SPKI `AlgorithmIdentifier` values as
+   separate exact selectors; never select only by an X.509 OID.
+3. Reject duplicate selectors and commit to every selected suite
+   configuration.
+4. Run `core/conformance/v1/ports/algorithm-binding.json`.
+
+## Certificate-path adapters
+
+1. Implement `auths_ports::CertificatePathVerifier` without ambient clock,
+   network, or operating-system trust-store access.
+2. Use only the caller-supplied verification instant, anchors, intermediates,
+   and required EKU.
+3. Construct `VerifiedLeaf` through its public checked constructor and map
+   unsupported algorithms separately from malformed certificates.
+4. Commit to the implementation, backend, enabled algorithms, and relevant
+   dependency version, then run `core/conformance/v1/ports/path-verifier.json`.
+
+## Workload principal adapters
+
+1. Keep token or certificate acquisition outside the adapter and accept only
+   bounded immutable evidence.
+2. Pin issuer keys, algorithm bindings, workload policies, and time bounds in
+   the configuration commitment.
+3. Parse protected headers and claims through a closed vocabulary; reject
+   unknown decision-affecting input.
+4. Bind the authenticated workload identity to the exact statement key and
+   verification method, then run the adapter-specific adversarial manifest.
+
+The in-tree reference adapters are:
+
+- `auths-oidc-workload`, for closed, pinned OIDC workload tokens;
+- `auths-sigstore-keyless`, for offline Fulcio certificate and Rekor evidence.
+
+The Sigstore adapter consumes `CertificatePathVerifier`,
+`AlgorithmBindingSet`, and registered `SignatureSuite` implementations. Its
+path, key-selection, and signature dependencies retain their own independent
+conformance claims.
 
 ## Byte-channel adapters
 

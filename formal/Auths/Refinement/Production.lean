@@ -542,11 +542,17 @@ def PermissionPrefixMissing
         PermissionPrefixMissing currentSet.val index.val permission := by
       simpa using prefixMissing
     unfold auths_model.permission_set_contains_loop.body
-    dsimp only
+    unfold auths_model.bounded.BoundedSet.len
+    unfold auths_model.bounded.BoundedSet.as_slice
+    simp only [bind_tc_ok]
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentSet.val.length := by
         simpa using withinBounds
-      step as ⟨currentPermission, currentPermissionEq⟩
+      step with Slice.index_usize_spec
+          (v := alloc.vec.Vec.deref currentSet) (i := index)
+          (hbound := by simpa [alloc.vec.Vec.deref] using indexWithin) as
+        ⟨currentPermission, currentPermissionEq⟩
+      simp only [alloc.vec.Vec.deref] at currentPermissionEq
       have currentInSet : currentPermission ∈ currentSet.val := by
         rw [currentPermissionEq]
         exact List.getElem_mem indexWithin
@@ -624,11 +630,17 @@ def PermissionPrefixContained
         PermissionPrefixContained currentChild.val parent.val index.val := by
       simpa using prefixContained
     unfold auths_model.permission_set_is_subset_loop.body
-    dsimp only
+    unfold auths_model.bounded.BoundedSet.len
+    unfold auths_model.bounded.BoundedSet.as_slice
+    simp only [bind_tc_ok]
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentChild.val.length := by
         simpa using withinBounds
-      step as ⟨currentPermission, currentPermissionEq⟩
+      step with Slice.index_usize_spec
+          (v := alloc.vec.Vec.deref currentChild) (i := index)
+          (hbound := by simpa [alloc.vec.Vec.deref] using indexWithin) as
+        ⟨currentPermission, currentPermissionEq⟩
+      simp only [alloc.vec.Vec.deref] at currentPermissionEq
       have currentInChild : currentPermission ∈ currentChild.val := by
         rw [currentPermissionEq]
         exact List.getElem_mem indexWithin
@@ -740,11 +752,17 @@ def AudiencePrefixMissing
         AudiencePrefixMissing currentSet.val index.val audience := by
       simpa using prefixMissing
     unfold auths_model.audience_set_contains_loop.body
-    dsimp only
+    unfold auths_model.bounded.BoundedSet.len
+    unfold auths_model.bounded.BoundedSet.as_slice
+    simp only [bind_tc_ok]
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentSet.val.length := by
         simpa using withinBounds
-      step as ⟨currentAudience, currentAudienceEq⟩
+      step with Slice.index_usize_spec
+          (v := alloc.vec.Vec.deref currentSet) (i := index)
+          (hbound := by simpa [alloc.vec.Vec.deref] using indexWithin) as
+        ⟨currentAudience, currentAudienceEq⟩
+      simp only [alloc.vec.Vec.deref] at currentAudienceEq
       have currentInSet : currentAudience ∈ currentSet.val := by
         rw [currentAudienceEq]
         exact List.getElem_mem indexWithin
@@ -823,11 +841,17 @@ def AudiencePrefixContained
         AudiencePrefixContained currentChild.val parent.val index.val := by
       simpa using prefixContained
     unfold auths_model.audience_set_is_subset_loop.body
-    dsimp only
+    unfold auths_model.bounded.BoundedSet.len
+    unfold auths_model.bounded.BoundedSet.as_slice
+    simp only [bind_tc_ok]
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentChild.val.length := by
         simpa using withinBounds
-      step as ⟨currentAudience, currentAudienceEq⟩
+      step with Slice.index_usize_spec
+          (v := alloc.vec.Vec.deref currentChild) (i := index)
+          (hbound := by simpa [alloc.vec.Vec.deref] using indexWithin) as
+        ⟨currentAudience, currentAudienceEq⟩
+      simp only [alloc.vec.Vec.deref] at currentAudienceEq
       have currentInChild : currentAudience ∈ currentChild.val := by
         rw [currentAudienceEq]
         exact List.getElem_mem indexWithin
@@ -932,11 +956,17 @@ def DigestPrefixMissing
         DigestPrefixMissing currentSet.val index.val digest := by
       simpa using prefixMissing
     unfold auths_model.body_digest_set_contains_loop.body
-    dsimp only
+    unfold auths_model.bounded.BoundedSet.len
+    unfold auths_model.bounded.BoundedSet.as_slice
+    simp only [bind_tc_ok]
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentSet.val.length := by
         simpa using withinBounds
-      step as ⟨currentDigest, currentDigestEq⟩
+      step with Slice.index_usize_spec
+          (v := alloc.vec.Vec.deref currentSet) (i := index)
+          (hbound := by simpa [alloc.vec.Vec.deref] using indexWithin) as
+        ⟨currentDigest, currentDigestEq⟩
+      simp only [alloc.vec.Vec.deref] at currentDigestEq
       have currentInSet : currentDigest ∈ currentSet.val := by
         rw [currentDigestEq]
         exact List.getElem_mem indexWithin
@@ -1014,11 +1044,17 @@ def DigestPrefixContained
         DigestPrefixContained currentChild.val parent.val index.val := by
       simpa using prefixContained
     unfold auths_model.body_digest_set_is_subset_loop.body
-    dsimp only
+    unfold auths_model.bounded.BoundedSet.len
+    unfold auths_model.bounded.BoundedSet.as_slice
+    simp only [bind_tc_ok]
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentChild.val.length := by
         simpa using withinBounds
-      step as ⟨currentDigest, currentDigestEq⟩
+      step with Slice.index_usize_spec
+          (v := alloc.vec.Vec.deref currentChild) (i := index)
+          (hbound := by simpa [alloc.vec.Vec.deref] using indexWithin) as
+        ⟨currentDigest, currentDigestEq⟩
+      simp only [alloc.vec.Vec.deref] at currentDigestEq
       have currentInChild : currentDigest ∈ currentChild.val := by
         rw [currentDigestEq]
         exact List.getElem_mem indexWithin
@@ -1097,11 +1133,17 @@ def DigestPrefixOnly
         DigestPrefixOnly currentSet.val index.val digest := by
       simpa using prefixOnly
     unfold auths_model.body_digest_set_only_contains_loop.body
-    dsimp only
+    unfold auths_model.bounded.BoundedSet.len
+    unfold auths_model.bounded.BoundedSet.as_slice
+    simp only [bind_tc_ok]
     split <;> rename_i withinBounds
     · have indexWithin : index.val < currentSet.val.length := by
         simpa using withinBounds
-      step as ⟨currentDigest, currentDigestEq⟩
+      step with Slice.index_usize_spec
+          (v := alloc.vec.Vec.deref currentSet) (i := index)
+          (hbound := by simpa [alloc.vec.Vec.deref] using indexWithin) as
+        ⟨currentDigest, currentDigestEq⟩
+      simp only [alloc.vec.Vec.deref] at currentDigestEq
       have currentInSet : currentDigest ∈ currentSet.val := by
         rw [currentDigestEq]
         exact List.getElem_mem indexWithin

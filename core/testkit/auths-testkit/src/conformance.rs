@@ -19,7 +19,6 @@ use auths_ports::{
     ControlPurpose, PrincipalControlError, PrincipalControlInput, PrincipalMethod, SignatureSuite,
 };
 use auths_raw_key::RawKeyMethod;
-use auths_spiffe_x509::SpiffeX509Method;
 use auths_webauthn::WebAuthnMethod;
 use serde::{Deserialize, Serialize};
 use std::{boxed::Box, collections::BTreeSet};
@@ -413,6 +412,7 @@ fn run_control(
         signature_suite: &suite,
         purpose: ControlPurpose::CapabilityInvocation,
         signing_preimage,
+        signature: b"adversarial-signature",
         asserted_signing_time: Timestamp::new(50),
         evidence: &evidence_refs,
         evaluation_time: Timestamp::new(50),
@@ -546,7 +546,7 @@ fn hsm_transaction_digest_bitflip() -> Result<&'static str, String> {
 
 fn spiffe_missing_client_eku() -> Result<&'static str, String> {
     let material = spiffe_material_with_client_auth(206, false);
-    let method = SpiffeX509Method::new(vec![material.trust.clone()], vec![material.status])
+    let method = crate::spiffe_corpus_method(vec![material.trust.clone()], vec![material.status])
         .map_err(|error| error.to_string())?;
     let identity = Identity {
         key: crate::TestKey::Ed25519(material.key),

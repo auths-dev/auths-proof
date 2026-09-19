@@ -44,9 +44,9 @@ pub(crate) fn adversarial_conformance(args: Vec<String>) -> Result<(), String> {
 
     let adapters_root = root().join("core/conformance/v1/adapters");
     let adapters = files_with_extension(&adapters_root, "json")?;
-    if adapters.len() != 7 {
+    if adapters.len() != 9 {
         return Err(format!(
-            "expected seven principal adapter manifests, found {}",
+            "expected nine principal adapter manifests, found {}",
             adapters.len()
         ));
     }
@@ -76,7 +76,7 @@ pub(crate) fn adversarial_conformance(args: Vec<String>) -> Result<(), String> {
     let hsm = auths_hsm_attested::HsmAttestedMethod::new(auths_testkit::hsm_corpus_records())
         .map_err(|error| error.to_string())?;
     let (spiffe_trust, spiffe_status) = auths_testkit::spiffe_corpus_context();
-    let spiffe = auths_spiffe_x509::SpiffeX509Method::new(spiffe_trust, spiffe_status)
+    let spiffe = auths_testkit::spiffe_corpus_method(spiffe_trust, spiffe_status)
         .map_err(|error| error.to_string())?;
     let ed25519 = auths_signature::Ed25519Suite::new().map_err(|error| error.to_string())?;
     let p256 = auths_signature::P256Sha256Suite::new().map_err(|error| error.to_string())?;
@@ -201,7 +201,7 @@ pub(crate) fn target_conformance() -> Result<(), String> {
     let hsm = auths_hsm_attested::HsmAttestedMethod::new(auths_testkit::hsm_corpus_records())
         .map_err(|error| error.to_string())?;
     let (spiffe_trust, spiffe_status) = auths_testkit::spiffe_corpus_context();
-    let spiffe = auths_spiffe_x509::SpiffeX509Method::new(spiffe_trust, spiffe_status)
+    let spiffe = auths_testkit::spiffe_corpus_method(spiffe_trust, spiffe_status)
         .map_err(|error| error.to_string())?;
     let ed25519 = auths_signature::Ed25519Suite::new().map_err(|error| error.to_string())?;
     let p256 = auths_signature::P256Sha256Suite::new().map_err(|error| error.to_string())?;
@@ -263,7 +263,7 @@ pub(crate) fn semantic_digest_value() -> Result<String, String> {
     let hsm = auths_hsm_attested::HsmAttestedMethod::new(auths_testkit::hsm_corpus_records())
         .map_err(|error| error.to_string())?;
     let (spiffe_trust, spiffe_status) = auths_testkit::spiffe_corpus_context();
-    let spiffe = auths_spiffe_x509::SpiffeX509Method::new(spiffe_trust, spiffe_status)
+    let spiffe = auths_testkit::spiffe_corpus_method(spiffe_trust, spiffe_status)
         .map_err(|error| error.to_string())?;
     let ed25519 = auths_signature::Ed25519Suite::new().map_err(|error| error.to_string())?;
     let p256 = auths_signature::P256Sha256Suite::new().map_err(|error| error.to_string())?;
@@ -445,7 +445,7 @@ pub(crate) fn generated_vectors() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> 
     let hsm = auths_hsm_attested::HsmAttestedMethod::new(auths_testkit::hsm_corpus_records())
         .map_err(|error| error.to_string())?;
     let (spiffe_trust, spiffe_status) = auths_testkit::spiffe_corpus_context();
-    let spiffe = auths_spiffe_x509::SpiffeX509Method::new(spiffe_trust, spiffe_status)
+    let spiffe = auths_testkit::spiffe_corpus_method(spiffe_trust, spiffe_status)
         .map_err(|error| error.to_string())?;
     let ed25519 = auths_signature::Ed25519Suite::new().map_err(|error| error.to_string())?;
     let p256 = auths_signature::P256Sha256Suite::new().map_err(|error| error.to_string())?;
@@ -643,7 +643,7 @@ pub(crate) fn corpus_adapter_context() -> Value {
                 "public_key": hex::encode(credential.public_key()),
                 "rp_id": credential.rp_id(),
                 "origins": credential.origins(),
-                "require_user_verification": credential.require_user_verification(),
+                "user_verification": format!("{:?}", credential.user_verification()),
                 "counter_policy": counter_policy,
                 "attestation_level": credential.attestation_level(),
                 "observed_at": credential.observed_at().get(),
@@ -664,7 +664,7 @@ pub(crate) fn corpus_adapter_context() -> Value {
                 "protection_level": record.protection_level(),
                 "key_handle_digest": hex::encode(record.key_handle_digest()),
                 "device_chain_digest": hex::encode(record.device_chain_digest()),
-                "non_exportable": record.non_exportable(),
+                "exportability": format!("{:?}", record.exportability()),
                 "observed_at": record.observed_at().get(),
                 "valid_until": record.valid_until().get(),
             })
@@ -677,7 +677,7 @@ pub(crate) fn corpus_adapter_context() -> Value {
             json!({
                 "name": trust.name(),
                 "roots": trust.roots().iter().map(hex::encode).collect::<Vec<_>>(),
-                "require_status": trust.requires_status(),
+                "status_requirement": format!("{:?}", trust.status_requirement()),
             })
         })
         .collect::<Vec<_>>();
@@ -686,7 +686,7 @@ pub(crate) fn corpus_adapter_context() -> Value {
         .map(|record| {
             json!({
                 "leaf_digest": hex::encode(record.leaf_digest()),
-                "active": record.is_active(),
+                "status": format!("{:?}", record.status()),
                 "observed_at": record.observed_at().get(),
                 "valid_until": record.valid_until().get(),
             })

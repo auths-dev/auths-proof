@@ -1852,6 +1852,7 @@ fn verify_signed(
                     signature_suite: descriptor.suite(),
                     purpose,
                     signing_preimage,
+                    signature: signature.signature().as_slice(),
                     asserted_signing_time,
                     evidence: &evidence,
                     evaluation_time: context.evaluation_time(),
@@ -2075,7 +2076,7 @@ fn validate_attachments(
             .iter()
             .find(|attachment| attachment.digest() == descriptor.digest());
         let Some(detached) = detached else {
-            if descriptor.required() {
+            if matches!(descriptor.presence(), auths_model::Presence::Required) {
                 return Err(VerificationFailure::Denied(DenialReason::AttachmentMissing));
             }
             continue;
@@ -2092,7 +2093,13 @@ fn validate_attachments(
                 DenialReason::AttachmentDigestMismatch,
             ));
         }
-        if descriptor.encrypted() && !descriptor.opaque_allowed() {
+        if matches!(
+            descriptor.confidentiality(),
+            auths_model::Confidentiality::Encrypted
+        ) && matches!(
+            descriptor.opacity(),
+            auths_model::Opacity::MustBeInspectable
+        ) {
             return Err(VerificationFailure::Denied(
                 DenialReason::OpaqueAttachmentNotAllowed,
             ));
@@ -3371,7 +3378,7 @@ mod tests {
         let hsm = auths_hsm_attested::HsmAttestedMethod::new(auths_testkit::hsm_corpus_records())
             .unwrap();
         let (spiffe_trust, spiffe_status) = auths_testkit::spiffe_corpus_context();
-        let spiffe = auths_spiffe_x509::SpiffeX509Method::new(spiffe_trust, spiffe_status).unwrap();
+        let spiffe = auths_testkit::spiffe_corpus_method(spiffe_trust, spiffe_status).unwrap();
         let ed25519 = Ed25519Suite::new().unwrap();
         let p256 = auths_signature::P256Sha256Suite::new().unwrap();
         let methods: [&dyn auths_ports::PrincipalMethod; 7] = [
@@ -3709,7 +3716,7 @@ mod tests {
         let hsm = auths_hsm_attested::HsmAttestedMethod::new(auths_testkit::hsm_corpus_records())
             .unwrap();
         let (spiffe_trust, spiffe_status) = auths_testkit::spiffe_corpus_context();
-        let spiffe = auths_spiffe_x509::SpiffeX509Method::new(spiffe_trust, spiffe_status).unwrap();
+        let spiffe = auths_testkit::spiffe_corpus_method(spiffe_trust, spiffe_status).unwrap();
         let ed25519 = Ed25519Suite::new().unwrap();
         let p256 = auths_signature::P256Sha256Suite::new().unwrap();
         let methods: [&dyn auths_ports::PrincipalMethod; 7] = [

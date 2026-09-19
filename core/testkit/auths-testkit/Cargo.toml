@@ -19,6 +19,7 @@ auths-hsm-attested = { workspace = true, features = ["std"] }
 auths-model = { workspace = true, features = ["std"] }
 auths-multikey = { workspace = true, features = ["std"] }
 auths-ports = { workspace = true, features = ["std"] }
+auths-path-webpki = { workspace = true, features = ["std"] }
 auths-raw-key = { workspace = true, features = ["std"] }
 auths-registries = { workspace = true, features = ["std"] }
 auths-signature = { workspace = true, features = ["std"] }

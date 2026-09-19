@@ -296,6 +296,7 @@ mod tests {
                 signature_suite: &SignatureSuiteId::parse("ed25519-v1").unwrap(),
                 purpose: auths_ports::ControlPurpose::CapabilityInvocation,
                 signing_preimage: b"test",
+                signature: b"test signature",
                 asserted_signing_time: Timestamp::new(1),
                 evidence: &refs,
                 evaluation_time: Timestamp::new(1),

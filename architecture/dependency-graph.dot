@@ -50,10 +50,12 @@ digraph auths_architecture {
   "auths-model" [group="core"];
   "auths-multikey" [group="core"];
   "auths-node" [group="product"];
+  "auths-oidc-workload" [group="core"];
   "auths-opentofu" [group="product"];
   "auths-opentofu-demo" [group="demos"];
   "auths-operations" [group="product"];
   "auths-operations-otel" [group="product"];
+  "auths-path-webpki" [group="core"];
   "auths-ports" [group="core"];
   "auths-postgresql" [group="product"];
   "auths-postgresql-demo" [group="demos"];
@@ -96,6 +98,9 @@ digraph auths_architecture {
   "auths-signature" [group="core"];
   "auths-signature-core" [group="core"];
   "auths-signature-ed25519" [group="core"];
+  "auths-signature-rsa-pkcs1-sha256" [group="core"];
+  "auths-sigstore-bundle-import" [group="product"];
+  "auths-sigstore-keyless" [group="core"];
   "auths-spiffe-x509" [group="core"];
   "auths-stores" [group="product"];
   "auths-stripe" [group="product"];
@@ -195,6 +200,7 @@ digraph auths_architecture {
   "auths-evidence-assemblers" -> "auths-codec" [label="normal"];
   "auths-evidence-assemblers" -> "auths-hsm-attested" [label="normal"];
   "auths-evidence-assemblers" -> "auths-model" [label="normal"];
+  "auths-evidence-assemblers" -> "auths-signature" [label="dev"];
   "auths-evidence-assemblers" -> "auths-spiffe-x509" [label="normal"];
   "auths-evidence-assemblers" -> "auths-webauthn" [label="normal"];
   "auths-explain" -> "auths-codec" [label="normal"];
@@ -222,6 +228,7 @@ digraph auths_architecture {
   "auths-github" -> "auths-sdk" [label="normal"];
   "auths-hsm-attested" -> "auths-model" [label="normal"];
   "auths-hsm-attested" -> "auths-ports" [label="normal"];
+  "auths-hsm-attested" -> "auths-signature" [label="dev"];
   "auths-identity-authority" -> "auths-identity" [label="normal"];
   "auths-identity-authority" -> "auths-identity-raw-key" [label="dev"];
   "auths-identity-authority" -> "auths-model" [label="normal"];
@@ -233,6 +240,7 @@ digraph auths_architecture {
   "auths-identity-iroh-demo" -> "auths-iroh" [label="normal"];
   "auths-identity-iroh-demo" -> "auths-signature-ed25519" [label="normal"];
   "auths-identity-raw-key" -> "auths-identity" [label="normal"];
+  "auths-identity-raw-key" -> "auths-model" [label="normal"];
   "auths-identity-raw-key" -> "auths-raw-key-core" [label="normal"];
   "auths-identity-raw-key" -> "auths-signature-core" [label="dev"];
   "auths-iroh" -> "auths-byte-channel" [label="normal"];
@@ -307,6 +315,10 @@ digraph auths_architecture {
   "auths-node" -> "auths-testkit" [label="dev"];
   "auths-node" -> "auths-verifier" [label="normal"];
   "auths-node" -> "auths-webauthn" [label="dev"];
+  "auths-oidc-workload" -> "auths-model" [label="normal"];
+  "auths-oidc-workload" -> "auths-ports" [label="normal"];
+  "auths-oidc-workload" -> "auths-raw-key-core" [label="normal"];
+  "auths-oidc-workload" -> "auths-signature" [label="dev"];
   "auths-opentofu" -> "auths-bounded-policy" [label="normal"];
   "auths-opentofu" -> "auths-codec" [label="normal"];
   "auths-opentofu" -> "auths-connections" [label="normal"];
@@ -334,6 +346,8 @@ digraph auths_architecture {
   "auths-operations" -> "auths-registries" [label="normal"];
   "auths-operations" -> "auths-verifier" [label="normal"];
   "auths-operations-otel" -> "auths-operations" [label="normal"];
+  "auths-path-webpki" -> "auths-model" [label="normal"];
+  "auths-path-webpki" -> "auths-ports" [label="normal"];
   "auths-ports" -> "auths-model" [label="normal"];
   "auths-postgresql" -> "auths-bounded-policy" [label="normal"];
   "auths-postgresql" -> "auths-codec" [label="normal"];
@@ -427,10 +441,12 @@ digraph auths_architecture {
   "auths-proof-fuzz" -> "auths-hsm-attested" [label="normal"];
   "auths-proof-fuzz" -> "auths-model" [label="normal"];
   "auths-proof-fuzz" -> "auths-multikey" [label="normal"];
+  "auths-proof-fuzz" -> "auths-oidc-workload" [label="normal"];
   "auths-proof-fuzz" -> "auths-ports" [label="normal"];
   "auths-proof-fuzz" -> "auths-raw-key" [label="normal"];
   "auths-proof-fuzz" -> "auths-registries" [label="normal"];
   "auths-proof-fuzz" -> "auths-signature" [label="normal"];
+  "auths-proof-fuzz" -> "auths-sigstore-keyless" [label="normal"];
   "auths-proof-fuzz" -> "auths-spiffe-x509" [label="normal"];
   "auths-proof-fuzz" -> "auths-verifier" [label="normal"];
   "auths-proof-fuzz" -> "auths-webauthn" [label="normal"];
@@ -533,6 +549,7 @@ digraph auths_architecture {
   "auths-raw-key" -> "auths-model" [label="normal"];
   "auths-raw-key" -> "auths-ports" [label="normal"];
   "auths-raw-key" -> "auths-raw-key-core" [label="normal"];
+  "auths-raw-key-core" -> "auths-model" [label="normal"];
   "auths-receipts" -> "auths-codec" [label="normal"];
   "auths-receipts" -> "auths-model" [label="normal"];
   "auths-receipts" -> "auths-ports" [label="normal"];
@@ -603,8 +620,19 @@ digraph auths_architecture {
   "auths-signature" -> "auths-signature-ed25519" [label="dev"];
   "auths-signature-ed25519" -> "auths-identity" [label="normal"];
   "auths-signature-ed25519" -> "auths-signature-core" [label="normal"];
+  "auths-signature-rsa-pkcs1-sha256" -> "auths-model" [label="normal"];
+  "auths-signature-rsa-pkcs1-sha256" -> "auths-ports" [label="normal"];
+  "auths-sigstore-bundle-import" -> "auths-model" [label="normal"];
+  "auths-sigstore-bundle-import" -> "auths-sigstore-keyless" [label="normal"];
+  "auths-sigstore-keyless" -> "auths-model" [label="normal"];
+  "auths-sigstore-keyless" -> "auths-oidc-workload" [label="dev"];
+  "auths-sigstore-keyless" -> "auths-path-webpki" [label="dev"];
+  "auths-sigstore-keyless" -> "auths-ports" [label="normal"];
+  "auths-sigstore-keyless" -> "auths-signature" [label="dev"];
   "auths-spiffe-x509" -> "auths-model" [label="normal"];
+  "auths-spiffe-x509" -> "auths-path-webpki" [label="dev"];
   "auths-spiffe-x509" -> "auths-ports" [label="normal"];
+  "auths-spiffe-x509" -> "auths-signature" [label="dev"];
   "auths-stores" -> "auths-bounded-policy" [label="normal"];
   "auths-stores" -> "auths-connections" [label="normal"];
   "auths-stores" -> "auths-lifecycle" [label="dev"];
@@ -699,6 +727,7 @@ digraph auths_architecture {
   "auths-testkit" -> "auths-hsm-attested" [label="normal"];
   "auths-testkit" -> "auths-model" [label="normal"];
   "auths-testkit" -> "auths-multikey" [label="normal"];
+  "auths-testkit" -> "auths-path-webpki" [label="normal"];
   "auths-testkit" -> "auths-ports" [label="normal"];
   "auths-testkit" -> "auths-raw-key" [label="normal"];
   "auths-testkit" -> "auths-registries" [label="normal"];
@@ -723,6 +752,7 @@ digraph auths_architecture {
   "auths-verifier" -> "auths-webauthn" [label="dev"];
   "auths-webauthn" -> "auths-model" [label="normal"];
   "auths-webauthn" -> "auths-ports" [label="normal"];
+  "auths-webauthn" -> "auths-signature" [label="dev"];
   "xtask" -> "auths-apps-testkit" [label="normal"];
   "xtask" -> "auths-bench-model" [label="normal"];
   "xtask" -> "auths-ci-plan" [label="normal"];

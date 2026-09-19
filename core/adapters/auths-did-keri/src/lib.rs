@@ -1482,6 +1482,7 @@ mod tests {
                 signature_suite: &suite,
                 purpose: ControlPurpose::CapabilityInvocation,
                 signing_preimage: b"auths signing bytes",
+                signature: b"test signature",
                 asserted_signing_time: Timestamp::new(10),
                 evidence: &refs,
                 evaluation_time: Timestamp::new(11),

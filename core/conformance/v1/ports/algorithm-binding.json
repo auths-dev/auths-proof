@@ -1,0 +1,1 @@
+{"schema":"auths-proof-port-conformance/v1","port":"algorithm-binding","claims":["exact-jws-selector","exact-spki-algorithm-identifier-selector","unique-selector","registered-suite","configuration-is-committed"],"negative_cases":["empty-bindings","duplicate-jws-selector","duplicate-spki-selector","unregistered-suite","invalid-algorithm-identifier"]}

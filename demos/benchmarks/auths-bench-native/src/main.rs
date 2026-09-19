@@ -13,7 +13,6 @@ use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_raw_key::RawKeyMethod;
 use auths_registries::ImmutableRegistries;
 use auths_signature::{Ed25519Suite, P256Sha256Suite};
-use auths_spiffe_x509::SpiffeX509Method;
 use auths_verifier::verify_v1;
 use auths_webauthn::WebAuthnMethod;
 use sha2::{Digest as _, Sha256};
@@ -170,7 +169,8 @@ fn run() -> Result<(), String> {
     let hsm = HsmAttestedMethod::new(auths_testkit::hsm_corpus_records())
         .map_err(|error| error.to_string())?;
     let (domains, status) = auths_testkit::spiffe_corpus_context();
-    let spiffe = SpiffeX509Method::new(domains, status).map_err(|error| error.to_string())?;
+    let spiffe =
+        auths_testkit::spiffe_corpus_method(domains, status).map_err(|error| error.to_string())?;
     let ed25519 = Ed25519Suite::new().map_err(|error| error.to_string())?;
     let p256 = P256Sha256Suite::new().map_err(|error| error.to_string())?;
     let methods: [&dyn PrincipalMethod; 7] = [
@@ -222,7 +222,7 @@ mod tests {
         let webauthn = WebAuthnMethod::new(auths_testkit::webauthn_corpus_credentials()).unwrap();
         let hsm = HsmAttestedMethod::new(auths_testkit::hsm_corpus_records()).unwrap();
         let (domains, status) = auths_testkit::spiffe_corpus_context();
-        let spiffe = SpiffeX509Method::new(domains, status).unwrap();
+        let spiffe = auths_testkit::spiffe_corpus_method(domains, status).unwrap();
         let ed25519 = Ed25519Suite::new().unwrap();
         let p256 = P256Sha256Suite::new().unwrap();
         let methods: [&dyn PrincipalMethod; 7] = [

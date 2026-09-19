@@ -1,0 +1,17 @@
+{
+  "schema": "auths-proof-adapter-conformance/v1",
+  "adapter": "oidc-workload-v1",
+  "cases": [
+    {"id":"structure/segment-count","expected":"oidc.Jws.Segments"},
+    {"id":"header/none","expected":"oidc.Jws.InvalidAlgorithm"},
+    {"id":"header/hs256","expected":"oidc.Jws.InvalidAlgorithm"},
+    {"id":"header/unknown-member","expected":"oidc.Jws.UnknownHeader"},
+    {"id":"claims/duplicate","expected":"oidc.Claims.DuplicateMember"},
+    {"id":"claims/nested","expected":"oidc.Claims.UnsupportedType"},
+    {"id":"claims/unknown","expected":"oidc.Claims.UnknownMember"},
+    {"id":"window/expired","expected":"oidc.OutsideWindow.Expired"},
+    {"id":"audience/key-bitflip","expected":"oidc.AudienceMismatch"},
+    {"id":"policy/immutable-id-mismatch","expected":"oidc.PolicyRejected.NoPolicyAdmits"},
+    {"id":"verification-method/token-bitflip","expected":"oidc.VerificationMethodMismatch"}
+  ]
+}

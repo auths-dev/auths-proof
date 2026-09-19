@@ -1,0 +1,20 @@
+{
+  "schema": "auths-proof-adapter-conformance/v1",
+  "adapter": "sigstore-keyless-v1",
+  "cases": [
+    {"id":"chain/empty","expected":"sigstore.Chain.Limit"},
+    {"id":"chain/non-canonical","expected":"sigstore.Chain.NonCanonical"},
+    {"id":"entry/unknown-key","expected":"sigstore.Entry.Cbor"},
+    {"id":"entry/proof-length","expected":"sigstore.Entry.Proof"},
+    {"id":"binding/preimage","expected":"sigstore.PreimageMismatch"},
+    {"id":"binding/signature","expected":"sigstore.EntrySignatureMismatch"},
+    {"id":"binding/leaf","expected":"sigstore.LeafMismatch"},
+    {"id":"set/bitflip","expected":"sigstore.SignedEntryTimestamp"},
+    {"id":"inclusion/hash-bitflip","expected":"sigstore.Inclusion"},
+    {"id":"checkpoint/origin","expected":"sigstore.Checkpoint.Origin"},
+    {"id":"path/unsupported-algorithm","expected":"sigstore.Path.UnsupportedAlgorithm"},
+    {"id":"identity/duplicate-extension","expected":"sigstore.Extension.Duplicate"},
+    {"id":"window/future","expected":"sigstore.OutsideWindow.Future"},
+    {"id":"policy/immutable-id-mismatch","expected":"sigstore.PolicyRejected.NoPolicyAdmits"}
+  ]
+}
