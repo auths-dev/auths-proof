@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 222,
+  "freezeVersion": 223,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -1017,7 +1017,7 @@
     },
     {
       "id": "auths.release.evolution-contract",
-      "version": 38,
+      "version": 39,
       "classification": "frozen-meaning",
       "categories": [
         "version-axes",
@@ -1038,11 +1038,11 @@
         "release/fixtures/evolution",
         "xtask/src/evolution_policy.rs"
       ],
-      "sha256": "0375fd12c2f847893883ae0a0a85e2ccad90969aedcddd66433660cdf3144963"
+      "sha256": "b37c7417ed6a5e8438895e7ae0718de9a5e245867771e41ced35cce48b0c3b68"
     },
     {
       "id": "auths.release.public-surface",
-      "version": 222,
+      "version": 223,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1134,7 +1134,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "07bb11026b8310c34a6e9ee901981c3ec0012b754809dd5f0c727b001581a5c7"
+      "sha256": "58b6a199a44b1c91ee9e8e58fc70e0e22682798507a82a1877a0609c76ca8797"
     }
   ]
 }

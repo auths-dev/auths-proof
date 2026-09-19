@@ -365,7 +365,10 @@ allowlisted generated paths through the bounded formal-update policy. The job
 MUST publish that update for the trusted updater, fail before authoritative
 Lean or evidence aggregation, and qualify only after the updater's unsigned
 commit triggers a new exact-head run. Non-pull-request events fail without
-writeback.
+writeback. The unprivileged producer MUST package against the policy from the
+exact protected-base SHA, not a policy changed by the pull request; the
+privileged updater MUST independently require its trusted policy digest to
+match before applying anything.
 
 The job MUST publish generated Lean, translation reports, the source-closure
 record, and a signed workflow attestation. It MUST NOT run the authored Lean

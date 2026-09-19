@@ -105,15 +105,21 @@ jobs:
           --output target/formal/source-closure.expected.json
       - id: formal-update
         name: Package a bounded generated update
-        run: >-
-          cargo run --locked -p auths-ci-plan --
-          formal-update-artifact create
-          --repository "${{ github.repository }}"
-          --workflow "${{ github.workflow }}"
-          --run-id "${{ github.run_id }}"
-          --run-attempt "${{ github.run_attempt }}"
-          --base-sha "${{ github.event.pull_request.base.sha }}"
-          --head-sha "${{ github.event.pull_request.head.sha }}"
+        env:
+          AUTHS_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin "$AUTHS_BASE_SHA"
+          mkdir -p target/formal
+          git show "${AUTHS_BASE_SHA}:.github/ci/formal-generated-paths.json" > target/formal/trusted-generated-paths.json
+          cargo run --locked -p auths-ci-plan -- formal-update-artifact create \
+            --repository "${{ github.repository }}" \
+            --workflow "${{ github.workflow }}" \
+            --run-id "${{ github.run_id }}" \
+            --run-attempt "${{ github.run_attempt }}" \
+            --base-sha "$AUTHS_BASE_SHA" \
+            --head-sha "${{ github.event.pull_request.head.sha }}" \
+            --policy target/formal/trusted-generated-paths.json
       - name: Preserve the bounded generated update
         if: steps.formal-update.outputs.update_required == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -361,15 +367,21 @@ jobs:
       - id: formal-update
         name: Package a bounded translation update
         if: github.event_name == 'pull_request' && needs.ci-plan.outputs.formal_cold_required == 'true'
-        run: >-
-          cargo run --locked -p auths-ci-plan --
-          formal-update-artifact create
-          --repository "${{ github.repository }}"
-          --workflow "${{ github.workflow }}"
-          --run-id "${{ github.run_id }}"
-          --run-attempt "${{ github.run_attempt }}"
-          --base-sha "${{ github.event.pull_request.base.sha }}"
-          --head-sha "${{ github.event.pull_request.head.sha }}"
+        env:
+          AUTHS_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin "$AUTHS_BASE_SHA"
+          mkdir -p target/formal
+          git show "${AUTHS_BASE_SHA}:.github/ci/formal-generated-paths.json" > target/formal/trusted-generated-paths.json
+          cargo run --locked -p auths-ci-plan -- formal-update-artifact create \
+            --repository "${{ github.repository }}" \
+            --workflow "${{ github.workflow }}" \
+            --run-id "${{ github.run_id }}" \
+            --run-attempt "${{ github.run_attempt }}" \
+            --base-sha "$AUTHS_BASE_SHA" \
+            --head-sha "${{ github.event.pull_request.head.sha }}" \
+            --policy target/formal/trusted-generated-paths.json
       - name: Preserve the bounded translation update
         if: steps.formal-update.outputs.update_required == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -521,15 +533,21 @@ jobs:
       - id: formal-update
         name: Package a bounded assurance-manifest update
         if: github.event_name == 'pull_request'
-        run: >-
-          cargo run --locked -p auths-ci-plan --
-          formal-update-artifact create
-          --repository "${{ github.repository }}"
-          --workflow "${{ github.workflow }}"
-          --run-id "${{ github.run_id }}"
-          --run-attempt "${{ github.run_attempt }}"
-          --base-sha "${{ github.event.pull_request.base.sha }}"
-          --head-sha "${{ github.event.pull_request.head.sha }}"
+        env:
+          AUTHS_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin "$AUTHS_BASE_SHA"
+          mkdir -p target/formal
+          git show "${AUTHS_BASE_SHA}:.github/ci/formal-generated-paths.json" > target/formal/trusted-generated-paths.json
+          cargo run --locked -p auths-ci-plan -- formal-update-artifact create \
+            --repository "${{ github.repository }}" \
+            --workflow "${{ github.workflow }}" \
+            --run-id "${{ github.run_id }}" \
+            --run-attempt "${{ github.run_attempt }}" \
+            --base-sha "$AUTHS_BASE_SHA" \
+            --head-sha "${{ github.event.pull_request.head.sha }}" \
+            --policy target/formal/trusted-generated-paths.json
       - name: Preserve the bounded assurance update
         if: steps.formal-update.outputs.update_required == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
