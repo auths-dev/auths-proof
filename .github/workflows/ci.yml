@@ -975,7 +975,7 @@ jobs:
       - name: Real PostgreSQL rollback, restart, and reconciliation contract
         working-directory: demos/postgresql-data-change
         run: npm run test:live-recovery
-# The transactional multi-process lifecycle-store contract is NOT run here.
+      # The transactional multi-process lifecycle-store contract is NOT run here.
       #
       # postgres_lifecycle's `configured()` requires AUTHS_POSTGRES_URL,
       # AUTHS_POSTGRES_CA_PEM and AUTHS_POSTGRES_SERVER_NAME -- a TLS PostgreSQL
