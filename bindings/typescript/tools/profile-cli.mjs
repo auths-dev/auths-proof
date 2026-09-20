@@ -355,13 +355,16 @@ export function renderRun(contract) {
 }
 
 export function renderConformance(contract) {
+  const exampleArguments = stableJson(Object.fromEntries(
+    contract.fields.map(field => [field.name, example(field)]),
+  ));
   return `/** Wire the real adapter to a scripted provider before running this suite. */\n` +
     `import { runSelfHostedAdapterConformance, type ScriptedProvider } from "@auths-dev/sdk/testkit";\n` +
     `import { CONTRACT, type ${contract.command} } from "./generated.js";\n` +
     `import { ApplicationAdapter } from "./adapter.js";\n\n` +
     `export async function run() {\n` +
-    `  // Supply a local test proof/action/context for the exact generated command.\n` +
-    `  const command: ${contract.command} = { value: "replace-with-typed-command" } as ${contract.command};\n` +
+    `  // Replace the generated example and supply matching local proof/action/context.\n` +
+    `  const command: ${contract.command} = CONTRACT.decode(new TextEncoder().encode(${JSON.stringify(exampleArguments)}));\n` +
     `  const artifacts: { proof: Uint8Array; action: Uint8Array; trustedContext: Uint8Array } =\n` +
     `    { proof: new Uint8Array(), action: new Uint8Array(), trustedContext: new Uint8Array() };\n` +
     `  const adapterFactory = (provider: ScriptedProvider): ApplicationAdapter => {\n` +

@@ -49,10 +49,10 @@ class Adapter:
 
 async def exercise(contract: object) -> None:
     good = development_mcp_artifacts(
-        service="example-create", name="invoke_v1", arguments={"value": "approved"},
+        service="example-create", name="invoke_v1", arguments={"value": "open"},
     )
     other = development_mcp_artifacts(
-        service="example-create", name="other_v1", arguments={"value": "approved"},
+        service="example-create", name="other_v1", arguments={"value": "open"},
     )
     attempts = MemoryAttempts()
     adapter = Adapter()
@@ -84,9 +84,20 @@ def main() -> None:
              "--directory", str(root)],
             check=True, cwd=root, stdout=subprocess.DEVNULL,
         )
+        manifest = root / "profile.toml"
+        source = manifest.read_text(encoding="utf-8")
+        original = '[arguments.fields.value]\ntype = "string"\nmin_bytes = 1\nmax_bytes = 256\n'
+        assert original in source
+        manifest.write_text(source.replace(original,
+            '[arguments.fields.value]\ntype = "enum"\nvariants = ["open", "closed"]\n'),
+            encoding="utf-8")
+        subprocess.run(
+            [sys.executable, "-m", "auths._profile_cli", "profile", "generate", str(manifest)],
+            check=True, cwd=root, stdout=subprocess.DEVNULL,
+        )
         subprocess.run(
             [sys.executable, "-m", "auths._profile_cli", "profile", "check",
-             str(root / "profile.toml")],
+             str(manifest)],
             check=True, cwd=root, stdout=subprocess.DEVNULL,
         )
         spec = importlib.util.spec_from_file_location("external_generated", root / "generated.py")
