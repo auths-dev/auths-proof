@@ -6,7 +6,6 @@ context, and custody signer. This module never creates production trust.
 
 from __future__ import annotations
 
-import hmac
 from dataclasses import dataclass
 from typing import Generic, Literal, Sequence, TypeVar
 
@@ -132,13 +131,11 @@ async def author_mcp_proof(
     response = outcome.response
     if (
         response.request_id != custody_request.request_id
-        or not hmac.compare_digest(response.object_id, custody_request.object_id)
+        or response.object_id != custody_request.object_id
         or response.principal != descriptor.principal
         or response.descriptor != descriptor.signature
         or response.provider_key_version != descriptor.key_version
-        or not hmac.compare_digest(
-            response.transaction_digest, custody_request.transaction_digest
-        )
+        or response.transaction_digest != custody_request.transaction_digest
         or not 1 <= len(response.evidence) <= 32
     ):
         raise ValueError("custody response does not bind the exact signing request")

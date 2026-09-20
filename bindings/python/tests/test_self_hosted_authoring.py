@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import pytest
 
@@ -147,3 +147,28 @@ async def test_missing_grant_rejects_before_signer_access() -> None:
             challenge=_native.generate_challenge_v1(), evaluation_time=now,
         )
     assert signer.calls == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("field_name", ["object_id", "transaction_digest"])
+async def test_signer_response_must_bind_the_exact_request(field_name: str) -> None:
+    now = int(time.time())
+    key, grant, template = _authority(now)
+
+    class MismatchedSigner(ExternalSigner):
+        async def sign(self, request: SigningRequest) -> CustodySigned:
+            signed = await super().sign(request)
+            original = getattr(request, field_name)
+            altered = bytes([original[0] ^ 1]) + original[1:]
+            return CustodySigned(
+                "signed", replace(signed.response, **{field_name: altered})
+            )
+
+    signer = MismatchedSigner(key)
+    with pytest.raises(ValueError, match="exact signing request"):
+        await author_mcp_proof(
+            contract=TOOL, command=Change("approved"), grants=(grant,),
+            trusted_context_template=template, signer=signer,
+            challenge=_native.generate_challenge_v1(), evaluation_time=now,
+        )
+    assert signer.calls == 1
