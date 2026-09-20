@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import datetime as _datetime
 import hashlib as _hashlib
+import time as _time
 from dataclasses import dataclass as _dataclass
 from typing import (
     Callable as _Callable,
     Literal as _Literal,
+    Mapping as _Mapping,
     Optional as _Optional,
     Tuple as _Tuple,
 )
 
+from . import _native as _native
 from ._native import DevelopmentEd25519Key as _DevelopmentEd25519Key
 from ._mechanism_conformance_v2 import CONFORMANCE_CATALOG_V2 as _CONFORMANCE_CATALOG_V2
 from ._public import runtime_info as _runtime_info
@@ -61,6 +64,118 @@ class ConformanceReport:
     metadata: ConformanceMetadata
     passed: bool
     cases: _Tuple[ConformanceCase, ...]
+
+
+@_dataclass(frozen=True)
+class DevelopmentMcpArtifacts:
+    """Disposable local-only proof, action, and operator context bytes."""
+
+    proof: bytes
+    action: bytes
+    trusted_context: bytes
+
+
+def development_mcp_artifacts(
+    *,
+    service: str,
+    name: str,
+    arguments: _Mapping[str, object],
+    now: int | None = None,
+) -> DevelopmentMcpArtifacts:
+    """Create a self-trusting fixture for local tests, never production trust.
+
+    The ephemeral signing key is not returned or serialized. Production users
+    must provision their signer and trusted context independently.
+    """
+    from .self_hosted import _canonical_arguments
+
+    current = int(_time.time()) if now is None else now
+    if not 60 <= current < 2**64 - 600:
+        raise ValueError("development evaluation time is outside bounds")
+    encoded = _canonical_arguments(arguments)
+    call = _native.mcp_call(service, name, encoded)
+    audience = f"mcp://{service}"
+    resource = f"{audience}/tools/{name}"
+    key = _DevelopmentEd25519Key.generate()
+    actor = _native.Principal(key.principal)
+    request = _native.GrantRequest(
+        actor,
+        "auths.mcp",
+        2,
+        [("tools/call", resource)],
+        current - 60,
+        current + 600,
+        [audience],
+        None,
+        None,
+        0,
+        None,
+        "raw-key-baseline",
+        [],
+    )
+    grant_unsigned = _native.root_grant(actor, request)
+    grant_request = _native.prepare_signing(
+        grant_unsigned, key.principal_method, key.verification_method, key.suite
+    )
+    grant = grant_request.complete(key.sign(grant_request.signing_preimage))
+    challenge = _native.generate_challenge_v1()
+    prepared = _native.prepare_mcp_call_action(
+        call, actor, grant, challenge, current
+    )
+    action_request = _native.prepare_signing(
+        prepared.unsigned, key.principal_method, key.verification_method, key.suite
+    )
+    signed_action = action_request.complete(key.sign(action_request.signing_preimage))
+    assurance = _native.AssurancePolicy(
+        "raw-key-baseline",
+        [
+            ("root", "every", "self-certifying-identifier", None),
+            ("actor", "every", "self-certifying-identifier", None),
+        ],
+    )
+    anchor = _native.TrustAnchor(
+        actor.value,
+        actor,
+        [key.principal_method],
+        [("auths.mcp", 2)],
+        [("tools/call", resource)],
+        [audience],
+        [audience],
+        current - 60,
+        current + 600,
+        None,
+        1,
+        "raw-key-baseline",
+        None,
+    )
+    template = _native.compile_trusted_context(
+        _native.self_contained_configuration(),
+        None,
+        1,
+        1,
+        1,
+        [anchor],
+        assurance,
+        None,
+        None,
+        "none-v1",
+        [key.evidence_type],
+        [],
+    )
+    context = template.bind_request(audience, challenge, current)
+    evidence = (key.evidence_type, key.media_type, key.evidence)
+    proof, action, trusted_context = _native.assemble_mcp_proof(
+        prepared,
+        signed_action,
+        [grant],
+        [[evidence]],
+        [evidence],
+        context,
+    )
+    verdict = _native.verify_v1(proof, action, trusted_context)
+    if verdict.kind != "authorized":
+        raise RuntimeError(f"development fixture was not authorized: {verdict.code}")
+    return DevelopmentMcpArtifacts(bytes(proof), bytes(action), bytes(trusted_context))
 
 
 def _report(suite: str, cases: list[ConformanceCase]) -> ConformanceReport:
@@ -313,10 +428,12 @@ __all__ = [
     "ConformanceMetadata",
     "ConformanceReport",
     "DevelopmentEd25519IdentityKey",
+    "DevelopmentMcpArtifacts",
     "run_custody_signer_conformance",
     "run_reservation_store_conformance",
     "run_bounded_transport_conformance",
     "development_ed25519_identity_key",
+    "development_mcp_artifacts",
     "ephemeral_ed25519_signer",
     "fixtures",
 ]

@@ -53,6 +53,16 @@ verify
 verify_many
 verify_receipt
 
+[auths.self_hosted]
+AuthorizedCommand
+CommandResult
+ExactMcpTool
+OptionalField
+PreparedMcpAction
+RejectedCommand
+StringField
+verify_command
+
 [auths.identity]
 AuthenticatedIdentityMessage
 DecodedIdentity
@@ -143,7 +153,9 @@ ConformanceCase
 ConformanceMetadata
 ConformanceReport
 DevelopmentEd25519IdentityKey
+DevelopmentMcpArtifacts
 development_ed25519_identity_key
+development_mcp_artifacts
 ephemeral_ed25519_signer
 fixtures
 run_bounded_transport_conformance

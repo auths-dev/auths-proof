@@ -12,6 +12,7 @@
       "python": [
         "auths",
         "auths.verify",
+        "auths.self_hosted",
         "auths.identity",
         "auths.identity.authoring"
       ]

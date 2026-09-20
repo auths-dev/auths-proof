@@ -798,6 +798,21 @@ def authorize_mcp(
     action_evidence: List[Tuple[str, str, bytes]],
     context: TrustedContext,
 ) -> Tuple[NativeVerificationResult, Optional[McpCommand]]: ...
+def assemble_mcp_proof(
+    prepared: McpAction,
+    signed_action: SignedObject,
+    grants: List[SignedObject],
+    grant_evidence: List[List[Tuple[str, str, bytes]]],
+    action_evidence: List[Tuple[str, str, bytes]],
+    context: TrustedContext,
+) -> Tuple[bytes, bytes, bytes]: ...
+def verify_exact_mcp_command(
+    proof_cbor: bytes,
+    canonical_action_cbor: bytes,
+    trusted_context_cbor: bytes,
+    expected_service: str,
+    expected_name: str,
+) -> Tuple[NativeVerificationResult, Optional[McpCommand]]: ...
 def consume_mcp_command(
     command: McpCommand, expected_service: str
 ) -> McpGatewayCall: ...

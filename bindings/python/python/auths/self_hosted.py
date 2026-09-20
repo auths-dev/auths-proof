@@ -1,0 +1,230 @@
+"""Exact, application-owned MCP operations over native Auths verification.
+
+This module authorizes an action. It does not hold provider credentials or
+qualify an application's provider request, result, or reconciliation logic.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import time
+from dataclasses import dataclass, fields as dataclass_fields, is_dataclass
+from typing import Generic, Literal, Mapping, TypeVar, cast
+
+from . import _native
+from .verify import VerificationResult, _project
+
+CommandT = TypeVar("CommandT")
+
+
+@dataclass(frozen=True)
+class StringField:
+    min_length: int = 0
+    max_length: int = 256
+    pattern: str | None = None
+
+    def __post_init__(self) -> None:
+        if not 0 <= self.min_length <= self.max_length <= 4096:
+            raise ValueError("string field bounds are invalid")
+        if self.pattern is not None and len(self.pattern) > 256:
+            raise ValueError("string field pattern exceeds bound")
+
+    def validate(self, value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError("expected a string")
+        encoded = value.encode("utf-8")
+        if not self.min_length <= len(encoded) <= self.max_length:
+            raise ValueError("string outside declared byte bounds")
+        if self.pattern is not None and re.fullmatch(self.pattern, value) is None:
+            raise ValueError("string does not match declared pattern")
+        return value
+
+
+@dataclass(frozen=True)
+class OptionalField:
+    inner: StringField
+
+    def validate(self, value: object) -> str | None:
+        return None if value is None else self.inner.validate(value)
+
+
+Field = StringField | OptionalField
+
+
+@dataclass(frozen=True)
+class PreparedMcpAction(Generic[CommandT]):
+    command: CommandT
+    action: _native.McpAction
+    arguments_json: bytes
+    audience: str
+    resource: str
+    review_fields: tuple[tuple[str, str], ...]
+
+
+class ExactMcpTool(Generic[CommandT]):
+    """One fixed MCP service/tool with a closed, bounded command shape."""
+
+    def __init__(
+        self,
+        *,
+        service: str,
+        name: str,
+        command_type: type[CommandT],
+        fields: Mapping[str, Field],
+    ) -> None:
+        if not is_dataclass(command_type):
+            raise TypeError("command_type must be a dataclass")
+        declared = tuple(field.name for field in dataclass_fields(command_type))
+        if not declared or set(declared) != set(fields) or len(declared) > 32:
+            raise ValueError("command fields must match the closed schema")
+        if not all(isinstance(value, (StringField, OptionalField)) for value in fields.values()):
+            raise TypeError("unsupported command field schema")
+        _native.validate_mcp_service(service)
+        # Native call construction validates the tool name and derived resource.
+        _native.mcp_call(service, name, b"{}")
+        self.service = service
+        self.name = name
+        self.command_type = command_type
+        self.fields = dict(fields)
+
+    def validate_arguments(self, arguments: Mapping[str, object]) -> CommandT:
+        if set(arguments) != set(self.fields):
+            raise ValueError("arguments do not match the exact command schema")
+        checked = {
+            name: schema.validate(arguments[name])
+            for name, schema in self.fields.items()
+        }
+        return self.command_type(**checked)
+
+    def prepare(
+        self,
+        command: CommandT,
+        *,
+        actor: _native.Principal,
+        terminal_grant: _native.SignedObject,
+        challenge: bytes,
+        evaluation_time: int,
+    ) -> PreparedMcpAction[CommandT]:
+        if type(command) is not self.command_type:
+            raise TypeError("command does not belong to this exact tool")
+        arguments = {field.name: getattr(command, field.name) for field in dataclass_fields(command)}
+        checked = self.validate_arguments(arguments)
+        encoded = _canonical_arguments(arguments)
+        native = _native.prepare_mcp_action(
+            self.service,
+            self.name,
+            encoded,
+            actor,
+            terminal_grant,
+            bytes(challenge),
+            evaluation_time,
+        )
+        return PreparedMcpAction(
+            checked,
+            native,
+            encoded,
+            native.audience,
+            native.resource,
+            tuple(native.review_fields),
+        )
+
+
+_AUTHORIZED_TOKEN = object()
+
+
+class AuthorizedCommand(Generic[CommandT]):
+    """A local projection from native verified bytes, not a provider capability."""
+
+    __slots__ = ("kind", "command", "action_commitment", "decision")
+
+    def __init__(
+        self,
+        token: object,
+        command: CommandT,
+        action_commitment: bytes,
+        decision: VerificationResult,
+    ) -> None:
+        if token is not _AUTHORIZED_TOKEN:
+            raise TypeError("authorized commands can only come from verification")
+        self.kind: Literal["authorized"] = "authorized"
+        self.command = command
+        self.action_commitment = bytes(action_commitment)
+        self.decision = decision
+
+
+@dataclass(frozen=True)
+class RejectedCommand:
+    kind: Literal["denied", "indeterminate"]
+    code: str
+    source: Literal["auths-verifier", "developer-contract"]
+    decision: VerificationResult
+
+
+CommandResult = AuthorizedCommand[CommandT] | RejectedCommand
+
+
+def verify_command(
+    *,
+    contract: ExactMcpTool[CommandT],
+    proof: bytes,
+    action: bytes,
+    trusted_context: bytes,
+) -> CommandResult[CommandT]:
+    """Verify once, then project only the exact named, bounded command."""
+    native, sealed = _native.verify_exact_mcp_command(
+        bytes(proof),
+        bytes(action),
+        bytes(trusted_context),
+        contract.service,
+        contract.name,
+    )
+    decision = _project(native, f"auths-{time.time_ns():x}")
+    if decision.kind != "authorized":
+        return RejectedCommand(decision.kind, decision.code, "auths-verifier", decision)
+    if sealed is None:
+        return RejectedCommand(
+            "denied", "self-hosted.contract-mismatch", "developer-contract", decision
+        )
+    commitment = bytes(sealed.action_commitment)
+    call = _native.consume_mcp_command(sealed, contract.service)
+    try:
+        arguments = json.loads(call.arguments_json, object_pairs_hook=_unique_pairs)
+        if not isinstance(arguments, dict):
+            raise ValueError("MCP arguments must be an object")
+        command = contract.validate_arguments(cast(Mapping[str, object], arguments))
+    except (TypeError, ValueError):
+        return RejectedCommand(
+            "denied", "self-hosted.contract-mismatch", "developer-contract", decision
+        )
+    return AuthorizedCommand(_AUTHORIZED_TOKEN, command, commitment, decision)
+
+
+def _canonical_arguments(arguments: Mapping[str, object]) -> bytes:
+    encoded = json.dumps(
+        arguments, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+    ).encode("utf-8")
+    if len(encoded) > 4096:
+        raise ValueError("MCP arguments exceed the native action bound")
+    return encoded
+
+
+def _unique_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate MCP argument key")
+        result[key] = value
+    return result
+
+
+__all__ = [
+    "AuthorizedCommand",
+    "CommandResult",
+    "ExactMcpTool",
+    "OptionalField",
+    "PreparedMcpAction",
+    "RejectedCommand",
+    "StringField",
+    "verify_command",
+]

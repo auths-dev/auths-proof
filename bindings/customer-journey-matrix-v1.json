@@ -8,8 +8,8 @@
     "baseline": {
       "typescriptEntryPoints": 9,
       "typescriptPublicSymbols": 115,
-      "pythonModules": 11,
-      "pythonPublicSymbols": 130,
+      "pythonModules": 12,
+      "pythonPublicSymbols": 140,
       "maintainedTypescriptRecipes": 2,
       "maintainedPythonRecipes": 2
     },
