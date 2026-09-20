@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 233,
+  "freezeVersion": 234,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -611,7 +611,7 @@
     },
     {
       "id": "auths.portable-abi-bindings",
-      "version": 76,
+      "version": 77,
       "classification": "frozen-meaning",
       "categories": [
         "portable-abi",
@@ -629,7 +629,7 @@
         "core/crates/auths-model/src/lib.rs",
         "core/spec/v1/auths-proof.cddl"
       ],
-      "sha256": "f10b52d289c30bd9c587906c82a4e66359f677ea3fd76afdaed3d7340b50003c"
+      "sha256": "1984b5fdb2fd2b8c48f8663430f624f333485a65552cfbde0b878d7292ede174"
     },
     {
       "id": "auths.product.bounded-domains",
@@ -751,7 +751,7 @@
     },
     {
       "id": "auths.product.facade",
-      "version": 21,
+      "version": 22,
       "classification": "frozen-meaning",
       "categories": [
         "small-shared-root",
@@ -770,7 +770,7 @@
         "bindings/typescript/src/profile-runtime.ts",
         "bindings/typescript/src/session.ts"
       ],
-      "sha256": "149c900ef57bec68152187121788f1fb877407c452ad27473ee57f66841f559f"
+      "sha256": "ddabc48599bd8bd3476175c2ec0eea97b164c497c622478c5de932e24557cedf"
     },
     {
       "id": "auths.product.github-issue-address-v2",
@@ -1017,7 +1017,7 @@
     },
     {
       "id": "auths.release.evolution-contract",
-      "version": 47,
+      "version": 48,
       "classification": "frozen-meaning",
       "categories": [
         "version-axes",
@@ -1038,11 +1038,11 @@
         "release/fixtures/evolution",
         "xtask/src/evolution_policy.rs"
       ],
-      "sha256": "5e2612e09176430e6db08185d5b04432136fb7f5c5f3f61fd04d3f59e3c36aea"
+      "sha256": "0efd3ff172fbadeb4929582b027617d042e74d89d5c97181f19b516ba8acc55d"
     },
     {
       "id": "auths.release.public-surface",
-      "version": 233,
+      "version": 234,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1134,7 +1134,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "50159087e10e323a56584fc69e16df2f20c640e3cc615b98a9c04487b27284b7"
+      "sha256": "ebafeb919c90d0783cf8446ca873db686d19459087284ed08ff4b6790b5a1c47"
     }
   ]
 }

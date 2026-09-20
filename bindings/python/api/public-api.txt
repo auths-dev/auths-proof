@@ -59,6 +59,13 @@ AuthoringUnsuccessful
 GrantEvidence
 author_mcp_proof
 
+[auths.attempts]
+AttemptRecord
+AttemptState
+AttemptStore
+FileAttemptStore
+TerminalState
+
 [auths.self_hosted]
 AuthorizedCommand
 CommandResult
