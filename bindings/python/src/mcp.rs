@@ -890,7 +890,7 @@ fn verify_exact_mcp_command(
             command.call().service() == expected_service && command.name() == expected_name
         });
     let command = command
-        .map(|inner| {
+        .map(|inner| -> PyResult<PyMcpCommand> {
             let limits = auths_model::VerifierLimits::default_deployment();
             let proof = auths_codec::decode_bundle(proof_cbor, &limits).map_err(value_error)?;
             let context = auths_codec::decode_verifier_context(trusted_context_cbor)
