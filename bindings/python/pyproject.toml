@@ -24,6 +24,9 @@ classifiers = [
   "Typing :: Typed",
 ]
 
+[project.scripts]
+auths = "auths._profile_cli:main"
+
 [tool.maturin]
 manifest-path = "Cargo.toml"
 module-name = "auths._native"

@@ -4,7 +4,7 @@
   "description": "Prove exact authority, execute protected actions, and leave signed receipts",
   "type": "module",
   "bin": {
-    "auths": "./dist/doctor-cli.js"
+    "auths": "./tools/profile-cli.mjs"
   },
   "exports": {
     ".": {
@@ -52,6 +52,7 @@
   },
   "files": [
     "dist",
+    "tools/profile-cli.mjs",
     "docs",
     "performance-baseline.json",
     "sdk-capability.json",
