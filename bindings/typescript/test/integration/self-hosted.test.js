@@ -101,6 +101,8 @@ test("external custody signer authors a portable exact proof without minted trus
     descriptor,
     async sign(request) {
       signings += 1;
+      assert.equal(request.display.find((item) => item.label === "arguments")?.value,
+        '{"value":"reviewed"}');
       return {
         kind: "signed",
         response: {

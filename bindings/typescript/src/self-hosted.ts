@@ -37,6 +37,7 @@ export interface PreparedMcpAction<Command> {
   readonly command: Command;
   readonly action: Uint8Array;
   readonly actionEnvelope: Uint8Array;
+  readonly argumentsJson: Uint8Array;
   readonly actionCommitment: Uint8Array;
   readonly audience: string;
   readonly resource: string;
@@ -122,6 +123,7 @@ export class ExactMcpTool<Fields extends FieldMap> {
         command: checked,
         action,
         actionEnvelope: prepared.actionEnvelopeCbor.slice(),
+        argumentsJson: prepared.argumentsJson.slice(),
         actionCommitment: engine.commitCanonicalV1("auths.canonical-action.v1", action),
         audience: prepared.audience,
         resource: prepared.resource,
@@ -301,6 +303,7 @@ export async function authorMcpProof<Fields extends FieldMap>(input: Readonly<{
       display: Object.freeze([
         { label: "service", value: input.contract.service },
         { label: "tool", value: input.contract.name },
+        { label: "arguments", value: new TextDecoder("utf-8", { fatal: true }).decode(prepared.argumentsJson) },
         { label: "action digest", value: prepared.displayDigestHex },
       ]),
       signal: input.signal ?? new AbortController().signal,

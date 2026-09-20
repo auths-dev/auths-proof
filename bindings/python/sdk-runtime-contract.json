@@ -38,6 +38,9 @@
   "modules": [
     "auths",
     "auths.verify",
+    "auths.authoring",
+    "auths.attempts",
+    "auths.self_hosted",
     "auths.identity",
     "auths.identity.adapters",
     "auths.identity.authoring",
