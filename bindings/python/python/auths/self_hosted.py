@@ -66,7 +66,7 @@ class IntegerField:
     def validate(self, value: object) -> int:
         if type(value) is not int or not self.minimum <= value <= self.maximum:
             raise ValueError("integer outside declared safe bounds")
-        return cast(int, value)
+        return value
 
 
 @dataclass(frozen=True)
@@ -74,7 +74,7 @@ class BooleanField:
     def validate(self, value: object) -> bool:
         if type(value) is not bool:
             raise ValueError("expected a boolean")
-        return cast(bool, value)
+        return value
 
 
 @dataclass(frozen=True)
@@ -117,7 +117,8 @@ class ExactMcpTool(Generic[CommandT]):
     ) -> None:
         if not is_dataclass(command_type):
             raise TypeError("command_type must be a dataclass")
-        if not command_type.__dataclass_params__.frozen:
+        dataclass_params = getattr(command_type, "__dataclass_params__", None)
+        if dataclass_params is None or not dataclass_params.frozen:
             raise TypeError("command_type must be a frozen dataclass")
         declared = tuple(field.name for field in dataclass_fields(command_type))
         if not declared or set(declared) != set(fields) or len(declared) > 32:
