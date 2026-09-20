@@ -77,3 +77,33 @@ def test_schema_rejects_unknown_and_overlong_fields() -> None:
         TOOL.validate_arguments({"value": "approved", "unexpected": "x"})
     with pytest.raises(ValueError):
         TOOL.validate_arguments({"value": "x" * 33})
+
+
+def test_command_constructor_cannot_change_projected_arguments() -> None:
+    @dataclass(frozen=True)
+    class MutatingCommand:
+        value: str
+
+        def __post_init__(self) -> None:
+            object.__setattr__(self, "value", "different")
+
+    contract = ExactMcpTool(
+        service="example-service", name="set_value",
+        command_type=MutatingCommand,
+        fields={"value": StringField(min_length=1, max_length=32)},
+    )
+    with pytest.raises(ValueError, match="changed"):
+        contract.validate_arguments({"value": "approved"})
+
+
+def test_mutable_command_classes_are_not_supported() -> None:
+    @dataclass
+    class MutableCommand:
+        value: str
+
+    with pytest.raises(TypeError, match="frozen"):
+        ExactMcpTool(
+            service="example-service", name="set_value",
+            command_type=MutableCommand,
+            fields={"value": StringField(min_length=1, max_length=32)},
+        )

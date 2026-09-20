@@ -94,6 +94,7 @@ export class ExactMcpTool<Fields extends FieldMap> {
         continue;
       }
       if (typeof item !== "string") throw new TypeError("MCP argument must be a string");
+      assertValidUnicode(item);
       const size = encoder.encode(item).length;
       if (size < definition.minBytes || size > definition.maxBytes) {
         throw new RangeError("MCP argument exceeds its byte bounds");
@@ -371,4 +372,19 @@ function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
     difference |= left[index]! ^ right[index]!;
   }
   return difference === 0;
+}
+
+function assertValidUnicode(value: string): void {
+  for (let index = 0; index < value.length; index += 1) {
+    const unit = value.charCodeAt(index);
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      const next = value.charCodeAt(index + 1);
+      if (index + 1 >= value.length || next < 0xdc00 || next > 0xdfff) {
+        throw new TypeError("invalid Unicode surrogate in MCP argument");
+      }
+      index += 1;
+    } else if (unit >= 0xdc00 && unit <= 0xdfff) {
+      throw new TypeError("invalid Unicode surrogate in MCP argument");
+    }
+  }
 }

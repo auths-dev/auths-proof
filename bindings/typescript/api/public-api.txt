@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 44b7b6f7e14c86e2289d9f132a7a27fb19ddb560d9155d54a74bbc72f3fc04d3
+# declaration-sha256 bad1f8527407073b5f0a4c264e4833b0c27842fc076ba4b99debcc739b5bc2b4
 .	AuthsError	value+type
 .	AuthsIssue	type
 .	AuthsOperationError	value+type
@@ -49,6 +49,24 @@
 ./verify	VerificationStage	type
 ./verify	VerifiedReceipt	type
 ./verify	Verifier	value+type
+./self-hosted	AttemptRecord	type
+./self-hosted	AttemptState	type
+./self-hosted	AttemptStore	type
+./self-hosted	AuthoredMcpProof	type
+./self-hosted	AuthoringUnsuccessful	value+type
+./self-hosted	AuthorizedCommand	type
+./self-hosted	authorMcpProof	value
+./self-hosted	CommandOf	type
+./self-hosted	CommandResult	type
+./self-hosted	exactMcpTool	value
+./self-hosted	ExactMcpTool	value+type
+./self-hosted	FieldMap	type
+./self-hosted	GrantEvidence	type
+./self-hosted	optionalStringField	value
+./self-hosted	PreparedMcpAction	type
+./self-hosted	stringField	value
+./self-hosted	StringField	type
+./self-hosted	verifyCommand	value
 ./identity	AuthenticatedIdentityMessage	type
 ./identity	createRawKeyEd25519IdentityClient	value
 ./identity	DecodedIdentity	type

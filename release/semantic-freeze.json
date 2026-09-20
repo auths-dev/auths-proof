@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 238,
+  "freezeVersion": 239,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -550,7 +550,7 @@
     },
     {
       "id": "auths.identity.protocol",
-      "version": 60,
+      "version": 61,
       "classification": "frozen-meaning",
       "categories": [
         "identity-protocol-versions",
@@ -573,7 +573,7 @@
         "core/fixtures/identity/v1/vectors.json",
         "core/spec/identity/v1"
       ],
-      "sha256": "84b7c26855a5896b13a8af0369dbf64a0b48a8f835861e319c62a08760bf377c"
+      "sha256": "bdcd3a9800ea46f5be0ac6a2d37cefdbbfd7146c989f2d0176e8b0ddfd489991"
     },
     {
       "id": "auths.modular-components",
@@ -611,7 +611,7 @@
     },
     {
       "id": "auths.portable-abi-bindings",
-      "version": 81,
+      "version": 82,
       "classification": "frozen-meaning",
       "categories": [
         "portable-abi",
@@ -629,7 +629,7 @@
         "core/crates/auths-model/src/lib.rs",
         "core/spec/v1/auths-proof.cddl"
       ],
-      "sha256": "cc28a99119e5210dc5b4f4a6ece9dd3eeff22b82270952e3eb7a40b51b3177d3"
+      "sha256": "2d5a4fc96f0a952ff3679b5b7f5784072f77a1075c1530a1177f6524c7efb0b3"
     },
     {
       "id": "auths.product.bounded-domains",
@@ -1017,7 +1017,7 @@
     },
     {
       "id": "auths.release.evolution-contract",
-      "version": 48,
+      "version": 49,
       "classification": "frozen-meaning",
       "categories": [
         "version-axes",
@@ -1038,11 +1038,11 @@
         "release/fixtures/evolution",
         "xtask/src/evolution_policy.rs"
       ],
-      "sha256": "0efd3ff172fbadeb4929582b027617d042e74d89d5c97181f19b516ba8acc55d"
+      "sha256": "4b2e1c85085ee794afe1c34858840beefeb710df5d21e32d616f504d57a57477"
     },
     {
       "id": "auths.release.public-surface",
-      "version": 238,
+      "version": 239,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1134,7 +1134,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "f8fb77abd46b0ba108d22d6de7e06cd17769f21f053648813134237772a1d788"
+      "sha256": "caed59716b859a93fdcca341f9d0040e9a226ea28c9f35374f92fed435d8fd45"
     }
   ]
 }

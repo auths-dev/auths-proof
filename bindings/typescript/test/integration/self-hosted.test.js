@@ -147,4 +147,5 @@ test("an exact contract cannot be widened by mutating its source schema", () => 
     service: "reports", name: "update",
     fields: { __proto__: stringField({ maxBytes: 3 }) },
   }), /closed command schema/);
+  assert.throws(() => tool.decode({ value: "\ud800" }), /Unicode/);
 });

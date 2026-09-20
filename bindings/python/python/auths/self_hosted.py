@@ -71,6 +71,8 @@ class ExactMcpTool(Generic[CommandT]):
     ) -> None:
         if not is_dataclass(command_type):
             raise TypeError("command_type must be a dataclass")
+        if not command_type.__dataclass_params__.frozen:
+            raise TypeError("command_type must be a frozen dataclass")
         declared = tuple(field.name for field in dataclass_fields(command_type))
         if not declared or set(declared) != set(fields) or len(declared) > 32:
             raise ValueError("command fields must match the closed schema")
@@ -91,7 +93,10 @@ class ExactMcpTool(Generic[CommandT]):
             name: schema.validate(arguments[name])
             for name, schema in self.fields.items()
         }
-        return self.command_type(**checked)
+        command = self.command_type(**checked)
+        if any(getattr(command, name) != value for name, value in checked.items()):
+            raise ValueError("command constructor changed verified arguments")
+        return command
 
     def prepare(
         self,

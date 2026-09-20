@@ -6,8 +6,8 @@
     "schema": "auths.sdk-experience-metadata/1",
     "enforcement": "baseline",
     "baseline": {
-      "typescriptEntryPoints": 9,
-      "typescriptPublicSymbols": 115,
+      "typescriptEntryPoints": 10,
+      "typescriptPublicSymbols": 133,
       "pythonModules": 14,
       "pythonPublicSymbols": 149,
       "maintainedTypescriptRecipes": 2,
