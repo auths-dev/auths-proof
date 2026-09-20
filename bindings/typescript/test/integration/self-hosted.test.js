@@ -1,9 +1,29 @@
 import assert from "node:assert/strict";
 import { createPrivateKey, sign as signBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { authorMcpProof, exactMcpTool, stringField, verifyCommand } from "../../dist/self-hosted.js";
-import { ACTOR, RAW_EVIDENCE, packagedWasm, vector } from "./helpers/mcp-fixture.js";
+
+const ACTOR = "key:sha256:MPL4hHxgoCRRtbEjYAedm50CmSM11XgLojSwwYeRi1E";
+const RAW_EVIDENCE = {
+  evidenceType: "raw-key-v1",
+  mediaType: "application/vnd.auths.raw-key.v1",
+};
+const vector = (name) => new Uint8Array(readFileSync(
+  new URL(`../../../../target/binding-vectors/${name}`, import.meta.url),
+));
+let wasmPromise;
+function packagedWasm() {
+  wasmPromise ??= (async () => {
+    const wasm = await import("../../wasm/auths_proof_wasm.js");
+    await wasm.default({ module_or_path: readFileSync(
+      new URL("../../wasm/auths_proof_wasm_bg.wasm", import.meta.url),
+    ) });
+    return wasm;
+  })();
+  return wasmPromise;
+}
 
 const contract = exactMcpTool({
   service: "reports",
@@ -116,4 +136,15 @@ test("external custody signer authors a portable exact proof without minted trus
   });
   assert.equal(result.kind, "authorized");
   assert.deepEqual(result.command, { value: "reviewed" });
+});
+
+test("an exact contract cannot be widened by mutating its source schema", () => {
+  const mutable = { kind: "string", minBytes: 1, maxBytes: 3 };
+  const tool = exactMcpTool({ service: "reports", name: "update", fields: { value: mutable } });
+  mutable.maxBytes = 4096;
+  assert.throws(() => tool.decode({ value: "unbounded" }), /byte bounds/);
+  assert.throws(() => exactMcpTool({
+    service: "reports", name: "update",
+    fields: { __proto__: stringField({ maxBytes: 3 }) },
+  }), /closed command schema/);
 });

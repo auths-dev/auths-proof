@@ -1,4 +1,6 @@
-import { exactMcpTool, optionalStringField, stringField } from "../../src/self-hosted.js";
+import {
+  exactMcpTool, optionalStringField, stringField, type AuthorizedCommand,
+} from "../../src/self-hosted.js";
 
 const contract = exactMcpTool({
   service: "todoist",
@@ -24,3 +26,10 @@ void contract.prepare({ project: null }, {});
 
 // @ts-expect-error optional field is still a bounded string or null
 void contract.prepare({ content: "Review budget", project: 42 }, {});
+
+// @ts-expect-error callers cannot label a plain object as an authorized projection
+const forged: AuthorizedCommand<{ readonly content: string }> = {
+  kind: "authorized", command: { content: "fake" },
+  actionCommitment: new Uint8Array(32), decision: {} as never,
+};
+void forged;

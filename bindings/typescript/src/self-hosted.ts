@@ -56,13 +56,16 @@ export class ExactMcpTool<Fields extends FieldMap> {
     const entries = Object.entries(config.fields);
     if (entries.length === 0 || entries.length > 32 ||
         entries.some(([name, value]) => !/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(name) ||
+          ["__proto__", "prototype", "constructor"].includes(name) ||
           value === null || typeof value !== "object" ||
           !["string", "optional-string"].includes(value.kind))) {
       throw new TypeError("invalid closed command schema");
     }
     this.service = config.service;
     this.name = config.name;
-    this.#fields = Object.freeze({ ...config.fields }) as Fields;
+    this.#fields = Object.freeze(Object.fromEntries(entries.map(([name, value]) => [
+      name, field(value.kind, { minBytes: value.minBytes, maxBytes: value.maxBytes }),
+    ]))) as Fields;
     Object.freeze(this);
   }
 
@@ -137,19 +140,40 @@ export function exactMcpTool<Fields extends FieldMap>(config: Readonly<{
   return new ExactMcpTool(config);
 }
 
+const authorizedCommandBrand: unique symbol = Symbol("auths-authorized-command");
+
+export interface AuthorizedCommand<Command> {
+  readonly kind: "authorized";
+  readonly command: Command;
+  readonly actionCommitment: Uint8Array;
+  readonly decision: VerificationResult;
+  readonly [authorizedCommandBrand]: true;
+}
+
 export type CommandResult<Command> =
-  | Readonly<{
-      kind: "authorized";
-      command: Command;
-      actionCommitment: Uint8Array;
-      decision: VerificationResult;
-    }>
+  | AuthorizedCommand<Command>
   | Readonly<{
       kind: "denied" | "indeterminate";
       code: string;
       source: "auths-verifier" | "developer-contract";
       decision: VerificationResult;
     }>;
+
+/** One-use persistence is application-owned; verification alone is reusable. */
+export type AttemptState = "attempting" | "confirmed" | "rejected" | "unknown";
+export interface AttemptRecord {
+  readonly actionCommitment: Uint8Array;
+  readonly operationKey: string;
+  readonly state: AttemptState;
+}
+export interface AttemptStore {
+  claimOnce(actionCommitment: Uint8Array, operationKey: string): Promise<boolean>;
+  read(actionCommitment: Uint8Array): Promise<AttemptRecord | undefined>;
+  finish(
+    actionCommitment: Uint8Array,
+    state: Exclude<AttemptState, "attempting">,
+  ): Promise<AttemptRecord>;
+}
 
 export async function verifyCommand<Fields extends FieldMap>(input: Readonly<{
   contract: ExactMcpTool<Fields>;
@@ -181,7 +205,8 @@ export async function verifyCommand<Fields extends FieldMap>(input: Readonly<{
       kind: "authorized", command,
       actionCommitment: engine.commitCanonicalV1("auths.canonical-action.v1", input.action),
       decision,
-    });
+      [authorizedCommandBrand]: true,
+    }) as AuthorizedCommand<CommandOf<Fields>>;
   } catch {
     return Object.freeze({
       kind: "denied", code: "self-hosted.contract-mismatch",
