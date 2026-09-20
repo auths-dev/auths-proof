@@ -23,7 +23,8 @@
       "public versioned profile-runtime compatibility surface for generated packages",
       "generated error-registry digest without root-load registry hashing",
       "effect-free identity and verification utilities",
-      "self-hosted exact MCP authorization with application-owned provider credentials and unqualified effects"
+      "self-hosted exact MCP authorization with application-owned provider credentials and unqualified effects",
+      "closed bounded enumeration fields in self-hosted exact MCP argument contracts"
     ],
     "excluded": [
       "backward compatibility or migration shims for prelaunch APIs",

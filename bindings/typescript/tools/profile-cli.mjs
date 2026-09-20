@@ -39,7 +39,12 @@ export function parseContract(source) {
       throw new Error("invalid or duplicate profile key");
     }
     const match = quoted.exec(raw);
-    if (match) entries.set(name, match[1]);
+    if (name === "variants" && raw.startsWith("[")) {
+      if (!/^\[\s*(?:"[A-Za-z0-9_.:-]+"(?:\s*,\s*"[A-Za-z0-9_.:-]+")*)?\s*\]$/.test(raw)) {
+        throw new Error("invalid single-line enum variants");
+      }
+      entries.set(name, [...raw.matchAll(/"([A-Za-z0-9_.:-]+)"/g)].map(item => item[1]));
+    } else if (match) entries.set(name, match[1]);
     else if (integer.test(raw)) {
       const value = Number(raw);
       if (!Number.isSafeInteger(value)) throw new Error("profile integer is unsafe");
@@ -103,6 +108,15 @@ function nodeAt(tables, used, path, name, depth) {
     if (table.size !== 1) throw new Error(`unknown boolean schema key: ${path}`);
     return { name, kind };
   }
+  if (kind === "enum") {
+    const variants = table.get("variants");
+    if (table.size !== 2 || !Array.isArray(variants) || variants.length < 1 || variants.length > 32 ||
+        variants.some(item => typeof item !== "string" || !/^[A-Za-z0-9_.-]{1,64}$/.test(item)) ||
+        new Set(variants).size !== variants.length) {
+      throw new Error(`enum variants are invalid: ${path}`);
+    }
+    return { name, kind, variants };
+  }
   if (kind === "object") {
     if (table.size !== 1) throw new Error(`unknown object schema key: ${path}`);
     const prefix = `${path}.fields.`;
@@ -156,11 +170,13 @@ function maximumJsonBytes(node) {
     case "string": return 2 + 6 * node.maximum;
     case "bytes": return 2 + 4 * Math.ceil(node.maximum / 3);
     case "integer": return Math.max(String(node.minimum).length, String(node.maximum).length);
+    case "enum": return 2 + Math.max(...node.variants.map(item => item.length));
     default: return 5;
   }
 }
 
 function nodeJson(node) {
+  if (node.kind === "enum") return { type: "enum", variants: node.variants };
   const value = { kind: node.kind };
   if (node.minimum !== undefined) value.minimum = node.minimum;
   if (node.maximum !== undefined) value.maximum = node.maximum;
@@ -184,6 +200,7 @@ function schemaDigest(contract) {
 
 function fieldSource(node) {
   switch (node.kind) {
+    case "enum": return `enumField(${stableJson(node.variants)})`;
     case "string": return `stringField({ minBytes: ${node.minimum}, maxBytes: ${node.maximum} })`;
     case "bytes": return `bytesField({ minBytes: ${node.minimum}, maxBytes: ${node.maximum} })`;
     case "integer": return `integerField({ minimum: ${node.minimum}, maximum: ${node.maximum} })`;
@@ -198,7 +215,7 @@ function fieldSource(node) {
 function usedBuilders(node) {
   const name = {
     string: "stringField", bytes: "bytesField", integer: "integerField",
-    boolean: "booleanField", nullable: "optionalField",
+    boolean: "booleanField", enum: "enumField", nullable: "optionalField",
     array: "arrayField", object: "objectField",
   }[node.kind];
   const found = new Set([name]);
@@ -225,6 +242,7 @@ export function renderGenerated(contract) {
 
 function example(node) {
   switch (node.kind) {
+    case "enum": return node.variants[0];
     case "nullable": return null;
     case "object": return Object.fromEntries(node.fields.map(item => [item.name, example(item)]));
     case "array": return Array.from({ length: node.minimum }, () => example(node.inner));
@@ -263,6 +281,14 @@ function schemaChanges(before, after, path = "arguments") {
   return [path];
 }
 
+function schemaAt(schema, path) {
+  for (const component of path.split(".").slice(1)) {
+    if (schema === null || typeof schema !== "object") return null;
+    schema = schema[component];
+  }
+  return schema ?? null;
+}
+
 export async function profileDiff(path) {
   const contract = parseContract(await sourceAt(path));
   const target = join(dirname(path), "profile.lock.json");
@@ -274,16 +300,18 @@ export async function profileDiff(path) {
     old = JSON.parse(await readFile(target, "utf8"));
   } catch (error) {
     if (error.code === "ENOENT") return { status: "new", stage: "contract", code: "profile.contract.new",
-      changed_fields: [], action_identity_changed: true, next_action: "Run profile generate." };
+      changed_fields: [], changes: [], action_identity_changed: true, next_action: "Run profile generate." };
     throw error;
   }
   if (!old || old.schema !== "auths.self-hosted-profile-lock/1") throw new Error("profile lock is invalid");
   const changed = schemaChanges(old.command_schema, current.command_schema).slice(0, 64);
+  const changes = changed.map(path => ({ path,
+    before: schemaAt(old.command_schema, path), after: schemaAt(current.command_schema, path) }));
   const identityChanged = ["service", "tool", "version"].some(name => old[name] !== current[name]);
   const different = stableJson(old) !== stableJson(current);
   const status = different && old.version === current.version ? "version-required" : different ? "changed" : "current";
   return { status, stage: "contract", code: `profile.contract.${status}`,
-    old_version: old.version, new_version: current.version, changed_fields: changed,
+    old_version: old.version, new_version: current.version, changed_fields: changed, changes,
     action_identity_changed: identityChanged || changed.length > 0,
     next_action: status === "version-required" ? "Increase profile.version before generation."
       : status === "changed" ? "Run profile generate and review new proof identity."
@@ -453,7 +481,11 @@ async function mainText(args) {
     process.stdout.write("profile current; self-hosted, provider behavior unqualified\n");
   } else if (action === "diff") {
     const result = await profileDiff(path);
-    process.stdout.write(`${result.code}: ${result.changed_fields.join(", ") || "no field changes"}\n`);
+    process.stdout.write(`${result.code}\n`);
+    for (const change of result.changes) {
+      process.stdout.write(`${change.path}: ${stableJson(change.before)} -> ${stableJson(change.after)}\n`);
+    }
+    if (!result.changes.length) process.stdout.write("no field changes\n");
     process.stdout.write(`action identity changed: ${result.action_identity_changed}\n${result.next_action}\n`);
   } else if (action === "test") {
     const suiteAt = args.indexOf("--suite");

@@ -23,6 +23,7 @@
       "public versioned profile-runtime compatibility module for generated distributions",
       "effect-free identity and verification utilities",
       "self-hosted exact MCP authorization with application-owned provider credentials and unqualified effects",
+      "closed bounded enumeration fields in self-hosted exact MCP argument contracts",
       "typed installed-wheel coverage for the local-agent surface"
     ],
     "excluded": [

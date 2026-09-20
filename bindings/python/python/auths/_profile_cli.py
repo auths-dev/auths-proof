@@ -14,10 +14,9 @@ import io
 import json
 import re
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
-
 
 _KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
 _IDENTITY = re.compile(r"^[a-z][a-z0-9._-]{0,63}$")
@@ -36,6 +35,7 @@ class FieldSpec:
     maximum: int | None = None
     fields: tuple[FieldSpec, ...] = ()
     inner: FieldSpec | None = None
+    variants: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -56,7 +56,7 @@ def parse_contract(source: str) -> ProfileContract:
     """Parse the documented bounded TOML subset, rejecting unknown tables."""
     if len(source.encode("utf-8")) > 16_384:
         raise ValueError("profile.toml exceeds 16 KiB")
-    tables: dict[str, dict[str, str | int]] = {}
+    tables: dict[str, dict[str, str | int | tuple[str, ...]]] = {}
     current: str | None = None
     for original in source.splitlines():
         line = original.strip()
@@ -76,8 +76,12 @@ def parse_contract(source: str) -> ProfileContract:
         if not _KEY.fullmatch(raw_key) or raw_key in _RESERVED or raw_key in tables[current]:
             raise ValueError("invalid or duplicate profile key")
         quoted = _QUOTED.fullmatch(raw_value)
-        if quoted:
-            value: str | int = quoted.group(1)
+        if raw_key == "variants" and raw_value.startswith("["):
+            if not re.fullmatch(r'\[\s*(?:"[A-Za-z0-9_.:-]+"(?:\s*,\s*"[A-Za-z0-9_.:-]+")*)?\s*\]', raw_value):
+                raise ValueError("invalid single-line enum variants")
+            value: str | int | tuple[str, ...] = tuple(re.findall(r'"([A-Za-z0-9_.:-]+)"', raw_value))
+        elif quoted:
+            value = quoted.group(1)
         elif _INTEGER.fullmatch(raw_value):
             value = int(raw_value)
         else:
@@ -116,7 +120,7 @@ def parse_contract(source: str) -> ProfileContract:
 
 
 def _node(
-    tables: dict[str, dict[str, str | int]], used: set[str], path: str,
+    tables: dict[str, dict[str, str | int | tuple[str, ...]]], used: set[str], path: str,
     name: str, depth: int,
 ) -> FieldSpec:
     table = tables.get(path)
@@ -145,6 +149,17 @@ def _node(
         if set(table) != {"type"}:
             raise ValueError(f"unknown boolean schema key: {path}")
         return FieldSpec(name, "boolean")
+    if kind == "enum":
+        variants = table.get("variants")
+        if (
+            set(table) != {"type", "variants"}
+            or type(variants) is not tuple
+            or not 1 <= len(variants) <= 32
+            or len(set(variants)) != len(variants)
+            or any(not re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", item) for item in variants)
+        ):
+            raise ValueError(f"enum variants are invalid: {path}")
+        return FieldSpec(name, "enum", variants=variants)
     if kind == "object":
         if set(table) != {"type"}:
             raise ValueError(f"unknown object schema key: {path}")
@@ -214,10 +229,14 @@ def _maximum_json_bytes(node: FieldSpec) -> int:
         return 2 + 4 * ((node.maximum or 0) + 2) // 3
     if node.kind == "integer":
         return max(len(str(node.minimum)), len(str(node.maximum)))
+    if node.kind == "enum":
+        return 2 + max(len(item) for item in node.variants)
     return 5
 
 
 def _node_json(node: FieldSpec) -> dict[str, object]:
+    if node.kind == "enum":
+        return {"type": "enum", "variants": list(node.variants)}
     value: dict[str, object] = {"kind": node.kind}
     if node.minimum is not None:
         value["minimum"] = node.minimum
@@ -261,10 +280,14 @@ def _python_type(contract: ProfileContract, node: FieldSpec, path: tuple[str, ..
         return f"tuple[{_python_type(contract, node.inner, path)}, ...]"
     if node.kind == "object":
         return _class_name(contract, path)
+    if node.kind == "enum":
+        return "Literal[" + ", ".join(json.dumps(item) for item in node.variants) + "]"
     return {"string": "str", "bytes": "bytes", "integer": "int", "boolean": "bool"}[node.kind]
 
 
 def _field_source(contract: ProfileContract, node: FieldSpec, path: tuple[str, ...]) -> str:
+    if node.kind == "enum":
+        return f"EnumField({node.variants!r})"
     if node.kind == "string":
         return f"StringField(min_length={node.minimum}, max_length={node.maximum})"
     if node.kind == "bytes":
@@ -293,7 +316,7 @@ def _used_classes(node: FieldSpec) -> set[str]:
     own = {
         "string": "StringField", "bytes": "BytesField", "integer": "IntegerField",
         "boolean": "BooleanField", "nullable": "OptionalField",
-        "array": "ArrayField", "object": "ObjectField",
+        "array": "ArrayField", "object": "ObjectField", "enum": "EnumField",
     }[node.kind]
     found = {own}
     for child in node.fields:
@@ -313,7 +336,12 @@ def render_generated(contract: ProfileContract) -> str:
     imports = {"ExactMcpTool"}
     for field in contract.fields:
         imports.update(_used_classes(field))
-    typing_names = "Optional, TypeVar" if "OptionalField" in imports else "TypeVar"
+    typing_imports = {"TypeVar"}
+    if "OptionalField" in imports:
+        typing_imports.add("Optional")
+    if "EnumField" in imports:
+        typing_imports.add("Literal")
+    typing_names = ", ".join(sorted(typing_imports))
     lines = [
         '"""Generated by auths profile; edit profile.toml, then regenerate."""',
         "from __future__ import annotations", "", "from dataclasses import dataclass",
@@ -342,6 +370,8 @@ def render_generated(contract: ProfileContract) -> str:
 
 
 def _example(node: FieldSpec) -> object:
+    if node.kind == "enum":
+        return node.variants[0]
     if node.kind == "nullable":
         return None
     if node.kind == "object":
@@ -394,6 +424,14 @@ def _schema_changes(before: object, after: object, path: str = "arguments") -> l
     return [path]
 
 
+def _schema_at(schema: object, path: str) -> object:
+    for component in path.split(".")[1:]:
+        if not isinstance(schema, dict):
+            return None
+        schema = schema.get(component)
+    return schema
+
+
 def profile_diff(path: Path) -> dict[str, object]:
     """Compare source to the last generated lock without changing either file."""
     contract = parse_contract(_source_at(path))
@@ -403,7 +441,7 @@ def profile_diff(path: Path) -> dict[str, object]:
         raise ValueError("profile lock cannot be a symlink")
     if not target.exists():
         return {"status": "new", "stage": "contract", "code": "profile.contract.new",
-                "changed_fields": [], "action_identity_changed": True,
+                "changed_fields": [], "changes": [], "action_identity_changed": True,
                 "next_action": "Run profile generate."}
     try:
         old = json.loads(target.read_text(encoding="utf-8"))
@@ -412,6 +450,11 @@ def profile_diff(path: Path) -> dict[str, object]:
     if not isinstance(old, dict) or old.get("schema") != "auths.self-hosted-profile-lock/1":
         raise ValueError("profile lock is invalid")
     changed = _schema_changes(old.get("command_schema"), current["command_schema"])
+    details = [
+        {"path": item, "before": _schema_at(old.get("command_schema"), item),
+         "after": _schema_at(current["command_schema"], item)}
+        for item in changed[:64]
+    ]
     identity_changed = any(old.get(key) != current[key] for key in ("service", "tool", "version"))
     same_version_drift = old.get("version") == contract.version and old != current
     status = "version-required" if same_version_drift else "changed" if old != current else "current"
@@ -419,7 +462,8 @@ def profile_diff(path: Path) -> dict[str, object]:
         "status": status, "stage": "contract",
         "code": f"profile.contract.{status}",
         "old_version": old.get("version"), "new_version": contract.version,
-        "changed_fields": changed[:64], "action_identity_changed": identity_changed or bool(changed),
+        "changed_fields": changed[:64], "changes": details,
+        "action_identity_changed": identity_changed or bool(changed),
         "next_action": (
             "Increase profile.version before generation." if same_version_drift
             else "Run profile generate and review new proof identity." if old != current
@@ -607,7 +651,11 @@ def _main_text(argv: Sequence[str] | None = None) -> int:
             print("profile current; self-hosted, provider behavior unqualified")
         elif args.action == "diff":
             result = profile_diff(args.profile)
-            print(f"{result['code']}: {', '.join(result['changed_fields']) or 'no field changes'}")
+            print(result["code"])
+            for change in result.get("changes", []):
+                print(f"{change['path']}: {_stable_json(change['before'])} -> {_stable_json(change['after'])}")
+            if not result.get("changes"):
+                print("no field changes")
             print(f"action identity changed: {str(result['action_identity_changed']).lower()}")
             print(result["next_action"])
         elif args.action == "test":

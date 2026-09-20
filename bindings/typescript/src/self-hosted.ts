@@ -24,13 +24,24 @@ export interface IntegerField {
 
 export interface BooleanField { readonly kind: "boolean" }
 
+export interface EnumField<Variants extends readonly string[] = readonly string[]> {
+  readonly kind: "enum";
+  readonly variants: Variants;
+}
+
+class UnknownEnumVariant extends TypeError {
+  readonly code = "self-hosted.enum-variant-undeclared";
+  readonly stage = "contract";
+  constructor() { super("unknown enum variant"); }
+}
+
 export interface BytesField {
   readonly kind: "bytes";
   readonly minBytes: number;
   readonly maxBytes: number;
 }
 
-type ScalarField = StringField | IntegerField | BooleanField | BytesField;
+type ScalarField = StringField | IntegerField | BooleanField | BytesField | EnumField;
 export interface OptionalField<Inner extends Field = Field> {
   readonly kind: "optional";
   readonly inner: Inner;
@@ -50,17 +61,19 @@ export interface ObjectField<Fields extends FieldMap = FieldMap> {
 
 export type Field = ScalarField | OptionalStringField | OptionalField | ArrayField | ObjectField;
 export type FieldMap = Readonly<Record<string, Field>>;
-type ValueOf<Definition extends Field> =
-  Definition extends OptionalField<infer Inner> ? ValueOf<Inner> | null
+type ValueOf<Definition extends Field, Depth extends readonly unknown[] = []> =
+  Depth["length"] extends 6 ? never
+  : Definition extends OptionalField<infer Inner> ? ValueOf<Inner, [0, ...Depth]> | null
   : Definition extends OptionalStringField ? string | null
-  : Definition extends ArrayField<infer Item> ? readonly ValueOf<Item>[]
-  : Definition extends ObjectField<infer Fields> ? CommandOf<Fields>
+  : Definition extends EnumField<infer Variants> ? Variants[number]
+  : Definition extends ArrayField<infer Item> ? readonly ValueOf<Item, [0, ...Depth]>[]
+  : Definition extends ObjectField<infer Fields> ? CommandOf<Fields, [0, ...Depth]>
   : Definition extends BytesField ? Uint8Array
   : Definition extends IntegerField ? number
   : Definition extends BooleanField ? boolean
   : string;
-export type CommandOf<Fields extends FieldMap> = Readonly<{
-  [Key in keyof Fields]: ValueOf<Fields[Key]>;
+export type CommandOf<Fields extends FieldMap, Depth extends readonly unknown[] = []> = Readonly<{
+  [Key in keyof Fields]: ValueOf<Fields[Key], Depth>;
 }>;
 
 export function stringField(bounds: Readonly<{ minBytes?: number; maxBytes: number }>): StringField {
@@ -91,6 +104,16 @@ export function integerField(bounds: Readonly<{ minimum: number; maximum: number
 
 export function booleanField(): BooleanField {
   return Object.freeze({ kind: "boolean" });
+}
+
+export function enumField<const Variants extends readonly [string, ...string[]]>(variants: Variants): EnumField<Variants> {
+  if (!Array.isArray(variants) || Object.getPrototypeOf(variants) !== Array.prototype ||
+      variants.length < 1 || variants.length > 32 ||
+      variants.some(item => typeof item !== "string" || !/^[A-Za-z0-9_.-]{1,64}$/.test(item)) ||
+      new Set(variants).size !== variants.length) {
+    throw new TypeError("enum variants must be unique bounded ASCII names");
+  }
+  return Object.freeze({ kind: "enum", variants: Object.freeze([...variants]) }) as EnumField<Variants>;
 }
 
 export function bytesField(bounds: Readonly<{ minBytes?: number; maxBytes: number }>): BytesField {
@@ -207,7 +230,7 @@ export function exactMcpTool<Fields extends FieldMap>(config: Readonly<{
   name: string;
   fields: Fields;
 }>): ExactMcpTool<Fields> {
-  return new ExactMcpTool(config);
+  return new ExactMcpTool<Fields>(config);
 }
 
 const authorizedCommandBrand: unique symbol = Symbol("auths-authorized-command");
@@ -283,10 +306,13 @@ export async function runOnce<Fields extends FieldMap, Credential, Result>(input
     return Object.freeze({ kind: authorization.kind, code: authorization.code });
   }
   if (input.expectedCommand !== undefined) {
-    const expected: Readonly<Record<string, unknown>> = input.expectedCommand;
-    if (Object.keys(expected).length !== Object.keys(authorization.command).length ||
-        Object.entries(authorization.command).some(([name, value]) =>
-          !Object.hasOwn(expected, name) || expected[name] !== value)) {
+    try {
+      const expected = input.contract.encode(input.expectedCommand);
+      const actual = input.contract.encode(authorization.command);
+      if (JSON.stringify(expected) !== JSON.stringify(actual)) {
+        return Object.freeze({ kind: "denied", code: "self-hosted.expected-command-mismatch" });
+      }
+    } catch {
       return Object.freeze({ kind: "denied", code: "self-hosted.expected-command-mismatch" });
     }
   }
@@ -376,9 +402,10 @@ export async function verifyCommand<Fields extends FieldMap>(input: Readonly<{
       decision,
       [authorizedCommandBrand]: true,
     }) as AuthorizedCommand<CommandOf<Fields>>;
-  } catch {
+  } catch (error) {
     return Object.freeze({
-      kind: "denied", code: "self-hosted.contract-mismatch",
+      kind: "denied", code: error instanceof UnknownEnumVariant
+        ? error.code : "self-hosted.contract-mismatch",
       source: "developer-contract", decision,
     });
   }
@@ -602,6 +629,7 @@ function normalizeField(value: Field): Field {
     case "optional-string": return optionalStringField({ minBytes: value.minBytes, maxBytes: value.maxBytes });
     case "integer": return integerField({ minimum: value.minimum, maximum: value.maximum });
     case "boolean": return booleanField();
+    case "enum": return enumField(value.variants as readonly [string, ...string[]]);
     case "bytes": return bytesField({ minBytes: value.minBytes, maxBytes: value.maxBytes });
     case "array": return arrayField(value.inner, { minItems: value.minItems, maxItems: value.maxItems });
     case "object": return objectField(value.fields);
@@ -705,6 +733,11 @@ function projectField(field: Field, value: unknown, wire: boolean): unknown {
     case "boolean":
       if (typeof value !== "boolean") throw new TypeError("MCP argument must be a boolean");
       return value;
+    case "enum":
+      if (typeof value !== "string" || !field.variants.includes(value)) {
+        throw new UnknownEnumVariant();
+      }
+      return value;
     case "bytes": {
       let bytes: Uint8Array;
       if (wire) {
@@ -734,7 +767,6 @@ function projectField(field: Field, value: unknown, wire: boolean): unknown {
       return Object.freeze(value.map(item => projectField(field.inner, item, wire)));
     }
     case "object": return projectObject(field.fields, value, wire);
-    case "optional": throw new TypeError("unexpected nullable field");
   }
 }
 

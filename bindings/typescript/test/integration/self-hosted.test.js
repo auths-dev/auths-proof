@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import {
-  authorMcpProof, booleanField, exactMcpTool, integerField, optionalField, stringField,
+  arrayField, authorMcpProof, booleanField, enumField, exactMcpTool, integerField, optionalField, stringField,
   verifyCommand,
 } from "../../dist/self-hosted.js";
 import { runSelfHostedAdapterConformance } from "../../dist/testkit/index.js";
@@ -206,4 +206,43 @@ test("public adapter conformance covers denial, replay, uncertainty and observat
   });
   assert.equal(report.passed, true, JSON.stringify(report.cases));
   assert.equal(report.cases.length, 8);
+});
+
+test("closed enum variants stay exact through typed preparation and projection", async () => {
+  const tool = exactMcpTool({ service: "reports", name: "update_demo_record",
+    fields: { status: enumField(["open", "in_progress", "closed"]),
+      maybe: optionalField(enumField(["open", "closed"])),
+      history: arrayField(enumField(["open", "closed"]), { minItems: 2, maxItems: 3 }) } });
+  const command = { status: "in_progress", maybe: null, history: ["open", "open"] };
+  assert.deepEqual(tool.decode(command), command);
+  const hostile = JSON.parse(readFileSync(new URL("../../../fixtures/self-hosted-profile/enum-hostile-cases.json", import.meta.url), "utf8"));
+  const fieldNames = { status: "status", maybe: "maybe", history: "history" };
+  for (const item of hostile.cases) {
+    const candidate = { ...command, [fieldNames[item.field]]: item.value };
+    if (item.valid) assert.deepEqual(tool.decode(candidate), candidate);
+    else assert.throws(() => tool.decode(candidate), /enum variant/);
+  }
+  for (const variants of [[], ["open", "open"], ["open", "Open!"], Array.from({ length: 33 }, (_, i) => String(i))]) {
+    assert.throws(() => enumField(variants));
+  }
+  const options = { actor: ACTOR, terminalGrant: vector("mcp.signed-root-grant.cbor"),
+    challenge: new Uint8Array(32).fill(0x22), evaluationTime: 50n };
+  const first = await tool.prepare(command, options);
+  const second = await tool.prepare({ ...command, status: "closed" }, options);
+  assert.notDeepEqual(first.actionCommitment, second.actionCommitment);
+  assert.equal(JSON.parse(new TextDecoder().decode(first.argumentsJson)).status, "in_progress");
+});
+
+test("enum action and commitment match the shared Python/native corpus", async () => {
+  const corpus = JSON.parse(readFileSync(new URL("../../../fixtures/self-hosted-profile/enum-action-vectors.json", import.meta.url), "utf8"));
+  const tool = exactMcpTool({ service: corpus.service, name: corpus.tool,
+    fields: { status: enumField(["open", "in_progress", "closed"]) } });
+  const options = { actor: ACTOR, terminalGrant: vector("mcp.signed-root-grant.cbor"),
+    challenge: new Uint8Array(32).fill(0x22), evaluationTime: 50n };
+  for (const item of corpus.cases) {
+    const prepared = await tool.prepare({ status: item.status }, options);
+    assert.equal(new TextDecoder().decode(prepared.argumentsJson), item.arguments_json);
+    assert.equal(Buffer.from(prepared.action).toString("hex"), item.action_hex);
+    assert.equal(Buffer.from(prepared.actionCommitment).toString("hex"), item.commitment_hex);
+  }
 });

@@ -593,6 +593,38 @@ mod tests {
     }
 
     #[test]
+    fn enum_action_corpus_matches_native_canonicalization_and_commitment() {
+        let corpus: Value = serde_json::from_str(include_str!(
+            "../../../../bindings/fixtures/self-hosted-profile/enum-action-vectors.json"
+        ))
+        .unwrap();
+        let cases = corpus["cases"].as_array().unwrap();
+        assert_eq!(cases.len(), 2);
+        for case in cases {
+            let status = case["status"].as_str().unwrap();
+            let arguments_json = format!("{{\"status\":\"{status}\"}}");
+            assert_eq!(case["arguments_json"].as_str().unwrap(), arguments_json);
+            let call = McpToolCall::new(
+                corpus["service"].as_str().unwrap(),
+                corpus["tool"].as_str().unwrap(),
+                Map::from_iter([("status".into(), Value::String(status.into()))]),
+            )
+            .unwrap();
+            let canonical = McpProfile
+                .canonicalize(&call.canonical_bytes().unwrap())
+                .unwrap();
+            let encoded = auths_codec::encode_canonical_action(&canonical).unwrap();
+            assert_eq!(hex::encode(&encoded), case["action_hex"].as_str().unwrap());
+            let commitment =
+                auths_codec::domain_commitment("auths.canonical-action.v1", &encoded).unwrap();
+            assert_eq!(
+                hex::encode(commitment.as_bytes()),
+                case["commitment_hex"].as_str().unwrap()
+            );
+        }
+    }
+
+    #[test]
     fn channel_endpoint_is_part_of_canonical_review_bytes() {
         let plain = McpToolCall::new("reports", "read_report", Map::new()).unwrap();
         let bound = plain

@@ -7,9 +7,9 @@
     "enforcement": "baseline",
     "baseline": {
       "typescriptEntryPoints": 10,
-      "typescriptPublicSymbols": 147,
+      "typescriptPublicSymbols": 152,
       "pythonModules": 15,
-      "pythonPublicSymbols": 164,
+      "pythonPublicSymbols": 167,
       "maintainedTypescriptRecipes": 2,
       "maintainedPythonRecipes": 2
     },

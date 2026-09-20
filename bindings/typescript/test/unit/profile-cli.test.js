@@ -14,12 +14,13 @@ const profile = await readFile(new URL("profile.toml", root), "utf8");
 test("generated exact tool binds the version", () => {
   const contract = parseContract(profile);
   assert.match(renderGenerated(contract), /name: TOOL_NAME/);
-  assert.match(renderGenerated(contract), /set_value_v1/);
+  assert.match(renderGenerated(contract), /set_value_v2/);
   assert.match(renderGenerated(contract), /retry_count: optionalField\(integerField/);
   assert.match(renderGenerated(contract), /labels: arrayField\(stringField/);
   assert.match(renderGenerated(contract), /payload: bytesField/);
   assert.match(renderGenerated(contract), /target: objectField/);
-  assert.match(renderVectors(contract), /"tool":"set_value_v1"/);
+  assert.match(renderGenerated(contract), /status: enumField/);
+  assert.match(renderVectors(contract), /"tool":"set_value_v2"/);
 });
 
 test("starter keeps provider mapping application-owned", () => {
@@ -37,9 +38,13 @@ test("language-neutral vector fixture is byte-for-byte identical", async () => {
 
 test("malformed and widened profiles are rejected", () => {
   for (const invalid of [
-    profile.replace("version = 1", "version = 0"),
+    profile.replace("version = 2", "version = 0"),
     profile.replace("max_bytes = 32", "max_bytes = 32\nmax_bytes = 32"),
     profile.replace('type = "boolean"', 'type = "any"'),
+    profile.replace('variants = ["open", "in_progress", "closed"]', 'variants = []'),
+    profile.replace('variants = ["open", "in_progress", "closed"]', 'variants = ["open", "open"]'),
+    profile.replace('variants = ["open", "in_progress", "closed"]', 'variants = ["open", "Open!"]'),
+    profile.replace('variants = ["open", "in_progress", "closed"]', 'variants = ["open", "closed",]'),
     profile.replace("max_bytes = 32", "max_bytes = 99999"),
   ]) assert.throws(() => parseContract(invalid));
 });
@@ -52,4 +57,19 @@ test("profile diff identifies the changed field and required version bump", asyn
   assert.equal(result.code, "profile.contract.version-required");
   assert.ok(result.changed_fields.includes("arguments.fields.value.maximum"));
   assert.equal(result.action_identity_changed, true);
+});
+
+test("enum reorder is a versioned action change with an exact before/after", async () => {
+  const folder = await mkdtemp(join(tmpdir(), "auths-enum-diff-"));
+  await writeFile(join(folder, "profile.lock.json"), renderLock(parseContract(profile)));
+  await writeFile(join(folder, "profile.toml"), profile.replace(
+    'variants = ["open", "in_progress", "closed"]',
+    'variants = ["closed", "in_progress", "open"]'));
+  const result = await profileDiff(join(folder, "profile.toml"));
+  assert.equal(result.code, "profile.contract.version-required");
+  assert.deepEqual(result.changes.find(item => item.path === "arguments.fields.status.variants"), {
+    path: "arguments.fields.status.variants",
+    before: ["open", "in_progress", "closed"],
+    after: ["closed", "in_progress", "open"],
+  });
 });

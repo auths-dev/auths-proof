@@ -82,15 +82,16 @@ reconcile_read_only
 run_once
 
 [auths.self_hosted]
-AuthorizedCommand
 ArrayField
+AuthorizedCommand
 BooleanField
 BytesField
 CommandResult
+EnumField
 ExactMcpTool
 IntegerField
-OptionalField
 ObjectField
+OptionalField
 PreparedMcpAction
 RejectedCommand
 StringField
@@ -187,6 +188,7 @@ ConformanceMetadata
 ConformanceReport
 DevelopmentEd25519IdentityKey
 DevelopmentMcpArtifacts
+ScriptedProvider
 development_ed25519_identity_key
 development_mcp_artifacts
 ephemeral_ed25519_signer
@@ -194,3 +196,4 @@ fixtures
 run_bounded_transport_conformance
 run_custody_signer_conformance
 run_reservation_store_conformance
+run_self_hosted_adapter_conformance

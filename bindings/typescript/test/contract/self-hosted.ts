@@ -1,5 +1,5 @@
 import {
-  arrayField, booleanField, bytesField, exactMcpTool, integerField, objectField, optionalField, optionalStringField,
+  arrayField, booleanField, bytesField, enumField, exactMcpTool, integerField, objectField, optionalField, optionalStringField,
   runOnce, stringField, type AttemptStore, type AuthorizedCommand,
   type SelfHostedProviderAdapter,
 } from "../../src/self-hosted.js";
@@ -80,3 +80,17 @@ void nested.prepare({ target: { recordId: "rec-1" }, labels: ["demo"], payload: 
 
 // @ts-expect-error nested objects cannot gain arbitrary provider parameters
 void nested.prepare({ target: { recordId: "rec-1", url: "https://wrong.example" }, labels: ["demo"], payload: new Uint8Array([1, 2]) }, {});
+
+const enumerated = exactMcpTool({
+  service: "example-service", name: "set_status_v1",
+  fields: { status: enumField(["open", "in_progress", "closed"]),
+    maybe: optionalField(enumField(["open", "closed"])),
+    history: arrayField(enumField(["open", "closed"]), { minItems: 2, maxItems: 3 }) },
+});
+void enumerated.prepare({ status: "in_progress", maybe: null, history: ["open", "open"] },
+  { actor: "key:sha256:actor", terminalGrant: new Uint8Array([1]),
+    challenge: new Uint8Array(32), evaluationTime: 100n });
+// @ts-expect-error undeclared variant is not a typed command
+void enumerated.prepare({ status: "unknown", maybe: null, history: ["open", "open"] }, {});
+// @ts-expect-error integer index is not an enum variant
+void enumerated.prepare({ status: 0, maybe: null, history: ["open", "open"] }, {});

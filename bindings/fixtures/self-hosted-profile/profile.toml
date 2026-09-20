@@ -1,6 +1,6 @@
 [profile]
 name = "example-set-value"
-version = 1
+version = 2
 service = "example-service"
 tool = "set_value"
 
@@ -14,6 +14,26 @@ max_bytes = 32
 
 [arguments.fields.enabled]
 type = "boolean"
+
+[arguments.fields.status]
+type = "enum"
+variants = ["open", "in_progress", "closed"]
+
+[arguments.fields.optional_status]
+type = "nullable"
+
+[arguments.fields.optional_status.value]
+type = "enum"
+variants = ["open", "closed"]
+
+[arguments.fields.status_history]
+type = "array"
+min_items = 2
+max_items = 3
+
+[arguments.fields.status_history.items]
+type = "enum"
+variants = ["open", "closed"]
 
 [arguments.fields.retry_count]
 type = "nullable"

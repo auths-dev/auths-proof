@@ -8,13 +8,15 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 import time
 import types
-from dataclasses import dataclass, fields as dataclass_fields, is_dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, is_dataclass
+from dataclasses import fields as dataclass_fields
 from typing import (
     Generic,
     Literal,
-    Mapping,
     TypeVar,
     Union,
     cast,
@@ -27,6 +29,11 @@ from . import _native
 from .verify import VerificationResult, _project
 
 CommandT = TypeVar("CommandT")
+
+
+class _UnknownEnumVariant(ValueError):
+    code = "self-hosted.enum-variant-undeclared"
+    stage = "contract"
 
 
 @dataclass(frozen=True)
@@ -51,6 +58,27 @@ class StringField:
             raise ValueError("invalid Unicode in string field") from error
         if not self.min_length <= len(encoded) <= self.max_length:
             raise ValueError("string outside declared byte bounds")
+        return value
+
+
+@dataclass(frozen=True)
+class EnumField:
+    """One exact ASCII variant from an ordered, closed declaration."""
+
+    variants: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if (
+            type(self.variants) is not tuple
+            or not 1 <= len(self.variants) <= 32
+            or any(type(item) is not str or not re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", item) for item in self.variants)
+            or len(set(self.variants)) != len(self.variants)
+        ):
+            raise ValueError("enum variants must be unique bounded ASCII names")
+
+    def validate(self, value: object) -> str:
+        if type(value) is not str or value not in self.variants:
+            raise _UnknownEnumVariant("unknown enum variant")
         return value
 
 
@@ -120,7 +148,7 @@ class ArrayField:
 
     def __post_init__(self) -> None:
         if (
-            not isinstance(self.inner, (StringField, IntegerField, BooleanField, BytesField, ArrayField, ObjectField))
+            not isinstance(self.inner, (StringField, EnumField, IntegerField, BooleanField, BytesField, ArrayField, ObjectField))
             or type(self.min_items) is not int
             or type(self.max_items) is not int
             or not 0 <= self.min_items <= self.max_items <= 32
@@ -142,10 +170,10 @@ class OptionalField:
     inner: Field
 
     def __post_init__(self) -> None:
-        if not isinstance(self.inner, (StringField, IntegerField, BooleanField, BytesField, ArrayField, ObjectField)):
+        if not isinstance(self.inner, (StringField, EnumField, IntegerField, BooleanField, BytesField, ArrayField, ObjectField)):
             raise TypeError("unsupported optional inner field")
 
-Field = Union[StringField, IntegerField, BooleanField, BytesField, ArrayField, ObjectField, OptionalField]
+Field = Union[StringField, EnumField, IntegerField, BooleanField, BytesField, ArrayField, ObjectField, OptionalField]  # noqa: UP007 -- Python 3.9 runtime union
 
 
 def _check_dataclass_schema(command_type: type[object], schema: Mapping[str, Field]) -> None:
@@ -157,7 +185,7 @@ def _check_dataclass_schema(command_type: type[object], schema: Mapping[str, Fie
     declared = tuple(field.name for field in dataclass_fields(command_type))
     if not declared or set(declared) != set(schema) or len(declared) > 32:
         raise ValueError("command fields must match the closed schema")
-    if not all(isinstance(item, (StringField, IntegerField, BooleanField, BytesField, ArrayField, ObjectField, OptionalField)) for item in schema.values()):
+    if not all(isinstance(item, (StringField, EnumField, IntegerField, BooleanField, BytesField, ArrayField, ObjectField, OptionalField)) for item in schema.values()):
         raise TypeError("unsupported command field schema")
     total, depth = _schema_limits(schema)
     if total > 32 or depth > 4:
@@ -185,6 +213,8 @@ def _field_limits(field: Field) -> tuple[int, int]:
 
 
 def _annotation_matches(annotation: object, schema: Field) -> bool:
+    if isinstance(schema, EnumField):
+        return get_origin(annotation) is Literal and get_args(annotation) == schema.variants
     if isinstance(schema, OptionalField):
         return (
             get_origin(annotation) in (Union, getattr(types, "UnionType", Union))
@@ -198,6 +228,8 @@ def _annotation_matches(annotation: object, schema: Field) -> bool:
 
 
 def _type_for(schema: Field) -> object:
+    if isinstance(schema, EnumField):
+        return Literal.__getitem__(schema.variants)
     if isinstance(schema, StringField):
         return str
     if isinstance(schema, IntegerField):
@@ -210,7 +242,7 @@ def _type_for(schema: Field) -> object:
         return schema.command_type
     if isinstance(schema, ArrayField):
         return tuple[_type_for(schema.inner), ...]
-    return Union[_type_for(schema.inner), type(None)]
+    return Union[_type_for(schema.inner), type(None)]  # noqa: UP007 -- Python 3.9 runtime union
 
 
 def _field_value(schema: Field, value: object, *, wire: bool) -> object:
@@ -360,7 +392,7 @@ _AUTHORIZED_TOKEN = object()
 class AuthorizedCommand(Generic[CommandT]):
     """A local projection from native verified bytes, not a provider capability."""
 
-    __slots__ = ("kind", "command", "action_commitment", "decision")
+    __slots__ = ("action_commitment", "command", "decision", "kind")
 
     def __init__(
         self,
@@ -385,7 +417,7 @@ class RejectedCommand:
     decision: VerificationResult
 
 
-CommandResult = Union[AuthorizedCommand[CommandT], RejectedCommand]
+CommandResult = Union[AuthorizedCommand[CommandT], RejectedCommand]  # noqa: UP007 -- Python 3.9 runtime union
 
 
 def verify_command(
@@ -415,8 +447,12 @@ def verify_command(
     try:
         arguments = json.loads(call.arguments_json, object_pairs_hook=_unique_pairs)
         if not isinstance(arguments, dict):
-            raise ValueError("MCP arguments must be an object")
+            raise TypeError("MCP arguments must be an object")
         command = contract.validate_arguments(cast(Mapping[str, object], arguments))
+    except _UnknownEnumVariant:
+        return RejectedCommand(
+            "denied", "self-hosted.enum-variant-undeclared", "developer-contract", decision
+        )
     except (TypeError, ValueError):
         return RejectedCommand(
             "denied", "self-hosted.contract-mismatch", "developer-contract", decision
@@ -444,14 +480,15 @@ def _unique_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
 
 
 __all__ = [
+    "ArrayField",
     "AuthorizedCommand",
     "BooleanField",
     "BytesField",
-    "ArrayField",
-    "ObjectField",
     "CommandResult",
+    "EnumField",
     "ExactMcpTool",
     "IntegerField",
+    "ObjectField",
     "OptionalField",
     "PreparedMcpAction",
     "RejectedCommand",

@@ -24,7 +24,10 @@ auths profile init --language python --name create-task --directory src/create_t
 
 Edit `src/create_task/profile.toml`. The closed `[arguments]` schema supports
 bounded UTF-8 strings, safe integers, booleans, base64url bytes, bounded
-arrays, nested objects, and nullable fields. It does not accept arbitrary
+arrays, nested objects, nullable fields, and ordered closed string enums. For
+example, `type = "enum"` with `variants = ["open", "closed"]` generates a
+Python `Literal` or TypeScript literal union; changing the variant list or
+its order changes the schema digest. It does not accept arbitrary
 JSON or caller-supplied provider URLs. Then run:
 
 ```sh
@@ -108,6 +111,7 @@ Every profile command accepts `--json` for a bounded
 | Code | Meaning / next action |
 | --- | --- |
 | `profile.contract.schema-invalid` | Correct the closed bounded schema. |
+| `self-hosted.enum-variant-undeclared` | The selected value is not an exact declared variant; change the command or versioned schema. |
 | `profile.contract.version-required` | Bump the version before regenerating a changed identity/schema. |
 | `profile.generated.stale` | Review the source/version, then regenerate. |
 | `profile.authority.signer-missing` | Supply a custody signer adapter; a provider token is unrelated. |
