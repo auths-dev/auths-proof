@@ -252,7 +252,7 @@ fn python_surface() -> Result<PublicSurface, String> {
 
 pub(crate) fn classify_typescript_entry(entry: &str) -> &'static str {
     match entry {
-        "." | "./verify" | "./identity" | "./identity/authoring" => "product",
+        "." | "./verify" | "./self-hosted" | "./identity" | "./identity/authoring" => "product",
         "./identity/adapters" | "./adapters" => "mechanism",
         "./protocol" | "./profile-runtime" => "extension",
         "./testkit" => "test",
@@ -262,7 +262,13 @@ pub(crate) fn classify_typescript_entry(entry: &str) -> &'static str {
 
 pub(crate) fn classify_python_module(module: &str) -> &'static str {
     match module {
-        "auths" | "auths.verify" | "auths.identity" | "auths.identity.authoring" => "product",
+        "auths"
+        | "auths.verify"
+        | "auths.authoring"
+        | "auths.attempts"
+        | "auths.self_hosted"
+        | "auths.identity"
+        | "auths.identity.authoring" => "product",
         "auths.identity.adapters"
         | "auths.adapters"
         | "auths.adapters.custody"
@@ -375,12 +381,16 @@ mod tests {
     #[test]
     fn ownership_classification_is_explicit() {
         assert_eq!(classify_typescript_entry("."), "product");
+        assert_eq!(classify_typescript_entry("./self-hosted"), "product");
         assert_eq!(classify_typescript_entry("./mcp"), "internal-leak");
         assert_eq!(classify_typescript_entry("./adapters"), "mechanism");
         assert_eq!(classify_typescript_entry("./protocol"), "extension");
         assert_eq!(classify_typescript_entry("./profile-runtime"), "extension");
         assert_eq!(classify_typescript_entry("./authority"), "internal-leak");
         assert_eq!(classify_python_module("auths.mcp"), "internal-leak");
+        assert_eq!(classify_python_module("auths.authoring"), "product");
+        assert_eq!(classify_python_module("auths.attempts"), "product");
+        assert_eq!(classify_python_module("auths.self_hosted"), "product");
         assert_eq!(
             classify_python_module("auths.adapters.custody"),
             "mechanism"
@@ -392,12 +402,8 @@ mod tests {
 
     /// Every layer the topology declares has an owner, in both languages.
     ///
-    /// The gate labels an unclassified entry point `internal-leak` — "public
-    /// mechanism without a final customer owner". A layer that ships, that the
-    /// topology names, and that the classifier has never heard of is therefore
-    /// reported as a leak, and every symbol in it is slandered. This check is
-    /// what makes adding a published entry point without giving it an owner a
-    /// red test.
+    /// An unclassified entry point is `internal-leak`. Requiring the declared
+    /// topology owner exactly also rejects entries assigned to the wrong layer.
     #[test]
     fn every_declared_topology_layer_has_an_owner() {
         let topology: serde_json::Value = serde_json::from_str(
@@ -410,6 +416,7 @@ mod tests {
             .expect("public topology must declare layers");
         assert!(!layers.is_empty(), "no layers: this check would be vacuous");
         for layer in layers {
+            let owner = layer["name"].as_str().expect("layer name must be a string");
             for entry in layer["typescript"].as_array().into_iter().flatten() {
                 let entry = entry.as_str().expect("entry point must be a string");
                 // The public API inventory spells subpaths the way package
@@ -421,18 +428,18 @@ mod tests {
                 } else {
                     owned.as_str()
                 };
-                assert_ne!(
+                assert_eq!(
                     classify_typescript_entry(subpath),
-                    "internal-leak",
-                    "{subpath} is a declared public layer with no owner"
+                    owner,
+                    "{subpath} has the wrong owner"
                 );
             }
             for module in layer["python"].as_array().into_iter().flatten() {
                 let module = module.as_str().expect("module must be a string");
-                assert_ne!(
+                assert_eq!(
                     classify_python_module(module),
-                    "internal-leak",
-                    "{module} is a declared public layer with no owner"
+                    owner,
+                    "{module} has the wrong owner"
                 );
             }
         }
