@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import pytest
-
 from auths.execution import Observation, ProviderOutcome
 from auths.self_hosted import ExactMcpTool, StringField
 from auths.testkit import ScriptedProvider, run_self_hosted_adapter_conformance
@@ -40,5 +39,5 @@ async def test_adapter_conformance_exercises_all_mandatory_cases() -> None:
         contract=contract, command=Command("approved"), adapter_factory=Adapter,
     )
     assert report.passed, report.cases
-    assert len(report.cases) == 8
+    assert len(report.cases) == 10
     assert report.metadata.assurance == "test-results-only-not-security-certification"

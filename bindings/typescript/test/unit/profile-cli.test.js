@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -72,4 +73,16 @@ test("enum reorder is a versioned action change with an exact before/after", asy
     before: ["open", "in_progress", "closed"],
     after: ["closed", "in_progress", "open"],
   });
+});
+
+test("first profile edit after init can be generated at version one", async () => {
+  const folder = await mkdtemp(join(tmpdir(), "auths-profile-first-edit-"));
+  const cli = new URL("../../tools/profile-cli.mjs", import.meta.url);
+  execFileSync(process.execPath, [cli.pathname, "profile", "init", "--language", "typescript",
+    "--name", "local-demo", "--directory", folder]);
+  await assert.rejects(() => readFile(join(folder, "profile.lock.json")));
+  const source = await readFile(join(folder, "profile.toml"), "utf8");
+  await writeFile(join(folder, "profile.toml"), source.replace("max_bytes = 256", "max_bytes = 32"));
+  execFileSync(process.execPath, [cli.pathname, "profile", "generate", join(folder, "profile.toml")]);
+  assert.match(await readFile(join(folder, "profile.lock.json"), "utf8"), /"version":1/);
 });

@@ -39,7 +39,9 @@ auths profile check src/create_task/profile.toml
 `generated.py` is the typed command and `CONTRACT`; `adapter.py` is an
 application-owned starter for `credential`, `invoke`, and `observe`; `run.py`
 calls the verifier and one-use runner; `conformance.py` is a deliberately
-unwired fake-provider starter. Implement the adapter port, then wire a fake
+unwired fake-provider starter. `init` does not seal `profile.lock.json`:
+the first `generate` creates it after your template edit. Every later schema
+or identity change requires a version bump. Implement the adapter port, then wire a fake
 provider to it in `conformance.py`. Its `run()` function can be invoked with:
 
 ```sh
@@ -48,7 +50,8 @@ auths profile test src/create_task/profile.toml --suite create_task.conformance:
 
 The suite checks local ordering, denial, replay, uncertain effects, and
 read-only observation without a provider token. It does not qualify live
-provider semantics. The [Airtable and Todoist demos](https://github.com/auths-dev/auths-field-lab)
+provider semantics. The CLI finds a suite module in the profile's adjacent
+Python package without a `PYTHONPATH` workaround. The [Airtable and Todoist demos](https://github.com/auths-dev/auths-field-lab)
 show complete Python adapters and the same conformance kit.
 
 For real use, construct the generated command and obtain **three independent

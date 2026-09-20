@@ -405,16 +405,17 @@ async function lockState(directory, contract) {
   }
 }
 
-async function writeProfile(directory, contract) {
+async function writeProfile(directory, contract, options = {}) {
   await mkdir(directory, { recursive: true });
   const folder = await lstat(directory);
   if (!folder.isDirectory() || folder.isSymbolicLink()) throw new Error("profile directory cannot be a symlink");
-  await lockState(directory, contract);
-  for (const [name, contents] of [
+  if (options.seal !== false) await lockState(directory, contract);
+  const generated = [
     ["generated.ts", renderGenerated(contract)],
     ["vectors.json", renderVectors(contract)],
-    ["profile.lock.json", renderLock(contract)],
-  ]) {
+  ];
+  if (options.seal !== false) generated.push(["profile.lock.json", renderLock(contract)]);
+  for (const [name, contents] of generated) {
     const target = join(directory, name);
     try { if ((await lstat(target)).isSymbolicLink()) throw new Error("generated profile target cannot be a symlink"); }
     catch (error) { if (error.code !== "ENOENT") throw error; }
@@ -464,11 +465,11 @@ async function mainText(args) {
     }
     await writeFile(join(directory, "profile.toml"), source, { flag: "wx" });
     const contract = parseContract(source);
-    await writeProfile(directory, contract);
+    await writeProfile(directory, contract, { seal: false });
     await writeFile(join(directory, "adapter.ts"), renderAdapter(contract), { flag: "wx" });
     await writeFile(join(directory, "run.ts"), renderRun(contract), { flag: "wx" });
     await writeFile(join(directory, "conformance.ts"), renderConformance(contract), { flag: "wx" });
-    process.stdout.write(`created ${join(directory, "profile.toml")}; self-hosted, provider behavior unqualified\n`);
+    process.stdout.write(`created ${join(directory, "profile.toml")}; edit schema, then run profile generate; self-hosted, provider behavior unqualified\n`);
     return;
   }
   const path = args[2] ?? "profile.toml";
@@ -534,6 +535,8 @@ function diagnostic(action, status, message) {
     "profile.contract.version-required", "contract", "Increase profile.version, then review profile diff."];
   if (/has drifted/.test(message)) return ["profile.generated.stale", "generated",
     "Run profile generate after reviewing the source and version."];
+  if (/Cannot find module|ERR_MODULE_NOT_FOUND/.test(message)) return [
+    "profile.provider.suite-import-failed", "provider", "Compile or install the suite, then rerun profile test."];
   if (/signer/.test(message)) return ["profile.authority.signer-missing", "authority",
     "Supply an explicit custody signer adapter."];
   if (/grant/.test(message) && !/trust/.test(message)) return ["profile.authority.grant-missing", "authority",

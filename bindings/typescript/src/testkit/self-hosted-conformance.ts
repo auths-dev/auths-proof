@@ -121,6 +121,25 @@ export async function runSelfHostedAdapterConformance<
         if (provider.writes || trace.includes("claim") || trace.includes("credential")) {
           throw new Error("mutated action reached claim or provider");
         }
+      } else if (id === "invalid-trust-before-credential") {
+        try {
+          const result = await runOnce({ ...base, trustedContext: new Uint8Array([0]) });
+          if (result.kind === "attempted") throw new Error("invalid trust produced an attempt");
+        } catch { /* malformed trust may fail before a verdict */ }
+        if (provider.writes || trace.includes("claim") || trace.includes("credential")) {
+          throw new Error("invalid trust reached claim or provider");
+        }
+      } else if (id === "credential-unavailable-before-provider") {
+        const unavailable: SelfHostedProviderAdapter<CommandOf<Fields>, Credential, Result> = {
+          credential() { trace.push("credential"); throw new Error("synthetic credential unavailable"); },
+          async invoke() { throw new Error("provider must not be entered"); },
+          async observe() { throw new Error("observation must not be entered"); },
+        };
+        const result = await runOnce({ ...base, adapter: unavailable });
+        const record = [...attempts.records.values()][0];
+        if (result.kind !== "pre-entry-failed" || record?.state !== "rejected" || provider.writes) {
+          throw new Error("credential failure crossed provider boundary");
+        }
       } else if (id === "competing-claim") {
         const results = await Promise.all([runOnce(base), runOnce(base)]);
         if (provider.writes !== 1 || results.filter(result => result.kind === "attempted").length !== 1) {
@@ -173,6 +192,8 @@ export async function runSelfHostedAdapterConformance<
     ["accepted", "authorized-one-write-and-replay"],
     ["accepted", "denied-before-credential"],
     ["accepted", "mutated-action-before-credential"],
+    ["accepted", "invalid-trust-before-credential"],
+    ["accepted", "credential-unavailable-before-provider"],
     ["accepted", "competing-claim"],
     ["rejected", "definite-no-effect-rejection"],
     ["unknown", "unknown-no-blind-retry"],

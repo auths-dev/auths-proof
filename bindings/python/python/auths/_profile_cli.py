@@ -558,16 +558,19 @@ def _lock_state(directory: Path, contract: ProfileContract) -> None:
         raise ValueError("profile version cannot move backward")
 
 
-def write_profile(directory: Path, contract: ProfileContract) -> None:
+def write_profile(directory: Path, contract: ProfileContract, *, seal: bool = True) -> None:
     if directory.is_symlink():
         raise ValueError("profile directory cannot be a symlink")
     directory.mkdir(parents=True, exist_ok=True)
-    _lock_state(directory, contract)
-    for name, contents in (
+    if seal:
+        _lock_state(directory, contract)
+    generated = [
         ("generated.py", render_generated(contract)),
         ("vectors.json", render_vectors(contract)),
-        ("profile.lock.json", render_lock(contract)),
-    ):
+    ]
+    if seal:
+        generated.append(("profile.lock.json", render_lock(contract)))
+    for name, contents in generated:
         target = directory / name
         if target.is_symlink():
             raise ValueError("generated profile target cannot be a symlink")
@@ -627,7 +630,7 @@ def _main_text(argv: Sequence[str] | None = None) -> int:
             contract = parse_contract(source)
             directory.mkdir(parents=True, exist_ok=True)
             (directory / "profile.toml").write_text(source, encoding="utf-8")
-            write_profile(directory, contract)
+            write_profile(directory, contract, seal=False)
             for name, contents in (
                 ("adapter.py", render_adapter(contract)),
                 ("run.py", render_run(contract)),
@@ -637,7 +640,7 @@ def _main_text(argv: Sequence[str] | None = None) -> int:
             package = directory / "__init__.py"
             if not package.exists():
                 package.write_text('"""Application-owned exact Auths operation."""\n', encoding="utf-8")
-            print(f"created {directory / 'profile.toml'}; self-hosted, provider behavior unqualified")
+            print(f"created {directory / 'profile.toml'}; edit schema, then run profile generate; self-hosted, provider behavior unqualified")
         elif args.action == "generate":
             path: Path = args.profile
             write_profile(path.parent, parse_contract(_source_at(path)))
@@ -668,10 +671,18 @@ def _main_text(argv: Sequence[str] | None = None) -> int:
             module_name, separator, function_name = args.suite.partition(":")
             if not separator or not module_name or not function_name:
                 raise ValueError("--suite must name a module:function test entry point")
-            function = getattr(importlib.import_module(module_name), function_name)
+            package = args.profile.resolve().parent
+            source_root = str(package.parent)
+            local_suite = module_name.startswith(f"{package.name}.") and (package / "__init__.py").is_file()
+            if local_suite:
+                sys.path.insert(0, source_root)
+            try:
+                function = getattr(importlib.import_module(module_name), function_name)
+                report = asyncio.run(function())
+            finally:
+                if local_suite:
+                    sys.path.remove(source_root)
             from .testkit import ConformanceReport
-
-            report = asyncio.run(function())
             if not isinstance(report, ConformanceReport) or report.metadata.suite != "self-hosted-provider-adapter/1":
                 raise ValueError("adapter suite returned an invalid conformance report")
             for case in report.cases:
@@ -723,6 +734,8 @@ def _diagnostic(action: str, status: int, message: str) -> tuple[str, str, str]:
         return "profile.contract.version-required", "contract", "Increase profile.version, then review profile diff."
     if "has drifted" in message:
         return "profile.generated.stale", "generated", "Run profile generate after reviewing the source and version."
+    if "No module named" in message or "cannot import name" in message:
+        return "profile.provider.suite-import-failed", "provider", "Put the suite in the profile package or install its package, then rerun profile test."
     if "signer" in message:
         return "profile.authority.signer-missing", "authority", "Supply an explicit custody signer adapter."
     if "grant" in message and "trust" not in message:

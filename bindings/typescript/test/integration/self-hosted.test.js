@@ -205,7 +205,7 @@ test("public adapter conformance covers denial, replay, uncertainty and observat
     }),
   });
   assert.equal(report.passed, true, JSON.stringify(report.cases));
-  assert.equal(report.cases.length, 8);
+  assert.equal(report.cases.length, 10);
 });
 
 test("closed enum variants stay exact through typed preparation and projection", async () => {

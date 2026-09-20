@@ -141,3 +141,36 @@ def test_production_doctor_fails_without_explicit_authority(tmp_path: Path) -> N
     (tmp_path / "profile.toml").write_text(PROFILE)
     write_profile(tmp_path, parse_contract(PROFILE))
     assert main(["profile", "doctor", str(tmp_path / "profile.toml"), "--production"]) == 1
+
+
+def test_first_edit_after_init_does_not_need_a_premature_version_bump(tmp_path: Path) -> None:
+    from auths._profile_cli import main
+
+    package = tmp_path / "local_demo"
+    assert main(["profile", "init", "--language", "python", "--name", "local-demo",
+                 "--directory", str(package)]) == 0
+    assert not (package / "profile.lock.json").exists()
+    source = (package / "profile.toml").read_text()
+    (package / "profile.toml").write_text(source.replace("max_bytes = 256", "max_bytes = 32"))
+    assert main(["profile", "generate", str(package / "profile.toml")]) == 0
+    assert (package / "profile.lock.json").exists()
+
+
+def test_local_profile_suite_imports_without_pythonpath(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    import json
+
+    from auths._profile_cli import main
+
+    package = tmp_path / "local_suite_trial"
+    assert main(["profile", "init", "--language", "python", "--name", "local-suite-trial",
+                 "--directory", str(package)]) == 0
+    assert main(["profile", "generate", str(package / "profile.toml")]) == 0
+    (package / "conformance.py").write_text(
+        "from auths.testkit import ConformanceReport, ConformanceMetadata\n"
+        "async def run():\n"
+        "    return ConformanceReport(ConformanceMetadata(\"self-hosted-provider-adapter/1\", "
+        "\"1\", \"local\", \"now\", \"test-results-only-not-security-certification\"), True, ())\n"
+    )
+    assert main(["profile", "test", str(package / "profile.toml"),
+                 "--suite", "local_suite_trial.conformance:run", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out.splitlines()[-1])["ok"] is True

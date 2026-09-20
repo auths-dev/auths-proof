@@ -85,7 +85,7 @@ credential. The generated adapter contains explicit TODOs for all four.
 |  generated.py       immutable CreateTask + CONTRACT                   |
 |  adapter.py         typed credential/invoke/observe skeleton          |
 |  tests/             fake provider + denial/replay/unknown scenarios    |
-|  profile.lock.json  schema/identity digest + canonical vector version |
+|  profile.lock.json  created on first generate after the initial edit     |
 |                                                                       |
 | auths profile check                                                    |
 |  PASS  schema and generated files match                               |
@@ -100,9 +100,12 @@ credential. The generated adapter contains explicit TODOs for all four.
 ```
 
 The TypeScript CLI generates the equivalent `.ts` command, adapter starter,
-tests, lock, and vectors. Both CLIs use the same conceptual commands and
-diagnostic codes; language-specific invocation syntax is allowed. An
-authorized-action preview shows service, tool, version, audience, permission,
+tests, and vectors. Both CLIs use the same conceptual commands and diagnostic
+codes; language-specific invocation syntax is allowed. `init` leaves the
+new profile unsealed: the first `generate` creates the lock
+after the developer edits the template, so ordinary first-run edits do not
+require a premature version bump. Subsequent edits require a version bump.
+An authorized-action preview shows service, tool, version, audience, permission,
 bounded argument summary, and action commitment *before* signing. Secret or
 sensitive argument values are redacted by default; the commitment remains
 visible. The preview is derived from the exact canonical action that will be

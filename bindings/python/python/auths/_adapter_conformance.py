@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
-from typing import Generic, Literal, TypeVar
+from typing import TYPE_CHECKING, Generic, Literal, TypeVar
 
 from .attempts import AttemptRecord, AttemptStore, TerminalState
 from .execution import (
@@ -24,6 +24,9 @@ from .execution import (
     run_once,
 )
 from .self_hosted import ExactMcpTool
+
+if TYPE_CHECKING:
+    from .testkit import ConformanceReport
 
 CommandT = TypeVar("CommandT")
 CredentialT = TypeVar("CredentialT")
@@ -113,13 +116,13 @@ async def run_self_hosted_adapter_conformance(
     contract: ExactMcpTool[CommandT],
     command: CommandT,
     adapter_factory: Callable[[ScriptedProvider], ProviderAdapter[CommandT, CredentialT, ResultT]],
-) -> "ConformanceReport":
+) -> ConformanceReport:
     """Exercise a developer adapter against local proof and scripted provider cases.
 
     A passing report is test evidence, never Auths qualification of provider
     semantics. Factory code runs only in this unprivileged local test process.
     """
-    from .testkit import ConformanceCase, ConformanceReport, _report, development_mcp_artifacts
+    from .testkit import ConformanceCase, _report, development_mcp_artifacts
 
     artifacts = development_mcp_artifacts(
         service=contract.service, name=contract.name, arguments=contract.encode(command)
@@ -131,12 +134,12 @@ async def run_self_hosted_adapter_conformance(
         provider = ScriptedProvider(scenario, trace)
         adapter = _ObservedAdapter(adapter_factory(provider), trace)
         attempts = _MemoryAttempts(trace)
-        base = dict(
-            contract=contract, proof=artifacts.proof, action=artifacts.action,
-            trusted_context=artifacts.trusted_context, attempts=attempts,
-            operation_key="synthetic-operation", adapter=adapter,
-            expected_command=command,
-        )
+        base = {
+            "contract": contract, "proof": artifacts.proof, "action": artifacts.action,
+            "trusted_context": artifacts.trusted_context, "attempts": attempts,
+            "operation_key": "synthetic-operation", "adapter": adapter,
+            "expected_command": command,
+        }
         try:
             if case_id == "denied-before-credential":
                 other = ExactMcpTool(
@@ -154,11 +157,41 @@ async def run_self_hosted_adapter_conformance(
                 try:
                     result = await run_once(**{**base, "action": bytes(altered)})
                     if not isinstance(result, NotExecuted):
-                        raise ValueError("mutated action produced an attempt")
+                        raise TypeError("mutated action produced an attempt")
                 except (TypeError, ValueError):
                     pass
                 if provider.writes or "claim" in trace or "credential" in trace:
                     raise ValueError("mutated action reached claim or provider")
+            elif case_id == "invalid-trust-before-credential":
+                try:
+                    result = await run_once(**{**base, "trusted_context": b"not-a-trusted-context"})
+                    if not isinstance(result, NotExecuted):
+                        raise TypeError("invalid trust produced an attempt")
+                except (TypeError, ValueError):
+                    pass
+                if provider.writes or "claim" in trace or "credential" in trace:
+                    raise ValueError("invalid trust reached claim or provider")
+            elif case_id == "credential-unavailable-before-provider":
+                class NoCredential:
+                    def credential(self) -> CredentialT:
+                        trace.append("credential")
+                        raise RuntimeError("synthetic credential unavailable")
+
+                    async def invoke(self, command: CommandT, credential: CredentialT) -> ProviderOutcome[ResultT]:
+                        del command, credential
+                        raise AssertionError("provider must not be entered")
+
+                    async def observe(self, command: CommandT) -> Observation:
+                        del command
+                        raise AssertionError("observation must not be entered")
+
+                result = await run_once(**{**base, "adapter": NoCredential()})
+                record = next(iter(attempts.records.values()), None)
+                if (
+                    not isinstance(result, NotExecuted) or result.kind != "pre-entry-failed"
+                    or record is None or record.state != "rejected" or provider.writes
+                ):
+                    raise ValueError("credential failure crossed provider boundary")
             elif case_id == "competing-claim":
                 results = await asyncio.gather(run_once(**base), run_once(**base))
                 if provider.writes != 1 or sum(isinstance(value, Attempted) for value in results) != 1:
@@ -206,7 +239,7 @@ async def run_self_hosted_adapter_conformance(
                 elif scenario == "observation-unavailable":
                     if not isinstance(result, Attempted) or result.observation == "observed":
                         raise ValueError("unavailable observation was overstated")
-        except BaseException as error:
+        except Exception as error:  # noqa: BLE001 -- report arbitrary consumer adapter failures
             cases.append(ConformanceCase(case_id, "failed", "contract-mismatch", type(error).__name__[:128]))
         else:
             cases.append(ConformanceCase(case_id, "passed", None, None))
@@ -215,6 +248,8 @@ async def run_self_hosted_adapter_conformance(
         ("accepted", "authorized-one-write-and-replay"),
         ("accepted", "denied-before-credential"),
         ("accepted", "mutated-action-before-credential"),
+        ("accepted", "invalid-trust-before-credential"),
+        ("accepted", "credential-unavailable-before-provider"),
         ("accepted", "competing-claim"),
         ("rejected", "definite-no-effect-rejection"),
         ("unknown", "unknown-no-blind-retry"),
