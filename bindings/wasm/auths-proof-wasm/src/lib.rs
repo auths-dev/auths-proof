@@ -2528,6 +2528,50 @@ pub fn prepare_mcp_action_v1(
     .map_err(js_error)
 }
 
+/// Projects arguments only when the exact named MCP call was sealed by the
+/// native verifier. A different or denied action yields no command.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for malformed transport, unsupported registry
+/// construction, or canonical serialization failure.
+#[wasm_bindgen(js_name = verifyExactMcpArgumentsV1)]
+pub fn verify_exact_mcp_arguments_v1(
+    proof_cbor: &[u8],
+    canonical_action_cbor: &[u8],
+    trusted_context_cbor: &[u8],
+    expected_service: &str,
+    expected_name: &str,
+) -> Result<Option<Vec<u8>>, JsValue> {
+    let raw_key = auths_raw_key::RawKeyMethod::new().map_err(js_error)?;
+    let did_key = auths_did_key::DidKeyMethod::new().map_err(js_error)?;
+    let did_keri = auths_did_keri::DidKeriMethod::new().map_err(js_error)?;
+    let ed25519 = auths_signature::Ed25519Suite::new().map_err(js_error)?;
+    let p256 = auths_signature::P256Sha256Suite::new().map_err(js_error)?;
+    let methods: [&dyn PrincipalMethod; 3] = [&raw_key, &did_key, &did_keri];
+    let suites: [&dyn SignatureSuite; 2] = [&ed25519, &p256];
+    let registries = ImmutableRegistries::new(&methods, &suites).map_err(js_error)?;
+    let sealed = auths_verifier::verify_v1_sealed(
+        proof_cbor,
+        canonical_action_cbor,
+        trusted_context_cbor,
+        &registries,
+    )
+    .map_err(js_error)?;
+    let Some(command) = sealed
+        .action()
+        .and_then(|action| McpProfile.decode_verified(action).ok())
+    else {
+        return Ok(None);
+    };
+    if command.call().service() != expected_service || command.name() != expected_name {
+        return Ok(None);
+    }
+    serde_json_canonicalizer::to_vec(command.arguments())
+        .map(Some)
+        .map_err(|_| js_error(EngineError::Abi("MCP arguments could not be canonicalized")))
+}
+
 /// Native action preparation for an application-owned closed profile.
 #[wasm_bindgen]
 pub struct ProfileActionPreparationV1 {

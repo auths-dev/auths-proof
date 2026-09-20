@@ -15,6 +15,10 @@
       "types": "./dist/verify.d.ts",
       "import": "./dist/verify.js"
     },
+    "./self-hosted": {
+      "types": "./dist/self-hosted.d.ts",
+      "import": "./dist/self-hosted.js"
+    },
     "./identity": {
       "types": "./dist/identity.d.ts",
       "import": "./dist/identity.js"

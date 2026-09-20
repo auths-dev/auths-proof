@@ -27,6 +27,7 @@
     "canonicalizeMcpPlanMemberV1",
     "canonicalizeProfilePlanMemberV1",
     "prepareMcpActionV1",
+    "verifyExactMcpArgumentsV1",
     "prepareProfileActionV1",
     "prepareRawKeyAuthorityV1",
     "deriveEd25519RawKeyIdentityV1",

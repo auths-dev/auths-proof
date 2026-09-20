@@ -6,6 +6,7 @@
       "typescript": [
         "@auths-dev/sdk",
         "@auths-dev/sdk/verify",
+        "@auths-dev/sdk/self-hosted",
         "@auths-dev/sdk/identity",
         "@auths-dev/sdk/identity/authoring"
       ],

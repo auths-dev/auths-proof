@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import * as root from "../../dist/index.js";
 import * as verify from "../../dist/verify.js";
+import * as selfHosted from "../../dist/self-hosted.js";
 import * as identity from "../../dist/identity.js";
 import * as protocol from "../../dist/protocol.js";
 import * as profileRuntime from "../../dist/profile-runtime.js";
@@ -16,6 +17,8 @@ test("clean-cut modules expose the intended domain-neutral surface", () => {
     "UnavailableError", "connect", "isAuthsError", "recoveryHandleFromBytes", "runtimeInfo",
   ]);
   assert.equal(typeof verify.createVerifier, "function");
+  assert.equal(typeof selfHosted.exactMcpTool, "function");
+  assert.equal(typeof selfHosted.verifyCommand, "function");
   assert.equal(typeof identity.createRawKeyEd25519IdentityClient, "function");
   assert.equal(typeof protocol.connectRemoteVerifier, "function");
   assert.deepEqual(Object.keys(profileRuntime).sort(), [
