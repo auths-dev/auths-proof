@@ -323,16 +323,18 @@ def render_generated(contract: ProfileContract) -> str:
     for path, node in nodes:
         lines.extend(["", "@dataclass(frozen=True)", f"class {_class_name(contract, path)}:"])
         for child in node.fields:
-            lines.append(f"    {child.name}: {_python_type(contract, child, path + (child.name,))}")
-        lines.append("")
+            annotation = _python_type(contract, child, path + (child.name,))
+            suffix = "  # noqa: UP045" if "Optional[" in annotation else ""
+            lines.append(f"    {child.name}: {annotation}{suffix}")
+        lines.extend(["", ""])
     lines.extend([
         "FIELDS = {",
         *(f'    "{field.name}": {_field_source(contract, field, (field.name,))},' for field in contract.fields),
-        "}", "", 'CommandT = TypeVar("CommandT")', "",
+        "}", "", 'CommandT = TypeVar("CommandT")', "", "",
         "def contract_for(command_type: type[CommandT]) -> ExactMcpTool[CommandT]:",
         "    return ExactMcpTool(", f'        service="{contract.service}",',
         "        name=TOOL_NAME,", "        command_type=command_type,", "        fields=FIELDS,",
-        "    )", "", f"CONTRACT = contract_for({contract.command})", "",
+        "    )", "", "", f"CONTRACT = contract_for({contract.command})", "",
     ])
     return "\n".join(lines)
 
@@ -376,6 +378,47 @@ def render_lock(contract: ProfileContract) -> str:
         "schema_digest": _schema_digest(contract),
         "generator_format": 2,
     }) + "\n"
+
+
+def render_adapter(contract: ProfileContract) -> str:
+    return (
+        '"""Application-owned provider mapping; Auths does not qualify these effects."""\n'
+        "from __future__ import annotations\n\n"
+        "from auths.execution import Observation, ProviderOutcome\n\n"
+        f"from .generated import {contract.command}\n\n\n"
+        "class ApplicationAdapter:\n"
+        "    def credential(self) -> str:\n"
+        "        # Load the app's existing provider token only after Auths claims the attempt.\n"
+        '        raise NotImplementedError("supply an application-owned credential")\n\n'
+        f"    async def invoke(self, command: {contract.command}, credential: str) -> ProviderOutcome[str]:\n"
+        "        # Derive one closed provider write from command. Timeouts are unknown.\n"
+        '        raise NotImplementedError("map the exact command to one provider write")\n\n'
+        f"    async def observe(self, command: {contract.command}) -> Observation:\n"
+        "        # Read-only reconciliation; never repeat invoke here.\n"
+        '        raise NotImplementedError("read back the provider effect")\n'
+    )
+
+
+def render_run(contract: ProfileContract) -> str:
+    return (
+        '"""Exact local execution order: verify, claim, credential, provider."""\n'
+        "from __future__ import annotations\n\n"
+        "from auths.attempts import AttemptStore\n"
+        "from auths.execution import RunResult, run_once\n\n"
+        "from .adapter import ApplicationAdapter\n"
+        f"from .generated import CONTRACT, {contract.command}\n\n\n"
+        "async def execute(\n"
+        "    *, proof: bytes, action: bytes, trusted_context: bytes,\n"
+        "    attempts: AttemptStore, operation_key: str,\n"
+        f"    expected_command: {contract.command}, adapter: ApplicationAdapter,\n"
+        f") -> RunResult[{contract.command}, str]:\n"
+        "    return await run_once(\n"
+        "        contract=CONTRACT, proof=proof, action=action,\n"
+        "        trusted_context=trusted_context, attempts=attempts,\n"
+        "        operation_key=operation_key, expected_command=expected_command,\n"
+        "        adapter=adapter,\n"
+        "    )\n"
+    )
 
 
 def _source_at(path: Path) -> str:
@@ -457,7 +500,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 raise ValueError("profile name must be a bounded lowercase identifier")
             directory = args.directory
             if any((directory / name).exists() or (directory / name).is_symlink() for name in (
-                "profile.toml", "generated.py", "vectors.json", "profile.lock.json"
+                "profile.toml", "generated.py", "vectors.json", "profile.lock.json",
+                "adapter.py", "run.py"
             )):
                 raise ValueError("profile files already exist")
             source = (
@@ -470,6 +514,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             directory.mkdir(parents=True, exist_ok=True)
             (directory / "profile.toml").write_text(source, encoding="utf-8")
             write_profile(directory, contract)
+            for name, contents in (("adapter.py", render_adapter(contract)), ("run.py", render_run(contract))):
+                (directory / name).write_text(contents, encoding="utf-8")
+            package = directory / "__init__.py"
+            if not package.exists():
+                package.write_text('"""Application-owned exact Auths operation."""\n', encoding="utf-8")
             print(f"created {directory / 'profile.toml'}; self-hosted, provider behavior unqualified")
         elif args.action == "generate":
             path: Path = args.profile

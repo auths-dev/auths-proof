@@ -252,6 +252,42 @@ export function renderLock(contract) {
   }) + "\n";
 }
 
+export function renderAdapter(contract) {
+  return `/** Application-owned provider mapping; Auths does not qualify these effects. */\n` +
+    `import type { Observation, ProviderOutcome, SelfHostedProviderAdapter } from "@auths-dev/sdk/self-hosted";\n` +
+    `import type { ${contract.command} } from "./generated.js";\n\n` +
+    `export class ApplicationAdapter implements SelfHostedProviderAdapter<${contract.command}, string, string> {\n` +
+    `  credential(): string {\n` +
+    `    // Load the app's existing token only after Auths claims the attempt.\n` +
+    `    throw new Error("supply an application-owned credential");\n` +
+    `  }\n\n` +
+    `  async invoke(command: ${contract.command}, credential: string): Promise<ProviderOutcome<string>> {\n` +
+    `    // Derive one closed provider write from command. Timeouts are unknown.\n` +
+    `    void command; void credential;\n` +
+    `    throw new Error("map the exact command to one provider write");\n` +
+    `  }\n\n` +
+    `  async observe(command: ${contract.command}): Promise<Observation> {\n` +
+    `    // Read-only reconciliation; never repeat invoke here.\n` +
+    `    void command;\n` +
+    `    throw new Error("read back the provider effect");\n` +
+    `  }\n` +
+    `}\n`;
+}
+
+export function renderRun(contract) {
+  return `/** Exact local execution order: verify, claim, credential, provider. */\n` +
+    `import { runOnce, type AttemptStore, type RunResult } from "@auths-dev/sdk/self-hosted";\n` +
+    `import { CONTRACT, type ${contract.command} } from "./generated.js";\n` +
+    `import type { ApplicationAdapter } from "./adapter.js";\n\n` +
+    `export async function execute(input: Readonly<{\n` +
+    `  proof: Uint8Array; action: Uint8Array; trustedContext: Uint8Array;\n` +
+    `  attempts: AttemptStore; operationKey: string;\n` +
+    `  expectedCommand: ${contract.command}; adapter: ApplicationAdapter;\n` +
+    `}>): Promise<RunResult<${contract.command}, string>> {\n` +
+    `  return runOnce({ contract: CONTRACT, ...input });\n` +
+    `}\n`;
+}
+
 async function sourceAt(path) {
   const metadata = await lstat(path);
   if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size > 16_384) {
@@ -338,12 +374,15 @@ async function main(args) {
     const source = `[profile]\nname = "${name}"\nversion = 1\nservice = "${name}"\ntool = "invoke"\n\n` +
       `[arguments]\ntype = "object"\n\n[arguments.fields.value]\ntype = "string"\nmin_bytes = 1\nmax_bytes = 256\n`;
     await mkdir(directory, { recursive: true });
-    for (const filename of ["profile.toml", "generated.ts", "vectors.json", "profile.lock.json"]) {
+    for (const filename of ["profile.toml", "generated.ts", "vectors.json", "profile.lock.json", "adapter.ts", "run.ts"]) {
       try { await lstat(join(directory, filename)); throw new Error("profile files already exist"); }
       catch (error) { if (error.code !== "ENOENT") throw error; }
     }
     await writeFile(join(directory, "profile.toml"), source, { flag: "wx" });
-    await writeProfile(directory, parseContract(source));
+    const contract = parseContract(source);
+    await writeProfile(directory, contract);
+    await writeFile(join(directory, "adapter.ts"), renderAdapter(contract), { flag: "wx" });
+    await writeFile(join(directory, "run.ts"), renderRun(contract), { flag: "wx" });
     process.stdout.write(`created ${join(directory, "profile.toml")}; self-hosted, provider behavior unqualified\n`);
     return;
   }

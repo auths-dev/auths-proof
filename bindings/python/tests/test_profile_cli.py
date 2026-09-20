@@ -6,7 +6,14 @@ from pathlib import Path
 
 import pytest
 
-from auths._profile_cli import parse_contract, render_generated, render_vectors, render_lock
+from auths._profile_cli import (
+    parse_contract,
+    render_adapter,
+    render_generated,
+    render_lock,
+    render_run,
+    render_vectors,
+)
 
 
 ROOT = Path(__file__).parents[2] / "fixtures" / "self-hosted-profile"
@@ -24,6 +31,18 @@ def test_generated_profile_binds_version_and_closed_schema() -> None:
     assert "labels: tuple[str, ...]" in generated
     assert "payload: bytes" in generated
     assert '"tool":"set_value_v1"' in render_vectors(contract)
+
+
+def test_starter_keeps_provider_ownership_explicit() -> None:
+    contract = parse_contract(PROFILE)
+    adapter = render_adapter(contract)
+    runner = render_run(contract)
+    assert "class ApplicationAdapter:" in adapter
+    assert "def credential(self) -> str:" in adapter
+    assert "async def observe" in adapter
+    assert "raise NotImplementedError" in adapter
+    assert "expected_command" in runner
+    assert "run_once(" in runner
 
 
 def test_language_neutral_vector_fixture_is_exact() -> None:

@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
-import { parseContract, renderGenerated, renderVectors, renderLock } from "../../tools/profile-cli.mjs";
+import {
+  parseContract, renderAdapter, renderGenerated, renderLock, renderRun, renderVectors,
+} from "../../tools/profile-cli.mjs";
 
 const root = new URL("../../../fixtures/self-hosted-profile/", import.meta.url);
 const profile = await readFile(new URL("profile.toml", root), "utf8");
@@ -16,6 +18,13 @@ test("generated exact tool binds the version", () => {
   assert.match(renderGenerated(contract), /payload: bytesField/);
   assert.match(renderGenerated(contract), /target: objectField/);
   assert.match(renderVectors(contract), /"tool":"set_value_v1"/);
+});
+
+test("starter keeps provider mapping application-owned", () => {
+  const contract = parseContract(profile);
+  assert.match(renderAdapter(contract), /class ApplicationAdapter implements SelfHostedProviderAdapter/);
+  assert.match(renderAdapter(contract), /throw new Error\("map the exact command/);
+  assert.match(renderRun(contract), /runOnce\(\{ contract: CONTRACT, \.\.\.input \}\)/);
 });
 
 test("language-neutral vector fixture is byte-for-byte identical", async () => {
