@@ -176,19 +176,36 @@ def _read_record(path: Path) -> AttemptRecord:
         raw = stream.read(513)
     if len(raw) > 512:
         raise ValueError("attempt record exceeds bounds")
-    data = json.loads(raw)
-    if not isinstance(data, dict) or set(data) != {
+    parsed: object = json.loads(raw, object_pairs_hook=_unique_pairs)
+    if not isinstance(parsed, dict):
+        raise ValueError("invalid attempt record")
+    data = cast(dict[str, object], parsed)
+    if set(data) != {
         "schema", "action_commitment", "operation_key", "state"
     } or data["schema"] != "auths.self-hosted-attempt/1":
         raise ValueError("invalid attempt record")
     if not isinstance(data["action_commitment"], str):
         raise ValueError("invalid attempt commitment")
     commitment = _checked_commitment(bytes.fromhex(data["action_commitment"]))
-    key = _checked_key(data["operation_key"])
+    key_value = data["operation_key"]
+    if not isinstance(key_value, str):
+        raise ValueError("invalid attempt operation key")
+    key = _checked_key(key_value)
     state = data["state"]
-    if state not in ("attempting", "confirmed", "rejected", "unknown"):
+    if not isinstance(state, str) or state not in (
+        "attempting", "confirmed", "rejected", "unknown"
+    ):
         raise ValueError("invalid attempt state")
     return AttemptRecord(commitment, key, cast(AttemptState, state))
+
+
+def _unique_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate attempt record key")
+        result[key] = value
+    return result
 
 
 def _open_private(path: Path, flags: int) -> int:

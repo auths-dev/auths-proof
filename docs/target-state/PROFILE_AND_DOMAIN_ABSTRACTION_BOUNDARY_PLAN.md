@@ -79,6 +79,17 @@ This plan uses the following terms:
 - **Vertical**: the complete path from canonical action and policy through
   execution, observation, receipts, frontend, and live tests.
 
+The vertical-package rule applies when Auths owns the credential-bearing
+executor or makes qualified end-to-end effect claims. The distinct
+[self-hosted developer path](../specs/0051-self-hosted-developer-profiles.md)
+uses the existing exact `auths.mcp/v2` action and native verifier, but the
+application owns the provider credential, request mapping, attempt persistence,
+observation, and result. Such an application can work without a new Rust
+vertical or static runtime roster entry; its provider behavior is not thereby
+qualified. This exception must not be used to load third-party code into an
+Auths gateway, lease Auths-held credentials to callbacks, or issue qualified
+execution receipts for application-owned calls.
+
 ## Architectural decision
 
 ### Vertical package first
