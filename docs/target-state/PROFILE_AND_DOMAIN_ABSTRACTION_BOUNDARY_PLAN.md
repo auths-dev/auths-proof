@@ -90,6 +90,19 @@ qualified. This exception must not be used to load third-party code into an
 Auths gateway, lease Auths-held credentials to callbacks, or issue qualified
 execution receipts for application-owned calls.
 
+[ADR 0012](../adr/0012-declarative-credential-isolated-gateway-boundary.md)
+permits a separate *candidate* data-only mechanism for credential-isolated
+closed requests under [AP-SPEC-053](../specs/0053-declarative-credential-isolated-gateway.md).
+Its application channel supplies proof and canonical action only; an operator
+separately approves the typed recipe digest, trust, connection, and credential
+generation. The gateway may share bounded request-construction mechanics, not
+provider-specific effect, recovery, or qualified receipt semantics. It must
+not load developer code, accept runtime request parameters, or lease secrets
+to a callback. The [three-operation abstraction case](../research/domains/abstraction-cases/0007-declarative-credential-isolated-request.md)
+records the proposed extraction and its divergent semantics. This is a
+review gate, not approval to ship a gateway or claim non-bypassability; the
+vertical-first rule continues to govern qualified provider effects.
+
 ## Architectural decision
 
 ### Vertical package first

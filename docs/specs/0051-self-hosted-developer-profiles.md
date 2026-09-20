@@ -14,12 +14,19 @@
 
 ## 1. Decision
 
-Auths needs two explicitly different ways to build an integration:
+Auths needs two explicitly different ways to build an integration today:
 
 | Path | Who implements and runs the provider effect? | What Auths attests? |
 | --- | --- | --- |
 | **Self-hosted developer profile** (this spec) | The application; it supplies its own provider credential, exact request mapping, persistence, and observation | Verification of the exact action under the supplied trusted context, plus any separately exercised SDK mechanism guarantees. Not correct provider execution. |
 | **Qualified managed profile** (AP-SPEC-040) | A statically linked, reviewed Auths vertical and credential-owning runtime | Its separately qualified execution, recovery, and receipt claims in addition to authorization. |
+
+AP-SPEC-053 and [ADR 0012](../adr/0012-declarative-credential-isolated-gateway-boundary.md)
+define a proposed third, separately deployed, credential-isolated path for
+operator-approved **data-only** request recipes. It does not alter this
+spec's self-hosted credential boundary, turn a developer adapter into gateway
+code, or qualify provider effects. No runtime gateway claim follows from that
+architecture decision alone.
 
 The first path is a supported product surface, not an unqualified version of
 the second path. An application can use it immediately, but passing its tests
@@ -278,10 +285,14 @@ callback dispatcher with access to arbitrary tools or provider credentials.
 The application can bypass this local runner because it owns its own token;
 the runner provides a good default and testable mechanism, not a sandbox.
 
-When a developer needs non-bypassable gateway enforcement, Auths-held
-credentials, multi-host exactly-once claims, or qualified provider effects,
-the upgrade path is the AP-SPEC-040 reviewed vertical. Passing `profile check`
-MUST NOT automatically promote a self-hosted package to that path.
+When a developer needs credential-isolated enforcement of a closed request,
+the proposed AP-SPEC-053 path is distinct from this self-hosted runner: a
+separate operator-approved gateway would hold the credential and interpret
+only a digest-bound data recipe. It is not implemented or qualified by this
+spec. Qualified provider effects require an AP-SPEC-040 reviewed vertical;
+neither path promises multi-host exactly-once external effects. Passing
+`profile check` MUST NOT automatically promote a self-hosted package to
+either path.
 
 ## 7. Claim boundaries and conformance
 
