@@ -1,4 +1,4 @@
-freeze_version = 247
+freeze_version = 250
 
 # Semantic identity counters live outside the xtask source tree deliberately.
 # The formal source closure binds xtask's executable code, while the semantic
@@ -19,7 +19,7 @@ freeze_version = 247
 "auths.frozen-bytes/formal/assurance-manifest-v1.toml" = 23
 "auths.frozen-bytes/formal/qualification/aeneas/generated" = 9
 "auths.frozen-bytes/formal/qualification/aeneas/qualification.toml" = 6
-"auths.frozen-bytes/formal/qualification/aeneas/source-closure.json" = 47
+"auths.frozen-bytes/formal/qualification/aeneas/source-closure.json" = 48
 "auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json" = 1
 "auths.frozen-bytes/product/conformance/v1/simplified-product-waist.json" = 3
 "auths.frozen-bytes/product/fixtures/v1/bounded-policy/manifest.json" = 2
@@ -45,16 +45,16 @@ freeze_version = 247
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-create/v1/manifest.sha256.json" = 1
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-modify/v1/manifest.sha256.json" = 1
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/v1/manifest.sha256.json" = 1
-"auths.identity.protocol" = 63
+"auths.identity.protocol" = 64
 "auths.modular-components" = 15
-"auths.portable-abi-bindings" = 88
+"auths.portable-abi-bindings" = 90
 "auths.product.bounded-domains" = 15
 "auths.product.bounded-policy" = 2
 "auths.product.configuration-commitments" = 1
 "auths.product.development-composition" = 12
 "auths.product.error-recovery-contract" = 17
 "auths.product.external-custody" = 3
-"auths.product.facade" = 23
+"auths.product.facade" = 24
 "auths.product.github-issue-address-v2" = 3
 "auths.product.lifecycle" = 13
 "auths.product.mcp-closed-execution" = 22
@@ -67,5 +67,5 @@ freeze_version = 247
 "auths.product.simplified-waist" = 12
 "auths.product.vocabulary" = 16
 "auths.release.benchmark-contract" = 1
-"auths.release.evolution-contract" = 55
-"auths.release.public-surface" = 247
+"auths.release.evolution-contract" = 56
+"auths.release.public-surface" = 250

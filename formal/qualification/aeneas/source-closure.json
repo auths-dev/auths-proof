@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "a9ee5d3c2fcf926de5fe13ec92ebd312f59aabe01b0287455b9b7fdf86dbcdc2",
+  "digest": "6c778e6aa6a01155a2db01d32c77dea7ae495ea9f906b70b2c6135ded8895086",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -321,7 +321,7 @@
     },
     {
       "path": "xtask/src/sdk_experience.rs",
-      "sha256": "15eebfd6dd0eb0f3ff183a904d436bba74a2d9d6871837818da87b4e2bc3b8f7"
+      "sha256": "08ba2ee2010bd82cfce3014c01f8f6b171e23f6326a1f9181f396a7eb19849c5"
     },
     {
       "path": "xtask/src/sdk_vocabulary.rs",

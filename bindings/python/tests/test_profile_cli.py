@@ -25,11 +25,18 @@ retry_count = "optional-integer:0:3"
 def test_generated_profile_binds_version_and_closed_schema() -> None:
     contract = parse_contract(PROFILE)
     generated = render_generated(contract)
-    assert 'name="set_value_v1"' in generated
-    assert "class Command:" in generated
+    assert 'TOOL_NAME = "set_value_v1"' in generated
+    assert "class ExampleSetValue:" in generated
     assert "retry_count: Optional[int]" in generated
     assert '"retry_count": OptionalField(IntegerField(minimum=0, maximum=3))' in generated
     assert '"tool":"set_value_v1"' in render_vectors(contract)
+
+
+def test_language_neutral_vector_fixture_is_exact() -> None:
+    root = Path(__file__).parents[2] / "fixtures" / "self-hosted-profile"
+    assert render_vectors(parse_contract((root / "profile.toml").read_text())) == (
+        root / "vectors.json"
+    ).read_text()
 
 
 @pytest.mark.parametrize(
@@ -39,7 +46,7 @@ def test_generated_profile_binds_version_and_closed_schema() -> None:
         PROFILE.replace('version = 1', 'version = 0'),
         PROFILE.replace('value = "string:1:32"', 'value = "string:0:99999"'),
         PROFILE.replace('enabled = "boolean"', 'enabled = "object"'),
-        PROFILE + 'unknown = "boolean"\n',
+        PROFILE.replace('tool = "set_value"', 'tool = "set_value"\nunknown = "boolean"'),
     ],
 )
 def test_bad_profile_fails_closed(change: str) -> None:

@@ -115,6 +115,6 @@ async def test_unknown_is_persisted_and_not_retried() -> None:
     )
     assert isinstance(result, Attempted)
     assert result.provider.kind == "unknown"
-    assert result.observation == "not_observed"
+    assert result.observation is None
     assert store.state == "unknown"
     assert adapter.invoke_calls == 1

@@ -6,13 +6,14 @@ and observations are application claims, never Auths-qualified receipts.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Generic, Literal, Protocol, TypeVar, Union
+from dataclasses import dataclass, fields as dataclass_fields
+from typing import Any, Generic, Literal, Protocol, TypeVar, Union, cast
 
 from .attempts import AttemptStore
 from .self_hosted import AuthorizedCommand, ExactMcpTool, verify_command
 
 CommandT = TypeVar("CommandT")
+CommandContraT = TypeVar("CommandContraT", contravariant=True)
 CredentialT = TypeVar("CredentialT")
 ResultT = TypeVar("ResultT")
 
@@ -43,16 +44,16 @@ ProviderOutcome = Union[ProviderAccepted[ResultT], ProviderRejected, ProviderUnk
 Observation = Literal["observed", "not_observed", "unavailable"]
 
 
-class ProviderAdapter(Protocol[CommandT, CredentialT, ResultT]):
+class ProviderAdapter(Protocol[CommandContraT, CredentialT, ResultT]):
     """App-owned exact request, credential, and read-only observation."""
 
     def credential(self) -> CredentialT: ...
 
     async def invoke(
-        self, command: CommandT, credential: CredentialT
+        self, command: CommandContraT, credential: CredentialT
     ) -> ProviderOutcome[ResultT]: ...
 
-    async def observe(self, command: CommandT) -> Observation: ...
+    async def observe(self, command: CommandContraT) -> Observation: ...
 
 
 @dataclass(frozen=True)
@@ -82,6 +83,7 @@ async def run_once(
     attempts: AttemptStore,
     operation_key: str,
     adapter: ProviderAdapter[CommandT, CredentialT, ResultT],
+    expected_command: CommandT | None = None,
 ) -> RunResult[CommandT, ResultT]:
     """Verify, atomically claim, then and only then access the credential.
 
@@ -95,6 +97,16 @@ async def run_once(
     )
     if not isinstance(verdict, AuthorizedCommand):
         return NotExecuted(verdict.kind, verdict.code)
+    if expected_command is not None and (
+        type(expected_command) is not type(verdict.command)
+        or any(
+            type(getattr(expected_command, field.name))
+            is not type(getattr(verdict.command, field.name))
+            or getattr(expected_command, field.name) != getattr(verdict.command, field.name)
+            for field in dataclass_fields(cast(Any, verdict.command))
+        )
+    ):
+        return NotExecuted("denied", "self-hosted.expected-command-mismatch")
     commitment = verdict.action_commitment
     if not attempts.claim_once(commitment, operation_key):
         return NotExecuted("replay", "self-hosted.attempt-already-claimed")
@@ -118,7 +130,7 @@ async def run_once(
         attempts.finish(commitment, "unknown")
         raise TypeError("provider adapter returned an invalid outcome")
     observation: Observation | None = None
-    if isinstance(provider, (ProviderAccepted, ProviderUnknown)):
+    if isinstance(provider, ProviderAccepted):
         try:
             observation = await adapter.observe(verdict.command)
             if observation not in ("observed", "not_observed", "unavailable"):

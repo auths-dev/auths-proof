@@ -37,6 +37,7 @@ test("package exposes bounded public surfaces and includes contributor docs", as
     "performance-baseline.json",
     "sdk-capability.json",
     "sdk-runtime-contract.json",
+    "tools/profile-cli.mjs",
     "wasm/auths_proof_wasm.d.ts",
     "wasm/auths_proof_wasm.js",
     "wasm/auths_proof_wasm_bg.wasm",
@@ -71,6 +72,7 @@ test("packed contents carry the published artifacts and no source or tests", asy
     "performance-baseline.json",
     "sdk-capability.json",
     "sdk-runtime-contract.json",
+    "tools/profile-cli.mjs",
   ]) {
     assert.ok(entries.includes(required), `packed artifact omitted ${required}`);
   }
@@ -96,11 +98,12 @@ test("packed contents carry the published artifacts and no source or tests", asy
     assert.equal(entries.includes(removed), false, `packed artifact retained ${removed}`);
   }
 
-  // The published subject is the built wrapper plus its WASM bytes. Source,
-  // tests, fixtures, and tooling must not travel with it.
+  // The published subject is the built wrapper, its WASM bytes, and the
+  // bounded consumer generator. Source, tests, and other tooling stay out.
   for (const entry of entries) {
     assert.equal(
-      /^(src|test|tools|examples|api|node_modules)\//.test(entry),
+      /^(src|test|examples|api|node_modules)\//.test(entry) ||
+        (entry.startsWith("tools/") && entry !== "tools/profile-cli.mjs"),
       false,
       `packed artifact leaked ${entry}`,
     );

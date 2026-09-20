@@ -1,0 +1,1 @@
+{"profile":"example-set-value","schema":"auths.self-hosted-profile-vectors/1","service":"example-service","tool":"set_value_v1","valid_arguments_json":"{\"enabled\":false,\"retry_count\":null,\"value\":\"x\"}","version":1}

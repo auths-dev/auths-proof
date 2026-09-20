@@ -264,10 +264,19 @@ export async function runOnce<Fields extends FieldMap, Credential, Result>(input
   attempts: AttemptStore;
   operationKey: string;
   adapter: SelfHostedProviderAdapter<CommandOf<Fields>, Credential, Result>;
+  expectedCommand?: CommandOf<Fields>;
 }>): Promise<RunResult<CommandOf<Fields>, Result>> {
   const authorization = await verifyCommand(input);
   if (authorization.kind !== "authorized") {
     return Object.freeze({ kind: authorization.kind, code: authorization.code });
+  }
+  if (input.expectedCommand !== undefined) {
+    const expected: Readonly<Record<string, unknown>> = input.expectedCommand;
+    if (Object.keys(expected).length !== Object.keys(authorization.command).length ||
+        Object.entries(authorization.command).some(([name, value]) =>
+          !Object.hasOwn(expected, name) || expected[name] !== value)) {
+      return Object.freeze({ kind: "denied", code: "self-hosted.expected-command-mismatch" });
+    }
   }
   const commitment = authorization.actionCommitment;
   if (!await input.attempts.claimOnce(commitment, input.operationKey)) {
@@ -297,7 +306,7 @@ export async function runOnce<Fields extends FieldMap, Credential, Result>(input
     await input.attempts.finish(commitment, "unknown");
     throw new TypeError("provider adapter returned an invalid outcome");
   }
-  if (provider.kind === "rejected") {
+  if (provider.kind !== "accepted") {
     return Object.freeze({ kind: "attempted", authorization, provider });
   }
   let observation: Observation;

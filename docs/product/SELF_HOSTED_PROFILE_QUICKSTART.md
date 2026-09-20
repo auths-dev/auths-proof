@@ -178,4 +178,6 @@ The Python and TypeScript test suites use the same Rust-owned MCP action and
 verifier semantics. The [Airtable and Todoist field-lab
 demos](https://github.com/auths-dev/auths-field-lab) are local-only consumer
 examples; their provider mappings and observations are application claims,
-not qualified Auths effects.
+not qualified Auths effects. See the [self-hosted claim
+ledger](SELF_HOSTED_CLAIM_LEDGER.md) before describing a demo result as an
+Auths guarantee.

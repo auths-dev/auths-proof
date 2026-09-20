@@ -15,6 +15,7 @@
         "auths.verify",
         "auths.authoring",
         "auths.attempts",
+        "auths.execution",
         "auths.self_hosted",
         "auths.identity",
         "auths.identity.authoring"

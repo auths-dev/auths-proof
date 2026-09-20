@@ -2,7 +2,8 @@
 
 /** Restricted source generator; never loads provider credentials or trust. */
 
-import { lstat, mkdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import { realpathSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -142,8 +143,18 @@ async function sourceAt(path) {
 
 async function writeProfile(directory, contract) {
   await mkdir(directory, { recursive: true });
-  await writeFile(join(directory, "generated.ts"), renderGenerated(contract));
-  await writeFile(join(directory, "vectors.json"), renderVectors(contract));
+  const folder = await lstat(directory);
+  if (!folder.isDirectory() || folder.isSymbolicLink()) throw new Error("profile directory cannot be a symlink");
+  for (const [name, contents] of [
+    ["generated.ts", renderGenerated(contract)],
+    ["vectors.json", renderVectors(contract)],
+  ]) {
+    const target = join(directory, name);
+    try {
+      if ((await lstat(target)).isSymbolicLink()) throw new Error("generated profile target cannot be a symlink");
+    } catch (error) { if (error.code !== "ENOENT") throw error; }
+    await writeFile(target, contents);
+  }
 }
 
 async function checkProfile(path) {
@@ -181,7 +192,7 @@ async function main(args) {
     const source = `[profile]\nname = "${name}"\nversion = 1\nservice = "${name}"\ntool = "invoke"\n\n[fields]\nvalue = "string:1:256"\n`;
     await mkdir(directory, { recursive: true });
     for (const filename of ["profile.toml", "generated.ts", "vectors.json"]) {
-      try { await stat(join(directory, filename)); throw new Error("profile files already exist"); }
+      try { await lstat(join(directory, filename)); throw new Error("profile files already exist"); }
       catch (error) { if (error.code !== "ENOENT") throw error; }
     }
     await writeFile(join(directory, "profile.toml"), source, { flag: "wx" });
@@ -226,7 +237,7 @@ async function main(args) {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main(process.argv.slice(2)).catch(error => {
     process.stderr.write(`auths profile: ${error instanceof Error ? error.message : "unknown failure"}\n`);
     process.exitCode = 1;

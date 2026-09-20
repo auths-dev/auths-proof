@@ -68,9 +68,15 @@ class ProductionAuthoringInputs:
             raise TypeError("production grants must be GrantEvidence values")
         if not 1 <= len(self.trusted_context_template) <= 262_144:
             raise ValueError("production trusted context size is outside bounds")
-        _native.parse_trusted_context(self.trusted_context_template)
+        try:
+            _native.parse_trusted_context(self.trusted_context_template)
+        except Exception as error:
+            raise ValueError("production trusted context is invalid") from error
         for grant in self.grants:
-            _native.parse_signed("grant", grant.signed_grant)
+            try:
+                _native.parse_signed("grant", grant.signed_grant)
+            except Exception as error:
+                raise ValueError("production signed grant is invalid") from error
         if len(self.challenge) != 32:
             raise ValueError("production challenge must contain 32 bytes")
         if type(self.evaluation_time) is not int or not 0 <= self.evaluation_time < 2**64 - 300:

@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 37bc0adbf98ecf7f234133f3bd00b8d18c734965ce300479b52afecdebddd1ae
+# declaration-sha256 0532c810359a3e1139f154abe5c32622d3fa0809ff185f25ae8252e1eb007cb8
 .	AuthsError	value+type
 .	AuthsIssue	type
 .	AuthsOperationError	value+type
@@ -56,6 +56,7 @@
 ./self-hosted	AuthoringUnsuccessful	value+type
 ./self-hosted	AuthorizedCommand	type
 ./self-hosted	authorMcpProof	value
+./self-hosted	authorProductionMcpProof	value
 ./self-hosted	booleanField	value
 ./self-hosted	BooleanField	type
 ./self-hosted	CommandOf	type
@@ -66,10 +67,17 @@
 ./self-hosted	GrantEvidence	type
 ./self-hosted	integerField	value
 ./self-hosted	IntegerField	type
+./self-hosted	Observation	type
 ./self-hosted	optionalField	value
 ./self-hosted	OptionalField	type
 ./self-hosted	optionalStringField	value
 ./self-hosted	PreparedMcpAction	type
+./self-hosted	ProductionAuthoringInputs	type
+./self-hosted	ProviderOutcome	type
+./self-hosted	reconcileReadOnly	value
+./self-hosted	runOnce	value
+./self-hosted	RunResult	type
+./self-hosted	SelfHostedProviderAdapter	type
 ./self-hosted	stringField	value
 ./self-hosted	StringField	type
 ./self-hosted	verifyCommand	value

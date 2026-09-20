@@ -266,6 +266,7 @@ pub(crate) fn classify_python_module(module: &str) -> &'static str {
         | "auths.verify"
         | "auths.authoring"
         | "auths.attempts"
+        | "auths.execution"
         | "auths.self_hosted"
         | "auths.identity"
         | "auths.identity.authoring" => "product",
@@ -390,6 +391,7 @@ mod tests {
         assert_eq!(classify_python_module("auths.mcp"), "internal-leak");
         assert_eq!(classify_python_module("auths.authoring"), "product");
         assert_eq!(classify_python_module("auths.attempts"), "product");
+        assert_eq!(classify_python_module("auths.execution"), "product");
         assert_eq!(classify_python_module("auths.self_hosted"), "product");
         assert_eq!(
             classify_python_module("auths.adapters.custody"),

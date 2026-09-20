@@ -1,0 +1,10 @@
+[profile]
+name = "example-set-value"
+version = 1
+service = "example-service"
+tool = "set_value"
+
+[fields]
+value = "string:1:32"
+enabled = "boolean"
+retry_count = "optional-integer:0:3"
