@@ -254,8 +254,8 @@ export async function authorMcpProof<Fields extends FieldMap>(input: Readonly<{
   if (input.grants.length < 1 || input.grants.length > 16) {
     throw new RangeError("grant chain count is outside bounds");
   }
-  if (input.challenge.length !== 32 || input.evaluationTime < 60n ||
-      input.evaluationTime > (1n << 64n) - 601n) {
+  if (input.challenge.length !== 32 || input.evaluationTime < 0n ||
+      input.evaluationTime >= (1n << 64n) - 300n) {
     throw new RangeError("challenge or evaluation time is outside bounds");
   }
   const descriptor = input.signer.descriptor;

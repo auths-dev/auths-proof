@@ -49,6 +49,9 @@ For operator provisioning and clean-machine setup, see the
 For a new domain or provider kind, follow the
 [profile authoring guide](../../docs/product/PROFILE_AUTHORING.md).
 
+For an application-owned provider adapter that is not an Auths-qualified
+vertical, see the [self-hosted exact-operation quickstart](../../docs/product/SELF_HOSTED_PROFILE_QUICKSTART.md).
+
 ## Outcomes and recovery
 
 The ordinary domain method returns its success DTO directly. Use the adjacent

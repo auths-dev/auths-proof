@@ -84,7 +84,7 @@ async def author_mcp_proof(
     """
     if not 1 <= len(grants) <= 16:
         raise ValueError("grant chain count is outside bounds")
-    if not 60 <= evaluation_time < 2**64 - 600:
+    if not 0 <= evaluation_time < 2**64 - 300:
         raise ValueError("evaluation time is outside bounds")
     if len(challenge) != 32:
         raise ValueError("challenge must contain 32 bytes")
