@@ -68,8 +68,10 @@ TerminalState
 
 [auths.self_hosted]
 AuthorizedCommand
+BooleanField
 CommandResult
 ExactMcpTool
+IntegerField
 OptionalField
 PreparedMcpAction
 RejectedCommand

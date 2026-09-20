@@ -1,6 +1,6 @@
 # AP-SPEC-051: Self-hosted developer profiles
 
-- **Status:** Proposed
+- **Status:** Implementation in progress; do not treat this as an exit-criteria-complete SDK
 - **Audience:** Python/TypeScript SDK maintainers, profile contributors, and
   security reviewers
 - **Normative language:** **MUST**, **MUST NOT**, **SHOULD**, and **MAY** are
@@ -367,3 +367,26 @@ the two field-lab demos prove that path; hosted CI passes its cross-language,
 replay, and negative security cases; and the public docs make the self-hosted
 versus qualified claim boundary impossible to miss. No count of built-in
 provider profiles is an exit criterion.
+
+## 10. Implementation tracking
+
+The implementation branch currently supplies native exact MCP proof
+assembly/projection, public Python and TypeScript authoring and verification,
+explicit external-custody inputs, a Python single-host attempt store and a
+TypeScript attempt-store port, and field-lab migrations for Airtable and
+Todoist. These are mechanism and consumer milestones, **not** completion of
+the exit criteria above.
+
+Still required before this spec can be marked implemented:
+
+- the packaged `auths profile init/check/doctor` flow in both languages,
+  including deterministic generated types and canonical cross-language
+  vectors from a restricted `profile.toml`;
+- the full bounded schema vocabulary in §4 (beyond the currently supported
+  flat UTF-8 strings, checked integers, booleans, and optional Python fields),
+  with hostile vectors and contract-version binding;
+- a clean third-party packaged-consumer walkthrough for both languages, plus
+  cross-language conformance and explicit crash/recovery fixtures; and
+- final hosted CI qualification and review of all public-surface and claim
+  metadata. Neither field-lab result promotes a developer adapter to an
+  Auths-qualified vertical.

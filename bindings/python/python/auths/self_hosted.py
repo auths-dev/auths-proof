@@ -9,7 +9,18 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass, fields as dataclass_fields, is_dataclass
-from typing import Generic, Literal, Mapping, TypeVar, Union, cast
+from types import UnionType
+from typing import (
+    Generic,
+    Literal,
+    Mapping,
+    TypeVar,
+    Union,
+    cast,
+    get_args,
+    get_origin,
+    get_type_hints,
+)
 
 from . import _native
 from .verify import VerificationResult, _project
@@ -23,11 +34,15 @@ class StringField:
     max_length: int = 256
 
     def __post_init__(self) -> None:
-        if not 0 <= self.min_length <= self.max_length <= 4096:
+        if (
+            type(self.min_length) is not int
+            or type(self.max_length) is not int
+            or not 0 <= self.min_length <= self.max_length <= 4096
+        ):
             raise ValueError("string field bounds are invalid")
 
     def validate(self, value: object) -> str:
-        if not isinstance(value, str):
+        if type(value) is not str:
             raise ValueError("expected a string")
         encoded = value.encode("utf-8")
         if not self.min_length <= len(encoded) <= self.max_length:
@@ -36,14 +51,45 @@ class StringField:
 
 
 @dataclass(frozen=True)
-class OptionalField:
-    inner: StringField
+class IntegerField:
+    minimum: int
+    maximum: int
 
-    def validate(self, value: object) -> str | None:
+    def __post_init__(self) -> None:
+        if (
+            type(self.minimum) is not int
+            or type(self.maximum) is not int
+            or not -(2**53 - 1) <= self.minimum <= self.maximum <= 2**53 - 1
+        ):
+            raise ValueError("integer field bounds are invalid")
+
+    def validate(self, value: object) -> int:
+        if type(value) is not int or not self.minimum <= value <= self.maximum:
+            raise ValueError("integer outside declared safe bounds")
+        return cast(int, value)
+
+
+@dataclass(frozen=True)
+class BooleanField:
+    def validate(self, value: object) -> bool:
+        if type(value) is not bool:
+            raise ValueError("expected a boolean")
+        return cast(bool, value)
+
+
+@dataclass(frozen=True)
+class OptionalField:
+    inner: StringField | IntegerField | BooleanField
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.inner, (StringField, IntegerField, BooleanField)):
+            raise TypeError("unsupported optional inner field")
+
+    def validate(self, value: object) -> str | int | bool | None:
         return None if value is None else self.inner.validate(value)
 
 
-Field = Union[StringField, OptionalField]
+Field = Union[StringField, IntegerField, BooleanField, OptionalField]
 
 
 @dataclass(frozen=True)
@@ -76,8 +122,30 @@ class ExactMcpTool(Generic[CommandT]):
         declared = tuple(field.name for field in dataclass_fields(command_type))
         if not declared or set(declared) != set(fields) or len(declared) > 32:
             raise ValueError("command fields must match the closed schema")
-        if not all(isinstance(value, (StringField, OptionalField)) for value in fields.values()):
+        if not all(
+            isinstance(value, (StringField, IntegerField, BooleanField, OptionalField))
+            for value in fields.values()
+        ):
             raise TypeError("unsupported command field schema")
+        annotations = get_type_hints(command_type)
+        for field_name, schema in fields.items():
+            inner = schema.inner if isinstance(schema, OptionalField) else schema
+            expected: type[str] | type[int] | type[bool]
+            if isinstance(inner, StringField):
+                expected = str
+            elif isinstance(inner, IntegerField):
+                expected = int
+            else:
+                expected = bool
+            annotation = annotations.get(field_name)
+            if isinstance(schema, OptionalField):
+                if (
+                    get_origin(annotation) not in (Union, UnionType)
+                    or set(get_args(annotation)) != {expected, type(None)}
+                ):
+                    raise TypeError(f"command annotation for {field_name} must match schema")
+            elif annotation is not expected:
+                raise TypeError(f"command annotation for {field_name} must match schema")
         _native.validate_mcp_service(service)
         # Native call construction validates the tool name and derived resource.
         _native.mcp_call(service, name, b"{}")
@@ -94,7 +162,11 @@ class ExactMcpTool(Generic[CommandT]):
             for name, schema in self.fields.items()
         }
         command = self.command_type(**checked)
-        if any(getattr(command, name) != value for name, value in checked.items()):
+        if any(
+            type(getattr(command, name)) is not type(value)
+            or getattr(command, name) != value
+            for name, value in checked.items()
+        ):
             raise ValueError("command constructor changed verified arguments")
         return command
 
@@ -224,8 +296,10 @@ def _unique_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
 
 __all__ = [
     "AuthorizedCommand",
+    "BooleanField",
     "CommandResult",
     "ExactMcpTool",
+    "IntegerField",
     "OptionalField",
     "PreparedMcpAction",
     "RejectedCommand",

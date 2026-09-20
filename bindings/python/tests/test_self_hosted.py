@@ -6,7 +6,15 @@ from dataclasses import dataclass
 
 import pytest
 
-from auths.self_hosted import AuthorizedCommand, ExactMcpTool, StringField, verify_command
+from auths.self_hosted import (
+    AuthorizedCommand,
+    BooleanField,
+    ExactMcpTool,
+    IntegerField,
+    OptionalField,
+    StringField,
+    verify_command,
+)
 from auths.testkit import development_mcp_artifacts
 
 
@@ -107,3 +115,69 @@ def test_mutable_command_classes_are_not_supported() -> None:
             command_type=MutableCommand,
             fields={"value": StringField(min_length=1, max_length=32)},
         )
+
+
+def test_checked_integers_and_booleans_are_exact_and_not_interchangeable() -> None:
+    @dataclass(frozen=True)
+    class MixedCommand:
+        count: int
+        enabled: bool
+
+    contract = ExactMcpTool(
+        service="example-service", name="set_value",
+        command_type=MixedCommand,
+        fields={"count": IntegerField(minimum=-5, maximum=10),
+                "enabled": BooleanField()},
+    )
+    artifacts = development_mcp_artifacts(
+        service="example-service", name="set_value",
+        arguments={"count": 3, "enabled": True},
+    )
+    result = verify_command(
+        contract=contract, proof=artifacts.proof, action=artifacts.action,
+        trusted_context=artifacts.trusted_context,
+    )
+    assert isinstance(result, AuthorizedCommand)
+    assert result.command == MixedCommand(3, True)
+    for invalid in (
+        {"count": True, "enabled": True},
+        {"count": 11, "enabled": True},
+        {"count": 3.5, "enabled": True},
+        {"count": 3, "enabled": 1},
+    ):
+        with pytest.raises(ValueError):
+            contract.validate_arguments(invalid)
+    with pytest.raises(ValueError, match="bounds"):
+        IntegerField(minimum=True, maximum=10)
+    with pytest.raises(ValueError, match="bounds"):
+        StringField(min_length=True, max_length=10)
+    with pytest.raises(TypeError, match="inner"):
+        OptionalField(object())
+
+
+def test_command_annotations_must_match_the_bounded_schema() -> None:
+    @dataclass(frozen=True)
+    class WrongType:
+        enabled: int
+
+    with pytest.raises(TypeError, match="annotation"):
+        ExactMcpTool(
+            service="example-service", name="set_value",
+            command_type=WrongType, fields={"enabled": BooleanField()},
+        )
+
+
+def test_command_constructor_cannot_coerce_a_verified_value() -> None:
+    @dataclass(frozen=True)
+    class CoercingCommand:
+        enabled: bool
+
+        def __post_init__(self) -> None:
+            object.__setattr__(self, "enabled", int(self.enabled))
+
+    contract = ExactMcpTool(
+        service="example-service", name="set_value",
+        command_type=CoercingCommand, fields={"enabled": BooleanField()},
+    )
+    with pytest.raises(ValueError, match="changed"):
+        contract.validate_arguments({"enabled": True})

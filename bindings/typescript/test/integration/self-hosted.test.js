@@ -3,7 +3,9 @@ import { createPrivateKey, sign as signBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { authorMcpProof, exactMcpTool, stringField, verifyCommand } from "../../dist/self-hosted.js";
+import {
+  authorMcpProof, booleanField, exactMcpTool, integerField, stringField, verifyCommand,
+} from "../../dist/self-hosted.js";
 
 const ACTOR = "key:sha256:MPL4hHxgoCRRtbEjYAedm50CmSM11XgLojSwwYeRi1E";
 const RAW_EVIDENCE = {
@@ -150,4 +152,33 @@ test("an exact contract cannot be widened by mutating its source schema", () => 
     fields: { __proto__: stringField({ maxBytes: 3 }) },
   }), /closed command schema/);
   assert.throws(() => tool.decode({ value: "\ud800" }), /Unicode/);
+});
+
+test("checked integer and boolean fields reject coercion and unsafe numbers", async () => {
+  const tool = exactMcpTool({
+    service: "reports", name: "set_limit",
+    fields: {
+      count: integerField({ minimum: -5, maximum: 10 }),
+      enabled: booleanField(),
+    },
+  });
+  assert.deepEqual(tool.decode({ count: 3, enabled: true }), { count: 3, enabled: true });
+  const prepared = await tool.prepare(
+    { count: 3, enabled: true },
+    {
+      actor: ACTOR, terminalGrant: vector("mcp.signed-root-grant.cbor"),
+      challenge: new Uint8Array(32).fill(0x22), evaluationTime: 50n,
+    },
+  );
+  assert.deepEqual(JSON.parse(new TextDecoder().decode(prepared.argumentsJson)),
+    { count: 3, enabled: true });
+  for (const command of [
+    { count: true, enabled: true },
+    { count: 11, enabled: true },
+    { count: 3.5, enabled: true },
+    { count: Number.MAX_SAFE_INTEGER + 1, enabled: true },
+    { count: 3, enabled: 1 },
+  ]) {
+    assert.throws(() => tool.decode(command));
+  }
 });

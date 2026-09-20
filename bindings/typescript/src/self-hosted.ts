@@ -5,25 +5,43 @@ import { loadPackagedWorkflowEngine } from "./verifier/wasm.js";
 import type { CustodySigner, PublicControlEvidence } from "./adapters.js";
 
 export interface StringField {
-  readonly kind: "string" | "optional-string";
+  readonly kind: "string";
   readonly minBytes: number;
   readonly maxBytes: number;
 }
 
-export type FieldMap = Readonly<Record<string, StringField>>;
+export interface OptionalStringField {
+  readonly kind: "optional-string";
+  readonly minBytes: number;
+  readonly maxBytes: number;
+}
+
+export interface IntegerField {
+  readonly kind: "integer";
+  readonly minimum: number;
+  readonly maximum: number;
+}
+
+export interface BooleanField { readonly kind: "boolean" }
+
+export type Field = StringField | OptionalStringField | IntegerField | BooleanField;
+export type FieldMap = Readonly<Record<string, Field>>;
 export type CommandOf<Fields extends FieldMap> = Readonly<{
-  [Key in keyof Fields]: Fields[Key]["kind"] extends "optional-string" ? string | null : string;
+  [Key in keyof Fields]: Fields[Key] extends OptionalStringField ? string | null
+    : Fields[Key] extends IntegerField ? number
+    : Fields[Key] extends BooleanField ? boolean
+    : string;
 }>;
 
 export function stringField(bounds: Readonly<{ minBytes?: number; maxBytes: number }>): StringField {
-  return field("string", bounds);
+  return stringFieldValue("string", bounds) as StringField;
 }
 
-export function optionalStringField(bounds: Readonly<{ minBytes?: number; maxBytes: number }>): StringField & Readonly<{ kind: "optional-string" }> {
-  return field("optional-string", bounds) as StringField & Readonly<{ kind: "optional-string" }>;
+export function optionalStringField(bounds: Readonly<{ minBytes?: number; maxBytes: number }>): OptionalStringField {
+  return stringFieldValue("optional-string", bounds) as OptionalStringField;
 }
 
-function field(kind: StringField["kind"], bounds: Readonly<{ minBytes?: number; maxBytes: number }>): StringField {
+function stringFieldValue(kind: "string" | "optional-string", bounds: Readonly<{ minBytes?: number; maxBytes: number }>): StringField | OptionalStringField {
   const minBytes = bounds.minBytes ?? 0;
   const maxBytes = bounds.maxBytes;
   if (!Number.isSafeInteger(minBytes) || !Number.isSafeInteger(maxBytes) ||
@@ -31,6 +49,18 @@ function field(kind: StringField["kind"], bounds: Readonly<{ minBytes?: number; 
     throw new RangeError("string field bounds are invalid");
   }
   return Object.freeze({ kind, minBytes, maxBytes });
+}
+
+export function integerField(bounds: Readonly<{ minimum: number; maximum: number }>): IntegerField {
+  if (!Number.isSafeInteger(bounds.minimum) || !Number.isSafeInteger(bounds.maximum) ||
+      bounds.minimum > bounds.maximum) {
+    throw new RangeError("integer field bounds are invalid");
+  }
+  return Object.freeze({ kind: "integer", minimum: bounds.minimum, maximum: bounds.maximum });
+}
+
+export function booleanField(): BooleanField {
+  return Object.freeze({ kind: "boolean" });
 }
 
 export interface PreparedMcpAction<Command> {
@@ -59,13 +89,13 @@ export class ExactMcpTool<Fields extends FieldMap> {
         entries.some(([name, value]) => !/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(name) ||
           ["__proto__", "prototype", "constructor"].includes(name) ||
           value === null || typeof value !== "object" ||
-          !["string", "optional-string"].includes(value.kind))) {
+          !["string", "optional-string", "integer", "boolean"].includes(value.kind))) {
       throw new TypeError("invalid closed command schema");
     }
     this.service = config.service;
     this.name = config.name;
     this.#fields = Object.freeze(Object.fromEntries(entries.map(([name, value]) => [
-      name, field(value.kind, { minBytes: value.minBytes, maxBytes: value.maxBytes }),
+      name, normalizeField(value),
     ]))) as Fields;
     Object.freeze(this);
   }
@@ -82,7 +112,7 @@ export class ExactMcpTool<Fields extends FieldMap> {
         Object.getOwnPropertySymbols(raw).length !== 0) {
       throw new TypeError("MCP arguments do not match the closed schema");
     }
-    const checked: Record<string, string | null> = {};
+    const checked: Record<string, string | number | boolean | null> = {};
     const encoder = new TextEncoder();
     for (const [name, definition] of Object.entries(this.#fields)) {
       const descriptor = Object.getOwnPropertyDescriptor(raw, name);
@@ -94,13 +124,24 @@ export class ExactMcpTool<Fields extends FieldMap> {
         checked[name] = null;
         continue;
       }
-      if (typeof item !== "string") throw new TypeError("MCP argument must be a string");
-      assertValidUnicode(item);
-      const size = encoder.encode(item).length;
-      if (size < definition.minBytes || size > definition.maxBytes) {
-        throw new RangeError("MCP argument exceeds its byte bounds");
+      if (definition.kind === "integer") {
+        if (typeof item !== "number" || !Number.isSafeInteger(item) ||
+            item < definition.minimum || item > definition.maximum) {
+          throw new RangeError("MCP integer exceeds its safe bounds");
+        }
+        checked[name] = item;
+      } else if (definition.kind === "boolean") {
+        if (typeof item !== "boolean") throw new TypeError("MCP argument must be a boolean");
+        checked[name] = item;
+      } else {
+        if (typeof item !== "string") throw new TypeError("MCP argument must be a string");
+        assertValidUnicode(item);
+        const size = encoder.encode(item).length;
+        if (size < definition.minBytes || size > definition.maxBytes) {
+          throw new RangeError("MCP argument exceeds its byte bounds");
+        }
+        checked[name] = item;
       }
-      checked[name] = item;
     }
     return Object.freeze(checked) as CommandOf<Fields>;
   }
@@ -389,5 +430,14 @@ function assertValidUnicode(value: string): void {
     } else if (unit >= 0xdc00 && unit <= 0xdfff) {
       throw new TypeError("invalid Unicode surrogate in MCP argument");
     }
+  }
+}
+
+function normalizeField(value: Field): Field {
+  switch (value.kind) {
+    case "string": return stringField({ minBytes: value.minBytes, maxBytes: value.maxBytes });
+    case "optional-string": return optionalStringField({ minBytes: value.minBytes, maxBytes: value.maxBytes });
+    case "integer": return integerField({ minimum: value.minimum, maximum: value.maximum });
+    case "boolean": return booleanField();
   }
 }
