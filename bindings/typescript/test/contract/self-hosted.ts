@@ -1,5 +1,5 @@
 import {
-  booleanField, exactMcpTool, integerField, optionalField, optionalStringField,
+  arrayField, booleanField, bytesField, exactMcpTool, integerField, objectField, optionalField, optionalStringField,
   runOnce, stringField, type AttemptStore, type AuthorizedCommand,
   type SelfHostedProviderAdapter,
 } from "../../src/self-hosted.js";
@@ -61,3 +61,22 @@ void runOnce({
   contract, proof: new Uint8Array(), action: new Uint8Array(),
   trustedContext: new Uint8Array(), attempts, operationKey: "one", adapter,
 });
+
+const nested = exactMcpTool({
+  service: "example-service", name: "nested_v1",
+  fields: {
+    target: objectField({ recordId: stringField({ minBytes: 1, maxBytes: 32 }) }),
+    labels: arrayField(stringField({ minBytes: 1, maxBytes: 16 }), { minItems: 1, maxItems: 3 }),
+    payload: bytesField({ minBytes: 2, maxBytes: 16 }),
+  },
+});
+void nested.prepare({
+  target: { recordId: "rec-1" }, labels: ["demo"], payload: new Uint8Array([1, 2]),
+}, { actor: "key:sha256:actor", terminalGrant: new Uint8Array([1]),
+  challenge: new Uint8Array(32), evaluationTime: 100n });
+
+// @ts-expect-error bytes cannot be an untyped base64 string in the public command
+void nested.prepare({ target: { recordId: "rec-1" }, labels: ["demo"], payload: "AQI" }, {});
+
+// @ts-expect-error nested objects cannot gain arbitrary provider parameters
+void nested.prepare({ target: { recordId: "rec-1", url: "https://wrong.example" }, labels: ["demo"], payload: new Uint8Array([1, 2]) }, {});

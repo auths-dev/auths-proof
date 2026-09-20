@@ -585,6 +585,11 @@ mod tests {
             McpToolCall::from_canonical_bytes(input),
             Err(ProfileError::NonCanonical)
         );
+        let duplicate_nested = br#"{"profile":"auths.mcp","profile_version":2,"service":"reports","name":"read_report","arguments":{"nested":{"x":1,"x":2}}}"#;
+        assert_eq!(
+            McpToolCall::from_canonical_bytes(duplicate_nested),
+            Err(ProfileError::NonCanonical)
+        );
     }
 
     #[test]

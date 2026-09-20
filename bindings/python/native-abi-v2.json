@@ -50,6 +50,7 @@
     "begin_mcp_execution",
     "begin_mcp_plan_member_execution",
     "bind_delegated_authority",
+    "canonicalize_mcp_arguments_json",
     "commit_canonical_v1",
     "commit_mcp_plan",
     "commit_plan_approval",

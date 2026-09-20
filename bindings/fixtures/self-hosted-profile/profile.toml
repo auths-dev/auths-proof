@@ -4,7 +4,44 @@ version = 1
 service = "example-service"
 tool = "set_value"
 
-[fields]
-value = "string:1:32"
-enabled = "boolean"
-retry_count = "optional-integer:0:3"
+[arguments]
+type = "object"
+
+[arguments.fields.value]
+type = "string"
+min_bytes = 1
+max_bytes = 32
+
+[arguments.fields.enabled]
+type = "boolean"
+
+[arguments.fields.retry_count]
+type = "nullable"
+
+[arguments.fields.retry_count.value]
+type = "integer"
+minimum = 0
+maximum = 3
+
+[arguments.fields.labels]
+type = "array"
+min_items = 1
+max_items = 3
+
+[arguments.fields.labels.items]
+type = "string"
+min_bytes = 1
+max_bytes = 16
+
+[arguments.fields.payload]
+type = "bytes"
+min_bytes = 2
+max_bytes = 16
+
+[arguments.fields.target]
+type = "object"
+
+[arguments.fields.target.fields.id]
+type = "string"
+min_bytes = 1
+max_bytes = 16

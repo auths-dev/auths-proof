@@ -9,10 +9,13 @@ import pytest
 
 from auths.self_hosted import (
     AuthorizedCommand,
+    ArrayField,
     BooleanField,
+    BytesField,
     ExactMcpTool,
     IntegerField,
     OptionalField,
+    ObjectField,
     StringField,
     verify_command,
 )
@@ -185,3 +188,43 @@ def test_command_constructor_cannot_coerce_a_verified_value() -> None:
     )
     with pytest.raises(ValueError, match="changed"):
         contract.validate_arguments({"enabled": True})
+
+
+def test_nested_array_and_bytes_project_only_from_verified_arguments() -> None:
+    @dataclass(frozen=True)
+    class Target:
+        record_id: str
+
+    @dataclass(frozen=True)
+    class NestedCommand:
+        target: Target
+        labels: tuple[str, ...]
+        payload: bytes
+
+    contract = ExactMcpTool(
+        service="example-service", name="nested_v1", command_type=NestedCommand,
+        fields={
+            "target": ObjectField(Target, {"record_id": StringField(1, 32)}),
+            "labels": ArrayField(StringField(1, 16), 1, 3),
+            "payload": BytesField(2, 16),
+        },
+    )
+    arguments = {
+        "target": {"record_id": "rec-1"}, "labels": ["demo"], "payload": "AQI"
+    }
+    artifacts = development_mcp_artifacts(
+        service="example-service", name="nested_v1", arguments=arguments,
+    )
+    result = verify_command(
+        contract=contract, proof=artifacts.proof, action=artifacts.action,
+        trusted_context=artifacts.trusted_context,
+    )
+    assert isinstance(result, AuthorizedCommand)
+    assert result.command == NestedCommand(Target("rec-1"), ("demo",), b"\x01\x02")
+    for malformed in (
+        {**arguments, "payload": "AQI="},
+        {**arguments, "labels": []},
+        {**arguments, "target": {"record_id": "rec-1", "other": "x"}},
+    ):
+        with pytest.raises(ValueError):
+            contract.validate_arguments(malformed)

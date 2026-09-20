@@ -737,6 +737,29 @@ fn prepare_mcp_action(
     })
 }
 
+/// Canonicalizes bounded application-owned MCP arguments with the native
+/// JSON implementation used by action preparation and verified projection.
+///
+/// # Errors
+///
+/// Rejects malformed, oversized, or non-object JSON input.
+#[pyfunction]
+fn canonicalize_mcp_arguments_json(arguments_json: &[u8]) -> PyResult<Vec<u8>> {
+    if arguments_json.is_empty() || arguments_json.len() > 16_384 {
+        return Err(crate::errors::malformed_input(
+            "MCP arguments JSON is outside the bounded input size",
+        ));
+    }
+    let Value::Object(arguments) =
+        serde_json::from_slice::<Value>(arguments_json).map_err(value_error)?
+    else {
+        return Err(crate::errors::malformed_input(
+            "MCP arguments must be a JSON object",
+        ));
+    };
+    serde_json_canonicalizer::to_vec(&arguments).map_err(value_error)
+}
+
 #[pyclass(name = "AssurancePolicy", frozen, module = "auths._native")]
 pub struct PyAssurancePolicy {
     inner: AssurancePolicy,
@@ -1232,6 +1255,7 @@ pub fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(grant_status_statement, module)?)?;
     module.add_function(wrap_pyfunction!(prepare_signing, module)?)?;
     module.add_function(wrap_pyfunction!(prepare_mcp_action, module)?)?;
+    module.add_function(wrap_pyfunction!(canonicalize_mcp_arguments_json, module)?)?;
     module.add_function(wrap_pyfunction!(status_snapshot, module)?)?;
     module.add_function(wrap_pyfunction!(compile_trusted_context, module)?)?;
     module.add_function(wrap_pyfunction!(self_contained_configuration, module)?)?;

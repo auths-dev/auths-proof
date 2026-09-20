@@ -6,6 +6,7 @@ qualify an application's provider request, result, or reconciliation logic.
 
 from __future__ import annotations
 
+import base64
 import json
 import time
 import types
@@ -44,7 +45,10 @@ class StringField:
     def validate(self, value: object) -> str:
         if type(value) is not str:
             raise ValueError("expected a string")
-        encoded = value.encode("utf-8")
+        try:
+            encoded = value.encode("utf-8")
+        except UnicodeEncodeError as error:
+            raise ValueError("invalid Unicode in string field") from error
         if not self.min_length <= len(encoded) <= self.max_length:
             raise ValueError("string outside declared byte bounds")
         return value
@@ -78,18 +82,179 @@ class BooleanField:
 
 
 @dataclass(frozen=True)
-class OptionalField:
-    inner: StringField | IntegerField | BooleanField
+class BytesField:
+    min_length: int = 0
+    max_length: int = 1024
 
     def __post_init__(self) -> None:
-        if not isinstance(self.inner, (StringField, IntegerField, BooleanField)):
+        if (
+            type(self.min_length) is not int
+            or type(self.max_length) is not int
+            or not 0 <= self.min_length <= self.max_length <= 3072
+        ):
+            raise ValueError("bytes field bounds are invalid")
+
+    def validate(self, value: object) -> bytes:
+        if type(value) is not bytes or not self.min_length <= len(value) <= self.max_length:
+            raise ValueError("bytes outside declared bounds")
+        return value
+
+    def from_wire(self, value: object) -> bytes:
+        if type(value) is not str or "=" in value or len(value) > 4096:
+            raise ValueError("expected unpadded base64url bytes")
+        try:
+            encoded = value.encode("ascii")
+            decoded = base64.urlsafe_b64decode(encoded + b"=" * (-len(encoded) % 4))
+        except (UnicodeEncodeError, ValueError) as error:
+            raise ValueError("invalid base64url bytes") from error
+        if base64.urlsafe_b64encode(decoded).rstrip(b"=") != encoded:
+            raise ValueError("noncanonical base64url bytes")
+        return self.validate(decoded)
+
+
+@dataclass(frozen=True)
+class ArrayField:
+    inner: Field
+    min_items: int
+    max_items: int
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.inner, (StringField, IntegerField, BooleanField, BytesField, ArrayField, ObjectField))
+            or type(self.min_items) is not int
+            or type(self.max_items) is not int
+            or not 0 <= self.min_items <= self.max_items <= 32
+        ):
+            raise ValueError("array field bounds or item schema are invalid")
+
+
+@dataclass(frozen=True)
+class ObjectField:
+    command_type: type[object]
+    fields: Mapping[str, Field]
+
+    def __post_init__(self) -> None:
+        _check_dataclass_schema(self.command_type, self.fields)
+
+
+@dataclass(frozen=True)
+class OptionalField:
+    inner: Field
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.inner, (StringField, IntegerField, BooleanField, BytesField, ArrayField, ObjectField)):
             raise TypeError("unsupported optional inner field")
 
-    def validate(self, value: object) -> str | int | bool | None:
-        return None if value is None else self.inner.validate(value)
+Field = Union[StringField, IntegerField, BooleanField, BytesField, ArrayField, ObjectField, OptionalField]
 
 
-Field = Union[StringField, IntegerField, BooleanField, OptionalField]
+def _check_dataclass_schema(command_type: type[object], schema: Mapping[str, Field]) -> None:
+    if not is_dataclass(command_type):
+        raise TypeError("command_type must be a dataclass")
+    params = getattr(command_type, "__dataclass_params__", None)
+    if params is None or not params.frozen:
+        raise TypeError("command_type must be a frozen dataclass")
+    declared = tuple(field.name for field in dataclass_fields(command_type))
+    if not declared or set(declared) != set(schema) or len(declared) > 32:
+        raise ValueError("command fields must match the closed schema")
+    if not all(isinstance(item, (StringField, IntegerField, BooleanField, BytesField, ArrayField, ObjectField, OptionalField)) for item in schema.values()):
+        raise TypeError("unsupported command field schema")
+    total, depth = _schema_limits(schema)
+    if total > 32 or depth > 4:
+        raise ValueError("command schema exceeds field or depth bounds")
+    annotations = get_type_hints(command_type)
+    for name, item in schema.items():
+        if not _annotation_matches(annotations.get(name), item):
+            raise TypeError(f"command annotation for {name} must match schema")
+
+
+def _schema_limits(fields: Mapping[str, Field]) -> tuple[int, int]:
+    counts = [_field_limits(item) for item in fields.values()]
+    return sum(count for count, _ in counts), 1 + max((depth for _, depth in counts), default=0)
+
+
+def _field_limits(field: Field) -> tuple[int, int]:
+    if isinstance(field, OptionalField):
+        return _field_limits(field.inner)
+    if isinstance(field, ArrayField):
+        count, depth = _field_limits(field.inner)
+        return count, 1 + depth
+    if isinstance(field, ObjectField):
+        return _schema_limits(field.fields)
+    return 1, 0
+
+
+def _annotation_matches(annotation: object, schema: Field) -> bool:
+    if isinstance(schema, OptionalField):
+        return (
+            get_origin(annotation) in (Union, getattr(types, "UnionType", Union))
+            and len(get_args(annotation)) == 2
+            and type(None) in get_args(annotation)
+            and any(_annotation_matches(item, schema.inner) for item in get_args(annotation) if item is not type(None))
+        )
+    if isinstance(schema, ArrayField):
+        return get_origin(annotation) is tuple and get_args(annotation) == (_type_for(schema.inner), Ellipsis)
+    return annotation is _type_for(schema)
+
+
+def _type_for(schema: Field) -> object:
+    if isinstance(schema, StringField):
+        return str
+    if isinstance(schema, IntegerField):
+        return int
+    if isinstance(schema, BooleanField):
+        return bool
+    if isinstance(schema, BytesField):
+        return bytes
+    if isinstance(schema, ObjectField):
+        return schema.command_type
+    if isinstance(schema, ArrayField):
+        return tuple[_type_for(schema.inner), ...]
+    return Union[_type_for(schema.inner), type(None)]
+
+
+def _field_value(schema: Field, value: object, *, wire: bool) -> object:
+    if isinstance(schema, OptionalField):
+        return None if value is None else _field_value(schema.inner, value, wire=wire)
+    if isinstance(schema, BytesField):
+        return schema.from_wire(value) if wire else schema.validate(value)
+    if isinstance(schema, ArrayField):
+        if (wire and type(value) is not list) or (not wire and type(value) is not tuple):
+            raise ValueError("expected a bounded array")
+        assert isinstance(value, (list, tuple))
+        if not schema.min_items <= len(value) <= schema.max_items:
+            raise ValueError("array item count outside declared bounds")
+        return tuple(_field_value(schema.inner, item, wire=wire) for item in value)
+    if isinstance(schema, ObjectField):
+        if wire:
+            if type(value) is not dict or set(value) != set(schema.fields):
+                raise ValueError("object does not match the closed schema")
+            source = value
+        else:
+            if type(value) is not schema.command_type:
+                raise ValueError("object does not match its generated type")
+            source = {name: getattr(value, name) for name in schema.fields}
+        checked = {name: _field_value(field, source[name], wire=wire) for name, field in schema.fields.items()}
+        result = schema.command_type(**checked)
+        if any(getattr(result, name) != checked[name] for name in checked):
+            raise ValueError("object constructor changed validated values")
+        return result
+    return schema.validate(value)
+
+
+def _wire_value(schema: Field, value: object) -> object:
+    checked = _field_value(schema, value, wire=False)
+    if isinstance(schema, OptionalField):
+        return None if checked is None else _wire_value(schema.inner, checked)
+    if isinstance(schema, BytesField):
+        assert isinstance(checked, bytes)
+        return base64.urlsafe_b64encode(checked).rstrip(b"=").decode("ascii")
+    if isinstance(schema, ArrayField):
+        assert isinstance(checked, tuple)
+        return [_wire_value(schema.inner, item) for item in checked]
+    if isinstance(schema, ObjectField):
+        return {name: _wire_value(field, getattr(checked, name)) for name, field in schema.fields.items()}
+    return checked
 
 
 @dataclass(frozen=True)
@@ -115,38 +280,7 @@ class ExactMcpTool(Generic[CommandT]):
         command_type: type[CommandT],
         fields: Mapping[str, Field],
     ) -> None:
-        if not is_dataclass(command_type):
-            raise TypeError("command_type must be a dataclass")
-        dataclass_params = getattr(command_type, "__dataclass_params__", None)
-        if dataclass_params is None or not dataclass_params.frozen:
-            raise TypeError("command_type must be a frozen dataclass")
-        declared = tuple(field.name for field in dataclass_fields(command_type))
-        if not declared or set(declared) != set(fields) or len(declared) > 32:
-            raise ValueError("command fields must match the closed schema")
-        if not all(
-            isinstance(value, (StringField, IntegerField, BooleanField, OptionalField))
-            for value in fields.values()
-        ):
-            raise TypeError("unsupported command field schema")
-        annotations = get_type_hints(command_type)
-        for field_name, schema in fields.items():
-            inner = schema.inner if isinstance(schema, OptionalField) else schema
-            expected: type[str] | type[int] | type[bool]
-            if isinstance(inner, StringField):
-                expected = str
-            elif isinstance(inner, IntegerField):
-                expected = int
-            else:
-                expected = bool
-            annotation = annotations.get(field_name)
-            if isinstance(schema, OptionalField):
-                if (
-                    get_origin(annotation) not in (Union, getattr(types, "UnionType", Union))
-                    or set(get_args(annotation)) != {expected, type(None)}
-                ):
-                    raise TypeError(f"command annotation for {field_name} must match schema")
-            elif annotation is not expected:
-                raise TypeError(f"command annotation for {field_name} must match schema")
+        _check_dataclass_schema(command_type, fields)
         _native.validate_mcp_service(service)
         # Native call construction validates the tool name and derived resource.
         _native.mcp_call(service, name, b"{}")
@@ -159,7 +293,7 @@ class ExactMcpTool(Generic[CommandT]):
         if set(arguments) != set(self.fields):
             raise ValueError("arguments do not match the exact command schema")
         checked = {
-            name: schema.validate(arguments[name])
+            name: _field_value(schema, arguments[name], wire=True)
             for name, schema in self.fields.items()
         }
         command = self.command_type(**checked)
@@ -182,7 +316,10 @@ class ExactMcpTool(Generic[CommandT]):
     ) -> PreparedMcpAction[CommandT]:
         if type(command) is not self.command_type:
             raise TypeError("command does not belong to this exact tool")
-        arguments = {name: getattr(command, name) for name in self.fields}
+        arguments = {
+            name: _wire_value(schema, getattr(command, name))
+            for name, schema in self.fields.items()
+        }
         checked = self.validate_arguments(arguments)
         encoded = _canonical_arguments(arguments)
         native = _native.prepare_mcp_action(
@@ -278,9 +415,10 @@ def verify_command(
 
 
 def _canonical_arguments(arguments: Mapping[str, object]) -> bytes:
-    encoded = json.dumps(
+    preliminary = json.dumps(
         arguments, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
     ).encode("utf-8")
+    encoded = bytes(_native.canonicalize_mcp_arguments_json(preliminary))
     if len(encoded) > 4096:
         raise ValueError("MCP arguments exceed the native action bound")
     return encoded
@@ -298,6 +436,9 @@ def _unique_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
 __all__ = [
     "AuthorizedCommand",
     "BooleanField",
+    "BytesField",
+    "ArrayField",
+    "ObjectField",
     "CommandResult",
     "ExactMcpTool",
     "IntegerField",

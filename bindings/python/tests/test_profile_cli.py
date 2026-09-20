@@ -6,20 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from auths._profile_cli import parse_contract, render_generated, render_vectors
+from auths._profile_cli import parse_contract, render_generated, render_vectors, render_lock
 
 
-PROFILE = """[profile]
-name = "example-set-value"
-version = 1
-service = "example-service"
-tool = "set_value"
-
-[fields]
-value = "string:1:32"
-enabled = "boolean"
-retry_count = "optional-integer:0:3"
-"""
+ROOT = Path(__file__).parents[2] / "fixtures" / "self-hosted-profile"
+PROFILE = (ROOT / "profile.toml").read_text()
 
 
 def test_generated_profile_binds_version_and_closed_schema() -> None:
@@ -29,23 +20,25 @@ def test_generated_profile_binds_version_and_closed_schema() -> None:
     assert "class ExampleSetValue:" in generated
     assert "retry_count: Optional[int]" in generated
     assert '"retry_count": OptionalField(IntegerField(minimum=0, maximum=3))' in generated
+    assert "class ExampleSetValueTarget:" in generated
+    assert "labels: tuple[str, ...]" in generated
+    assert "payload: bytes" in generated
     assert '"tool":"set_value_v1"' in render_vectors(contract)
 
 
 def test_language_neutral_vector_fixture_is_exact() -> None:
-    root = Path(__file__).parents[2] / "fixtures" / "self-hosted-profile"
-    assert render_vectors(parse_contract((root / "profile.toml").read_text())) == (
-        root / "vectors.json"
-    ).read_text()
+    contract = parse_contract(PROFILE)
+    assert render_vectors(contract) == (ROOT / "vectors.json").read_text()
+    assert render_lock(contract) == (ROOT / "profile.lock.json").read_text()
 
 
 @pytest.mark.parametrize(
     "change",
     [
-        PROFILE.replace('value = "string:1:32"', 'value = "string:1:32"\nvalue = "string:1:32"'),
+        PROFILE.replace('max_bytes = 32', 'max_bytes = 32\nmax_bytes = 32'),
         PROFILE.replace('version = 1', 'version = 0'),
-        PROFILE.replace('value = "string:1:32"', 'value = "string:0:99999"'),
-        PROFILE.replace('enabled = "boolean"', 'enabled = "object"'),
+        PROFILE.replace('max_bytes = 32', 'max_bytes = 99999'),
+        PROFILE.replace('type = "boolean"', 'type = "any"'),
         PROFILE.replace('tool = "set_value"', 'tool = "set_value"\nunknown = "boolean"'),
     ],
 )
@@ -63,6 +56,16 @@ def test_profile_check_detects_generated_drift(tmp_path: Path) -> None:
     assert check_profile(tmp_path / "profile.toml") == ()
     (tmp_path / "generated.py").write_text("not generated")
     assert check_profile(tmp_path / "profile.toml") == ("generated.py has drifted",)
+
+
+def test_same_version_schema_edit_is_rejected(tmp_path: Path) -> None:
+    from auths._profile_cli import write_profile
+
+    (tmp_path / "profile.toml").write_text(PROFILE)
+    write_profile(tmp_path, parse_contract(PROFILE))
+    changed = PROFILE.replace('max_bytes = 32', 'max_bytes = 31')
+    with pytest.raises(ValueError, match="without a version bump"):
+        write_profile(tmp_path, parse_contract(changed))
 
 
 def test_production_doctor_fails_without_explicit_authority(tmp_path: Path) -> None:

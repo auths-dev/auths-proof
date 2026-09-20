@@ -24,17 +24,38 @@ export interface IntegerField {
 
 export interface BooleanField { readonly kind: "boolean" }
 
-type ScalarField = StringField | IntegerField | BooleanField;
-export interface OptionalField<Inner extends ScalarField = ScalarField> {
+export interface BytesField {
+  readonly kind: "bytes";
+  readonly minBytes: number;
+  readonly maxBytes: number;
+}
+
+type ScalarField = StringField | IntegerField | BooleanField | BytesField;
+export interface OptionalField<Inner extends Field = Field> {
   readonly kind: "optional";
   readonly inner: Inner;
 }
 
-type Field = ScalarField | OptionalStringField | OptionalField;
+export interface ArrayField<Item extends Field = Field> {
+  readonly kind: "array";
+  readonly inner: Item;
+  readonly minItems: number;
+  readonly maxItems: number;
+}
+
+export interface ObjectField<Fields extends FieldMap = FieldMap> {
+  readonly kind: "object";
+  readonly fields: Fields;
+}
+
+export type Field = ScalarField | OptionalStringField | OptionalField | ArrayField | ObjectField;
 export type FieldMap = Readonly<Record<string, Field>>;
 type ValueOf<Definition extends Field> =
   Definition extends OptionalField<infer Inner> ? ValueOf<Inner> | null
   : Definition extends OptionalStringField ? string | null
+  : Definition extends ArrayField<infer Item> ? readonly ValueOf<Item>[]
+  : Definition extends ObjectField<infer Fields> ? CommandOf<Fields>
+  : Definition extends BytesField ? Uint8Array
   : Definition extends IntegerField ? number
   : Definition extends BooleanField ? boolean
   : string;
@@ -72,8 +93,37 @@ export function booleanField(): BooleanField {
   return Object.freeze({ kind: "boolean" });
 }
 
-export function optionalField<Inner extends ScalarField>(inner: Inner): OptionalField<Inner> {
-  return Object.freeze({ kind: "optional", inner: normalizeScalarField(inner) as Inner });
+export function bytesField(bounds: Readonly<{ minBytes?: number; maxBytes: number }>): BytesField {
+  const minBytes = bounds.minBytes ?? 0;
+  if (!Number.isSafeInteger(minBytes) || !Number.isSafeInteger(bounds.maxBytes) ||
+      minBytes < 0 || minBytes > bounds.maxBytes || bounds.maxBytes > 3072) {
+    throw new RangeError("bytes field bounds are invalid");
+  }
+  return Object.freeze({ kind: "bytes", minBytes, maxBytes: bounds.maxBytes });
+}
+
+export function arrayField<Item extends Field>(inner: Item, bounds: Readonly<{
+  minItems?: number; maxItems: number;
+}>): ArrayField<Item> {
+  const minItems = bounds.minItems ?? 0;
+  if (!Number.isSafeInteger(minItems) || !Number.isSafeInteger(bounds.maxItems) ||
+      minItems < 0 || minItems > bounds.maxItems || bounds.maxItems > 32 ||
+      inner.kind === "optional" || inner.kind === "optional-string") {
+    throw new RangeError("array item schema or bounds are invalid");
+  }
+  return Object.freeze({ kind: "array", inner: normalizeField(inner) as Item,
+    minItems, maxItems: bounds.maxItems });
+}
+
+export function objectField<Fields extends FieldMap>(fields: Fields): ObjectField<Fields> {
+  return Object.freeze({ kind: "object", fields: normalizeFields(fields) as Fields });
+}
+
+export function optionalField<Inner extends Field>(inner: Inner): OptionalField<Inner> {
+  if (inner.kind === "optional" || inner.kind === "optional-string") {
+    throw new TypeError("nested nullable fields are unsupported");
+  }
+  return Object.freeze({ kind: "optional", inner: normalizeField(inner) as Inner });
 }
 
 export interface PreparedMcpAction<Command> {
@@ -97,19 +147,13 @@ export class ExactMcpTool<Fields extends FieldMap> {
         !/^[A-Za-z0-9._-]{1,128}$/.test(config.name)) {
       throw new TypeError("invalid exact MCP service or tool");
     }
-    const entries = Object.entries(config.fields);
-    if (entries.length === 0 || entries.length > 32 ||
-        entries.some(([name, value]) => !/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(name) ||
-          ["__proto__", "prototype", "constructor"].includes(name) ||
-          value === null || typeof value !== "object" ||
-          !["string", "optional-string", "integer", "boolean", "optional"].includes(value.kind))) {
-      throw new TypeError("invalid closed command schema");
+    const fields = normalizeFields(config.fields);
+    if (schemaFieldCount(fields) > 32 || schemaDepth(fields) > 4) {
+      throw new TypeError("command schema exceeds field or depth bounds");
     }
     this.service = config.service;
     this.name = config.name;
-    this.#fields = Object.freeze(Object.fromEntries(entries.map(([name, value]) => [
-      name, normalizeField(value),
-    ]))) as Fields;
+    this.#fields = fields as Fields;
     Object.freeze(this);
   }
 
@@ -118,46 +162,11 @@ export class ExactMcpTool<Fields extends FieldMap> {
         Object.getPrototypeOf(value) !== Object.prototype) {
       throw new TypeError("MCP arguments must be a closed object");
     }
-    const raw = value as Record<string, unknown>;
-    const keys = Object.keys(raw);
-    if (keys.length !== Object.keys(this.#fields).length ||
-        keys.some((key) => !Object.hasOwn(this.#fields, key)) ||
-        Object.getOwnPropertySymbols(raw).length !== 0) {
-      throw new TypeError("MCP arguments do not match the closed schema");
-    }
-    const checked: Record<string, string | number | boolean | null> = {};
-    const encoder = new TextEncoder();
-    for (const [name, definition] of Object.entries(this.#fields)) {
-      const descriptor = Object.getOwnPropertyDescriptor(raw, name);
-      if (descriptor === undefined || !Object.hasOwn(descriptor, "value")) {
-        throw new TypeError("MCP argument accessors are not allowed");
-      }
-      const item = descriptor.value as unknown;
-      if (item === null && (definition.kind === "optional-string" || definition.kind === "optional")) {
-        checked[name] = null;
-        continue;
-      }
-      const required = definition.kind === "optional" ? definition.inner : definition;
-      if (required.kind === "integer") {
-        if (typeof item !== "number" || !Number.isSafeInteger(item) ||
-            Object.is(item, -0) || item < required.minimum || item > required.maximum) {
-          throw new RangeError("MCP integer exceeds its safe bounds");
-        }
-        checked[name] = item;
-      } else if (required.kind === "boolean") {
-        if (typeof item !== "boolean") throw new TypeError("MCP argument must be a boolean");
-        checked[name] = item;
-      } else {
-        if (typeof item !== "string") throw new TypeError("MCP argument must be a string");
-        assertValidUnicode(item);
-        const size = encoder.encode(item).length;
-        if (size < required.minBytes || size > required.maxBytes) {
-          throw new RangeError("MCP argument exceeds its byte bounds");
-        }
-        checked[name] = item;
-      }
-    }
-    return Object.freeze(checked) as CommandOf<Fields>;
+    return projectObject(this.#fields, value, true) as CommandOf<Fields>;
+  }
+
+  encode(command: CommandOf<Fields>): Readonly<Record<string, unknown>> {
+    return projectObject(this.#fields, command, false) as Readonly<Record<string, unknown>>;
   }
 
   async prepare(command: CommandOf<Fields>, options: Readonly<{
@@ -166,16 +175,19 @@ export class ExactMcpTool<Fields extends FieldMap> {
     challenge: Uint8Array;
     evaluationTime: bigint;
   }>): Promise<PreparedMcpAction<CommandOf<Fields>>> {
-    const checked = this.decode(command);
+    const encoded = this.encode(command);
     const engine = await loadPackagedWorkflowEngine();
     const prepared = engine.prepareMcpActionV1(
-      this.service, this.name, checked, options.actor, options.terminalGrant,
+      this.service, this.name, encoded, options.actor, options.terminalGrant,
       options.challenge, options.evaluationTime,
     );
     try {
+      if (prepared.argumentsJson.length > 4096) {
+        throw new RangeError("MCP arguments exceed the self-hosted bound");
+      }
       const action = prepared.canonicalActionCbor.slice();
       return Object.freeze({
-        command: checked,
+        command: this.decode(encoded),
         action,
         actionEnvelope: prepared.actionEnvelopeCbor.slice(),
         argumentsJson: prepared.argumentsJson.slice(),
@@ -590,14 +602,144 @@ function normalizeField(value: Field): Field {
     case "optional-string": return optionalStringField({ minBytes: value.minBytes, maxBytes: value.maxBytes });
     case "integer": return integerField({ minimum: value.minimum, maximum: value.maximum });
     case "boolean": return booleanField();
+    case "bytes": return bytesField({ minBytes: value.minBytes, maxBytes: value.maxBytes });
+    case "array": return arrayField(value.inner, { minItems: value.minItems, maxItems: value.maxItems });
+    case "object": return objectField(value.fields);
     case "optional": return optionalField(value.inner);
   }
 }
 
-function normalizeScalarField(value: ScalarField): ScalarField {
-  switch (value.kind) {
-    case "string": return stringField({ minBytes: value.minBytes, maxBytes: value.maxBytes });
-    case "integer": return integerField({ minimum: value.minimum, maximum: value.maximum });
-    case "boolean": return booleanField();
+function normalizeFields(fields: FieldMap): FieldMap {
+  if (fields === null || typeof fields !== "object" || Array.isArray(fields) ||
+      Object.getPrototypeOf(fields) !== Object.prototype ||
+      Object.getOwnPropertySymbols(fields).length !== 0) {
+    throw new TypeError("command fields must be a closed object");
   }
+  const entries = Object.entries(fields);
+  if (entries.length === 0 || entries.length > 32) {
+    throw new RangeError("command field count is outside bounds");
+  }
+  return Object.freeze(Object.fromEntries(entries.map(([name, value]) => {
+    const descriptor = Object.getOwnPropertyDescriptor(fields, name);
+    if (!/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(name) ||
+        ["__proto__", "prototype", "constructor"].includes(name) ||
+        descriptor === undefined || !Object.hasOwn(descriptor, "value") ||
+        value === null || typeof value !== "object") {
+      throw new TypeError("invalid command field");
+    }
+    return [name, normalizeField(value)];
+  })));
+}
+
+function schemaFieldCount(fields: FieldMap): number {
+  return Object.values(fields).reduce((count, field) => count + fieldCount(field), 0);
+}
+
+function fieldCount(field: Field): number {
+  switch (field.kind) {
+    case "optional": return fieldCount(field.inner);
+    case "array": return fieldCount(field.inner);
+    case "object": return schemaFieldCount(field.fields);
+    default: return 1;
+  }
+}
+
+function schemaDepth(fields: FieldMap): number {
+  return 1 + Math.max(...Object.values(fields).map(fieldDepth));
+}
+
+function fieldDepth(field: Field): number {
+  switch (field.kind) {
+    case "optional": return fieldDepth(field.inner);
+    case "array": return 1 + fieldDepth(field.inner);
+    case "object": return schemaDepth(field.fields);
+    default: return 0;
+  }
+}
+
+function projectObject(fields: FieldMap, value: unknown, wire: boolean): Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value) ||
+      Object.getPrototypeOf(value) !== Object.prototype ||
+      Object.getOwnPropertySymbols(value).length !== 0) {
+    throw new TypeError("MCP arguments must be a closed object");
+  }
+  const source = value as Record<string, unknown>;
+  const names = Object.keys(source);
+  if (names.length !== Object.keys(fields).length ||
+      names.some(name => !Object.hasOwn(fields, name))) {
+    throw new TypeError("MCP arguments do not match the closed schema");
+  }
+  const checked: Record<string, unknown> = {};
+  for (const [name, field] of Object.entries(fields)) {
+    const descriptor = Object.getOwnPropertyDescriptor(source, name);
+    if (descriptor === undefined || !Object.hasOwn(descriptor, "value")) {
+      throw new TypeError("MCP argument accessors are not allowed");
+    }
+    checked[name] = projectField(field, descriptor.value, wire);
+  }
+  return Object.freeze(checked);
+}
+
+function projectField(field: Field, value: unknown, wire: boolean): unknown {
+  if (field.kind === "optional" || field.kind === "optional-string") {
+    if (value === null) return null;
+    if (field.kind === "optional") return projectField(field.inner, value, wire);
+  }
+  switch (field.kind) {
+    case "string":
+    case "optional-string": {
+      if (typeof value !== "string") throw new TypeError("MCP argument must be a string");
+      assertValidUnicode(value);
+      const size = new TextEncoder().encode(value).length;
+      if (size < field.minBytes || size > field.maxBytes) {
+        throw new RangeError("MCP string exceeds its byte bounds");
+      }
+      return value;
+    }
+    case "integer":
+      if (typeof value !== "number" || !Number.isSafeInteger(value) ||
+          Object.is(value, -0) || value < field.minimum || value > field.maximum) {
+        throw new RangeError("MCP integer exceeds its safe bounds");
+      }
+      return value;
+    case "boolean":
+      if (typeof value !== "boolean") throw new TypeError("MCP argument must be a boolean");
+      return value;
+    case "bytes": {
+      let bytes: Uint8Array;
+      if (wire) {
+        if (typeof value !== "string" || !/^[A-Za-z0-9_-]*$/.test(value)) {
+          throw new TypeError("MCP bytes need unpadded base64url");
+        }
+        try {
+          const text = atob(value.replace(/-/g, "+").replace(/_/g, "/"));
+          bytes = Uint8Array.from(text, char => char.charCodeAt(0));
+        } catch {
+          throw new TypeError("MCP bytes are malformed");
+        }
+        if (base64url(bytes) !== value) throw new TypeError("MCP bytes are noncanonical");
+      } else {
+        if (!(value instanceof Uint8Array)) throw new TypeError("MCP argument must be bytes");
+        bytes = value.slice();
+      }
+      if (bytes.length < field.minBytes || bytes.length > field.maxBytes) {
+        throw new RangeError("MCP bytes exceed their bounds");
+      }
+      return wire ? bytes : base64url(bytes);
+    }
+    case "array": {
+      if (!Array.isArray(value) || value.length < field.minItems || value.length > field.maxItems) {
+        throw new RangeError("MCP array item count is outside bounds");
+      }
+      return Object.freeze(value.map(item => projectField(field.inner, item, wire)));
+    }
+    case "object": return projectObject(field.fields, value, wire);
+    case "optional": throw new TypeError("unexpected nullable field");
+  }
+}
+
+function base64url(bytes: Uint8Array): string {
+  let text = "";
+  for (const byte of bytes) text += String.fromCharCode(byte);
+  return btoa(text).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/u, "");
 }

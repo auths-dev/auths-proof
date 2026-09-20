@@ -83,11 +83,14 @@ run_once
 
 [auths.self_hosted]
 AuthorizedCommand
+ArrayField
 BooleanField
+BytesField
 CommandResult
 ExactMcpTool
 IntegerField
 OptionalField
+ObjectField
 PreparedMcpAction
 RejectedCommand
 StringField
