@@ -80,10 +80,15 @@ V1 does not:
 
 - provide anonymous or credential-free authorization;
 - replace TLS, origin security, availability controls, or traffic protection;
-- authorize arbitrary URLs, methods, headers, query strings, or bodies;
+- authorize a runtime-supplied URL, method, header set, query string, or
+  body;
 - accept a raw policy language or OpenAPI document from the caller;
 - turn reverse-proxy identity or successful TLS into authorization;
-- expose a generic API gateway or universal HTTP middleware;
+- expose a generic API gateway or universal HTTP middleware (a
+  credential-isolated gateway that interprets only a declared,
+  operator-approved, digest-bound request recipe is a different mechanism,
+  specified in [AP-SPEC-053](0053-declarative-credential-isolated-gateway.md),
+  and is not a generic gateway);
 - expose a generic multi-transport execution framework;
 - standardize a permanent Auths HTTP header format;
 - make an Iroh node ID, connection, ticket, relay, or encrypted channel
@@ -1162,7 +1167,9 @@ path bypasses the native verifier.
 - standardized Auths HTTP authorization and presentation headers;
 - reusable `auths-http` middleware for Axum, Actix, Go, Node, and Python;
 - OpenAPI extensions and typed action generation;
-- a generic API-gateway adapter;
+- a generic API-gateway adapter (a declared-recipe, credential-isolated
+  gateway is specified separately in
+  [AP-SPEC-053](0053-declarative-credential-isolated-gateway.md));
 - public queue, Unix-socket, or file-relay delivery controls;
 - WebAuthn-backed long-lived presenter identity;
 - richer record schemas and typed values;

@@ -20,10 +20,17 @@ comes from those verified bytes. A local attempt record means only that the
 configured store claimed that action in its documented deployment scope.
 Provider acceptance and observation are assertions of the application adapter.
 
-This is not a universal HTTP executor. The application retains its own
-credential and provider-specific request, result, and observation semantics.
-Code that holds the credential can bypass the local gate. Non-bypassable
-enforcement requires a separate credential-owning gateway/qualified vertical.
+The self-hosted SDK does not accept a runtime-supplied URL, method, header
+set, body, or executable callback, and it never holds the provider credential.
+The application retains its own credential and provider-specific request,
+result, and observation semantics, so code that holds the credential can
+bypass the local gate. Stronger enforcement is not obtained by widening this
+SDK into a generic HTTP executor. It is obtained by moving the credential into
+a separately deployed process that interprets only a declared,
+operator-approved, digest-bound request recipe compiled from the same exact
+contract, or by a reviewed qualified vertical. The declared-recipe path is
+specified in [AP-SPEC-053](0053-declarative-credential-isolated-gateway.md);
+neither path is a launch gate for this spec.
 
 ## 2. UX
 
