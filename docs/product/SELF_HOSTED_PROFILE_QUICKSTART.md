@@ -96,6 +96,16 @@ The SDK's `FileAttemptStore` is a POSIX, local-filesystem, single-host
 reference mechanism. Claim the verified action commitment and logical
 operation key **before** loading a credential or entering the provider:
 
+For the common path, use `auths.execution.run_once` in Python or `runOnce`
+from `@auths-dev/sdk/self-hosted` in TypeScript. The runner verifies and
+projects the command, atomically claims the action, then invokes the
+application-owned `credential`, `invoke`, and read-only `observe` methods in
+that order. The adapter must return an explicit accepted, definitely rejected,
+or unknown outcome; a post-entry exception is retained as unknown. The
+runner's result is local evidence, never an Auths-qualified execution receipt.
+The lower-level manual sequence below remains available when an application
+needs its own orchestration, but it must preserve the same ordering.
+
 ```python
 from pathlib import Path
 

@@ -1,6 +1,7 @@
 import {
-  booleanField, exactMcpTool, integerField, optionalField, optionalStringField, stringField,
-  type AuthorizedCommand,
+  booleanField, exactMcpTool, integerField, optionalField, optionalStringField,
+  runOnce, stringField, type AttemptStore, type AuthorizedCommand,
+  type SelfHostedProviderAdapter,
 } from "../../src/self-hosted.js";
 
 const contract = exactMcpTool({
@@ -43,3 +44,20 @@ const forged: AuthorizedCommand<{ readonly content: string }> = {
   actionCommitment: new Uint8Array(32), decision: {} as never,
 };
 void forged;
+
+declare const attempts: AttemptStore;
+const adapter: SelfHostedProviderAdapter<{
+  readonly content: string;
+  readonly project: string | null;
+  readonly count: number;
+  readonly enabled: boolean;
+  readonly retryCount: number | null;
+}, string, string> = {
+  credential: () => "application-held-token",
+  invoke: async (command, credential) => ({ kind: "accepted", value: command.content + credential }),
+  observe: async () => "observed",
+};
+void runOnce({
+  contract, proof: new Uint8Array(), action: new Uint8Array(),
+  trustedContext: new Uint8Array(), attempts, operationKey: "one", adapter,
+});

@@ -233,6 +233,96 @@ export interface AttemptStore {
   ): Promise<AttemptRecord>;
 }
 
+export type Observation = "observed" | "not_observed" | "unavailable";
+export type ProviderOutcome<Result> =
+  | Readonly<{ kind: "accepted"; value: Result }>
+  | Readonly<{ kind: "rejected"; code: string }>
+  | Readonly<{ kind: "unknown"; code: string }>;
+
+/** The app owns exact request mapping, token custody, and observation. */
+export interface SelfHostedProviderAdapter<Command, Credential, Result> {
+  credential(): Credential | Promise<Credential>;
+  invoke(command: Command, credential: Credential): Promise<ProviderOutcome<Result>>;
+  observe(command: Command): Promise<Observation>;
+}
+
+export type RunResult<Command, Result> =
+  | Readonly<{ kind: "denied" | "indeterminate" | "replay" | "pre-entry-failed"; code: string }>
+  | Readonly<{
+      kind: "attempted";
+      authorization: AuthorizedCommand<Command>;
+      provider: ProviderOutcome<Result>;
+      observation?: Observation;
+    }>;
+
+/** Verify/project, atomically claim, then access the credential and provider. */
+export async function runOnce<Fields extends FieldMap, Credential, Result>(input: Readonly<{
+  contract: ExactMcpTool<Fields>;
+  proof: Uint8Array;
+  action: Uint8Array;
+  trustedContext: Uint8Array;
+  attempts: AttemptStore;
+  operationKey: string;
+  adapter: SelfHostedProviderAdapter<CommandOf<Fields>, Credential, Result>;
+}>): Promise<RunResult<CommandOf<Fields>, Result>> {
+  const authorization = await verifyCommand(input);
+  if (authorization.kind !== "authorized") {
+    return Object.freeze({ kind: authorization.kind, code: authorization.code });
+  }
+  const commitment = authorization.actionCommitment;
+  if (!await input.attempts.claimOnce(commitment, input.operationKey)) {
+    return Object.freeze({ kind: "replay", code: "self-hosted.attempt-already-claimed" });
+  }
+  let credential: Credential;
+  try {
+    credential = await input.adapter.credential();
+  } catch {
+    await input.attempts.finish(commitment, "rejected");
+    return Object.freeze({ kind: "pre-entry-failed", code: "self-hosted.credential-unavailable" });
+  }
+  let provider: ProviderOutcome<Result>;
+  try {
+    provider = await input.adapter.invoke(authorization.command, credential);
+  } catch (error) {
+    await input.attempts.finish(commitment, "unknown");
+    throw error;
+  }
+  if (provider?.kind === "accepted") {
+    await input.attempts.finish(commitment, "confirmed");
+  } else if (provider?.kind === "rejected") {
+    await input.attempts.finish(commitment, "rejected");
+  } else if (provider?.kind === "unknown") {
+    await input.attempts.finish(commitment, "unknown");
+  } else {
+    await input.attempts.finish(commitment, "unknown");
+    throw new TypeError("provider adapter returned an invalid outcome");
+  }
+  if (provider.kind === "rejected") {
+    return Object.freeze({ kind: "attempted", authorization, provider });
+  }
+  let observation: Observation;
+  try {
+    const value = await input.adapter.observe(authorization.command);
+    observation = ["observed", "not_observed", "unavailable"].includes(value) ? value : "unavailable";
+  } catch {
+    observation = "unavailable";
+  }
+  return Object.freeze({ kind: "attempted", authorization, provider, observation });
+}
+
+/** Read only. An unknown provider effect must never be retried by this API. */
+export async function reconcileReadOnly<Command, Credential, Result>(input: Readonly<{
+  authorization: AuthorizedCommand<Command>;
+  adapter: SelfHostedProviderAdapter<Command, Credential, Result>;
+}>): Promise<Observation> {
+  try {
+    const value = await input.adapter.observe(input.authorization.command);
+    return ["observed", "not_observed", "unavailable"].includes(value) ? value : "unavailable";
+  } catch {
+    return "unavailable";
+  }
+}
+
 export async function verifyCommand<Fields extends FieldMap>(input: Readonly<{
   contract: ExactMcpTool<Fields>;
   proof: Uint8Array;
