@@ -1,5 +1,5 @@
 import {
-  booleanField, exactMcpTool, integerField, optionalStringField, stringField,
+  booleanField, exactMcpTool, integerField, optionalField, optionalStringField, stringField,
   type AuthorizedCommand,
 } from "../../src/self-hosted.js";
 
@@ -11,11 +11,12 @@ const contract = exactMcpTool({
     project: optionalStringField({ maxBytes: 64 }),
     count: integerField({ minimum: 0, maximum: 10 }),
     enabled: booleanField(),
+    retryCount: optionalField(integerField({ minimum: 0, maximum: 3 })),
   },
 });
 
 void contract.prepare(
-  { content: "Review budget", project: null, count: 2, enabled: true },
+  { content: "Review budget", project: null, count: 2, enabled: true, retryCount: null },
   {
     actor: "key:sha256:actor",
     terminalGrant: new Uint8Array([1]),
@@ -28,10 +29,13 @@ void contract.prepare(
 void contract.prepare({ project: null }, {});
 
 // @ts-expect-error optional field is still a bounded string or null
-void contract.prepare({ content: "Review budget", project: 42, count: 2, enabled: true }, {});
+void contract.prepare({ content: "Review budget", project: 42, count: 2, enabled: true, retryCount: null }, {});
 
 // @ts-expect-error booleans are not integers
-void contract.prepare({ content: "Review budget", project: null, count: true, enabled: true }, {});
+void contract.prepare({ content: "Review budget", project: null, count: true, enabled: true, retryCount: null }, {});
+
+// @ts-expect-error optional integer cannot be replaced with a string
+void contract.prepare({ content: "Review budget", project: null, count: 2, enabled: true, retryCount: "2" }, {});
 
 // @ts-expect-error callers cannot label a plain object as an authorized projection
 const forged: AuthorizedCommand<{ readonly content: string }> = {

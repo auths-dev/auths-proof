@@ -383,7 +383,7 @@ Still required before this spec can be marked implemented:
   including deterministic generated types and canonical cross-language
   vectors from a restricted `profile.toml`;
 - the full bounded schema vocabulary in §4 (beyond the currently supported
-  flat UTF-8 strings, checked integers, booleans, and optional Python fields),
+  flat UTF-8 strings, checked integers, booleans, and optional scalar fields),
   with hostile vectors and contract-version binding;
 - a clean third-party packaged-consumer walkthrough for both languages, plus
   cross-language conformance and explicit crash/recovery fixtures; and

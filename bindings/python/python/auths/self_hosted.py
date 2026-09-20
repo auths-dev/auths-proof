@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import json
 import time
+import types
 from dataclasses import dataclass, fields as dataclass_fields, is_dataclass
-from types import UnionType
 from typing import (
     Generic,
     Literal,
@@ -140,7 +140,7 @@ class ExactMcpTool(Generic[CommandT]):
             annotation = annotations.get(field_name)
             if isinstance(schema, OptionalField):
                 if (
-                    get_origin(annotation) not in (Union, UnionType)
+                    get_origin(annotation) not in (Union, getattr(types, "UnionType", Union))
                     or set(get_args(annotation)) != {expected, type(None)}
                 ):
                     raise TypeError(f"command annotation for {field_name} must match schema")

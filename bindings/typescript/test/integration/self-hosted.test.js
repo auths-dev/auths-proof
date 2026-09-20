@@ -4,7 +4,8 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import {
-  authorMcpProof, booleanField, exactMcpTool, integerField, stringField, verifyCommand,
+  authorMcpProof, booleanField, exactMcpTool, integerField, optionalField, stringField,
+  verifyCommand,
 } from "../../dist/self-hosted.js";
 
 const ACTOR = "key:sha256:MPL4hHxgoCRRtbEjYAedm50CmSM11XgLojSwwYeRi1E";
@@ -160,24 +161,28 @@ test("checked integer and boolean fields reject coercion and unsafe numbers", as
     fields: {
       count: integerField({ minimum: -5, maximum: 10 }),
       enabled: booleanField(),
+      retryCount: optionalField(integerField({ minimum: 0, maximum: 3 })),
     },
   });
-  assert.deepEqual(tool.decode({ count: 3, enabled: true }), { count: 3, enabled: true });
+  assert.deepEqual(tool.decode({ count: 3, enabled: true, retryCount: null }),
+    { count: 3, enabled: true, retryCount: null });
   const prepared = await tool.prepare(
-    { count: 3, enabled: true },
+    { count: 3, enabled: true, retryCount: null },
     {
       actor: ACTOR, terminalGrant: vector("mcp.signed-root-grant.cbor"),
       challenge: new Uint8Array(32).fill(0x22), evaluationTime: 50n,
     },
   );
   assert.deepEqual(JSON.parse(new TextDecoder().decode(prepared.argumentsJson)),
-    { count: 3, enabled: true });
+    { count: 3, enabled: true, retryCount: null });
   for (const command of [
-    { count: true, enabled: true },
-    { count: 11, enabled: true },
-    { count: 3.5, enabled: true },
-    { count: Number.MAX_SAFE_INTEGER + 1, enabled: true },
-    { count: 3, enabled: 1 },
+    { count: true, enabled: true, retryCount: null },
+    { count: 11, enabled: true, retryCount: null },
+    { count: 3.5, enabled: true, retryCount: null },
+    { count: -0, enabled: true, retryCount: null },
+    { count: Number.MAX_SAFE_INTEGER + 1, enabled: true, retryCount: null },
+    { count: 3, enabled: 1, retryCount: null },
+    { count: 3, enabled: true, retryCount: "2" },
   ]) {
     assert.throws(() => tool.decode(command));
   }

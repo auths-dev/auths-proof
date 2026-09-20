@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Optional
 
 import pytest
 
@@ -122,28 +123,31 @@ def test_checked_integers_and_booleans_are_exact_and_not_interchangeable() -> No
     class MixedCommand:
         count: int
         enabled: bool
+        retry_count: Optional[int]
 
     contract = ExactMcpTool(
         service="example-service", name="set_value",
         command_type=MixedCommand,
         fields={"count": IntegerField(minimum=-5, maximum=10),
-                "enabled": BooleanField()},
+                "enabled": BooleanField(),
+                "retry_count": OptionalField(IntegerField(minimum=0, maximum=3))},
     )
     artifacts = development_mcp_artifacts(
         service="example-service", name="set_value",
-        arguments={"count": 3, "enabled": True},
+        arguments={"count": 3, "enabled": True, "retry_count": None},
     )
     result = verify_command(
         contract=contract, proof=artifacts.proof, action=artifacts.action,
         trusted_context=artifacts.trusted_context,
     )
     assert isinstance(result, AuthorizedCommand)
-    assert result.command == MixedCommand(3, True)
+    assert result.command == MixedCommand(3, True, None)
     for invalid in (
-        {"count": True, "enabled": True},
-        {"count": 11, "enabled": True},
-        {"count": 3.5, "enabled": True},
-        {"count": 3, "enabled": 1},
+        {"count": True, "enabled": True, "retry_count": None},
+        {"count": 11, "enabled": True, "retry_count": None},
+        {"count": 3.5, "enabled": True, "retry_count": None},
+        {"count": 3, "enabled": 1, "retry_count": None},
+        {"count": 3, "enabled": True, "retry_count": "2"},
     ):
         with pytest.raises(ValueError):
             contract.validate_arguments(invalid)

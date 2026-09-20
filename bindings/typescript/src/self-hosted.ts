@@ -24,13 +24,22 @@ export interface IntegerField {
 
 export interface BooleanField { readonly kind: "boolean" }
 
-export type Field = StringField | OptionalStringField | IntegerField | BooleanField;
+export type ScalarField = StringField | IntegerField | BooleanField;
+export interface OptionalField<Inner extends ScalarField = ScalarField> {
+  readonly kind: "optional";
+  readonly inner: Inner;
+}
+
+export type Field = ScalarField | OptionalStringField | OptionalField;
 export type FieldMap = Readonly<Record<string, Field>>;
+export type ValueOf<Definition extends Field> =
+  Definition extends OptionalField<infer Inner> ? ValueOf<Inner> | null
+  : Definition extends OptionalStringField ? string | null
+  : Definition extends IntegerField ? number
+  : Definition extends BooleanField ? boolean
+  : string;
 export type CommandOf<Fields extends FieldMap> = Readonly<{
-  [Key in keyof Fields]: Fields[Key] extends OptionalStringField ? string | null
-    : Fields[Key] extends IntegerField ? number
-    : Fields[Key] extends BooleanField ? boolean
-    : string;
+  [Key in keyof Fields]: ValueOf<Fields[Key]>;
 }>;
 
 export function stringField(bounds: Readonly<{ minBytes?: number; maxBytes: number }>): StringField {
@@ -63,6 +72,10 @@ export function booleanField(): BooleanField {
   return Object.freeze({ kind: "boolean" });
 }
 
+export function optionalField<Inner extends ScalarField>(inner: Inner): OptionalField<Inner> {
+  return Object.freeze({ kind: "optional", inner: normalizeScalarField(inner) as Inner });
+}
+
 export interface PreparedMcpAction<Command> {
   readonly command: Command;
   readonly action: Uint8Array;
@@ -89,7 +102,7 @@ export class ExactMcpTool<Fields extends FieldMap> {
         entries.some(([name, value]) => !/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(name) ||
           ["__proto__", "prototype", "constructor"].includes(name) ||
           value === null || typeof value !== "object" ||
-          !["string", "optional-string", "integer", "boolean"].includes(value.kind))) {
+          !["string", "optional-string", "integer", "boolean", "optional"].includes(value.kind))) {
       throw new TypeError("invalid closed command schema");
     }
     this.service = config.service;
@@ -120,24 +133,25 @@ export class ExactMcpTool<Fields extends FieldMap> {
         throw new TypeError("MCP argument accessors are not allowed");
       }
       const item = descriptor.value as unknown;
-      if (item === null && definition.kind === "optional-string") {
+      if (item === null && (definition.kind === "optional-string" || definition.kind === "optional")) {
         checked[name] = null;
         continue;
       }
-      if (definition.kind === "integer") {
+      const required = definition.kind === "optional" ? definition.inner : definition;
+      if (required.kind === "integer") {
         if (typeof item !== "number" || !Number.isSafeInteger(item) ||
-            item < definition.minimum || item > definition.maximum) {
+            Object.is(item, -0) || item < required.minimum || item > required.maximum) {
           throw new RangeError("MCP integer exceeds its safe bounds");
         }
         checked[name] = item;
-      } else if (definition.kind === "boolean") {
+      } else if (required.kind === "boolean") {
         if (typeof item !== "boolean") throw new TypeError("MCP argument must be a boolean");
         checked[name] = item;
       } else {
         if (typeof item !== "string") throw new TypeError("MCP argument must be a string");
         assertValidUnicode(item);
         const size = encoder.encode(item).length;
-        if (size < definition.minBytes || size > definition.maxBytes) {
+        if (size < required.minBytes || size > required.maxBytes) {
           throw new RangeError("MCP argument exceeds its byte bounds");
         }
         checked[name] = item;
@@ -437,6 +451,15 @@ function normalizeField(value: Field): Field {
   switch (value.kind) {
     case "string": return stringField({ minBytes: value.minBytes, maxBytes: value.maxBytes });
     case "optional-string": return optionalStringField({ minBytes: value.minBytes, maxBytes: value.maxBytes });
+    case "integer": return integerField({ minimum: value.minimum, maximum: value.maximum });
+    case "boolean": return booleanField();
+    case "optional": return optionalField(value.inner);
+  }
+}
+
+function normalizeScalarField(value: ScalarField): ScalarField {
+  switch (value.kind) {
+    case "string": return stringField({ minBytes: value.minBytes, maxBytes: value.maxBytes });
     case "integer": return integerField({ minimum: value.minimum, maximum: value.maximum });
     case "boolean": return booleanField();
   }
