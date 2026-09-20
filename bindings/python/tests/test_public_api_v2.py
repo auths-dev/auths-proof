@@ -8,6 +8,7 @@ import auths
 import auths.adapters
 import auths.adapters.custody
 import auths.adapters.reservations
+import auths.authoring
 import auths.identity
 import auths.identity.adapters
 import auths.identity.authoring
@@ -21,6 +22,7 @@ import auths.verify
 EXPECTED_EXPORTS = {
     "auths": 28,
     "auths.verify": 23,
+    "auths.authoring": 4,
     "auths.self_hosted": 8,
     "auths.identity": 11,
     "auths.identity.adapters": 14,
@@ -42,7 +44,7 @@ def test_exact_public_inventory() -> None:
         assert len(exported) == expected
         assert len(set(exported)) == expected
         assert all(hasattr(module, value) for value in exported)
-    assert sum(EXPECTED_EXPORTS.values()) == 140
+    assert sum(EXPECTED_EXPORTS.values()) == 144
 
 
 def test_product_root_is_small_and_removed_names_are_absent() -> None:

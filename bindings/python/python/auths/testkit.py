@@ -131,6 +131,7 @@ def development_mcp_artifacts(
         [
             ("root", "every", "self-certifying-identifier", None),
             ("actor", "every", "self-certifying-identifier", None),
+            ("actor", "every", "offline-verifiable", None),
         ],
     )
     anchor = _native.TrustAnchor(

@@ -787,7 +787,11 @@ fn assemble_mcp_proof<'py>(
     grant_evidence: Vec<Vec<(String, String, Vec<u8>)>>,
     action_evidence: Vec<(String, String, Vec<u8>)>,
     context: PyRef<'_, PyTrustedContext>,
-) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+) -> PyResult<(
+    Bound<'py, PyBytes>,
+    Bound<'py, PyBytes>,
+    Bound<'py, PyBytes>,
+)> {
     let (artifacts, _, _) = mcp_proof_artifacts(
         py,
         &prepared,
@@ -893,8 +897,8 @@ fn verify_exact_mcp_command(
         .map(|inner| -> PyResult<PyMcpCommand> {
             let limits = auths_model::VerifierLimits::default_deployment();
             let proof = auths_codec::decode_bundle(proof_cbor, &limits).map_err(value_error)?;
-            let context = auths_codec::decode_verifier_context(trusted_context_cbor)
-                .map_err(value_error)?;
+            let context =
+                auths_codec::decode_verifier_context(trusted_context_cbor).map_err(value_error)?;
             let authority_commitment =
                 mcp_authority_commitment(proof.grants()).map_err(value_error)?;
             let context_commitment = *auths_codec::context_digest(&context)

@@ -53,6 +53,12 @@ verify
 verify_many
 verify_receipt
 
+[auths.authoring]
+AuthoredMcpProof
+AuthoringUnsuccessful
+GrantEvidence
+author_mcp_proof
+
 [auths.self_hosted]
 AuthorizedCommand
 CommandResult

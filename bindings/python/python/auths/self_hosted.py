@@ -7,10 +7,9 @@ qualify an application's provider request, result, or reconciliation logic.
 from __future__ import annotations
 
 import json
-import re
 import time
 from dataclasses import dataclass, fields as dataclass_fields, is_dataclass
-from typing import Generic, Literal, Mapping, TypeVar, cast
+from typing import Generic, Literal, Mapping, TypeVar, Union, cast
 
 from . import _native
 from .verify import VerificationResult, _project
@@ -22,13 +21,10 @@ CommandT = TypeVar("CommandT")
 class StringField:
     min_length: int = 0
     max_length: int = 256
-    pattern: str | None = None
 
     def __post_init__(self) -> None:
         if not 0 <= self.min_length <= self.max_length <= 4096:
             raise ValueError("string field bounds are invalid")
-        if self.pattern is not None and len(self.pattern) > 256:
-            raise ValueError("string field pattern exceeds bound")
 
     def validate(self, value: object) -> str:
         if not isinstance(value, str):
@@ -36,8 +32,6 @@ class StringField:
         encoded = value.encode("utf-8")
         if not self.min_length <= len(encoded) <= self.max_length:
             raise ValueError("string outside declared byte bounds")
-        if self.pattern is not None and re.fullmatch(self.pattern, value) is None:
-            raise ValueError("string does not match declared pattern")
         return value
 
 
@@ -49,13 +43,15 @@ class OptionalField:
         return None if value is None else self.inner.validate(value)
 
 
-Field = StringField | OptionalField
+Field = Union[StringField, OptionalField]
 
 
 @dataclass(frozen=True)
 class PreparedMcpAction(Generic[CommandT]):
     command: CommandT
     action: _native.McpAction
+    canonical_action: bytes
+    action_commitment: bytes
     arguments_json: bytes
     audience: str
     resource: str
@@ -108,7 +104,7 @@ class ExactMcpTool(Generic[CommandT]):
     ) -> PreparedMcpAction[CommandT]:
         if type(command) is not self.command_type:
             raise TypeError("command does not belong to this exact tool")
-        arguments = {field.name: getattr(command, field.name) for field in dataclass_fields(command)}
+        arguments = {name: getattr(command, name) for name in self.fields}
         checked = self.validate_arguments(arguments)
         encoded = _canonical_arguments(arguments)
         native = _native.prepare_mcp_action(
@@ -120,9 +116,12 @@ class ExactMcpTool(Generic[CommandT]):
             bytes(challenge),
             evaluation_time,
         )
+        canonical_action, _ = _native.inspect_mcp_action(native)
         return PreparedMcpAction(
             checked,
             native,
+            bytes(canonical_action),
+            bytes(_native.commit_canonical_v1("auths.canonical-action.v1", canonical_action)),
             encoded,
             native.audience,
             native.resource,
@@ -161,7 +160,7 @@ class RejectedCommand:
     decision: VerificationResult
 
 
-CommandResult = AuthorizedCommand[CommandT] | RejectedCommand
+CommandResult = Union[AuthorizedCommand[CommandT], RejectedCommand]
 
 
 def verify_command(
