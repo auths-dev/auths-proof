@@ -100,7 +100,7 @@ Authorization header, unbounded response body, or user-supplied secret fields.
  +-------------------------------------------------------------+
  | Separate Auths gateway                                      |
  | native verify -> typed projection -> recipe-digest binding |
- | -> durable one-use claim -> closed request compiler         |
+ | -> closed request compiler -> durable one-use claim         |
  | -> scoped credential lease -> broker-owned HTTPS transport  |
  | -> durable response classification -> optional read-only GET|
  +-------------------------------+-----------------------------+
@@ -133,11 +133,42 @@ The release claim records which deployment mode was exercised.
 An operation consists of a versioned `ExactMcpTool` contract, a compiled
 recipe digest, a connection binding, and operator-approved trust. The
 **canonical action bytes themselves** must commit to the recipe digest and a
-stable logical operation ID. The gateway compares those verified values with
-its installed recipe and credential binding before claim or credential access.
-Neither a sidecar manifest nor a submit-time `recipe_id` may supply a missing
-binding. Re-signing the same logical operation with a new challenge must not
-create a second provider entry.
+stable logical operation ID **and its operator-controlled namespace**. The
+operator assigns a namespace to the approved connection/account binding; the
+gateway validates the verified namespace and bounded ID against that binding.
+The namespace is an immutable generated literal, not a caller-selected field;
+the application supplies only the logical ID. Both are canonical ASCII tokens
+matching `[A-Za-z0-9][A-Za-z0-9._-]*`, with maximums of 64 and 128 bytes
+respectively. The gateway rejects empty, noncanonical, or oversized values
+before claim. It stores the pair as two typed fields, never an ambiguous
+concatenated string. The submitter cannot supply a namespace outside the
+verified action. The durable replay key is `(namespace, logical_operation_id)`,
+independent of proof challenge, signature, action commitment, recipe digest,
+and credential generation. A second action with that key, even if otherwise
+valid or re-signed under a new challenge, cannot create another provider
+entry; a changed action or recipe under the same key is rejected rather than
+treated as an update. Claims remain retained for as long as the namespace can
+accept submissions; a retired namespace cannot be reused without preserving
+its claim history. A different ID denotes a different requested operation,
+not a claim that the provider effect is semantically unique.
+
+The gateway compares verified identity and digest with its installed recipe
+and credential binding before claim or credential access. Neither a sidecar
+manifest nor a submit-time `recipe_id` may supply a missing binding.
+
+`authorized` has one narrow meaning: native verification accepts the exact
+canonical action under independently supplied trusted context. It does not
+mean the provider accepted or performed the write. The gateway may enter the
+credential-bearing write transport **if and only if** verification is
+`authorized`; typed projection of that action succeeds against the installed
+versioned `ExactMcpTool`; its verified recipe digest, namespace, and logical ID
+match an active immutable operator approval that pins the connection and
+credential generation; the closed request compiles solely from approved
+literals and verified bounded fields; and an atomic durable claim of the replay
+key succeeds before credential access. Failure or indeterminacy of any predicate
+means no provider entry. A valid proof can therefore still receive a
+`not-entered` refusal (for example, replay or revoked connection); that refusal
+must not be mislabeled a proof denial. No testkit trust fallback is permitted.
 
 Prefer adding a required typed literal/digest field to the existing
 `auths.mcp/v2` argument contract rather than inventing another action or
@@ -151,17 +182,25 @@ action; an old proof cannot execute under the new mapping.
 The source format compiles to a versioned, bounded typed AST. It initially
 permits:
 
-- one operator-pinned HTTPS origin and one fixed method from a small enum;
+- one operator-pinned HTTPS origin and one fixed write method from
+  `POST | PUT | PATCH | DELETE`; `GET` is available only for the separately
+  declared read-only observation;
 - a path of fixed segments and explicitly typed, percent-encoded segments
   derived only from verified command fields;
-- fixed header names and values, except for gateway-owned credential
-  injection and an allowlisted idempotency header derived from the committed
-  operation ID;
+- fixed literal `Accept` and `Content-Type` headers, plus an optional
+  `Idempotency-Key` value derived deterministically from the verified
+  namespace and logical operation ID; these are the entire recipe-header
+  allowlist in the first version. The gateway alone injects `Authorization`
+  and protocol-required transport headers. Operator approval cannot widen
+  this allowlist; all other recipe headers, including custom `X-*` headers,
+  are rejected;
 - a fixed-shape JSON or form body of literals and typed field references;
   a form field may contain a compiler-serialized bounded JSON template (needed
   for Todoist's Sync command), never a caller-supplied JSON string;
 - an optional separately declared read-only request with bounded response
-  projection and exact comparison; and
+  projection and exact comparison. A comparison result is an observation of
+  provider state only; it never means write success, exclusive causation, or
+  permission to retry; and
 - hard limits for fields, depth, total bytes, response bytes, redirects (zero),
   DNS/connect/read time, and total work.
 
@@ -184,20 +223,31 @@ credential-exfiltration capability by changing an action field.
 
 ### 3.3 Execution and claim truth
 
-The ordered path is verify/project, compare recipe and trust bindings, atomic
-logical-operation claim, construct a closed request, acquire the exact
+The ordered path is verify/project, compare recipe and trust bindings, compile
+the closed request, atomically claim the logical operation, acquire the exact
 credential generation, enter transport, durably record the response class,
 then optionally observe. Denial, indeterminate, recipe mismatch, replay,
 credential unavailability, and request-construction failure must all stop
-before provider entry. A crash after claim is conservatively `unknown` unless
-a durable checkpoint proves no provider entry occurred.
+before provider entry. The durable pre-entry stage is `not-entered`; after a
+successful claim but before entry it is `attempting`. A crash after claim is
+conservatively `unknown` unless a durable checkpoint **excludes transport
+entry**, including any in-flight handoff. Merely constructing the request or
+lacking a local entry log is not such a checkpoint. The transport boundary
+must make this exclusion durable; otherwise recovery reports `unknown` and
+never automatically retries.
 
-After provider entry, an HTTP status alone does **not** prove that no effect
-occurred. A timeout, connection break, 5xx, malformed response, or unqualified
-provider-specific 4xx is `unknown` with respect to effect. Read-only
-observation may report a match, mismatch, or unavailable result but cannot
-turn non-observation into a safe automatic retry. Provider-native idempotency
-supplements the gateway claim; it does not replace it.
+After provider entry, a complete bounded HTTP response without separate
+read-back is `response-recorded`, **not** `confirmed`, `observed`, or a
+provider-effect claim, whatever its status code. A timeout, connection break,
+malformed or incomplete response, or any other ambiguous entry is `unknown`
+with respect to effect; a 4xx or 5xx cannot by itself establish absence of an
+effect or authorize retry. `observed` requires a completed, separately
+recorded read-only comparison against the verified expected value and records
+`match` or `mismatch`. Unavailable read-back is recorded as such but does not
+promote the stage from `response-recorded` (or resolve an `unknown` write).
+Even a match is not proof of exclusive causation. A non-match or unavailable
+observation never licenses an automatic second write. Provider-native
+idempotency supplements the gateway claim; it does not replace it.
 
 The gateway may issue a signed **gateway attempt attestation** containing the
 action commitment, recipe digest, credential-reference commitment/generation,
@@ -220,8 +270,14 @@ not a synonym for forcing an incompatible type into a new role:
 | `auths.execution.AttemptStore` / TypeScript `AttemptStore` | Reuse local reference behavior and test vectors, not its single-host file implementation as a multi-host enforcement store. |
 
 New gateway-only types may include `CompiledRecipe`, `ApprovedRecipe`,
-`BoundOperation`, `ClaimedAttempt`, and `ClosedProviderRequest`. Each needs a
-private constructor, a named owning package, a stated invariant, and a test
+`BoundOperation`, `ClaimedAttempt`, and `ClosedProviderRequest`. The
+product-layer gateway contract owns `OperatorNamespace` (approved, immutable
+connection/account namespace) and `LogicalOperationId` (canonical bounded
+application ID); generated Python and TypeScript commands use their exact
+validation. Before creating either type, the required type map must show why
+an existing bounded identifier does not already carry that invariant. Each
+new type needs a private constructor, a named owning package, a stated
+invariant, and a test
 that demonstrates why an existing type is insufficient. An unparsed
 `serde_json::Value`, Python `dict[str, Any]`, TypeScript `Record<string,
 unknown>`, or bag of optional flags may exist only at the input boundary; it
@@ -257,7 +313,9 @@ bytes. The gateway derives all command fields and identity from verified bytes.
 ```python
 from auths.authoring import ProductionAuthoringInputs, author_production_mcp_proof
 from auths.gateway import GatewayClient, GatewayEndpoint
-from my_operation.generated import APPROVED_RECIPE_DIGEST, CONTRACT, SetDemoStatus
+from my_operation.generated import (
+    APPROVED_NAMESPACE, APPROVED_RECIPE_DIGEST, CONTRACT, SetDemoStatus,
+)
 
 async def request_status_change(
     *,
@@ -268,6 +326,7 @@ async def request_status_change(
 ):
     # The compiled package supplies this immutable digest; no runtime URL.
     command = SetDemoStatus(
+        operator_namespace=APPROVED_NAMESPACE,
         operation_id=operation_id,
         recipe_digest=APPROVED_RECIPE_DIGEST,
         record_id=record_id,
@@ -329,9 +388,15 @@ origin. Disabling/revoking the binding stops new writes before provider entry.
 
 ### Epic 3 — Enforce one-use closed execution and honest recovery
 
-1. Reuse or narrowly adapt existing lifecycle/attempt types after a written
-   state-contract comparison. Atomically claim the committed logical operation
-   across concurrency and restart before credential lease or network entry.
+1. Reuse or narrowly adapt existing lifecycle/attempt types after the written
+   state-contract comparison in the abstraction case file. SDK `confirmed`
+   means adapter acceptance and must not be reused as gateway effect evidence
+   or equated with lifecycle `Committed`. Preserve the gateway's own
+   `not-entered | attempting | response-recorded | unknown | observed` stage
+   vocabulary; do not claim the existing Postgres lifecycle store is a
+   scalable gateway claim store. Atomically claim `(namespace,
+   logical_operation_id)` across concurrency and restart before credential
+   lease or network entry.
 2. Compile the verified command plus approved recipe into a closed request.
    Make transport outcome and effect observation separate typed results.
 3. Implement durable unknown-state recovery and read-only observation. Do not

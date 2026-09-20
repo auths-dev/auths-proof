@@ -10,6 +10,11 @@ Airtable and Todoist field-lab demos. It is not a provider qualification.
 | Provider response classification | The application adapter says the provider accepted, definitely rejected, or may have applied the request. | An Auths-qualified execution result or a signed provider receipt. |
 | Read-only observation | The application adapter reports a provider state it observed using its own method. | That an unobserved effect did not occur, or that the observation method is independently qualified. |
 
+Here, **authorized** means a valid proof for the exact canonical action under
+the supplied trust. Grant-level restriction of a closed-enumeration variant is
+AP-SPEC-025 scope and is not wired into this self-hosted path today; the
+proposed gateway must not assume that policy check already exists.
+
 The field-lab demos use an ephemeral self-trusting testkit signer/context and
 app-held API tokens. Their successful live read-backs show that the plumbing
 works against those providers; they do not demonstrate production authority
