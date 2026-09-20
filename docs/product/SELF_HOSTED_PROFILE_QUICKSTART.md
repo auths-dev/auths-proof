@@ -13,6 +13,36 @@ inputs. Neither SDK silently creates production authority. The `auths.testkit`
 fixture helper is only for disposable local demonstrations where the test
 process trusts a key it created itself.
 
+## Generate one versioned exact tool
+
+From a clean Python project with the packed `auths` wheel installed:
+
+```sh
+auths profile init --language python --name create-task --directory src/create_task
+# Edit the closed [fields] entries in src/create_task/profile.toml.
+auths profile generate src/create_task/profile.toml
+auths profile check src/create_task/profile.toml
+```
+
+The TypeScript package exposes the same commands with `--language typescript`
+and emits `generated.ts`. The first generator vocabulary is closed scalar
+strings, safe integers, booleans, and optional variants. Unsupported TOML or
+schema constructs are rejected. The generated exact MCP tool name includes
+`_v<contract version>`; changing the version changes the authorized action,
+not merely a comment in a manifest. Generated vectors are source-controlled.
+No generator command creates a signer, grant, trusted context, or API token.
+
+For production, the operator must provision a custody signer, sign a scoped
+grant, and distribute a trusted-context template through an independent
+configuration channel. They must define expiry and rotation/revocation
+procedures for both authority and trust. `auths profile doctor ... --production
+--signer-adapter <id> --grant-file <path> --trust-file <path>` checks bounded
+local material but cannot prove provenance or signer connectivity. The
+application constructs `ProductionAuthoringInputs` and calls
+`author_production_mcp_proof`; durable, active custody and native-parsable
+grant/context bytes are required before it asks the signer to act. A provider
+PAT is neither a grant nor a trust anchor.
+
 ## Python: define and verify a closed command
 
 ```python

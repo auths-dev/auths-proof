@@ -56,3 +56,11 @@ def test_profile_check_detects_generated_drift(tmp_path: Path) -> None:
     assert check_profile(tmp_path / "profile.toml") == ()
     (tmp_path / "generated.py").write_text("not generated")
     assert check_profile(tmp_path / "profile.toml") == ("generated.py has drifted",)
+
+
+def test_production_doctor_fails_without_explicit_authority(tmp_path: Path) -> None:
+    from auths._profile_cli import main, write_profile
+
+    (tmp_path / "profile.toml").write_text(PROFILE)
+    write_profile(tmp_path, parse_contract(PROFILE))
+    assert main(["profile", "doctor", str(tmp_path / "profile.toml"), "--production"]) == 1

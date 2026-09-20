@@ -278,6 +278,44 @@ export interface GrantEvidence {
   readonly evidence: readonly PublicControlEvidence[];
 }
 
+/** Structural production inputs; provenance of trust is an operator duty. */
+export interface ProductionAuthoringInputs {
+  readonly grants: readonly GrantEvidence[];
+  readonly trustedContextTemplate: Uint8Array;
+  readonly signer: CustodySigner;
+  readonly challenge: Uint8Array;
+  readonly evaluationTime: bigint;
+  readonly signal?: AbortSignal;
+}
+
+/** Reject missing or development-only custody before requesting a signature. */
+export async function authorProductionMcpProof<Fields extends FieldMap>(input: Readonly<{
+  contract: ExactMcpTool<Fields>;
+  command: CommandOf<Fields>;
+  inputs: ProductionAuthoringInputs;
+}>): Promise<AuthoredMcpProof<CommandOf<Fields>>> {
+  const production = input.inputs;
+  if (production.signer.descriptor.contract !== "signer-custody/2" ||
+      production.signer.descriptor.lifecycle !== "durable" ||
+      production.signer.descriptor.keyState !== "active-current") {
+    throw new TypeError("production signer needs active-current durable custody");
+  }
+  if (production.trustedContextTemplate.length < 1 ||
+      production.trustedContextTemplate.length > 262_144) {
+    throw new RangeError("production trusted context size is outside bounds");
+  }
+  return authorMcpProof({
+    contract: input.contract,
+    command: input.command,
+    grants: production.grants,
+    trustedContextTemplate: production.trustedContextTemplate,
+    signer: production.signer,
+    challenge: production.challenge,
+    evaluationTime: production.evaluationTime,
+    ...(production.signal === undefined ? {} : { signal: production.signal }),
+  });
+}
+
 export interface AuthoredMcpProof<Command> {
   readonly command: Command;
   readonly proof: Uint8Array;

@@ -19,7 +19,12 @@ from auths.adapters.custody import (
     SigningRequest,
     SigningResponse,
 )
-from auths.authoring import GrantEvidence, author_mcp_proof
+from auths.authoring import (
+    GrantEvidence,
+    ProductionAuthoringInputs,
+    author_mcp_proof,
+    author_production_mcp_proof,
+)
 from auths.self_hosted import AuthorizedCommand, ExactMcpTool, StringField, verify_command
 
 
@@ -133,6 +138,43 @@ async def test_external_signer_authors_portable_exact_proof() -> None:
     assert isinstance(result, AuthorizedCommand)
     assert result.command == Change("approved")
     assert signer.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_production_bundle_requires_durable_active_custody() -> None:
+    now = int(time.time())
+    key, grant, template = _authority(now)
+    signer = ExternalSigner(key)
+    with pytest.raises(ValueError, match="durable"):
+        ProductionAuthoringInputs(
+            (grant,), template, signer, _native.generate_challenge_v1(), now
+        )
+    assert signer.calls == 0
+    signer.descriptor = replace(signer.descriptor, lifecycle=CustodyLifecycle.DURABLE)
+    inputs = ProductionAuthoringInputs(
+        (grant,), template, signer, _native.generate_challenge_v1(), now
+    )
+    authored = await author_production_mcp_proof(
+        contract=TOOL, command=Change("approved"), inputs=inputs
+    )
+    verdict = verify_command(
+        contract=TOOL, proof=authored.proof, action=authored.action,
+        trusted_context=authored.trusted_context,
+    )
+    assert isinstance(verdict, AuthorizedCommand)
+    assert signer.calls == 1
+
+
+def test_production_bundle_rejects_missing_or_invalid_trust_before_signing() -> None:
+    now = int(time.time())
+    key, grant, _ = _authority(now)
+    signer = ExternalSigner(key)
+    signer.descriptor = replace(signer.descriptor, lifecycle=CustodyLifecycle.DURABLE)
+    with pytest.raises((ValueError, TypeError)):
+        ProductionAuthoringInputs(
+            (grant,), b"not-a-context", signer, _native.generate_challenge_v1(), now
+        )
+    assert signer.calls == 0
 
 
 @pytest.mark.asyncio

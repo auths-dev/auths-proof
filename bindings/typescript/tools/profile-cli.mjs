@@ -2,7 +2,7 @@
 
 /** Restricted source generator; never loads provider credentials or trust. */
 
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -133,8 +133,10 @@ export function renderVectors(contract) {
 }
 
 async function sourceAt(path) {
-  const metadata = await stat(path);
-  if (!metadata.isFile() || metadata.size > 16_384) throw new Error("profile.toml must be a bounded regular file");
+  const metadata = await lstat(path);
+  if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size > 16_384) {
+    throw new Error("profile.toml must be a bounded regular file");
+  }
   return readFile(path, "utf8");
 }
 
@@ -196,8 +198,29 @@ async function main(args) {
     if (problems.length) throw new Error(problems.join("; "));
     process.stdout.write("profile current; self-hosted, provider behavior unqualified\n");
   } else if (action === "doctor") {
-    process.stdout.write("production signer, signed grant, independent trusted context, and provider credential are application-owned\n");
-    process.stdout.write("local testkit authority is development-only; profile doctor cannot qualify an adapter\n");
+    const problems = await checkProfile(path);
+    if (problems.length) throw new Error(problems.join("; "));
+    process.stdout.write("contract: current; provider adapter: application-owned, unqualified\n");
+    if (args.includes("--production")) {
+      const option = name => { const at = args.indexOf(name); return at < 0 ? undefined : args[at + 1]; };
+      const signer = option("--signer-adapter");
+      const grant = option("--grant-file");
+      const trust = option("--trust-file");
+      if (!identity.test(signer ?? "") || !grant || !trust) {
+        throw new Error("production needs --signer-adapter, --grant-file, and --trust-file");
+      }
+      for (const filename of [grant, trust]) {
+        const metadata = await lstat(filename);
+        if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size < 1 || metadata.size > 262_144) {
+          throw new Error("production authority file is unavailable or outside bounds");
+        }
+      }
+      if (await realpath(grant) === await realpath(trust)) throw new Error("grant and trusted context need separate files");
+      process.stdout.write("production inputs: structurally present; signer connectivity and trust provenance not checked\n");
+    } else {
+      process.stdout.write("local testkit authority is development-only\n");
+    }
+    process.stdout.write("profile doctor does not verify provider credentials or qualify adapter behavior\n");
   } else {
     throw new Error("usage: auths profile init|generate|check|doctor");
   }

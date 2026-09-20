@@ -226,6 +226,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     for name in ("generate", "check", "doctor"):
         action = actions.add_parser(name)
         action.add_argument("profile", type=Path, nargs="?", default=Path("profile.toml"))
+        if name == "doctor":
+            action.add_argument("--production", action="store_true")
+            action.add_argument("--grant-file", type=Path)
+            action.add_argument("--trust-file", type=Path)
+            action.add_argument("--signer-adapter")
     args = parser.parse_args(argv)
     try:
         if args.action == "init":
@@ -258,8 +263,28 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return 1
             print("profile current; self-hosted, provider behavior unqualified")
         else:
-            print("production signer, signed grant, independent trusted context, and provider credential are application-owned")
-            print("local testkit authority is development-only; profile doctor cannot qualify an adapter")
+            problems = check_profile(args.profile)
+            if problems:
+                raise ValueError("; ".join(problems))
+            print("contract: current; provider adapter: application-owned, unqualified")
+            if args.production:
+                from . import _native
+
+                if not args.signer_adapter or not _IDENTITY.fullmatch(args.signer_adapter):
+                    raise ValueError("production needs an explicit custody signer adapter identifier")
+                if args.grant_file is None or args.trust_file is None:
+                    raise ValueError("production needs separate --grant-file and --trust-file")
+                for path, maximum in ((args.grant_file, 262_144), (args.trust_file, 262_144)):
+                    if path.is_symlink() or not path.is_file() or not 1 <= path.stat().st_size <= maximum:
+                        raise ValueError("production authority file is unavailable or outside bounds")
+                _native.parse_signed("grant", args.grant_file.read_bytes())
+                _native.parse_trusted_context(args.trust_file.read_bytes())
+                if args.grant_file.resolve() == args.trust_file.resolve():
+                    raise ValueError("grant and trusted context must use separate files")
+                print("production inputs: structurally present; signer connectivity and trust provenance not checked")
+            else:
+                print("local testkit authority is development-only")
+            print("profile doctor does not verify provider credentials or qualify adapter behavior")
     except (OSError, UnicodeError, ValueError) as error:
         print(f"auths profile: {error}", file=sys.stderr)
         return 1

@@ -11,6 +11,8 @@ from typing import Generic, Literal, Sequence, TypeVar
 
 from . import _native
 from .adapters.custody import (
+    CustodyKeyState,
+    CustodyLifecycle,
     CustodyIndeterminate,
     CustodyRejected,
     CustodySigned,
@@ -39,6 +41,69 @@ class GrantEvidence:
             raise ValueError("signed grant size is outside bounds")
         if not 1 <= len(self.evidence) <= 32:
             raise ValueError("grant control evidence count is outside bounds")
+
+
+@dataclass(frozen=True)
+class ProductionAuthoringInputs:
+    """Explicit production inputs; structural validation is not trust proof.
+
+    The operator must distribute the trust template independently of the
+    signer. These bytes alone cannot prove their provenance or grant scope.
+    No provider credential belongs in this bundle.
+    """
+
+    grants: tuple[GrantEvidence, ...]
+    trusted_context_template: bytes
+    signer: CustodySigner
+    challenge: bytes
+    evaluation_time: int
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "grants", tuple(self.grants))
+        object.__setattr__(self, "trusted_context_template", bytes(self.trusted_context_template))
+        object.__setattr__(self, "challenge", bytes(self.challenge))
+        if not 1 <= len(self.grants) <= 16:
+            raise ValueError("production grant chain count is outside bounds")
+        if not all(isinstance(grant, GrantEvidence) for grant in self.grants):
+            raise TypeError("production grants must be GrantEvidence values")
+        if not 1 <= len(self.trusted_context_template) <= 262_144:
+            raise ValueError("production trusted context size is outside bounds")
+        _native.parse_trusted_context(self.trusted_context_template)
+        for grant in self.grants:
+            _native.parse_signed("grant", grant.signed_grant)
+        if len(self.challenge) != 32:
+            raise ValueError("production challenge must contain 32 bytes")
+        if type(self.evaluation_time) is not int or not 0 <= self.evaluation_time < 2**64 - 300:
+            raise ValueError("production evaluation time is outside bounds")
+        descriptor = self.signer.descriptor
+        if descriptor.contract != "signer-custody/2":
+            raise ValueError("production signer custody contract is invalid")
+        if descriptor.lifecycle != CustodyLifecycle.DURABLE:
+            raise ValueError("production signer must have durable custody")
+        if descriptor.key_state != CustodyKeyState.ACTIVE_CURRENT:
+            raise ValueError("production signer key must be active-current")
+
+
+async def author_production_mcp_proof(
+    *,
+    contract: ExactMcpTool[CommandT],
+    command: CommandT,
+    inputs: ProductionAuthoringInputs,
+) -> AuthoredMcpProof[CommandT]:
+    """Author with explicit durable custody and separately supplied trust.
+
+    The verifier decides authorization; structural readiness is not a grant,
+    proof of independent trust provisioning, or provider qualification.
+    """
+    return await author_mcp_proof(
+        contract=contract,
+        command=command,
+        grants=inputs.grants,
+        trusted_context_template=inputs.trusted_context_template,
+        signer=inputs.signer,
+        challenge=inputs.challenge,
+        evaluation_time=inputs.evaluation_time,
+    )
 
 
 @dataclass(frozen=True)
@@ -173,5 +238,7 @@ __all__ = [
     "AuthoredMcpProof",
     "AuthoringUnsuccessful",
     "GrantEvidence",
+    "ProductionAuthoringInputs",
     "author_mcp_proof",
+    "author_production_mcp_proof",
 ]
