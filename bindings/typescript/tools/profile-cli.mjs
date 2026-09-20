@@ -245,11 +245,49 @@ export function renderVectors(contract) {
 }
 
 export function renderLock(contract) {
+  const root = { name: "arguments", kind: "object", fields: contract.fields };
   return stableJson({
     schema: "auths.self-hosted-profile-lock/1", profile: contract.name,
     version: contract.version, service: contract.service, tool: contract.tool,
-    schema_digest: schemaDigest(contract), generator_format: 2,
+    schema_digest: schemaDigest(contract), command_schema: nodeJson(root), generator_format: 2,
   }) + "\n";
+}
+
+function schemaChanges(before, after, path = "arguments") {
+  if (stableJson(before) === stableJson(after)) return [];
+  if (before && after && typeof before === "object" && typeof after === "object" &&
+      !Array.isArray(before) && !Array.isArray(after)) {
+    return [...new Set([...Object.keys(before), ...Object.keys(after)])].sort()
+      .flatMap(name => schemaChanges(before[name], after[name], `${path}.${name}`));
+  }
+  return [path];
+}
+
+export async function profileDiff(path) {
+  const contract = parseContract(await sourceAt(path));
+  const target = join(dirname(path), "profile.lock.json");
+  const current = JSON.parse(renderLock(contract));
+  let old;
+  try {
+    const metadata = await lstat(target);
+    if (!metadata.isFile() || metadata.isSymbolicLink()) throw new Error("profile lock is invalid");
+    old = JSON.parse(await readFile(target, "utf8"));
+  } catch (error) {
+    if (error.code === "ENOENT") return { status: "new", stage: "contract", code: "profile.contract.new",
+      changed_fields: [], action_identity_changed: true, next_action: "Run profile generate." };
+    throw error;
+  }
+  if (!old || old.schema !== "auths.self-hosted-profile-lock/1") throw new Error("profile lock is invalid");
+  const changed = schemaChanges(old.command_schema, current.command_schema).slice(0, 64);
+  const identityChanged = ["service", "tool", "version"].some(name => old[name] !== current[name]);
+  const different = stableJson(old) !== stableJson(current);
+  const status = different && old.version === current.version ? "version-required" : different ? "changed" : "current";
+  return { status, stage: "contract", code: `profile.contract.${status}`,
+    old_version: old.version, new_version: current.version, changed_fields: changed,
+    action_identity_changed: identityChanged || changed.length > 0,
+    next_action: status === "version-required" ? "Increase profile.version before generation."
+      : status === "changed" ? "Run profile generate and review new proof identity."
+      : "No version change required." };
 }
 
 export function renderAdapter(contract) {
@@ -372,13 +410,13 @@ async function checkProfile(path) {
   return problems;
 }
 
-async function main(args) {
+async function mainText(args) {
   if (args.length === 1 && args[0] === "doctor") {
     const { doctor, renderDoctor } = await import("../dist/doctor.js");
     process.stdout.write(`${renderDoctor(await doctor())}\n`);
     return;
   }
-  if (args[0] !== "profile") throw new Error("usage: auths profile init|generate|check|doctor");
+  if (args[0] !== "profile") throw new Error("usage: auths profile init|generate|check|diff|doctor|test");
   const action = args[1];
   if (action === "init") {
     const languageAt = args.indexOf("--language");
@@ -413,6 +451,10 @@ async function main(args) {
     const problems = await checkProfile(path);
     if (problems.length) throw new Error(problems.join("; "));
     process.stdout.write("profile current; self-hosted, provider behavior unqualified\n");
+  } else if (action === "diff") {
+    const result = await profileDiff(path);
+    process.stdout.write(`${result.code}: ${result.changed_fields.join(", ") || "no field changes"}\n`);
+    process.stdout.write(`action identity changed: ${result.action_identity_changed}\n${result.next_action}\n`);
   } else if (action === "test") {
     const suiteAt = args.indexOf("--suite");
     const suitePath = suiteAt < 0 ? undefined : args[suiteAt + 1];
@@ -437,9 +479,9 @@ async function main(args) {
       const signer = option("--signer-adapter");
       const grant = option("--grant-file");
       const trust = option("--trust-file");
-      if (!identity.test(signer ?? "") || !grant || !trust) {
-        throw new Error("production needs --signer-adapter, --grant-file, and --trust-file");
-      }
+      if (!identity.test(signer ?? "")) throw new Error("production signer-adapter is missing or invalid");
+      if (!grant) throw new Error("production grant-file is missing");
+      if (!trust) throw new Error("production trust-file is missing");
       for (const filename of [grant, trust]) {
         const metadata = await lstat(filename);
         if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size < 1 || metadata.size > 262_144) {
@@ -450,7 +492,52 @@ async function main(args) {
       process.stdout.write("production inputs: structurally present; signer connectivity and trust provenance not checked\n");
     } else process.stdout.write("local testkit authority is development-only\n");
     process.stdout.write("profile doctor does not verify provider credentials or qualify adapter behavior\n");
-  } else throw new Error("usage: auths profile init|generate|check|doctor");
+  } else throw new Error("usage: auths profile init|generate|check|diff|doctor|test");
+}
+
+function diagnostic(action, status, message) {
+  if (status === 0) return [action === "check" ? "profile.generated.current" : "profile.operation.ok",
+    action === "check" ? "generated" : "contract", "No action required."];
+  if (/without a version bump|version cannot move backward/.test(message)) return [
+    "profile.contract.version-required", "contract", "Increase profile.version, then review profile diff."];
+  if (/has drifted/.test(message)) return ["profile.generated.stale", "generated",
+    "Run profile generate after reviewing the source and version."];
+  if (/signer/.test(message)) return ["profile.authority.signer-missing", "authority",
+    "Supply an explicit custody signer adapter."];
+  if (/grant/.test(message) && !/trust/.test(message)) return ["profile.authority.grant-missing", "authority",
+    "Supply a bounded signed grant file."];
+  if (/trust/.test(message)) return ["profile.trust.context-missing", "trust",
+    "Supply an independently provisioned trusted context."];
+  if (/suite|adapter/.test(message)) return ["profile.provider.adapter-test-failed", "provider",
+    "Wire the adapter to the scripted provider and rerun profile test."];
+  return ["profile.contract.schema-invalid", "contract", "Correct the bounded profile.toml schema."];
+}
+
+async function main(args) {
+  if (!args.includes("--json")) return mainText(args);
+  const filtered = args.filter(value => value !== "--json");
+  const action = filtered[1] ?? "unknown";
+  const original = process.stdout.write;
+  let captured = "";
+  let status = 0;
+  let diff = null;
+  process.stdout.write = function (chunk) { captured += String(chunk).slice(0, 4096); return true; };
+  try {
+    await mainText(filtered);
+    if (process.exitCode && process.exitCode !== 0) status = 1;
+    if (status === 0 && action === "diff") diff = await profileDiff(filtered[2] ?? "profile.toml");
+  } catch (error) {
+    status = 1;
+    captured = error instanceof Error ? error.message : "unknown failure";
+  } finally {
+    process.stdout.write = original;
+  }
+  const message = captured.trim().slice(0, 2048);
+  let [code, stage, nextAction] = diagnostic(action, status, message);
+  if (diff) ({ code, stage, next_action: nextAction } = diff);
+  original.call(process.stdout, stableJson({ schema: "auths.profile-diagnostic/1", ok: status === 0,
+    action, diagnostic: { code, stage, message, next_action: nextAction }, diff }) + "\n");
+  if (status !== 0) process.exitCode = 1;
 }
 
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {

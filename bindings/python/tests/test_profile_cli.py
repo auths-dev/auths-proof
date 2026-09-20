@@ -8,6 +8,7 @@ import pytest
 
 from auths._profile_cli import (
     parse_contract,
+    profile_diff,
     render_adapter,
     render_generated,
     render_lock,
@@ -83,8 +84,25 @@ def test_same_version_schema_edit_is_rejected(tmp_path: Path) -> None:
     (tmp_path / "profile.toml").write_text(PROFILE)
     write_profile(tmp_path, parse_contract(PROFILE))
     changed = PROFILE.replace('max_bytes = 32', 'max_bytes = 31')
+    (tmp_path / "profile.toml").write_text(changed)
+    difference = profile_diff(tmp_path / "profile.toml")
+    assert difference["code"] == "profile.contract.version-required"
+    assert "arguments.fields.value.maximum" in difference["changed_fields"]
+    assert difference["action_identity_changed"] is True
     with pytest.raises(ValueError, match="without a version bump"):
         write_profile(tmp_path, parse_contract(changed))
+
+
+def test_json_diagnostic_distinguishes_stale_generated_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from auths._profile_cli import main, write_profile
+    import json
+
+    (tmp_path / "profile.toml").write_text(PROFILE)
+    write_profile(tmp_path, parse_contract(PROFILE))
+    (tmp_path / "generated.py").write_text("stale")
+    assert main(["profile", "check", str(tmp_path / "profile.toml"), "--json"]) == 1
+    result = json.loads(capsys.readouterr().out)
+    assert result["diagnostic"]["code"] == "profile.generated.stale"
 
 
 def test_production_doctor_fails_without_explicit_authority(tmp_path: Path) -> None:

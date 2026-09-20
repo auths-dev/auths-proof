@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 
 import {
-  parseContract, renderAdapter, renderGenerated, renderLock, renderRun, renderVectors,
+  parseContract, profileDiff, renderAdapter, renderGenerated, renderLock, renderRun, renderVectors,
 } from "../../tools/profile-cli.mjs";
 
 const root = new URL("../../../fixtures/self-hosted-profile/", import.meta.url);
@@ -40,4 +42,14 @@ test("malformed and widened profiles are rejected", () => {
     profile.replace('type = "boolean"', 'type = "any"'),
     profile.replace("max_bytes = 32", "max_bytes = 99999"),
   ]) assert.throws(() => parseContract(invalid));
+});
+
+test("profile diff identifies the changed field and required version bump", async () => {
+  const folder = await mkdtemp(join(tmpdir(), "auths-profile-diff-"));
+  await writeFile(join(folder, "profile.lock.json"), renderLock(parseContract(profile)));
+  await writeFile(join(folder, "profile.toml"), profile.replace("max_bytes = 32", "max_bytes = 31"));
+  const result = await profileDiff(join(folder, "profile.toml"));
+  assert.equal(result.code, "profile.contract.version-required");
+  assert.ok(result.changed_fields.includes("arguments.fields.value.maximum"));
+  assert.equal(result.action_identity_changed, true);
 });

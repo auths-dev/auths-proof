@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import argparse
 import base64
+import contextlib
 import hashlib
+import io
 import json
 import re
 import sys
@@ -376,8 +378,54 @@ def render_lock(contract: ProfileContract) -> str:
         "service": contract.service,
         "tool": contract.versioned_tool,
         "schema_digest": _schema_digest(contract),
+        "command_schema": _node_json(FieldSpec("arguments", "object", fields=contract.fields)),
         "generator_format": 2,
     }) + "\n"
+
+
+def _schema_changes(before: object, after: object, path: str = "arguments") -> list[str]:
+    if before == after:
+        return []
+    if isinstance(before, dict) and isinstance(after, dict):
+        changes: list[str] = []
+        for key in sorted(before.keys() | after.keys()):
+            changes.extend(_schema_changes(before.get(key), after.get(key), f"{path}.{key}"))
+        return changes
+    return [path]
+
+
+def profile_diff(path: Path) -> dict[str, object]:
+    """Compare source to the last generated lock without changing either file."""
+    contract = parse_contract(_source_at(path))
+    target = path.parent / "profile.lock.json"
+    current = json.loads(render_lock(contract))
+    if target.is_symlink():
+        raise ValueError("profile lock cannot be a symlink")
+    if not target.exists():
+        return {"status": "new", "stage": "contract", "code": "profile.contract.new",
+                "changed_fields": [], "action_identity_changed": True,
+                "next_action": "Run profile generate."}
+    try:
+        old = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise ValueError("profile lock is invalid") from error
+    if not isinstance(old, dict) or old.get("schema") != "auths.self-hosted-profile-lock/1":
+        raise ValueError("profile lock is invalid")
+    changed = _schema_changes(old.get("command_schema"), current["command_schema"])
+    identity_changed = any(old.get(key) != current[key] for key in ("service", "tool", "version"))
+    same_version_drift = old.get("version") == contract.version and old != current
+    status = "version-required" if same_version_drift else "changed" if old != current else "current"
+    return {
+        "status": status, "stage": "contract",
+        "code": f"profile.contract.{status}",
+        "old_version": old.get("version"), "new_version": contract.version,
+        "changed_fields": changed[:64], "action_identity_changed": identity_changed or bool(changed),
+        "next_action": (
+            "Increase profile.version before generation." if same_version_drift
+            else "Run profile generate and review new proof identity." if old != current
+            else "No version change required."
+        ),
+    }
 
 
 def render_adapter(contract: ProfileContract) -> str:
@@ -496,7 +544,7 @@ def check_profile(path: Path) -> tuple[str, ...]:
     return tuple(problems)
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def _main_text(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="auths")
     command = parser.add_subparsers(dest="command", required=True)
     profile = command.add_parser("profile")
@@ -505,7 +553,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     init.add_argument("--language", choices=("python",), required=True)
     init.add_argument("--name", required=True)
     init.add_argument("--directory", type=Path, default=Path("."))
-    for name in ("generate", "check", "doctor", "test"):
+    for name in ("generate", "check", "diff", "doctor", "test"):
         action = actions.add_parser(name)
         action.add_argument("profile", type=Path, nargs="?", default=Path("profile.toml"))
         if name == "test":
@@ -557,6 +605,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                     print(problem, file=sys.stderr)
                 return 1
             print("profile current; self-hosted, provider behavior unqualified")
+        elif args.action == "diff":
+            result = profile_diff(args.profile)
+            print(f"{result['code']}: {', '.join(result['changed_fields']) or 'no field changes'}")
+            print(f"action identity changed: {str(result['action_identity_changed']).lower()}")
+            print(result["next_action"])
         elif args.action == "test":
             import asyncio
             import importlib
@@ -587,16 +640,21 @@ def main(argv: Sequence[str] | None = None) -> int:
 
                 if not args.signer_adapter or not _IDENTITY.fullmatch(args.signer_adapter):
                     raise ValueError("production needs an explicit custody signer adapter identifier")
-                if args.grant_file is None or args.trust_file is None:
-                    raise ValueError("production needs separate --grant-file and --trust-file")
+                if args.grant_file is None:
+                    raise ValueError("production grant-file is missing")
+                if args.trust_file is None:
+                    raise ValueError("production trust-file is missing")
                 for path, maximum in ((args.grant_file, 262_144), (args.trust_file, 262_144)):
                     if path.is_symlink() or not path.is_file() or not 1 <= path.stat().st_size <= maximum:
                         raise ValueError("production authority file is unavailable or outside bounds")
                 try:
                     _native.parse_signed("grant", args.grant_file.read_bytes())
+                except Exception as error:
+                    raise ValueError("production grant is invalid") from error
+                try:
                     _native.parse_trusted_context(args.trust_file.read_bytes())
                 except Exception as error:
-                    raise ValueError("production grant or trusted context is invalid") from error
+                    raise ValueError("production trusted context is invalid") from error
                 if args.grant_file.resolve() == args.trust_file.resolve():
                     raise ValueError("grant and trusted context must use separate files")
                 print("production inputs: structurally present; signer connectivity and trust provenance not checked")
@@ -607,6 +665,51 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"auths profile: {error}", file=sys.stderr)
         return 1
     return 0
+
+
+def _diagnostic(action: str, status: int, message: str) -> tuple[str, str, str]:
+    if status == 0:
+        return ("profile.generated.current" if action == "check" else "profile.operation.ok",
+                "generated" if action == "check" else "contract", "No action required.")
+    if "without a version bump" in message or "version cannot move backward" in message:
+        return "profile.contract.version-required", "contract", "Increase profile.version, then review profile diff."
+    if "has drifted" in message:
+        return "profile.generated.stale", "generated", "Run profile generate after reviewing the source and version."
+    if "signer" in message:
+        return "profile.authority.signer-missing", "authority", "Supply an explicit custody signer adapter."
+    if "grant" in message and "trust" not in message:
+        return "profile.authority.grant-missing", "authority", "Supply a bounded signed grant file."
+    if "trust" in message:
+        return "profile.trust.context-missing", "trust", "Supply an independently provisioned trusted context."
+    if "suite" in message or "adapter" in message:
+        return "profile.provider.adapter-test-failed", "provider", "Wire the adapter to the scripted provider and rerun profile test."
+    return "profile.contract.schema-invalid", "contract", "Correct the bounded profile.toml schema."
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    raw = list(sys.argv[1:] if argv is None else argv)
+    if "--json" not in raw:
+        return _main_text(raw)
+    raw.remove("--json")
+    stdout, stderr = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+        status = _main_text(raw)
+    action = raw[1] if len(raw) > 1 else "unknown"
+    message = (stderr.getvalue() or stdout.getvalue()).strip()[:2048]
+    code, stage, next_action = _diagnostic(action, status, message)
+    diff = None
+    if status == 0 and action == "diff":
+        at = raw[2] if len(raw) > 2 else "profile.toml"
+        diff = profile_diff(Path(at))
+        code, stage, next_action = diff["code"], diff["stage"], diff["next_action"]
+    print(_stable_json({
+        "schema": "auths.profile-diagnostic/1", "ok": status == 0,
+        "action": action, "diagnostic": {
+            "code": code, "stage": stage, "message": message,
+            "next_action": next_action,
+        }, "diff": diff,
+    }))
+    return status
 
 
 if __name__ == "__main__":
