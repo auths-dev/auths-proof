@@ -62,7 +62,6 @@
 ./self-hosted	CommandResult	type
 ./self-hosted	exactMcpTool	value
 ./self-hosted	ExactMcpTool	value+type
-./self-hosted	Field	type
 ./self-hosted	FieldMap	type
 ./self-hosted	GrantEvidence	type
 ./self-hosted	integerField	value
@@ -70,12 +69,9 @@
 ./self-hosted	optionalField	value
 ./self-hosted	OptionalField	type
 ./self-hosted	optionalStringField	value
-./self-hosted	OptionalStringField	type
 ./self-hosted	PreparedMcpAction	type
-./self-hosted	ScalarField	type
 ./self-hosted	stringField	value
 ./self-hosted	StringField	type
-./self-hosted	ValueOf	type
 ./self-hosted	verifyCommand	value
 ./identity	AuthenticatedIdentityMessage	type
 ./identity	createRawKeyEd25519IdentityClient	value

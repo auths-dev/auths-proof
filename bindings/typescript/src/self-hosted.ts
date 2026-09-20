@@ -10,7 +10,7 @@ export interface StringField {
   readonly maxBytes: number;
 }
 
-export interface OptionalStringField {
+interface OptionalStringField {
   readonly kind: "optional-string";
   readonly minBytes: number;
   readonly maxBytes: number;
@@ -24,15 +24,15 @@ export interface IntegerField {
 
 export interface BooleanField { readonly kind: "boolean" }
 
-export type ScalarField = StringField | IntegerField | BooleanField;
+type ScalarField = StringField | IntegerField | BooleanField;
 export interface OptionalField<Inner extends ScalarField = ScalarField> {
   readonly kind: "optional";
   readonly inner: Inner;
 }
 
-export type Field = ScalarField | OptionalStringField | OptionalField;
+type Field = ScalarField | OptionalStringField | OptionalField;
 export type FieldMap = Readonly<Record<string, Field>>;
-export type ValueOf<Definition extends Field> =
+type ValueOf<Definition extends Field> =
   Definition extends OptionalField<infer Inner> ? ValueOf<Inner> | null
   : Definition extends OptionalStringField ? string | null
   : Definition extends IntegerField ? number
