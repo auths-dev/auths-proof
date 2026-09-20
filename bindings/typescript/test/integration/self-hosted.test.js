@@ -7,6 +7,7 @@ import {
   authorMcpProof, booleanField, exactMcpTool, integerField, optionalField, stringField,
   verifyCommand,
 } from "../../dist/self-hosted.js";
+import { runSelfHostedAdapterConformance } from "../../dist/testkit/index.js";
 
 const ACTOR = "key:sha256:MPL4hHxgoCRRtbEjYAedm50CmSM11XgLojSwwYeRi1E";
 const RAW_EVIDENCE = {
@@ -186,4 +187,23 @@ test("checked integer and boolean fields reject coercion and unsafe numbers", as
   ]) {
     assert.throws(() => tool.decode(command));
   }
+});
+
+test("public adapter conformance covers denial, replay, uncertainty and observation", async () => {
+  const prepared = await proofFixture();
+  const report = await runSelfHostedAdapterConformance({
+    contract, command: { value: "reviewed" },
+    artifacts: {
+      proof: prepared.artifacts.proofCbor,
+      action: prepared.action,
+      trustedContext: prepared.artifacts.trustedContextCbor,
+    },
+    adapterFactory: (provider) => ({
+      credential: () => "synthetic-token",
+      invoke: (command, credential) => provider.write(command, credential),
+      observe: (command) => provider.read(command),
+    }),
+  });
+  assert.equal(report.passed, true, JSON.stringify(report.cases));
+  assert.equal(report.cases.length, 8);
 });

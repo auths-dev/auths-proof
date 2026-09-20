@@ -421,6 +421,26 @@ def render_run(contract: ProfileContract) -> str:
     )
 
 
+def render_conformance(contract: ProfileContract) -> str:
+    return (
+        '"""Wire the real adapter to a synthetic provider, then run local conformance."""\n'
+        "from __future__ import annotations\n\n"
+        "import json\n"
+        "from pathlib import Path\n\n"
+        "from auths.testkit import ScriptedProvider, run_self_hosted_adapter_conformance\n\n"
+        "from .generated import CONTRACT\n\n\n"
+        "def adapter_factory(provider: ScriptedProvider):\n"
+        "    # Map provider.write/read to your adapter's application-owned port.\n"
+        '    raise NotImplementedError("wire a fake provider to the adapter")\n\n\n'
+        "async def run():\n"
+        '    vectors = json.loads(Path(__file__).with_name("vectors.json").read_text())\n'
+        '    command = CONTRACT.validate_arguments(json.loads(vectors["valid_arguments_json"]))\n'
+        "    return await run_self_hosted_adapter_conformance(\n"
+        "        contract=CONTRACT, command=command, adapter_factory=adapter_factory,\n"
+        "    )\n"
+    )
+
+
 def _source_at(path: Path) -> str:
     if path.is_symlink() or not path.is_file() or path.stat().st_size > 16_384:
         raise ValueError("profile.toml must be a bounded regular file")
@@ -485,9 +505,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     init.add_argument("--language", choices=("python",), required=True)
     init.add_argument("--name", required=True)
     init.add_argument("--directory", type=Path, default=Path("."))
-    for name in ("generate", "check", "doctor"):
+    for name in ("generate", "check", "doctor", "test"):
         action = actions.add_parser(name)
         action.add_argument("profile", type=Path, nargs="?", default=Path("profile.toml"))
+        if name == "test":
+            action.add_argument("--suite", required=True)
         if name == "doctor":
             action.add_argument("--production", action="store_true")
             action.add_argument("--grant-file", type=Path)
@@ -501,7 +523,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             directory = args.directory
             if any((directory / name).exists() or (directory / name).is_symlink() for name in (
                 "profile.toml", "generated.py", "vectors.json", "profile.lock.json",
-                "adapter.py", "run.py"
+                "adapter.py", "run.py", "conformance.py"
             )):
                 raise ValueError("profile files already exist")
             source = (
@@ -514,7 +536,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             directory.mkdir(parents=True, exist_ok=True)
             (directory / "profile.toml").write_text(source, encoding="utf-8")
             write_profile(directory, contract)
-            for name, contents in (("adapter.py", render_adapter(contract)), ("run.py", render_run(contract))):
+            for name, contents in (
+                ("adapter.py", render_adapter(contract)),
+                ("run.py", render_run(contract)),
+                ("conformance.py", render_conformance(contract)),
+            ):
                 (directory / name).write_text(contents, encoding="utf-8")
             package = directory / "__init__.py"
             if not package.exists():
@@ -531,6 +557,26 @@ def main(argv: Sequence[str] | None = None) -> int:
                     print(problem, file=sys.stderr)
                 return 1
             print("profile current; self-hosted, provider behavior unqualified")
+        elif args.action == "test":
+            import asyncio
+            import importlib
+
+            problems = check_profile(args.profile)
+            if problems:
+                raise ValueError("; ".join(problems))
+            module_name, separator, function_name = args.suite.partition(":")
+            if not separator or not module_name or not function_name:
+                raise ValueError("--suite must name a module:function test entry point")
+            function = getattr(importlib.import_module(module_name), function_name)
+            from .testkit import ConformanceReport
+
+            report = asyncio.run(function())
+            if not isinstance(report, ConformanceReport) or report.metadata.suite != "self-hosted-provider-adapter/1":
+                raise ValueError("adapter suite returned an invalid conformance report")
+            for case in report.cases:
+                print(f"{case.status.upper()} {case.id}")
+            print("local adapter tests only; provider behavior remains unqualified")
+            return 0 if report.passed else 1
         else:
             problems = check_profile(args.profile)
             if problems:
@@ -557,7 +603,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             else:
                 print("local testkit authority is development-only")
             print("profile doctor does not verify provider credentials or qualify adapter behavior")
-    except (OSError, UnicodeError, ValueError) as error:
+    except (OSError, UnicodeError, ValueError, ImportError, AttributeError, TypeError, NotImplementedError) as error:
         print(f"auths profile: {error}", file=sys.stderr)
         return 1
     return 0

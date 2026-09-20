@@ -32,6 +32,7 @@ from .adapters.custody import (
 from .adapters.reservations import ReservationRecord, ReservationStore
 from .protocol import BoundedTransport, TransportRequest
 from .verify import VerificationInput
+from ._adapter_conformance import ScriptedProvider, run_self_hosted_adapter_conformance
 
 
 @_dataclass(frozen=True)
@@ -179,10 +180,12 @@ def development_mcp_artifacts(
     return DevelopmentMcpArtifacts(bytes(proof), bytes(action), bytes(trusted_context))
 
 
-def _report(suite: str, cases: list[ConformanceCase]) -> ConformanceReport:
+def _report(
+    suite: str, cases: list[ConformanceCase], contract_version: str = "2"
+) -> ConformanceReport:
     metadata = ConformanceMetadata(
         suite,
-        "2",
+        contract_version,
         _runtime_info().sdk_version,
         _datetime.datetime.now(_datetime.timezone.utc).isoformat(),
         "test-results-only-not-security-certification",
@@ -430,11 +433,13 @@ __all__ = [
     "ConformanceReport",
     "DevelopmentEd25519IdentityKey",
     "DevelopmentMcpArtifacts",
+    "ScriptedProvider",
     "run_custody_signer_conformance",
     "run_reservation_store_conformance",
     "run_bounded_transport_conformance",
     "development_ed25519_identity_key",
     "development_mcp_artifacts",
+    "run_self_hosted_adapter_conformance",
     "ephemeral_ed25519_signer",
     "fixtures",
 ]

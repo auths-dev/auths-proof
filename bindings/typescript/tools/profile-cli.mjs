@@ -5,8 +5,8 @@
 import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { realpathSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const identity = /^[a-z][a-z0-9._-]{0,63}$/;
 const key = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
@@ -288,6 +288,24 @@ export function renderRun(contract) {
     `}\n`;
 }
 
+export function renderConformance(contract) {
+  return `/** Wire the real adapter to a scripted provider before running this suite. */\n` +
+    `import { runSelfHostedAdapterConformance, type ScriptedProvider } from "@auths-dev/sdk/testkit";\n` +
+    `import { CONTRACT, type ${contract.command} } from "./generated.js";\n` +
+    `import { ApplicationAdapter } from "./adapter.js";\n\n` +
+    `export async function run() {\n` +
+    `  // Supply a local test proof/action/context for the exact generated command.\n` +
+    `  const command: ${contract.command} = { value: "replace-with-typed-command" } as ${contract.command};\n` +
+    `  const artifacts: { proof: Uint8Array; action: Uint8Array; trustedContext: Uint8Array } =\n` +
+    `    { proof: new Uint8Array(), action: new Uint8Array(), trustedContext: new Uint8Array() };\n` +
+    `  const adapterFactory = (provider: ScriptedProvider): ApplicationAdapter => {\n` +
+    `    void provider;\n` +
+    `    throw new Error("wire a fake provider to the adapter");\n` +
+    `  };\n` +
+    `  return runSelfHostedAdapterConformance({ contract: CONTRACT, command, artifacts, adapterFactory });\n` +
+    `}\n`;
+}
+
 async function sourceAt(path) {
   const metadata = await lstat(path);
   if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size > 16_384) {
@@ -374,7 +392,7 @@ async function main(args) {
     const source = `[profile]\nname = "${name}"\nversion = 1\nservice = "${name}"\ntool = "invoke"\n\n` +
       `[arguments]\ntype = "object"\n\n[arguments.fields.value]\ntype = "string"\nmin_bytes = 1\nmax_bytes = 256\n`;
     await mkdir(directory, { recursive: true });
-    for (const filename of ["profile.toml", "generated.ts", "vectors.json", "profile.lock.json", "adapter.ts", "run.ts"]) {
+    for (const filename of ["profile.toml", "generated.ts", "vectors.json", "profile.lock.json", "adapter.ts", "run.ts", "conformance.ts"]) {
       try { await lstat(join(directory, filename)); throw new Error("profile files already exist"); }
       catch (error) { if (error.code !== "ENOENT") throw error; }
     }
@@ -383,6 +401,7 @@ async function main(args) {
     await writeProfile(directory, contract);
     await writeFile(join(directory, "adapter.ts"), renderAdapter(contract), { flag: "wx" });
     await writeFile(join(directory, "run.ts"), renderRun(contract), { flag: "wx" });
+    await writeFile(join(directory, "conformance.ts"), renderConformance(contract), { flag: "wx" });
     process.stdout.write(`created ${join(directory, "profile.toml")}; self-hosted, provider behavior unqualified\n`);
     return;
   }
@@ -394,6 +413,21 @@ async function main(args) {
     const problems = await checkProfile(path);
     if (problems.length) throw new Error(problems.join("; "));
     process.stdout.write("profile current; self-hosted, provider behavior unqualified\n");
+  } else if (action === "test") {
+    const suiteAt = args.indexOf("--suite");
+    const suitePath = suiteAt < 0 ? undefined : args[suiteAt + 1];
+    if (!suitePath) throw new Error("profile test needs --suite path/to/compiled-conformance.js");
+    const problems = await checkProfile(path);
+    if (problems.length) throw new Error(problems.join("; "));
+    const suite = await import(pathToFileURL(resolve(suitePath)).href);
+    if (typeof suite.run !== "function") throw new Error("adapter suite must export run()");
+    const report = await suite.run();
+    if (report?.metadata?.suite !== "self-hosted-provider-adapter/1" || !Array.isArray(report.cases)) {
+      throw new Error("adapter suite returned an invalid conformance report");
+    }
+    for (const item of report.cases) process.stdout.write(`${item.status.toUpperCase()} ${item.id}\n`);
+    process.stdout.write("local adapter tests only; provider behavior remains unqualified\n");
+    if (!report.passed) process.exitCode = 1;
   } else if (action === "doctor") {
     const problems = await checkProfile(path);
     if (problems.length) throw new Error(problems.join("; "));

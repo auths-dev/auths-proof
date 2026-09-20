@@ -1,6 +1,10 @@
 import type { CustodySigner, ReservationStore } from "../adapters.js";
 import type { BoundedTransport } from "../protocol.js";
 import { CONFORMANCE_CATALOG_V2 } from "../generated/mechanism-conformance-v2.js";
+export {
+  ScriptedProvider, runSelfHostedAdapterConformance,
+  type SelfHostedScenario,
+} from "./self-hosted-conformance.js";
 
 export interface ConformanceCaseResult { readonly id: string; readonly status: "passed" | "failed"; readonly detailCode?: "contract-mismatch" | "unexpected-exception" | "timeout" | "resource-leak" | "redaction-failed"; readonly summary?: string }
 export interface ConformanceMetadata { readonly suite: string; readonly contractVersion: string; readonly sdkVersion: string; readonly generatedAt: string; readonly assurance: "test-results-only-not-security-certification" }

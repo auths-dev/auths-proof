@@ -305,6 +305,19 @@ class ExactMcpTool(Generic[CommandT]):
             raise ValueError("command constructor changed verified arguments")
         return command
 
+    def encode(self, command: CommandT) -> dict[str, object]:
+        """Produce bounded argument values for authoring or local test fixtures.
+
+        The returned mapping is not authorization; verification still projects
+        only from the native-verified action bytes.
+        """
+        if type(command) is not self.command_type:
+            raise TypeError("command does not belong to this exact tool")
+        return {
+            name: _wire_value(schema, getattr(command, name))
+            for name, schema in self.fields.items()
+        }
+
     def prepare(
         self,
         command: CommandT,
@@ -316,10 +329,7 @@ class ExactMcpTool(Generic[CommandT]):
     ) -> PreparedMcpAction[CommandT]:
         if type(command) is not self.command_type:
             raise TypeError("command does not belong to this exact tool")
-        arguments = {
-            name: _wire_value(schema, getattr(command, name))
-            for name, schema in self.fields.items()
-        }
+        arguments = self.encode(command)
         checked = self.validate_arguments(arguments)
         encoded = _canonical_arguments(arguments)
         native = _native.prepare_mcp_action(
