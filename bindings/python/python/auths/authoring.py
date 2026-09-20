@@ -12,7 +12,6 @@ from typing import Generic, Literal, Sequence, TypeVar
 
 from . import _native
 from .adapters.custody import (
-    CustodyFailure,
     CustodyIndeterminate,
     CustodyRejected,
     CustodySigned,
