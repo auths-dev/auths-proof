@@ -54,26 +54,26 @@ runtime-installed Auths integration.
 Illustrative terminal flow (command names are normative, output is not):
 
 ```text
-$ auths profile init --language python --name todoist-create-task
+$ auths-profile init --language python --name todoist-create-task
   profile.toml              exact MCP service/tool and schema identity
   src/.../command.py        generated bounded command type
   src/.../provider.py       application-owned TODOs: credential, request, observe
   tests/...                 denial, mutation, replay, uncertain-result fixtures
 
-$ auths profile check
+$ auths-profile check
   ✓ schema and canonical action vectors
   ✓ authorized command cannot be projected from denied proof
   ✓ gateway tests: denial before credential lookup
   ! provider effect is developer-owned; no Auths qualification claim
 
-$ auths profile doctor
-  signer: configured by application/operator
-  trust anchors: loaded from operator-owned configuration
+$ auths-profile doctor
+  signer: application/operator input, not contacted
+  trust files: no provenance established
   provider credential: application-owned, not inspected by Auths
   runnable: yes; qualification: self-hosted only
 ```
 
-The TypeScript CLI (`auths profile init --language typescript`) MUST produce
+The TypeScript CLI (`auths-profile init --language typescript`) MUST produce
 the same contract and canonical vectors. A developer can implement another
 operation by changing the schema and writing its provider adapter, without
 forking Auths, authoring a Rust fixture binary, or adding a built-in provider
@@ -313,7 +313,7 @@ that would be mistaken for an Auths-qualified execution receipt. A portable
 developer observation record MAY link to the Auths decision commitment if it
 identifies its application issuer and unqualified status.
 
-SDK CI and the generated `auths profile check` harness MUST cover:
+SDK CI and the generated `auths-profile check` harness MUST cover:
 
 1. canonical and hostile action/proof vectors across Rust, Python, and
    TypeScript, including altered tool/service/arguments/audience/version,
@@ -390,7 +390,7 @@ the exit criteria above.
 
 Still required before this spec can be marked implemented:
 
-- the packaged `auths profile init/check/doctor` flow in both languages,
+- the packaged `auths-profile init/check/doctor` flow in both languages,
   including deterministic generated types and canonical cross-language
   vectors from a restricted `profile.toml`;
 - the full bounded schema vocabulary in §4 (beyond the currently supported

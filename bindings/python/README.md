@@ -75,7 +75,11 @@ For a new domain or provider kind, follow the
 [profile authoring guide](../../docs/product/PROFILE_AUTHORING.md).
 
 For an application-owned provider adapter that is not an Auths-qualified
-vertical, see the [self-hosted exact-operation quickstart](../../docs/product/SELF_HOSTED_PROFILE_QUICKSTART.md).
+vertical, use the installed `auths-profile` command and see the
+[self-hosted exact-operation quickstart](../../docs/product/SELF_HOSTED_PROFILE_QUICKSTART.md).
+The wheel does not install a competing `auths` command; that name belongs to
+the Rust CLI. An application holding its own provider token can bypass
+`auths.execution.run_once`, so this path is not credential-isolated.
 
 ## Outcomes and recovery
 

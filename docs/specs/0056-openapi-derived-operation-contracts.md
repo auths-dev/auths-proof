@@ -35,13 +35,13 @@ not an exit criterion; "derive the operations that fit, and say precisely
 why the others do not" is.
 
 AP-SPEC-024 §4 still holds: no OpenAPI document is accepted from a caller at
-runtime. Derivation runs where `auths profile init` runs, produces files the
+runtime. Derivation runs where `auths-profile init` runs, produces files the
 developer commits, and is finished before any proof is authored.
 
 ## 2. UX
 
 ```text
-$ auths profile derive \
+$ auths-profile derive \
     --openapi ./vendor/todoist-v2.yaml \
     --operation createTask \
     --service todoist --name create-task \
@@ -58,10 +58,10 @@ $ auths profile derive \
   overrides:  content.max_bytes=256 description.max_bytes=1024 labels.max_items=8
               project_id.required=true
   wrote:      profile.toml recipe.toml derivation.json
-  next:       auths profile generate && auths gateway recipe check recipe.toml
+  next:       auths-profile generate && auths gateway recipe check recipe.toml
   claim:      derived shape only; provider effect unqualified
 
-$ auths profile derive --openapi ./vendor/todoist-v2.yaml --operation updateTask ...
+$ auths-profile derive --openapi ./vendor/todoist-v2.yaml --operation updateTask ...
   REJECTED  contract
     parameters[in=query] "reveal_completed": query parameters are not in the
     recipe language (AP-SPEC-053 §3.2)
@@ -234,7 +234,7 @@ override; no derivation reads the network or a credential.
 
 ### Epic 2 — Packaged command and round trip
 
-1. Add `auths profile derive` to the Python and TypeScript CLIs with the
+1. Add `auths-profile derive` to the Python and TypeScript CLIs with the
    flags in §2 and the codes in §4.
 2. Wire `derivation.json` verification into `profile check` and the
    "edited by hand" diagnostic into `profile diff`.

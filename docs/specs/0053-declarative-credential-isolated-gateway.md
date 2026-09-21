@@ -60,7 +60,7 @@ by `init`, `compile`, or `check`.
 Proposed terminal flow; command spelling may be refined before public freeze:
 
 ```text
-$ auths profile init --language python --name set-demo-status
+$ auths-profile init --language python --name set-demo-status
 $ auths gateway recipe init --profile profile.toml
 $ auths gateway recipe check recipe.toml
   action:       airtable.set_demo_status_v1

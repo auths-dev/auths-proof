@@ -15,6 +15,38 @@
     {
       "key": "./verify\tReceiptVerificationInput",
       "reason": "VerificationInput is the authority proof/action/context tuple; ReceiptVerificationInput is the distinct signed-receipt plus trust-policy operation selected by the v2 API contract."
+    },
+    {
+      "key": "./self-hosted\tArrayField",
+      "reason": "Field is the discriminated union of schema nodes; ArrayField is one concrete node, not a second spelling of Field."
+    },
+    {
+      "key": "./self-hosted\tBooleanField",
+      "reason": "Field is the discriminated union of schema nodes; BooleanField is one concrete node, not a second spelling of Field."
+    },
+    {
+      "key": "./self-hosted\tBytesField",
+      "reason": "Field is the discriminated union of schema nodes; BytesField is one concrete node, not a second spelling of Field."
+    },
+    {
+      "key": "./self-hosted\tEnumField",
+      "reason": "Field is the discriminated union of schema nodes; EnumField is one concrete node, not a second spelling of Field."
+    },
+    {
+      "key": "./self-hosted\tIntegerField",
+      "reason": "Field is the discriminated union of schema nodes; IntegerField is one concrete node, not a second spelling of Field."
+    },
+    {
+      "key": "./self-hosted\tObjectField",
+      "reason": "Field is the discriminated union of schema nodes; ObjectField is one concrete node, not a second spelling of Field."
+    },
+    {
+      "key": "./self-hosted\tOptionalField",
+      "reason": "Field is the discriminated union of schema nodes; OptionalField is one concrete node, not a second spelling of Field."
+    },
+    {
+      "key": "./self-hosted\tStringField",
+      "reason": "Field is the discriminated union of schema nodes; StringField is one concrete node, not a second spelling of Field."
     }
   ],
   "homonym": []

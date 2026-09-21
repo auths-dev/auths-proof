@@ -39,16 +39,16 @@ A new developer starts in an empty application repository with an installed
 required as a sibling checkout.
 
 ```text
-auths profile init --language python|typescript --name create-task
+auths-profile init --language python|typescript --name create-task
   -> versioned exact-tool contract and generated command type
   -> provider adapter skeleton with no credentials or trust material
   -> denial/replay/unknown tests and canonical vectors
 
-auths profile check <profile.toml>
+auths-profile check <profile.toml>
   -> schema, size, identity, generated-file and vector verdicts
   -> explicit "self-hosted, provider behavior unqualified" claim
 
-auths profile doctor <profile.toml> [--production]
+auths-profile doctor <profile.toml> [--production]
   -> production: signer, grant and independent trust sources required
   -> local: testkit artifacts allowed only with an explicit development mode
   -> missing input and next action stated without revealing a secret

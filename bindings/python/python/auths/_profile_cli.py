@@ -17,6 +17,7 @@ import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 _KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
 _IDENTITY = re.compile(r"^[a-z][a-z0-9._-]{0,63}$")
@@ -419,9 +420,11 @@ def _schema_changes(before: object, after: object, path: str = "arguments") -> l
     if before == after:
         return []
     if isinstance(before, dict) and isinstance(after, dict):
+        before_fields = cast(dict[str, object], before)
+        after_fields = cast(dict[str, object], after)
         changes: list[str] = []
-        for key in sorted(before.keys() | after.keys()):
-            changes.extend(_schema_changes(before.get(key), after.get(key), f"{path}.{key}"))
+        for key in sorted(before_fields.keys() | after_fields.keys()):
+            changes.extend(_schema_changes(before_fields.get(key), after_fields.get(key), f"{path}.{key}"))
         return changes
     return [path]
 
@@ -430,7 +433,7 @@ def _schema_at(schema: object, path: str) -> object:
     for component in path.split(".")[1:]:
         if not isinstance(schema, dict):
             return None
-        schema = schema.get(component)
+        schema = cast(dict[str, object], schema).get(component)
     return schema
 
 
@@ -438,7 +441,7 @@ def profile_diff(path: Path) -> dict[str, object]:
     """Compare source to the last generated lock without changing either file."""
     contract = parse_contract(_source_at(path))
     target = path.parent / "profile.lock.json"
-    current = json.loads(render_lock(contract))
+    current = cast(dict[str, object], json.loads(render_lock(contract)))
     if target.is_symlink():
         raise ValueError("profile lock cannot be a symlink")
     if not target.exists():
@@ -446,10 +449,13 @@ def profile_diff(path: Path) -> dict[str, object]:
                 "changed_fields": [], "changes": [], "action_identity_changed": True,
                 "next_action": "Run profile generate."}
     try:
-        old = json.loads(target.read_text(encoding="utf-8"))
+        old = cast(object, json.loads(target.read_text(encoding="utf-8")))
     except (OSError, ValueError) as error:
         raise ValueError("profile lock is invalid") from error
-    if not isinstance(old, dict) or old.get("schema") != "auths.self-hosted-profile-lock/1":
+    if not isinstance(old, dict):
+        raise ValueError("profile lock is invalid")
+    old = cast(dict[str, object], old)
+    if old.get("schema") != "auths.self-hosted-profile-lock/1":
         raise ValueError("profile lock is invalid")
     changed = _schema_changes(old.get("command_schema"), current["command_schema"])
     details = [
@@ -548,15 +554,19 @@ def _lock_state(directory: Path, contract: ProfileContract) -> None:
     if not target.exists():
         return
     try:
-        old = json.loads(target.read_text(encoding="utf-8"))
+        old = cast(object, json.loads(target.read_text(encoding="utf-8")))
     except (OSError, ValueError) as error:
         raise ValueError("profile lock is invalid") from error
-    if not isinstance(old, dict) or old.get("schema") != "auths.self-hosted-profile-lock/1":
+    if not isinstance(old, dict):
         raise ValueError("profile lock is invalid")
-    new = json.loads(render_lock(contract))
+    old = cast(dict[str, object], old)
+    if old.get("schema") != "auths.self-hosted-profile-lock/1":
+        raise ValueError("profile lock is invalid")
+    new = cast(dict[str, object], json.loads(render_lock(contract)))
     if old.get("version") == contract.version and old != new:
         raise ValueError("profile identity or schema changed without a version bump")
-    if type(old.get("version")) is not int or old["version"] > contract.version:
+    old_version = old.get("version")
+    if type(old_version) is not int or old_version > contract.version:
         raise ValueError("profile version cannot move backward")
 
 
@@ -661,7 +671,8 @@ def _main_text(argv: Sequence[str] | None = None) -> int:
             for change in changes:
                 if not isinstance(change, dict):
                     raise ValueError("profile diff change is invalid")
-                print(f"{change['path']}: {_stable_json(change['before'])} -> {_stable_json(change['after'])}")
+                fields = cast(dict[str, object], change)
+                print(f"{fields['path']}: {_stable_json(fields['before'])} -> {_stable_json(fields['after'])}")
             if not changes:
                 print("no field changes")
             print(f"action identity changed: {str(result['action_identity_changed']).lower()}")

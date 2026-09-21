@@ -250,8 +250,6 @@ def _annotation_matches(annotation: object, schema: Field) -> bool:
 
 
 def _type_for(schema: Field) -> object:
-    if isinstance(schema, EnumField):
-        return Literal.__getitem__(schema.variants)
     if isinstance(schema, StringField):
         return str
     if isinstance(schema, IntegerField):
@@ -262,7 +260,7 @@ def _type_for(schema: Field) -> object:
         return bytes
     if isinstance(schema, ObjectField):
         return schema.command_type
-    return Union[_type_for(schema.inner), type(None)]  # noqa: UP007 -- Python 3.9 runtime union
+    raise TypeError("unsupported scalar field annotation")
 
 
 def _field_value(schema: Field, value: object, *, wire: bool) -> object:
@@ -273,15 +271,15 @@ def _field_value(schema: Field, value: object, *, wire: bool) -> object:
     if isinstance(schema, ArrayField):
         if (wire and type(value) is not list) or (not wire and type(value) is not tuple):
             raise ValueError("expected a bounded array")
-        assert isinstance(value, (list, tuple))
-        if not schema.min_items <= len(value) <= schema.max_items:
+        items = cast(Union[list[object], tuple[object, ...]], value)
+        if not schema.min_items <= len(items) <= schema.max_items:
             raise ValueError("array item count outside declared bounds")
-        return tuple(_field_value(schema.inner, item, wire=wire) for item in value)
+        return tuple(_field_value(schema.inner, item, wire=wire) for item in items)
     if isinstance(schema, ObjectField):
         if wire:
             if type(value) is not dict or set(value) != set(schema.fields):
                 raise ValueError("object does not match the closed schema")
-            source = value
+            source: Mapping[str, object] = cast(Mapping[str, object], value)
         else:
             if type(value) is not schema.command_type:
                 raise ValueError("object does not match its generated type")

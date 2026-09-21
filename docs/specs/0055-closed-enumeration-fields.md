@@ -49,12 +49,12 @@ variants = ["open", "in_progress", "closed"]
 ```
 
 ```text
-$ auths profile check profile.toml
+$ auths-profile check profile.toml
   PASS  schema and generated files match
   PASS  canonical/hostile vectors match packaged SDK
   NOTE  status: enum of 3 variants; variant meaning is application-owned
 
-$ auths profile diff profile.toml        # after editing variants
+$ auths-profile diff profile.toml        # after editing variants
   arguments.fields.status.variants: ["open","in_progress","closed"]
                                  -> ["open","closed"]
   action identity changed; bump [profile].version before generate
