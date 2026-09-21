@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
+import os
 import subprocess
 import sys
 import tempfile
@@ -16,7 +17,7 @@ from auths.adapters.custody import (
     CustodySignatureDescriptor, CustodySigned, PublicControlEvidence,
     SigningRequest, SigningResponse,
 )
-from auths.attempts import FileAttemptStore
+from auths.attempts import AttemptRecord, FileAttemptStore, TerminalState
 from auths.authoring import AuthoredMcpProof, GrantEvidence, author_mcp_proof
 from auths.execution import (
     Attempted, NotExecuted, ProviderAccepted, reconcile_read_only, run_once,
@@ -27,19 +28,24 @@ from auths.testkit import development_mcp_artifacts
 
 class MemoryAttempts:
     def __init__(self) -> None:
-        self.claimed = False
+        self.records: dict[bytes, AttemptRecord] = {}
+        self.keys: set[str] = set()
 
     def claim_once(self, action_commitment: bytes, operation_key: str) -> bool:
-        if self.claimed:
+        if action_commitment in self.records or operation_key in self.keys:
             return False
-        self.claimed = True
+        self.keys.add(operation_key)
+        self.records[action_commitment] = AttemptRecord(action_commitment, operation_key, "attempting")
         return True
 
-    def read(self, action_commitment: bytes) -> None:
-        return None
+    def read(self, action_commitment: bytes) -> AttemptRecord | None:
+        return self.records.get(action_commitment)
 
-    def finish(self, action_commitment: bytes, state: str) -> None:
-        return None
+    def finish(self, action_commitment: bytes, state: TerminalState) -> AttemptRecord:
+        previous = self.records[action_commitment]
+        record = AttemptRecord(action_commitment, previous.operation_key, state)
+        self.records[action_commitment] = record
+        return record
 
 
 class Adapter:
@@ -151,7 +157,7 @@ async def exercise_signed_journey(vectors: Path, root: Path) -> None:
         )
 
     first = await author("reviewed")
-    attempts = FileAttemptStore(root / "attempts")
+    attempts = FileAttemptStore(root / "attempts") if os.name == "posix" else MemoryAttempts()
     adapter = Adapter()
     base = {
         "contract": contract, "proof": first.proof, "action": first.action,
