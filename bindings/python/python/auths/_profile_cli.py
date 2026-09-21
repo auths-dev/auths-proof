@@ -675,7 +675,9 @@ def _main_text(argv: Sequence[str] | None = None) -> int:
                     raise ValueError("profile diff change is invalid")
                 fields = cast(dict[str, object], change)
                 print(f"{fields['path']}: {_stable_json(fields['before'])} -> {_stable_json(fields['after'])}")
-            if not changes:
+            if result["status"] == "new":
+                print("no prior generated lock; this is a new action identity")
+            elif not changes:
                 print("no field changes")
             print(f"action identity changed: {str(result['action_identity_changed']).lower()}")
             print(result["next_action"])

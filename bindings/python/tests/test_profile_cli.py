@@ -172,6 +172,19 @@ def test_first_edit_after_init_does_not_need_a_premature_version_bump(tmp_path: 
     assert (package / "profile.lock.json").exists()
 
 
+def test_diff_before_first_lock_explains_new_identity(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from auths._profile_cli import main
+
+    package = tmp_path / "new_operation"
+    assert main(["init", "--language", "python", "--name", "new-operation",
+                 "--directory", str(package)]) == 0
+    capsys.readouterr()
+    assert main(["diff", str(package / "profile.toml")]) == 0
+    output = capsys.readouterr().out
+    assert "no prior generated lock; this is a new action identity" in output
+    assert "no field changes" not in output
+
+
 def test_local_profile_suite_cannot_skip_mandatory_cases(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     import json
 

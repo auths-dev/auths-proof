@@ -492,7 +492,8 @@ async function mainText(args) {
     for (const change of result.changes) {
       process.stdout.write(`${change.path}: ${stableJson(change.before)} -> ${stableJson(change.after)}\n`);
     }
-    if (!result.changes.length) process.stdout.write("no field changes\n");
+    if (result.status === "new") process.stdout.write("no prior generated lock; this is a new action identity\n");
+    else if (!result.changes.length) process.stdout.write("no field changes\n");
     process.stdout.write(`action identity changed: ${result.action_identity_changed}\n${result.next_action}\n`);
   } else if (action === "test") {
     const suiteAt = args.indexOf("--suite");

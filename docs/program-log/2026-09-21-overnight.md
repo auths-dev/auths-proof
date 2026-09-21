@@ -16,6 +16,7 @@
 - 2026-09-21 20:52 UTC — Epic 4 exact-ref CI dispatched — https://github.com/auths-dev/auths-proof/actions/runs/35646269081: Draft PR #124's older branch passed preflight/formal/live jobs but authoritative rejected the dated-review heading already fixed on Epic 1, leaving the human trial unperformed.
 - 2026-09-21 20:53 UTC — Stop threshold — https://github.com/auths-dev/auths-field-lab/actions/runs/35653685841: Epic 1 field-lab billing, Epic 4 unfamiliar-user trial, and Epic 3 external-adopter evidence are three distinct §9 blockers, so no epic is marked done and no PR is merged.
 - 2026-09-21 21:32 UTC — Epic 1 acceptance review resumed — `3212373`: The ten-case adapter kit existed, but both `profile test` CLIs accepted an empty consumer-supplied report; this correction requires the complete mandatory case set and adds five deliberately broken-adapter probes per language, with hosted verification pending.
+- 2026-09-21 21:34 UTC — Epic 1 first-run diagnostic follow-up — `447fa46`: A zero-context packaged-wheel participant saw `profile diff` say “no field changes” while reporting a new action identity before any lock existed; both CLIs now explain the missing prior lock explicitly, with hosted verification pending.
 
 ## Morning report
 

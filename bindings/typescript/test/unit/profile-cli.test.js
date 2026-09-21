@@ -101,6 +101,17 @@ test("first profile edit after init can be generated at version one", async () =
   assert.match(await readFile(join(folder, "profile.lock.json"), "utf8"), /"version":1/);
 });
 
+test("diff before the first lock explains the new action identity", async () => {
+  const folder = await mkdtemp(join(tmpdir(), "auths-profile-new-diff-"));
+  const cli = fileURLToPath(new URL("../../tools/profile-cli.mjs", import.meta.url));
+  execFileSync(process.execPath, [cli, "init", "--language", "typescript",
+    "--name", "new-operation", "--directory", folder]);
+  const output = execFileSync(process.execPath, [cli, "diff", join(folder, "profile.toml")],
+    { encoding: "utf8" });
+  assert.match(output, /no prior generated lock; this is a new action identity/);
+  assert.doesNotMatch(output, /no field changes/);
+});
+
 test("production doctor describes only its actual TypeScript authority checks", async () => {
   const folder = await mkdtemp(join(tmpdir(), "auths-profile-doctor-"));
   const cli = new URL("../../tools/profile-cli.mjs", import.meta.url);
