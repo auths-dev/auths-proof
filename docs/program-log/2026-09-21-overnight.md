@@ -20,7 +20,7 @@
 | PR | Branch / epic | CI state | Green | Red or unqualified, and why |
 | --- | --- | --- | --- | --- |
 | [#123](https://github.com/auths-dev/auths-proof/pull/123) | `codex/self-hosted-developer-profiles` / Epic 1 | Red/skipped at `89b1beb` | No exact-revision gate proven green | [Generated-artifacts annotation](https://github.com/auths-dev/auths-proof/actions/runs/35552488044/job/106189733424) says billing prevented job start; fixture and packed-starter results are not checked. |
-| [#124](https://github.com/auths-dev/auths-proof/pull/124) | `codex/epic-4-evidence` / Epic 4 | No checks at `842c363` | No hosted gate proven green | Stacked PR targets the Epic 1 branch; automatic workflows target `main`. Manual dispatch awaits usable Actions billing. |
+| [#124](https://github.com/auths-dev/auths-proof/pull/124) | `codex/epic-4-evidence` / Epic 4 | No automatic checks on stacked branch | No hosted gate proven green | Stacked PR targets the Epic 1 branch; automatic workflows target `main`. Manual dispatch awaits usable Actions billing. |
 
 ### Epic 1 — freeze on evidence
 
