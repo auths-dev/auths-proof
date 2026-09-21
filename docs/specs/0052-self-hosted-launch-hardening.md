@@ -1,6 +1,6 @@
 # AP-SPEC-052: Self-hosted profile launch hardening
 
-- **Status:** Implementation in progress; Epics 1–3 landed, Epic 4 independent-adoption and hosted-demo gates open
+- **Status:** Epics 1–4 engineering evidence landed; independent owner review and AP-SPEC-057's stricter hosted-demo gate remain open
 - **Depends on:** [AP-SPEC-051](0051-self-hosted-developer-profiles.md)
 - **Scope:** make the exact, application-owned MCP path repeatable from packaged
   Python and TypeScript SDKs, usable with independently provisioned authority,
@@ -173,6 +173,19 @@ cross-language matrix is green on the exact release candidate, and the two
 field-lab demos retain their signed-proof and live-read-back paths. If no
 independent participant is available, the epic stays open; a simulated
 clean-room test is useful evidence but not a replacement.
+
+The independent zero-context engineering participant built and reran a third
+adapter from the packaged Python wheel; the [redacted report](../product/SELF_HOSTED_THIRD_ADAPTER_TRIAL.md)
+records the distinction from human market adoption. SDK revision `0266fdc`
+passed the [Python package](https://github.com/auths-dev/auths-proof/actions/runs/35663793077),
+[TypeScript package](https://github.com/auths-dev/auths-proof/actions/runs/35663793306),
+[installed-artifact recipes](https://github.com/auths-dev/auths-proof/actions/runs/35663793107),
+and [authoritative CI](https://github.com/auths-dev/auths-proof/actions/runs/35663793124).
+The exact-pinned field-lab demos passed local packaged-wheel tests and earlier
+live write/read-back. Their hosted jobs did not start because of a billing
+annotation in that repository. At the owner's direction, field-lab CI is not
+being pursued for PR #123's engineering handoff; this does not count as a green
+hosted-demo run under AP-SPEC-057 Epic 1.
 
 ## 4. APIs
 

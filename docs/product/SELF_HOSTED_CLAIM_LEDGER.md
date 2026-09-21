@@ -35,6 +35,18 @@ Exercised at auths-proof commit
 The package exercises establish a reproducible SDK path, not that an
 application-owned token cannot be used outside `run_once`/`runOnce`.
 
+The later exact SDK revision `0266fdc` passed [authoritative/formal CI](https://github.com/auths-dev/auths-proof/actions/runs/35663793124),
+the [Python package](https://github.com/auths-dev/auths-proof/actions/runs/35663793077),
+the [TypeScript package](https://github.com/auths-dev/auths-proof/actions/runs/35663793306),
+and [installed-artifact recipes](https://github.com/auths-dev/auths-proof/actions/runs/35663793107).
+Field-lab commit `92ac30d` pins that SDK revision; the Airtable and Todoist
+demos passed local tests against its installed hosted wheel and previously
+completed live write/read-back. Their hosted jobs did not start because of a
+billing annotation in `auths-field-lab`. The owner directed that those jobs
+not be pursued for PR #123's engineering handoff. This is not a claim that
+the field-lab hosted workflows passed, nor a substitute for the distinct
+AP-SPEC-057 Epic 1 hosted acceptance gate.
+
 ## Commit-title correction
 
 Commit `9b31882` added conformance tooling and associated repository evidence;
