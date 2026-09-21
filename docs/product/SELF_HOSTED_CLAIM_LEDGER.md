@@ -41,5 +41,17 @@ Commit `9b31882` added conformance tooling and associated repository evidence;
 it did **not** complete an independent unfamiliar-user trial. Its title predates
 and violates the evidence-in-the-diff rule now recorded in AP-SPEC-057 §2. The
 pushed commit is preserved rather than rewritten, and this forward correction
-is the authoritative interpretation of that title. An independent trial remains
-open until the participant report required by AP-SPEC-054 Epic 5 exists.
+is the authoritative interpretation of that title. The later
+[third-adapter engineering trial](SELF_HOSTED_THIRD_ADAPTER_TRIAL.md) is separate
+evidence, not retroactive evidence in `9b31882` and not a human adoption test.
+
+## Independent third-adapter engineering trial
+
+A separate zero-context agent built an inventory status adapter from a packaged
+Python wheel and reran it from a clean consumer workspace after SDK fixes.
+The [redacted report](SELF_HOSTED_THIRD_ADAPTER_TRIAL.md) records the exact
+action, disposable proof, projected command, one-use claim, adapter-classified
+provider response, local HTTP read-back, denial, and replay separately. It
+satisfies AP-SPEC-054 Epic 5's engineering clean-room criterion, not a market
+adoption claim. The credential and provider mapping were application-owned;
+the fake provider did not independently qualify those semantics.
