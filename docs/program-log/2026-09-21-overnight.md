@@ -21,6 +21,7 @@
 - 2026-09-21 21:38 UTC — Epic 1 bypass-boundary regression — `a750983`: Python and TypeScript SDK tests now explicitly demonstrate that application-held credentials permit a provider call without invoking `run_once`/`runOnce`, preserving AP-SPEC-051 §7's voluntary-gate claim.
 - 2026-09-21 21:39 UTC — Epic 1 first-run diagnostic matrix — `102f648`: Both profile CLIs now have executable cases for missing signer, grant, and trusted context with matching diagnostic codes; hosted package checks still need to verify the new tests.
 - 2026-09-21 21:40 UTC — AP-SPEC-055 status correction — `c0cdba8`: The enum-node implementation from `8aa1bed` is marked implemented after its Python, TypeScript, native, and hosted package evidence; no provider qualification claim is added.
+- 2026-09-21 21:41 UTC — Epic 1 public-surface read-through — `af0b6fa`: The new acceptance review maps AP-SPEC-051/-052/-054/-055 clauses to exact inventories, metadata, tests, previous hosted runs, and still-open final-revision gates; no new SDK symbol or qualified provider claim was found.
 
 ## Morning report
 
