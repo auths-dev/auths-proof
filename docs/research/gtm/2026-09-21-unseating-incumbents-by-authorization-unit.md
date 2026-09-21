@@ -25,8 +25,8 @@ enough to justify integration with the existing owner.
 
 **The order.**
 
-1. Agent commit and release signing (fills a gap; ships in weeks; creates
-   the identity root everything else uses).
+1. Agent commit and release signing (tests a distribution path; still needs
+   AP-SPEC-058 and external adoption evidence).
 2. Agent spend authority on Stripe (deepest repository vertical; clearest
    budget owner; strongest "why now").
 3. Production change gate for OpenTofu, Kubernetes, and PostgreSQL (second
@@ -39,9 +39,9 @@ enough to justify integration with the existing owner.
 This differs from the two prior documents in three places. The 09-18 paper's
 "Exact-Action Gateway" is plumbing, not a product; its two launch packs are
 the products, and they are #2 and #3 here. The 09-19 paper's embedded kit is
-#5: right mechanism, early timing. Neither lists #1, which is the only
-product already working end to end and the one that makes delegated agent
-identity concrete for every later sale.
+#5: right mechanism, early timing. Neither lists #1. A KERI-coupled sibling
+project has a reported working signing path, but auths-proof has not yet
+shipped the method-agnostic path or demonstrated adoption.
 
 ## 1. Why the unit of authorization is the wedge
 
