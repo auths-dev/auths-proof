@@ -18,8 +18,9 @@ needs hosted CI and the field-lab workflows before a freeze claim.
 
 No new public SDK symbol was introduced by the acceptance corrections after
 `8aa1bed`; the two inventories and capability files need no symbol additions.
-This review is a human source read, not a substitute for the generated-artifact
-check on the final commit.
+This is a manual source-level read-through by the implementation agent, not a
+human owner approval or a substitute for the generated-artifact check on the
+final commit.
 
 ## Acceptance by spec
 
@@ -43,6 +44,8 @@ check on the final commit.
    hosted workflows. The private field-lab repository's current payment/
    spending-limit annotation prevents jobs from starting; local live success
    does not close this gate.
-3. Update AP-SPEC-051, -052, and -054 tracking/status and the claim ledger
+3. Have a human owner review the public API inventories and claim metadata;
+   this agent read-through does not supply human approval.
+4. Update AP-SPEC-051, -052, and -054 tracking/status and the claim ledger
    only to the level established by those artifacts. No part of AP-SPEC-053
    or -056 implementation is a PR #123 prerequisite.
