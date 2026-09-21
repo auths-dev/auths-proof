@@ -668,7 +668,7 @@ def _main_text(argv: Sequence[str] | None = None) -> int:
             changes = result.get("changes")
             if not isinstance(changes, list):
                 raise ValueError("profile diff changes are invalid")
-            for change in changes:
+            for change in cast(list[object], changes):
                 if not isinstance(change, dict):
                     raise ValueError("profile diff change is invalid")
                 fields = cast(dict[str, object], change)

@@ -4,6 +4,7 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   parseContract, profileDiff, renderAdapter, renderGenerated, renderLock, renderRun, renderVectors,
@@ -78,26 +79,26 @@ test("enum reorder is a versioned action change with an exact before/after", asy
 test("first profile edit after init can be generated at version one", async () => {
   const folder = await mkdtemp(join(tmpdir(), "auths-profile-first-edit-"));
   const cli = new URL("../../tools/profile-cli.mjs", import.meta.url);
-  execFileSync(process.execPath, [cli.pathname, "init", "--language", "typescript",
+  execFileSync(process.execPath, [fileURLToPath(cli), "init", "--language", "typescript",
     "--name", "local-demo", "--directory", folder]);
   await assert.rejects(() => readFile(join(folder, "profile.lock.json")));
   const source = await readFile(join(folder, "profile.toml"), "utf8");
   await writeFile(join(folder, "profile.toml"), source.replace("max_bytes = 256", "max_bytes = 32"));
-  execFileSync(process.execPath, [cli.pathname, "generate", join(folder, "profile.toml")]);
+  execFileSync(process.execPath, [fileURLToPath(cli), "generate", join(folder, "profile.toml")]);
   assert.match(await readFile(join(folder, "profile.lock.json"), "utf8"), /"version":1/);
 });
 
 test("production doctor describes only its actual TypeScript authority checks", async () => {
   const folder = await mkdtemp(join(tmpdir(), "auths-profile-doctor-"));
   const cli = new URL("../../tools/profile-cli.mjs", import.meta.url);
-  execFileSync(process.execPath, [cli.pathname, "init", "--language", "typescript",
+  execFileSync(process.execPath, [fileURLToPath(cli), "init", "--language", "typescript",
     "--name", "doctor-demo", "--directory", folder]);
-  execFileSync(process.execPath, [cli.pathname, "generate", join(folder, "profile.toml")]);
+  execFileSync(process.execPath, [fileURLToPath(cli), "generate", join(folder, "profile.toml")]);
   const grant = join(folder, "grant.cbor");
   const trust = join(folder, "trust.cbor");
   await writeFile(grant, "not-a-grant");
   await writeFile(trust, "not-a-context");
-  const output = execFileSync(process.execPath, [cli.pathname, "doctor", join(folder, "profile.toml"),
+  const output = execFileSync(process.execPath, [fileURLToPath(cli), "doctor", join(folder, "profile.toml"),
     "--production", "--signer-adapter", "operator-signer", "--grant-file", grant,
     "--trust-file", trust], { encoding: "utf8" });
   assert.match(output, /grant\/trust bytes not parsed/);

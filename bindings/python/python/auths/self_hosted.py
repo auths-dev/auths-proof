@@ -269,7 +269,7 @@ def _field_value(schema: Field, value: object, *, wire: bool) -> object:
     if isinstance(schema, BytesField):
         return schema.from_wire(value) if wire else schema.validate(value)
     if isinstance(schema, ArrayField):
-        if (wire and type(value) is not list) or (not wire and type(value) is not tuple):
+        if (wire and value.__class__ is not list) or (not wire and value.__class__ is not tuple):
             raise ValueError("expected a bounded array")
         items = cast(Union[list[object], tuple[object, ...]], value)
         if not schema.min_items <= len(items) <= schema.max_items:
@@ -277,9 +277,11 @@ def _field_value(schema: Field, value: object, *, wire: bool) -> object:
         return tuple(_field_value(schema.inner, item, wire=wire) for item in items)
     if isinstance(schema, ObjectField):
         if wire:
-            if type(value) is not dict or set(value) != set(schema.fields):
+            if value.__class__ is not dict:
                 raise ValueError("object does not match the closed schema")
             source: Mapping[str, object] = cast(Mapping[str, object], value)
+            if set(source) != set(schema.fields):
+                raise ValueError("object does not match the closed schema")
         else:
             if type(value) is not schema.command_type:
                 raise ValueError("object does not match its generated type")
@@ -301,7 +303,7 @@ def _wire_value(schema: Field, value: object) -> object:
         return base64.urlsafe_b64encode(checked).rstrip(b"=").decode("ascii")
     if isinstance(schema, ArrayField):
         assert isinstance(checked, tuple)
-        return [_wire_value(schema.inner, item) for item in checked]
+        return [_wire_value(schema.inner, item) for item in cast(tuple[object, ...], checked)]
     if isinstance(schema, ObjectField):
         return {name: _wire_value(field, getattr(checked, name)) for name, field in schema.fields.items()}
     return checked
