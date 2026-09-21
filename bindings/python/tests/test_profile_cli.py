@@ -159,6 +159,27 @@ def test_production_doctor_fails_without_explicit_authority(tmp_path: Path) -> N
     assert main(["doctor", str(tmp_path / "profile.toml"), "--production"]) == 1
 
 
+def test_production_doctor_names_each_missing_authority_input(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from auths._profile_cli import main, write_profile
+
+    profile = tmp_path / "profile.toml"
+    profile.write_text(PROFILE)
+    write_profile(tmp_path, parse_contract(PROFILE))
+    cases = (
+        ([], "profile.authority.signer-missing"),
+        (["--signer-adapter", "operator-signer"], "profile.authority.grant-missing"),
+        (["--signer-adapter", "operator-signer", "--grant-file", str(tmp_path / "grant.cbor")],
+         "profile.trust.context-missing"),
+    )
+    for flags, expected_code in cases:
+        assert main(["doctor", str(profile), "--production", *flags, "--json"]) == 1
+        result = json.loads(capsys.readouterr().out)
+        assert result["diagnostic"]["code"] == expected_code
+        assert result["diagnostic"]["stage"] in ("authority", "trust")
+
+
 def test_first_edit_after_init_does_not_need_a_premature_version_bump(tmp_path: Path) -> None:
     from auths._profile_cli import main
 

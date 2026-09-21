@@ -129,6 +129,25 @@ test("production doctor describes only its actual TypeScript authority checks", 
   assert.doesNotMatch(output, /structurally present/);
 });
 
+test("production doctor names each missing authority input", async () => {
+  const folder = await mkdtemp(join(tmpdir(), "auths-profile-missing-authority-"));
+  const cli = fileURLToPath(new URL("../../tools/profile-cli.mjs", import.meta.url));
+  execFileSync(process.execPath, [cli, "init", "--language", "typescript",
+    "--name", "missing-authority", "--directory", folder]);
+  execFileSync(process.execPath, [cli, "generate", join(folder, "profile.toml")]);
+  for (const [flags, code] of [
+    [[], "profile.authority.signer-missing"],
+    [["--signer-adapter", "operator-signer"], "profile.authority.grant-missing"],
+    [["--signer-adapter", "operator-signer", "--grant-file", join(folder, "grant.cbor")],
+      "profile.trust.context-missing"],
+  ]) {
+    const result = spawnSync(process.execPath, [cli, "doctor", join(folder, "profile.toml"),
+      "--production", ...flags, "--json"], { encoding: "utf8" });
+    assert.equal(result.status, 1, code);
+    assert.equal(JSON.parse(result.stdout).diagnostic.code, code);
+  }
+});
+
 test("profile test refuses a suite that omits mandatory adapter cases", async () => {
   const folder = await mkdtemp(join(tmpdir(), "auths-profile-empty-suite-"));
   const cli = fileURLToPath(new URL("../../tools/profile-cli.mjs", import.meta.url));
