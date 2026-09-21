@@ -5,3 +5,5 @@
 - 2026-09-21 01:55 UTC — Epic 1 CI blocker — https://github.com/auths-dev/auths-proof/actions/runs/35552019150: A Python 3.11 macOS job was not started because GitHub reports failed account payments or an exhausted Actions spending limit.
 - 2026-09-21 01:55 UTC — Epic 1 field-lab blocker — `b89d754`: The cross-repository demo workflows need a read-only private-repository checkout secret that is not configured, so no credential was created or substituted.
 - 2026-09-21 01:55 UTC — Epic 1 title-audit blocker — `9b31882`: Its pushed title claims an independent trial absent from that diff, and the no-history-rewrite rule prevents correcting the original commit.
+- 2026-09-21 19:02 UTC — Epic 1 resumed — https://github.com/auths-dev/auths-proof/actions/runs/35552488044: Billing is restored and all four workflows on exact commit `89b1beb` were rerun before further queue work.
+- 2026-09-21 19:02 UTC — Epic 1 blockers resolved — `89b1beb`: Public checkout removes the need for a field-lab read token, and a forward claim-ledger correction replaces rewriting `9b31882`.

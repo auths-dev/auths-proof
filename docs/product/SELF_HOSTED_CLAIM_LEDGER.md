@@ -34,3 +34,12 @@ Exercised at auths-proof commit
 
 The package exercises establish a reproducible SDK path, not that an
 application-owned token cannot be used outside `run_once`/`runOnce`.
+
+## Commit-title correction
+
+Commit `9b31882` added conformance tooling and associated repository evidence;
+it did **not** complete an independent unfamiliar-user trial. Its title predates
+and violates the evidence-in-the-diff rule now recorded in AP-SPEC-057 §2. The
+pushed commit is preserved rather than rewritten, and this forward correction
+is the authoritative interpretation of that title. An independent trial remains
+open until the participant report required by AP-SPEC-054 Epic 5 exists.

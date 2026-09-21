@@ -38,7 +38,7 @@ Independent baseline: [How revolutionary is Auths Proof, really?](research/compe
 
 | Epic | Owner | Status | Evidence so far | Next check-in decision |
 | --- | --- | --- | --- | --- |
-| 0057 Epic 1 — freeze on evidence | codex session on `codex/self-hosted-developer-profiles` | in progress; CI externally blocked | `ea54a9d` CLI renamed to `auths-profile`, doctor wording qualified; `af39df0` inventories aligned; `3aeb18e`, `526b6d4` signed packed consumers + recovery; `9784fb1` CI disk fix; `bda2b07` binding-semantics fix; `f77f8f7` evidence baseline; `b89d754` shared adversarial fixture and test consumers; parser and generated-starter fixes await exact-revision CI. Open: fixture acceptance (step 1), packed starter execution (step 2), billing-blocked CI (step 3), field-lab secret/workflows (step 4), immutable overclaiming title `9b31882` (step 5). | Is PR #123 green on one commit with the fixture passing in all three implementations? |
+| 0057 Epic 1 — freeze on evidence | codex session on `codex/self-hosted-developer-profiles` | in progress; exact-revision CI rerunning | `ea54a9d` CLI renamed to `auths-profile`, doctor wording qualified; `af39df0` inventories aligned; `3aeb18e`, `526b6d4` signed packed consumers + recovery; `9784fb1` CI disk fix; `bda2b07` binding-semantics fix; `f77f8f7` evidence baseline; `b89d754` shared adversarial fixture and test consumers; `89b1beb` parser and generated-starter fixes. Billing is restored and runs `35552487976`, `35552488044`, `35552488080`, and `35552488096` are rerunning. The public-repository checkout needs no secret; the field-lab pin still awaits the green freeze commit. The `9b31882` title is corrected forward in the claim ledger. | Is PR #123 green on one commit with the fixture passing in all three implementations? |
 | 0057 Epic 4 — publish the evidence | unassigned | not started | — | Who runs the unfamiliar-user trial, and which two vendor OpenAPI documents join GitHub's? |
 
 ## 2. Queued — single-agent order, with gates
@@ -50,7 +50,7 @@ gates do not shrink.
 
 | # | Epic | Start gate | Done gate | Branch |
 | --- | --- | --- | --- | --- |
-| 1 | 0057 Epic 1 — freeze on evidence | none | PR #123 green on one commit; §D fixture identical in Python, TS, native; TS starter executes; field-lab pinned to that commit and green; no overclaiming title on the branch | `codex/self-hosted-developer-profiles` (PR #123) |
+| 1 | 0057 Epic 1 — freeze on evidence | none | PR #123 green on one commit; §D fixture identical in Python, TS, native; TS starter executes; field-lab pinned to that commit and green; the claim ledger explicitly corrects any historical title whose diff lacks its claimed evidence | `codex/self-hosted-developer-profiles` (PR #123) |
 | 2 | 0057 Epic 4 — publish the evidence (steps 1, 3, 4 only) | Epic 1 pushed (may run while its CI runs) | corpus for GitHub + two vendor documents under `bindings/fixtures/openapi-corpus/` with rejection walls; every §6 wording row in 0057 corrected at its cited location; GTM doc rewritten per 0057 Epic 4 step 4. Step 2 (unfamiliar-user trial) needs a human or a zero-context agent in a separate task; if neither is available, log in §9 | `epic-4-evidence` |
 | 3 | 0057 Epic 2 — gateway + hostile proof (053 Epics 1–4, plus step 5 reads) | Epic 1 done gate | hostile-application suite reports zero unauthorized provider entries across restart and competing instances on one documented isolated deployment; recipe compiler accepts Airtable/Todoist/GitHub without Auths edits; ledger updated with what the gateway guarantees and its deployment assumptions; live Airtable/Todoist through the gateway (rule 9) | `epic-2-gateway` |
 | 4 | 0057 Epic 3 — signing under any principal method | Epic 1 done gate; AP-SPEC-058 written as the first commit of this epic | one verifier action accepts proofs chained to `sigstore-keyless` and `did:key` with no KERI code path; delegation commands ported; demo from three principal methods. The "twenty external repositories" clause needs humans and is logged in §9, not faked | `epic-3-signing` |
@@ -97,7 +97,10 @@ gates do not shrink.
 | 2026-09-21 | Multi-host claim reuses `PostgresLifecycleStore`; singleton-lock limit is a 038 finding, not a new spec | 0057 §5 |
 | 2026-09-21 | GTM verb is "become the format incumbents emit and accept", not "unseat" | 0057 §1, GTM doc pending Epic 4 |
 | 2026-09-21 | Identity default: Sigstore keyless / OIDC workload in CI, `did:key` local, WebAuthn/HSM roots; KERI available, never default | Epic 3 |
-| 2026-09-21 PROVISIONAL | Integer token readings: either compare host-language parsed values (which loses `1.0`/`1e0` spelling in JS) or reject noncanonical numeric tokens at the native wire boundary before typed projection. Choose the latter: `1.0`, `1e0`, `-0`, leading zeros, and underscores are rejected as raw JSON; typed fields see only canonical integers. | 0057 Epic 1 adversarial fixture; owner to confirm |
+| 2026-09-21 | Reject noncanonical numeric tokens at the native canonical-wire boundary before typed projection: `1.0`, `1e0`, `-0`, leading zeros, and underscores are rejected as raw JSON; typed fields see only canonical integers. | 0057 Epic 1 adversarial fixture; owner confirmed |
+| 2026-09-21 | AP-SPEC-056 `--closed` root spelling remains an unvalidated candidate; the mapper must reject an ambiguous `body` alias versus absolute JSON pointer rather than guessing. | Epic 4 corpus; owner confirmed |
+| 2026-09-21 | The vendor corpus is a digest-pinned manifest with measured operation rejections, not committed multi-megabyte upstream bundles; mapper parity requires exact local source bytes. | Epic 4 corpus; owner confirmed |
+| 2026-09-21 | Preserve pushed history for `9b31882`; resolve its overclaiming title with an explicit forward correction in the claim ledger, which becomes the Epic 1 title-audit gate. | AP-SPEC-057 §2; claim ledger |
 
 ## 5. Not doing
 
@@ -140,6 +143,6 @@ a table of every PR opened with its CI state.
 
 | Logged | Epic / step | What was needed | What the agent did instead |
 | --- | --- | --- | --- |
-| 2026-09-21 | Epic 1 CI | GitHub Actions billing/spending limit restored; Python 3.11 macOS job was not started on [run 35552019150](https://github.com/auths-dev/auths-proof/actions/runs/35552019150). | Kept the result marked infrastructure-blocked; continued source work without claiming green. |
-| 2026-09-21 | Epic 1 field-lab | A read-only `AUTHS_PROOF_READ_TOKEN` for private auths-proof checkout must be provisioned in auths-field-lab Actions secrets. | Did not create or expose a credential; left the demo workflows unqualified. |
-| 2026-09-21 | Epic 1 title audit | `9b31882` says “complete independent adapter adoption trial” but its own diff lacks the participant report; the done gate demands no such title, while the hard limit forbids rewriting pushed history. | Preserved history, will publish an honest erratum/report if evidence exists, and leaves that done-gate clause open for owner resolution. |
+| 2026-09-21 — RESOLVED | Epic 1 CI | GitHub Actions jobs could not start while the repository was private and paid minutes were unavailable. | Repository is public again; exact-revision runs `35552487976`, `35552488044`, `35552488080`, and `35552488096` were rerun for real logs. |
+| 2026-09-21 — RESOLVED | Epic 1 field-lab checkout | The earlier private-repository checkout appeared to require a read token. | Public `auths-proof` needs no checkout token. No credential was provisioned; the workflow token input will be removed when advancing the pin. |
+| 2026-09-21 — RESOLVED | Epic 1 title audit | `9b31882` says “complete independent adapter adoption trial” but its diff contains conformance tooling, not the participant report. | Preserved history and added a forward correction to the claim ledger under the AP-SPEC-057 §2 evidence-in-the-diff rule. The independent trial remains an Epic 4 blocker. |
