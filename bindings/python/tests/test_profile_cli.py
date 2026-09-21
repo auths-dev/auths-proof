@@ -227,3 +227,27 @@ def test_local_profile_suite_cannot_skip_mandatory_cases(tmp_path: Path, capsys:
     assert result["ok"] is False
     assert result["diagnostic"]["code"] == "profile.provider.adapter-test-failed"
     assert "mandatory cases" in result["diagnostic"]["message"]
+
+
+def test_local_profile_suite_accepts_additional_provider_case(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from auths._profile_cli import main
+
+    package = tmp_path / "local_suite_extra"
+    assert main(["init", "--language", "python", "--name", "local-suite-extra",
+                 "--directory", str(package)]) == 0
+    assert main(["generate", str(package / "profile.toml")]) == 0
+    case_ids = json.loads((ROOT / "adapter-scenarios-v1.json").read_text())["mandatoryCaseIds"]
+    (package / "conformance.py").write_text(
+        "from auths.testkit import ConformanceCase, ConformanceReport, ConformanceMetadata\n"
+        "async def run():\n"
+        f"    ids = {case_ids + ['provider-specific-read-back']!r}\n"
+        "    cases = tuple(ConformanceCase(id, 'passed', None, None) for id in ids)\n"
+        "    return ConformanceReport(ConformanceMetadata('self-hosted-provider-adapter/1', "
+        "'1', 'local', 'now', 'test-results-only-not-security-certification'), True, cases)\n"
+    )
+    capsys.readouterr()
+    assert main(["test", str(package / "profile.toml"),
+                 "--suite", "local_suite_extra.conformance:run", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["ok"] is True

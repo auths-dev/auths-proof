@@ -22,6 +22,7 @@
 - 2026-09-21 21:39 UTC — Epic 1 first-run diagnostic matrix — `102f648`: Both profile CLIs now have executable cases for missing signer, grant, and trusted context with matching diagnostic codes; hosted package checks still need to verify the new tests.
 - 2026-09-21 21:40 UTC — AP-SPEC-055 status correction — `c0cdba8`: The enum-node implementation from `8aa1bed` is marked implemented after its Python, TypeScript, native, and hosted package evidence; no provider qualification claim is added.
 - 2026-09-21 21:41 UTC — Epic 1 public-surface read-through — `af0b6fa`: The new acceptance review maps AP-SPEC-051/-052/-054/-055 clauses to exact inventories, metadata, tests, previous hosted runs, and still-open final-revision gates; no new SDK symbol or qualified provider claim was found.
+- 2026-09-21 21:44 UTC — Epic 1 provider-specific conformance extension — `ac20730`: The mandatory-report guard initially disallowed all extra cases; AP-SPEC-054 §7 permits provider-specific cases, so both CLIs now require the mandatory fourteen exactly once while allowing bounded additions, with positive and negative tests.
 
 ## Morning report
 

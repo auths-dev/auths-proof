@@ -708,8 +708,9 @@ def _main_text(argv: Sequence[str] | None = None) -> int:
             from ._adapter_conformance import _MANDATORY_CASE_IDS
             case_ids = tuple(case.id for case in report.cases)
             if (
-                len(case_ids) != len(_MANDATORY_CASE_IDS)
-                or frozenset(case_ids) != _MANDATORY_CASE_IDS
+                len(case_ids) > 64
+                or len(case_ids) != len(frozenset(case_ids))
+                or not _MANDATORY_CASE_IDS.issubset(case_ids)
                 or report.metadata.assurance != "test-results-only-not-security-certification"
             ):
                 raise ValueError("adapter suite omitted or duplicated mandatory cases")

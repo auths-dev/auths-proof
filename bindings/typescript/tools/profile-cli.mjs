@@ -510,9 +510,9 @@ async function mainText(args) {
       throw new Error("adapter suite returned an invalid conformance report");
     }
     const caseIds = report.cases.map(item => item?.id);
-    if (caseIds.length !== mandatoryAdapterCases.size ||
-        new Set(caseIds).size !== mandatoryAdapterCases.size ||
-        caseIds.some(id => !mandatoryAdapterCases.has(id)) ||
+    if (caseIds.length > 64 ||
+        new Set(caseIds).size !== caseIds.length ||
+        [...mandatoryAdapterCases].some(id => !caseIds.includes(id)) ||
         report.metadata.assurance !== "test-results-only-not-security-certification") {
       throw new Error("adapter suite omitted or duplicated mandatory cases");
     }

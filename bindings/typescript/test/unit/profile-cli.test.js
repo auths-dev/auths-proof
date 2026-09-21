@@ -162,4 +162,15 @@ test("profile test refuses a suite that omits mandatory adapter cases", async ()
   const diagnostic = JSON.parse(result.stdout).diagnostic;
   assert.equal(diagnostic.code, "profile.provider.adapter-test-failed");
   assert.match(diagnostic.message, /mandatory cases/);
+
+  const manifest = JSON.parse(await readFile(new URL("../../../fixtures/self-hosted-profile/adapter-scenarios-v1.json", import.meta.url), "utf8"));
+  const cases = [...manifest.mandatoryCaseIds, "provider-specific-read-back"].map(id => ({ id, status: "passed" }));
+  await writeFile(suite, `export async function run() { return ${JSON.stringify({
+    metadata: { suite: "self-hosted-provider-adapter/1", assurance: "test-results-only-not-security-certification" },
+    passed: true, cases,
+  })}; }\n`);
+  const extraCaseResult = spawnSync(process.execPath, [cli, "test", join(folder, "profile.toml"),
+    "--suite", suite, "--json"], { encoding: "utf8" });
+  assert.equal(extraCaseResult.status, 0);
+  assert.equal(JSON.parse(extraCaseResult.stdout).ok, true);
 });
