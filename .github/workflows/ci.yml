@@ -691,17 +691,38 @@ jobs:
         with:
           toolchain: 1.97.1
           compiler-cache: "false"
+      - id: formal-phase-artifacts
+        name: Locate successful phase artifacts from this run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifacts="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?per_page=100")"
+          for phase in translation lean kani; do
+            prefix="auths-formal-phase-${phase}-${GITHUB_RUN_ID}-"
+            name="$(jq -r --arg prefix "$prefix" --argjson current "$GITHUB_RUN_ATTEMPT" '
+              [ .artifacts[]
+                | select(.expired == false and .size_in_bytes > 0 and .size_in_bytes <= 1048576)
+                | select(.name | startswith($prefix))
+                | {name, attempt: (.name | ltrimstr($prefix) | tonumber?)}
+                | select(.attempt >= 1 and .attempt <= $current)
+              ] | sort_by(.attempt) | last | .name // empty
+            ' <<< "$artifacts")"
+            [[ -n "$name" ]] || { echo "Missing same-run ${phase} evidence artifact" >&2; exit 1; }
+            echo "${phase}=${name}" >> "$GITHUB_OUTPUT"
+          done
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: auths-formal-phase-translation-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ${{ steps.formal-phase-artifacts.outputs.translation }}
           path: target/formal/phase-results
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: auths-formal-phase-lean-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ${{ steps.formal-phase-artifacts.outputs.lean }}
           path: target/formal/phase-results
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          name: auths-formal-phase-kani-${{ github.run_id }}-${{ github.run_attempt }}
+          name: ${{ steps.formal-phase-artifacts.outputs.kani }}
           path: target/formal/phase-results
       - name: Aggregate exact-revision formal evidence
         env:

@@ -27,6 +27,7 @@
 - 2026-09-21 21:52 UTC — Epic 1 installed typing correction — https://github.com/auths-dev/auths-proof/actions/runs/35658997720/job/106530642333: Pyright found that the nested interruption test adapter reused the enclosing function's generic variables; moving it to module scope preserves behavior and awaits hosted verification.
 - 2026-09-21 21:55 UTC — Epic 1 independent engineering trial reported — `f5992ba`: A zero-context participant reran a third inventory-status adapter from a fresh packaged-wheel workspace, passing fourteen local cases and an exact fake-provider write/read-back; the redacted report and narrowly attributed claim ledger are now committed without a human-adoption claim.
 - 2026-09-21 21:57 UTC — Epic 1 freeze update — https://github.com/auths-dev/auths-proof/actions/runs/35658997734/job/106530463732: Preflight found intentional semantic-freeze drift, and the bounded update advances only `auths.portable-abi-bindings` to 97 and `auths.release.public-surface` to 263, with all downstream phase skips attributed to preflight.
+- 2026-09-21 22:36 UTC — Epic 1 formal aggregation retry fix — https://github.com/auths-dev/auths-proof/actions/runs/35660161157: Exact `28f0b6c` passed all computation phases but evidence download received GitHub 403, and failed-only rerun then sought nonexistent attempt-2 phase artifacts; the workflow now resolves bounded same-run artifacts across attempts before the closure-checked aggregation.
 
 ## Morning report
 
