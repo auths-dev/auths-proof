@@ -1,0 +1,128 @@
+{
+  "schema": "auths.openapi-manual-rejection-corpus/1",
+  "reviewedOn": "2026-09-21",
+  "qualification": "manual mapping only; mapper, recipe compiler, provider behavior, and live effects not checked",
+  "cases": [
+    {
+      "vendor": "GitHub",
+      "source": {
+        "url": "https://raw.githubusercontent.com/github/rest-api-description/814de7ac96e215adeeec999308f41f98f94a15db/descriptions/api.github.com/api.github.com.json",
+        "revision": "814de7ac96e215adeeec999308f41f98f94a15db",
+        "sha256": "4fbdc7d0102276803a07f9880d14ed543ba1afc10a4c9fd7bd3782408d9abaf7",
+        "bytes": 13012129,
+        "openapi": "3.0.3"
+      },
+      "operation": {
+        "operationId": "issues/create",
+        "method": "POST",
+        "path": "/repos/{owner}/{repo}/issues",
+        "server": "https://api.github.com",
+        "bodySchema": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema"
+      },
+      "unmodifiedRejections": [
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/operationId", "rule": "3.1 tool-name regex", "reason": "slash in issues/create", "repair": "--tool issues_create" },
+        { "pointer": "#/security", "rule": "3.1 missing-security declaration", "reason": "root and operation declare no security scheme", "repair": "--security-scheme bearer" },
+        { "pointer": "#/components/parameters/owner/schema", "rule": "3.2 unbounded string", "reason": "required path owner has no maxLength", "repair": "--max-bytes owner=64" },
+        { "pointer": "#/components/parameters/repo/schema", "rule": "3.2 unbounded string", "reason": "required path repo has no maxLength", "repair": "--max-bytes repo=128" },
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema", "rule": "3.2 open object", "reason": "additionalProperties is absent", "repair": "--closed body (root path spelling provisional)" },
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/title", "rule": "3.2 scalar oneOf", "reason": "required title is string or integer, with no string bound", "repair": "--pick title=string; --max-bytes title=256" },
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/body", "rule": "3.2 optional property", "reason": "body is optional and unbounded", "repair": "--omit body" },
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/assignee", "rule": "3.2 optional property", "reason": "assignee is optional, nullable, and unbounded", "repair": "--omit assignee" },
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/milestone", "rule": "3.2 optional property", "reason": "milestone is optional and a nullable scalar union", "repair": "--omit milestone" },
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/labels", "rule": "3.2 optional property and hard mixed union", "reason": "labels items are string or object and array has no maxItems", "repair": "--omit labels; retaining it has no override in format 1" },
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/assignees", "rule": "3.2 optional property", "reason": "assignees array has no maxItems and its strings have no maxLength", "repair": "--omit assignees" },
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/issue_field_values", "rule": "3.2 optional property and hard non-scalar union", "reason": "value contains string, number, and array branches; float is out of scope", "repair": "--omit issue_field_values; retaining it has no override in format 1" },
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/type", "rule": "3.2 optional property", "reason": "type is optional, nullable, and unbounded", "repair": "--omit type" },
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/parent_issue_id", "rule": "3.2 optional property", "reason": "parent_issue_id has no integer range", "repair": "--omit parent_issue_id" }
+      ],
+      "candidateOverrides": [
+        "--tool issues_create", "--security-scheme bearer", "--max-bytes owner=64",
+        "--max-bytes repo=128", "--closed body", "--pick title=string",
+        "--max-bytes title=256", "--omit body", "--omit assignee",
+        "--omit milestone", "--omit labels", "--omit assignees",
+        "--omit issue_field_values", "--omit type", "--omit parent_issue_id"
+      ],
+      "candidateRequest": "POST https://api.github.com/repos/{owner}/{repo}/issues; fixed JSON body keys: title; gateway-held bearer; response not mapped",
+      "limits": "No query/header/cookie parameters on this operation; provider may silently drop other fields, and no effect semantics are derived."
+    },
+    {
+      "vendor": "Todoist",
+      "source": {
+        "url": "https://developer.todoist.com/openapi.json",
+        "revision": "unversioned URL; exact digest pinned below",
+        "sha256": "ac5abcb1297d6be0709a8f5d7799d0384148dcf2ae7bf719f72f7ccd3e7e1d5f",
+        "bytes": 1205196,
+        "openapi": "3.1.0"
+      },
+      "operation": {
+        "operationId": "create_task_api_v1_tasks_post",
+        "method": "POST",
+        "path": "/api/v1/tasks",
+        "server": "https://api.todoist.com/",
+        "bodySchema": "#/components/schemas/Body_37565102"
+      },
+      "unmodifiedRejections": [
+        { "pointer": "#/security", "rule": "3.1 missing-security declaration", "reason": "no root/operation security or securitySchemes", "repair": "--security-scheme bearer" },
+        { "pointer": "#/components/schemas/Body_37565102", "rule": "3.2 open object", "reason": "additionalProperties is absent", "repair": "--closed body (root path spelling provisional)" },
+        { "pointer": "#/components/schemas/Body_37565102/properties/content", "rule": "3.2 unbounded string", "reason": "required content has minLength 1 but no maxLength", "repair": "--max-bytes content=256" },
+        { "pointer": "#/components/schemas/Body_37565102/properties/description", "rule": "3.2 optional property", "reason": "nullable anyOf string; unbounded", "repair": "--omit description" },
+        { "pointer": "#/components/schemas/Body_37565102/properties/project_id", "rule": "3.2 optional property", "reason": "nullable anyOf string; unbounded", "repair": "--omit project_id" },
+        { "pointer": "#/components/schemas/Body_37565102/properties/section_id", "rule": "3.2 optional property", "reason": "nullable anyOf string; unbounded", "repair": "--omit section_id" },
+        { "pointer": "#/components/schemas/Body_37565102/properties/parent_id", "rule": "3.2 optional property", "reason": "nullable anyOf string; unbounded", "repair": "--omit parent_id" },
+        { "pointer": "#/components/schemas/Body_37565102/properties/order", "rule": "3.2 optional property", "reason": "nullable anyOf integer", "repair": "--omit order" },
+        { "pointer": "#/components/schemas/Body_37565102/properties/labels", "rule": "3.2 optional property", "reason": "nullable anyOf array; no maxItems or item maxLength", "repair": "--omit labels" },
+        { "pointer": "#/components/schemas/Body_37565102/properties/priority", "rule": "3.2 optional property", "reason": "nullable anyOf integer", "repair": "--omit priority" },
+        { "pointer": "#/components/schemas/Body_37565102/properties/assignee_id", "rule": "3.2 optional property", "reason": "nullable anyOf integer; no bounds", "repair": "--omit assignee_id" },
+        { "pointer": "#/components/schemas/Body_37565102/properties/due_string", "rule": "3.2 optional property", "reason": "nullable anyOf string; unbounded", "repair": "--omit due_string" },
+        { "pointer": "#/components/schemas/Body_37565102/properties/due_date", "rule": "3.2 optional property", "reason": "nullable anyOf string; unbounded", "repair": "--omit due_date" },
+        { "pointer": "#/components/schemas/Body_37565102/properties/due_datetime", "rule": "3.2 optional property", "reason": "nullable anyOf string; unbounded", "repair": "--omit due_datetime" },
+        { "pointer": "#/components/schemas/Body_37565102/properties/due_lang", "rule": "3.2 optional property", "reason": "nullable anyOf string; unbounded", "repair": "--omit due_lang" },
+        { "pointer": "#/components/schemas/Body_37565102/properties/duration", "rule": "3.2 optional property", "reason": "nullable anyOf integer; no bounds", "repair": "--omit duration" },
+        { "pointer": "#/components/schemas/Body_37565102/properties/duration_unit", "rule": "3.2 optional property", "reason": "nullable anyOf enum", "repair": "--omit duration_unit" },
+        { "pointer": "#/components/schemas/Body_37565102/properties/deadline_date", "rule": "3.2 optional property", "reason": "nullable anyOf string; unbounded", "repair": "--omit deadline_date" }
+      ],
+      "candidateOverrides": [
+        "--security-scheme bearer", "--closed body", "--max-bytes content=256",
+        "--omit description", "--omit project_id", "--omit section_id",
+        "--omit parent_id", "--omit order", "--omit labels", "--omit priority",
+        "--omit assignee_id", "--omit due_string", "--omit due_date",
+        "--omit due_datetime", "--omit due_lang", "--omit duration",
+        "--omit duration_unit", "--omit deadline_date"
+      ],
+      "candidateRequest": "POST https://api.todoist.com/api/v1/tasks; fixed JSON body keys: content; gateway-held bearer; response not mapped",
+      "limits": "The document's optional scheduling and relationship fields are intentionally omitted; no observation or task-creation effect is derived."
+    },
+    {
+      "vendor": "OpenAI",
+      "source": {
+        "url": "https://raw.githubusercontent.com/openai/openai-openapi/ddface9bd361f5fe37943291d23ee2ca72cbcc2b/openapi.json",
+        "revision": "ddface9bd361f5fe37943291d23ee2ca72cbcc2b",
+        "sha256": "9b3fe0902e71ad60004949c1b4bef39b79503c39506466c283a613f9fa65aea9",
+        "bytes": 4235459,
+        "openapi": "3.1.0"
+      },
+      "operation": {
+        "operationId": "createVectorStore",
+        "method": "POST",
+        "path": "/vector_stores",
+        "server": "https://api.openai.com/v1",
+        "bodySchema": "#/components/schemas/CreateVectorStoreRequest"
+      },
+      "unmodifiedRejections": [
+        { "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/name", "rule": "3.2 optional property and unbounded string", "reason": "name is optional and has no maxLength", "repair": "--require name; --max-bytes name=128" },
+        { "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/file_ids", "rule": "3.2 optional property", "reason": "array items are unbounded strings", "repair": "--omit file_ids" },
+        { "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/description", "rule": "3.2 optional property", "reason": "string has no maxLength", "repair": "--omit description" },
+        { "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/expires_after", "rule": "3.2 optional property", "reason": "referenced object not selected for the narrowed request", "repair": "--omit expires_after" },
+        { "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/chunking_strategy", "rule": "3.2 optional property and non-scalar oneOf", "reason": "object union has no override in format 1", "repair": "--omit chunking_strategy" },
+        { "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/metadata", "rule": "3.2 optional property", "reason": "referenced free-form map is out of scope", "repair": "--omit metadata" }
+      ],
+      "candidateOverrides": [
+        "--require name", "--max-bytes name=128", "--omit file_ids",
+        "--omit description", "--omit expires_after", "--omit chunking_strategy",
+        "--omit metadata"
+      ],
+      "candidateRequest": "POST https://api.openai.com/v1/vector_stores; fixed JSON body keys: name; gateway-held bearer; response not mapped",
+      "limits": "The official document declares http/bearer; a request with only name is a restricted subset, not a vector-store effect guarantee."
+    }
+  ]
+}

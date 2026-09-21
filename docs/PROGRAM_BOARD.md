@@ -39,7 +39,7 @@ Independent baseline: [How revolutionary is Auths Proof, really?](research/compe
 | Epic | Owner | Status | Evidence so far | Next check-in decision |
 | --- | --- | --- | --- | --- |
 | 0057 Epic 1 — freeze on evidence | codex session on `codex/self-hosted-developer-profiles` | in progress; CI externally blocked | `ea54a9d` CLI renamed to `auths-profile`, doctor wording qualified; `af39df0` inventories aligned; `3aeb18e`, `526b6d4` signed packed consumers + recovery; `9784fb1` CI disk fix; `bda2b07` binding-semantics fix; `f77f8f7` evidence baseline; `b89d754` shared adversarial fixture and test consumers; parser and generated-starter fixes await exact-revision CI. Open: fixture acceptance (step 1), packed starter execution (step 2), billing-blocked CI (step 3), field-lab secret/workflows (step 4), immutable overclaiming title `9b31882` (step 5). | Is PR #123 green on one commit with the fixture passing in all three implementations? |
-| 0057 Epic 4 — publish the evidence | codex session on `codex/epic-4-evidence` | in progress; human trial open | [Draft PR #124](https://github.com/auths-dev/auths-proof/pull/124) is stacked on PR #123 from `89b1beb`; steps 1, 3, and 4 are in scope for the unattended run; step 2 requires a genuinely unfamiliar participant and cannot be simulated. | Which two additional real vendor OpenAPI documents produce a measured rejection wall? |
+| 0057 Epic 4 — publish the evidence | codex session on `codex/epic-4-evidence` | in progress; human trial open; CI externally blocked | [Draft PR #124](https://github.com/auths-dev/auths-proof/pull/124) is stacked on PR #123 from `89b1beb`; manual corpus has GitHub `issues/create`, Todoist task creation, and OpenAI vector-store creation with source digests and first-level rejection walls; no mapper or recipe check has run. Step 2 still needs an unfamiliar human participant. | Do the candidate overrides actually compile once 053/056 exist, and are all wording rows closed? |
 
 ## 2. Queued — single-agent order, with gates
 
@@ -98,6 +98,8 @@ gates do not shrink.
 | 2026-09-21 | GTM verb is "become the format incumbents emit and accept", not "unseat" | 0057 §1, GTM doc pending Epic 4 |
 | 2026-09-21 | Identity default: Sigstore keyless / OIDC workload in CI, `did:key` local, WebAuthn/HSM roots; KERI available, never default | Epic 3 |
 | 2026-09-21 PROVISIONAL | Integer token readings: either compare host-language parsed values (which loses `1.0`/`1e0` spelling in JS) or reject noncanonical numeric tokens at the native wire boundary before typed projection. Choose the latter: `1.0`, `1e0`, `-0`, leading zeros, and underscores are rejected as raw JSON; typed fields see only canonical integers. | 0057 Epic 1 adversarial fixture; owner to confirm |
+| 2026-09-21 PROVISIONAL | AP-SPEC-056 `--closed` root path could mean a `body` alias or an absolute JSON pointer. The manual corpus writes `--closed body` only as a candidate; an implemented mapper must reject it until one spelling is specified and tested, rather than auto-closing the object. | Epic 4 corpus; owner to confirm |
+| 2026-09-21 PROVISIONAL | Vendor corpus could commit entire multi-megabyte upstream bundles or commit a digest-pinned manifest with measured operation rejections. Choose the smaller manifest claim; AP-SPEC-056 implementation must obtain exact local source bytes before claiming mapper parity. | Epic 4 corpus; owner to confirm |
 
 ## 5. Not doing
 
