@@ -18,6 +18,8 @@ const mandatoryAdapterCases = new Set([
   "authorized-one-write-and-replay", "denied-before-credential",
   "mutated-action-before-credential", "invalid-trust-before-credential",
   "credential-unavailable-before-provider", "competing-claim",
+  "claim-failure-before-credential", "finish-failure-after-provider-entry",
+  "replay-after-restart", "post-entry-interruption-unknown",
   "definite-no-effect-rejection", "unknown-no-blind-retry",
   "timeout-no-blind-retry", "unavailable-observation",
 ]);

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 from auths.execution import Observation, ProviderOutcome, ProviderRejected
@@ -39,7 +41,16 @@ async def test_adapter_conformance_exercises_all_mandatory_cases() -> None:
         contract=contract, command=Command("approved"), adapter_factory=Adapter,
     )
     assert report.passed, report.cases
-    assert len(report.cases) == 10
+    assert len(report.cases) == 14
+    manifest = json.loads((Path(__file__).parents[2] / "fixtures" / "self-hosted-profile" /
+                           "adapter-scenarios-v1.json").read_text())
+    assert [case.id for case in report.cases] == manifest["mandatoryCaseIds"]
+    assert {
+        "claim-failure-before-credential",
+        "finish-failure-after-provider-entry",
+        "replay-after-restart",
+        "post-entry-interruption-unknown",
+    }.issubset({case.id for case in report.cases})
     assert report.metadata.assurance == "test-results-only-not-security-certification"
 
 

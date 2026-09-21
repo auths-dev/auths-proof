@@ -41,6 +41,10 @@ _SCENARIOS: tuple[tuple[Scenario, str], ...] = (
     ("accepted", "invalid-trust-before-credential"),
     ("accepted", "credential-unavailable-before-provider"),
     ("accepted", "competing-claim"),
+    ("accepted", "claim-failure-before-credential"),
+    ("accepted", "finish-failure-after-provider-entry"),
+    ("accepted", "replay-after-restart"),
+    ("accepted", "post-entry-interruption-unknown"),
     ("rejected", "definite-no-effect-rejection"),
     ("unknown", "unknown-no-blind-retry"),
     ("timeout", "timeout-no-blind-retry"),
@@ -224,6 +228,78 @@ async def run_self_hosted_adapter_conformance(
                 results = await asyncio.gather(attempt(), attempt())
                 if provider.writes != 1 or sum(isinstance(value, Attempted) for value in results) != 1:
                     raise ValueError("competing calls entered provider more than once")
+            elif case_id == "claim-failure-before-credential":
+                class ClaimFailure(_MemoryAttempts):
+                    def claim_once(self, action_commitment: bytes, operation_key: str) -> bool:
+                        del action_commitment, operation_key
+                        self.trace.append("claim")
+                        raise RuntimeError("synthetic claim storage failure")
+
+                attempts = ClaimFailure(trace)
+                try:
+                    await attempt()
+                except RuntimeError:
+                    pass
+                else:
+                    raise ValueError("claim failure was hidden")
+                if provider.writes or "credential" in trace:
+                    raise ValueError("claim failure reached credential or provider")
+            elif case_id == "finish-failure-after-provider-entry":
+                class FinishFailure(_MemoryAttempts):
+                    def finish(self, action_commitment: bytes, state: TerminalState) -> AttemptRecord:
+                        del action_commitment, state
+                        self.trace.append("finish")
+                        raise RuntimeError("synthetic finish storage failure")
+
+                attempts = FinishFailure(trace)
+                try:
+                    await attempt()
+                except RuntimeError:
+                    pass
+                else:
+                    raise ValueError("finish failure was hidden")
+                record = next(iter(attempts.records.values()), None)
+                replay = await attempt()
+                if (
+                    provider.writes != 1 or record is None or record.state != "attempting"
+                    or not isinstance(replay, NotExecuted) or replay.kind != "replay"
+                ):
+                    raise ValueError("finish failure permitted a second provider write")
+            elif case_id == "replay-after-restart":
+                result = await attempt()
+                fresh_adapter = _ObservedAdapter(adapter_factory(provider), trace)
+                replay = await attempt(candidate_adapter=fresh_adapter)
+                if (
+                    not isinstance(result, Attempted) or not isinstance(replay, NotExecuted)
+                    or replay.kind != "replay" or provider.writes != 1
+                ):
+                    raise ValueError("fresh runner context repeated a claimed write")
+                before = provider.writes
+                await reconcile_read_only(authorization=result.authorization, adapter=fresh_adapter)
+                if provider.writes != before:
+                    raise ValueError("fresh runner reconciliation wrote to provider")
+            elif case_id == "post-entry-interruption-unknown":
+                class InterruptedAdapter(_ObservedAdapter[CommandT, CredentialT, ResultT]):
+                    async def invoke(
+                        self, command: CommandT, credential: CredentialT
+                    ) -> ProviderOutcome[ResultT]:
+                        await super().invoke(command, credential)
+                        raise RuntimeError("synthetic post-entry interruption")
+
+                interrupted = InterruptedAdapter(adapter_factory(provider), trace)
+                try:
+                    await attempt(candidate_adapter=interrupted)
+                except RuntimeError:
+                    pass
+                else:
+                    raise ValueError("post-entry interruption was hidden")
+                record = next(iter(attempts.records.values()), None)
+                replay = await attempt()
+                if (
+                    provider.writes != 1 or record is None or record.state != "unknown"
+                    or not isinstance(replay, NotExecuted) or replay.kind != "replay"
+                ):
+                    raise ValueError("post-entry interruption lost unknown state or retried")
             else:
                 try:
                     result = await attempt()

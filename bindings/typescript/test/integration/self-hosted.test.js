@@ -244,7 +244,15 @@ test("public adapter conformance covers denial, replay, uncertainty and observat
     }),
   });
   assert.equal(report.passed, true, JSON.stringify(report.cases));
-  assert.equal(report.cases.length, 10);
+  assert.equal(report.cases.length, 14);
+  const manifest = JSON.parse(readFileSync(new URL(
+    "../../../fixtures/self-hosted-profile/adapter-scenarios-v1.json", import.meta.url,
+  ), "utf8"));
+  assert.deepEqual(report.cases.map(item => item.id), manifest.mandatoryCaseIds);
+  for (const id of ["claim-failure-before-credential", "finish-failure-after-provider-entry",
+    "replay-after-restart", "post-entry-interruption-unknown"]) {
+    assert.equal(report.cases.find(item => item.id === id)?.status, "passed", id);
+  }
 });
 
 test("deliberately broken adapters fail the corresponding mandatory case", async () => {

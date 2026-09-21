@@ -145,6 +145,62 @@ export async function runSelfHostedAdapterConformance<
         if (provider.writes !== 1 || results.filter(result => result.kind === "attempted").length !== 1) {
           throw new Error("competing calls entered provider more than once");
         }
+      } else if (id === "claim-failure-before-credential") {
+        const failedClaim: AttemptStore = {
+          async claimOnce() { trace.push("claim"); throw new Error("synthetic claim storage failure"); },
+          read: attempts.read.bind(attempts), finish: attempts.finish.bind(attempts),
+        };
+        let threw = false;
+        try { await runOnce({ ...base, attempts: failedClaim }); }
+        catch { threw = true; }
+        if (!threw || provider.writes || trace.includes("credential")) {
+          throw new Error("claim failure reached credential or provider");
+        }
+      } else if (id === "finish-failure-after-provider-entry") {
+        const failedFinish: AttemptStore = {
+          claimOnce: attempts.claimOnce.bind(attempts), read: attempts.read.bind(attempts),
+          async finish() { trace.push("finish"); throw new Error("synthetic finish storage failure"); },
+        };
+        let threw = false;
+        try { await runOnce({ ...base, attempts: failedFinish }); }
+        catch { threw = true; }
+        const record = [...attempts.records.values()][0];
+        const replay = await runOnce(base);
+        if (!threw || provider.writes !== 1 || record?.state !== "attempting" || replay.kind !== "replay") {
+          throw new Error("finish failure permitted a second provider write");
+        }
+      } else if (id === "replay-after-restart") {
+        const result = await runOnce(base);
+        const actualAfterRestart = input.adapterFactory(provider);
+        const afterRestart: SelfHostedProviderAdapter<CommandOf<Fields>, Credential, Result> = {
+          async credential() { trace.push("credential"); return actualAfterRestart.credential(); },
+          async invoke(command, credential) { trace.push("invoke"); return actualAfterRestart.invoke(command, credential); },
+          async observe(command) { trace.push("observe"); return actualAfterRestart.observe(command); },
+        };
+        const replay = await runOnce({ ...base, adapter: afterRestart });
+        if (result.kind !== "attempted" || replay.kind !== "replay" || provider.writes !== 1) {
+          throw new Error("fresh runner context repeated a claimed write");
+        }
+        const before = provider.writes;
+        await reconcileReadOnly({ authorization: result.authorization, adapter: afterRestart });
+        if (provider.writes !== before) throw new Error("fresh runner reconciliation wrote to provider");
+      } else if (id === "post-entry-interruption-unknown") {
+        const interrupted: SelfHostedProviderAdapter<CommandOf<Fields>, Credential, Result> = {
+          credential: adapter.credential,
+          async invoke(command, credential) {
+            await adapter.invoke(command, credential);
+            throw new Error("synthetic post-entry interruption");
+          },
+          observe: adapter.observe,
+        };
+        let threw = false;
+        try { await runOnce({ ...base, adapter: interrupted }); }
+        catch { threw = true; }
+        const record = [...attempts.records.values()][0];
+        const replay = await runOnce(base);
+        if (!threw || provider.writes !== 1 || record?.state !== "unknown" || replay.kind !== "replay") {
+          throw new Error("post-entry interruption lost unknown state or retried");
+        }
       } else {
         let result: RunResult<CommandOf<Fields>, Result> | undefined;
         try { result = await runOnce(base); }
@@ -195,6 +251,10 @@ export async function runSelfHostedAdapterConformance<
     ["accepted", "invalid-trust-before-credential"],
     ["accepted", "credential-unavailable-before-provider"],
     ["accepted", "competing-claim"],
+    ["accepted", "claim-failure-before-credential"],
+    ["accepted", "finish-failure-after-provider-entry"],
+    ["accepted", "replay-after-restart"],
+    ["accepted", "post-entry-interruption-unknown"],
     ["rejected", "definite-no-effect-rejection"],
     ["unknown", "unknown-no-blind-retry"],
     ["timeout", "timeout-no-blind-retry"],
