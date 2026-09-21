@@ -21,6 +21,13 @@ works against those providers; they do not demonstrate production authority
 provisioning, non-bypassable enforcement, or qualified provider behavior.
 Applications that hold their own token can bypass the SDK gate. A separate
 credential-owning gateway is needed for a stronger enforcement claim.
+The present self-hosted guarantee is enforced ordering **within a voluntarily
+called SDK**. Formal assurance covers selected authority, attenuation,
+lifecycle, and bounded-policy predicates translated and refined under stated
+assumptions; it does not prove canonical decoding, cryptography, storage, or
+the entire verifier-to-provider path. The records API separately governs exact
+reads; an application with an independent read credential is not constrained
+by this write gate.
 
 ## Packaged clean-consumer exercise
 

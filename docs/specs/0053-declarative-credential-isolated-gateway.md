@@ -38,6 +38,13 @@ provider's own UI. A library called inside the credential-owning application,
 an application-readable token file, or a gateway that accepts arbitrary HTTP
 cannot make this claim.
 
+This first gateway scope governs a declared write and optional read-only
+observation; the self-hosted SDK governs a write only when an application
+voluntarily calls it. Auths is not otherwise write-only: AP-SPEC-024 §10's
+records API governs exact reads. An application holding an independent read
+credential is not constrained by either write gate, and this gateway does not
+claim general read authorization or confidentiality.
+
 The current boundary plan and AP-SPEC-051 prohibit loading third-party
 executors or promoting self-hosted adapters into the privileged runtime.
 Implementation of this spec therefore **requires an explicit ADR and updates

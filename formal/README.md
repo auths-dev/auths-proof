@@ -35,12 +35,14 @@ translation source closure, and reproduces the generated artifacts twice
 byte-for-byte. The reviewed decision is recorded in
 [`ADR 0011`](../docs/adr/0011-rich-authority-rust-lean-link.md).
 
-That qualification establishes a mechanical route and moves the shipping path
-behind extractable pure predicates. It does **not** yet close the rich
-projection gap. Until AP-SPEC-011 Milestones 1 and 2 are complete, the rich
-permission, interval, audience, constraint, budget, status, profile, assurance,
-and transition relations remain a tested and explicitly disclosed trust
-boundary. The generated Boolean aggregation is still the part proved in Lean.
+That qualification translates selected shipping authority, attenuation,
+lifecycle, and bounded-policy predicates to Lean and refines them under stated
+representation and external-model assumptions. The richer authority and
+transition relations are no longer merely an unclosed Boolean-aggregation
+plan: their scoped refinements are listed in the assurance manifest. This is
+**not** a formally verified end-to-end verifier. Canonical decoding,
+cryptography, storage, clocks, networking, adapter behavior, and the complete
+verifier control flow remain outside this proof surface.
 
 ## Commands
 

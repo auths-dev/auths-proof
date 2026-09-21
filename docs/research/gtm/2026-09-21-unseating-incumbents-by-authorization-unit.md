@@ -1,11 +1,11 @@
-# Auths Proof: unseating incumbents by changing the unit of authorization
+# Auths Proof: a portable authority format incumbents can emit and accept
 
 - **Date:** 2026-09-21
 - **Builds on:** [2026-09-18 go-to-market research](2026-09-18-go-to-market-and-product-opportunities.md)
   and [2026-09-19 product directions](2026-09-19-auths-proof-product-directions.md)
-- **Assumes:** the self-hosted stack (AP-SPEC-051–052) is complete, and the
-  declared-recipe gateway (053), enum node (055), and OpenAPI derivation
-  (056) ship on the sequence in those specs
+- **Assumes:** the self-hosted stack (AP-SPEC-051–052) is still being frozen;
+  the declared-recipe gateway (053) and OpenAPI derivation (056) are not built;
+  the enum node (055) is implemented but does not restrict grants by variant
 - **Confidence:** competitive claims are planning judgments from public
   product behavior as of this date, not measured market data; repository
   readiness claims cite spec numbers and should be checked against each
@@ -13,15 +13,15 @@
 
 ## Decision
 
-Pick incumbents by one rule and attack them in one order.
+Pick incumbent credential owners by one rule and integrate in one order.
 
-**The rule.** Every incumbent worth displacing authorizes a *container*
-around a consequential action: a run, a budget, a scope, a session, a token,
-a role. Auths authorizes the *action itself*: this exact request, on this
-exact resource, once, inside a bounded and revocable grant, with a proof a
-third party can verify offline. The products to build are the ones where the
-incumbent's container is widest relative to the blast radius of what sits
-inside it.
+**The rule.** Several incumbents already inspect exact arguments, bind saved
+plans, or mediate credentials. Auths' proposed distinction is a *portable*
+proof of delegated authority for one canonical action that another party can
+verify offline. A one-use claim controls admission within its configured
+store; it does not establish exactly one external effect. Prioritize workflows
+where this independent artifact and an enforced credential boundary matter
+enough to justify integration with the existing owner.
 
 **The order.**
 
@@ -47,24 +47,24 @@ identity concrete for every later sale.
 
 The market is converging on agent authorization from identity (Okta, Entra,
 Descope), token custody (Arcade, Composio, Nango), policy (Permit, OpenFGA,
-Cerbos, OPA), and the model platforms' own tool permissions. Each of these
-answers "may this agent call this tool or hold this token?" None answers
-"was this specific write, with these specific arguments, allowed, and did
-it happen once?" That second question is the one a controller, a platform
-lead, or an auditor asks after an agent does something expensive.
+Cerbos, OPA), and model-platform tool permissions. Existing products can
+already inspect structured arguments or bind an exact saved artifact. The
+question Auths may answer differently is whether a party outside that
+product can verify the *delegated authority* for the exact action. Provider
+entry, ambiguous delivery, and observed effect remain separate questions.
 
-Auths already has the primitives for the second question, and the 053–056
-sequence makes them usable without an Auths-authored profile per provider:
+Auths has some primitives for that question; 053/056 remain proposed work
+needed to extend the boundary without an Auths-authored provider profile:
 
 | Primitive | Where it exists | What it changes for a buyer |
 | --- | --- | --- |
 | Exact canonical action commitment | core, `auths.mcp/v2`, 051 | authorization names the write, not the tool |
-| Offline-verifiable proof under a delegated, revocable identity | core, KERI-style identity, `auths id agent` | an auditor verifies without trusting the operator's logs |
-| One-use atomic claim with `unknown` as a first-class outcome | 051–052 attempt store and runner | no blind retries; "we do not know" is recorded, not hidden |
-| Credential isolated from the agent | 053 gateway | the agent cannot use the token outside an authorized action |
-| Bounded schema with closed enumerations | 054 §5, 055 | intent bounds live in the contract, so an agent can self-authorize inside them |
-| Contracts and recipes derived from the vendor's OpenAPI | 056 | a new operation costs an hour of bounding decisions, not a spec |
-| Formally translated verifier | `formal/` | the verifier is an assurance artifact, not a promise |
+| Offline-verifiable proof under a delegated, revocable identity | core method registry and verifier; convenient git signing on auths-proof is Epic 3 work | an auditor can verify under supplied, sufficiently fresh trust; not independent discovery of later revocation |
+| One-use atomic claim with `unknown` as a first-class outcome | 051–052 local attempt store and runner | no blind automatic retry in that voluntarily used runner; no external exactly-once claim |
+| Credential isolated from the application | 053 gateway, specified but not built | would constrain the gateway-held credential only under tested deployment isolation |
+| Bounded schema with closed enumerations | 054 §5, 055 | command values can be restricted by contract; grant-level variant restriction is still 025 work |
+| Contracts and recipes derived from vendor OpenAPI | 056, specified but not built | could reduce authoring for operations that pass a measured rejection wall |
+| Selected translated authority predicates | `formal/` | authority, attenuation, lifecycle, and bounded-policy predicates are translated to Lean and refined under stated assumptions; decoding, cryptography, and storage remain outside that surface |
 
 The last row is unusual enough to lead with in regulated conversations and
 irrelevant everywhere else. Do not put it on the front page.
@@ -78,32 +78,34 @@ quoting it.
 ### 2.1 Product 1 — Agent commit and release signing
 
 **Incumbent and its unit.** Sigstore and `gitsign` bind a keyless signature
-to an OIDC identity; GitHub enforces "signed commits required". Both
-authorize a *session identity*. An agent has no OIDC identity of its own, so
-today it signs as its operator or not at all, and a reviewer cannot tell a
-human commit from an agent commit made under the human's key.
+to an OIDC identity; GitHub can enforce signed commits. CI agents obtain
+workload identity through OIDC today; local and offline agents do not have
+the same convenient issuance path. Auths treats Sigstore keyless and OIDC
+workload identity as principal methods, not as incompatible competitors.
 
 **Auths' unit.** A delegated key with separate `sign_commit` and
 `sign_release` scopes, an expiry, and one-line revocation, anchored under
 the maintainer's root. Verification resolves the delegation chain, not the
 operator's session.
 
-**Repository readiness.** Working now: the `claude-release` delegated agent,
-agent-signed PR auths#381, `auths verify` through a pinned root, and CI
-bundle verification. The gaps are packaging: a GitHub Action, a
-`git config` recipe, and a README that a maintainer can follow in ten
-minutes.
+**Repository readiness.** The reported `claude-release` and auths#381
+signing path is in a KERI-coupled sibling project and was not independently
+checked in the review. Auths-proof still needs AP-SPEC-058, a method-agnostic
+signer/verifier path, and adoption evidence. It is not just packaging work.
 
 **Buyer and champion.** Engineering leads adopting coding agents; security
 teams asking "which commits did an agent make, and under whose authority?"
 Champion is whoever owns branch protection.
 
-**Why the incumbent cannot copy quickly.** Sigstore's trust model is OIDC
-issuer plus transparency log. Adding delegated, scoped, revocable agent
-identities under a human root is a different trust model, not a feature.
+**What remains distinctive after the incumbent's cheapest response.** A
+focused team could add a signed, scoped approval envelope at merge/release
+in roughly **6–12 weeks**; polished cross-host portability may take **2–3
+quarters** (independent review §H, estimates, not a roadmap). Auths could
+offer one delegated-authority artifact across hosts and local/offline agents.
+That value still needs a working auths-proof signer and external adoption.
 
-**What it needs from the spec stack.** Nothing new. It uses core identity
-and delegation only.
+**What it needs from the spec stack.** AP-SPEC-058 and Epic 3 evidence on
+auths-proof; core identity and delegation alone are not a user-ready git path.
 
 **Commercial shape.** Free and open. This product exists to create the
 identity root and the habit; it is the distribution channel for 2–4, not a
@@ -116,11 +118,11 @@ Auths source.
 
 ### 2.2 Product 2 — Agent spend authority on Stripe
 
-**Incumbent and its unit.** Ramp, Brex, and Stripe Issuing spend controls
-authorize a *budget* on a card. Google's AP2 authorizes a signed *mandate*
-for an agent purchase, which is the closest conceptual neighbor but is a
-payments-network protocol, not an operator-side control over an existing
-Stripe account.
+**Incumbent and its unit.** Ramp, Brex, and Stripe Issuing have spend
+controls; Google's AP2 already specifies signed, constrained purchase
+authorization. Auths should not imply they only authorize an undifferentiated
+budget or that AP2 merely signs intent. The merchant-side refund/payout
+workflow and portable delegation are the proposed distinction.
 
 **Auths' unit.** This refund, capture, cancel, transfer, or payout, on this
 exact PaymentIntent or account, once, inside a grant such as "refunds up to
@@ -139,11 +141,13 @@ touch money" policy that is currently blocking a finance-automation project.
 Champion is the finance-systems or RevOps engineer who owns the Stripe
 integration. Sell the unblocked workflow; the control is the enabler.
 
-**Why the incumbent cannot copy quickly.** Card-level controls have no
-primitive for "this object and no other". AP2 binds a mandate to a purchase
-on the buyer side; it does not govern refunds, payouts, or subscription
-changes on the merchant side, and it does not produce an operator-held
-proof that a specific back-office action was authorized.
+**What remains distinctive after the incumbent's cheapest response.** An
+incumbent could add an agent identifier, action hash, approval, and durable
+consumption record in about **one quarter** for a narrow workflow; wider
+interoperability might take **2–4 quarters** (review §H estimates). Auths
+could carry the same offline-verifiable delegation across payments and
+non-payment provider effects, but still needs integration, liability, and
+settlement evidence that incumbents already partly own.
 
 **What it needs from the spec stack.** 053 for credential isolation from
 the agent (the Stripe secret key must live in the gateway), 055 for enum
@@ -163,11 +167,11 @@ none is retried automatically.
 
 ### 2.3 Product 3 — Production change gate
 
-**Incumbent and its unit.** Terraform Cloud and Spacelift approve a *run*.
-Argo CD gates a *sync*. OPA Gatekeeper and Kyverno evaluate a *policy*
-against a manifest. Bytebase and similar tools review *SQL text*. All are
-containers: the approved thing and the applied thing are not
-cryptographically the same object.
+**Incumbent and its unit.** Terraform and related platforms can bind an
+approval to a saved plan; admission controllers can inspect a manifest or
+policy decision. They are not uniformly limited to coarse runs or roles.
+Auths' possible increment is one portable proof of delegated authority
+across those otherwise separate workflows.
 
 **Auths' unit.** The saved-plan hash (OpenTofu), the exact rollout
 specification (Kubernetes), or the bounded DML statement with row and value
@@ -184,21 +188,22 @@ spec.
 agent perform operational changes and has said no. Champion is the person
 who owns the CI/CD or GitOps pipeline.
 
-**Why the incumbent cannot copy quickly.** Their approval object is the run
-or the policy decision, recorded in their own database. Binding approval to
-the exact applied bytes with an externally verifiable proof requires a
-signing and verification model they do not have and a canonical action
-format they would have to standardize.
+**What remains distinctive after the incumbent's cheapest response.** A
+focused incumbent could bind a digest and require approval for one workflow
+in **6–12 weeks**; a common multi-tool product may take **2–4 quarters**
+(review §H estimates). Auths could standardize independently verifiable
+delegation across tools, but the same stale-state and side-effect recovery
+problems remain for Auths too.
 
-**How to enter.** Do not replace the incumbent. Ship as a Terraform Cloud
-run task, an Argo CD pre-sync hook, or a Kubernetes admission webhook that
-requires an Auths proof for the exact object. "Required check" is a
-one-line change in the buyer's pipeline; "replacement" is a migration.
+**How to enter.** Do not replace the incumbent. Integrate a proof check at
+the executor or admission boundary for the exact object, then test that no
+alternate apply path bypasses it. A required check is a deployment change,
+not automatically a one-line security guarantee.
 
 **What it needs from the spec stack.** Core and the existing verticals.
-053 is optional here because the incumbent's runner, not the agent, holds
-the cloud credential; the gate is non-bypassable by construction if the
-runner enforces it.
+053 is optional here if a separately controlled incumbent runner alone holds
+the cloud credential and every relevant execution path enforces the proof;
+that isolation and coverage must be tested, not inferred from placement.
 
 **Commercial shape.** Open verifier and hooks; paid operations, retention,
 and the managed control plane for grants and proofs.
@@ -210,10 +215,11 @@ plan is rejected in front of the buyer.
 
 ### 2.4 Product 4 — Per-system-of-record write gateway from OpenAPI
 
-**Incumbent and its unit.** Composio, Arcade, and Nango hold the token and
-authorize by OAuth *scope*. Salesforce Agentforce, Workday, and ServiceNow
-agent platforms authorize by *role* inside their own product. Model
-platforms authorize by *tool allowlist*.
+**Incumbent and its unit.** Composio, Arcade, and Nango mediate credentials;
+Arcade and Composio already expose pre-execution argument inspection, and
+Nango offers a credential proxy. Salesforce Agentforce, Workday, and
+ServiceNow agent platforms also govern actions within their own products.
+Enterprise-suite equivalents were not checked individually in the review.
 
 **Auths' unit.** A bounded, signed, one-use write to Salesforce, Workday,
 NetSuite, or Jira through the 053 gateway, with the contract and recipe
@@ -231,22 +237,25 @@ agent. Sell to security; the developer is the user, not the buyer. The
 09-18 paper is right that this category is crowded when sold to
 developers as "another integration layer".
 
-**Why the incumbent cannot copy quickly.** Token vaults are optimized for
-breadth of connectors and OAuth flows; per-operation bounded contracts
-with signed proofs are orthogonal to their architecture and would slow
-their connector velocity. The SaaS vendors' own agent platforms cannot
-offer a cross-vendor proof, and buyers do not want per-vendor audit
-formats.
+**What remains distinctive after the incumbent's cheapest response.** An
+existing gateway could add a fail-closed check over normalized arguments
+and durable execution ID in **4–12 weeks** for one feature, or **1–2
+quarters** for a hardened managed policy product (review §H estimates).
+The proposed Auths distinction is independently verifiable delegation plus
+an operator-approved, digest-bound, data-only recipe—not merely inspecting
+arguments. The 053 gateway has not yet demonstrated that boundary.
 
 **How to enter.** One launch pack per system of record, starting with the
 one a design partner already has agents writing to. Never "any API"; that
 positioning is what the incumbents own and what the specs refuse.
 
-**What it needs from the spec stack.** All of 053, 055, and 056, plus a
-typed query-parameter segment in 053's recipe language, which many SaaS
-write operations need and 056 currently rejects. Add reads through the
-same gateway before a security reviewer asks, because data exfiltration is
-a read.
+**What it needs from the spec stack.** 053 and 056 are unbuilt; 055 is
+implemented. A typed query-parameter segment remains an explicit 053/056
+extension candidate, not an existing capability. The self-hosted and proposed
+gateway paths govern writes; AP-SPEC-024 §10's records API governs exact
+reads. An application with an independent read credential is not constrained
+by a write gate. General read authorization and confidentiality require
+separate coverage and egress assumptions.
 
 **Commercial shape.** Paid managed gateway, per-system packs, and
 compliance evidence retention.
@@ -258,15 +267,16 @@ the proof format.
 
 ### 2.5 Product 5 — Embedded verification for API owners
 
-**Incumbent and its unit.** OAuth scopes, API keys, and relationship or
-policy engines (OpenFGA, Cerbos) authorize a *scope* or *relationship*
-for a client.
+**Incumbent and its unit.** OAuth scopes and API keys can be coarse, but
+OpenFGA conditions and Cerbos request attributes already support structured
+policy decisions. The comparison is not exact requests versus static roles.
 
-**Auths' unit.** The API owner embeds the verifier, and each consequential
+**Auths' unit.** The API owner embeds a verifier, and each consequential
 request from a customer, integration, or agent carries a proof for that
-exact request. The gate is non-bypassable by construction because the
-server checks before it executes; no 053 gateway is needed on the client
-side.
+exact request. Enforcement depends on the owner routing every relevant
+path through the check and withholding alternate credentials; placement
+inside the server alone is not a non-bypassability proof. No 053 gateway is
+needed on the client side when the owner controls that boundary.
 
 **Repository readiness.** AP-SPEC-024, status Implemented, is this model
 for one records API; the 09-19 paper's pilot package describes it.
@@ -280,6 +290,14 @@ owners to expose a new authorization model to their customers, which is
 the slowest adoption curve on this list. The 09-19 paper's 30-day
 falsifier still applies. Run it after product 2 or 3 produces a logo that
 makes the model familiar.
+
+**What remains distinctive after the incumbent's cheapest response.** An
+API owner could put exact request attributes, a request ID, and durable
+consumption behind an existing policy engine in about **one quarter**;
+a polished multi-language offering may take **2–3 quarters** (review §H
+estimates). Auths' possible increment is portable offline delegation chains
+without an online central policy decision, if buyers value that portability
+enough to adopt a new format.
 
 **Commercial shape.** SDK plus verifier as open core; paid grant
 management, receipt retention, and support.
@@ -305,18 +323,21 @@ deprioritize.
 ## 4. Sequencing and dependencies
 
 ```text
- now         weeks         ~2 months          ~4 months          later
+ proposed sequencing; dates depend on the gates and buyer evidence
   |            |               |                  |                 |
   1 signing ---+-- 2 Stripe ---+-- 3 change gate -+-- 4 SoR gateway +-- 5 API owner
-  (core only)     (053 opt.)      (core + verticals)  (053+055+056)    (024 model)
+  (058 + trial)    (053 for       (vertical-specific   (053+056;       (024 model)
+                   isolation)     boundary testing)    055 built)
                                                         |
                                             053 Epic 1 ADR -> recipe AST -> 056 corpus
 ```
 
-Product 1 depends on nothing and should ship first. Product 2 can pilot on
+Product 1 needs AP-SPEC-058 and external adoption evidence before shipping.
+Product 2 can pilot on
 schema-level bounds before 053 lands, but the production claim needs 053
 so the Stripe secret is isolated from the agent. Product 3 needs only core
-and the verticals. Product 4 is gated on 053 and 056 and should not be
+and the verticals plus deployment coverage tests. Product 4 is gated on 053
+and 056 and should not be
 promised to a customer before 053 Epic 1's ADR is committed. Product 5 is a
 timing decision, not a technical one.
 
@@ -336,9 +357,11 @@ bounds from 054/055 carry the intent.
 
 ## 6. Thirty-day plan
 
-1. Ship product 1: a GitHub Action that verifies agent-signed commits
-   through a pinned root, a ten-minute README, and the `claude-release`
-   recipe as the worked example. Target twenty repositories.
+1. Specify AP-SPEC-058 and prototype product 1 in auths-proof: a GitHub
+   Action verifying agent-signed commits through pinned trust, a ten-minute
+   README, and three principal methods. The sibling project's
+   `claude-release` recipe is prior art to port, not proof this ships today.
+   Target twenty genuinely external repositories; do not simulate adoption.
 2. Pick the first three Stripe operations for product 2 from the 010–023
    specs by implementation status, and book one finance-side design partner
    conversation using the demo script "refund inside policy passes; refund

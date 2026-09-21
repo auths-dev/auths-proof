@@ -10,3 +10,4 @@
 - 2026-09-21 01:57 UTC — Epic 3 adoption blocker — `89b1beb`: Twenty external repositories and organizational branch protection require people and are not being simulated overnight.
 - 2026-09-21 01:57 UTC — Epic 4 draft PR opened — https://github.com/auths-dev/auths-proof/pull/124: The evidence work is stacked on PR #123 and remains draft with its human trial gate open.
 - 2026-09-21 02:05 UTC — Epic 4 corpus progress — https://github.com/auths-dev/auths-proof/pull/124: Three real vendor operations have digest-pinned manual rejection walls, while mapper acceptance and recipe compilation remain not checked.
+- 2026-09-21 02:10 UTC — Epic 4 wording progress — `9fd51e6`: Formal, read/write, OIDC, and incumbent-response wording is narrowed on the evidence branch without claiming a completed human trial or gateway.
