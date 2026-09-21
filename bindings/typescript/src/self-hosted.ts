@@ -309,7 +309,7 @@ export async function runOnce<Fields extends FieldMap, Credential, Result>(input
     try {
       const expected = input.contract.encode(input.expectedCommand);
       const actual = input.contract.encode(authorization.command);
-      if (JSON.stringify(expected) !== JSON.stringify(actual)) {
+      if (!sameEncodedValue(expected, actual)) {
         return Object.freeze({ kind: "denied", code: "self-hosted.expected-command-mismatch" });
       }
     } catch {
@@ -355,6 +355,24 @@ export async function runOnce<Fields extends FieldMap, Credential, Result>(input
     observation = "unavailable";
   }
   return Object.freeze({ kind: "attempted", authorization, provider, observation });
+}
+
+/** Application guard over already schema-validated values, not a wire codec. */
+function sameEncodedValue(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (left === null || right === null || typeof left !== "object" || typeof right !== "object") {
+    return false;
+  }
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right) && left.length === right.length &&
+      left.every((item, index) => sameEncodedValue(item, right[index]));
+  }
+  const leftFields = Object.keys(left);
+  const rightFields = Object.keys(right);
+  return leftFields.length === rightFields.length && leftFields.every(key =>
+    Object.hasOwn(right, key) && sameEncodedValue(
+      (left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key],
+    ));
 }
 
 /** Read only. An unknown provider effect must never be retried by this API. */

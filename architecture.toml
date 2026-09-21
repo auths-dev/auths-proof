@@ -353,6 +353,12 @@ status = "permanent"
 reason = "Runtime diagnostics hash the generated Rust-owned error registry artifact for negotiation; receipt commitments themselves are computed and checked by native Rust."
 
 [[binding_semantics.allowances]]
+path = "bindings/python/python/auths/_profile_cli.py"
+pattern = "hashlib"
+status = "permanent"
+reason = "The local profile generator hashes its own closed schema snapshot for source-versus-lock drift detection. This digest is not a signed action, proof commitment, or native authorization decision."
+
+[[binding_semantics.allowances]]
 path = "bindings/python/python/auths/_session.py"
 pattern = "os.urandom"
 status = "permanent"

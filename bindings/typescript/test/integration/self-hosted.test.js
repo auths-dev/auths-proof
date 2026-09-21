@@ -5,7 +5,7 @@ import { test } from "node:test";
 
 import {
   arrayField, authorMcpProof, booleanField, enumField, exactMcpTool, integerField, optionalField, stringField,
-  verifyCommand,
+  runOnce, verifyCommand,
 } from "../../dist/self-hosted.js";
 import { runSelfHostedAdapterConformance } from "../../dist/testkit/index.js";
 
@@ -65,6 +65,22 @@ test("TypeScript projects an exact typed command only from native-authorized byt
   });
   assert.equal(result.kind, "authorized");
   assert.deepEqual(result.command, { value: "reviewed" });
+  const expectedMismatch = await runOnce({
+    contract, proof: artifacts.proofCbor, action,
+    trustedContext: artifacts.trustedContextCbor, expectedCommand: { value: "different" },
+    operationKey: "expect-review", attempts: {
+      async claimOnce() { throw new Error("mismatch reached claim"); },
+      async read() { return undefined; },
+      async finish() { throw new Error("mismatch reached finish"); },
+    },
+    adapter: {
+      credential() { throw new Error("mismatch reached credential"); },
+      async invoke() { throw new Error("mismatch reached provider"); },
+      async observe() { throw new Error("mismatch reached observation"); },
+    },
+  });
+  assert.equal(expectedMismatch.kind, "denied");
+  assert.equal(expectedMismatch.code, "self-hosted.expected-command-mismatch");
   const wrongTool = exactMcpTool({
     service: "reports", name: "delete_demo_record",
     fields: { value: stringField({ minBytes: 1, maxBytes: 32 }) },
