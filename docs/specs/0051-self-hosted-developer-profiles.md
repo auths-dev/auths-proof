@@ -381,23 +381,21 @@ provider profiles is an exit criterion.
 
 ## 10. Implementation tracking
 
-The implementation branch currently supplies native exact MCP proof
-assembly/projection, public Python and TypeScript authoring and verification,
-explicit external-custody inputs, a Python single-host attempt store and a
-TypeScript attempt-store port, and field-lab migrations for Airtable and
-Todoist. These are mechanism and consumer milestones, **not** completion of
-the exit criteria above.
+The branch supplies native exact MCP proof assembly/projection, public Python
+and TypeScript authoring and verification, explicit external-custody inputs,
+the local attempt-store ports, and Airtable/Todoist field-lab consumers.
+The first three tracked implementation items have landed: packaged
+`auths-profile init/check/doctor` flows, the bounded nested/array/bytes/enum
+schema with hostile vectors and version binding, and packaged Python/npm
+consumer exercises with cross-language and recovery cases. The prior SDK
+revision passed the [Python package](https://github.com/auths-dev/auths-proof/actions/runs/35650010520),
+[TypeScript package](https://github.com/auths-dev/auths-proof/actions/runs/35650010653),
+and [installed-artifact recipe](https://github.com/auths-dev/auths-proof/actions/runs/35650010580)
+workflows. The public-surface and claim-metadata read-through is recorded in
+[the acceptance review](../product/SELF_HOSTED_ACCEPTANCE_REVIEW.md).
 
-Still required before this spec can be marked implemented:
-
-- the packaged `auths-profile init/check/doctor` flow in both languages,
-  including deterministic generated types and canonical cross-language
-  vectors from a restricted `profile.toml`;
-- the full bounded schema vocabulary in §4 (beyond the currently supported
-  flat UTF-8 strings, checked integers, booleans, and optional scalar fields),
-  with hostile vectors and contract-version binding;
-- a clean third-party packaged-consumer walkthrough for both languages, plus
-  cross-language conformance and explicit crash/recovery fixtures; and
-- final hosted CI qualification and review of all public-surface and claim
-  metadata. Neither field-lab result promotes a developer adapter to an
-  Auths-qualified vertical.
+Still required before marking this spec implemented: hosted qualification on
+the final PR revision, including the acceptance corrections after that prior
+green SDK commit, and closure of the exact-pinned field-lab hosted workflows.
+Neither local live read-back promotes a developer adapter to an
+Auths-qualified vertical.

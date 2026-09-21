@@ -1,6 +1,6 @@
 # AP-SPEC-052: Self-hosted profile launch hardening
 
-- **Status:** Implementation in progress
+- **Status:** Implementation in progress; Epics 1–3 landed, Epic 4 independent-adoption and hosted-demo gates open
 - **Depends on:** [AP-SPEC-051](0051-self-hosted-developer-profiles.md)
 - **Scope:** make the exact, application-owned MCP path repeatable from packaged
   Python and TypeScript SDKs, usable with independently provisioned authority,

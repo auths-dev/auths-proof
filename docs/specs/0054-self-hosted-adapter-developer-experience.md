@@ -1,6 +1,6 @@
 # AP-SPEC-054: Self-hosted adapter developer experience
 
-- **Status:** Draft; this document specifies work, not a completed SDK claim
+- **Status:** Implementation in progress; Epics 1–4 landed, final CI and Epic 5 adoption evidence open
 - **Audience:** Python and TypeScript SDK maintainers, application developers,
   conformance maintainers, and reviewers
 - **Depends on:** [AP-SPEC-051](0051-self-hosted-developer-profiles.md),

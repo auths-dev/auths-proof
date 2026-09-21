@@ -23,6 +23,7 @@
 - 2026-09-21 21:40 UTC — AP-SPEC-055 status correction — `c0cdba8`: The enum-node implementation from `8aa1bed` is marked implemented after its Python, TypeScript, native, and hosted package evidence; no provider qualification claim is added.
 - 2026-09-21 21:41 UTC — Epic 1 public-surface read-through — `af0b6fa`: The new acceptance review maps AP-SPEC-051/-052/-054/-055 clauses to exact inventories, metadata, tests, previous hosted runs, and still-open final-revision gates; no new SDK symbol or qualified provider claim was found.
 - 2026-09-21 21:44 UTC — Epic 1 provider-specific conformance extension — `ac20730`: The mandatory-report guard initially disallowed all extra cases; AP-SPEC-054 §7 permits provider-specific cases, so both CLIs now require the mandatory fourteen exactly once while allowing bounded additions, with positive and negative tests.
+- 2026-09-21 21:46 UTC — Spec tracking read-back — `f5992ba`: AP-SPEC-051's first three implementation items, AP-SPEC-052 Epics 1–3, and AP-SPEC-054 Epics 1–4 are recorded as landed while final CI, the clean-room rerun, and field-lab hosted evidence remain open.
 
 ## Morning report
 
