@@ -255,6 +255,24 @@ test("public adapter conformance covers denial, replay, uncertainty and observat
   }
 });
 
+test("application-owned token can bypass the voluntary runner", async () => {
+  let writes = 0;
+  const attempts = { claims: 0, async claimOnce() { this.claims += 1; return true; } };
+  const adapter = {
+    async credential() { return "disposable-local-token"; },
+    async invoke(command, token) {
+      assert.equal(command.value, "reviewed");
+      assert.equal(token, "disposable-local-token");
+      writes += 1;
+      return { kind: "accepted", value: "synthetic-write" };
+    },
+  };
+  // No proof, verifier, or AttemptStore call occurs on this application-owned path.
+  assert.equal((await adapter.invoke({ value: "reviewed" }, await adapter.credential())).kind, "accepted");
+  assert.equal(attempts.claims, 0);
+  assert.equal(writes, 1);
+});
+
 test("deliberately broken adapters fail the corresponding mandatory case", async () => {
   const prepared = await proofFixture();
   const artifacts = {

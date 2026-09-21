@@ -118,3 +118,14 @@ async def test_unknown_is_persisted_and_not_retried() -> None:
     assert result.observation is None
     assert store.state == "unknown"
     assert adapter.invoke_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_application_owned_token_can_bypass_the_voluntary_runner() -> None:
+    """Threat-model regression: possession of the token is not isolated by Auths."""
+    store = MemoryAttempts()
+    adapter = Adapter()
+    result = await adapter.invoke(Command("approved"), adapter.credential())
+    assert isinstance(result, ProviderAccepted)
+    assert adapter.invoke_calls == 1
+    assert store.claimed is None

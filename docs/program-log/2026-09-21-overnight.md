@@ -18,6 +18,7 @@
 - 2026-09-21 21:32 UTC — Epic 1 acceptance review resumed — `3212373`: The ten-case adapter kit existed, but both `profile test` CLIs accepted an empty consumer-supplied report; this correction requires the complete mandatory case set and adds five deliberately broken-adapter probes per language, with hosted verification pending.
 - 2026-09-21 21:34 UTC — Epic 1 first-run diagnostic follow-up — `447fa46`: A zero-context packaged-wheel participant saw `profile diff` say “no field changes” while reporting a new action identity before any lock existed; both CLIs now explain the missing prior lock explicitly, with hosted verification pending.
 - 2026-09-21 21:36 UTC — Epic 1 conformance checkpoint coverage — `116b32d`: The mandatory scenario manifest now includes claim and finish storage failures, restart replay/read-only reconciliation, and post-entry interruption, exposing the states AP-SPEC-054 §7 requires before the SDK can be frozen.
+- 2026-09-21 21:38 UTC — Epic 1 bypass-boundary regression — `a750983`: Python and TypeScript SDK tests now explicitly demonstrate that application-held credentials permit a provider call without invoking `run_once`/`runOnce`, preserving AP-SPEC-051 §7's voluntary-gate claim.
 
 ## Morning report
 
