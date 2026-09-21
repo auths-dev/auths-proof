@@ -1,6 +1,6 @@
 # AP-SPEC-054: Self-hosted adapter developer experience
 
-- **Status:** Implementation in progress; Epics 1–4 landed, Epic 5 engineering trial reported, final hosted CI open
+- **Status:** Epics 1–5 engineering acceptance exercised on green SDK revision `0266fdc`; independent owner review pending
 - **Audience:** Python and TypeScript SDK maintainers, application developers,
   conformance maintainers, and reviewers
 - **Depends on:** [AP-SPEC-051](0051-self-hosted-developer-profiles.md),
@@ -521,3 +521,14 @@ provider-specific qualification are separate product decisions, **not**
 automatic follow-on gates for this developer interface. The final claim is
 limited to exact authorization and the exercised SDK mechanisms; the
 developer remains responsible for their provider adapter and credential.
+
+The five engineering epics are exercised on SDK revision `0266fdc`: its
+[Python package](https://github.com/auths-dev/auths-proof/actions/runs/35663793077),
+[TypeScript package](https://github.com/auths-dev/auths-proof/actions/runs/35663793306),
+[installed-artifact recipes](https://github.com/auths-dev/auths-proof/actions/runs/35663793107),
+and [authoritative CI](https://github.com/auths-dev/auths-proof/actions/runs/35663793124)
+passed. The [third-adapter report](../product/SELF_HOSTED_THIRD_ADAPTER_TRIAL.md)
+records a zero-context agent's packaged-consumer write and read-back, not a
+human adoption trial. The implementation agent's [API/claim read-through](../product/SELF_HOSTED_ACCEPTANCE_REVIEW.md)
+is available for the owner's separate fresh-context review; no owner approval
+or provider-qualification claim is inferred from it.
