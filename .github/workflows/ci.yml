@@ -263,6 +263,20 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Reclaim disk before restoring Lean dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          df -h /
+          sudo rm -rf \
+            /opt/ghc \
+            /opt/hostedtoolcache/CodeQL \
+            /usr/local/.ghcup \
+            /usr/local/lib/android \
+            /usr/share/dotnet
+          sudo docker system prune --all --force
+          sudo apt-get clean
+          df -h /
       - uses: ./.github/actions/setup-rust-cache
         with:
           toolchain: 1.97.1
@@ -568,6 +582,20 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
+      - name: Reclaim disk before authoritative Lean setup
+        shell: bash
+        run: |
+          set -euo pipefail
+          df -h /
+          sudo rm -rf \
+            /opt/ghc \
+            /opt/hostedtoolcache/CodeQL \
+            /usr/local/.ghcup \
+            /usr/local/lib/android \
+            /usr/share/dotnet
+          sudo docker system prune --all --force
+          sudo apt-get clean
+          df -h /
       - uses: ./.github/actions/setup-rust-cache
         with:
           toolchain: 1.97.1
