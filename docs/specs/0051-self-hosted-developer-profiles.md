@@ -1,6 +1,6 @@
 # AP-SPEC-051: Self-hosted developer profiles
 
-- **Status:** Implementation in progress; do not treat this as an exit-criteria-complete SDK
+- **Status:** Implementation landed and exact SDK CI green; independent owner review pending before final acceptance
 - **Audience:** Python/TypeScript SDK maintainers, profile contributors, and
   security reviewers
 - **Normative language:** **MUST**, **MUST NOT**, **SHOULD**, and **MAY** are
@@ -387,15 +387,20 @@ the local attempt-store ports, and Airtable/Todoist field-lab consumers.
 The first three tracked implementation items have landed: packaged
 `auths-profile init/check/doctor` flows, the bounded nested/array/bytes/enum
 schema with hostile vectors and version binding, and packaged Python/npm
-consumer exercises with cross-language and recovery cases. The prior SDK
-revision passed the [Python package](https://github.com/auths-dev/auths-proof/actions/runs/35650010520),
-[TypeScript package](https://github.com/auths-dev/auths-proof/actions/runs/35650010653),
-and [installed-artifact recipe](https://github.com/auths-dev/auths-proof/actions/runs/35650010580)
-workflows. The public-surface and claim-metadata read-through is recorded in
+consumer exercises with cross-language and recovery cases. SDK revision
+`0266fdc` passed the [Python package](https://github.com/auths-dev/auths-proof/actions/runs/35663793077),
+[TypeScript package](https://github.com/auths-dev/auths-proof/actions/runs/35663793306),
+[installed-artifact recipes](https://github.com/auths-dev/auths-proof/actions/runs/35663793107),
+and [authoritative CI](https://github.com/auths-dev/auths-proof/actions/runs/35663793124).
+The public-surface and claim-metadata read-through is recorded in
 [the acceptance review](../product/SELF_HOSTED_ACCEPTANCE_REVIEW.md).
 
-Still required before marking this spec implemented: hosted qualification on
-the final PR revision, including the acceptance corrections after that prior
-green SDK commit, and closure of the exact-pinned field-lab hosted workflows.
-Neither local live read-back promotes a developer adapter to an
-Auths-qualified vertical.
+The implementation agent's read-through is not owner approval. The owner will
+use separate fresh-context LLM sessions for independent review, then decide
+whether the public inventories and claims are accepted. The exact-pinned
+field-lab demos passed local packaged-wheel tests and earlier live read-back;
+their hosted workflows did not start because of an account billing annotation.
+The owner directed that field-lab CI not be pursued for this PR's engineering
+handoff. AP-SPEC-057 Epic 1 retains its stricter hosted-demo acceptance until
+separately changed or met. Neither local live read-back promotes a developer
+adapter to an Auths-qualified vertical.
