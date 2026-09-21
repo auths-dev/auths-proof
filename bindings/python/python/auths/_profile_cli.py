@@ -57,6 +57,8 @@ def parse_contract(source: str) -> ProfileContract:
     """Parse the documented bounded TOML subset, rejecting unknown tables."""
     if len(source.encode("utf-8")) > 16_384:
         raise ValueError("profile.toml exceeds 16 KiB")
+    if re.search(r"\r(?!\n)|[\u000b\u000c\u001c-\u001e\u0085\u2028\u2029\ufeff]", source):
+        raise ValueError("profile.toml has an unsupported line ending or BOM")
     tables: dict[str, dict[str, str | int | tuple[str, ...]]] = {}
     current: str | None = None
     for original in source.splitlines():

@@ -17,6 +17,9 @@ const reserved = new Set(["__proto__", "prototype", "constructor"]);
 
 export function parseContract(source) {
   if (new TextEncoder().encode(source).length > 16_384) throw new Error("profile.toml exceeds 16 KiB");
+  if (/\r(?!\n)|[\u000b\u000c\u001c-\u001e\u0085\u2028\u2029\ufeff]/u.test(source)) {
+    throw new Error("profile.toml has an unsupported line ending or BOM");
+  }
   const tables = new Map();
   let current;
   for (const original of source.split(/\r?\n/)) {
@@ -60,7 +63,8 @@ export function parseContract(source) {
   const version = profile.get("version");
   const service = profile.get("service");
   const baseTool = profile.get("tool");
-  const command = profile.get("command") ?? name.split(/[-_.]/).map(part => part[0].toUpperCase() + part.slice(1)).join("");
+  const command = profile.get("command") ?? name.split(/[-_.]/).filter(Boolean)
+    .map(part => part[0].toUpperCase() + part.slice(1)).join("");
   const versionedTool = `${baseTool}_v${version}`;
   if (typeof name !== "string" || !identity.test(name) ||
       !Number.isInteger(version) || version < 1 || version > 9999 ||
@@ -362,16 +366,14 @@ export function renderConformance(contract) {
     `import { runSelfHostedAdapterConformance, type ScriptedProvider } from "@auths-dev/sdk/testkit";\n` +
     `import { CONTRACT, type ${contract.command} } from "./generated.js";\n` +
     `import { ApplicationAdapter } from "./adapter.js";\n\n` +
-    `export async function run() {\n` +
-    `  // Replace the generated example and supply matching local proof/action/context.\n` +
-    `  const command: ${contract.command} = CONTRACT.decode(new TextEncoder().encode(${JSON.stringify(exampleArguments)}));\n` +
-    `  const artifacts: { proof: Uint8Array; action: Uint8Array; trustedContext: Uint8Array } =\n` +
-    `    { proof: new Uint8Array(), action: new Uint8Array(), trustedContext: new Uint8Array() };\n` +
-    `  const adapterFactory = (provider: ScriptedProvider): ApplicationAdapter => {\n` +
-    `    void provider;\n` +
-    `    throw new Error("wire a fake provider to the adapter");\n` +
-    `  };\n` +
-    `  return runSelfHostedAdapterConformance({ contract: CONTRACT, command, artifacts, adapterFactory });\n` +
+    `export async function run(input?: Readonly<{\n` +
+    `  artifacts: { proof: Uint8Array; action: Uint8Array; trustedContext: Uint8Array };\n` +
+    `  adapterFactory: (provider: ScriptedProvider) => ApplicationAdapter;\n` +
+    `}>) {\n` +
+    `  // Supply signed local artifacts and an adapter wired to the scripted provider.\n` +
+    `  const command: ${contract.command} = CONTRACT.decode(${exampleArguments});\n` +
+    `  if (input === undefined) throw new Error("supply signed artifacts and a scripted-provider adapter");\n` +
+    `  return runSelfHostedAdapterConformance({ contract: CONTRACT, command, ...input });\n` +
     `}\n`;
 }
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createPrivateKey, sign as signBytes } from "node:crypto";
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -141,6 +141,42 @@ test("packed SDK signs under supplied trust, makes one write, and reconciles an 
     assert.equal(await sdk.reconcileReadOnly({ authorization, adapter: ambiguous }), "observed");
     assert.equal(writes, 2);
     assert.equal(signings, 2);
+
+    const cli = await import(pathToFileURL(join(directory, "node_modules", "@auths-dev", "sdk",
+      "tools", "profile-cli.mjs")).href);
+    const starterContract = {
+      name: "signed-starter", version: 1, service: "reports", tool: "update_demo_record",
+      command: "SignedStarter",
+      fields: [{ name: "value", kind: "string", minimum: 1, maximum: 32 }],
+    };
+    const starter = join(directory, "starter");
+    await mkdir(starter);
+    await writeFile(join(starter, "generated.ts"), cli.renderGenerated(starterContract));
+    await writeFile(join(starter, "adapter.ts"), cli.renderAdapter(starterContract));
+    await writeFile(join(starter, "conformance.ts"), cli.renderConformance(starterContract));
+    await writeFile(join(directory, "tsconfig.json"), JSON.stringify({
+      compilerOptions: {
+        strict: true, target: "ES2022", module: "NodeNext", moduleResolution: "NodeNext",
+        lib: ["DOM", "ES2022", "ESNext.Disposable"], outDir: "out", rootDir: ".",
+      },
+      include: ["starter/**/*.ts"],
+    }));
+    compileConsumer(directory);
+    const generatedStarter = await import(pathToFileURL(join(directory, "out", "starter", "conformance.js")).href);
+    const starterArtifacts = await author("x");
+    const report = await generatedStarter.run({
+      artifacts: { proof: starterArtifacts.proof, action: starterArtifacts.action,
+        trustedContext: starterArtifacts.trustedContext },
+      adapterFactory(provider) {
+        return {
+          credential() { return "synthetic-token"; },
+          invoke(command, credential) { return provider.write(command, credential); },
+          observe(command) { return provider.read(command); },
+        };
+      },
+    });
+    assert.equal(report.passed, true, JSON.stringify(report.cases));
+    assert.equal(signings, 3);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

@@ -38,7 +38,7 @@ Independent baseline: [How revolutionary is Auths Proof, really?](research/compe
 
 | Epic | Owner | Status | Evidence so far | Next check-in decision |
 | --- | --- | --- | --- | --- |
-| 0057 Epic 1 — freeze on evidence | codex session on `codex/self-hosted-developer-profiles` | in progress | `ea54a9d` CLI renamed to `auths-profile`, doctor wording qualified; `af39df0` inventories aligned; `3aeb18e`, `526b6d4` signed packed consumers + recovery; `9784fb1` CI disk fix; `bda2b07` binding-semantics fix pushed to PR #123; `f77f8f7` committed the evidence-program baseline; shared adversarial fixture drafted before parser changes. Open: fixture consumers and implementation (step 1), TS starter crash + `decode` fix with executed packed test (step 2), exact-revision CI (step 3), field-lab pin and secret-backed workflows (step 4), `9b31882` retitle or trial report (step 5). | Is PR #123 green on one commit with the fixture passing in all three implementations? |
+| 0057 Epic 1 — freeze on evidence | codex session on `codex/self-hosted-developer-profiles` | in progress; CI externally blocked | `ea54a9d` CLI renamed to `auths-profile`, doctor wording qualified; `af39df0` inventories aligned; `3aeb18e`, `526b6d4` signed packed consumers + recovery; `9784fb1` CI disk fix; `bda2b07` binding-semantics fix; `f77f8f7` evidence baseline; `b89d754` shared adversarial fixture and test consumers; parser and generated-starter fixes await exact-revision CI. Open: fixture acceptance (step 1), packed starter execution (step 2), billing-blocked CI (step 3), field-lab secret/workflows (step 4), immutable overclaiming title `9b31882` (step 5). | Is PR #123 green on one commit with the fixture passing in all three implementations? |
 | 0057 Epic 4 — publish the evidence | unassigned | not started | — | Who runs the unfamiliar-user trial, and which two vendor OpenAPI documents join GitHub's? |
 
 ## 2. Queued — single-agent order, with gates
@@ -140,4 +140,6 @@ a table of every PR opened with its CI state.
 
 | Logged | Epic / step | What was needed | What the agent did instead |
 | --- | --- | --- | --- |
-| — | — | — | — |
+| 2026-09-21 | Epic 1 CI | GitHub Actions billing/spending limit restored; Python 3.11 macOS job was not started on [run 35552019150](https://github.com/auths-dev/auths-proof/actions/runs/35552019150). | Kept the result marked infrastructure-blocked; continued source work without claiming green. |
+| 2026-09-21 | Epic 1 field-lab | A read-only `AUTHS_PROOF_READ_TOKEN` for private auths-proof checkout must be provisioned in auths-field-lab Actions secrets. | Did not create or expose a credential; left the demo workflows unqualified. |
+| 2026-09-21 | Epic 1 title audit | `9b31882` says “complete independent adapter adoption trial” but its own diff lacks the participant report; the done gate demands no such title, while the hard limit forbids rewriting pushed history. | Preserved history, will publish an honest erratum/report if evidence exists, and leaves that done-gate clause open for owner resolution. |
