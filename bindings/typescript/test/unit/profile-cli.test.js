@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -116,4 +116,20 @@ test("production doctor describes only its actual TypeScript authority checks", 
     "--trust-file", trust], { encoding: "utf8" });
   assert.match(output, /grant\/trust bytes not parsed/);
   assert.doesNotMatch(output, /structurally present/);
+});
+
+test("profile test refuses a suite that omits mandatory adapter cases", async () => {
+  const folder = await mkdtemp(join(tmpdir(), "auths-profile-empty-suite-"));
+  const cli = fileURLToPath(new URL("../../tools/profile-cli.mjs", import.meta.url));
+  execFileSync(process.execPath, [cli, "init", "--language", "typescript",
+    "--name", "empty-suite", "--directory", folder]);
+  execFileSync(process.execPath, [cli, "generate", join(folder, "profile.toml")]);
+  const suite = join(folder, "empty-suite.mjs");
+  await writeFile(suite, "export async function run() { return { metadata: { suite: 'self-hosted-provider-adapter/1', assurance: 'test-results-only-not-security-certification' }, passed: true, cases: [] }; }\n");
+  const result = spawnSync(process.execPath, [cli, "test", join(folder, "profile.toml"),
+    "--suite", suite, "--json"], { encoding: "utf8" });
+  assert.equal(result.status, 1);
+  const diagnostic = JSON.parse(result.stdout).diagnostic;
+  assert.equal(diagnostic.code, "profile.provider.adapter-test-failed");
+  assert.match(diagnostic.message, /mandatory cases/);
 });

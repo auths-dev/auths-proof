@@ -34,6 +34,20 @@ CredentialT = TypeVar("CredentialT")
 ResultT = TypeVar("ResultT")
 Scenario = Literal["accepted", "rejected", "unknown", "timeout", "observation-unavailable"]
 
+_SCENARIOS: tuple[tuple[Scenario, str], ...] = (
+    ("accepted", "authorized-one-write-and-replay"),
+    ("accepted", "denied-before-credential"),
+    ("accepted", "mutated-action-before-credential"),
+    ("accepted", "invalid-trust-before-credential"),
+    ("accepted", "credential-unavailable-before-provider"),
+    ("accepted", "competing-claim"),
+    ("rejected", "definite-no-effect-rejection"),
+    ("unknown", "unknown-no-blind-retry"),
+    ("timeout", "timeout-no-blind-retry"),
+    ("observation-unavailable", "unavailable-observation"),
+)
+_MANDATORY_CASE_IDS = frozenset(case_id for _, case_id in _SCENARIOS)
+
 
 class ScriptedProvider:
     """Test-only provider port; adapters must explicitly wire their fake I/O to it."""
@@ -258,18 +272,6 @@ async def run_self_hosted_adapter_conformance(
         else:
             cases.append(ConformanceCase(case_id, "passed", None, None))
 
-    scenarios: tuple[tuple[Scenario, str], ...] = (
-        ("accepted", "authorized-one-write-and-replay"),
-        ("accepted", "denied-before-credential"),
-        ("accepted", "mutated-action-before-credential"),
-        ("accepted", "invalid-trust-before-credential"),
-        ("accepted", "credential-unavailable-before-provider"),
-        ("accepted", "competing-claim"),
-        ("rejected", "definite-no-effect-rejection"),
-        ("unknown", "unknown-no-blind-retry"),
-        ("timeout", "timeout-no-blind-retry"),
-        ("observation-unavailable", "unavailable-observation"),
-    )
-    for scenario, case_id in scenarios:
+    for scenario, case_id in _SCENARIOS:
         await exercise(scenario, case_id)
     return _report("self-hosted-provider-adapter/1", cases, "1")

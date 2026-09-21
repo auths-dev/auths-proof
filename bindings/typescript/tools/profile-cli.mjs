@@ -14,6 +14,13 @@ const tool = /^[A-Za-z][A-Za-z0-9._-]{0,111}$/;
 const quoted = /^"([A-Za-z0-9_.:-]+)"$/;
 const integer = /^-?(0|[1-9][0-9]{0,15})$/;
 const reserved = new Set(["__proto__", "prototype", "constructor"]);
+const mandatoryAdapterCases = new Set([
+  "authorized-one-write-and-replay", "denied-before-credential",
+  "mutated-action-before-credential", "invalid-trust-before-credential",
+  "credential-unavailable-before-provider", "competing-claim",
+  "definite-no-effect-rejection", "unknown-no-blind-retry",
+  "timeout-no-blind-retry", "unavailable-observation",
+]);
 
 export function parseContract(source) {
   if (new TextEncoder().encode(source).length > 16_384) throw new Error("profile.toml exceeds 16 KiB");
@@ -498,6 +505,16 @@ async function mainText(args) {
     const report = await suite.run();
     if (report?.metadata?.suite !== "self-hosted-provider-adapter/1" || !Array.isArray(report.cases)) {
       throw new Error("adapter suite returned an invalid conformance report");
+    }
+    const caseIds = report.cases.map(item => item?.id);
+    if (caseIds.length !== mandatoryAdapterCases.size ||
+        new Set(caseIds).size !== mandatoryAdapterCases.size ||
+        caseIds.some(id => !mandatoryAdapterCases.has(id)) ||
+        report.metadata.assurance !== "test-results-only-not-security-certification") {
+      throw new Error("adapter suite omitted or duplicated mandatory cases");
+    }
+    if (report.passed !== report.cases.every(item => item.status === "passed")) {
+      throw new Error("adapter suite summary disagrees with mandatory cases");
     }
     for (const item of report.cases) process.stdout.write(`${item.status.toUpperCase()} ${item.id}\n`);
     process.stdout.write("local adapter tests only; provider behavior remains unqualified\n");

@@ -247,6 +247,49 @@ test("public adapter conformance covers denial, replay, uncertainty and observat
   assert.equal(report.cases.length, 10);
 });
 
+test("deliberately broken adapters fail the corresponding mandatory case", async () => {
+  const prepared = await proofFixture();
+  const artifacts = {
+    proof: prepared.artifacts.proofCbor,
+    action: prepared.action,
+    trustedContext: prepared.artifacts.trustedContextCbor,
+  };
+  for (const [defect, failedCase] of [
+    ["credential-before-claim", "denied-before-credential"],
+    ["duplicate-write", "authorized-one-write-and-replay"],
+    ["retry-on-timeout", "timeout-no-blind-retry"],
+    ["false-definite-rejection", "authorized-one-write-and-replay"],
+    ["write-during-reconcile", "unknown-no-blind-retry"],
+  ]) {
+    const report = await runSelfHostedAdapterConformance({
+      contract, command: { value: "reviewed" }, artifacts,
+      adapterFactory(provider) {
+        if (defect === "credential-before-claim") provider.trace.push("credential");
+        return {
+          credential: () => "synthetic-token",
+          async invoke(command, credential) {
+            if (defect === "duplicate-write") await provider.write(command, credential);
+            if (defect === "retry-on-timeout") {
+              try { return await provider.write(command, credential); }
+              catch { return provider.write(command, credential); }
+            }
+            const result = await provider.write(command, credential);
+            return defect === "false-definite-rejection" ? { kind: "rejected", code: "claimed-no-effect" } : result;
+          },
+          async observe(command) {
+            if (defect === "write-during-reconcile" && provider.scenario === "unknown") {
+              await provider.write(command, "synthetic-token");
+            }
+            return provider.read(command);
+          },
+        };
+      },
+    });
+    assert.equal(report.passed, false, defect);
+    assert.equal(report.cases.find(item => item.id === failedCase)?.status, "failed", defect);
+  }
+});
+
 test("closed enum variants stay exact through typed preparation and projection", async () => {
   const tool = exactMcpTool({ service: "reports", name: "update_demo_record",
     fields: { status: enumField(["open", "in_progress", "closed"]),

@@ -15,6 +15,7 @@
 - 2026-09-21 20:52 UTC — Epic 1 field-lab billing blocker — https://github.com/auths-dev/auths-field-lab/actions/runs/35653685823: Airtable, Todoist, and Tier 0 jobs never started because `auths-field-lab` remains private and paid Actions minutes are blocked, so the cross-repository done gate stays open.
 - 2026-09-21 20:52 UTC — Epic 4 exact-ref CI dispatched — https://github.com/auths-dev/auths-proof/actions/runs/35646269081: Draft PR #124's older branch passed preflight/formal/live jobs but authoritative rejected the dated-review heading already fixed on Epic 1, leaving the human trial unperformed.
 - 2026-09-21 20:53 UTC — Stop threshold — https://github.com/auths-dev/auths-field-lab/actions/runs/35653685841: Epic 1 field-lab billing, Epic 4 unfamiliar-user trial, and Epic 3 external-adopter evidence are three distinct §9 blockers, so no epic is marked done and no PR is merged.
+- 2026-09-21 21:32 UTC — Epic 1 acceptance review resumed — `3212373`: The ten-case adapter kit existed, but both `profile test` CLIs accepted an empty consumer-supplied report; this correction requires the complete mandatory case set and adds five deliberately broken-adapter probes per language, with hosted verification pending.
 
 ## Morning report
 

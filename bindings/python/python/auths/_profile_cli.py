@@ -703,6 +703,16 @@ def _main_text(argv: Sequence[str] | None = None) -> int:
             from .testkit import ConformanceReport
             if not isinstance(report, ConformanceReport) or report.metadata.suite != "self-hosted-provider-adapter/1":
                 raise ValueError("adapter suite returned an invalid conformance report")
+            from ._adapter_conformance import _MANDATORY_CASE_IDS
+            case_ids = tuple(case.id for case in report.cases)
+            if (
+                len(case_ids) != len(_MANDATORY_CASE_IDS)
+                or frozenset(case_ids) != _MANDATORY_CASE_IDS
+                or report.metadata.assurance != "test-results-only-not-security-certification"
+            ):
+                raise ValueError("adapter suite omitted or duplicated mandatory cases")
+            if report.passed != all(case.status == "passed" for case in report.cases):
+                raise ValueError("adapter suite summary disagrees with mandatory cases")
             for case in report.cases:
                 print(f"{case.status.upper()} {case.id}")
             print("local adapter tests only; provider behavior remains unqualified")

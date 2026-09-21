@@ -172,7 +172,7 @@ def test_first_edit_after_init_does_not_need_a_premature_version_bump(tmp_path: 
     assert (package / "profile.lock.json").exists()
 
 
-def test_local_profile_suite_imports_without_pythonpath(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_local_profile_suite_cannot_skip_mandatory_cases(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     import json
 
     from auths._profile_cli import main
@@ -188,5 +188,8 @@ def test_local_profile_suite_imports_without_pythonpath(tmp_path: Path, capsys: 
         "\"1\", \"local\", \"now\", \"test-results-only-not-security-certification\"), True, ())\n"
     )
     assert main(["test", str(package / "profile.toml"),
-                 "--suite", "local_suite_trial.conformance:run", "--json"]) == 0
-    assert json.loads(capsys.readouterr().out.splitlines()[-1])["ok"] is True
+                 "--suite", "local_suite_trial.conformance:run", "--json"]) == 1
+    result = json.loads(capsys.readouterr().out.splitlines()[-1])
+    assert result["ok"] is False
+    assert result["diagnostic"]["code"] == "profile.provider.adapter-test-failed"
+    assert "mandatory cases" in result["diagnostic"]["message"]
