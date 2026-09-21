@@ -70,8 +70,11 @@ $ auths profile derive --openapi ./vendor/todoist-v2.yaml --operation updateTask
   nothing written
 ```
 
-Every rejection names the JSON pointer, the rule, and the override that would
-resolve it, if one exists. Overrides are explicit flags and are recorded in
+The complete override set is `--max-bytes`, `--range`, `--max-items`,
+`--require`, `--omit`, `--closed`, `--pick`, `--literal`, `--server`,
+`--security`, `--security-scheme`, and `--tool`. Every rejection names the
+JSON pointer, the rule, and the override that would resolve it, if one exists.
+Overrides are explicit flags and are recorded in
 `derivation.json`; the tool never guesses a bound, a server, or a security
 scheme. Re-running `derive` against a changed document or with different
 overrides produces a diff and requires a `[profile].version` bump before
@@ -117,12 +120,13 @@ not a documentation note.
 
 | Input | Rule |
 | --- | --- |
-| Document | local regular file, not a symlink, ≤ 4 MiB; JSON or YAML parsed by a safe loader with no anchors/aliases expansion beyond 64 nodes, no custom tags, depth ≤ 32 |
+| Document | local regular file, not a symlink, ≤ 32 MiB (vendor bundles such as GitHub's exceed 10 MiB); JSON or YAML parsed by a safe loader with no anchors/aliases expansion beyond 64 nodes, no custom tags, depth ≤ 32 |
+| Operation slice | the selected operation object plus every component it transitively references MUST fit in 256 KiB after `$ref` resolution; the rest of the document is never retained |
 | Version | `openapi` field `3.0.x` or `3.1.x`; Swagger 2.0 rejected |
 | `$ref` | local (`#/...`) only; remote and file references rejected; ≤ 256 resolutions per derivation; cycles rejected |
 | `operationId` | exactly one match; missing or duplicate rejected; MUST satisfy the tool-name regex or `--tool` supplies a compliant name |
 | `servers` | exactly one `https` URL with no server variables, or `--server` matching one listed entry byte-for-byte; `http`, variables, and unlisted values rejected |
-| `security` | resolves to exactly one requirement whose scheme is `http`/`bearer` or `apiKey` with `in: header`; alternatives (OR) require `--security <name>`; `oauth2` is accepted as a bearer at request time only and MUST be reported as "acquisition is application-owned" |
+| `security` | resolves to exactly one requirement whose scheme is `http`/`bearer` or `apiKey` with `in: header`; alternatives (OR) require `--security <name>` selecting one supported requirement; `oauth2` is accepted as bearer at request time only and MUST be reported as "acquisition is application-owned". `apiKey` with `in: query` or `in: cookie`, and `http`/`basic`, are rejected with `contract.derive.credential-scheme-out-of-scope`, with no override. A document that declares no security requirement (GitHub's public document is one) requires `--security-scheme bearer` or `--security-scheme apikey:<Header-Name>`, recorded in `derivation.json`; this flag cannot override an explicitly declared incompatible scheme. The derived recipe records the scheme type and, for `apiKey`, the header name as a requirement; the operator's AP-SPEC-053 connection binding names the injection header, and `recipe check` fails if they disagree. AP-SPEC-056 MUST NOT widen AP-SPEC-053's static-credential-in-one-header scope. |
 
 ### 3.2 Argument mapping
 
@@ -132,7 +136,7 @@ order for readability; it has no effect on canonical bytes.
 
 | OpenAPI construct | Result |
 | --- | --- |
-| `type: string` with `maxLength` | `string`; `max_bytes = min(4 × maxLength, 4096)`; `min_bytes = minLength ?? 0` |
+| `type: string` with `maxLength` | `string`; `max_bytes = min(maxLength, 4096)` — OpenAPI counts characters and the contract counts UTF-8 bytes, so the byte bound equals the character bound (every string within `maxLength` ASCII characters fits; multibyte strings near the limit are rejected); `--max-bytes path=N` MAY widen up to `min(4 × maxLength, 4096)`; `min_bytes = minLength ?? 0` |
 | `type: string` without `maxLength` | rejected unless `--max-bytes path=N` |
 | `type: string` with `enum` of strings | `enum` (AP-SPEC-055); > 32 variants or non-conforming variant rejected |
 | `type: string` with `format: byte`, `binary`, `date-time`, etc. | `string`; formats are not validated; `byte`/`binary` bodies are rejected in this format |
@@ -143,10 +147,12 @@ order for readability; it has no effect on canonical bytes.
 | `nullable: true` (3.0) or `type: [T, "null"]` (3.1) | `nullable` around the mapped node |
 | property not in `required` | rejected unless `--require path` (treated as required) or `--omit path` (excluded from arguments and recipe); the recipe body is fixed-shape, so "absent" has no encoding |
 | `type: object` with `properties` and `additionalProperties: false` | `object` |
-| `type: object` with `additionalProperties` absent, `true`, or a schema | rejected; free-form maps are not in the schema |
+| `type: object` with `additionalProperties: true` or a schema | rejected; free-form maps are not in the schema |
+| `type: object` with `additionalProperties` absent | rejected unless `--closed path` declares the object closed; most vendor documents omit the keyword, so this override is expected and is recorded |
 | `type: array` with `items` and `maxItems` | `array`; `min_items = minItems ?? 0` |
-| `type: array` without `maxItems`, or with `items` containing `oneOf` | rejected unless `--max-items path=N` |
-| `oneOf`, `anyOf`, `allOf`, `not`, `discriminator` | rejected |
+| `type: array` without `maxItems` | rejected unless `--max-items path=N` |
+| `oneOf` or `anyOf` whose alternatives are all scalars (`string`, `integer`, `boolean`) | rejected unless `--pick path=<type>` selects exactly one alternative; the selection is recorded (GitHub's `issues/create` `title` is `string \| integer`) |
+| any other `oneOf`, `anyOf`, `allOf`, `not`, `discriminator` | rejected; no override |
 | `readOnly: true` | omitted from arguments and recipe; listed under `omitted` |
 | `default`, `example`, `description`, `deprecated` | ignored for the contract; `description` MAY be copied into a comment |
 | depth > 4, > 32 named fields, or worst-case canonical JSON > 4 KiB | rejected with the offending pointer |
@@ -160,11 +166,11 @@ later revision of 0053 MAY add a typed query segment; this spec does not.
 | OpenAPI construct | Recipe result |
 | --- | --- |
 | path template `/a/{id}/b` | fixed segments `a`, `b`; typed percent-encoded segment bound to argument `id` |
-| method | one of `GET`, `POST`, `PUT`, `PATCH`, `DELETE`; others rejected |
+| method | one of `POST`, `PUT`, `PATCH`, `DELETE`; `GET` and every other method are rejected for the write recipe, matching AP-SPEC-053's first scope of one write; `GET` is accepted only by Epic 3's `--observe-operation` |
 | `requestBody` `application/json` | fixed-shape JSON body whose keys are the mapped properties and whose values are typed field references; no literals unless `--literal key=value` |
 | `requestBody` `application/x-www-form-urlencoded` with scalar properties only | form body of typed field references |
 | any other media type, multiple media types, or a `required: false` body | rejected |
-| security scheme | gateway-owned credential injection into `Authorization: Bearer` or the named `apiKey` header; the recipe never contains a value |
+| security scheme | a credential requirement (`bearer`, or `apikey` with one header name) that the operator's connection binding must satisfy; the gateway injects the secret into that one operator-bound header; the recipe never contains a value or a caller-chosen injection header |
 | `servers` | the single operator-pinned origin |
 | responses | unused; observation is not derived in this format |
 
@@ -209,10 +215,13 @@ flag. Both CLIs emit the same codes.
 ### Epic 1 — Mapper and corpus
 
 1. Write the derivation corpus first: at least three OpenAPI documents
-   (one vendor-published, one hand-written minimal, one hostile), each with
-   several `operationId`s and override sets, and for each case the expected
-   `profile.toml`, `recipe.toml`, and `derivation.json` bytes or the expected
-   rejection code and pointer.
+   (GitHub's published `api.github.com.json` with `issues/create`, one
+   hand-written minimal, one hostile), each with several `operationId`s and
+   override sets, and for each case the expected `profile.toml`,
+   `recipe.toml`, and `derivation.json` bytes or the expected rejection code
+   and pointer. The GitHub case MUST record both the unmodified rejection
+   list and the override set that makes it derive; that list is the measured
+   rejection wall and is published with the corpus.
 2. Implement the bounded parser, local `$ref` resolver, argument mapper, and
    request mapper in the native module or, if unavoidable, in each language
    under the corpus gate.

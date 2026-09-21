@@ -6,9 +6,12 @@
   [AP-SPEC-052](0052-self-hosted-launch-hardening.md), the existing
   `auths.mcp/v2` exact-tool action, and the
   [profile/domain abstraction boundary plan](../target-state/PROFILE_AND_DOMAIN_ABSTRACTION_BOUNDARY_PLAN.md)
-- **First scope:** one operator-controlled gateway, HTTPS bearer credentials,
-  bounded JSON/form requests, and one exact write plus optional read-only
-  observation per developer-defined operation
+- **First scope:** one operator-controlled gateway, HTTPS static credentials
+  injected by the gateway into one operator-bound header
+  (`Authorization: Bearer` or a named API-key header), bounded JSON/form
+  requests, and one
+  exact write plus optional read-only observation per developer-defined
+  operation; query-string, cookie, and basic-auth credentials are out of scope
 
 ## 1. Decision and claim
 
@@ -190,10 +193,13 @@ permits:
 - fixed literal `Accept` and `Content-Type` headers, plus an optional
   `Idempotency-Key` value derived deterministically from the verified
   namespace and logical operation ID; these are the entire recipe-header
-  allowlist in the first version. The gateway alone injects `Authorization`
-  and protocol-required transport headers. Operator approval cannot widen
-  this allowlist; all other recipe headers, including custom `X-*` headers,
-  are rejected;
+  allowlist in the first version. The gateway alone injects the credential
+  header named by the connection binding and protocol-required transport
+  headers. A derived recipe records only its credential requirement;
+  `recipe check` fails if that requirement and the binding disagree. The recipe
+  cannot name or set the injection header as an ordinary header. Operator
+  approval cannot widen the recipe-header allowlist; all other recipe headers,
+  including custom `X-*` headers, are rejected;
 - a fixed-shape JSON or form body of literals and typed field references;
   a form field may contain a compiler-serialized bounded JSON template (needed
   for Todoist's Sync command), never a caller-supplied JSON string;
@@ -435,8 +441,8 @@ earns them.
 This spec does not provide universal OAuth, browser automation, arbitrary API
 proxying, third-party executable plugins, provider-agnostic postconditions,
 automatic safe retry, multi-provider transactions, or a qualified execution
-receipt for developer-defined behavior. Initial bearer-token scope is not a
-promise that all APIs fit the recipe language.
+receipt for developer-defined behavior. Initial static credential-in-one-header
+scope is not a promise that all APIs fit the recipe language.
 
 The gateway must not ship under a non-bypassable or production-qualified
 label until its ADR, type inventory, security isolation, exact-claim tests,
