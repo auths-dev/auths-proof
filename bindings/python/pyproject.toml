@@ -25,7 +25,7 @@ classifiers = [
 ]
 
 [project.scripts]
-auths = "auths._profile_cli:main"
+auths-profile = "auths._profile_cli:main"
 
 [tool.maturin]
 manifest-path = "Cargo.toml"

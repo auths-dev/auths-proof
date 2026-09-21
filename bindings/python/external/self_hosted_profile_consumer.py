@@ -79,7 +79,7 @@ def main() -> None:
     with tempfile.TemporaryDirectory(prefix="auths-profile-consumer-") as temporary:
         root = Path(temporary)
         subprocess.run(
-            [sys.executable, "-m", "auths._profile_cli", "profile", "init",
+            [sys.executable, "-m", "auths._profile_cli", "init",
              "--language", "python", "--name", "example-create",
              "--directory", str(root)],
             check=True, cwd=root, stdout=subprocess.DEVNULL,
@@ -92,11 +92,11 @@ def main() -> None:
             '[arguments.fields.value]\ntype = "enum"\nvariants = ["open", "closed"]\n'),
             encoding="utf-8")
         subprocess.run(
-            [sys.executable, "-m", "auths._profile_cli", "profile", "generate", str(manifest)],
+            [sys.executable, "-m", "auths._profile_cli", "generate", str(manifest)],
             check=True, cwd=root, stdout=subprocess.DEVNULL,
         )
         subprocess.run(
-            [sys.executable, "-m", "auths._profile_cli", "profile", "check",
+            [sys.executable, "-m", "auths._profile_cli", "check",
              str(manifest)],
             check=True, cwd=root, stdout=subprocess.DEVNULL,
         )

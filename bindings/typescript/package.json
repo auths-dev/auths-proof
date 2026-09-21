@@ -4,7 +4,7 @@
   "description": "Prove exact authority, execute protected actions, and leave signed receipts",
   "type": "module",
   "bin": {
-    "auths": "./tools/profile-cli.mjs"
+    "auths-profile": "./tools/profile-cli.mjs"
   },
   "exports": {
     ".": {

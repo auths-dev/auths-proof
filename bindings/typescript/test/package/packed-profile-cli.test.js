@@ -10,7 +10,7 @@ test("packed SDK generates and checks a typed external exact-tool consumer", asy
   const { directory } = await installPackedSdk("auths-typescript-profile-");
   const cli = join(directory, "node_modules", "@auths-dev", "sdk", "tools", "profile-cli.mjs");
   const profile = join(directory, "profile");
-  execFileSync(process.execPath, [cli, "profile", "init", "--language", "typescript",
+  execFileSync(process.execPath, [cli, "init", "--language", "typescript",
     "--name", "example-create", "--directory", profile], { cwd: directory });
   const manifest = join(profile, "profile.toml");
   const source = await readFile(manifest, "utf8");
@@ -18,8 +18,8 @@ test("packed SDK generates and checks a typed external exact-tool consumer", asy
   assert.ok(source.includes(original));
   await writeFile(manifest, source.replace(original,
     '[arguments.fields.value]\ntype = "enum"\nvariants = ["open", "closed"]\n'));
-  execFileSync(process.execPath, [cli, "profile", "generate", manifest], { cwd: directory });
-  execFileSync(process.execPath, [cli, "profile", "check", manifest], { cwd: directory });
+  execFileSync(process.execPath, [cli, "generate", manifest], { cwd: directory });
+  execFileSync(process.execPath, [cli, "check", manifest], { cwd: directory });
   const generated = await readFile(join(profile, "generated.ts"), "utf8");
   assert.match(generated, /invoke_v1/);
   assert.match(generated, /enumField\(\["open","closed"\]\)/);
@@ -41,6 +41,6 @@ test("packed SDK generates and checks a typed external exact-tool consumer", asy
   `);
   compileConsumer(directory);
   await writeFile(join(profile, "generated.ts"), `${generated}\n// drift\n`);
-  assert.throws(() => execFileSync(process.execPath, [cli, "profile", "check", manifest],
+  assert.throws(() => execFileSync(process.execPath, [cli, "check", manifest],
     { cwd: directory, stdio: "pipe" }));
 });

@@ -19,7 +19,7 @@ or an Auths-qualified provider integration.
 Install the Python wheel and initialize a profile in your application repo:
 
 ```sh
-auths profile init --language python --name create-task --directory src/create_task
+auths-profile init --language python --name create-task --directory src/create_task
 ```
 
 Edit `src/create_task/profile.toml`. The closed `[arguments]` schema supports
@@ -31,9 +31,9 @@ its order changes the schema digest. It does not accept arbitrary
 JSON or caller-supplied provider URLs. Then run:
 
 ```sh
-auths profile diff src/create_task/profile.toml
-auths profile generate src/create_task/profile.toml
-auths profile check src/create_task/profile.toml
+auths-profile diff src/create_task/profile.toml
+auths-profile generate src/create_task/profile.toml
+auths-profile check src/create_task/profile.toml
 ```
 
 `generated.py` is the typed command and `CONTRACT`; `adapter.py` is an
@@ -45,7 +45,7 @@ or identity change requires a version bump. Implement the adapter port, then wir
 provider to it in `conformance.py`. Its `run()` function can be invoked with:
 
 ```sh
-auths profile test src/create_task/profile.toml --suite create_task.conformance:run
+auths-profile test src/create_task/profile.toml --suite create_task.conformance:run
 ```
 
 The suite checks local ordering, denial, replay, uncertain effects, and
@@ -75,10 +75,10 @@ entry is `unknown`: observe or reconcile read-only, never blindly retry.
 With `@auths-dev/sdk` installed in a Node/TypeScript application:
 
 ```sh
-auths profile init --language typescript --name create-task --directory src/create-task
-auths profile diff src/create-task/profile.toml
-auths profile generate src/create-task/profile.toml
-auths profile check src/create-task/profile.toml
+auths-profile init --language typescript --name create-task --directory src/create-task
+auths-profile diff src/create-task/profile.toml
+auths-profile generate src/create-task/profile.toml
+auths-profile check src/create-task/profile.toml
 ```
 
 The generated `generated.ts` exports a `CommandOf` type and exact `CONTRACT`.
@@ -90,7 +90,7 @@ token stays in your adapter and is not read by Auths verification. Wire a
 synthetic provider in `conformance.ts`, compile it, then run:
 
 ```sh
-auths profile test src/create-task/profile.toml --suite dist/create-task/conformance.js
+auths-profile test src/create-task/profile.toml --suite dist/create-task/conformance.js
 ```
 
 The TypeScript kit takes explicit local proof/action/context artifacts; the
@@ -122,7 +122,9 @@ Every profile command accepts `--json` for a bounded
 | `profile.trust.context-missing` | Supply independently provisioned trust. |
 | `profile.provider.adapter-test-failed` | Wire and inspect the fake-provider adapter tests. |
 
-`profile doctor --production` checks only bounded local signer/grant/trust
-inputs that it actually reads. It cannot infer trust provenance, signer
-connectivity, provider-token validity, or live provider behavior. The CLI
-does not silently fall back to testkit authority.
+`auths-profile doctor --production` checks the signer identifier and bounded,
+distinct local authority files. Python parses the grant and trusted-context
+bytes; TypeScript checks file presence and bounds but does not parse their
+bytes. Neither can infer trust provenance, signer connectivity, provider-token
+validity, or live provider behavior. The CLI does not silently fall back to
+testkit authority.

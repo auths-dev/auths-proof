@@ -27,7 +27,7 @@ test("package exposes bounded public surfaces and includes contributor docs", as
   assert.ok(manifest.files.includes("sdk-capability.json"));
   assert.ok(manifest.files.includes("performance-baseline.json"));
   assert.ok(manifest.files.includes("wasm/auths_proof_wasm_bg.wasm"));
-  assert.deepEqual(manifest.bin, { auths: "./tools/profile-cli.mjs" });
+  assert.deepEqual(manifest.bin, { "auths-profile": "./tools/profile-cli.mjs" });
   assert.equal(manifest.files.some((entry) => entry.includes("test/")), false);
   assert.deepEqual([...manifest.files].sort(), [
     "CONTRIBUTING.md",
