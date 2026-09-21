@@ -12,6 +12,19 @@ import {
 
 const root = new URL("../../../fixtures/self-hosted-profile/", import.meta.url);
 const profile = await readFile(new URL("profile.toml", root), "utf8");
+const adversarial = JSON.parse(await readFile(new URL("adversarial-boundary-v1.json", root), "utf8"));
+
+test("shared adversarial profile source decisions", () => {
+  for (const item of adversarial.profileCases) {
+    const source = item.prefix + adversarial.profileBaseLines.map(line =>
+      line.replace('name = "probe"', `name = "${item.name}"`)).join(item.lineEnding) + item.lineEnding;
+    if (item.decision === "reject") {
+      assert.throws(() => parseContract(source), item.id);
+    } else {
+      assert.equal(parseContract(source).command, item.command, item.id);
+    }
+  }
+});
 
 test("generated exact tool binds the version", () => {
   const contract = parseContract(profile);

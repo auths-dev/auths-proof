@@ -38,7 +38,7 @@ Independent baseline: [How revolutionary is Auths Proof, really?](research/compe
 
 | Epic | Owner | Status | Evidence so far | Next check-in decision |
 | --- | --- | --- | --- | --- |
-| 0057 Epic 1 — freeze on evidence | codex session on `codex/self-hosted-developer-profiles` | in progress | `ea54a9d` CLI renamed to `auths-profile`, doctor wording qualified; `af39df0` inventories aligned; `3aeb18e`, `526b6d4` signed packed consumers + recovery; `9784fb1` CI disk fix; `bda2b07` binding-semantics fix pushed to PR #123; `f77f8f7` committed the evidence-program baseline. Open: §D adversarial fixture (step 1), TS starter crash + `decode` fix with executed packed test (step 2), exact-revision CI (step 3), field-lab pin and secret-backed workflows (step 4), `9b31882` retitle or trial report (step 5). | Is PR #123 green on one commit with the fixture passing in all three implementations? |
+| 0057 Epic 1 — freeze on evidence | codex session on `codex/self-hosted-developer-profiles` | in progress | `ea54a9d` CLI renamed to `auths-profile`, doctor wording qualified; `af39df0` inventories aligned; `3aeb18e`, `526b6d4` signed packed consumers + recovery; `9784fb1` CI disk fix; `bda2b07` binding-semantics fix pushed to PR #123; `f77f8f7` committed the evidence-program baseline; shared adversarial fixture drafted before parser changes. Open: fixture consumers and implementation (step 1), TS starter crash + `decode` fix with executed packed test (step 2), exact-revision CI (step 3), field-lab pin and secret-backed workflows (step 4), `9b31882` retitle or trial report (step 5). | Is PR #123 green on one commit with the fixture passing in all three implementations? |
 | 0057 Epic 4 — publish the evidence | unassigned | not started | — | Who runs the unfamiliar-user trial, and which two vendor OpenAPI documents join GitHub's? |
 
 ## 2. Queued — single-agent order, with gates
@@ -97,6 +97,7 @@ gates do not shrink.
 | 2026-09-21 | Multi-host claim reuses `PostgresLifecycleStore`; singleton-lock limit is a 038 finding, not a new spec | 0057 §5 |
 | 2026-09-21 | GTM verb is "become the format incumbents emit and accept", not "unseat" | 0057 §1, GTM doc pending Epic 4 |
 | 2026-09-21 | Identity default: Sigstore keyless / OIDC workload in CI, `did:key` local, WebAuthn/HSM roots; KERI available, never default | Epic 3 |
+| 2026-09-21 PROVISIONAL | Integer token readings: either compare host-language parsed values (which loses `1.0`/`1e0` spelling in JS) or reject noncanonical numeric tokens at the native wire boundary before typed projection. Choose the latter: `1.0`, `1e0`, `-0`, leading zeros, and underscores are rejected as raw JSON; typed fields see only canonical integers. | 0057 Epic 1 adversarial fixture; owner to confirm |
 
 ## 5. Not doing
 

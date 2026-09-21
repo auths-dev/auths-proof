@@ -593,6 +593,31 @@ mod tests {
     }
 
     #[test]
+    fn shared_integer_tokens_are_rejected_before_verified_projection() {
+        let corpus: Value = serde_json::from_str(include_str!(
+            "../../../../bindings/fixtures/self-hosted-profile/adversarial-boundary-v1.json"
+        ))
+        .unwrap();
+        let base = McpToolCall::new(
+            "probe",
+            "probe",
+            Map::from_iter([("n".into(), Value::from(1))]),
+        )
+        .unwrap();
+        let canonical = String::from_utf8(base.canonical_bytes().unwrap()).unwrap();
+        for case in corpus["integerCases"].as_array().unwrap() {
+            let raw = case["argumentsJson"].as_str().unwrap();
+            let candidate = canonical.replace("{\"n\":1}", raw);
+            assert!(
+                case["id"] == "canonical-one" || candidate != canonical,
+                "fixture case must change the action"
+            );
+            let accepted = McpToolCall::from_canonical_bytes(candidate.as_bytes()).is_ok();
+            assert_eq!(accepted, case["decision"] == "accept", "{}", case["id"]);
+        }
+    }
+
+    #[test]
     fn enum_action_corpus_matches_native_canonicalization_and_commitment() {
         let corpus: Value = serde_json::from_str(include_str!(
             "../../../../bindings/fixtures/self-hosted-profile/enum-action-vectors.json"

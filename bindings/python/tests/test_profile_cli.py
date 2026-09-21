@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,21 @@ from auths._profile_cli import (
 
 ROOT = Path(__file__).parents[2] / "fixtures" / "self-hosted-profile"
 PROFILE = (ROOT / "profile.toml").read_text()
+ADVERSARIAL = json.loads((ROOT / "adversarial-boundary-v1.json").read_text())
+
+
+@pytest.mark.parametrize("case", ADVERSARIAL["profileCases"], ids=lambda case: case["id"])
+def test_adversarial_profile_source_decision(case: dict[str, object]) -> None:
+    lines = [
+        line.replace('name = "probe"', f'name = "{case["name"]}"')
+        for line in ADVERSARIAL["profileBaseLines"]
+    ]
+    source = str(case["prefix"]) + str(case["lineEnding"]).join(lines) + str(case["lineEnding"])
+    if case["decision"] == "reject":
+        with pytest.raises(ValueError):
+            parse_contract(source)
+    else:
+        assert parse_contract(source).command == case["command"]
 
 
 def test_generated_profile_binds_version_and_closed_schema() -> None:

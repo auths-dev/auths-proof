@@ -17,6 +17,29 @@ const RAW_EVIDENCE = {
 const vector = (name) => new Uint8Array(readFileSync(
   new URL(`../../../../target/binding-vectors/${name}`, import.meta.url),
 ));
+const adversarial = JSON.parse(readFileSync(new URL(
+  "../../../fixtures/self-hosted-profile/adversarial-boundary-v1.json", import.meta.url,
+), "utf8"));
+
+test("shared integer tokens are canonical before typed projection", () => {
+  const integers = exactMcpTool({ service: "probe", name: "probe", fields: {
+    n: integerField({ minimum: 0, maximum: 10 }),
+  } });
+  for (const item of adversarial.integerCases) {
+    let canonical;
+    try {
+      canonical = JSON.stringify(integers.encode(JSON.parse(item.argumentsJson)));
+    } catch {
+      canonical = undefined;
+    }
+    if (item.decision === "reject") {
+      assert.notEqual(canonical, item.argumentsJson, item.id);
+    } else {
+      assert.equal(canonical, item.argumentsJson, item.id);
+      assert.deepEqual(integers.decode(JSON.parse(item.argumentsJson)), { n: item.value }, item.id);
+    }
+  }
+});
 let wasmPromise;
 function packagedWasm() {
   wasmPromise ??= (async () => {

@@ -38,6 +38,25 @@ TOOL = ExactMcpTool(
 )
 
 
+@pytest.mark.parametrize(
+    "case",
+    json.loads((Path(__file__).parents[2] / "fixtures" / "self-hosted-profile" /
+                "adversarial-boundary-v1.json").read_text())["integerCases"],
+    ids=lambda case: case["id"],
+)
+def test_adversarial_integer_wire_decision_precedes_projection(case: dict[str, object]) -> None:
+    raw = str(case["argumentsJson"]).encode("utf-8")
+    try:
+        canonical = bytes(_native.canonicalize_mcp_arguments_json(raw))
+    except ValueError:
+        canonical = None
+    if case["decision"] == "reject":
+        assert canonical != raw
+    else:
+        assert canonical == raw
+        assert IntegerField(0, 10).validate(json.loads(raw)["n"]) == case["value"]
+
+
 def test_authorized_projection_is_derived_from_verified_action() -> None:
     artifacts = development_mcp_artifacts(
         service="example-service",
