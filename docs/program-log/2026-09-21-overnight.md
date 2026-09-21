@@ -10,3 +10,38 @@
 - 2026-09-21 19:26 UTC — Epic 1 real CI failure — https://github.com/auths-dev/auths-proof/actions/runs/35552488044/job/106478582724: Authoritative CI rejected the dated independent-review heading under current public naming, so one exact negative-document allowance was added without editing the review.
 - 2026-09-21 19:46 UTC — Epic 1 generated-update evidence — https://github.com/auths-dev/auths-proof/actions/runs/35646213886/job/106487932312: Repository preflight required the deliberate naming-policy change to advance only `auths.release.public-surface` and the semantic inventory freeze from 259 to 260.
 - 2026-09-21 20:00 UTC — Epic 1 historical-research naming evidence — https://github.com/auths-dev/auths-proof/actions/runs/35647098543/job/106492040828: Authoritative CI named a dated GTM heading after preflight passed, so exact allowances for all three dated GTM research memos were added and the complete local public-naming gate now passes.
+- 2026-09-21 20:51 UTC — Epic 1 auths-proof green — https://github.com/auths-dev/auths-proof/actions/runs/35650010786: The exact `da5f470` revision passed authoritative, formal, live, preflight, and summary jobs along with both SDK package and recipe workflows.
+- 2026-09-21 20:51 UTC — Epic 1 field-lab PR updated — `7ecea03`: Both demo workflows pin green SDK commit `da5f470` and use public checkout without a separately provisioned token.
+- 2026-09-21 20:52 UTC — Epic 1 field-lab billing blocker — https://github.com/auths-dev/auths-field-lab/actions/runs/35653685823: Airtable, Todoist, and Tier 0 jobs never started because `auths-field-lab` remains private and paid Actions minutes are blocked, so the cross-repository done gate stays open.
+- 2026-09-21 20:52 UTC — Epic 4 exact-ref CI dispatched — https://github.com/auths-dev/auths-proof/actions/runs/35646269081: Draft PR #124's older branch passed preflight/formal/live jobs but authoritative rejected the dated-review heading already fixed on Epic 1, leaving the human trial unperformed.
+- 2026-09-21 20:53 UTC — Stop threshold — https://github.com/auths-dev/auths-field-lab/actions/runs/35653685841: Epic 1 field-lab billing, Epic 4 unfamiliar-user trial, and Epic 3 external-adopter evidence are three distinct §9 blockers, so no epic is marked done and no PR is merged.
+
+## Morning report
+
+| PR | Branch / epic | CI state | Green | Red and why |
+| --- | --- | --- | --- | --- |
+| [#123](https://github.com/auths-dev/auths-proof/pull/123) | `codex/self-hosted-developer-profiles` / Epic 1 | SDK commit `da5f470` green; final board-only report commit pending | [CI](https://github.com/auths-dev/auths-proof/actions/runs/35650010786), [Python](https://github.com/auths-dev/auths-proof/actions/runs/35650010520), [TypeScript](https://github.com/auths-dev/auths-proof/actions/runs/35650010653), [recipes](https://github.com/auths-dev/auths-proof/actions/runs/35650010580) | None on tested SDK commit; cross-repo done gate remains open. |
+| [#14](https://github.com/auths-dev/auths-field-lab/pull/14) | `codex/self-hosted-sdk-migration` / Epic 1 demos | `7ecea03` jobs never started | Exact green SDK pin and public checkout committed | [Airtable](https://github.com/auths-dev/auths-field-lab/actions/runs/35653685823), [Todoist](https://github.com/auths-dev/auths-field-lab/actions/runs/35653685841), and [Tier 0](https://github.com/auths-dev/auths-field-lab/actions/runs/35653685769) rejected by private-repo billing/spending limit. |
+| [#124](https://github.com/auths-dev/auths-proof/pull/124) | `codex/epic-4-evidence` / Epic 4 | [Exact-ref CI](https://github.com/auths-dev/auths-proof/actions/runs/35646269081) red, draft | Preflight, formal, live, compliance, dependency, secrets | Authoritative rejected dated-review heading on older base; forward merge after Epic 1 gate, no history rewrite. |
+
+### Epic 1 — freeze on evidence
+
+1. GOAL READ-BACK — One green SDK revision plus both field-lab demos green; this does not establish credential isolation, provider qualification, or an unfamiliar-user trial.
+2. CODE CHECKS — The native call is at [self_hosted.py:487](/Users/bordumb/workspace/repositories/auths-proof-base/auths-proof/bindings/python/python/auths/self_hosted.py:487); rebuilt the stale installed extension with maturin before local conclusions. The [console script:28](/Users/bordumb/workspace/repositories/auths-proof-base/auths-proof/bindings/python/pyproject.toml:28) is `auths-profile`; [TypeScript doctor:524](/Users/bordumb/workspace/repositories/auths-proof-base/auths-proof/bindings/typescript/tools/profile-cli.mjs:524) disclaims parsing; both README bypass caveats remain at [Python:82](/Users/bordumb/workspace/repositories/auths-proof-base/auths-proof/bindings/python/README.md:82) and [TypeScript:56](/Users/bordumb/workspace/repositories/auths-proof-base/auths-proof/bindings/typescript/README.md:56). The [claim ledger:40](/Users/bordumb/workspace/repositories/auths-proof-base/auths-proof/docs/product/SELF_HOSTED_CLAIM_LEDGER.md:40) corrects `9b31882` forward. Host CI passed on `da5f470`; field-lab jobs did not run.
+3. SPEC CLARITY — No new reading was needed; the three numeric, `--closed`, and corpus-manifest decisions were confirmed in [board §4](/Users/bordumb/workspace/repositories/auths-proof-base/auths-proof/docs/PROGRAM_BOARD.md:100).
+4. CONFLICTS — No spec conflict. The public `auths-proof` checkout needs no secret, but private `auths-field-lab` still needs billable runner capacity; this is not a code failure.
+5. PROPOSED NEXT STEP — Owner enables field-lab Actions through billing/spending settings or explicitly chooses public visibility; rerun both demo workflows and close Epic 1 only if both pass. Roughly one hour after runner access.
+
+### Epic 4 — publish the evidence
+
+1. GOAL READ-BACK — Publish vendor rejection walls and narrow claims; do not claim mapper acceptance or substitute an invented unfamiliar-user trial.
+2. CODE CHECKS — The [manual corpus](/Users/bordumb/workspace/repositories/auths-proof-base/auths-proof-epic4/bindings/fixtures/openapi-corpus/cases.json:7) and [limits](/Users/bordumb/workspace/repositories/auths-proof-base/auths-proof-epic4/bindings/fixtures/openapi-corpus/README.md:3) are on PR #124. The exact-ref CI passed all but authoritative; no gateway runtime or mapper is implemented or checked here.
+3. SPEC CLARITY — No new reading was chosen; `--closed` remains an unvalidated candidate under the confirmed decision, and ambiguity must reject.
+4. CONFLICTS — PR #124 was branched before Epic 1's naming correction, so authoritative is red on a now-stale base; a forward merge is required, without retargeting it to `main` or rewriting history.
+5. PROPOSED NEXT STEP — Once Epic 1 closes, merge the green commit forward and rerun exact-ref CI; the separate human trial remains open. Roughly one CI cycle plus participant time.
+
+§4 PROVISIONAL decisions: none. The three prior readings are confirmed in the board: native canonical-wire numeric rejection versus host-value coercion; ambiguous `--closed` rejection versus guessing `body`/pointer; digest-pinned corpus manifest versus committing full vendor bundles.
+
+§9 blockers: private field-lab billing requires owner action (jobs never started); Epic 4 requires an unfamiliar participant and redacted report; Epic 3 requires twenty real external repositories and branch-protection enforcement. Nothing was simulated. PR #124 also needs the already-known forward naming merge after Epic 1; it remains draft.
+
+Start next by enabling field-lab hosted Actions and rerunning both exact-pinned demos, because their green results are the remaining Epic 1 done-gate clauses.
