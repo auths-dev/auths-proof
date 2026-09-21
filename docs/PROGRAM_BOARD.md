@@ -38,7 +38,7 @@ Independent baseline: [How revolutionary is Auths Proof, really?](research/compe
 
 | Epic | Owner | Status | Evidence so far | Next check-in decision |
 | --- | --- | --- | --- | --- |
-| 0057 Epic 1 — freeze on evidence | codex session on `codex/self-hosted-developer-profiles` | in progress | `ea54a9d` CLI renamed to `auths-profile`, doctor wording qualified; `af39df0` inventories aligned; `3aeb18e`, `526b6d4` signed packed consumers + recovery; `9784fb1` CI disk fix; `bda2b07` binding-semantics fix pushed to PR #123. Open: §D adversarial fixture (step 1), TS starter crash + `decode` fix with executed packed test (step 2), exact-revision CI (step 3), field-lab pin and secret-backed workflows (step 4), `9b31882` retitle or trial report (step 5). | Is PR #123 green on one commit with the fixture passing in all three implementations? |
+| 0057 Epic 1 — freeze on evidence | codex session on `codex/self-hosted-developer-profiles` | in progress | `ea54a9d` CLI renamed to `auths-profile`, doctor wording qualified; `af39df0` inventories aligned; `3aeb18e`, `526b6d4` signed packed consumers + recovery; `9784fb1` CI disk fix; `bda2b07` binding-semantics fix pushed to PR #123; `f77f8f7` committed the evidence-program baseline. Open: §D adversarial fixture (step 1), TS starter crash + `decode` fix with executed packed test (step 2), exact-revision CI (step 3), field-lab pin and secret-backed workflows (step 4), `9b31882` retitle or trial report (step 5). | Is PR #123 green on one commit with the fixture passing in all three implementations? |
 | 0057 Epic 4 — publish the evidence | unassigned | not started | — | Who runs the unfamiliar-user trial, and which two vendor OpenAPI documents join GitHub's? |
 
 ## 2. Queued — single-agent order, with gates
