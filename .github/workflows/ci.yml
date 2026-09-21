@@ -93,6 +93,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup-rust-cache
         with:
@@ -109,7 +110,7 @@ jobs:
           AUTHS_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          git fetch --no-tags --depth=1 origin "$AUTHS_BASE_SHA"
+          git cat-file -e "${AUTHS_BASE_SHA}^{commit}"
           mkdir -p target/formal
           git show "${AUTHS_BASE_SHA}:.github/ci/formal-generated-paths.json" > target/formal/trusted-generated-paths.json
           cargo run --locked -p auths-ci-plan -- formal-update-artifact create \

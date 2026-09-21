@@ -128,6 +128,8 @@ def _node(
         raise ValueError(f"missing, duplicate, or over-deep schema node: {path}")
     used.add(path)
     kind = table.get("type")
+    if not isinstance(kind, str):
+        raise ValueError(f"schema node type is invalid: {path}")
     if kind in {"string", "bytes", "integer"}:
         keys = {"type", "minimum", "maximum"} if kind == "integer" else {
             "type", "min_bytes", "max_bytes"
@@ -655,9 +657,14 @@ def _main_text(argv: Sequence[str] | None = None) -> int:
         elif args.action == "diff":
             result = profile_diff(args.profile)
             print(result["code"])
-            for change in result.get("changes", []):
+            changes = result.get("changes")
+            if not isinstance(changes, list):
+                raise ValueError("profile diff changes are invalid")
+            for change in changes:
+                if not isinstance(change, dict):
+                    raise ValueError("profile diff change is invalid")
                 print(f"{change['path']}: {_stable_json(change['before'])} -> {_stable_json(change['after'])}")
-            if not result.get("changes"):
+            if not changes:
                 print("no field changes")
             print(f"action identity changed: {str(result['action_identity_changed']).lower()}")
             print(result["next_action"])
@@ -762,7 +769,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     if status == 0 and action == "diff":
         at = raw[2] if len(raw) > 2 else "profile.toml"
         diff = profile_diff(Path(at))
-        code, stage, next_action = diff["code"], diff["stage"], diff["next_action"]
+        values = (diff["code"], diff["stage"], diff["next_action"])
+        if not all(isinstance(value, str) for value in values):
+            raise ValueError("profile diff diagnostic is invalid")
+        code, stage, next_action = str(values[0]), str(values[1]), str(values[2])
     print(_stable_json({
         "schema": "auths.profile-diagnostic/1", "ok": status == 0,
         "action": action, "diagnostic": {

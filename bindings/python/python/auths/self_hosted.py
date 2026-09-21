@@ -190,7 +190,23 @@ def _check_dataclass_schema(command_type: type[object], schema: Mapping[str, Fie
     total, depth = _schema_limits(schema)
     if total > 32 or depth > 4:
         raise ValueError("command schema exceeds field or depth bounds")
-    annotations = get_type_hints(command_type)
+    local_types: dict[str, type[object]] = {}
+
+    def collect_types(item: Field) -> None:
+        if isinstance(item, ObjectField):
+            name = item.command_type.__name__
+            previous = local_types.get(name)
+            if previous is not None and previous is not item.command_type:
+                raise TypeError("nested command types must have distinct names")
+            local_types[name] = item.command_type
+            for nested in item.fields.values():
+                collect_types(nested)
+        elif isinstance(item, (ArrayField, OptionalField)):
+            collect_types(item.inner)
+
+    for item in schema.values():
+        collect_types(item)
+    annotations = get_type_hints(command_type, localns=local_types)
     for name, item in schema.items():
         if not _annotation_matches(annotations.get(name), item):
             raise TypeError(f"command annotation for {name} must match schema")
@@ -223,7 +239,13 @@ def _annotation_matches(annotation: object, schema: Field) -> bool:
             and any(_annotation_matches(item, schema.inner) for item in get_args(annotation) if item is not type(None))
         )
     if isinstance(schema, ArrayField):
-        return get_origin(annotation) is tuple and get_args(annotation) == (_type_for(schema.inner), Ellipsis)
+        arguments = get_args(annotation)
+        return (
+            get_origin(annotation) is tuple
+            and len(arguments) == 2
+            and arguments[1] is Ellipsis
+            and _annotation_matches(arguments[0], schema.inner)
+        )
     return annotation is _type_for(schema)
 
 
@@ -240,8 +262,6 @@ def _type_for(schema: Field) -> object:
         return bytes
     if isinstance(schema, ObjectField):
         return schema.command_type
-    if isinstance(schema, ArrayField):
-        return tuple[_type_for(schema.inner), ...]
     return Union[_type_for(schema.inner), type(None)]  # noqa: UP007 -- Python 3.9 runtime union
 
 

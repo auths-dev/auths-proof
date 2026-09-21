@@ -20,6 +20,7 @@ from .execution import (
     ProviderOutcome,
     ProviderRejected,
     ProviderUnknown,
+    RunResult,
     reconcile_read_only,
     run_once,
 )
@@ -134,19 +135,32 @@ async def run_self_hosted_adapter_conformance(
         provider = ScriptedProvider(scenario, trace)
         adapter = _ObservedAdapter(adapter_factory(provider), trace)
         attempts = _MemoryAttempts(trace)
-        base = {
-            "contract": contract, "proof": artifacts.proof, "action": artifacts.action,
-            "trusted_context": artifacts.trusted_context, "attempts": attempts,
-            "operation_key": "synthetic-operation", "adapter": adapter,
-            "expected_command": command,
-        }
+
+        async def attempt(
+            *,
+            candidate_contract: ExactMcpTool[CommandT] = contract,
+            candidate_action: bytes = artifacts.action,
+            candidate_context: bytes = artifacts.trusted_context,
+            candidate_adapter: ProviderAdapter[CommandT, CredentialT, ResultT] = adapter,
+        ) -> RunResult[CommandT, ResultT]:
+            return await run_once(
+                contract=candidate_contract,
+                proof=artifacts.proof,
+                action=candidate_action,
+                trusted_context=candidate_context,
+                attempts=attempts,
+                operation_key="synthetic-operation",
+                adapter=candidate_adapter,
+                expected_command=command,
+            )
+
         try:
             if case_id == "denied-before-credential":
                 other = ExactMcpTool(
                     service=contract.service, name="auths_test_wrong_tool",
                     command_type=contract.command_type, fields=contract.fields,
                 )
-                result = await run_once(**{**base, "contract": other})
+                result = await attempt(candidate_contract=other)
                 if not isinstance(result, NotExecuted) or result.kind != "denied":
                     raise ValueError("wrong exact tool was not denied")
                 if provider.writes or "claim" in trace or "credential" in trace:
@@ -155,7 +169,7 @@ async def run_self_hosted_adapter_conformance(
                 altered = bytearray(artifacts.action)
                 altered[-1] ^= 1
                 try:
-                    result = await run_once(**{**base, "action": bytes(altered)})
+                    result = await attempt(candidate_action=bytes(altered))
                     if not isinstance(result, NotExecuted):
                         raise TypeError("mutated action produced an attempt")
                 except (TypeError, ValueError):
@@ -164,7 +178,7 @@ async def run_self_hosted_adapter_conformance(
                     raise ValueError("mutated action reached claim or provider")
             elif case_id == "invalid-trust-before-credential":
                 try:
-                    result = await run_once(**{**base, "trusted_context": b"not-a-trusted-context"})
+                    result = await attempt(candidate_context=b"not-a-trusted-context")
                     if not isinstance(result, NotExecuted):
                         raise TypeError("invalid trust produced an attempt")
                 except (TypeError, ValueError):
@@ -185,7 +199,7 @@ async def run_self_hosted_adapter_conformance(
                         del command
                         raise AssertionError("observation must not be entered")
 
-                result = await run_once(**{**base, "adapter": NoCredential()})
+                result = await attempt(candidate_adapter=NoCredential())
                 record = next(iter(attempts.records.values()), None)
                 if (
                     not isinstance(result, NotExecuted) or result.kind != "pre-entry-failed"
@@ -193,12 +207,12 @@ async def run_self_hosted_adapter_conformance(
                 ):
                     raise ValueError("credential failure crossed provider boundary")
             elif case_id == "competing-claim":
-                results = await asyncio.gather(run_once(**base), run_once(**base))
+                results = await asyncio.gather(attempt(), attempt())
                 if provider.writes != 1 or sum(isinstance(value, Attempted) for value in results) != 1:
                     raise ValueError("competing calls entered provider more than once")
             else:
                 try:
-                    result = await run_once(**base)
+                    result = await attempt()
                 except (TimeoutError, RuntimeError):
                     if scenario != "timeout":
                         raise
@@ -211,7 +225,7 @@ async def run_self_hosted_adapter_conformance(
                         raise ValueError("accepted provider result was misclassified")
                     if trace.index("claim") > trace.index("credential") or trace.index("credential") > trace.index("provider-write"):
                         raise ValueError("credential or provider entry preceded claim")
-                    replay = await run_once(**base)
+                    replay = await attempt()
                     if not isinstance(replay, NotExecuted) or replay.kind != "replay" or provider.writes != 1:
                         raise ValueError("replay entered provider")
                 elif scenario == "rejected":
@@ -228,7 +242,7 @@ async def run_self_hosted_adapter_conformance(
                         )
                     ):
                         raise ValueError("possible effect was not retained as unknown")
-                    replay = await run_once(**base)
+                    replay = await attempt()
                     if not isinstance(replay, NotExecuted) or replay.kind != "replay" or provider.writes != 1:
                         raise ValueError("unknown effect was retried")
                     if isinstance(result, Attempted):
@@ -244,7 +258,7 @@ async def run_self_hosted_adapter_conformance(
         else:
             cases.append(ConformanceCase(case_id, "passed", None, None))
 
-    for scenario, case_id in (
+    scenarios: tuple[tuple[Scenario, str], ...] = (
         ("accepted", "authorized-one-write-and-replay"),
         ("accepted", "denied-before-credential"),
         ("accepted", "mutated-action-before-credential"),
@@ -255,6 +269,7 @@ async def run_self_hosted_adapter_conformance(
         ("unknown", "unknown-no-blind-retry"),
         ("timeout", "timeout-no-blind-retry"),
         ("observation-unavailable", "unavailable-observation"),
-    ):
+    )
+    for scenario, case_id in scenarios:
         await exercise(scenario, case_id)
     return _report("self-hosted-provider-adapter/1", cases, "1")
