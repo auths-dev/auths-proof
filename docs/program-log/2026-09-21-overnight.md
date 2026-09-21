@@ -7,3 +7,4 @@
 - 2026-09-21 01:55 UTC — Epic 1 title-audit blocker — `9b31882`: Its pushed title claims an independent trial absent from that diff, and the no-history-rewrite rule prevents correcting the original commit.
 - 2026-09-21 19:02 UTC — Epic 1 resumed — https://github.com/auths-dev/auths-proof/actions/runs/35552488044: Billing is restored and all four workflows on exact commit `89b1beb` were rerun before further queue work.
 - 2026-09-21 19:02 UTC — Epic 1 blockers resolved — `89b1beb`: Public checkout removes the need for a field-lab read token, and a forward claim-ledger correction replaces rewriting `9b31882`.
+- 2026-09-21 19:26 UTC — Epic 1 real CI failure — https://github.com/auths-dev/auths-proof/actions/runs/35552488044/job/106478582724: Authoritative CI rejected the dated independent-review heading under current public naming, so one exact negative-document allowance was added without editing the review.

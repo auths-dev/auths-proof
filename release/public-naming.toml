@@ -777,6 +777,11 @@ token = "heading:Auths Proof product"
 reason = "The target-state business model uses Auths Proof as the historical name of the open protocol layer, not the current umbrella product."
 
 [[stale_name_allowances]]
+path = "docs/research/competition/2026-09-21-how-revolutionary-is-auths-proof.md"
+token = "heading:Auths Proof product"
+reason = "The independent dated review evaluates Auths Proof as the historical project name and is preserved as negative evidence, not current public naming."
+
+[[stale_name_allowances]]
 path = "docs/target-state/v1-api-review-findings.md"
 token = "auths-proof-release-evidence/v1"
 reason = "The v1.0 API audit quotes release/public-naming.toml's own replace mapping verbatim to explain why the algebra contract schema is unlisted; the name appears only as the rejected predecessor."
