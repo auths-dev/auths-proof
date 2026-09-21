@@ -8,3 +8,4 @@
 - 2026-09-21 01:57 UTC — Epic 4 start — `89b1beb`: A separate evidence branch began after Epic 1 was pushed, with no gateway or signing implementation claimed.
 - 2026-09-21 01:57 UTC — Epic 4 trial blocker — `89b1beb`: The unfamiliar-participant clause requires a human and will remain open while the corpus and wording work proceed.
 - 2026-09-21 01:57 UTC — Epic 3 adoption blocker — `89b1beb`: Twenty external repositories and organizational branch protection require people and are not being simulated overnight.
+- 2026-09-21 01:57 UTC — Epic 4 draft PR opened — https://github.com/auths-dev/auths-proof/pull/124: The evidence work is stacked on PR #123 and remains draft with its human trial gate open.
