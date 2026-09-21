@@ -1,6 +1,6 @@
 # AP-SPEC-055: Closed enumeration fields in self-hosted argument schemas
 
-- **Status:** Draft; specifies one schema node, not a completed SDK claim
+- **Status:** Implemented for the self-hosted schema node; not provider-qualified
 - **Depends on:** [AP-SPEC-051](0051-self-hosted-developer-profiles.md),
   [AP-SPEC-054 §5](0054-self-hosted-adapter-developer-experience.md) (the
   restricted schema, lock, and vector corpus this node extends)

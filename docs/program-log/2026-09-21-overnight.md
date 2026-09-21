@@ -20,6 +20,7 @@
 - 2026-09-21 21:36 UTC — Epic 1 conformance checkpoint coverage — `116b32d`: The mandatory scenario manifest now includes claim and finish storage failures, restart replay/read-only reconciliation, and post-entry interruption, exposing the states AP-SPEC-054 §7 requires before the SDK can be frozen.
 - 2026-09-21 21:38 UTC — Epic 1 bypass-boundary regression — `a750983`: Python and TypeScript SDK tests now explicitly demonstrate that application-held credentials permit a provider call without invoking `run_once`/`runOnce`, preserving AP-SPEC-051 §7's voluntary-gate claim.
 - 2026-09-21 21:39 UTC — Epic 1 first-run diagnostic matrix — `102f648`: Both profile CLIs now have executable cases for missing signer, grant, and trusted context with matching diagnostic codes; hosted package checks still need to verify the new tests.
+- 2026-09-21 21:40 UTC — AP-SPEC-055 status correction — `c0cdba8`: The enum-node implementation from `8aa1bed` is marked implemented after its Python, TypeScript, native, and hosted package evidence; no provider qualification claim is added.
 
 ## Morning report
 
