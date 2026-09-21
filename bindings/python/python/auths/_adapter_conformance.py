@@ -130,6 +130,14 @@ class _ObservedAdapter(Generic[CommandT, CredentialT, ResultT]):
         return await self.adapter.observe(command)
 
 
+class _InterruptedAdapter(_ObservedAdapter[CommandT, CredentialT, ResultT]):
+    async def invoke(
+        self, command: CommandT, credential: CredentialT
+    ) -> ProviderOutcome[ResultT]:
+        await super().invoke(command, credential)
+        raise RuntimeError("synthetic post-entry interruption")
+
+
 async def run_self_hosted_adapter_conformance(
     *,
     contract: ExactMcpTool[CommandT],
@@ -279,14 +287,7 @@ async def run_self_hosted_adapter_conformance(
                 if provider.writes != before:
                     raise ValueError("fresh runner reconciliation wrote to provider")
             elif case_id == "post-entry-interruption-unknown":
-                class InterruptedAdapter(_ObservedAdapter[CommandT, CredentialT, ResultT]):
-                    async def invoke(
-                        self, command: CommandT, credential: CredentialT
-                    ) -> ProviderOutcome[ResultT]:
-                        await super().invoke(command, credential)
-                        raise RuntimeError("synthetic post-entry interruption")
-
-                interrupted = InterruptedAdapter(adapter_factory(provider), trace)
+                interrupted = _InterruptedAdapter(adapter_factory(provider), trace)
                 try:
                     await attempt(candidate_adapter=interrupted)
                 except RuntimeError:
