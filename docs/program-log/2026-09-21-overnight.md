@@ -26,6 +26,7 @@
 - 2026-09-21 21:46 UTC — Spec tracking read-back — `f5992ba`: AP-SPEC-051's first three implementation items, AP-SPEC-052 Epics 1–3, and AP-SPEC-054 Epics 1–4 are recorded as landed while final CI, the clean-room rerun, and field-lab hosted evidence remain open.
 - 2026-09-21 21:52 UTC — Epic 1 installed typing correction — https://github.com/auths-dev/auths-proof/actions/runs/35658997720/job/106530642333: Pyright found that the nested interruption test adapter reused the enclosing function's generic variables; moving it to module scope preserves behavior and awaits hosted verification.
 - 2026-09-21 21:55 UTC — Epic 1 independent engineering trial reported — `f5992ba`: A zero-context participant reran a third inventory-status adapter from a fresh packaged-wheel workspace, passing fourteen local cases and an exact fake-provider write/read-back; the redacted report and narrowly attributed claim ledger are now committed without a human-adoption claim.
+- 2026-09-21 21:57 UTC — Epic 1 freeze update — https://github.com/auths-dev/auths-proof/actions/runs/35658997734/job/106530463732: Preflight found intentional semantic-freeze drift, and the bounded update advances only `auths.portable-abi-bindings` to 97 and `auths.release.public-surface` to 263, with all downstream phase skips attributed to preflight.
 
 ## Morning report
 
