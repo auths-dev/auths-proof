@@ -443,9 +443,9 @@ kind = "cargo"
 layer = "product"
 path = "product/integrations/auths-git-signing"
 core_apis = []
-protocol_versions = ["auths.git-signature-envelope/1"]
-wire_objects = ["GitSignatureEnvelope"]
-fixture_suites = []
+protocol_versions = ["auths.git-signature-envelope/1", "auths.git-signing-object-vectors/1"]
+wire_objects = ["GitSignatureEnvelope", "SignedObject", "UnsignedPayload"]
+fixture_suites = ["product/integrations/auths-git-signing/fixtures"]
 principal_families = []
 signature_families = []
 profiles = []
@@ -459,6 +459,8 @@ proof-author-or-assembler = [
   "product/integrations/auths-git-signing/src/envelope.rs#envelope_rejects_noncanonical_armor_with_stable_codes",
   "product/integrations/auths-git-signing/src/git_protocol_tests.rs#git_commit_signing_uses_the_program_protocol_and_stores_the_envelope",
   "product/integrations/auths-git-signing/src/git_protocol_tests.rs#git_verification_is_good_only_for_the_good_status",
+  "product/integrations/auths-git-signing/src/git_protocol_tests.rs#git_objects_split_the_same_way_in_the_parser_for_both_formats",
+  "product/integrations/auths-git-signing/src/object.rs#object_vectors_match_the_independent_generator",
 ]
 
 [packages.auths-github]

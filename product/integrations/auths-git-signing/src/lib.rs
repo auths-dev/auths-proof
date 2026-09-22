@@ -2,8 +2,8 @@
 //!
 //! Git stores an Auths signature in its native signature slot by calling an
 //! external signing program (`gpg.format = x509`, `gpg.x509.program`). This
-//! package owns the envelope stored in that slot and the program protocol Git
-//! speaks. Profile actions, verification, signing, and delegation are not
+//! package owns the envelope stored in that slot, the bounded parsing of the
+//! objects around it, and the program protocol Git speaks. Profile actions, verification, signing, and delegation are not
 //! implemented yet, so nothing here can report a signature as good.
 //!
 //! The package must never depend on `auths-did-keri`, directly or
@@ -13,10 +13,12 @@
 #![forbid(unsafe_code)]
 
 pub mod envelope;
+pub mod object;
 pub mod program;
 
 #[cfg(all(test, unix))]
 mod git_protocol_tests;
 
 pub use envelope::{EnvelopeError, GitSignatureEnvelope};
+pub use object::{ObjectError, ObjectFormat, ObjectKind, SignedObject, TagName, UnsignedPayload};
 pub use program::{ProgramError, ProgramRequest, SigningKeyRef, VerifyStatus};

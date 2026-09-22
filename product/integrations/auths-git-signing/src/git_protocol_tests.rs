@@ -6,6 +6,7 @@
 //! hand-written expectation.
 
 use crate::envelope::GitSignatureEnvelope;
+use crate::object::{ObjectFormat, ObjectKind, SignedObject, UnsignedPayload};
 use crate::program::{
     ProgramRequest, SigningKeyRef, VerifiedSigner, VerifyStatus, parse_arguments,
     sign_created_status,
@@ -42,6 +43,10 @@ struct Harness {
 
 impl Harness {
     fn new() -> Self {
+        Self::with_format("sha1")
+    }
+
+    fn with_format(object_format: &str) -> Self {
         let root = tempfile::tempdir().expect("tempdir");
         let repo = root.path().join("repo");
         let stub_dir = root.path().join("stub");
@@ -55,7 +60,12 @@ impl Harness {
             stub_dir,
         };
         harness.git_ok(
-            &["init", "-q", harness.repo.to_str().expect("utf-8 path")],
+            &[
+                "init",
+                "-q",
+                &format!("--object-format={object_format}"),
+                harness.repo.to_str().expect("utf-8 path"),
+            ],
             None,
         );
         for (key, value) in [
@@ -214,6 +224,13 @@ fn git_commit_signing_uses_the_program_protocol_and_stores_the_envelope() {
         GitSignatureEnvelope::from_armored(&stored).expect("stored envelope"),
         envelope()
     );
+    let object = SignedObject::parse(&raw).expect("crate parser accepts Git's object");
+    assert_eq!(object.payload().bytes(), payload.as_slice());
+    assert_eq!(object.signature(), stored.as_slice());
+    assert_eq!(
+        UnsignedPayload::parse(call.stdin).expect("signing input"),
+        object.payload().clone()
+    );
 }
 
 #[test]
@@ -342,4 +359,63 @@ fn git_verification_is_good_only_for_the_good_status() {
     // Verification receives exactly the payload that was signed.
     assert_eq!(harness.call(signing_calls).stdin, harness.call(0).stdin);
     assert_eq!(harness.call(signing_calls + 1).stdin, harness.call(1).stdin);
+}
+
+#[test]
+fn git_objects_split_the_same_way_in_the_parser_for_both_formats() {
+    for (object_format, expected) in [
+        ("sha1", ObjectFormat::Sha1),
+        ("sha256", ObjectFormat::Sha256),
+    ] {
+        let harness = Harness::with_format(object_format);
+        let armored = envelope().to_armored();
+        harness.arm_signer(armored.as_bytes(), sign_created_status(), 0);
+        harness.commit_file("a");
+        assert!(
+            harness
+                .in_repo(&["commit", "-q", "-S", "-m", "c"])
+                .status
+                .success()
+        );
+        harness.commit_file("b");
+        assert!(
+            harness
+                .in_repo(&["commit", "-q", "-S", "-m", "d"])
+                .status
+                .success()
+        );
+        assert!(
+            harness
+                .in_repo(&["tag", "-s", "release/v2", "-m", "t"])
+                .status
+                .success()
+        );
+
+        for (index, (object, kind)) in [
+            (["cat-file", "commit", "HEAD~1"], ObjectKind::Commit),
+            (["cat-file", "commit", "HEAD"], ObjectKind::Commit),
+            (["cat-file", "tag", "release/v2"], ObjectKind::Tag),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let raw = harness.git_ok(&object, Some(&harness.repo));
+            let parsed = SignedObject::parse(&raw).expect("Git's signed object");
+            let call = harness.call(index);
+            assert_eq!(
+                parsed.payload().bytes(),
+                call.stdin.as_slice(),
+                "{object_format} {object:?}"
+            );
+            assert_eq!(parsed.payload().kind(), kind);
+            assert_eq!(parsed.payload().format(), expected);
+            assert_eq!(parsed.signature(), armored.as_bytes());
+            if kind == ObjectKind::Tag {
+                assert_eq!(
+                    parsed.payload().tag_name().map(|name| name.as_str()),
+                    Some("release/v2")
+                );
+            }
+        }
+    }
 }

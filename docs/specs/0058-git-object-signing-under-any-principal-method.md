@@ -186,6 +186,34 @@ produces `git.payload-digest-mismatch`.
 For tags, the verifier MUST also check that the payload's `tag` header equals
 `tag_name` in the action.
 
+The object parser (`src/object.rs`) interprets only what the split, the
+object format, and the tag name need. Everything else is bound byte for byte
+by the digest. It refuses every object whose split would be ambiguous rather
+than guessing:
+
+- **Commits.** The signature is the header named for the object format:
+  `gpgsig` for SHA-1 and `gpgsig-sha256` for SHA-256, as Git writes them.
+  The following are all `git.signature-ambiguous`:
+  - a second signature header;
+  - the other format's signature header;
+  - an unsigned payload that already carries one.
+
+  Headers must start `tree`, `parent`*, `author`, `committer`. Other headers
+  (`encoding`, `mergetag`, ...) are kept in the payload as they are. CR or NUL
+  in the headers, or NUL in the message, is `git.object-malformed`.
+- **Tags.**
+  - Exactly `object`, `type commit`, `tag`, and `tagger` headers are
+    accepted. Tags of other object types are refused.
+  - Git splits a tag at the last line that opens a signature armor, so a tag
+    with more than one such line is `git.signature-ambiguous`.
+  - Tag names are a closed ASCII subset, stricter than Git's; a rejected name
+    is `git.tag-name-invalid`.
+
+The vectors in `fixtures/objects.json` come from an independent Python
+generator that shares no code with the parser. Real-Git tests also require
+the parser's split of Git's own SHA-1 and SHA-256 objects to equal the
+payload Git sent to the signing program.
+
 ### 3.3 Where the proof lives
 
 The proof is carried in Git's native signature slot through the external
@@ -325,6 +353,9 @@ They use the `git.` prefix. Kernel stage codes pass through unchanged.
 | Code | Class | Meaning |
 | --- | --- | --- |
 | `git.unsigned` | denied | No signature header |
+| `git.signature-ambiguous` | denied | The signature cannot be separated from the payload in exactly one way (§3.2) |
+| `git.object-malformed` | denied | Object structure outside the accepted subset (§3.2) |
+| `git.tag-name-invalid` | denied | Tag name outside the accepted set (§3.2) |
 | `git.not-auths-envelope` | denied | Signature present but not this envelope |
 | `git.envelope-malformed` | denied | Envelope armor, prefix, or CBOR framing invalid |
 | `git.payload-digest-mismatch` | denied | Recomputed payload does not match the action |
@@ -396,7 +427,10 @@ Sizes are for one engineer or agent, as in 0057 §3.
 2. **Fixtures first** (2–3 days). Canonical valid and invalid vectors for
    both actions, hostile payloads (extra headers, duplicated `gpgsig`, CRLF,
    NUL, oversized, SHA-256 repositories), and envelope mutations. Done: vectors
-   exist and fail against the empty implementation.
+   exist and fail against the empty implementation. The object and envelope
+   vectors landed with their parser. The action vectors move to the start of
+   step 3, because the canonical action encoding needs core types that the
+   package is not yet allowed to depend on.
 3. **Actions, evaluators, verifier** (1 week). §3.1–3.2 and §3.5–3.7 with
    `did:key` only. Done: the vector corpus passes; denial happens before any
    status or network access; `--trust-from-ref` inside the range is refused.
