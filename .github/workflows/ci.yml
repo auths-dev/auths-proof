@@ -710,7 +710,9 @@ jobs:
               ] | sort_by(.attempt) | last | .name // empty
             ' <<< "$artifacts")"
             [[ -n "$name" ]] || { echo "Missing same-run ${phase} evidence artifact" >&2; exit 1; }
+            attempt="${name##*-}"
             echo "${phase}=${name}" >> "$GITHUB_OUTPUT"
+            echo "${phase}_attempt=${attempt}" >> "$GITHUB_OUTPUT"
           done
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
@@ -732,6 +734,9 @@ jobs:
           AUTHS_FORMAL_KANI_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_kani_digest }}
           AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_toolchain_digest }}
           AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_evidence_digest }}
+          AUTHS_FORMAL_TRANSLATION_SOURCE_ATTEMPT: ${{ steps.formal-phase-artifacts.outputs.translation_attempt }}
+          AUTHS_FORMAL_LEAN_SOURCE_ATTEMPT: ${{ steps.formal-phase-artifacts.outputs.lean_attempt }}
+          AUTHS_FORMAL_KANI_SOURCE_ATTEMPT: ${{ steps.formal-phase-artifacts.outputs.kani_attempt }}
         run: cargo xtask ci formal-evidence
       - name: Preserve aggregate formal evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

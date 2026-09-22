@@ -32,6 +32,7 @@
 - 2026-09-21 23:31 UTC — Epic 1 exact CI green — https://github.com/auths-dev/auths-proof/actions/runs/35663793124: PR #123 commit `0266fdc` passed authoritative, formal evidence, live, compliance, and repository gates, with both SDK package workflows and recipes also green.
 - 2026-09-21 23:31 UTC — Epic 1 external gates remain — https://github.com/auths-dev/auths-field-lab/actions/runs/35664008506: Field-lab commit `92ac30d` pins `0266fdc` and both demos passed local exact-wheel tests, but GitHub rejected all hosted reruns before startup with the same billing annotation; separate fresh-session LLM review findings and owner acceptance are not yet available.
 - 2026-09-21 23:36 UTC — Epic 1 engineering handoff — `45591a1`: The owner directed us to stop checking field-lab CI and accept green exact `auths-proof` CI for the PR #123 engineering handoff; AP-SPEC-057's literal hosted-demo done gate and independent owner review are still recorded as open.
+- 2026-09-22 00:12 UTC — Epic 1 formal retry validator — https://github.com/auths-dev/auths-proof/actions/runs/35668410277: The docs-tip run passed formal translation, Kani, and Lean, but artifact download first hit GitHub 403 and the retry then rejected the selected prior-attempt phase result; a bounded source-attempt validation fix with generated closure updates is ready for hosted verification.
 
 ## Morning report
 

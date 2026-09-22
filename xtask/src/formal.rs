@@ -519,7 +519,7 @@ pub(crate) fn ci_formal_kani() -> Result<(), String> {
 pub(crate) fn ci_formal_evidence() -> Result<(), String> {
     let expected_head = current_git_head()?;
     let expected_run_id = required_formal_environment("GITHUB_RUN_ID")?;
-    let expected_run_attempt = required_formal_environment("GITHUB_RUN_ATTEMPT")?;
+    let current_run_attempt = required_formal_environment("GITHUB_RUN_ATTEMPT")?;
     let expected_toolchain = required_formal_digest("AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256")?;
     let expected_evidence = required_formal_digest("AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256")?;
     let expected_toolchain_lock = formal_toolchain_digest()?;
@@ -539,11 +539,19 @@ pub(crate) fn ci_formal_evidence() -> Result<(), String> {
     ] {
         let result = read_formal_phase_result(phase)?;
         let expected_phase_digest = required_formal_digest(digest_variable)?;
+        let selected_attempt = required_formal_environment(&format!(
+            "AUTHS_FORMAL_{}_SOURCE_ATTEMPT",
+            phase.to_ascii_uppercase()
+        ))?;
         if result.schema != FORMAL_PHASE_RESULT_SCHEMA
             || result.phase != phase
             || result.head_sha != expected_head
             || result.run_id != expected_run_id
-            || result.run_attempt != expected_run_attempt
+            || !phase_result_attempt_matches(
+                &result.run_attempt,
+                &selected_attempt,
+                &current_run_attempt,
+            )
             || result.planned_closure_sha256 != expected_phase_digest
             || result.toolchain_closure_sha256 != expected_toolchain
             || result.evidence_closure_sha256 != expected_evidence
@@ -566,6 +574,24 @@ pub(crate) fn ci_formal_evidence() -> Result<(), String> {
     write_formal_phase_result("evidence", &expected_closure, "aggregated", 0)?;
     println!("Formal evidence: PASS (translation + clean Lean + Kani)");
     Ok(())
+}
+
+fn phase_result_attempt_matches(
+    result_attempt: &str,
+    selected_attempt: &str,
+    current_attempt: &str,
+) -> bool {
+    let Ok(selected) = selected_attempt.parse::<u32>() else {
+        return false;
+    };
+    let Ok(current) = current_attempt.parse::<u32>() else {
+        return false;
+    };
+    selected > 0
+        && selected <= current
+        && selected_attempt == selected.to_string()
+        && current_attempt == current.to_string()
+        && result_attempt == selected_attempt
 }
 
 fn clear_repository_lean_outputs(formal_root: &Path) -> Result<(), String> {
@@ -2143,6 +2169,24 @@ pub(crate) fn formal_qualify_aeneas(update: bool) -> Result<(), String> {
 #[cfg(test)]
 mod phase_ordering {
     use super::*;
+
+    #[test]
+    fn aggregate_accepts_only_selected_same_run_attempt_at_or_before_retry() {
+        assert!(phase_result_attempt_matches("1", "1", "1"));
+        assert!(phase_result_attempt_matches("1", "1", "2"));
+        assert!(phase_result_attempt_matches("2", "2", "2"));
+        for (result, selected, current) in [
+            ("2", "1", "2"),
+            ("1", "2", "2"),
+            ("3", "3", "2"),
+            ("0", "0", "2"),
+            ("01", "01", "2"),
+            ("1", "1", "02"),
+            ("1", "1", "invalid"),
+        ] {
+            assert!(!phase_result_attempt_matches(result, selected, current));
+        }
+    }
 
     fn compiled_mutations() -> BTreeMap<String, LeanAssuranceDeclaration> {
         MUTATION_CASE_IDS
