@@ -33,12 +33,12 @@
 //! }
 //! ```
 //!
-//! Policy fields are limited to those each adapter binds into its
-//! configuration commitment, so trust always commits to every rule it
-//! applies. The OIDC GitHub policy accepts a repository id, an owner id, and
-//! an optional exact ref; the Sigstore GitHub policy accepts a repository id
-//! and an owner id. Workflow pins and environments are refused rather than
-//! silently left out of the commitment.
+//! A GitHub policy, for either method, takes a repository id, an owner id,
+//! and optionally an exact `ref`, an `environment`, and a `workflow` pin:
+//! `{"path": ".github/workflows/release.yml"}` for that workflow on any ref,
+//! or with both `ref` and `commit` for one exact workflow revision. Both
+//! adapters bind every one of these fields into their configuration
+//! commitment, so trust commits to every rule it applies.
 //!
 //! Only Ed25519 Rekor log keys are accepted. The kernel's P-256 suite takes
 //! fixed-width low-S signatures, while Rekor signs with DER-encoded ECDSA, so
@@ -149,16 +149,27 @@ struct JwkFile {
 #[serde(deny_unknown_fields, rename_all = "snake_case")]
 enum OidcProfileFile {
     Generic(Vec<String>),
-    GithubActions(Vec<OidcGithubPolicyFile>),
+    GithubActions(Vec<GithubPolicyFile>),
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct OidcGithubPolicyFile {
+struct GithubPolicyFile {
     repository_id: String,
     owner_id: String,
     #[serde(rename = "ref")]
     git_ref: Option<String>,
+    environment: Option<String>,
+    workflow: Option<WorkflowPinFile>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WorkflowPinFile {
+    path: String,
+    #[serde(rename = "ref")]
+    git_ref: Option<String>,
+    commit: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -189,14 +200,7 @@ struct SigstoreIssuerFile {
 #[serde(deny_unknown_fields, rename_all = "snake_case")]
 enum SigstoreProfileFile {
     Generic(Vec<String>),
-    GithubActions(Vec<SigstoreGithubPolicyFile>),
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct SigstoreGithubPolicyFile {
-    repository_id: String,
-    owner_id: String,
+    GithubActions(Vec<GithubPolicyFile>),
 }
 
 /// Validated Sigstore keyless configuration.
@@ -334,20 +338,91 @@ const fn policy_set_error(field: &'static str) -> MethodConfigError {
     }
 }
 
-fn oidc_github_policy(file: OidcGithubPolicyFile) -> Result<GithubPolicy, MethodConfigError> {
+fn oidc_github_policy(file: GithubPolicyFile) -> Result<GithubPolicy, MethodConfigError> {
     const FIELD: &str = "oidc_workload.issuers.profile.github_actions";
+    let workflow = match file.workflow {
+        None => None,
+        Some(pin) => {
+            let path = oidc_identity::WorkflowPath::parse(&pin.path)
+                .map_err(|_| invalid(FIELD, "workflow.path must be a .github/workflows file"))?;
+            Some(match (pin.git_ref, pin.commit) {
+                (None, None) => oidc_identity::WorkflowPin::AnyRef { path },
+                (Some(git_ref), Some(commit)) => oidc_identity::WorkflowPin::Exact {
+                    path,
+                    git_ref: oidc_identity::GitRef::parse(&git_ref)
+                        .map_err(|_| invalid(FIELD, "workflow.ref must be a full Git ref"))?,
+                    commit: oidc_identity::CommitSha::parse(&commit)
+                        .map_err(|_| invalid(FIELD, "workflow.commit must be a commit id"))?,
+                },
+                _ => {
+                    return Err(invalid(
+                        FIELD,
+                        "workflow needs both ref and commit, or neither",
+                    ));
+                }
+            })
+        }
+    };
     Ok(GithubPolicy {
         repository_id: oidc_identity::RepositoryId::parse(&file.repository_id)
             .map_err(|_| invalid(FIELD, "repository_id must be a positive decimal id"))?,
         owner_id: oidc_identity::RepositoryOwnerId::parse(&file.owner_id)
             .map_err(|_| invalid(FIELD, "owner_id must be a positive decimal id"))?,
-        workflow: None,
+        workflow,
         git_ref: file
             .git_ref
             .map(|value| oidc_identity::GitRef::parse(&value))
             .transpose()
             .map_err(|_| invalid(FIELD, "ref must be a full Git ref"))?,
-        environment: None,
+        environment: file
+            .environment
+            .map(|value| oidc_identity::Environment::parse(&value))
+            .transpose()
+            .map_err(|_| invalid(FIELD, "environment is invalid"))?,
+    })
+}
+
+fn fulcio_github_policy(file: GithubPolicyFile) -> Result<FulcioGithubPolicy, MethodConfigError> {
+    const FIELD: &str = "sigstore_keyless.issuers.profile.github_actions";
+    let workflow = match file.workflow {
+        None => None,
+        Some(pin) => {
+            let path = fulcio_identity::WorkflowPath::parse(&pin.path)
+                .map_err(|_| invalid(FIELD, "workflow.path must be a .github/workflows file"))?;
+            Some(match (pin.git_ref, pin.commit) {
+                (None, None) => fulcio_identity::WorkflowPin::AnyRef { path },
+                (Some(git_ref), Some(commit)) => fulcio_identity::WorkflowPin::Exact {
+                    path,
+                    git_ref: fulcio_identity::GitRef::parse(&git_ref)
+                        .map_err(|_| invalid(FIELD, "workflow.ref must be a full Git ref"))?,
+                    commit: fulcio_identity::CommitSha::parse(&commit)
+                        .map_err(|_| invalid(FIELD, "workflow.commit must be a commit id"))?,
+                },
+                _ => {
+                    return Err(invalid(
+                        FIELD,
+                        "workflow needs both ref and commit, or neither",
+                    ));
+                }
+            })
+        }
+    };
+    Ok(FulcioGithubPolicy {
+        repository_id: fulcio_identity::RepositoryId::parse(&file.repository_id)
+            .map_err(|_| invalid(FIELD, "invalid repository_id"))?,
+        owner_id: fulcio_identity::RepositoryOwnerId::parse(&file.owner_id)
+            .map_err(|_| invalid(FIELD, "invalid owner_id"))?,
+        workflow,
+        git_ref: file
+            .git_ref
+            .map(|value| fulcio_identity::GitRef::parse(&value))
+            .transpose()
+            .map_err(|_| invalid(FIELD, "ref must be a full Git ref"))?,
+        environment: file
+            .environment
+            .map(|value| fulcio_identity::Environment::parse(&value))
+            .transpose()
+            .map_err(|_| invalid(FIELD, "environment is invalid"))?,
     })
 }
 
@@ -573,19 +648,7 @@ fn sigstore_issuer(file: SigstoreIssuerFile) -> Result<IssuerPolicy, MethodConfi
             policies: BoundedSet::new(
                 policies
                     .into_iter()
-                    .map(|policy| {
-                        Ok(FulcioGithubPolicy {
-                            repository_id: fulcio_identity::RepositoryId::parse(
-                                &policy.repository_id,
-                            )
-                            .map_err(|_| invalid(FIELD, "invalid repository_id"))?,
-                            owner_id: fulcio_identity::RepositoryOwnerId::parse(&policy.owner_id)
-                                .map_err(|_| invalid(FIELD, "invalid owner_id"))?,
-                            workflow: None,
-                            git_ref: None,
-                            environment: None,
-                        })
-                    })
+                    .map(fulcio_github_policy)
                     .collect::<Result<Vec<_>, MethodConfigError>>()?,
             )
             .map_err(|_| policy_set_error(FIELD))?,
@@ -663,6 +726,11 @@ mod tests {
         let ed_key = serde_json::json!([{"kid": "k1", "kty": "OKP", "crv": "Ed25519", "alg": "EdDSA", "x": valid_x, "use": "sig"}]);
         let github = serde_json::json!({"github_actions": [{"repository_id": "1", "owner_id": "2", "ref": "refs/heads/main"}]});
         let parsed = parse(&issuer(ed_key.clone(), github.clone())).expect("valid");
+        let pinned = serde_json::json!({"github_actions": [{
+            "repository_id": "1", "owner_id": "2", "ref": "refs/tags/v1", "environment": "release",
+            "workflow": {"path": ".github/workflows/release.yml"}
+        }]});
+        assert!(parse(&issuer(ed_key.clone(), pinned)).is_ok());
         assert!(!parsed.uses_rsa);
         assert_eq!(parsed.oidc_issuers.as_ref().map(Vec::len), Some(1));
         assert!(parsed.sigstore.is_none());
@@ -679,7 +747,11 @@ mod tests {
             serde_json::json!({"schema": METHODS_SCHEMA, "unknown": 1}),
             issuer(
                 ed_key.clone(),
-                serde_json::json!({"github_actions": [{"repository_id": "1", "owner_id": "2", "environment": "prod"}]}),
+                serde_json::json!({"github_actions": [{"repository_id": "1", "owner_id": "2", "workflow": {"path": ".github/workflows/release.yml", "ref": "refs/heads/main"}}]}),
+            ),
+            issuer(
+                ed_key.clone(),
+                serde_json::json!({"github_actions": [{"repository_id": "1", "owner_id": "2", "workflow": {"path": "release.yml"}}]}),
             ),
             issuer(
                 ed_key.clone(),
