@@ -103,6 +103,7 @@ gates do not shrink.
 | 2026-09-21 | Preserve pushed history for `9b31882`; resolve its overclaiming title with an explicit forward correction in the claim ledger, which becomes the Epic 1 title-audit gate. | AP-SPEC-057 §2; claim ledger |
 | 2026-09-21 | For PR #123's engineering handoff, stop pursuing `auths-field-lab` CI: the billing annotation is confined to that repo, while exact `auths-proof` CI is green and the demos passed local exact-wheel tests and live read-back. This owner direction does not itself amend AP-SPEC-057 Epic 1's stricter hosted-demo acceptance. | Owner direction; 0051 §10 and acceptance review |
 | 2026-09-22 | The owner merged PR #123 on green auths-proof CI, waived field-lab CI for that merge, and directed gateway work from updated main. This permits Epic 2 to start without relabeling the historical field-lab hosted gate as passed; owner review and unfamiliar-user evidence stay open. | Owner direction; merged `a82b8ca`; AP-SPEC-053 |
+| 2026-09-22 | Audited AP-SPEC-050–057 against merged `main`, the current gateway branch, their acceptance clauses, and recorded hosted/live evidence: 050 is partial, 051/052/054 retain review gates, 053 is partial, 055 is implemented, 056 remains unimplemented, and 057 is active with only Epic 2 complete in its bounded scope. | AP-SPEC-050–057 status headers; this board |
 
 ## 5. Not doing
 

@@ -1,7 +1,9 @@
 # AP-SPEC-056: OpenAPI-derived exact operation contracts and recipes
 
-- **Status:** Draft; specifies generation-time tooling, not a runtime or
-  authorization change
+- **Status:** Draft; implementation has not started. AP-SPEC-053's recipe
+  prerequisite has landed, while the corpus, mappers, and packaged `derive`
+  commands remain open; this specifies generation-time tooling, not a runtime
+  or authorization change
 - **Depends on:** [AP-SPEC-053](0053-declarative-credential-isolated-gateway.md)
   (recipe AST and `recipe check`), [AP-SPEC-054 §5](0054-self-hosted-adapter-developer-experience.md)
   (restricted schema, lock, vectors), and

@@ -1,6 +1,7 @@
 # AP-SPEC-051: Self-hosted developer profiles
 
-- **Status:** Implementation landed and exact SDK CI green; independent owner review pending before final acceptance
+- **Status:** Implementation merged to `main` and exact SDK CI green at
+  `0266fdc`; independent owner review remains the final acceptance gate
 - **Audience:** Python/TypeScript SDK maintainers, profile contributors, and
   security reviewers
 - **Normative language:** **MUST**, **MUST NOT**, **SHOULD**, and **MAY** are

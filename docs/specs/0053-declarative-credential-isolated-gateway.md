@@ -1,7 +1,9 @@
 # AP-SPEC-053: Developer-defined, credential-isolated exact-action gateway
 
-- **Status:** Implementation in progress; the single-host compiler, service,
-  and SDK clients are not a qualified product claim
+- **Status:** Implementation in progress; Epics 1–3 and the isolated
+  hostile/live-provider portion of Epic 4 are exercised for a documented
+  single-host development deployment; production-style trust, outside-developer
+  adoption, and qualified product claims remain open
 - **Depends on:** [AP-SPEC-051](0051-self-hosted-developer-profiles.md),
   [AP-SPEC-052](0052-self-hosted-launch-hardening.md), the existing
   `auths.mcp/v2` exact-tool action, and the

@@ -1,6 +1,8 @@
 # AP-SPEC-050: Fast and Reproducible Formal CI
 
-**Status:** Proposed
+**Status:** Partially implemented; Phases 1–2 and exact translation reuse from
+Phase 3 have landed; reusable Kani evidence, pinned toolchain distribution,
+and Phase 5 performance acceptance remain open
 **Intended audience:** formal-method maintainers, CI maintainers, security
 reviewers, and contributors changing translated Rust or authored Lean proofs
 **Normative language:** the terms **MUST**, **MUST NOT**, **SHOULD**, and
