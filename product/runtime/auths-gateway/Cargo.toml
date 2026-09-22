@@ -8,10 +8,23 @@ description = "Closed developer-authored request recipes for the Auths gateway"
 publish = false
 
 [dependencies]
+auths-connections.workspace = true
+auths-codec.workspace = true
+auths-did-keri.workspace = true
+auths-did-key.workspace = true
+auths-model.workspace = true
+auths-ports.workspace = true
+auths-profile-api.workspace = true
 auths-profile-mcp.workspace = true
+auths-raw-key.workspace = true
+auths-registries.workspace = true
+auths-signature.workspace = true
+auths-stores.workspace = true
+auths-verifier.workspace = true
 hex.workspace = true
 getrandom.workspace = true
 rustix.workspace = true
+reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_json_canonicalizer.workspace = true

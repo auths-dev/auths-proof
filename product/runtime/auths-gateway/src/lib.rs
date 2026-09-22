@@ -6,9 +6,14 @@
 
 #![forbid(unsafe_code)]
 
+mod binding;
+mod engine;
 mod recipe;
 mod store;
+mod transport;
 
+pub use binding::{GatewayConnectionDescriptor, GatewayConnectionError};
+pub use engine::{GatewayEngine, GatewayEngineConfigurationError, GatewaySubmitResult};
 pub use recipe::{
     ClosedObservationRequest, ClosedProviderRequest, CompiledRecipe, CredentialRequirement,
     GatewayRecipeError, LogicalOperationId, OperatorNamespace, RecipeReview, WriteMethod,

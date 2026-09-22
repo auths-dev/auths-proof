@@ -39,6 +39,9 @@ evidence; `auths-lifecycle::Committed` is not a projection of an HTTP response.
 | `auths-gateway::CompiledRecipe` | bounded, validated, digest-stable request grammar tied to a profile lock | `ExactMcpTool` owns action shape, not outbound HTTP mapping. |
 | `auths-gateway::ClosedProviderRequest` | request built only from a native-verified command and approved literals | Provider-specific commands cannot express a self-service closed transport mapping. |
 | `auths-gateway::GatewayAttemptStage` | `not-entered`, `attempting`, `response-recorded`, `unknown`, `observed` | SDK `confirmed` and lifecycle `Committed` make stronger or different claims. |
+| `auths-gateway::GatewayConnectionDescriptor` | canonical data-only descriptor binds one namespace, recipe digest, and gateway-injected credential header | `ConnectionBinding` carries an opaque provider descriptor but does not parse the gateway-specific recipe grammar. It remains the owner of connection ID, account commitment, and generation. |
+| `auths-gateway::GatewaySubmitResult` | disjoint proof refusal, no-entry, ambiguous entry, response, and observation outcomes | A generic verifier result has no transport stage; SDK `confirmed` overstates what an HTTP response establishes. |
+| `auths-gateway::GatewayEngine` | independently provisioned trust and approved digest are fixed before an app can submit proof/action bytes | Self-hosted SDK verification runs inside the credential-owning app and cannot enforce the deployment boundary. This coordinator still needs a separate service and adversarial deployment test before a non-bypassable claim. |
 
 The lock-file parser and recipe source AST are private input-boundary types.
 They reject unknown fields before producing `CompiledRecipe`. Public types have
@@ -53,6 +56,8 @@ private fields and validating constructors. No callback receives a credential.
   `ClosedProviderRequest`; there is no public constructor from caller HTTP.
 - The application socket accepts only proof and canonical action bytes. The
   operator channel separately installs the recipe and credential binding.
+  That service/channel is not yet implemented by the compiler and coordinator
+  alone; no isolated-deployment claim follows from this type map.
 
 The three fixture profiles deliberately contain only root scalar fields.
 Nested profile fields, dynamic query parameters, optional body omission, and

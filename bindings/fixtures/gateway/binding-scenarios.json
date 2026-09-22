@@ -1,0 +1,11 @@
+{
+  "schema": "auths.gateway-binding-scenarios/1",
+  "cases": [
+    {"id": "exact-namespace-recipe-header-generation", "result": "bound"},
+    {"id": "changed-recipe-digest", "result": "not-entered"},
+    {"id": "changed-operator-namespace", "result": "not-entered"},
+    {"id": "credential-header-mismatch", "result": "not-entered"},
+    {"id": "disabled-connection", "result": "not-entered"},
+    {"id": "rotated-generation", "result": "not-entered"}
+  ]
+}

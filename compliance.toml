@@ -1508,16 +1508,16 @@ runtime-enforcement-boundary = [
 kind = "cargo"
 layer = "product"
 path = "product/runtime/auths-gateway"
-core_apis = ["auths-profile-mcp"]
-protocol_versions = ["auths.gateway-recipe-source/1", "auths.self-hosted-profile-lock/1"]
-wire_objects = ["CompiledRecipe", "ClosedProviderRequest", "GatewayAttemptSnapshot"]
+core_apis = ["auths-codec", "auths-did-keri", "auths-did-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-verifier"]
+protocol_versions = ["auths.gateway-recipe-source/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/1", "auths.self-hosted-profile-lock/1"]
+wire_objects = ["CompiledRecipe", "ClosedProviderRequest", "GatewayAttemptSnapshot", "GatewayConnectionDescriptor", "GatewaySubmitResult"]
 fixture_suites = ["bindings/fixtures/gateway"]
 principal_families = []
 signature_families = []
 profiles = ["auths.mcp/2"]
-transports = []
-configuration_inputs = ["operator-approved-recipe", "profile-lock"]
-security_state = ["recipe-digest", "single-host-logical-operation-claims"]
+transports = ["bounded-https"]
+configuration_inputs = ["operator-approved-recipe", "profile-lock", "independently-provisioned-trust", "connection-binding"]
+security_state = ["recipe-digest", "single-host-logical-operation-claims", "credential-reference-generation"]
 
 [packages.auths-gateway.claims]
 configuration-compiler = [

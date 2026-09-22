@@ -578,9 +578,22 @@ dependencies = [
 name = "auths-gateway"
 version = "1.0.0-rc.1"
 dependencies = [
+ "auths-codec",
+ "auths-connections",
+ "auths-did-keri",
+ "auths-did-key",
+ "auths-model",
+ "auths-ports",
+ "auths-profile-api",
  "auths-profile-mcp",
+ "auths-raw-key",
+ "auths-registries",
+ "auths-signature",
+ "auths-stores",
+ "auths-verifier",
  "getrandom 0.3.4",
  "hex",
+ "reqwest",
  "rustix",
  "serde",
  "serde_json",

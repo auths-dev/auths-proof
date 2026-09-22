@@ -1,0 +1,16 @@
+{
+  "schema": "auths.gateway-transport-scenarios/1",
+  "cases": [
+    {"id": "private-dns", "result": "not-entered", "provider_entries": 0},
+    {"id": "metadata-dns", "result": "not-entered", "provider_entries": 0},
+    {"id": "ipv6-only", "result": "not-entered", "provider_entries": 0},
+    {"id": "credential-header-mismatch", "result": "not-entered", "provider_entries": 0},
+    {"id": "invalid-credential-bytes", "result": "not-entered", "provider_entries": 0},
+    {"id": "write-connect-break", "result": "unknown", "provider_entries": 1},
+    {"id": "write-timeout", "result": "unknown", "provider_entries": 1},
+    {"id": "oversized-response", "result": "unknown", "provider_entries": 1},
+    {"id": "complete-4xx", "result": "response-recorded", "provider_entries": 1},
+    {"id": "complete-5xx", "result": "response-recorded", "provider_entries": 1},
+    {"id": "read-back-unavailable", "result": "response-recorded", "provider_entries": 1}
+  ]
+}
