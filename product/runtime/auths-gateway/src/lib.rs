@@ -13,12 +13,16 @@ mod store;
 mod transport;
 
 pub use binding::{GatewayConnectionDescriptor, GatewayConnectionError};
-pub use engine::{GatewayEngine, GatewayEngineConfigurationError, GatewaySubmitResult};
+pub use engine::{
+    GatewayEngine, GatewayEngineConfigurationError, GatewayEvidenceSummary, GatewaySubmitResult,
+};
 pub use recipe::{
     ClosedObservationRequest, ClosedProviderRequest, CompiledRecipe, CredentialRequirement,
-    GatewayRecipeError, LogicalOperationId, OperatorNamespace, RecipeReview, WriteMethod,
+    GatewayRecipeError, LogicalOperationId, OperatorNamespace, RecipeEchoReview, RecipeReview,
+    WriteMethod, echo_token,
 };
 pub use store::{
     ClaimedGatewayAttempt, FileGatewayAttemptStore, GatewayAttemptError, GatewayAttemptSnapshot,
-    GatewayAttemptStage, ResponseRecordedGatewayAttempt,
+    GatewayAttemptStage, GatewayEvidenceChannel, GatewayObservationFact, GatewayProviderEvidence,
+    ObservableGatewayAttempt,
 };

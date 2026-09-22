@@ -9,15 +9,19 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import re
 import struct
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Mapping, Union, cast
+from typing import Literal, Mapping, Optional, Union, cast
 
 _REQUEST_SCHEMA = "auths.gateway-submit/1"
 _MAX_PROOF_BYTES = 4 * 1024 * 1024
 _MAX_ACTION_BYTES = 64 * 1024
 _MAX_RESPONSE_BYTES = 8 * 1024
+_ECHO = re.compile(r"auths-e1-[0-9a-f]{64}")
+_DIGEST = re.compile(r"[0-9a-f]{64}")
+_MAX_U64 = 2**64 - 1
 
 
 class GatewayProtocolError(RuntimeError):
@@ -89,6 +93,36 @@ class GatewayObserved:
     outcome: Literal["observed"] = "observed"
 
 
+@dataclass(frozen=True)
+class GatewayProviderEvidence:
+    """Secret-free summary of provider-held read-back evidence.
+
+    The response bytes and observation locator stay in the operator's attempt
+    store. ``observed_at`` is gateway wall-clock seconds and is not
+    authenticated.
+    """
+
+    channel: Literal["read-back"]
+    echo: str
+    evidence_digest: str
+    observed_at: int
+
+
+@dataclass(frozen=True)
+class GatewayObservedByProvider:
+    """Read-back returned this attempt's echo token and the verified value.
+
+    The token is derived from the authorized action, but anyone who knows the
+    namespace, operation ID, and action commitment can compute it: the link
+    holds only while no other party with write access to that provider field
+    wrote the same token. ``status`` is ``None`` when the write was unknown.
+    """
+
+    status: Optional[int]
+    evidence: GatewayProviderEvidence
+    outcome: Literal["observed-by-provider"] = "observed-by-provider"
+
+
 GatewayResult = Union[
     GatewayDenied,
     GatewayIndeterminate,
@@ -96,7 +130,39 @@ GatewayResult = Union[
     GatewayUnknown,
     GatewayResponseRecorded,
     GatewayObserved,
+    GatewayObservedByProvider,
 ]
+
+
+def _valid_status(status: object) -> bool:
+    return (
+        isinstance(status, int)
+        and not isinstance(status, bool)
+        and 100 <= status <= 599
+    )
+
+
+def _parse_evidence(value: object) -> GatewayProviderEvidence:
+    if not isinstance(value, dict):
+        raise GatewayProtocolError("gateway returned invalid evidence")
+    evidence = cast(Mapping[str, object], value)
+    channel = evidence.get("channel")
+    echo = evidence.get("echo")
+    digest = evidence.get("evidence_digest")
+    observed_at = evidence.get("observed_at")
+    if (
+        set(evidence) != {"channel", "echo", "evidence_digest", "observed_at"}
+        or channel != "read-back"
+        or not isinstance(echo, str)
+        or _ECHO.fullmatch(echo) is None
+        or not isinstance(digest, str)
+        or _DIGEST.fullmatch(digest) is None
+        or not isinstance(observed_at, int)
+        or isinstance(observed_at, bool)
+        or not 0 <= observed_at <= _MAX_U64
+    ):
+        raise GatewayProtocolError("gateway returned invalid evidence")
+    return GatewayProviderEvidence("read-back", echo, digest, observed_at)
 
 
 def _parse_result(raw: bytes) -> GatewayResult:
@@ -121,6 +187,15 @@ def _parse_result(raw: bytes) -> GatewayResult:
         return GatewayNotEntered(code)
     if outcome == "unknown" and set(value) == {"outcome"}:
         return GatewayUnknown()
+    if outcome == "observed-by-provider":
+        status = value.get("status")
+        if set(value) != {"outcome", "status", "evidence"} or not (
+            status is None or _valid_status(status)
+        ):
+            raise GatewayProtocolError("gateway returned invalid provider observation")
+        return GatewayObservedByProvider(
+            cast(Optional[int], status), _parse_evidence(value.get("evidence"))
+        )
     if outcome in {"response-recorded", "observed"}:
         expected = (
             {"outcome", "status"}
@@ -128,13 +203,9 @@ def _parse_result(raw: bytes) -> GatewayResult:
             else {"outcome", "status", "matched"}
         )
         status = value.get("status")
-        if (
-            set(value) != expected
-            or not isinstance(status, int)
-            or isinstance(status, bool)
-            or not 100 <= status <= 599
-        ):
+        if set(value) != expected or not _valid_status(status):
             raise GatewayProtocolError("gateway returned invalid response stage")
+        status = cast(int, status)
         if outcome == "response-recorded":
             return GatewayResponseRecorded(status)
         matched = value.get("matched")
@@ -204,7 +275,9 @@ __all__ = [
     "GatewayIndeterminate",
     "GatewayNotEntered",
     "GatewayObserved",
+    "GatewayObservedByProvider",
     "GatewayProtocolError",
+    "GatewayProviderEvidence",
     "GatewayResponseRecorded",
     "GatewayResult",
     "GatewayUnknown",

@@ -13,6 +13,10 @@ const MAX_TEMPLATE_NODES: usize = 64;
 const MAX_TEMPLATE_DEPTH: usize = 6;
 const MAX_PATH_SEGMENTS: usize = 16;
 const DIGEST_DOMAIN: &[u8] = b"auths.gateway-compiled-recipe/1\0";
+const ECHO_DOMAIN: &[u8] = b"auths.gateway-echo/1\0";
+const ECHO_PREFIX: &str = "auths-e1-";
+const MAX_POINTER_BYTES: usize = 128;
+const ECHO_DISCLOSURE: &str = "the gateway writes a token derived from the authorized action into this provider field; the provider stores it and anyone who can read the record can read it; do not declare echo when the observation response may contain secrets";
 
 /// Operator-controlled account namespace. A different proof challenge never
 /// creates a new replay namespace.
@@ -169,6 +173,13 @@ pub enum GatewayRecipeError {
     /// Verified action does not match the approved profile or recipe.
     #[error("verified action does not match approved recipe")]
     ActionMismatch,
+    /// An echo field was declared without a read-only observation.
+    #[error("recipe echo requires an observation")]
+    EchoWithoutObservation,
+    /// The echo placement is not a new fixed JSON body key, or an echo source
+    /// appears anywhere other than the compiler-owned placement.
+    #[error("recipe echo conflicts with the request template")]
+    EchoConflict,
 }
 
 impl GatewayRecipeError {
@@ -186,6 +197,8 @@ impl GatewayRecipeError {
             Self::InvalidNamespace => "gateway.recipe.invalid-namespace",
             Self::InvalidOperationId => "gateway.recipe.invalid-operation-id",
             Self::ActionMismatch => "gateway.recipe.action-mismatch",
+            Self::EchoWithoutObservation => "gateway.recipe.echo-without-observation",
+            Self::EchoConflict => "gateway.recipe.echo-conflict",
         }
     }
 }
@@ -203,6 +216,17 @@ struct RecipeSource {
     write: WriteSource,
     #[serde(skip_serializing_if = "Option::is_none")]
     observation: Option<ObservationSource>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    echo: Option<EchoSource>,
+}
+
+/// Recipe-declared provider field that carries the gateway echo token. The
+/// application never supplies the token; the compiler alone places it.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EchoSource {
+    write: String,
+    observe: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -216,8 +240,14 @@ struct WriteSource {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 enum PathSegment {
-    Fixed { value: String },
-    Field { name: String },
+    Fixed {
+        value: String,
+    },
+    Field {
+        name: String,
+    },
+    /// Parsed only so that an author-placed echo fails with a stable code.
+    Echo,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -230,20 +260,42 @@ enum BodySource {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 enum FormExpr {
-    String { value: String },
-    Field { name: String },
-    Json { value: ValueExpr },
+    String {
+        value: String,
+    },
+    Field {
+        name: String,
+    },
+    Json {
+        value: ValueExpr,
+    },
+    /// Parsed only so that an author-placed echo fails with a stable code.
+    Echo,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
 enum ValueExpr {
-    String { value: String },
-    Integer { value: i64 },
-    Boolean { value: bool },
-    Field { name: String },
-    Object { fields: BTreeMap<String, ValueExpr> },
-    Array { items: Vec<ValueExpr> },
+    String {
+        value: String,
+    },
+    Integer {
+        value: i64,
+    },
+    Boolean {
+        value: bool,
+    },
+    Field {
+        name: String,
+    },
+    Object {
+        fields: BTreeMap<String, ValueExpr>,
+    },
+    Array {
+        items: Vec<ValueExpr>,
+    },
+    /// Parsed only so that an author-placed echo fails with a stable code.
+    Echo,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -309,6 +361,32 @@ pub struct RecipeReview {
     credential: CredentialRequirement,
     maximum_body_bytes: usize,
     has_observation: bool,
+    echo: Option<RecipeEchoReview>,
+}
+
+/// Operator review of the provider field that will carry the echo token.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecipeEchoReview {
+    write: String,
+    observe: String,
+}
+
+impl RecipeEchoReview {
+    /// Returns the JSON pointer in the write body that receives the token.
+    #[must_use]
+    pub fn write(&self) -> &str {
+        &self.write
+    }
+    /// Returns the JSON pointer read back from the observation response.
+    #[must_use]
+    pub fn observe(&self) -> &str {
+        &self.observe
+    }
+    /// States where the token is stored and who can read it.
+    #[must_use]
+    pub const fn disclosure(&self) -> &'static str {
+        ECHO_DISCLOSURE
+    }
 }
 
 impl RecipeReview {
@@ -351,6 +429,11 @@ impl RecipeReview {
     #[must_use]
     pub const fn has_observation(&self) -> bool {
         self.has_observation
+    }
+    /// Returns the declared echo field, if any.
+    #[must_use]
+    pub const fn echo(&self) -> Option<&RecipeEchoReview> {
+        self.echo.as_ref()
     }
 }
 
@@ -418,6 +501,13 @@ impl CompiledRecipe {
             validate_path(&observation.path, &fields, &mut used)?;
             validate_observation(observation, &fields, &mut used)?;
         }
+        if let Some(echo) = &source.echo {
+            let observation = source
+                .observation
+                .as_ref()
+                .ok_or(GatewayRecipeError::EchoWithoutObservation)?;
+            validate_echo(echo, &source.write.body, observation)?;
+        }
         for field in fields.keys() {
             if !matches!(
                 field.as_str(),
@@ -475,15 +565,23 @@ impl CompiledRecipe {
                 .map(|part| match part {
                     PathSegment::Fixed { value } => value.clone(),
                     PathSegment::Field { name } => format!("<{name}>"),
+                    PathSegment::Echo => "<echo>".to_owned(),
                 })
                 .collect(),
             credential: self.source.credential.clone(),
             maximum_body_bytes: MAX_BODY_BYTES,
             has_observation: self.source.observation.is_some(),
+            echo: self.source.echo.as_ref().map(|echo| RecipeEchoReview {
+                write: echo.write.clone(),
+                observe: echo.observe.clone(),
+            }),
         }
     }
 
-    /// Builds a closed request only from a native-verified MCP command.
+    /// Builds a closed request only from a native-verified MCP command and
+    /// the commitment of that same verified action. When the recipe declares
+    /// an echo field, the token is derived here from the commitment; no
+    /// submit-time input can supply or change it.
     ///
     /// # Errors
     /// Rejects a mismatched service/tool, schema value, recipe digest,
@@ -492,16 +590,18 @@ impl CompiledRecipe {
     pub fn closed_request(
         &self,
         command: &McpCommand,
+        action_commitment: [u8; 32],
     ) -> Result<ClosedProviderRequest, GatewayRecipeError> {
         if command.call().service() != self.source.service || command.name() != self.source.tool {
             return Err(GatewayRecipeError::ActionMismatch);
         }
-        self.closed_request_from_arguments(command.arguments())
+        self.closed_request_from_arguments(command.arguments(), action_commitment)
     }
 
-    fn closed_request_from_arguments(
+    pub(crate) fn closed_request_from_arguments(
         &self,
         arguments: &Map<String, Value>,
+        action_commitment: [u8; 32],
     ) -> Result<ClosedProviderRequest, GatewayRecipeError> {
         if arguments.len() != self.fields.len()
             || !self.fields.iter().all(|(name, schema)| {
@@ -521,8 +621,19 @@ impl CompiledRecipe {
             .and_then(Value::as_str)
             .ok_or(GatewayRecipeError::InvalidOperationId)
             .and_then(LogicalOperationId::parse)?;
+        let echo = self
+            .source
+            .echo
+            .as_ref()
+            .map(|_| echo_token(&self.namespace, &operation_id, &action_commitment));
         let path = build_path(&self.source.write.path, arguments)?;
-        let (content_type, body) = build_body(&self.source.write.body, arguments)?;
+        let placement = self
+            .source
+            .echo
+            .as_ref()
+            .map(|source| source.write.as_str())
+            .zip(echo.as_deref());
+        let (content_type, body) = build_body(&self.source.write.body, arguments, placement)?;
         if body.is_empty() || body.len() > MAX_BODY_BYTES {
             return Err(GatewayRecipeError::UnsafeTemplate);
         }
@@ -543,12 +654,15 @@ impl CompiledRecipe {
                         .cloned()
                         .ok_or(GatewayRecipeError::ActionMismatch)?,
                     maximum_response_bytes: source.maximum_response_bytes,
+                    echo_pointer: self.source.echo.as_ref().map(|echo| echo.observe.clone()),
                 })
             })
             .transpose()?;
         Ok(ClosedProviderRequest {
             namespace: self.namespace.clone(),
             operation_id,
+            action_commitment,
+            echo,
             method: self.source.write.method,
             url: format!("{}{path}", self.source.origin),
             content_type,
@@ -565,6 +679,8 @@ impl CompiledRecipe {
 pub struct ClosedProviderRequest {
     namespace: OperatorNamespace,
     operation_id: LogicalOperationId,
+    action_commitment: [u8; 32],
+    echo: Option<String>,
     method: WriteMethod,
     url: String,
     content_type: &'static str,
@@ -583,6 +699,16 @@ impl ClosedProviderRequest {
     #[must_use]
     pub const fn operation_id(&self) -> &LogicalOperationId {
         &self.operation_id
+    }
+    /// Returns the commitment of the verified action this request was built from.
+    #[must_use]
+    pub const fn action_commitment(&self) -> &[u8; 32] {
+        &self.action_commitment
+    }
+    /// Returns the echo token written into the body, when the recipe declares one.
+    #[must_use]
+    pub fn echo_token(&self) -> Option<&str> {
+        self.echo.as_deref()
     }
     /// Returns the approved write method.
     #[must_use]
@@ -623,6 +749,19 @@ pub struct ClosedObservationRequest {
     json_pointer: String,
     expected: Value,
     maximum_response_bytes: usize,
+    echo_pointer: Option<String>,
+}
+
+/// Classified read-back. Only an exact echo-token match links the provider
+/// record to the authorized action; nothing here proves absence of an effect.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ReadBack {
+    /// No echo token was found (or none is declared); plain value equality.
+    Value { matched: bool },
+    /// The echo field holds exactly this attempt's token and the value matched.
+    EchoMatched,
+    /// The echo field holds something other than this attempt's token.
+    EchoMismatch,
 }
 
 impl ClosedObservationRequest {
@@ -646,6 +785,55 @@ impl ClosedObservationRequest {
     pub const fn maximum_response_bytes(&self) -> usize {
         self.maximum_response_bytes
     }
+    /// Returns the fixed echo pointer in the observation response, if declared.
+    #[must_use]
+    pub fn echo_pointer(&self) -> Option<&str> {
+        self.echo_pointer.as_deref()
+    }
+
+    /// Classifies bounded response bytes against the verified expected value
+    /// and, when declared, the attempt's echo token. A missing value, or bytes
+    /// that are not JSON, is an unavailable observation.
+    pub(crate) fn read_back(&self, token: Option<&str>, response: &[u8]) -> Option<ReadBack> {
+        if response.len() > self.maximum_response_bytes {
+            return None;
+        }
+        let decoded: Value = serde_json::from_slice(response).ok()?;
+        let matched = decoded.pointer(&self.json_pointer)? == &self.expected;
+        let (Some(pointer), Some(token)) = (self.echo_pointer.as_deref(), token) else {
+            return Some(ReadBack::Value { matched });
+        };
+        Some(match decoded.pointer(pointer) {
+            None | Some(Value::Null) => ReadBack::Value { matched },
+            Some(Value::String(found)) if found == token => {
+                if matched {
+                    ReadBack::EchoMatched
+                } else {
+                    ReadBack::Value { matched: false }
+                }
+            }
+            Some(_) => ReadBack::EchoMismatch,
+        })
+    }
+}
+
+/// Derives the 73-byte echo token for one namespace, logical operation, and
+/// verified action commitment. Anyone who knows those three values can
+/// compute it, so it is a link, not a signature.
+#[must_use]
+pub fn echo_token(
+    namespace: &OperatorNamespace,
+    operation_id: &LogicalOperationId,
+    action_commitment: &[u8; 32],
+) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(ECHO_DOMAIN);
+    hasher.update(namespace.as_str().as_bytes());
+    hasher.update([0]);
+    hasher.update(operation_id.as_str().as_bytes());
+    hasher.update([0]);
+    hasher.update(action_commitment);
+    format!("{ECHO_PREFIX}{}", hex::encode(hasher.finalize()))
 }
 
 fn lower_hex_digest(value: &str) -> bool {
@@ -852,6 +1040,7 @@ fn validate_path(
                 }
                 used.insert(name.clone());
             }
+            PathSegment::Echo => return Err(GatewayRecipeError::EchoConflict),
         }
     }
     Ok(())
@@ -885,6 +1074,7 @@ fn validate_body(
                         validate_value_expr(value, fields, used, 0, &mut nodes)?;
                     }
                     FormExpr::String { .. } => return Err(GatewayRecipeError::UnsafeTemplate),
+                    FormExpr::Echo => return Err(GatewayRecipeError::EchoConflict),
                 }
             }
             Ok(())
@@ -935,8 +1125,88 @@ fn validate_value_expr(
             }
             Ok(())
         }
+        ValueExpr::Echo => Err(GatewayRecipeError::EchoConflict),
         _ => Err(GatewayRecipeError::UnsafeTemplate),
     }
+}
+
+fn valid_response_pointer(pointer: &str) -> bool {
+    pointer.starts_with('/')
+        && pointer.len() <= MAX_POINTER_BYTES
+        && pointer.split('/').skip(1).count() <= 8
+        && !pointer.contains("~2")
+}
+
+fn pointers_overlap(first: &str, second: &str) -> bool {
+    first == second
+        || first
+            .strip_prefix(second)
+            .is_some_and(|rest| rest.starts_with('/'))
+        || second
+            .strip_prefix(first)
+            .is_some_and(|rest| rest.starts_with('/'))
+}
+
+/// The echo must land on a new key inside a fixed JSON object of the body
+/// template: never on a profile argument, a literal, an array element, a
+/// form body, a path segment, or the compared observation value.
+fn validate_echo(
+    echo: &EchoSource,
+    body: &BodySource,
+    observation: &ObservationSource,
+) -> Result<(), GatewayRecipeError> {
+    if !valid_response_pointer(&echo.observe) {
+        return Err(GatewayRecipeError::UnsafeTemplate);
+    }
+    if pointers_overlap(&echo.observe, &observation.json_pointer) {
+        return Err(GatewayRecipeError::EchoConflict);
+    }
+    let BodySource::Json { value } = body else {
+        return Err(GatewayRecipeError::EchoConflict);
+    };
+    let tokens: Vec<&str> = echo
+        .write
+        .strip_prefix('/')
+        .ok_or(GatewayRecipeError::EchoConflict)?
+        .split('/')
+        .collect();
+    if echo.write.len() > MAX_POINTER_BYTES
+        || tokens.len() > MAX_TEMPLATE_DEPTH
+        || !tokens.iter().all(|token| valid_field_name(token))
+    {
+        return Err(GatewayRecipeError::EchoConflict);
+    }
+    let (last, parents) = tokens
+        .split_last()
+        .ok_or(GatewayRecipeError::EchoConflict)?;
+    let mut current = value;
+    for token in parents {
+        let ValueExpr::Object { fields } = current else {
+            return Err(GatewayRecipeError::EchoConflict);
+        };
+        current = fields.get(*token).ok_or(GatewayRecipeError::EchoConflict)?;
+    }
+    match current {
+        ValueExpr::Object { fields } if !fields.contains_key(*last) && fields.len() < 32 => Ok(()),
+        _ => Err(GatewayRecipeError::EchoConflict),
+    }
+}
+
+fn insert_echo(body: &mut Value, pointer: &str, token: &str) -> Result<(), GatewayRecipeError> {
+    let (parent, key) = pointer
+        .rsplit_once('/')
+        .ok_or(GatewayRecipeError::UnsafeTemplate)?;
+    let object = body
+        .pointer_mut(parent)
+        .and_then(Value::as_object_mut)
+        .ok_or(GatewayRecipeError::UnsafeTemplate)?;
+    if object
+        .insert(key.to_owned(), Value::String(token.to_owned()))
+        .is_some()
+    {
+        return Err(GatewayRecipeError::UnsafeTemplate);
+    }
+    Ok(())
 }
 
 fn validate_observation(
@@ -946,10 +1216,7 @@ fn validate_observation(
 ) -> Result<(), GatewayRecipeError> {
     if source.maximum_response_bytes == 0
         || source.maximum_response_bytes > 65_536
-        || !source.json_pointer.starts_with('/')
-        || source.json_pointer.len() > 128
-        || source.json_pointer.split('/').skip(1).count() > 8
-        || source.json_pointer.contains("~2")
+        || !valid_response_pointer(&source.json_pointer)
     {
         return Err(GatewayRecipeError::UnsafeTemplate);
     }
@@ -984,6 +1251,7 @@ fn build_path(
                     }
                 }
             }
+            PathSegment::Echo => return Err(GatewayRecipeError::UnsafePath),
         }
     }
     if path.len() > 8192 {
@@ -995,14 +1263,19 @@ fn build_path(
 fn build_body(
     body: &BodySource,
     arguments: &Map<String, Value>,
+    echo: Option<(&str, &str)>,
 ) -> Result<(&'static str, Vec<u8>), GatewayRecipeError> {
     match body {
         BodySource::Json { value } => {
-            let value = eval_value_expr(value, arguments)?;
+            let mut value = eval_value_expr(value, arguments)?;
+            if let Some((pointer, token)) = echo {
+                insert_echo(&mut value, pointer, token)?;
+            }
             let bytes = serde_json_canonicalizer::to_vec(&value)
                 .map_err(|_| GatewayRecipeError::UnsafeTemplate)?;
             Ok(("application/json", bytes))
         }
+        BodySource::Form { .. } if echo.is_some() => Err(GatewayRecipeError::EchoConflict),
         BodySource::Form { fields } => {
             let mut pairs = form_urlencoded::Serializer::new(String::new());
             for (name, value) in fields {
@@ -1019,6 +1292,7 @@ fn build_body(
                             .map_err(|_| GatewayRecipeError::UnsafeTemplate)?;
                         String::from_utf8(bytes).map_err(|_| GatewayRecipeError::UnsafeTemplate)?
                     }
+                    FormExpr::Echo => return Err(GatewayRecipeError::UnsafeTemplate),
                 };
                 pairs.append_pair(name, &text);
             }
@@ -1052,6 +1326,7 @@ fn eval_value_expr(
             .map(|value| eval_value_expr(value, arguments))
             .collect::<Result<Vec<_>, _>>()
             .map(Value::Array),
+        ValueExpr::Echo => Err(GatewayRecipeError::UnsafeTemplate),
     }
 }
 
@@ -1128,15 +1403,15 @@ mod tests {
                     .and_then(Value::as_array_mut)
                     .expect("array")
                     .push(value);
-            } else if pointer == "/write/headers" {
-                mutated
-                    .as_object_mut()
-                    .and_then(|object| object.get_mut("write"))
-                    .and_then(Value::as_object_mut)
-                    .expect("write")
-                    .insert("headers".into(), value);
+            } else if let Some(existing) = mutated.pointer_mut(pointer) {
+                *existing = value;
             } else {
-                *mutated.pointer_mut(pointer).expect("existing pointer") = value;
+                let (parent, key) = pointer.rsplit_once('/').expect("child pointer");
+                mutated
+                    .pointer_mut(parent)
+                    .and_then(Value::as_object_mut)
+                    .expect("existing parent object")
+                    .insert(key.to_owned(), value);
             }
             let bytes = serde_json::to_vec(&mutated).expect("fixture JSON");
             let result = CompiledRecipe::compile(&bytes, lock).expect_err("hostile recipe");
@@ -1156,17 +1431,126 @@ mod tests {
             }),
         );
         let request = recipe
-            .closed_request_from_arguments(&arguments)
+            .closed_request_from_arguments(&arguments, [5; 32])
             .expect("closed request");
         assert_eq!(request.method(), WriteMethod::Patch);
         assert_eq!(
             request.url(),
             "https://api.airtable.com/v0/appTEST0000000001/tblTEST0000000001/recTEST0000000001"
         );
-        assert_eq!(request.body(), br#"{"fields":{"DemoStatus":"Approved"}}"#);
+        let token = echo_token(
+            recipe.namespace(),
+            &LogicalOperationId::parse("run-123").expect("operation"),
+            &[5; 32],
+        );
+        assert_eq!(request.echo_token(), Some(token.as_str()));
+        assert_eq!(
+            request.body(),
+            format!(r#"{{"fields":{{"DemoStatus":"Approved","auths_echo":"{token}"}}}}"#)
+                .as_bytes()
+        );
         let observation = request.observation().expect("read-back declared");
         assert_eq!(observation.json_pointer(), "/fields/DemoStatus");
         assert_eq!(observation.expected(), "Approved");
+        assert_eq!(observation.echo_pointer(), Some("/fields/auths_echo"));
+    }
+
+    #[test]
+    fn echo_token_is_domain_separated_and_bound_to_every_input() {
+        let namespace = OperatorNamespace::parse("airtable-demo").expect("namespace");
+        let operation = LogicalOperationId::parse("run-1").expect("operation");
+        let token = echo_token(&namespace, &operation, &[1; 32]);
+        let mut preimage = b"auths.gateway-echo/1\0airtable-demo\0run-1\0".to_vec();
+        preimage.extend_from_slice(&[1; 32]);
+        assert_eq!(
+            token,
+            format!("auths-e1-{}", hex::encode(Sha256::digest(&preimage)))
+        );
+        assert_eq!(token.len(), 73);
+        assert_ne!(token, echo_token(&namespace, &operation, &[2; 32]));
+        assert_ne!(
+            token,
+            echo_token(
+                &namespace,
+                &LogicalOperationId::parse("run-2").expect("operation"),
+                &[1; 32]
+            )
+        );
+        assert_ne!(
+            token,
+            echo_token(
+                &OperatorNamespace::parse("other").expect("namespace"),
+                &operation,
+                &[1; 32]
+            )
+        );
+    }
+
+    #[test]
+    fn echo_changes_the_digest_and_is_shown_in_review() {
+        let recipe = compiled("airtable");
+        let review = recipe.review();
+        let echo = review.echo().expect("airtable declares echo");
+        assert_eq!(echo.write(), "/fields/auths_echo");
+        assert_eq!(echo.observe(), "/fields/auths_echo");
+        assert!(echo.disclosure().contains("anyone who can read the record"));
+        assert!(echo.disclosure().contains("secrets"));
+        let (source, lock) = fixture("airtable");
+        let mut without: Value = serde_json::from_slice(source).expect("source");
+        without.as_object_mut().expect("object").remove("echo");
+        let plain = CompiledRecipe::compile(&serde_json::to_vec(&without).expect("source"), lock)
+            .expect("recipe without echo");
+        assert_ne!(plain.digest(), recipe.digest());
+        assert!(plain.review().echo().is_none());
+        for name in ["todoist", "github"] {
+            assert!(compiled(name).review().echo().is_none());
+        }
+    }
+
+    #[test]
+    fn read_back_links_only_an_exact_token_with_the_verified_value() {
+        let recipe = compiled("airtable");
+        let args = arguments(
+            &recipe,
+            &json!({"operation_id": "run-9", "record_id": "recTEST0000000001", "replacement": "Approved"}),
+        );
+        let request = recipe
+            .closed_request_from_arguments(&args, [3; 32])
+            .expect("request");
+        let token = request.echo_token().expect("token");
+        let observation = request.observation().expect("observation");
+        let read = |fields: Value| {
+            observation.read_back(
+                Some(token),
+                &serde_json::to_vec(&json!({"fields": fields})).expect("bytes"),
+            )
+        };
+        assert_eq!(
+            read(json!({"DemoStatus": "Approved", "auths_echo": token})),
+            Some(ReadBack::EchoMatched)
+        );
+        assert_eq!(
+            read(json!({"DemoStatus": "Pending", "auths_echo": token})),
+            Some(ReadBack::Value { matched: false })
+        );
+        assert_eq!(
+            read(json!({"DemoStatus": "Approved", "auths_echo": "auths-e1-other"})),
+            Some(ReadBack::EchoMismatch)
+        );
+        assert_eq!(
+            read(json!({"DemoStatus": "Approved", "auths_echo": 7})),
+            Some(ReadBack::EchoMismatch)
+        );
+        assert_eq!(
+            read(json!({"DemoStatus": "Approved"})),
+            Some(ReadBack::Value { matched: true })
+        );
+        assert_eq!(
+            read(json!({"DemoStatus": "Approved", "auths_echo": null})),
+            Some(ReadBack::Value { matched: true })
+        );
+        assert_eq!(read(json!({"auths_echo": token})), None);
+        assert_eq!(observation.read_back(Some(token), b"not json"), None);
     }
 
     #[test]
@@ -1182,9 +1566,10 @@ mod tests {
             }),
         );
         let request = recipe
-            .closed_request_from_arguments(&arguments)
+            .closed_request_from_arguments(&arguments, [0; 32])
             .expect("closed request");
         assert_eq!(request.method(), WriteMethod::Post);
+        assert_eq!(request.echo_token(), None);
         assert_eq!(request.url(), "https://api.todoist.com/api/v1/sync");
         let form: BTreeMap<String, String> = form_urlencoded::parse(request.body())
             .into_owned()
@@ -1209,7 +1594,9 @@ mod tests {
             .expect("deliberate changed recipe");
         assert_ne!(original.digest(), changed.digest());
         assert_eq!(
-            changed.closed_request_from_arguments(&arguments).err(),
+            changed
+                .closed_request_from_arguments(&arguments, [0; 32])
+                .err(),
             Some(GatewayRecipeError::ActionMismatch)
         );
     }
@@ -1233,7 +1620,7 @@ mod tests {
         ))
         .expect("valid state corpus");
         assert_eq!(fixture["schema"], "auths.gateway-attempt-scenarios/1");
-        assert_eq!(fixture["cases"].as_array().expect("cases").len(), 9);
+        assert_eq!(fixture["cases"].as_array().expect("cases").len(), 19);
         let recipe = compiled("github");
         let args = arguments(
             &recipe,
@@ -1241,7 +1628,7 @@ mod tests {
         );
         let request = Arc::new(
             recipe
-                .closed_request_from_arguments(&args)
+                .closed_request_from_arguments(&args, [7; 32])
                 .expect("request"),
         );
         let temp = tempfile::tempdir().expect("temp directory");
@@ -1254,7 +1641,7 @@ mod tests {
                 let store = Arc::clone(&store);
                 let request = Arc::clone(&request);
                 let digest = *recipe.digest();
-                std::thread::spawn(move || store.claim(&request, [7; 32], digest))
+                std::thread::spawn(move || store.claim(&request, digest))
             })
             .map(|thread| thread.join().expect("thread"))
             .collect();
@@ -1275,7 +1662,7 @@ mod tests {
             .expect("retained claim");
         assert_eq!(snapshot.stage(), GatewayAttemptStage::Unknown);
         assert!(matches!(
-            restarted.claim(&request, [8; 32], *recipe.digest()),
+            restarted.claim(&request, *recipe.digest()),
             Err(GatewayAttemptError::Replay)
         ));
     }
@@ -1288,16 +1675,14 @@ mod tests {
             &json!({"operation_id": "record-1", "record_id": "recTEST0000000001", "replacement": "Approved"}),
         );
         let request = recipe
-            .closed_request_from_arguments(&args)
+            .closed_request_from_arguments(&args, [9; 32])
             .expect("request");
         let temp = tempfile::tempdir().expect("temp directory");
         let root = std::fs::canonicalize(temp.path())
             .expect("canonical temp")
             .join("attempts");
         let store = FileGatewayAttemptStore::open(&root).expect("store");
-        let claim = store
-            .claim(&request, [9; 32], *recipe.digest())
-            .expect("claim");
+        let claim = store.claim(&request, *recipe.digest()).expect("claim");
         let response = claim.record_response(200, [3; 32]).expect("response");
         assert_eq!(
             response.snapshot().expect("snapshot").stage(),
@@ -1313,7 +1698,7 @@ mod tests {
             Some(observed)
         );
         assert!(matches!(
-            store.claim(&request, [9; 32], *recipe.digest()),
+            store.claim(&request, *recipe.digest()),
             Err(GatewayAttemptError::Replay)
         ));
     }

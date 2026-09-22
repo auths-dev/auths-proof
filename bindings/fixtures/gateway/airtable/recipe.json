@@ -37,5 +37,9 @@
     "json_pointer": "/fields/DemoStatus",
     "expected_field": "replacement",
     "maximum_response_bytes": 16384
+  },
+  "echo": {
+    "write": "/fields/auths_echo",
+    "observe": "/fields/auths_echo"
   }
 }

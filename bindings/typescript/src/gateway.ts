@@ -8,6 +8,8 @@ const MAX_ACTION_BYTES = 64 * 1024;
 const MAX_RESPONSE_BYTES = 8 * 1024;
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+const ECHO = /^auths-e1-[0-9a-f]{64}$/;
+const DIGEST = /^[0-9a-f]{64}$/;
 
 /** A socket or bounded gateway response could not be trusted. Never retry a write automatically. */
 export class GatewayProtocolError extends Error {
@@ -29,14 +31,33 @@ export class GatewayEndpoint {
   }
 }
 
-/** Proof decision and transport/observation stages, without effect qualification. */
+/**
+ * Secret-free summary of provider-held read-back evidence. The response bytes and
+ * observation locator stay in the operator's attempt store; `observedAt` is gateway
+ * wall-clock seconds and is not authenticated.
+ */
+export type GatewayProviderEvidence = Readonly<{
+  channel: "read-back";
+  echo: string;
+  evidenceDigest: string;
+  observedAt: number;
+}>;
+
+/**
+ * Proof decision and transport/observation stages, without effect qualification.
+ * `observed-by-provider` means a read-back returned this attempt's echo token and the
+ * verified value; anyone who knows the namespace, operation ID, and action commitment
+ * can compute that token, so the link holds only while no other writer of that
+ * provider field wrote the same token. Its `status` is `null` when the write was unknown.
+ */
 export type GatewayResult =
   | Readonly<{ outcome: "denied"; code: string }>
   | Readonly<{ outcome: "indeterminate"; code: string }>
   | Readonly<{ outcome: "not-entered"; code: string }>
   | Readonly<{ outcome: "unknown" }>
   | Readonly<{ outcome: "response-recorded"; status: number }>
-  | Readonly<{ outcome: "observed"; status: number; matched: boolean }>;
+  | Readonly<{ outcome: "observed"; status: number; matched: boolean }>
+  | Readonly<{ outcome: "observed-by-provider"; status: number | null; evidence: GatewayProviderEvidence }>;
 
 function encodeBase64Url(bytes: Uint8Array): string {
   let encoded = "";
@@ -61,6 +82,28 @@ function exactKeys(value: Record<string, unknown>, expected: readonly string[]):
   return actual.length === expected.length && expected.every((key) => Object.hasOwn(value, key));
 }
 
+function validStatus(status: unknown): status is number {
+  return typeof status === "number" && Number.isInteger(status) && status >= 100 && status <= 599;
+}
+
+function parseEvidence(value: unknown): GatewayProviderEvidence {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new GatewayProtocolError("gateway returned invalid evidence");
+  }
+  const evidence = value as Record<string, unknown>;
+  const { channel, echo, evidence_digest: digest, observed_at: observedAt } = evidence;
+  if (
+    !exactKeys(evidence, ["channel", "echo", "evidence_digest", "observed_at"])
+    || channel !== "read-back"
+    || typeof echo !== "string" || !ECHO.test(echo)
+    || typeof digest !== "string" || !DIGEST.test(digest)
+    || typeof observedAt !== "number" || !Number.isSafeInteger(observedAt) || observedAt < 0
+  ) {
+    throw new GatewayProtocolError("gateway returned invalid evidence");
+  }
+  return { channel, echo, evidenceDigest: digest, observedAt };
+}
+
 function parseResult(bytes: Uint8Array): GatewayResult {
   let decoded: unknown;
   try {
@@ -82,18 +125,24 @@ function parseResult(bytes: Uint8Array): GatewayResult {
   if (outcome === "unknown" && exactKeys(value, ["outcome"])) {
     return { outcome };
   }
+  if (outcome === "observed-by-provider") {
+    if (!exactKeys(value, ["outcome", "status", "evidence"]) || !(value.status === null || validStatus(value.status))) {
+      throw new GatewayProtocolError("gateway returned invalid provider observation");
+    }
+    return { outcome, status: value.status, evidence: parseEvidence(value.evidence) };
+  }
   if (outcome === "response-recorded" || outcome === "observed") {
     const expected = outcome === "observed" ? ["outcome", "status", "matched"] : ["outcome", "status"];
-    if (!exactKeys(value, expected) || typeof value.status !== "number" || !Number.isInteger(value.status) || value.status < 100 || value.status > 599) {
+    if (!exactKeys(value, expected) || !validStatus(value.status)) {
       throw new GatewayProtocolError("gateway returned invalid response stage");
     }
     if (outcome === "response-recorded") {
-      return { outcome, status: value.status as number };
+      return { outcome, status: value.status };
     }
     if (typeof value.matched !== "boolean") {
       throw new GatewayProtocolError("gateway returned invalid observation");
     }
-    return { outcome, status: value.status as number, matched: value.matched };
+    return { outcome, status: value.status, matched: value.matched };
   }
   throw new GatewayProtocolError("gateway returned unknown result stage");
 }

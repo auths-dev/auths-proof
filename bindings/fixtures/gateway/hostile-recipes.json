@@ -13,6 +13,20 @@
     {"id": "body-key-injection", "base": "airtable", "pointer": "/write/body/value/fields/fields/fields/DemoStatus/kind", "value": "raw-json", "code": "gateway.recipe.invalid-source"},
     {"id": "credential-query", "base": "todoist", "pointer": "/credential/kind", "value": "query-api-key", "code": "gateway.recipe.invalid-source"},
     {"id": "extra-header", "base": "github", "pointer": "/write/headers", "value": {"X-Forwarded-Host": "evil.example"}, "code": "gateway.recipe.invalid-source"},
-    {"id": "todoist-extra-command", "base": "todoist", "pointer": "/write/body/fields/commands/value/items/1", "value": {"kind": "object", "fields": {}}, "code": "gateway.recipe.unsafe-template"}
+    {"id": "todoist-extra-command", "base": "todoist", "pointer": "/write/body/fields/commands/value/items/1", "value": {"kind": "object", "fields": {}}, "code": "gateway.recipe.unsafe-template"},
+    {"id": "echo-without-observation", "base": "airtable", "pointer": "/observation", "value": null, "code": "gateway.recipe.echo-without-observation"},
+    {"id": "echo-at-profile-argument-key", "base": "airtable", "pointer": "/echo/write", "value": "/fields/DemoStatus", "code": "gateway.recipe.echo-conflict"},
+    {"id": "echo-at-existing-fixed-key", "base": "airtable", "pointer": "/echo/write", "value": "/fields", "code": "gateway.recipe.echo-conflict"},
+    {"id": "echo-at-non-fixed-key", "base": "airtable", "pointer": "/echo/write", "value": "/fields/DemoStatus/auths_echo", "code": "gateway.recipe.echo-conflict"},
+    {"id": "echo-pointer-not-in-body-template", "base": "airtable", "pointer": "/echo/write", "value": "/missing/auths_echo", "code": "gateway.recipe.echo-conflict"},
+    {"id": "echo-at-body-root", "base": "airtable", "pointer": "/echo/write", "value": "/", "code": "gateway.recipe.echo-conflict"},
+    {"id": "echo-escaped-key", "base": "airtable", "pointer": "/echo/write", "value": "/fields/auths~1echo", "code": "gateway.recipe.echo-conflict"},
+    {"id": "echo-in-write-path", "base": "airtable", "pointer": "/write/path/3", "value": {"kind": "echo"}, "code": "gateway.recipe.echo-conflict"},
+    {"id": "echo-in-observation-path", "base": "airtable", "pointer": "/observation/path/3", "value": {"kind": "echo"}, "code": "gateway.recipe.echo-conflict"},
+    {"id": "duplicate-echo-in-body", "base": "airtable", "pointer": "/write/body/value/fields/fields/fields/Other", "value": {"kind": "echo"}, "code": "gateway.recipe.echo-conflict"},
+    {"id": "echo-observes-compared-value", "base": "airtable", "pointer": "/echo/observe", "value": "/fields/DemoStatus", "code": "gateway.recipe.echo-conflict"},
+    {"id": "echo-observe-not-pointer", "base": "airtable", "pointer": "/echo/observe", "value": "fields/auths_echo", "code": "gateway.recipe.unsafe-template"},
+    {"id": "echo-unknown-key", "base": "airtable", "pointer": "/echo/value", "value": "auths-e1-app-supplied", "code": "gateway.recipe.invalid-source"},
+    {"id": "echo-in-form-body", "base": "todoist", "pointer": "/write/body/fields/extra", "value": {"kind": "echo"}, "code": "gateway.recipe.echo-conflict"}
   ]
 }
