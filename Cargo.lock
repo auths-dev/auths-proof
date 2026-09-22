@@ -575,6 +575,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-gateway"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-profile-mcp",
+ "hex",
+ "serde",
+ "serde_json",
+ "serde_json_canonicalizer",
+ "sha2 0.10.9",
+ "thiserror 2.0.19",
+ "url",
+]
+
+[[package]]
 name = "auths-github"
 version = "1.0.0-rc.1"
 dependencies = [
@@ -844,6 +858,7 @@ dependencies = [
  "auths-did-key",
  "auths-did-web",
  "auths-errors",
+ "auths-gateway",
  "auths-hsm-attested",
  "auths-lifecycle",
  "auths-model",

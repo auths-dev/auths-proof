@@ -31,6 +31,7 @@ digraph auths_architecture {
   "auths-evidence-assemblers" [group="product"];
   "auths-explain" [group="product"];
   "auths-formal-refinement" [group="core"];
+  "auths-gateway" [group="product"];
   "auths-github" [group="product"];
   "auths-hsm-attested" [group="core"];
   "auths-identity" [group="core"];
@@ -221,6 +222,7 @@ digraph auths_architecture {
   "auths-formal-refinement" -> "auths-authority" [label="normal"];
   "auths-formal-refinement" -> "auths-composition" [label="normal"];
   "auths-formal-refinement" -> "auths-model" [label="normal"];
+  "auths-gateway" -> "auths-profile-mcp" [label="normal"];
   "auths-github" -> "auths-bounded-policy" [label="normal"];
   "auths-github" -> "auths-lifecycle" [label="normal"];
   "auths-github" -> "auths-model" [label="normal"];
@@ -294,6 +296,7 @@ digraph auths_architecture {
   "auths-node" -> "auths-did-key" [label="normal"];
   "auths-node" -> "auths-did-web" [label="dev"];
   "auths-node" -> "auths-errors" [label="normal"];
+  "auths-node" -> "auths-gateway" [label="normal"];
   "auths-node" -> "auths-hsm-attested" [label="dev"];
   "auths-node" -> "auths-lifecycle" [label="normal"];
   "auths-node" -> "auths-model" [label="normal"];

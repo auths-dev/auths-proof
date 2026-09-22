@@ -1,0 +1,41 @@
+{
+  "schema": "auths.gateway-recipe-source/1",
+  "profile_schema_digest": "72e60b43ec96354be07e5a3a15e7a12ab6aa19b7042b757ebd05dfadcc5f2a29",
+  "service": "airtable-gateway-demo",
+  "tool": "set_demo_status_v1",
+  "operator_namespace": "airtable-demo",
+  "credential": {"kind": "bearer"},
+  "origin": "https://api.airtable.com",
+  "write": {
+    "method": "PATCH",
+    "path": [
+      {"kind": "fixed", "value": "v0"},
+      {"kind": "fixed", "value": "appTEST0000000001"},
+      {"kind": "fixed", "value": "tblTEST0000000001"},
+      {"kind": "field", "name": "record_id"}
+    ],
+    "body": {
+      "kind": "json",
+      "value": {
+        "kind": "object",
+        "fields": {
+          "fields": {
+            "kind": "object",
+            "fields": {"DemoStatus": {"kind": "field", "name": "replacement"}}
+          }
+        }
+      }
+    }
+  },
+  "observation": {
+    "path": [
+      {"kind": "fixed", "value": "v0"},
+      {"kind": "fixed", "value": "appTEST0000000001"},
+      {"kind": "fixed", "value": "tblTEST0000000001"},
+      {"kind": "field", "name": "record_id"}
+    ],
+    "json_pointer": "/fields/DemoStatus",
+    "expected_field": "replacement",
+    "maximum_response_bytes": 16384
+  }
+}

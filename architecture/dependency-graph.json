@@ -157,6 +157,11 @@
       "path": "core/crates/auths-formal-refinement"
     },
     {
+      "name": "auths-gateway",
+      "layer": "product",
+      "path": "product/runtime/auths-gateway"
+    },
+    {
       "name": "auths-github",
       "layer": "product",
       "path": "product/integrations/auths-github"
@@ -3007,6 +3012,108 @@
       ]
     },
     {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "auths-profile-mcp",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "hex",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "serde",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "derive"
+      ]
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order"
+      ]
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "serde_json_canonicalizer",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "sha2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "thiserror",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "url",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
       "source": "auths-github",
       "source_layer": "product",
       "target": "auths-bounded-policy",
@@ -5087,6 +5194,18 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "auths-gateway",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
       "features": []
     },
     {

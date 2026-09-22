@@ -1,0 +1,38 @@
+[profile]
+name = "todoist-gateway-task-create"
+version = 1
+service = "todoist-gateway-demo"
+tool = "create_task"
+command = "CreateTask"
+
+[arguments]
+type = "object"
+
+[arguments.fields.operator_namespace]
+type = "enum"
+variants = ["todoist-demo"]
+
+[arguments.fields.operation_id]
+type = "string"
+min_bytes = 1
+max_bytes = 128
+
+[arguments.fields.recipe_digest]
+type = "string"
+min_bytes = 64
+max_bytes = 64
+
+[arguments.fields.content]
+type = "string"
+min_bytes = 1
+max_bytes = 256
+
+[arguments.fields.description]
+type = "string"
+min_bytes = 1
+max_bytes = 80
+
+[arguments.fields.temp_id]
+type = "string"
+min_bytes = 36
+max_bytes = 36

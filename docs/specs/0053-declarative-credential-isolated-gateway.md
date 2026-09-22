@@ -227,6 +227,50 @@ and never exports the injected credential in response data or telemetry.
 An untrusted recipe author cannot turn a bound credential into an SSRF or
 credential-exfiltration capability by changing an action field.
 
+#### 3.2.1 First-version source and compiled identity
+
+The first source format is a closed JSON object with schema
+`auths.gateway-recipe-source/1`: `profile_schema_digest`, versioned MCP
+`service`/`tool`, immutable `operator_namespace`, `credential`, `origin`,
+`write`, and optional `observation`. It compiles against the SDK-generated
+`auths.self-hosted-profile-lock/1` (generator format 2), not a caller-supplied
+schema at execution time. The compiler recomputes the lock's schema digest,
+matches service/tool/digest, rejects unknown keys, and parses every source
+node into a typed AST. Source and lock are bounded at 64 KiB each. The
+compiled digest is SHA-256 over `auths.gateway-compiled-recipe/1` followed by
+a NUL byte and RFC 8785 canonical serialization of the validated source.
+Operator approval commits to that digest and to the exact lock digest; it
+does not approve a mutable source file path.
+
+The generated command has required `operator_namespace`, `operation_id`, and
+`recipe_digest` fields. The namespace field is a one-variant enum equal to
+the operator-approved literal; the ID is a 1–128-byte canonical ASCII token;
+the recipe digest is exactly 64 lowercase hexadecimal bytes. The generated
+type and runtime compiler both check these. All other fields in the first
+version are root-level bounded scalar string, enum, integer, or boolean
+nodes. Each must be consumed by the write or observation mapping; an unused
+field is refused rather than silently shown in an approval while having no
+effect. Nested profile fields, nullable fields, dynamic queries, conditional
+omission, runtime-defined header names, and arbitrary JSON passthrough are
+out of this first compiler. This is a deliberately smaller language than the
+self-hosted SDK's full schema vocabulary, not a promise to interpret unknown
+nodes as strings.
+
+`write` has one `POST | PUT | PATCH | DELETE`, 1–16 typed path segments, and
+one fixed-shape JSON or form body. A path segment is either a fixed safe
+literal or a field reference whose verified bounded bytes are percent
+encoded; neither may become a scheme, host, port, query, or extra segment.
+Form fields are fixed keys with bounded literals, scalar references, or
+compiler-serialized JSON; a top-level form-JSON array in this first version
+contains one element, so the Todoist Sync fixture cannot acquire a second
+command. The optional observation is one GET to the same pinned origin with
+a fixed JSON pointer, a verified comparison value, and a response-byte cap.
+It records equality or inequality only, never causation or retry permission.
+The canonical Airtable, Todoist, and GitHub sources and hostile mutations are
+under `bindings/fixtures/gateway/`; the [type map](../product/DEVELOPER_GATEWAY_TYPE_MAP.md)
+states ownership and the deliberately different Airtable self-hosted versus
+gateway semantics.
+
 ### 3.3 Execution and claim truth
 
 The ordered path is verify/project, compare recipe and trust bindings, compile

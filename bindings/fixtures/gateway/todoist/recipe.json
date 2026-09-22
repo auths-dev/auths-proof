@@ -1,0 +1,43 @@
+{
+  "schema": "auths.gateway-recipe-source/1",
+  "profile_schema_digest": "d2929455f9e255caf23629daa0db125c73565a2a55b4db13fbe0fbea731d10f3",
+  "service": "todoist-gateway-demo",
+  "tool": "create_task_v1",
+  "operator_namespace": "todoist-demo",
+  "credential": {"kind": "bearer"},
+  "origin": "https://api.todoist.com",
+  "write": {
+    "method": "POST",
+    "path": [
+      {"kind": "fixed", "value": "api"},
+      {"kind": "fixed", "value": "v1"},
+      {"kind": "fixed", "value": "sync"}
+    ],
+    "body": {
+      "kind": "form",
+      "fields": {
+        "commands": {
+          "kind": "json",
+          "value": {
+            "kind": "array",
+            "items": [{
+              "kind": "object",
+              "fields": {
+                "type": {"kind": "string", "value": "item_add"},
+                "uuid": {"kind": "field", "name": "operation_id"},
+                "temp_id": {"kind": "field", "name": "temp_id"},
+                "args": {
+                  "kind": "object",
+                  "fields": {
+                    "content": {"kind": "field", "name": "content"},
+                    "description": {"kind": "field", "name": "description"}
+                  }
+                }
+              }
+            }]
+          }
+        }
+      }
+    }
+  }
+}

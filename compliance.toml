@@ -1504,6 +1504,28 @@ runtime-enforcement-boundary = [
   "product/runtime/auths-node/src/journal_executor.rs#restart_after_provider_entry_reconciles_without_provider_retry",
 ]
 
+[packages.auths-gateway]
+kind = "cargo"
+layer = "product"
+path = "product/runtime/auths-gateway"
+core_apis = []
+protocol_versions = ["auths.gateway-recipe-source/1", "auths.self-hosted-profile-lock/1"]
+wire_objects = ["CompiledRecipe", "ClosedProviderRequest"]
+fixture_suites = ["bindings/fixtures/gateway"]
+principal_families = []
+signature_families = []
+profiles = ["auths.mcp/2"]
+transports = []
+configuration_inputs = ["operator-approved-recipe", "profile-lock"]
+security_state = ["recipe-digest"]
+
+[packages.auths-gateway.claims]
+closed-request-construction = [
+  "product/runtime/auths-gateway/src/recipe.rs#three_independent_recipes_compile_without_provider_code",
+  "product/runtime/auths-gateway/src/recipe.rs#hostile_recipe_corpus_fails_with_exact_codes",
+  "product/runtime/auths-gateway/src/recipe.rs#github_recipe_change_invalidates_old_authorized_arguments",
+]
+
 [packages.auths-node]
 kind = "cargo"
 layer = "product"
