@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 280,
+  "freezeVersion": 281,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -550,7 +550,7 @@
     },
     {
       "id": "auths.identity.protocol",
-      "version": 74,
+      "version": 75,
       "classification": "frozen-meaning",
       "categories": [
         "identity-protocol-versions",
@@ -573,7 +573,7 @@
         "core/fixtures/identity/v1/vectors.json",
         "core/spec/identity/v1"
       ],
-      "sha256": "84988cf9544a21c14bc4a2ee10d7dd2ee165721f85fec87f7cdbaee184d7f721"
+      "sha256": "ee9cc766d02c2eea33c3d29138aa79c2da673c5783fa2562a3f38e9b0adeb28b"
     },
     {
       "id": "auths.modular-components",
@@ -611,7 +611,7 @@
     },
     {
       "id": "auths.portable-abi-bindings",
-      "version": 99,
+      "version": 100,
       "classification": "frozen-meaning",
       "categories": [
         "portable-abi",
@@ -629,7 +629,7 @@
         "core/crates/auths-model/src/lib.rs",
         "core/spec/v1/auths-proof.cddl"
       ],
-      "sha256": "2a946f8859daaefe29ad60a4fae29421beb1983951f9207675e0f6f8b7a1e8b0"
+      "sha256": "13c3e051e93de4595b1ea7005a48b8121ee625f39cd8c2586ec32106df139da0"
     },
     {
       "id": "auths.product.bounded-domains",
@@ -902,7 +902,7 @@
     },
     {
       "id": "auths.product.public-sdk-contract",
-      "version": 73,
+      "version": 74,
       "classification": "frozen-meaning",
       "categories": [
         "rust-sdk-contract",
@@ -920,7 +920,7 @@
         "product/runtime/auths-runtime/src",
         "product/sdk/auths-sdk/src"
       ],
-      "sha256": "0090d242f21c21c52ee1700ae2aabbae4c0b5573e0dec4e94c3ae65c6c3097aa"
+      "sha256": "58b16e1f014bda31fbff336930b2ba9b54ab12f02154e63d9fd1b6a9e26020a1"
     },
     {
       "id": "auths.product.receipts",
@@ -1017,7 +1017,7 @@
     },
     {
       "id": "auths.release.evolution-contract",
-      "version": 62,
+      "version": 63,
       "classification": "frozen-meaning",
       "categories": [
         "version-axes",
@@ -1038,11 +1038,11 @@
         "release/fixtures/evolution",
         "xtask/src/evolution_policy.rs"
       ],
-      "sha256": "83c89a2ad1e7ad65b7234a9bb5cd99a84cfff97cbec5b786633cdbbf54cdb46a"
+      "sha256": "3c9e1472baae454c26c4c06d18815a21ddfb50ecada8c212b9970926d0e9aca5"
     },
     {
       "id": "auths.release.public-surface",
-      "version": 280,
+      "version": 281,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1134,7 +1134,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "c02ea722d7591c04ed370c2eb014c52425140b130af0cabeaa83992604300e4f"
+      "sha256": "b6a0ef7cf1e3133717da693c90a533c0afdbd39fb685120c6b2d926445bec6e6"
     }
   ]
 }

@@ -39,6 +39,39 @@ pub(crate) enum WriteTransportOutcome {
     ResponseRecorded { status: u16, digest: [u8; 32] },
 }
 
+/// Provider entry used by the execution path. The production implementation
+/// is the pinned HTTPS transport holding one credential lease; tests supply a
+/// counting provider. Neither method may retry a write.
+pub(crate) trait ProviderPort {
+    /// Sends one closed write after a durable claim.
+    async fn write(
+        &self,
+        request: &ClosedProviderRequest,
+    ) -> Result<WriteTransportOutcome, GatewayTransportError>;
+
+    /// Performs one bounded read-only observation and returns its exact bytes.
+    async fn read_back(&self, request: &ClosedObservationRequest) -> Option<Vec<u8>>;
+}
+
+/// The pinned transport paired with the exact credential lease for one call.
+pub(crate) struct LeasedTransport<'a> {
+    pub(crate) transport: &'a GatewayHttpTransport,
+    pub(crate) lease: &'a StoredSecretLease,
+}
+
+impl ProviderPort for LeasedTransport<'_> {
+    async fn write(
+        &self,
+        request: &ClosedProviderRequest,
+    ) -> Result<WriteTransportOutcome, GatewayTransportError> {
+        self.transport.write(request, self.lease).await
+    }
+
+    async fn read_back(&self, request: &ClosedObservationRequest) -> Option<Vec<u8>> {
+        self.transport.read_back(request, self.lease).await
+    }
+}
+
 /// One DNS-pinned, no-proxy, no-redirect client for an operator-approved origin.
 /// An IPv6-only destination is rejected in this first version.
 pub(crate) struct GatewayHttpTransport {
@@ -125,13 +158,14 @@ impl GatewayHttpTransport {
         })
     }
 
-    /// Performs a separate bounded read-only equality check. Failure leaves
-    /// the write stage unchanged and does not license a second write.
-    pub(crate) async fn observe(
+    /// Performs a separate bounded read-only GET and returns the exact 2xx
+    /// response bytes. Failure leaves the write stage unchanged and does not
+    /// license a second write. The bytes are never logged.
+    pub(crate) async fn read_back(
         &self,
         request: &ClosedObservationRequest,
         lease: &StoredSecretLease,
-    ) -> Option<bool> {
+    ) -> Option<Vec<u8>> {
         if !self.owns_url(request.url()) {
             return None;
         }
@@ -147,11 +181,7 @@ impl GatewayHttpTransport {
         if !response.status().is_success() {
             return None;
         }
-        let bytes = read_bounded(&mut response, request.maximum_response_bytes()).await?;
-        let decoded: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
-        decoded
-            .pointer(request.json_pointer())
-            .map(|value| value == request.expected())
+        read_bounded(&mut response, request.maximum_response_bytes()).await
     }
 
     fn owns_url(&self, candidate: &str) -> bool {

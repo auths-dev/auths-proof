@@ -391,6 +391,11 @@ async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
                     "operator_credential_header": credential_header,
                     "maximum_body_bytes": review.maximum_body_bytes(),
                     "has_observation": review.has_observation(),
+                    "echo": review.echo().map(|echo| json!({
+                        "write": echo.write(),
+                        "observe": echo.observe(),
+                        "disclosure": echo.disclosure(),
+                    })),
                     "claim": "closed request construction only; no credential or provider-effect qualification",
                 }))?;
             }

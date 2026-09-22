@@ -1569,25 +1569,33 @@ kind = "cargo"
 layer = "product"
 path = "product/runtime/auths-gateway"
 core_apis = ["auths-codec", "auths-did-keri", "auths-did-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-verifier"]
-protocol_versions = ["auths.gateway-recipe-source/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/1", "auths.self-hosted-profile-lock/1"]
-wire_objects = ["CompiledRecipe", "ClosedProviderRequest", "GatewayAttemptSnapshot", "GatewayConnectionDescriptor", "GatewaySubmitResult"]
+protocol_versions = ["auths.gateway-recipe-source/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/2", "auths.gateway-echo/1", "auths.self-hosted-profile-lock/1"]
+wire_objects = ["CompiledRecipe", "ClosedProviderRequest", "GatewayAttemptSnapshot", "GatewayConnectionDescriptor", "GatewayEvidenceSummary", "GatewayProviderEvidence", "GatewaySubmitResult"]
 fixture_suites = ["bindings/fixtures/gateway"]
 principal_families = []
 signature_families = []
 profiles = ["auths.mcp/2"]
 transports = ["bounded-https"]
 configuration_inputs = ["operator-approved-recipe", "profile-lock", "independently-provisioned-trust", "connection-binding"]
-security_state = ["recipe-digest", "single-host-logical-operation-claims", "credential-reference-generation"]
+security_state = ["recipe-digest", "single-host-logical-operation-claims", "credential-reference-generation", "echo-bound-provider-evidence"]
 
 [packages.auths-gateway.claims]
 configuration-compiler = [
   "product/runtime/auths-gateway/src/recipe.rs#three_independent_recipes_compile_without_provider_code",
   "product/runtime/auths-gateway/src/recipe.rs#hostile_recipe_corpus_fails_with_exact_codes",
   "product/runtime/auths-gateway/src/recipe.rs#github_recipe_change_invalidates_old_authorized_arguments",
+  "product/runtime/auths-gateway/src/recipe.rs#echo_changes_the_digest_and_is_shown_in_review",
+  "product/runtime/auths-gateway/src/recipe.rs#echo_token_is_domain_separated_and_bound_to_every_input",
 ]
 stateful-replay-budget-component = [
   "product/runtime/auths-gateway/src/recipe.rs#durable_claim_is_one_use_across_races_and_restart",
   "product/runtime/auths-gateway/src/recipe.rs#response_and_observation_are_distinct_durable_stages",
+  "product/runtime/auths-gateway/src/recipe.rs#read_back_links_only_an_exact_token_with_the_verified_value",
+  "product/runtime/auths-gateway/src/engine.rs#attempt_scenario_corpus_drives_the_counting_provider",
+  "product/runtime/auths-gateway/src/engine.rs#normal_write_reaches_observed_by_provider_with_secret_free_evidence",
+  "product/runtime/auths-gateway/src/engine.rs#timeout_after_delivery_resolves_on_next_observation_without_second_write",
+  "product/runtime/auths-gateway/src/engine.rs#provider_side_overwrite_records_echo_mismatch",
+  "product/runtime/auths-gateway/src/engine.rs#replay_or_fresh_challenge_makes_no_second_provider_entry",
 ]
 
 [packages.auths-node]

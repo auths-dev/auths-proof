@@ -13,9 +13,27 @@ from auths.gateway import (
     GatewayClient,
     GatewayEndpoint,
     GatewayObserved,
+    GatewayObservedByProvider,
     GatewayProtocolError,
+    GatewayProviderEvidence,
     GatewayUnknown,
 )
+
+_ECHO = "auths-e1-" + "ab" * 32
+_DIGEST = "cd" * 32
+
+
+def _provider_result(status: object = 200, **evidence: object) -> bytes:
+    body = {
+        "channel": "read-back",
+        "echo": _ECHO,
+        "evidence_digest": _DIGEST,
+        "observed_at": 1_790_000_000,
+    }
+    body.update(evidence)
+    return json.dumps(
+        {"outcome": "observed-by-provider", "status": status, "evidence": body}
+    ).encode()
 
 
 @pytest.mark.skipif(
@@ -70,6 +88,31 @@ def test_result_parser_does_not_infer_effect() -> None:
         b'{"outcome":"observed","status":200,"matched":"yes"}',
         b'{"outcome":"response-recorded","status":200,"provider_success":true}',
         b'{"outcome":"success"}',
+    ]:
+        with pytest.raises(GatewayProtocolError):
+            _parse_result(hostile)
+
+
+def test_result_parser_exposes_observed_by_provider_without_evidence_bytes() -> None:
+    from auths.gateway import _parse_result
+
+    evidence = GatewayProviderEvidence("read-back", _ECHO, _DIGEST, 1_790_000_000)
+    assert _parse_result(_provider_result()) == GatewayObservedByProvider(200, evidence)
+    assert _parse_result(_provider_result(None)) == GatewayObservedByProvider(
+        None, evidence
+    )
+    for hostile in [
+        _provider_result(True),
+        _provider_result(99),
+        _provider_result(channel="webhook"),
+        _provider_result(echo="auths-e1-app-supplied"),
+        _provider_result(echo=_ECHO.upper()),
+        _provider_result(evidence_digest="00"),
+        _provider_result(observed_at=-1),
+        _provider_result(observed_at=True),
+        _provider_result(evidence_b64="e30"),
+        b'{"outcome":"observed-by-provider","status":200}',
+        b'{"outcome":"observed-by-provider","status":200,"evidence":[],"confirmed":true}',
     ]:
         with pytest.raises(GatewayProtocolError):
             _parse_result(hostile)

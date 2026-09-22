@@ -1,7 +1,7 @@
 # AP-SPEC-059: Commitment-bound provider evidence
 
-- **Status:** Draft; written on owner direction before its epic starts
-  (board §4, 2026-09-22). Nothing in this document is implemented.
+- **Status:** Steps 1–4 implemented in `product/runtime/auths-gateway` and
+  the gateway clients. Step 5 (live Airtable) is open.
 - **Depends on:** [AP-SPEC-053](0053-declarative-credential-isolated-gateway.md)
   (gateway, recipe compiler, attempt store, and outcome states on draft
   PR #125), [AP-SPEC-057](0057-evidence-program-for-the-exact-action-boundary.md)
@@ -226,6 +226,23 @@ segments exist. That limit is written in the ledger, not hidden.
 | Board: "derive the provider idempotency key from the action commitment" | (a) replace 053's key; (b) keep 053's key and add a commitment carrier | (b), §2 |
 | Board: "provider-signed webhooks/receipts … third-party evidence" | (a) publicly verifiable signatures; (b) provider-held evidence re-checkable by the account owner | (b) now; (a) only where a provider signs asymmetrically (§3.5). Stripe and GitHub webhooks use shared secrets, so they are not (a). |
 | Board: "turns `unknown` into `observed-by-provider`" | (a) always; (b) when the record can be located from verified fields | (b), §3.3 |
+
+
+### 7.1 Readings fixed during implementation
+
+| Question | Reading |
+| --- | --- |
+| What `echo.write` points at | A key in the rendered JSON body (`/fields/auths_echo`). The key must not already exist, and it must sit inside a fixed object of the template. The compiler inserts it. An author-written `echo` value anywhere fails with `gateway.recipe.echo-conflict`. |
+| Codes | `gateway.recipe.echo-without-observation` and `gateway.recipe.echo-conflict`, under the existing `gateway.recipe.` prefix |
+| Token input | The action commitment is hashed as its raw 32 bytes |
+| When a read-back is `observed-by-provider` | The observed token equals this attempt's token **and** the observed value equals the verified value. The token without the value records `observed` with `matched: false`. |
+| A different token after `unknown` | The attempt stays `unknown`, because there is no `unknown → observed` edge. After `response-recorded`, it records `observed` with `matched: false` and the fact `echo-mismatch`. |
+| What counts as an absent token | A missing member or JSON `null`. Any other value that is not the token is a mismatch. |
+| What "next observation" means | A replay submission for the same namespace and operation. It triggers one read-only observation when the recipe declares echo with an unchanged digest, the locator and expected value equal those recorded at claim time, and the stored stage is `unknown` or `response-recorded`. It never writes. The token comes from the stored commitment. |
+| Crashed attempts | A record left in `attempting` is never re-observed, because it cannot be told apart from one in flight. |
+| What the application sees | `observed-by-provider` with status, channel, token, evidence digest, and time. `echo-mismatch`, the locator, and the response bytes stay in the store. |
+| Stored record | Schema `auths.gateway-attempt/2`. Records in the earlier schema are rejected rather than read. |
+| Concurrent re-observations | Two racing re-observations of one file-store record may each record valid evidence, and the last write wins. This fits the single-host scope. |
 
 ## 8. Verification and release boundary
 

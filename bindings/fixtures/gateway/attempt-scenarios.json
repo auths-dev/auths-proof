@@ -9,6 +9,16 @@
     {"id": "ambiguous-transport", "transition": "attempting->unknown", "provider_entries": 1},
     {"id": "matching-read-back", "transition": "response-recorded->observed-match", "provider_entries": 1},
     {"id": "mismatching-read-back", "transition": "response-recorded->observed-mismatch", "provider_entries": 1},
-    {"id": "observation-unavailable", "transition": "response-recorded->response-recorded", "provider_entries": 1}
+    {"id": "observation-unavailable", "transition": "response-recorded->response-recorded", "provider_entries": 1},
+    {"id": "echo-read-back", "transition": "response-recorded->observed-by-provider", "provider_entries": 1},
+    {"id": "echo-overwritten-by-provider", "transition": "response-recorded->observed-mismatch-echo-mismatch", "provider_entries": 1},
+    {"id": "echo-present-value-changed", "transition": "response-recorded->observed-mismatch", "provider_entries": 1},
+    {"id": "timeout-after-delivery-read-back", "transition": "unknown->observed-by-provider", "provider_entries": 1},
+    {"id": "lost-write-echo-absent", "transition": "unknown->unknown", "provider_entries": 1},
+    {"id": "unknown-echo-overwritten", "transition": "unknown->unknown", "provider_entries": 1},
+    {"id": "restart-during-unknown", "transition": "unknown->observed-by-provider", "provider_entries": 1},
+    {"id": "crash-after-entry-not-reobserved", "transition": "attempting->unknown-on-restart", "provider_entries": 1},
+    {"id": "changed-action-during-unknown", "transition": "unknown->unknown", "provider_entries": 1},
+    {"id": "fresh-challenge-after-observed-by-provider", "transition": "observed-by-provider->observed-by-provider", "provider_entries": 1}
   ]
 }

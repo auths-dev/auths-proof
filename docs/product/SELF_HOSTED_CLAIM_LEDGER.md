@@ -99,6 +99,45 @@ network boundary plus observed provider state. They still do not establish
 production signing/trust custody, provider-qualified effects, exclusive
 causation, multi-host claims, or protection from a separate app-held token.
 
+## Commitment-bound provider evidence (AP-SPEC-059, repository-local only)
+
+The gateway can now write an echo token into one recipe-declared provider
+field and report `observed-by-provider`. The token is
+`auths-e1-` followed by the lowercase hex SHA-256 of
+`auths.gateway-echo/1`, NUL, the namespace, NUL, the logical operation ID,
+NUL, and the verified action commitment stored in the attempt record. The
+application never supplies it. The Airtable fixture recipe declares
+`/fields/auths_echo`; Todoist and GitHub do not.
+
+**Claim.** When the gateway reports `observed-by-provider`, the provider
+returned, over the pinned TLS origin and under the gateway-held credential,
+a record whose echo field equals the token for this namespace, logical
+operation, and action commitment. The link to the authorization is only as
+strong as the premise that no other party with write access to that
+provider field wrote the same token.
+
+**Not a claim.** The token is not a signature: anyone who knows the
+namespace, operation ID, and commitment can compute it, and the application
+knows all three, so an application that keeps another provider credential
+can forge the link (the same alternate-credential premise as the gateway
+section above). The TLS read-back cannot be shown to others; what is new is
+that the account owner or an auditor can re-read the provider record with
+their own access and find the token without trusting the gateway's store.
+Not finding the token never proves that the write did not happen. Provider
+business meaning stays unqualified.
+
+Current evidence is repository-local unit tests against a synthetic
+counting provider and the file attempt store: a normal write, a timeout
+after delivery resolved by a later read-only observation, a provider-side
+overwrite recorded as `echo-mismatch`, and replay or fresh challenges that
+make no second provider entry. **The live Airtable run has not been done**,
+no hosted CI result is cited here, and no document may yet describe gateway
+outcomes as bound to real provider records. An `unknown` Todoist create
+stays unresolved (it is `response-recorded` or `observed` at best) until
+the recipe language has typed query segments. A crashed `attempting` record
+is not re-observed, because it cannot be told apart from an in-flight
+attempt.
+
 ## Packaged clean-consumer exercise
 
 Exercised at auths-proof commit
