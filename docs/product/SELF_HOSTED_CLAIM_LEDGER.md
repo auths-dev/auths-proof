@@ -32,20 +32,35 @@ operation once, and distinguishes `not-entered`, `unknown`,
 response is not provider-effect confirmation; even matching read-back is not
 exclusive causation. The first file claim store is single-host only.
 
-This is **not yet** a production-qualified or non-bypassable product claim.
-The separate Unix process and admin/app sockets still require hosted green
-tests, a documented distinct-UID deployment in which the app cannot read the
-gateway credential or reach the admin socket, egress and hostile-action
-evidence, and production-style independent trust. The SDK clients
-alone establish none of those deployment facts. An app that retains a
-separate provider token can still bypass Auths.
+This is **not** a production-qualified or universal non-bypassability claim.
+Relative to the one credential bound to the exercised Docker deployment, the
+distinct application UID cannot read or use that credential except by
+submitting proof/action bytes to the gateway's restricted socket. The trusted
+host operator and Docker daemon can change the deployment, and an app that
+retains another provider token can still bypass Auths. The exercised trust is
+development testkit trust, the provider is synthetic, and the attempt store is
+single-host; none of those facts establish production custody, provider
+semantics, multi-host exclusion, or provider effect.
 
 The operator installer parses the supplied trusted-context bytes and refuses
 malformed input before creating credential state. This checks structure, not
 that the trust was provisioned independently or that a signer has durable
-custody. A hosted distinct-UID doctor probe is required to establish only the
-local filesystem/socket boundary; it cannot detect a separate app-held token
-or prove outbound network isolation.
+custody. The distinct-UID doctor establishes only the tested local
+filesystem/socket boundary; it cannot detect a separate app-held token.
+
+Field-lab commit `fbbeb58` records the
+[`auths.gateway-hostile-suite-evidence/1`](https://github.com/auths-dev/auths-field-lab/blob/fbbeb58/prototypes/gateway-isolation/evidence/hostile-suite.json)
+run against auths-proof `90973d64`. The app ran as UID 10002 with no network,
+credential environment, gateway-state mount, admin socket, or Docker socket;
+the gateway ran as UID 10001 on an internal network whose only provider was a
+TLS counting service under UID 10003. A synthetic credential was installed
+only in gateway state. Forged proof, altered action, direct provider access,
+a competing gateway, replay, a fresh valid challenge for the same logical
+operation, a two-request race, and retry after crash/restart produced three
+deliberately authorized entries and **zero additional unauthorized provider
+entries**. The fresh-challenge case used a test-only operator context rotation
+while retaining recipe, credential, claim state, and logical operation ID; it
+is replay evidence, not a public trust-rotation API.
 
 On 2026-09-22, the developer-owned Airtable and Todoist gateway recipes made
 live calls through the field-lab `run-demo.sh` gateway mode using the packaged
@@ -59,8 +74,11 @@ not independent production trust, credential unreadability by a distinct app
 identity, provider-qualified effects, or exclusive causation. An earlier
 same-run Airtable submission exposed a blocking-client runtime panic before
 any durable claim or provider write; the transport was changed to bounded
-async I/O before the successful fresh run. The repaired revision still needs
-hosted CI and hostile deployment evidence.
+async I/O before the successful fresh run. Auths-proof `90973d64` subsequently
+passed [exact-tip hosted CI](https://github.com/auths-dev/auths-proof/actions/runs/35690791146),
+and the hostile deployment evidence above exercised the repaired revision.
+The live vendor calls remain same-UID mechanics evidence; they have not been
+repeated with real credentials inside the distinct-UID Docker deployment.
 
 ## Packaged clean-consumer exercise
 
