@@ -46,7 +46,7 @@ fn sign(label: &str) -> Result<(), String> {
     let key = load_key(&home, label).map_err(|error| error.to_string())?;
     let delegation = load_delegation(&home, label).map_err(|error| error.to_string())?;
     check_coverage(&delegation, &payload, &repository, now()).map_err(|error| error.to_string())?;
-    let envelope = sign_payload(&payload, &repository, &key, &delegation)
+    let envelope = sign_payload(&payload, &repository, &key, &delegation, now())
         .map_err(|error| error.to_string())?;
     let mut stdout = std::io::stdout().lock();
     stdout

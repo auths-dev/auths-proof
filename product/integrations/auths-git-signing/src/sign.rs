@@ -22,7 +22,7 @@ use auths_codec::{
 use auths_model::{
     ActionEnvelope, Audience, AuthorizationPlan, BundleHeader, Challenge, ChannelBindingId,
     ControlBinding, CriticalExtensions, EvidenceObject, PrincipalId, ProofBundle, ProofRef,
-    SignatureBytes, SignatureDescriptor, SignedGrant, StatementRef,
+    SignatureBytes, SignatureDescriptor, SignedGrant, StatementRef, Timestamp, ValidityWindow,
 };
 use thiserror::Error;
 
@@ -38,7 +38,11 @@ pub trait GitProofSigner {
     /// The principal method, verification method, and signature suite.
     fn descriptor(&self) -> SignatureDescriptor;
     /// Evidence that lets a verifier establish control of the principal.
-    fn control_evidence(&self) -> EvidenceObject;
+    /// Some methods need more than one object, such as a token and a key
+    /// descriptor, or a certificate chain and a transparency-log entry. It
+    /// is requested after [`GitProofSigner::sign`], so a method may produce
+    /// evidence that depends on the signature.
+    fn control_evidence(&self) -> Vec<EvidenceObject>;
     /// Signs exactly `preimage`.
     ///
     /// # Errors
@@ -179,18 +183,25 @@ pub fn check_coverage(
     }
 }
 
-/// Signs `payload` for `repository` as `signer`, under `delegation`.
+/// Signs `payload` for `repository` as `signer`, under `delegation`, at
+/// `signed_at` (Unix seconds).
+///
+/// The action is valid from `signed_at` until the terminal grant expires.
+/// Methods that check signing time against their own evidence, such as a
+/// transparency-log integration time, see the true signing time.
 ///
 /// # Errors
 ///
-/// Returns a [`SignError`] when the action, delegation, signer, or proof
-/// assembly fails. The signer is called exactly once, and only after every
-/// other input has been validated.
+/// Returns [`SignError::NotCovered`] when `signed_at` is outside the terminal
+/// grant, and another [`SignError`] when the action, delegation, signer, or
+/// proof assembly fails. The signer is called exactly once, and only after
+/// every other input has been validated.
 pub fn sign_payload(
     payload: &UnsignedPayload,
     repository: &RepositoryId,
     signer: &dyn GitProofSigner,
     delegation: &Delegation,
+    signed_at: u64,
 ) -> Result<GitSignatureEnvelope, SignError> {
     let action = GitSignatureAction::for_payload(repository, payload)?;
     let canonical = action.canonical_action()?;
@@ -199,6 +210,12 @@ pub fn sign_payload(
     if terminal.statement().subject() != &actor {
         return Err(SignError::GrantSubjectMismatch);
     }
+    let grant_window = terminal.statement().validity();
+    if !grant_window.contains(Timestamp::new(signed_at)) {
+        return Err(SignError::NotCovered);
+    }
+    let validity = ValidityWindow::new(Timestamp::new(signed_at), grant_window.expires_at())
+        .map_err(|_| SignError::NotCovered)?;
     let digest = payload.digest();
     let proof_ref = ProofRef::new(digest);
     let plan = AuthorizationPlan::proof(proof_ref);
@@ -211,7 +228,7 @@ pub fn sign_payload(
         None,
         Audience::parse(&repository.audience()).map_err(|_| SignError::Assembly)?,
         Challenge::new(digest),
-        terminal.statement().validity(),
+        validity,
         actor,
         Some(grant_id(terminal.statement()).map_err(|_| SignError::Assembly)?),
         plan_id(&plan).map_err(|_| SignError::Assembly)?,
@@ -239,13 +256,15 @@ pub fn sign_payload(
         );
     }
     let signer_evidence = signer.control_evidence();
-    push_unique(&mut evidence, &signer_evidence);
+    for item in &signer_evidence {
+        push_unique(&mut evidence, item);
+    }
     bindings.push(
         ControlBinding::new(
             StatementRef::Action(
                 action_id(action_statement.envelope()).map_err(|_| SignError::Assembly)?,
             ),
-            vec![signer_evidence.id()],
+            signer_evidence.iter().map(EvidenceObject::id).collect(),
         )
         .map_err(|_| SignError::Assembly)?,
     );

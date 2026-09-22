@@ -219,13 +219,14 @@ fn trust_init(root: &str, repo: &str, out: &Path, valid_for: u64) -> Result<(), 
     let root = load_key(&home, root).map_err(fail)?;
     let repo = repository(repo)?;
     let methods = EnabledMethods::new().map_err(fail)?;
-    let context = methods.with_sets(|methods, suites| {
+    let context = methods.with_sets(|methods, suites, claims| {
         repository_trust(
             &root.principal(),
             &PrincipalMethodId::parse(DID_KEY_V1).map_err(fail)?,
             &repo,
             methods,
             suites,
+            claims,
             window_from(now().saturating_sub(60), valid_for).map_err(fail)?,
         )
         .map_err(fail)

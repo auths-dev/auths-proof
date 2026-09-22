@@ -164,8 +164,8 @@ impl GitProofSigner for SoftwareKey {
         self.descriptor.clone()
     }
 
-    fn control_evidence(&self) -> EvidenceObject {
-        self.control.clone()
+    fn control_evidence(&self) -> Vec<EvidenceObject> {
+        vec![self.control.clone()]
     }
 
     fn sign(&self, preimage: &[u8]) -> Result<SignatureBytes, SignError> {

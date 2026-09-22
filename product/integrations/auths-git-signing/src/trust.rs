@@ -8,6 +8,7 @@
 //! can see.
 
 use crate::action::{RepositoryId, SIGN_COMMIT, SIGN_TAG};
+use crate::claims::registries;
 use crate::revoke::REVOKE_GRANT;
 use crate::sign::{Delegation, DelegationLink, GitProofSigner, SignError};
 use auths_author::prepare_grant;
@@ -20,8 +21,8 @@ use auths_model::{
     StatusSnapshotId, Timestamp, TrustAnchor, TrustAnchorId, TrustedContext, ValidityWindow,
     VerifierLimits,
 };
-use auths_ports::{PrincipalMethod, SignatureSuite};
-use auths_registries::{ImmutableRegistries, TARGET_V1_REGISTRY_MANIFEST};
+use auths_ports::{AssuranceClaimRule, PrincipalMethod, SignatureSuite};
+use auths_registries::TARGET_V1_REGISTRY_MANIFEST;
 use thiserror::Error;
 
 use crate::action::{PROFILE_ID, PROFILE_VERSION};
@@ -75,6 +76,10 @@ pub enum TrustBuildError {
     /// Signing the grant failed.
     #[error("could not sign the grant: {0}")]
     Sign(#[from] SignError),
+    /// A grant issuer must establish control with exactly one evidence
+    /// object, as self-certifying roots do.
+    #[error("a grant issuer must present exactly one evidence object")]
+    RootEvidence,
 }
 
 fn model<T, E>(result: Result<T, E>) -> Result<T, TrustBuildError> {
@@ -108,9 +113,10 @@ fn audience(repository: &RepositoryId) -> Result<Audience, TrustBuildError> {
 
 /// Builds the trusted context for `repository`, pinned to `root`.
 ///
-/// `root_method` is the principal method of the root itself. `methods` and
-/// `suites` are the executable sets every verifier of this trust will run;
-/// their configuration commitment is bound into the context.
+/// `root_method` is the principal method of the root itself. `methods`,
+/// `suites`, and `claims` are the executable sets every verifier of this
+/// trust will run; their configuration commitment is bound into the context,
+/// and every claim rule's identifier is accepted.
 ///
 /// # Errors
 ///
@@ -121,9 +127,10 @@ pub fn repository_trust(
     repository: &RepositoryId,
     methods: &[&dyn PrincipalMethod],
     suites: &[&dyn SignatureSuite],
+    claims: &[&dyn AssuranceClaimRule],
     validity: ValidityWindow,
 ) -> Result<TrustedContext, TrustBuildError> {
-    let configuration = model(ImmutableRegistries::new(methods, suites))?.configuration_id();
+    let configuration = model(registries(methods, suites, claims))?.configuration_id();
     let method_ids: Vec<PrincipalMethodId> =
         methods.iter().map(|method| method.id().clone()).collect();
     let evidence_types = method_ids
@@ -161,10 +168,13 @@ pub fn repository_trust(
         evidence_types,
         Vec::new(),
         Vec::new(),
-        vec![
-            model(AssuranceClaimId::parse("offline-verifiable"))?,
-            model(AssuranceClaimId::parse("self-certifying-identifier"))?,
-        ],
+        [
+            model(AssuranceClaimId::parse("offline-verifiable")),
+            model(AssuranceClaimId::parse("self-certifying-identifier")),
+        ]
+        .into_iter()
+        .chain(claims.iter().map(|claim| Ok(claim.id().clone())))
+        .collect::<Result<Vec<_>, _>>()?,
         Vec::new(),
         vec![model(ResourceMatcherId::parse("uri-namespace-v1"))?],
         Vec::new(),
@@ -244,9 +254,11 @@ pub fn issue_grant(
     let request = model(prepare_grant(statement, root.descriptor()))?;
     let signature = root.sign(request.signing_preimage())?;
     let grant = request.complete(signature);
+    let [issuer_evidence] =
+        <[_; 1]>::try_from(root.control_evidence()).map_err(|_| TrustBuildError::RootEvidence)?;
     Ok(Delegation::new(vec![DelegationLink::new(
         grant,
-        root.control_evidence(),
+        issuer_evidence,
     )])?)
 }
 

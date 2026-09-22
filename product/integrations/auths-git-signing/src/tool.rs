@@ -19,13 +19,14 @@
 //! ```
 
 use crate::action::RepositoryId;
+use crate::claims::{RegisteredClaim, registries};
 use crate::custody::{CustodyError, SoftwareKey};
 use crate::files::decode_delegation;
 use crate::sign::Delegation;
 use crate::verify::{GitTrust, TrustError};
 use auths_did_key::DidKeyMethod;
 use auths_model::Timestamp;
-use auths_ports::{PrincipalMethod, SignatureSuite};
+use auths_ports::{AssuranceClaimRule, PrincipalMethod, SignatureSuite};
 use auths_registries::ImmutableRegistries;
 use auths_signature::Ed25519Suite;
 use std::ffi::OsStr;
@@ -316,6 +317,7 @@ fn read_bounded(path: &Path, limit: usize) -> Result<Vec<u8>, ToolError> {
 pub struct EnabledMethods {
     did_key: DidKeyMethod,
     ed25519: Ed25519Suite,
+    claims: Vec<RegisteredClaim>,
 }
 
 impl EnabledMethods {
@@ -330,17 +332,27 @@ impl EnabledMethods {
         Ok(Self {
             did_key: DidKeyMethod::new().map_err(invalid)?,
             ed25519: Ed25519Suite::new().map_err(invalid)?,
+            claims: Vec::new(),
         })
     }
 
-    /// Runs `use_sets` with the method and suite slices.
+    /// Runs `use_sets` with the method, suite, and claim-rule slices.
     pub fn with_sets<R>(
         &self,
-        use_sets: impl FnOnce(&[&dyn PrincipalMethod], &[&dyn SignatureSuite]) -> R,
+        use_sets: impl FnOnce(
+            &[&dyn PrincipalMethod],
+            &[&dyn SignatureSuite],
+            &[&dyn AssuranceClaimRule],
+        ) -> R,
     ) -> R {
         let methods = [&self.did_key as &dyn PrincipalMethod];
         let suites = [&self.ed25519 as &dyn SignatureSuite];
-        use_sets(&methods, &suites)
+        let claims: Vec<&dyn AssuranceClaimRule> = self
+            .claims
+            .iter()
+            .map(|claim| claim as &dyn AssuranceClaimRule)
+            .collect();
+        use_sets(&methods, &suites, &claims)
     }
 
     /// Runs `check` with the executable registries.
@@ -352,8 +364,8 @@ impl EnabledMethods {
         &self,
         check: impl FnOnce(&ImmutableRegistries<'_>) -> R,
     ) -> Result<R, ToolError> {
-        self.with_sets(|methods, suites| {
-            ImmutableRegistries::new(methods, suites)
+        self.with_sets(|methods, suites, claims| {
+            registries(methods, suites, claims)
                 .map(|registries| check(&registries))
                 .map_err(|_| ToolError::State("could not assemble registries".to_owned()))
         })

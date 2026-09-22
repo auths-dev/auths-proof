@@ -32,8 +32,8 @@ use auths_codec::{
 use auths_model::{
     ActionEnvelope, Audience, AuthorizationPlan, BundleHeader, CanonicalAction, CapabilityId,
     Challenge, ChannelBindingId, CompositionRequirement, ControlBinding, CriticalExtensions,
-    GrantId, MediaType, Permission, ProfileId, ProfileRef, ProofBundle, ProofRef, ResourceId,
-    StatementRef, Timestamp, TrustedContext, ValidityWindow,
+    EvidenceObject, GrantId, MediaType, Permission, ProfileId, ProfileRef, ProofBundle, ProofRef,
+    ResourceId, StatementRef, Timestamp, TrustedContext, ValidityWindow,
 };
 use auths_registries::ImmutableRegistries;
 use auths_verifier::{VerificationOutcome, verify};
@@ -158,7 +158,7 @@ pub fn sign_revocation(
     let evidence = revoker.control_evidence();
     let binding = ControlBinding::new(
         StatementRef::Action(action_id(statement.envelope()).map_err(|_| SignError::Assembly)?),
-        vec![evidence.id()],
+        evidence.iter().map(EvidenceObject::id).collect(),
     )
     .map_err(|_| SignError::Assembly)?;
     let bundle = ProofBundle::new(
@@ -166,7 +166,7 @@ pub fn sign_revocation(
         Vec::new(),
         vec![statement],
         plan,
-        vec![evidence],
+        evidence,
         vec![binding],
         Vec::new(),
         Vec::new(),

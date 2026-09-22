@@ -20,6 +20,7 @@
 #![forbid(unsafe_code)]
 
 pub mod action;
+pub mod claims;
 pub mod custody;
 pub mod envelope;
 pub mod files;

@@ -92,9 +92,9 @@ fn path(path: &Path) -> &str {
     path.to_str().expect("utf-8 path")
 }
 
-#[test]
-fn delegated_agent_signs_headlessly_and_revocation_denies_it() {
-    let journey = Journey::new();
+/// Initializes the repository, pins trust on `main`, and grants the agent.
+/// Returns the agent's principal.
+fn prepared(journey: &Journey) -> String {
     journey.git_ok(&["init", "-q", "-b", "main"]);
     for (key, value) in [
         ("user.name", "Agent"),
@@ -145,7 +145,10 @@ fn delegated_agent_signs_headlessly_and_revocation_denies_it() {
     ]);
     assert!(issued.starts_with("grant "));
     journey.auths_ok(&["install-grant", "--label", "agent", path(&journey.grant)]);
+    agent.to_owned()
+}
 
+fn sign_and_verify(journey: &Journey, agent: &str) {
     // Headless signing on a feature branch: no prompt, no re-signing.
     journey.git_ok(&["switch", "-q", "-c", "feature"]);
     journey.write("a");
@@ -162,7 +165,9 @@ fn delegated_agent_signs_headlessly_and_revocation_denies_it() {
     let json = journey.auths_ok(&["verify", "v1.0.0", "--trust-from-ref", "main", "--json"]);
     assert!(json.contains("\"tag_name\":\"v1.0.0\""), "{json}");
     assert!(json.contains("\"trusted_context_sha256\""), "{json}");
+}
 
+fn refuse_self_trust_and_unsigned(journey: &Journey) {
     // A pull request cannot supply its own trust.
     let own_trust = journey.auths(&["verify", "main..feature", "--trust-from-ref", "feature"]);
     assert_eq!(own_trust.status.code(), Some(2));
@@ -174,7 +179,10 @@ fn delegated_agent_signs_headlessly_and_revocation_denies_it() {
     let unsigned = journey.auths(&["verify", "main..feature", "--trust-from-ref", "main"]);
     assert_eq!(unsigned.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&unsigned.stdout).contains("denied  git.unsigned"));
+}
 
+fn revoke_and_deny(journey: &Journey) {
+    let trust_dir = journey.trust_dir();
     // The root revokes the grant on the protected branch.
     journey.git_ok(&["switch", "-q", "main"]);
     let revocation = trust_dir.join("revocations/agent.sig");
@@ -200,7 +208,9 @@ fn delegated_agent_signs_headlessly_and_revocation_denies_it() {
         String::from_utf8_lossy(&revoked.stdout)
     );
     assert!(!journey.git(&["verify-tag", "v1.0.0"]).status.success());
+}
 
+fn commit_only_key_cannot_tag(journey: &Journey) {
     // A key whose grant covers only commits cannot sign a tag, and Git
     // creates no tag when the signer refuses.
     let committer = journey.auths_ok(&["key", "init", "--label", "committer"]);
@@ -244,4 +254,14 @@ fn delegated_agent_signs_headlessly_and_revocation_denies_it() {
         path(&journey.grant),
     ]);
     assert_eq!(wrong.status.code(), Some(2));
+}
+
+#[test]
+fn delegated_agent_signs_headlessly_and_revocation_denies_it() {
+    let journey = Journey::new();
+    let agent = prepared(&journey);
+    sign_and_verify(&journey, &agent);
+    refuse_self_trust_and_unsigned(&journey);
+    revoke_and_deny(&journey);
+    commit_only_key_cannot_tag(&journey);
 }

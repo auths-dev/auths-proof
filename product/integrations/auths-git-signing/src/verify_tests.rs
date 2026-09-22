@@ -69,18 +69,24 @@ impl GitProofSigner for DidKeySigner {
         )
     }
 
-    fn control_evidence(&self) -> EvidenceObject {
+    fn control_evidence(&self) -> Vec<EvidenceObject> {
+        vec![self.single_evidence()]
+    }
+
+    fn sign(&self, preimage: &[u8]) -> Result<SignatureBytes, SignError> {
+        SignatureBytes::new(self.key.sign(preimage).to_bytes().to_vec())
+            .map_err(|_| SignError::Signer)
+    }
+}
+
+impl DidKeySigner {
+    fn single_evidence(&self) -> EvidenceObject {
         auths_author::address_evidence(
             EvidenceTypeId::parse(DID_KEY_V1).expect("evidence type"),
             MediaType::parse(DID_KEY_MEDIA_TYPE).expect("media type"),
             self.evidence.encode().expect("evidence"),
         )
         .expect("addressed evidence")
-    }
-
-    fn sign(&self, preimage: &[u8]) -> Result<SignatureBytes, SignError> {
-        SignatureBytes::new(self.key.sign(preimage).to_bytes().to_vec())
-            .map_err(|_| SignError::Signer)
     }
 }
 
@@ -142,7 +148,7 @@ fn delegate(
         .sign(request.signing_preimage())
         .expect("grant signature");
     let grant: SignedGrant = request.complete(signature);
-    Delegation::new(vec![DelegationLink::new(grant, root.control_evidence())]).expect("chain")
+    Delegation::new(vec![DelegationLink::new(grant, root.single_evidence())]).expect("chain")
 }
 
 fn full_delegation(root: &DidKeySigner, agent: &DidKeySigner) -> Delegation {
@@ -273,8 +279,8 @@ impl World {
 
     fn sign(&self, payload: &[u8], delegation: &Delegation) -> (UnsignedPayload, Vec<u8>) {
         let payload = UnsignedPayload::parse(payload.to_vec()).expect("payload");
-        let envelope =
-            sign_payload(&payload, &repository(), &self.agent, delegation).expect("signature");
+        let envelope = sign_payload(&payload, &repository(), &self.agent, delegation, NOW - 60)
+            .expect("signature");
         (payload, envelope.to_armored().into_bytes())
     }
 
@@ -425,7 +431,7 @@ fn signing_refuses_a_grant_issued_to_someone_else() {
     let delegation = full_delegation(&world.root, &other);
     let payload = UnsignedPayload::parse(COMMIT.to_vec()).expect("payload");
     assert_eq!(
-        sign_payload(&payload, &repository(), &world.agent, &delegation).err(),
+        sign_payload(&payload, &repository(), &world.agent, &delegation, NOW).err(),
         Some(SignError::GrantSubjectMismatch)
     );
 }

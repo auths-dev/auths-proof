@@ -58,6 +58,7 @@ impl Operator {
             &self.repository,
             &methods,
             &suites,
+            &[],
             window_from(NOW - 60, 365 * 86_400).expect("window"),
         )
         .expect("trust");
@@ -97,9 +98,15 @@ fn a_grant_file_moves_from_root_to_agent_and_signs_commits() {
     assert_eq!(encode_delegation(&installed).expect("re-encode"), file);
 
     let payload = UnsignedPayload::parse(COMMIT.to_vec()).expect("payload");
-    let signature = sign_payload(&payload, &operator.repository, &operator.agent, &installed)
-        .expect("sign")
-        .to_armored();
+    let signature = sign_payload(
+        &payload,
+        &operator.repository,
+        &operator.agent,
+        &installed,
+        NOW - 30,
+    )
+    .expect("sign")
+    .to_armored();
     let trust = operator.trust(&[]).expect("trust");
     let GitVerification::Verified(verified) =
         operator.verify(&trust, &payload, signature.as_bytes())
@@ -122,9 +129,15 @@ fn revocation_by_the_root_denies_the_revoked_grant() {
     )
     .expect("grant");
     let payload = UnsignedPayload::parse(COMMIT.to_vec()).expect("payload");
-    let signature = sign_payload(&payload, &operator.repository, &operator.agent, &delegation)
-        .expect("sign")
-        .to_armored();
+    let signature = sign_payload(
+        &payload,
+        &operator.repository,
+        &operator.agent,
+        &delegation,
+        NOW - 30,
+    )
+    .expect("sign")
+    .to_armored();
     let revoked = grant_id(delegation.terminal().expect("terminal").statement()).expect("id");
     let record = sign_revocation(&operator.repository, revoked, &operator.root, NOW - 1)
         .expect("revocation")
