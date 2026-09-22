@@ -1,0 +1,67 @@
+name: Git signing branch-protection action
+
+# Self-test of .github/actions/verify-git-signatures: it must pass on a range
+# of agent-signed commits and fail when the range contains an unsigned one.
+on:
+  pull_request:
+    paths:
+      - .github/actions/verify-git-signatures/**
+      - .github/scripts/git-signing-scratch-repo.sh
+      - .github/workflows/git-signing-action.yml
+      - product/integrations/auths-git-signing/**
+  push:
+    branches: [main]
+    paths:
+      - .github/actions/verify-git-signatures/**
+      - .github/scripts/git-signing-scratch-repo.sh
+      - .github/workflows/git-signing-action.yml
+      - product/integrations/auths-git-signing/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  action-self-test:
+    name: verify-git-signatures self-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+          compiler-cache: "false"
+      - name: Build auths-git and auths-git-sign
+        run: cargo build --locked --release -p auths-git-signing --bins
+      - name: Build the scratch repository
+        run: .github/scripts/git-signing-scratch-repo.sh "$GITHUB_WORKSPACE/target/release" "$RUNNER_TEMP/scratch"
+
+      - name: Agent-signed range passes
+        uses: ./.github/actions/verify-git-signatures
+        with:
+          base: main
+          head: signed
+          binary: ${{ github.workspace }}/target/release/auths-git
+          working-directory: ${{ runner.temp }}/scratch
+
+      - name: Range with an unsigned commit fails
+        id: unsigned
+        continue-on-error: true
+        uses: ./.github/actions/verify-git-signatures
+        with:
+          base: main
+          head: unsigned
+          binary: ${{ github.workspace }}/target/release/auths-git
+          working-directory: ${{ runner.temp }}/scratch
+
+      - name: Require the unsigned range to have failed
+        env:
+          AUTHS_UNSIGNED_OUTCOME: ${{ steps.unsigned.outcome }}
+          AUTHS_REPORT: ${{ steps.unsigned.outputs.report }}
+        run: |
+          set -euo pipefail
+          test "$AUTHS_UNSIGNED_OUTCOME" = failure
+          grep -q '"code":"git.unsigned"' "$AUTHS_REPORT"
