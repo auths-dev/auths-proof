@@ -1085,7 +1085,7 @@ mod tests {
         CompiledRecipe::compile(recipe, lock).expect("canonical fixture compiles")
     }
 
-    fn arguments(recipe: &CompiledRecipe, values: Value) -> Map<String, Value> {
+    fn arguments(recipe: &CompiledRecipe, values: &Value) -> Map<String, Value> {
         let mut object = values.as_object().expect("object fixture").clone();
         object.insert(
             "operator_namespace".into(),
@@ -1149,7 +1149,7 @@ mod tests {
         let recipe = compiled("airtable");
         let arguments = arguments(
             &recipe,
-            json!({
+            &json!({
                 "operation_id": "run-123",
                 "record_id": "recTEST0000000001",
                 "replacement": "Approved"
@@ -1174,7 +1174,7 @@ mod tests {
         let recipe = compiled("todoist");
         let arguments = arguments(
             &recipe,
-            json!({
+            &json!({
                 "operation_id": "f38bff5f-430e-4fe1-814b-6e43690a641f",
                 "content": "Auths gateway test",
                 "description": "Auths demo run f38bff5f-430e-4fe1-814b-6e43690a641f",
@@ -1200,7 +1200,7 @@ mod tests {
         let original = compiled("github");
         let arguments = arguments(
             &original,
-            json!({"operation_id": "issue-1", "title": "Example", "body": "Example body"}),
+            &json!({"operation_id": "issue-1", "title": "Example", "body": "Example body"}),
         );
         let (source, lock) = fixture("github");
         let mut mutated: Value = serde_json::from_slice(source).expect("source");
@@ -1237,7 +1237,7 @@ mod tests {
         let recipe = compiled("github");
         let args = arguments(
             &recipe,
-            json!({"operation_id": "issue-42", "title": "Exact", "body": "One issue"}),
+            &json!({"operation_id": "issue-42", "title": "Exact", "body": "One issue"}),
         );
         let request = Arc::new(
             recipe
@@ -1285,7 +1285,7 @@ mod tests {
         let recipe = compiled("airtable");
         let args = arguments(
             &recipe,
-            json!({"operation_id": "record-1", "record_id": "recTEST0000000001", "replacement": "Approved"}),
+            &json!({"operation_id": "record-1", "record_id": "recTEST0000000001", "replacement": "Approved"}),
         );
         let request = recipe
             .closed_request_from_arguments(&args)
