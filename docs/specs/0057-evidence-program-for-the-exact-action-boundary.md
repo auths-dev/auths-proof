@@ -1,7 +1,9 @@
 # AP-SPEC-057: Evidence program for the exact-action boundary
 
-- **Status:** Draft; a sequencing and acceptance specification, not a new
-  mechanism
+- **Status:** Active evidence program; Epic 2 is complete for the documented
+  single-host development deployment, while Epics 1 and 3–5 retain open
+  evidence gates; this is a sequencing and acceptance specification, not a
+  new mechanism
 - **Depends on:** [AP-SPEC-051](0051-self-hosted-developer-profiles.md)
   through [AP-SPEC-056](0056-openapi-derived-operation-contracts.md),
   [AP-SPEC-025](0025-closed-bounded-authorization-policy.md),

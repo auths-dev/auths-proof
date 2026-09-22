@@ -1,6 +1,8 @@
 # AP-SPEC-054: Self-hosted adapter developer experience
 
-- **Status:** Epics 1–5 engineering acceptance exercised on green SDK revision `0266fdc`; independent owner review pending
+- **Status:** Epics 1–5 engineering acceptance merged on green SDK revision
+  `0266fdc`; independent owner review remains open, and the zero-context agent
+  trial is not human market-adoption evidence
 - **Audience:** Python and TypeScript SDK maintainers, application developers,
   conformance maintainers, and reviewers
 - **Depends on:** [AP-SPEC-051](0051-self-hosted-developer-profiles.md),

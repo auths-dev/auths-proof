@@ -6,6 +6,7 @@ export const SDK_RUNTIME_CONTRACT = Object.freeze({
   profiles: Object.freeze({}),
   capabilities: Object.freeze([
     "diagnostics.doctor",
+    "gateway.client-v1",
     "identity.compact-v2",
     "local-agent.session-v1",
     "profile-operation.v1",

@@ -1,7 +1,9 @@
 # AP-SPEC-053: Developer-defined, credential-isolated exact-action gateway
 
-- **Status:** Draft; proposed architectural extension, not an implemented or
-  qualified product claim
+- **Status:** Implementation in progress; Epics 1–3 and the isolated
+  hostile/live-provider portion of Epic 4 are exercised for a documented
+  single-host development deployment; production-style trust, outside-developer
+  adoption, and qualified product claims remain open
 - **Depends on:** [AP-SPEC-051](0051-self-hosted-developer-profiles.md),
   [AP-SPEC-052](0052-self-hosted-launch-hardening.md), the existing
   `auths.mcp/v2` exact-tool action, and the
@@ -57,33 +59,31 @@ compiler reports the action-to-request mapping and its digest before an
 operator approves it. No provider credential or production trust is generated
 by `init`, `compile`, or `check`.
 
-Proposed terminal flow; command spelling may be refined before public freeze:
+Current bounded terminal flow (paths and account labels are operator values):
 
 ```text
-$ auths-profile init --language python --name set-demo-status
-$ auths gateway recipe init --profile profile.toml
-$ auths gateway recipe check recipe.toml
-  action:       airtable.set_demo_status_v1
-  write:        PATCH https://api.airtable.com/v0/<fixed-base>/<fixed-table>/<record-id>
-  body:         {"fields":{"DemoStatus":<replacement>}}
-  credential:   bearer, gateway-held; no token loaded by this command
-  digest:       sha256:<immutable compiled-recipe digest>
-  claim:        closed transport only; provider effect unqualified
+$ auths-profile generate profile.toml
+$ auths gateway recipe check --recipe recipe.json --profile-lock profile.lock.json \
+    --credential-header <operator-selected-header>
+  # Review the exact JSON mapping and immutable digest; no token is loaded.
 
 # Separate operator/admin identity and channel:
-$ auths gateway install compiled-recipe.bundle --approve-digest sha256:<digest>
-$ auths gateway credential bind --connection <connection-id> --recipe sha256:<digest>
-  # Secret enters through an operator-only input channel; never an argv value.
-$ auths gateway doctor
-  action trust: independently provisioned
-  recipe: approved and immutable
-  connection: active; credential generation pinned
-  app access to credential: denied by deployment boundary
+$ auths-gateway install --state-dir <private-short-path> --recipe recipe.json \
+    --profile-lock profile.lock.json --trusted-context trusted.context.cbor \
+    --approve-digest <reviewed-digest> --provider <provider> --alias <alias> \
+    --account-label <account> --credential-header <operator-selected-header> \
+    --credential-stdin
+  # The operator pipes a credential on stdin; no token appears in argv.
+$ auths-gateway serve --state-dir <private-short-path> --app-socket <app-socket>
+$ auths-gateway doctor --state-dir <private-short-path> \
+    --app-socket <app-socket> --app-uid <app-uid> --app-gid <app-gid>
+  # Doctor needs authority to probe the actual distinct app identity.
 
 # Application channel:
-$ my-app-submit proof.cbor action.cbor
-  authorized | denied | indeterminate
-  not-entered | attempting | response-recorded | unknown | observed
+$ auths-gateway submit --app-socket <app-socket> \
+    --proof proof.cbor --action action.cbor
+  # Or use auths.gateway / @auths-dev/sdk/gateway with the same two inputs.
+  denied | indeterminate | not-entered | unknown | response-recorded | observed
 ```
 
 The operator preview must show the origin, method, fixed and substituted path
@@ -130,6 +130,21 @@ filesystem permissions, or secret-store access. A multi-host claim requires a
 transactional shared attempt store and equivalent service/network isolation;
 the single-host file store from AP-SPEC-051 does not become one by relabeling.
 The release claim records which deployment mode was exercised.
+
+The first operator installation may be performed offline by a CLI running as
+the gateway identity. It takes an explicit digest approval, independently
+provisioned trusted-context bytes, and a credential through stdin, then
+publishes an immutable private installation record. That offline installer is
+an operator-only channel, not an application endpoint. Once serving, live
+disable, rotation, and revocation use the private admin socket; the app socket
+continues to accept proof and action bytes only. A same-UID development run
+demonstrates mechanics but cannot establish credential isolation.
+
+The application socket's bounded JSON envelope and four-byte length prefix
+are unsigned local transport framing, not canonical action encoding. Each SDK
+may serialize that envelope with its platform facilities, but the Rust gateway
+must validate its closed shape and bounds and derive all authorization meaning
+from native verification of the enclosed proof and action bytes.
 
 ### 3.1 Immutable operation binding
 
@@ -198,6 +213,11 @@ permits:
   headers. A derived recipe records only its credential requirement;
   `recipe check` fails if that requirement and the binding disagree. The recipe
   cannot name or set the injection header as an ordinary header. Operator
+  approval supplies the injection header independently: bearer requires
+  `Authorization` and a header-key requirement must exactly match the
+  operator's named header at both `recipe check` and installation. The
+  operator value is committed into the connection descriptor; submit-time
+  inputs cannot change it. Operator
   approval cannot widen the recipe-header allowlist; all other recipe headers,
   including custom `X-*` headers, are rejected;
 - a fixed-shape JSON or form body of literals and typed field references;
@@ -226,6 +246,50 @@ destinations unless explicitly operator-approved for a different deployment,
 and never exports the injected credential in response data or telemetry.
 An untrusted recipe author cannot turn a bound credential into an SSRF or
 credential-exfiltration capability by changing an action field.
+
+#### 3.2.1 First-version source and compiled identity
+
+The first source format is a closed JSON object with schema
+`auths.gateway-recipe-source/1`: `profile_schema_digest`, versioned MCP
+`service`/`tool`, immutable `operator_namespace`, `credential`, `origin`,
+`write`, and optional `observation`. It compiles against the SDK-generated
+`auths.self-hosted-profile-lock/1` (generator format 2), not a caller-supplied
+schema at execution time. The compiler recomputes the lock's schema digest,
+matches service/tool/digest, rejects unknown keys, and parses every source
+node into a typed AST. Source and lock are bounded at 64 KiB each. The
+compiled digest is SHA-256 over `auths.gateway-compiled-recipe/1` followed by
+a NUL byte and RFC 8785 canonical serialization of the validated source.
+Operator approval commits to that digest and to the exact lock digest; it
+does not approve a mutable source file path.
+
+The generated command has required `operator_namespace`, `operation_id`, and
+`recipe_digest` fields. The namespace field is a one-variant enum equal to
+the operator-approved literal; the ID is a 1–128-byte canonical ASCII token;
+the recipe digest is exactly 64 lowercase hexadecimal bytes. The generated
+type and runtime compiler both check these. All other fields in the first
+version are root-level bounded scalar string, enum, integer, or boolean
+nodes. Each must be consumed by the write or observation mapping; an unused
+field is refused rather than silently shown in an approval while having no
+effect. Nested profile fields, nullable fields, dynamic queries, conditional
+omission, runtime-defined header names, and arbitrary JSON passthrough are
+out of this first compiler. This is a deliberately smaller language than the
+self-hosted SDK's full schema vocabulary, not a promise to interpret unknown
+nodes as strings.
+
+`write` has one `POST | PUT | PATCH | DELETE`, 1–16 typed path segments, and
+one fixed-shape JSON or form body. A path segment is either a fixed safe
+literal or a field reference whose verified bounded bytes are percent
+encoded; neither may become a scheme, host, port, query, or extra segment.
+Form fields are fixed keys with bounded literals, scalar references, or
+compiler-serialized JSON; a top-level form-JSON array in this first version
+contains one element, so the Todoist Sync fixture cannot acquire a second
+command. The optional observation is one GET to the same pinned origin with
+a fixed JSON pointer, a verified comparison value, and a response-byte cap.
+It records equality or inequality only, never causation or retry permission.
+The canonical Airtable, Todoist, and GitHub sources and hostile mutations are
+under `bindings/fixtures/gateway/`; the [type map](../product/DEVELOPER_GATEWAY_TYPE_MAP.md)
+states ownership and the deliberately different Airtable self-hosted versus
+gateway semantics.
 
 ### 3.3 Execution and claim truth
 

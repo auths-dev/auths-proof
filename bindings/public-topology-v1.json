@@ -7,6 +7,7 @@
         "@auths-dev/sdk",
         "@auths-dev/sdk/verify",
         "@auths-dev/sdk/self-hosted",
+        "@auths-dev/sdk/gateway",
         "@auths-dev/sdk/identity",
         "@auths-dev/sdk/identity/authoring"
       ],
@@ -16,6 +17,7 @@
         "auths.authoring",
         "auths.attempts",
         "auths.execution",
+        "auths.gateway",
         "auths.self_hosted",
         "auths.identity",
         "auths.identity.authoring"

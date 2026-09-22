@@ -8,6 +8,7 @@ use auths_config::{AgentConfig, AgentPlatform};
     any(not(feature = "qualification-failpoints"), target_os = "linux")
 ))]
 use auths_connections::RegistryLimits;
+use auths_gateway::{CompiledRecipe, GatewayConnectionDescriptor};
 use auths_model::{ProfileId, ProfileRef};
 #[cfg(all(unix, not(feature = "qualification-failpoints")))]
 use auths_node::bind_local_control_plane;
@@ -74,8 +75,44 @@ struct Cli {
 enum Command {
     /// Manage provider connections without exposing credentials to applications.
     Connections(Connections),
+    /// Compile and inspect a closed developer-authored gateway recipe.
+    Gateway(Gateway),
     /// Validate and package deployment-owned workload authority.
     Agent(Agent),
+}
+
+#[derive(Args)]
+struct Gateway {
+    #[command(subcommand)]
+    command: GatewayCommand,
+}
+
+#[derive(Subcommand)]
+enum GatewayCommand {
+    /// Work with a closed request recipe.
+    Recipe(GatewayRecipe),
+}
+
+#[derive(Args)]
+struct GatewayRecipe {
+    #[command(subcommand)]
+    command: GatewayRecipeCommand,
+}
+
+#[derive(Subcommand)]
+enum GatewayRecipeCommand {
+    /// Validate one recipe against its generated exact-profile lock.
+    Check {
+        /// Versioned closed recipe source; no credential is read.
+        #[arg(long)]
+        recipe: PathBuf,
+        /// Generated profile.lock.json from a packaged SDK.
+        #[arg(long)]
+        profile_lock: PathBuf,
+        /// Operator-selected injection header; defaults to bearer Authorization.
+        #[arg(long, default_value = "Authorization")]
+        credential_header: String,
+    },
 }
 
 #[derive(Args)]
@@ -327,6 +364,37 @@ pub(crate) async fn main() -> ExitCode {
 
 async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
+        Command::Gateway(gateway) => match gateway.command {
+            GatewayCommand::Recipe(GatewayRecipe {
+                command:
+                    GatewayRecipeCommand::Check {
+                        recipe,
+                        profile_lock,
+                        credential_header,
+                    },
+            }) => {
+                let source = bounded_regular_file(&recipe, 65_536, false)?;
+                let lock = bounded_regular_file(&profile_lock, 65_536, false)?;
+                let compiled = CompiledRecipe::compile(&source, &lock)?;
+                GatewayConnectionDescriptor::approve(&compiled, &credential_header)?;
+                let review = compiled.review();
+                print_json(json!({
+                    "schema": "auths.gateway-recipe-review/1",
+                    "digest": compiled.digest_hex(),
+                    "operator_namespace": compiled.namespace().as_str(),
+                    "service": review.service(),
+                    "tool": review.tool(),
+                    "origin": review.origin(),
+                    "method": review.method().as_str(),
+                    "path": review.path(),
+                    "credential": review.credential(),
+                    "operator_credential_header": credential_header,
+                    "maximum_body_bytes": review.maximum_body_bytes(),
+                    "has_observation": review.has_observation(),
+                    "claim": "closed request construction only; no credential or provider-effect qualification",
+                }))?;
+            }
+        },
         Command::Connections(connections) => {
             let socket = discover_admin_socket(cli.admin_socket)?;
             match connections.command {

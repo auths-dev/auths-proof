@@ -27,6 +27,7 @@
   },
   "capabilities": [
     "diagnostics.doctor",
+    "gateway.client-v1",
     "identity.descriptor-v1",
     "identity.resolution",
     "local-agent.session-v1",
@@ -41,6 +42,7 @@
     "auths.authoring",
     "auths.attempts",
     "auths.self_hosted",
+    "auths.gateway",
     "auths.identity",
     "auths.identity.adapters",
     "auths.identity.authoring",

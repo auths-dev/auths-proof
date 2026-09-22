@@ -6,10 +6,10 @@
     "schema": "auths.sdk-experience-metadata/1",
     "enforcement": "baseline",
     "baseline": {
-      "typescriptEntryPoints": 10,
-      "typescriptPublicSymbols": 159,
-      "pythonModules": 15,
-      "pythonPublicSymbols": 170,
+      "typescriptEntryPoints": 11,
+      "typescriptPublicSymbols": 163,
+      "pythonModules": 16,
+      "pythonPublicSymbols": 180,
       "maintainedTypescriptRecipes": 2,
       "maintainedPythonRecipes": 2
     },
@@ -368,6 +368,51 @@
         "terminalOutcomes": [
           "certified",
           "rejected"
+        ],
+        "consumerRequiresRust": false
+      }
+    },
+    {
+      "id": "developer-gateway-proof-action-submission",
+      "rust": "product/runtime/auths-gateway/src/engine.rs",
+      "typescript": "bindings/typescript/test/unit/gateway-client.test.js",
+      "python": "bindings/python/tests/test_gateway_client.py",
+      "experience": {
+        "targetJourney": "submit-one-exact-authorized-write-without-app-provider-credential",
+        "imports": [
+          "gateway",
+          "generated-exact-tool"
+        ],
+        "securityNouns": [
+          "Authority",
+          "Action"
+        ],
+        "domainConcepts": [
+          "operator-approved recipe",
+          "connection"
+        ],
+        "setupDecisions": [
+          "local gateway socket"
+        ],
+        "apiMechanics": [
+          "author proof",
+          "submit proof and action",
+          "inspect stage"
+        ],
+        "requiredApplicationComponents": [
+          "proof",
+          "canonical action",
+          "gateway socket"
+        ],
+        "executableStatements": 8,
+        "applicationOrchestratedSecurityTransitions": 0,
+        "terminalOutcomes": [
+          "denied",
+          "indeterminate",
+          "not-entered",
+          "unknown",
+          "response-recorded",
+          "observed"
         ],
         "consumerRequiresRust": false
       }

@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 19556e7a2aa5c8abdb0f733aed5fbe98a430028917ae1dda9394bef119cbc4da
+# declaration-sha256 54127c512d49f51843751f6769e6917097df4d69db65dd04161e0fa1b4e933fb
 .	AuthsError	value+type
 .	AuthsIssue	type
 .	AuthsOperationError	value+type
@@ -90,6 +90,10 @@
 ./self-hosted	stringField	value
 ./self-hosted	StringField	type
 ./self-hosted	verifyCommand	value
+./gateway	GatewayClient	value+type
+./gateway	GatewayEndpoint	value+type
+./gateway	GatewayProtocolError	value+type
+./gateway	GatewayResult	type
 ./identity	AuthenticatedIdentityMessage	type
 ./identity	createRawKeyEd25519IdentityClient	value
 ./identity	DecodedIdentity	type

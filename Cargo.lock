@@ -575,6 +575,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-gateway"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-codec",
+ "auths-connections",
+ "auths-did-keri",
+ "auths-did-key",
+ "auths-model",
+ "auths-ports",
+ "auths-profile-api",
+ "auths-profile-mcp",
+ "auths-raw-key",
+ "auths-registries",
+ "auths-signature",
+ "auths-stores",
+ "auths-verifier",
+ "base64ct",
+ "clap",
+ "getrandom 0.3.4",
+ "hex",
+ "reqwest",
+ "rustix",
+ "serde",
+ "serde_json",
+ "serde_json_canonicalizer",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 2.0.19",
+ "tokio",
+ "url",
+]
+
+[[package]]
 name = "auths-github"
 version = "1.0.0-rc.1"
 dependencies = [
@@ -844,6 +877,7 @@ dependencies = [
  "auths-did-key",
  "auths-did-web",
  "auths-errors",
+ "auths-gateway",
  "auths-hsm-attested",
  "auths-lifecycle",
  "auths-model",

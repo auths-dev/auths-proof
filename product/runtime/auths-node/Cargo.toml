@@ -38,6 +38,7 @@ auths-author = { workspace = true, features = ["std"] }
 auths-codec.workspace = true
 auths-config.workspace = true
 auths-connections.workspace = true
+auths-gateway.workspace = true
 auths-did-key = { workspace = true, features = ["std"] }
 auths-did-keri = { workspace = true, features = ["std"] }
 auths-errors.workspace = true

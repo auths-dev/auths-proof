@@ -19,6 +19,12 @@
       "types": "./dist/self-hosted.d.ts",
       "import": "./dist/self-hosted.js"
     },
+    "./gateway": {
+      "node": {
+        "types": "./dist/gateway.d.ts",
+        "import": "./dist/gateway.js"
+      }
+    },
     "./identity": {
       "types": "./dist/identity.d.ts",
       "import": "./dist/identity.js"
