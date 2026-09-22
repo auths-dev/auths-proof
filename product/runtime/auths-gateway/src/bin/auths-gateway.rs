@@ -232,6 +232,8 @@ mod unix {
         let source = read_bounded(&recipe_path, 65_536)?;
         let lock = read_bounded(&lock_path, 65_536)?;
         let trust = read_bounded(&context_path, 4 * 1024 * 1024)?;
+        auths_codec::decode_verifier_context(&trust)
+            .map_err(|_| "gateway.install.invalid-trusted-context")?;
         let recipe = CompiledRecipe::compile(&source, &lock)
             .map_err(|_| "gateway.install.invalid-recipe")?;
         if approved != recipe.digest_hex() {
@@ -763,7 +765,7 @@ mod unix {
             ))
             .expect("service hostile cases");
             assert_eq!(cases["schema"], "auths.gateway-service-hostile/1");
-            assert_eq!(cases["cases"].as_array().expect("cases").len(), 12);
+            assert_eq!(cases["cases"].as_array().expect("cases").len(), 13);
             let canonical = serde_json::json!({
                 "schema": APP_REQUEST_SCHEMA,
                 "proof_b64": "AA",

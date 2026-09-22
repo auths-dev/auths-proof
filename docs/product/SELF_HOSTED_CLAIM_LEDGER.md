@@ -40,6 +40,13 @@ evidence, and production-style independent trust. The SDK clients
 alone establish none of those deployment facts. An app that retains a
 separate provider token can still bypass Auths.
 
+The operator installer parses the supplied trusted-context bytes and refuses
+malformed input before creating credential state. This checks structure, not
+that the trust was provisioned independently or that a signer has durable
+custody. A hosted distinct-UID doctor probe is required to establish only the
+local filesystem/socket boundary; it cannot detect a separate app-held token
+or prove outbound network isolation.
+
 On 2026-09-22, the developer-owned Airtable and Todoist gateway recipes made
 live calls through the field-lab `run-demo.sh` gateway mode using the packaged
 Python wheel. Airtable returned `observed` with a matching separate GET of

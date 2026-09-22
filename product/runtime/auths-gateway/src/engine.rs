@@ -90,7 +90,10 @@ impl GatewayEngine {
         credentials: PersistentCredentialStore,
         attempts: FileGatewayAttemptStore,
     ) -> Result<Self, GatewayEngineConfigurationError> {
-        if trusted_context_cbor.is_empty() || trusted_context_cbor.len() > MAX_CONTEXT_BYTES {
+        if trusted_context_cbor.is_empty()
+            || trusted_context_cbor.len() > MAX_CONTEXT_BYTES
+            || auths_codec::decode_verifier_context(&trusted_context_cbor).is_err()
+        {
             return Err(GatewayEngineConfigurationError::InvalidTrust);
         }
         if *recipe.digest() != approved_digest {
