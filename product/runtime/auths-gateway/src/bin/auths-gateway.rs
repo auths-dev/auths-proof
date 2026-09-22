@@ -674,26 +674,25 @@ mod unix {
     }
 
     fn doctor(
-        state_dir: PathBuf,
-        app_socket: PathBuf,
+        state_dir: &Path,
+        app_socket: &Path,
         application_uid: u32,
         probe_group: u32,
     ) -> Result<(), &'static str> {
         let state =
-            fs::symlink_metadata(&state_dir).map_err(|_| "gateway.doctor.state-unavailable")?;
+            fs::symlink_metadata(state_dir).map_err(|_| "gateway.doctor.state-unavailable")?;
         let credential = fs::symlink_metadata(state_dir.join("credentials.cbor"))
             .map_err(|_| "gateway.doctor.credential-unavailable")?;
         let admin = fs::symlink_metadata(state_dir.join("admin.sock"))
             .map_err(|_| "gateway.doctor.admin-unavailable")?;
-        let app =
-            fs::symlink_metadata(&app_socket).map_err(|_| "gateway.doctor.app-unavailable")?;
+        let app = fs::symlink_metadata(app_socket).map_err(|_| "gateway.doctor.app-unavailable")?;
         if !state.file_type().is_dir()
             || state.permissions().mode() & 0o077 != 0
             || !credential.file_type().is_file()
             || credential.permissions().mode() & 0o077 != 0
             || !admin.file_type().is_socket()
             || !app.file_type().is_socket()
-            || !secure_socket_parent(&app_socket, state.uid())
+            || !secure_socket_parent(app_socket, state.uid())
             || app.uid() != state.uid()
             || state.uid() != credential.uid()
             || state.uid() == application_uid
@@ -708,9 +707,9 @@ mod unix {
         )
         .arg("probe")
         .arg("--state-dir")
-        .arg(&state_dir)
+        .arg(state_dir)
         .arg("--app-socket")
-        .arg(&app_socket)
+        .arg(app_socket)
         .gid(probe_group)
         .uid(application_uid)
         .status()
@@ -786,7 +785,7 @@ mod unix {
                 app_socket,
                 app_uid,
                 app_gid,
-            } => doctor(state_dir, app_socket, app_uid, app_gid),
+            } => doctor(&state_dir, &app_socket, app_uid, app_gid),
             Command::Probe {
                 state_dir,
                 app_socket,
