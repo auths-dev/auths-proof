@@ -34,6 +34,7 @@
 - 2026-09-21 23:36 UTC — Epic 1 engineering handoff — `45591a1`: The owner directed us to stop checking field-lab CI and accept green exact `auths-proof` CI for the PR #123 engineering handoff; AP-SPEC-057's literal hosted-demo done gate and independent owner review are still recorded as open.
 - 2026-09-22 00:12 UTC — Epic 1 formal retry validator — https://github.com/auths-dev/auths-proof/actions/runs/35668410277: The docs-tip run passed formal translation, Kani, and Lean, but artifact download first hit GitHub 403 and the retry then rejected the selected prior-attempt phase result; a bounded source-attempt validation fix with generated closure updates is ready for hosted verification.
 - 2026-09-22 19:29 UTC — Epic 2 hostile boundary checkpoint — `fbbeb58`: A distinct-UID Docker deployment using auths-proof `90973d64` recorded three expected authorized counting-provider entries and zero unauthorized entries across forged/altered inputs, direct access, competing instance, replay, valid fresh challenge, race, and crash/restart; isolated live-vendor calls remain open.
+- 2026-09-22 19:46 UTC — Epic 2 end — `afa733b`: Fresh Airtable and Todoist writes passed the distinct-UID isolation probes, entered only through the gateway-held credentials, and were independently observed; AP-SPEC-057 Epic 2's single-host development evidence gate is closed without claiming production trust or provider qualification.
 
 ## Morning report
 

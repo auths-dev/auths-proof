@@ -74,11 +74,30 @@ not independent production trust, credential unreadability by a distinct app
 identity, provider-qualified effects, or exclusive causation. An earlier
 same-run Airtable submission exposed a blocking-client runtime panic before
 any durable claim or provider write; the transport was changed to bounded
-async I/O before the successful fresh run. Auths-proof `90973d64` subsequently
-passed [exact-tip hosted CI](https://github.com/auths-dev/auths-proof/actions/runs/35690791146),
-and the hostile deployment evidence above exercised the repaired revision.
-The live vendor calls remain same-UID mechanics evidence; they have not been
-repeated with real credentials inside the distinct-UID Docker deployment.
+async I/O before the successful fresh run.
+
+Field-lab commit `afa733b` adds the redacted
+[`auths.gateway-isolated-live-provider-evidence/1`](https://github.com/auths-dev/auths-field-lab/blob/afa733b/prototypes/gateway-isolation/evidence/live-provider-isolated.json)
+record. Fresh Airtable and Todoist actions then ran through `--mode isolated`
+under app UID 10002 after both the gateway doctor and network probe passed.
+The trusted host operator parsed each ignored token file and piped the value
+only to gateway-install stdin; it was not an app mount, environment value, or
+command argument. Airtable returned `observed` with HTTP 200 and matching
+read-back for `DemoStatus=Pending`. Todoist returned `response-recorded` with
+HTTP 200, followed by an independent read-only observation of the created
+task. Dashboard links were returned privately to the operator and are not
+retained in the public ledger. The initial Airtable app process failed on a
+container-relative source-path assumption before connecting to the gateway;
+field-lab `8652573` fixed both demo imports, 15 Airtable tests and 13 Todoist
+tests passed, and the unchanged one-use action was then submitted once.
+
+Auths-proof `90973d64` passed
+[exact-tip hosted CI](https://github.com/auths-dev/auths-proof/actions/runs/35690791146).
+The live image used docs-only descendant `0c066abf`; its gateway implementation
+is unchanged from `90973d64`. These runs establish the tested credential and
+network boundary plus observed provider state. They still do not establish
+production signing/trust custody, provider-qualified effects, exclusive
+causation, multi-host claims, or protection from a separate app-held token.
 
 ## Packaged clean-consumer exercise
 
