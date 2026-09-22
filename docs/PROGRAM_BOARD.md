@@ -57,21 +57,23 @@ gates do not shrink.
 | 5 | 0057 Epic 5 — bounded policy in the path | Epic 2 hostile suite passing | per-principal cases added to the hostile suite (inside A's bound, outside A's bound, inside B's bound) with zero unauthorized entries; 0025 status line names implemented tranches | `epic-5-policy` |
 | 6 | AP-SPEC-056 implementation | Epic 2 recipe AST committed and Epic 4 corpus published | both packaged CLIs pass the whole corpus; every derived recipe passes `recipe check` | `epic-6-derivation` |
 
-## 3. Backlog — one paragraph each, no spec yet
+## 3. Backlog — one paragraph each; specs only where the owner directed
 
-- **059 Commitment-bound effect evidence.** Derive the provider idempotency
-  key from the action commitment so provider-signed webhooks/receipts
-  (Stripe, GitHub) become third-party evidence binding effect to
-  authorization. Turns `unknown` into `observed-by-provider`. Needs the
-  gateway. First of the three "closed loop" mechanisms; smallest.
-- **060 Evidence-conditioned authority.** A grant may require a fresh,
-  signed observation predicate (equality, range, freshness; closed and
-  typed, never a policy language) as a precondition the verifier enforces.
-  Makes `expected → replacement` verifier law. Chain step N on step N-1's
-  signed outcome. Touches 0025's territory; keep predicates closed.
-- **061 End-to-end machine-checked verifier.** Extend the Lean/Aeneas
-  surface through canonical decoding and signature verification with
-  verified crypto. Months. After 059/060.
+- **059 Commitment-bound effect evidence.** Spec:
+  [AP-SPEC-059](specs/0059-commitment-bound-provider-evidence.md) (draft,
+  not started). A gateway-derived echo token in a provider field binds the
+  provider record to the exact authorized action; adds
+  `observed-by-provider`. The idempotency key stays per 053 (see the 059
+  §2 correction). Smallest of the three.
+- **060 Evidence-conditioned authority.** Spec:
+  [AP-SPEC-060](specs/0060-evidence-conditioned-authority.md) (draft, not
+  started; core wire change). Grants carry observation requirements (four
+  atoms, AND only) checked against signed, fresh observer statements;
+  observers are separate from authority anchors.
+- **061 End-to-end machine-checked verifier.** Spec:
+  [AP-SPEC-061](specs/0061-end-to-end-machine-checked-verifier.md) (draft,
+  not started). Phased codec → crypto link → control flow, with a claim
+  sentence per phase; ~5–8 months. Phases 0–1 do not depend on 059/060.
 - **Reads through the gateway.** Read recipes, response projection
   (`allowed_fields`, `maximum_response_bytes` as in 0024 §10), disclosure
   receipts. Confidentiality additionally needs hermetic agent egress.
@@ -105,12 +107,12 @@ gates do not shrink.
 | 2026-09-22 | The owner merged PR #123 on green auths-proof CI, waived field-lab CI for that merge, and directed gateway work from updated main. This permits Epic 2 to start without relabeling the historical field-lab hosted gate as passed; owner review and unfamiliar-user evidence stay open. | Owner direction; merged `a82b8ca`; AP-SPEC-053 |
 | 2026-09-22 | Audited AP-SPEC-050–057 against merged `main`, the current gateway branch, their acceptance clauses, and recorded hosted/live evidence: 050 is partial, 051/052/054 retain review gates, 053 is partial, 055 is implemented, 056 remains unimplemented, and 057 is active with only Epic 2 complete in its bounded scope. | AP-SPEC-050–057 status headers; this board |
 | 2026-09-22 | Owner directed AP-SPEC-058 to be written as Epic 3's first commit. That starts Epic 3 at the spec step only. Epic 1's historical field-lab hosted gate and owner review stay unclaimed. `auths.git-signature/1` is a new profile, separate from `auths.git/1`; the proof binds the unsigned payload digest, not the object ID; trust must come from outside the verified range; revocation applies where the record is present; verification is gate-time. | 0058 §§3.1–3.5, §8 |
+| 2026-09-22 | Owner directed AP-SPEC-059, 060, and 061 to be written as drafts before their epics start, overriding the §5 "not doing" row, whose reason (no gateway) no longer holds. Writing a spec does not start an epic; the WIP limit still governs implementation. 059 keeps the 053 idempotency key and adds an echo field; 060 is a core wire change with observers separate from authority anchors; 061 phases 0–1 may start before 059/060. | 0059 §2, 0060 §3.3, 0061 §8 |
 
 ## 5. Not doing
 
 | Proposal | Reason | Recorded |
 | --- | --- | --- |
-| Full spec for 059/060/061 now | Depends on the gateway existing; would be wrong within days | this board §3 |
 | 0024 work | Implemented; amendment was wording only | 0057 §5 |
 | Multi-host store spec | 0038 Epic 2 + `PostgresLifecycleStore` exist | 0057 §5 |
 | Universal gateway, identity platform, unified API, standalone receipts | Refused by 0024 §4, 053 §7, GTM | 0057 §5 |
