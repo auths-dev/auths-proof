@@ -167,7 +167,7 @@ pub fn sign_payload(
     );
     let request = prepare_action(envelope, signer.descriptor()).map_err(|_| SignError::Assembly)?;
     let signature = signer.sign(request.signing_preimage())?;
-    let signed = request.complete(signature);
+    let action_statement = request.complete(signature);
 
     let mut evidence: Vec<EvidenceObject> = Vec::new();
     let mut bindings = Vec::with_capacity(delegation.links.len() + 1);
@@ -187,7 +187,9 @@ pub fn sign_payload(
     push_unique(&mut evidence, &signer_evidence);
     bindings.push(
         ControlBinding::new(
-            StatementRef::Action(action_id(signed.envelope()).map_err(|_| SignError::Assembly)?),
+            StatementRef::Action(
+                action_id(action_statement.envelope()).map_err(|_| SignError::Assembly)?,
+            ),
             vec![signer_evidence.id()],
         )
         .map_err(|_| SignError::Assembly)?,
@@ -200,7 +202,7 @@ pub fn sign_payload(
             .iter()
             .map(|link| link.grant.clone())
             .collect(),
-        vec![signed],
+        vec![action_statement],
         plan,
         evidence,
         bindings,

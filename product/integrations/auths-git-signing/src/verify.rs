@@ -213,16 +213,19 @@ fn verify_inner(
     registries: &ImmutableRegistries<'_>,
     evaluation_time: Timestamp,
 ) -> Result<GitVerification, &'static str> {
-    let envelope = GitSignatureEnvelope::from_armored(signature).map_err(|error| error.code())?;
+    let envelope = GitSignatureEnvelope::from_armored(signature)
+        .map_err(crate::envelope::EnvelopeError::code)?;
     let expected = GitSignatureAction::for_payload(&trust.repository, payload)
-        .map_err(|error| error.code())?;
+        .map_err(crate::action::ActionError::code)?;
     let limits = trust.context.limits();
     let signed =
         decode_canonical_action(envelope.action(), limits).map_err(|_| "git.action-malformed")?;
     expected
         .check_signed_body(signed.body())
-        .map_err(|error| error.code())?;
-    let expected_canonical = expected.canonical_action().map_err(|error| error.code())?;
+        .map_err(crate::action::ActionError::code)?;
+    let expected_canonical = expected
+        .canonical_action()
+        .map_err(crate::action::ActionError::code)?;
     let expected_bytes =
         encode_canonical_action(&expected_canonical).map_err(|_| "git.action-malformed")?;
     if expected_bytes.as_slice() != envelope.action() {

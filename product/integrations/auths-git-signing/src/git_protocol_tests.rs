@@ -59,7 +59,7 @@ impl Harness {
             repo,
             stub_dir,
         };
-        harness.git_ok(
+        run_git_ok(
             &[
                 "init",
                 "-q",
@@ -75,39 +75,13 @@ impl Harness {
             ("user.name", "probe"),
             ("user.email", "probe@example.invalid"),
         ] {
-            harness.git_ok(&["config", key, value], Some(&harness.repo));
+            run_git_ok(&["config", key, value], Some(&harness.repo));
         }
         harness
     }
 
-    fn git(&self, arguments: &[&str], directory: Option<&Path>) -> Output {
-        let mut command = Command::new("git");
-        command
-            .args(arguments)
-            .env("GIT_CONFIG_GLOBAL", "/dev/null")
-            .env("GIT_CONFIG_NOSYSTEM", "1")
-            .env("GIT_AUTHOR_DATE", "1790000000 +0000")
-            .env("GIT_COMMITTER_DATE", "1790000000 +0000")
-            .env_remove("GIT_DIR")
-            .env_remove("GIT_WORK_TREE");
-        if let Some(directory) = directory {
-            command.current_dir(directory);
-        }
-        command.output().expect("git is installed")
-    }
-
-    fn git_ok(&self, arguments: &[&str], directory: Option<&Path>) -> Vec<u8> {
-        let output = self.git(arguments, directory);
-        assert!(
-            output.status.success(),
-            "git {arguments:?} failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        output.stdout
-    }
-
     fn in_repo(&self, arguments: &[&str]) -> Output {
-        self.git(arguments, Some(&self.repo))
+        run_git(arguments, Some(&self.repo))
     }
 
     fn arm_signer(&self, stdout: &[u8], stderr: &[u8], exit: i32) {
@@ -149,6 +123,32 @@ impl Harness {
         fs::write(self.repo.join(name), name).expect("file");
         assert!(self.in_repo(&["add", name]).status.success());
     }
+}
+
+fn run_git(arguments: &[&str], directory: Option<&Path>) -> Output {
+    let mut command = Command::new("git");
+    command
+        .args(arguments)
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_AUTHOR_DATE", "1790000000 +0000")
+        .env("GIT_COMMITTER_DATE", "1790000000 +0000")
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE");
+    if let Some(directory) = directory {
+        command.current_dir(directory);
+    }
+    command.output().expect("git is installed")
+}
+
+fn run_git_ok(arguments: &[&str], directory: Option<&Path>) -> Vec<u8> {
+    let output = run_git(arguments, directory);
+    assert!(
+        output.status.success(),
+        "git {arguments:?} failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    output.stdout
 }
 
 struct RecordedCall {
@@ -209,7 +209,7 @@ fn git_commit_signing_uses_the_program_protocol_and_stores_the_envelope() {
             key: SigningKeyRef::parse("auths:probe-agent").expect("key")
         })
     );
-    let raw = harness.git_ok(&["cat-file", "commit", "HEAD"], Some(&harness.repo));
+    let raw = run_git_ok(&["cat-file", "commit", "HEAD"], Some(&harness.repo));
     let (payload, stored) = split_commit_signature(&raw);
     assert_eq!(
         call.stdin, payload,
@@ -257,7 +257,7 @@ fn git_tag_signing_uses_the_program_protocol_and_appends_the_envelope() {
         parse_arguments(call.arguments),
         Ok(ProgramRequest::Sign { .. })
     ));
-    let raw = harness.git_ok(&["cat-file", "tag", "v1.0.0"], Some(&harness.repo));
+    let raw = run_git_ok(&["cat-file", "tag", "v1.0.0"], Some(&harness.repo));
     let mut expected = call.stdin.clone();
     expected.extend_from_slice(armored.as_bytes());
     assert_eq!(
@@ -399,7 +399,7 @@ fn git_objects_split_the_same_way_in_the_parser_for_both_formats() {
         .into_iter()
         .enumerate()
         {
-            let raw = harness.git_ok(&object, Some(&harness.repo));
+            let raw = run_git_ok(&object, Some(&harness.repo));
             let parsed = SignedObject::parse(&raw).expect("Git's signed object");
             let call = harness.call(index);
             assert_eq!(
@@ -412,7 +412,10 @@ fn git_objects_split_the_same_way_in_the_parser_for_both_formats() {
             assert_eq!(parsed.signature(), armored.as_bytes());
             if kind == ObjectKind::Tag {
                 assert_eq!(
-                    parsed.payload().tag_name().map(|name| name.as_str()),
+                    parsed
+                        .payload()
+                        .tag_name()
+                        .map(crate::object::TagName::as_str),
                     Some("release/v2")
                 );
             }

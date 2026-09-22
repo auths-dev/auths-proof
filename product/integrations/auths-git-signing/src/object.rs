@@ -504,7 +504,7 @@ mod tests {
     }
 
     fn hex(bytes: &[u8]) -> String {
-        bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+        hex::encode(bytes)
     }
 
     /// Runs one vector through the same steps the signer and verifier use.

@@ -283,7 +283,7 @@ mod tests {
             (
                 "indented line",
                 armored
-                    .replacen("\n", "\n ", 2)
+                    .replacen('\n', "\n ", 2)
                     .replacen("\n ", "\n", 1)
                     .into_bytes(),
                 "git.envelope-malformed",
@@ -347,7 +347,7 @@ mod tests {
             GitSignatureEnvelope::new(vec![7], vec![8; MAX_ACTION_BYTES + 1]),
             Err(EnvelopeError::TooLarge)
         );
-        let oversized_field = armor_frame(&frame(&[7; MAX_PROOF_BYTES + 1], &[8]));
+        let oversized_field = armor_frame(&frame(&vec![7; MAX_PROOF_BYTES + 1], &[8]));
         assert_eq!(
             GitSignatureEnvelope::from_armored(&oversized_field)
                 .expect_err("field")

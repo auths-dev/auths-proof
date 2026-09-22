@@ -260,12 +260,11 @@ impl World {
         }
     }
 
-    fn registries(&self) -> ImmutableRegistries<'_> {
-        ImmutableRegistries::new(
-            &[&self.did_key as &dyn PrincipalMethod],
-            &[&self.suite as &dyn SignatureSuite],
-        )
-        .expect("registries")
+    /// Runs `check` with registries that enable exactly `did:key`.
+    fn with_registries<R>(&self, check: impl FnOnce(&ImmutableRegistries<'_>) -> R) -> R {
+        let methods = [&self.did_key as &dyn PrincipalMethod];
+        let suites = [&self.suite as &dyn SignatureSuite];
+        check(&ImmutableRegistries::new(&methods, &suites).expect("registries"))
     }
 
     fn trust(&self) -> GitTrust {
@@ -280,13 +279,26 @@ impl World {
     }
 
     fn verify(&self, payload: &UnsignedPayload, signature: &[u8], at: u64) -> GitVerification {
-        verify_signature(
-            payload,
-            signature,
-            &self.trust(),
-            &self.registries(),
-            Timestamp::new(at),
-        )
+        self.verify_with(&self.trust(), payload, signature, at)
+    }
+
+    fn verify_with(
+        &self,
+        trust: &GitTrust,
+        payload: &UnsignedPayload,
+        signature: &[u8],
+        at: u64,
+    ) -> GitVerification {
+        self.with_registries(|registries| {
+            verify_signature(payload, signature, trust, registries, Timestamp::new(at))
+        })
+    }
+
+    fn verify_raw(&self, raw: &[u8]) -> GitVerification {
+        let trust = self.trust();
+        self.with_registries(|registries| {
+            verify_object(raw, &trust, registries, Timestamp::new(NOW))
+        })
     }
 }
 
@@ -358,13 +370,7 @@ fn verification_derives_the_request_from_the_object() {
     )
     .expect("trust");
     assert_eq!(
-        verify_signature(
-            &commit_payload,
-            &commit_signature,
-            &other,
-            &world.registries(),
-            Timestamp::new(NOW)
-        ),
+        world.verify_with(&other, &commit_payload, &commit_signature, NOW),
         GitVerification::Denied("git.repository-mismatch")
     );
 }
@@ -431,8 +437,8 @@ fn the_enabled_method_set_is_configuration_bound_by_trust() {
     let delegation = full_delegation(&world.root, &world.agent);
     let (payload, signature) = world.sign(COMMIT, &delegation);
     let both: [&dyn PrincipalMethod; 2] = [&world.did_key, &raw_key];
-    let both_registries =
-        ImmutableRegistries::new(&both, &[&world.suite as &dyn SignatureSuite]).expect("both");
+    let suites = [&world.suite as &dyn SignatureSuite];
+    let both_registries = ImmutableRegistries::new(&both, &suites).expect("both");
 
     // Trust pinned to the did:key-only configuration rejects a verifier that
     // executes a different method set.
@@ -477,21 +483,11 @@ fn raw_objects_verify_through_the_same_path() {
     raw.extend_from_slice(signature.trim_end().replace('\n', "\n ").as_bytes());
     raw.extend_from_slice(&COMMIT[header_end..]);
     assert!(matches!(
-        verify_object(
-            &raw,
-            &world.trust(),
-            &world.registries(),
-            Timestamp::new(NOW)
-        ),
+        world.verify_raw(&raw),
         GitVerification::Verified(_)
     ));
     assert_eq!(
-        verify_object(
-            COMMIT,
-            &world.trust(),
-            &world.registries(),
-            Timestamp::new(NOW)
-        ),
+        world.verify_raw(COMMIT),
         GitVerification::Denied("git.unsigned")
     );
     let tampered = GitSignatureEnvelope::from_armored(signature.as_bytes()).expect("envelope");
