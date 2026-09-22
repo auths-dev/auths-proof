@@ -960,6 +960,7 @@ fn build_path(
     segments: &[PathSegment],
     arguments: &Map<String, Value>,
 ) -> Result<String, GatewayRecipeError> {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
     let mut path = String::new();
     for segment in segments {
         path.push('/');
@@ -978,7 +979,6 @@ fn build_path(
                         path.push(char::from(byte));
                     } else {
                         path.push('%');
-                        const HEX: &[u8; 16] = b"0123456789ABCDEF";
                         path.push(char::from(HEX[usize::from(byte >> 4)]));
                         path.push(char::from(HEX[usize::from(byte & 0x0f)]));
                     }

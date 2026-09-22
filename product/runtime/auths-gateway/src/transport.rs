@@ -221,8 +221,9 @@ fn read_bounded(response: &mut reqwest::blocking::Response, maximum: usize) -> O
 
 fn public_ipv4(ip: Ipv4Addr) -> bool {
     let [a, b, c, _] = ip.octets();
-    !(matches!(a, 0 | 10 | 127 | 224..=255) || a == 100 && (64..=127).contains(&b))
-        && !(a == 169 && b == 254)
+    !(matches!(a, 0 | 10 | 127 | 224..=255)
+        || a == 100 && (64..=127).contains(&b)
+        || a == 169 && b == 254)
         && !(a == 172 && (16..=31).contains(&b))
         && !(a == 192 && matches!(b, 0 | 168))
         && !(a == 198 && matches!(b, 18 | 19 | 51) && (b != 51 || c == 100))
