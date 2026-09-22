@@ -138,6 +138,12 @@ disable, rotation, and revocation use the private admin socket; the app socket
 continues to accept proof and action bytes only. A same-UID development run
 demonstrates mechanics but cannot establish credential isolation.
 
+The application socket's bounded JSON envelope and four-byte length prefix
+are unsigned local transport framing, not canonical action encoding. Each SDK
+may serialize that envelope with its platform facilities, but the Rust gateway
+must validate its closed shape and bounds and derive all authorization meaning
+from native verification of the enclosed proof and action bytes.
+
 ### 3.1 Immutable operation binding
 
 An operation consists of a versioned `ExactMcpTool` contract, a compiled

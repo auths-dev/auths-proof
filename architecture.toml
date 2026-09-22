@@ -324,6 +324,18 @@ status = "permanent"
 reason = "The development receipt signer serializes a bounded private attestation envelope around Rust-owned receipt claims and is not a protocol codec."
 
 [[binding_semantics.allowances]]
+path = "bindings/typescript/src/gateway.ts"
+pattern = "JSON.stringify"
+status = "permanent"
+reason = "The Node-only client serializes an unsigned local socket envelope carrying opaque proof and action bytes; the Rust gateway parses its closed schema and alone verifies the canonical action before any authority or provider access."
+
+[[binding_semantics.allowances]]
+path = "bindings/typescript/src/gateway.ts"
+pattern = "DataView"
+status = "permanent"
+reason = "The Node-only client encodes and decodes the fixed four-byte local socket length prefix; Rust bounds and parses that frame, and these bytes are never a signed preimage, authorization decision, or provider request."
+
+[[binding_semantics.allowances]]
 path = "bindings/typescript/src/session.ts"
 pattern = "getRandomValues"
 status = "permanent"
