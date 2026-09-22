@@ -365,6 +365,12 @@ export interface WorkflowWasmEngine {
     rootPrincipal: string,
     verifierConfiguration: Uint8Array,
   ): Uint8Array;
+  bindTrustedContextRequestV1(
+    trustedContext: Uint8Array,
+    audience: string,
+    challenge: Uint8Array,
+    evaluationTime: bigint,
+  ): Uint8Array;
   prepareMcpActionV1(
     service: string,
     name: string,
@@ -374,6 +380,13 @@ export interface WorkflowWasmEngine {
     challenge: Uint8Array,
     evaluationTime: bigint,
   ): WorkflowMcpActionPreparation;
+  verifyExactMcpArgumentsV1(
+    proof: Uint8Array,
+    action: Uint8Array,
+    trustedContext: Uint8Array,
+    expectedService: string,
+    expectedName: string,
+  ): Uint8Array | undefined;
   canonicalizeMcpPlanMemberV1(
     service: string,
     name: string,

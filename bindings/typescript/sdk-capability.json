@@ -22,12 +22,15 @@
       "opaque durable recovery handles and portable receipts",
       "public versioned profile-runtime compatibility surface for generated packages",
       "generated error-registry digest without root-load registry hashing",
-      "effect-free identity and verification utilities"
+      "effect-free identity and verification utilities",
+      "self-hosted exact MCP authorization with application-owned provider credentials and unqualified effects",
+      "closed bounded enumeration fields in self-hosted exact MCP argument contracts"
     ],
     "excluded": [
       "backward compatibility or migration shims for prelaunch APIs",
       "Auths application access tokens",
-      "provider credentials in application code or SDK configuration",
+      "provider credentials in qualified managed-profile application code or SDK configuration",
+      "qualified execution claims for self-hosted application-owned provider calls",
       "caller-defined profile callbacks or dynamic runtime plugins",
       "independent review, production readiness, and package publication authorization"
     ]

@@ -49,6 +49,13 @@ For operator provisioning and clean-machine setup, see the
 For a new domain or provider kind, follow the
 [profile authoring guide](../../docs/product/PROFILE_AUTHORING.md).
 
+For an application-owned provider adapter that is not an Auths-qualified
+vertical, use the installed `auths-profile` command and see the
+[self-hosted exact-operation quickstart](../../docs/product/SELF_HOSTED_PROFILE_QUICKSTART.md).
+The package does not install a competing `auths` command; that name belongs to
+the Rust CLI. An application holding its own provider token can bypass
+`runOnce`, so this path is not credential-isolated.
+
 ## Outcomes and recovery
 
 The ordinary domain method returns its success DTO directly. Use the adjacent

@@ -353,6 +353,12 @@ status = "permanent"
 reason = "Runtime diagnostics hash the generated Rust-owned error registry artifact for negotiation; receipt commitments themselves are computed and checked by native Rust."
 
 [[binding_semantics.allowances]]
+path = "bindings/python/python/auths/_profile_cli.py"
+pattern = "hashlib"
+status = "permanent"
+reason = "The local profile generator hashes its own closed schema snapshot for source-versus-lock drift detection. This digest is not a signed action, proof commitment, or native authorization decision."
+
+[[binding_semantics.allowances]]
 path = "bindings/python/python/auths/_session.py"
 pattern = "os.urandom"
 status = "permanent"
@@ -369,6 +375,12 @@ path = "bindings/python/python/auths/profile_runtime.py"
 pattern = "hashlib"
 status = "permanent"
 reason = "The digest is only an in-process coalescing-table key over already canonical input; it is never sent, persisted, signed, or used to authorize provider access."
+
+[[binding_semantics.allowances]]
+path = "bindings/python/python/auths/attempts.py"
+pattern = "hashlib"
+status = "permanent"
+reason = "SHA-256 obscures an application-owned operation key in a private local filename; the hash is not a proof commitment, protocol identifier, authorization decision, or provider idempotency claim."
 
 [[binding_semantics.allowances]]
 path = "bindings/python/python/auths/testkit.py"

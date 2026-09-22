@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "e2d9c5a0ed1d1ae7fa26e8898eff8e6b7a483eea57c806d0645bf4285cb1756e",
+  "digest": "20fc302b3a6bc16f1710026ae749a9c3f491844182a091ce9af6a0ba8528885d",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -249,11 +249,11 @@
     },
     {
       "path": "xtask/src/formal.rs",
-      "sha256": "02116c687b7eefe43fd754ed3baf745db49f23a92079ac39f4a7ff6f748f1016"
+      "sha256": "f3f9a42687f2e4cd0f6d70411c08f05067b6228e1b9aa0d1423b6c9d24b8d54e"
     },
     {
       "path": "xtask/src/formal_qualification.rs",
-      "sha256": "1c111e99f9334a797087adb2b9eff9ebc8c29d866c3f5de68c346f0330916d2c"
+      "sha256": "0bc926e856e9e9be9c8a48ad8574c968f02251cd20dc5e6e119dfbfff1348729"
     },
     {
       "path": "xtask/src/fuzz.rs",
@@ -321,7 +321,7 @@
     },
     {
       "path": "xtask/src/sdk_experience.rs",
-      "sha256": "cc243fa4734407e6d4b829bfe12f1f73d2bb3c19744524d8f6a7ce6030bdbc32"
+      "sha256": "08ba2ee2010bd82cfce3014c01f8f6b171e23f6326a1f9181f396a7eb19849c5"
     },
     {
       "path": "xtask/src/sdk_vocabulary.rs",

@@ -750,6 +750,73 @@ fn authorize_mcp(
     action_evidence: Vec<(String, String, Vec<u8>)>,
     context: PyRef<'_, PyTrustedContext>,
 ) -> PyResult<(NativeVerificationResult, Option<PyMcpCommand>)> {
+    let (artifacts, authority_commitment, context_commitment) = mcp_proof_artifacts(
+        py,
+        &prepared,
+        &signed_action,
+        &grants,
+        &grant_evidence,
+        &action_evidence,
+        &context,
+    )?;
+    let sealed = verify_sealed(
+        &artifacts.proof,
+        &artifacts.canonical_action,
+        &artifacts.trusted_context,
+    )?;
+    let command = sealed
+        .action()
+        .map(|action| McpProfile.decode_verified(action))
+        .transpose()
+        .map_err(value_error)?
+        .map(|inner| PyMcpCommand {
+            inner: Some(inner),
+            authority_commitment,
+            context_commitment,
+            receipt_artifacts: Some(artifacts),
+        });
+    Ok((native_result(py, sealed)?, command))
+}
+
+#[pyfunction]
+fn assemble_mcp_proof<'py>(
+    py: Python<'py>,
+    prepared: PyRef<'_, PyMcpAction>,
+    signed_action: PyRef<'_, PySignedObject>,
+    grants: Vec<Py<PySignedObject>>,
+    grant_evidence: Vec<Vec<(String, String, Vec<u8>)>>,
+    action_evidence: Vec<(String, String, Vec<u8>)>,
+    context: PyRef<'_, PyTrustedContext>,
+) -> PyResult<(
+    Bound<'py, PyBytes>,
+    Bound<'py, PyBytes>,
+    Bound<'py, PyBytes>,
+)> {
+    let (artifacts, _, _) = mcp_proof_artifacts(
+        py,
+        &prepared,
+        &signed_action,
+        &grants,
+        &grant_evidence,
+        &action_evidence,
+        &context,
+    )?;
+    Ok((
+        PyBytes::new(py, &artifacts.proof),
+        PyBytes::new(py, &artifacts.canonical_action),
+        PyBytes::new(py, &artifacts.trusted_context),
+    ))
+}
+
+fn mcp_proof_artifacts(
+    py: Python<'_>,
+    prepared: &PyMcpAction,
+    signed_action: &PySignedObject,
+    grants: &[Py<PySignedObject>],
+    grant_evidence: &[Vec<(String, String, Vec<u8>)>],
+    action_evidence: &[(String, String, Vec<u8>)],
+    context: &PyTrustedContext,
+) -> PyResult<(McpReceiptArtifacts, [u8; 32], [u8; 32])> {
     if grants.len() != grant_evidence.len() {
         return Err(crate::errors::malformed_input(
             "each grant requires one evidence collection",
@@ -772,13 +839,16 @@ fn authorize_mcp(
         let index = builder.push_grant(grant.clone()).map_err(value_error)?;
         for (evidence_type, media_type, bytes) in evidence {
             builder
-                .bind_grant_evidence(index, evidence_object(&evidence_type, &media_type, bytes)?)
+                .bind_grant_evidence(
+                    index,
+                    evidence_object(evidence_type, media_type, bytes.clone())?,
+                )
                 .map_err(value_error)?;
         }
     }
     for (evidence_type, media_type, bytes) in action_evidence {
         builder
-            .bind_action_evidence(evidence_object(&evidence_type, &media_type, bytes)?)
+            .bind_action_evidence(evidence_object(evidence_type, media_type, bytes.clone())?)
             .map_err(value_error)?;
     }
     let artifacts = builder
@@ -794,22 +864,54 @@ fn authorize_mcp(
     let context_commitment = *auths_codec::context_digest(artifacts.context())
         .map_err(value_error)?
         .as_bytes();
-    let sealed = verify_sealed(&proof_cbor, &action_cbor, &context_cbor)?;
+    Ok((
+        McpReceiptArtifacts {
+            proof: proof_cbor,
+            canonical_action: action_cbor,
+            trusted_context: context_cbor,
+        },
+        authority_commitment,
+        context_commitment,
+    ))
+}
+
+/// Verifies portable artifacts and projects only the named MCP command.
+/// A successful core decision for another action shape yields no command.
+#[pyfunction]
+fn verify_exact_mcp_command(
+    py: Python<'_>,
+    proof_cbor: &[u8],
+    canonical_action_cbor: &[u8],
+    trusted_context_cbor: &[u8],
+    expected_service: &str,
+    expected_name: &str,
+) -> PyResult<(NativeVerificationResult, Option<PyMcpCommand>)> {
+    let sealed = verify_sealed(proof_cbor, canonical_action_cbor, trusted_context_cbor)?;
     let command = sealed
         .action()
-        .map(|action| McpProfile.decode_verified(action))
-        .transpose()
-        .map_err(value_error)?
-        .map(|inner| PyMcpCommand {
-            inner: Some(inner),
-            authority_commitment,
-            context_commitment,
-            receipt_artifacts: Some(McpReceiptArtifacts {
-                proof: proof_cbor,
-                canonical_action: action_cbor,
-                trusted_context: context_cbor,
-            }),
+        .and_then(|action| McpProfile.decode_verified(action).ok())
+        .filter(|command| {
+            command.call().service() == expected_service && command.name() == expected_name
         });
+    let command = command
+        .map(|inner| -> PyResult<PyMcpCommand> {
+            let limits = auths_model::VerifierLimits::default_deployment();
+            let proof = auths_codec::decode_bundle(proof_cbor, &limits).map_err(value_error)?;
+            let context =
+                auths_codec::decode_verifier_context(trusted_context_cbor).map_err(value_error)?;
+            let authority_commitment =
+                mcp_authority_commitment(proof.grants()).map_err(value_error)?;
+            let context_commitment = *auths_codec::context_digest(&context)
+                .map_err(value_error)?
+                .as_bytes();
+            Ok(PyMcpCommand {
+                inner: Some(inner),
+                authority_commitment,
+                context_commitment,
+                receipt_artifacts: None,
+            })
+        })
+        .transpose()?;
     Ok((native_result(py, sealed)?, command))
 }
 
@@ -1235,6 +1337,8 @@ pub fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(commit_mcp_plan, module)?)?;
     module.add_function(wrap_pyfunction!(prepare_mcp_call_action, module)?)?;
     module.add_function(wrap_pyfunction!(authorize_mcp, module)?)?;
+    module.add_function(wrap_pyfunction!(assemble_mcp_proof, module)?)?;
+    module.add_function(wrap_pyfunction!(verify_exact_mcp_command, module)?)?;
     module.add_function(wrap_pyfunction!(consume_mcp_command, module)?)?;
     module.add_function(wrap_pyfunction!(seal_mcp_plan_command, module)?)?;
     module.add_function(wrap_pyfunction!(consume_mcp_plan_command, module)?)?;

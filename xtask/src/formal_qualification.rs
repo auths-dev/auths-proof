@@ -1420,6 +1420,9 @@ fn validate_ci_workflow_gates(ci: &str) -> Result<(), String> {
         "needs.formal-lean-authoritative-run.result == 'success'",
         "needs.formal-lean-authoritative-run.outputs.update_required != 'true'",
         "needs.formal-kani-run.result == 'success'",
+        "AUTHS_FORMAL_TRANSLATION_SOURCE_ATTEMPT",
+        "AUTHS_FORMAL_LEAN_SOURCE_ATTEMPT",
+        "AUTHS_FORMAL_KANI_SOURCE_ATTEMPT",
     ] {
         if !evidence_job.contains(required) {
             return Err(format!(
@@ -2224,6 +2227,9 @@ needs.formal-translation-run.result == 'success'
 needs.formal-lean-authoritative-run.result == 'success'
 needs.formal-lean-authoritative-run.outputs.update_required != 'true'
 needs.formal-kani-run.result == 'success'
+AUTHS_FORMAL_TRANSLATION_SOURCE_ATTEMPT
+AUTHS_FORMAL_LEAN_SOURCE_ATTEMPT
+AUTHS_FORMAL_KANI_SOURCE_ATTEMPT
 cargo xtask ci formal-evidence
   compliance-run:
 needs: [ci-plan, formal-update-gate, repository-preflight]

@@ -585,6 +585,68 @@ mod tests {
             McpToolCall::from_canonical_bytes(input),
             Err(ProfileError::NonCanonical)
         );
+        let duplicate_nested = br#"{"profile":"auths.mcp","profile_version":2,"service":"reports","name":"read_report","arguments":{"nested":{"x":1,"x":2}}}"#;
+        assert_eq!(
+            McpToolCall::from_canonical_bytes(duplicate_nested),
+            Err(ProfileError::NonCanonical)
+        );
+    }
+
+    #[test]
+    fn shared_integer_tokens_are_rejected_before_verified_projection() {
+        let corpus: Value = serde_json::from_str(include_str!(
+            "../../../../bindings/fixtures/self-hosted-profile/adversarial-boundary-v1.json"
+        ))
+        .unwrap();
+        let base = McpToolCall::new(
+            "probe",
+            "probe",
+            Map::from_iter([("n".into(), Value::from(1))]),
+        )
+        .unwrap();
+        let canonical = String::from_utf8(base.canonical_bytes().unwrap()).unwrap();
+        for case in corpus["integerCases"].as_array().unwrap() {
+            let raw = case["argumentsJson"].as_str().unwrap();
+            let candidate = canonical.replace("{\"n\":1}", raw);
+            assert!(
+                case["id"] == "canonical-one" || candidate != canonical,
+                "fixture case must change the action"
+            );
+            let accepted = McpToolCall::from_canonical_bytes(candidate.as_bytes()).is_ok();
+            assert_eq!(accepted, case["decision"] == "accept", "{}", case["id"]);
+        }
+    }
+
+    #[test]
+    fn enum_action_corpus_matches_native_canonicalization_and_commitment() {
+        let corpus: Value = serde_json::from_str(include_str!(
+            "../../../../bindings/fixtures/self-hosted-profile/enum-action-vectors.json"
+        ))
+        .unwrap();
+        let cases = corpus["cases"].as_array().unwrap();
+        assert_eq!(cases.len(), 2);
+        for case in cases {
+            let status = case["status"].as_str().unwrap();
+            let arguments_json = format!("{{\"status\":\"{status}\"}}");
+            assert_eq!(case["arguments_json"].as_str().unwrap(), arguments_json);
+            let call = McpToolCall::new(
+                corpus["service"].as_str().unwrap(),
+                corpus["tool"].as_str().unwrap(),
+                Map::from_iter([("status".into(), Value::String(status.into()))]),
+            )
+            .unwrap();
+            let canonical = McpProfile
+                .canonicalize(&call.canonical_bytes().unwrap())
+                .unwrap();
+            let encoded = auths_codec::encode_canonical_action(&canonical).unwrap();
+            assert_eq!(hex::encode(&encoded), case["action_hex"].as_str().unwrap());
+            let commitment =
+                auths_codec::domain_commitment("auths.canonical-action.v1", &encoded).unwrap();
+            assert_eq!(
+                hex::encode(commitment.as_bytes()),
+                case["commitment_hex"].as_str().unwrap()
+            );
+        }
     }
 
     #[test]

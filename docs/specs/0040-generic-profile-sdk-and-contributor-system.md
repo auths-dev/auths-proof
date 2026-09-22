@@ -22,6 +22,16 @@ and the executable policy together rather than work around the conflict.
 Auths will expose a Stripe-like application API over profile-owned exact
 effects without creating a universal semantic executor.
 
+This document specifies the **qualified managed-profile path**: Auths owns the
+credential-bearing executor and may make separately qualified execution and
+receipt claims. [AP-SPEC-051](0051-self-hosted-developer-profiles.md) specifies
+a different, application-owned path for an exact `auths.mcp/v2` operation.
+That path may use the public SDK without adding a Rust vertical or changing
+this repository, but Auths attests only authorization of the exact action
+under the supplied trusted context. It does not qualify the application's
+provider request, token custody, observation, or effect. The two paths must
+never share an undifferentiated `verified` or `complete` claim.
+
 For an application developer, the normal path is:
 
 ```python
@@ -3371,11 +3381,14 @@ canonical request processing still receives the bounded value.
 
 ## 18. Contributor workflow
 
-A third party contributes either through a reviewed monorepo change or by
-building a custom executor from the same layered packages and conformance
-tools. Publishing only a Python or npm profile package cannot enable an effect:
-the executor must contain the matching qualified Rust vertical and exact
-runtime-contract digest.
+A third party contributing an effect **to an Auths credential-owning runtime**
+does so through a reviewed monorepo change or a custom executor built from the
+same layered packages and conformance tools. Publishing only a Python or npm
+package cannot enable an effect in that runtime: it must contain the matching
+qualified Rust vertical and exact runtime-contract digest. Separately, an
+application may execute its own effect after SDK verification using the
+self-hosted path in AP-SPEC-051. That is immediately usable but never becomes
+a qualified managed vertical merely by passing SDK conformance checks.
 
 ### 18.1 Scaffold command
 

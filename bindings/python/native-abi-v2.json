@@ -43,12 +43,14 @@
   ],
   "operations": [
     "approval_policy_reference",
+    "assemble_mcp_proof",
     "attest_decision_receipt_v1",
     "attest_execution_receipt_v1",
     "authorize_mcp",
     "begin_mcp_execution",
     "begin_mcp_plan_member_execution",
     "bind_delegated_authority",
+    "canonicalize_mcp_arguments_json",
     "commit_canonical_v1",
     "commit_mcp_plan",
     "commit_plan_approval",
@@ -106,6 +108,7 @@
     "validate_root_authority",
     "validate_trusted_authority",
     "verify_ed25519_preimage_v1",
+    "verify_exact_mcp_command",
     "verify_many_v1",
     "verify_pinned_receipt_v1",
     "verify_raw_key_receipt_v1",
@@ -146,7 +149,8 @@
     "identity authentication never creates authority or an effect capability",
     "public verification projects inert evidence and does not expose VerifiedAction",
     "general identity descriptors bind method material and explicit purpose/suite/material relationships",
-    "diagnostic results are native-decoded evidence and cannot mint an effect capability"
+    "diagnostic results are native-decoded evidence and cannot mint an effect capability",
+    "self-hosted command projection is derived only from a native authorized exact MCP action"
   ],
   "workflowInvariants": [
     "approval configuration commitments are derived by auths-author",

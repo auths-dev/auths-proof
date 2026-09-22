@@ -1,0 +1,34 @@
+{
+  "schema": "auths.self-hosted-adversarial-boundary/1",
+  "decisionRule": "Only LF and CRLF separate profile lines. UTF-8 BOM and Unicode line separators are rejected. Numeric JSON tokens must be canonical before integer projection: 1.0, 1e0, -0, leading zero, and underscore spellings are rejected at the wire boundary; typed projections receive only canonical parsed values.",
+  "profileBaseLines": [
+    "[profile]",
+    "name = \"probe\"",
+    "version = 1",
+    "service = \"probe\"",
+    "tool = \"probe\"",
+    "[arguments]",
+    "type = \"object\"",
+    "[arguments.fields.n]",
+    "type = \"integer\"",
+    "minimum = 0",
+    "maximum = 10"
+  ],
+  "profileCases": [
+    { "id": "lf", "lineEnding": "\n", "prefix": "", "name": "probe", "decision": "accept", "command": "Probe" },
+    { "id": "crlf", "lineEnding": "\r\n", "prefix": "", "name": "probe", "decision": "accept", "command": "Probe" },
+    { "id": "cr-only", "lineEnding": "\r", "prefix": "", "name": "probe", "decision": "reject" },
+    { "id": "unicode-line-separator", "lineEnding": "\u2028", "prefix": "", "name": "probe", "decision": "reject" },
+    { "id": "utf8-bom", "lineEnding": "\n", "prefix": "\ufeff", "name": "probe", "decision": "reject" },
+    { "id": "empty-name-segment", "lineEnding": "\n", "prefix": "", "name": "probe--name", "decision": "accept", "command": "ProbeName" }
+  ],
+  "integerCases": [
+    { "id": "canonical-one", "argumentsJson": "{\"n\":1}", "decision": "accept", "value": 1 },
+    { "id": "canonical-zero", "argumentsJson": "{\"n\":0}", "decision": "accept", "value": 0 },
+    { "id": "decimal-spelling", "argumentsJson": "{\"n\":1.0}", "decision": "reject" },
+    { "id": "exponent-spelling", "argumentsJson": "{\"n\":1e0}", "decision": "reject" },
+    { "id": "negative-zero", "argumentsJson": "{\"n\":-0}", "decision": "reject" },
+    { "id": "leading-zero", "argumentsJson": "{\"n\":01}", "decision": "reject" },
+    { "id": "underscore", "argumentsJson": "{\"n\":1_0}", "decision": "reject" }
+  ]
+}

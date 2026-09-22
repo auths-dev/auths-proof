@@ -1,6 +1,6 @@
 # AP-SPEC-025: Closed bounded-authorization policy contract
 
-**Status:** Specified — implementation requires a separate Milestone 3 PR
+**Status:** Partially implemented — tranches 1–3 built; 4–6 open
 
 **Evidence:** Seven-domain semantic inventory
 `docs/research/domains/0003-seven-domain-bounded-authorization-semantic-inventory.md`

@@ -779,6 +779,7 @@ def prepare_mcp_action(
     challenge: bytes,
     evaluation_time: int,
 ) -> McpAction: ...
+def canonicalize_mcp_arguments_json(arguments_json: bytes) -> bytes: ...
 def validate_mcp_service(service: str) -> None: ...
 def mcp_call(service: str, name: str, arguments_json: bytes) -> McpCall: ...
 def review_mcp_call(call: McpCall) -> Tuple[str, List[Tuple[str, str]], bytes]: ...
@@ -797,6 +798,21 @@ def authorize_mcp(
     grant_evidence: List[List[Tuple[str, str, bytes]]],
     action_evidence: List[Tuple[str, str, bytes]],
     context: TrustedContext,
+) -> Tuple[NativeVerificationResult, Optional[McpCommand]]: ...
+def assemble_mcp_proof(
+    prepared: McpAction,
+    signed_action: SignedObject,
+    grants: List[SignedObject],
+    grant_evidence: List[List[Tuple[str, str, bytes]]],
+    action_evidence: List[Tuple[str, str, bytes]],
+    context: TrustedContext,
+) -> Tuple[bytes, bytes, bytes]: ...
+def verify_exact_mcp_command(
+    proof_cbor: bytes,
+    canonical_action_cbor: bytes,
+    trusted_context_cbor: bytes,
+    expected_service: str,
+    expected_name: str,
 ) -> Tuple[NativeVerificationResult, Optional[McpCommand]]: ...
 def consume_mcp_command(
     command: McpCommand, expected_service: str

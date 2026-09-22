@@ -7,6 +7,7 @@
   "requiredSubpaths": [
     ".",
     "./verify",
+    "./self-hosted",
     "./identity",
     "./identity/authoring",
     "./identity/adapters",
@@ -20,6 +21,8 @@
     "identityAbiVersionV1",
     "verifyV1",
     "verifyBatchV1",
+    "verifyExactMcpArgumentsV1",
+    "bindTrustedContextRequestV1",
     "prepareProfileDecisionReceiptV2",
     "profileReceiptPayloadCommitmentV2",
     "validateReceiptAnchorV1",

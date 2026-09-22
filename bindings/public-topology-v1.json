@@ -6,12 +6,17 @@
       "typescript": [
         "@auths-dev/sdk",
         "@auths-dev/sdk/verify",
+        "@auths-dev/sdk/self-hosted",
         "@auths-dev/sdk/identity",
         "@auths-dev/sdk/identity/authoring"
       ],
       "python": [
         "auths",
         "auths.verify",
+        "auths.authoring",
+        "auths.attempts",
+        "auths.execution",
+        "auths.self_hosted",
         "auths.identity",
         "auths.identity.authoring"
       ]
