@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { GatewayClient, GatewayEndpoint } from "../../dist/gateway.js";
 
-test("gateway client submits proof/action only and separates observed from effect", async () => {
+test("gateway client submits proof/action only and separates observed from effect", { skip: process.platform === "win32" }, async () => {
   const directory = await mkdtemp(join(tmpdir(), "auths-gateway-"));
   const path = join(directory, "app.sock");
   const seen = [];

@@ -12,7 +12,7 @@ import json
 import struct
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, TypeAlias
+from typing import Literal, Union
 
 _REQUEST_SCHEMA = "auths.gateway-submit/1"
 _MAX_PROOF_BYTES = 4 * 1024 * 1024
@@ -24,7 +24,7 @@ class GatewayProtocolError(RuntimeError):
     """The gateway socket or its bounded response was unavailable or malformed."""
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class GatewayEndpoint:
     """Absolute path to an operator-provisioned local application socket."""
 
@@ -41,7 +41,7 @@ class GatewayEndpoint:
             raise ValueError("gateway socket path is too long")
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class GatewayDenied:
     """Native proof verification denied the exact action."""
 
@@ -49,7 +49,7 @@ class GatewayDenied:
     outcome: Literal["denied"] = "denied"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class GatewayIndeterminate:
     """Native proof verification could not authorize the action."""
 
@@ -57,7 +57,7 @@ class GatewayIndeterminate:
     outcome: Literal["indeterminate"] = "indeterminate"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class GatewayNotEntered:
     """The gateway refused provider entry after proof verification."""
 
@@ -65,14 +65,14 @@ class GatewayNotEntered:
     outcome: Literal["not-entered"] = "not-entered"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class GatewayUnknown:
     """Provider entry or effect is ambiguous; do not automatically retry."""
 
     outcome: Literal["unknown"] = "unknown"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class GatewayResponseRecorded:
     """A complete HTTP response was recorded; effect is not established."""
 
@@ -80,7 +80,7 @@ class GatewayResponseRecorded:
     outcome: Literal["response-recorded"] = "response-recorded"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class GatewayObserved:
     """Separate read-back matched or differed; match is not causation."""
 
@@ -89,14 +89,14 @@ class GatewayObserved:
     outcome: Literal["observed"] = "observed"
 
 
-GatewayResult: TypeAlias = (
-    GatewayDenied
-    | GatewayIndeterminate
-    | GatewayNotEntered
-    | GatewayUnknown
-    | GatewayResponseRecorded
-    | GatewayObserved
-)
+GatewayResult = Union[
+    GatewayDenied,
+    GatewayIndeterminate,
+    GatewayNotEntered,
+    GatewayUnknown,
+    GatewayResponseRecorded,
+    GatewayObserved,
+]
 
 
 def _parse_result(raw: bytes) -> GatewayResult:

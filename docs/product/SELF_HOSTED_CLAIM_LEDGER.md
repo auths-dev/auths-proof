@@ -36,9 +36,24 @@ This is **not yet** a production-qualified or non-bypassable product claim.
 The separate Unix process and admin/app sockets still require hosted green
 tests, a documented distinct-UID deployment in which the app cannot read the
 gateway credential or reach the admin socket, egress and hostile-action
-evidence, and live provider read-back on the same revision. The SDK clients
+evidence, and production-style independent trust. The SDK clients
 alone establish none of those deployment facts. An app that retains a
 separate provider token can still bypass Auths.
+
+On 2026-09-22, the developer-owned Airtable and Todoist gateway recipes made
+live calls through the field-lab `run-demo.sh` gateway mode using the packaged
+Python wheel. Airtable returned `observed` with a matching separate GET of
+[the disposable record](https://airtable.com/appQD3Qf0YFBCW9bV/tblHscC7D9Kp7hiRw/viw8KMXQZw8bd3XXJ/recc20fysorU22tQT).
+Todoist returned `response-recorded` (HTTP 200), then a separate operator
+read found [the task](https://app.todoist.com/app/task/6hXvvMxXRrmpR7Rm).
+These runs used disposable self-trusting testkit authority and same-UID local
+processes. They establish the request piping and observed provider state,
+not independent production trust, credential unreadability by a distinct app
+identity, provider-qualified effects, or exclusive causation. An earlier
+same-run Airtable submission exposed a blocking-client runtime panic before
+any durable claim or provider write; the transport was changed to bounded
+async I/O before the successful fresh run. The repaired revision still needs
+hosted CI and hostile deployment evidence.
 
 ## Packaged clean-consumer exercise
 

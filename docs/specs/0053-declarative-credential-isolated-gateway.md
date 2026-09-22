@@ -1,7 +1,7 @@
 # AP-SPEC-053: Developer-defined, credential-isolated exact-action gateway
 
-- **Status:** Draft; proposed architectural extension, not an implemented or
-  qualified product claim
+- **Status:** Implementation in progress; the single-host compiler, service,
+  and SDK clients are not a qualified product claim
 - **Depends on:** [AP-SPEC-051](0051-self-hosted-developer-profiles.md),
   [AP-SPEC-052](0052-self-hosted-launch-hardening.md), the existing
   `auths.mcp/v2` exact-tool action, and the
@@ -57,33 +57,29 @@ compiler reports the action-to-request mapping and its digest before an
 operator approves it. No provider credential or production trust is generated
 by `init`, `compile`, or `check`.
 
-Proposed terminal flow; command spelling may be refined before public freeze:
+Current bounded terminal flow (paths and account labels are operator values):
 
 ```text
-$ auths-profile init --language python --name set-demo-status
-$ auths gateway recipe init --profile profile.toml
-$ auths gateway recipe check recipe.toml
-  action:       airtable.set_demo_status_v1
-  write:        PATCH https://api.airtable.com/v0/<fixed-base>/<fixed-table>/<record-id>
-  body:         {"fields":{"DemoStatus":<replacement>}}
-  credential:   bearer, gateway-held; no token loaded by this command
-  digest:       sha256:<immutable compiled-recipe digest>
-  claim:        closed transport only; provider effect unqualified
+$ auths-profile generate profile.toml
+$ auths gateway recipe check --recipe recipe.json --profile-lock profile.lock.json
+  # Review the exact JSON mapping and immutable digest; no token is loaded.
 
 # Separate operator/admin identity and channel:
-$ auths gateway install compiled-recipe.bundle --approve-digest sha256:<digest>
-$ auths gateway credential bind --connection <connection-id> --recipe sha256:<digest>
-  # Secret enters through an operator-only input channel; never an argv value.
-$ auths gateway doctor
-  action trust: independently provisioned
-  recipe: approved and immutable
-  connection: active; credential generation pinned
-  app access to credential: denied by deployment boundary
+$ auths-gateway install --state-dir <private-short-path> --recipe recipe.json \
+    --profile-lock profile.lock.json --trusted-context trusted.context.cbor \
+    --approve-digest <reviewed-digest> --provider <provider> --alias <alias> \
+    --account-label <account> --credential-stdin
+  # The operator pipes a credential on stdin; no token appears in argv.
+$ auths-gateway serve --state-dir <private-short-path> --app-socket <app-socket>
+$ auths-gateway doctor --state-dir <private-short-path> \
+    --app-socket <app-socket> --app-uid <app-uid> --app-gid <app-gid>
+  # Doctor needs authority to probe the actual distinct app identity.
 
 # Application channel:
-$ my-app-submit proof.cbor action.cbor
-  authorized | denied | indeterminate
-  not-entered | attempting | response-recorded | unknown | observed
+$ auths-gateway submit --app-socket <app-socket> \
+    --proof proof.cbor --action action.cbor
+  # Or use auths.gateway / @auths-dev/sdk/gateway with the same two inputs.
+  denied | indeterminate | not-entered | unknown | response-recorded | observed
 ```
 
 The operator preview must show the origin, method, fixed and substituted path

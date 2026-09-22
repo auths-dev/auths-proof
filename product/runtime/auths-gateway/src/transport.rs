@@ -8,12 +8,11 @@ use crate::{
 };
 use auths_connections::StoredSecretLease;
 use reqwest::{
-    blocking::Client,
+    Client,
     header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderName, HeaderValue},
 };
 use sha2::{Digest as _, Sha256};
 use std::{
-    io::Read as _,
     net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs as _},
     time::{Duration, Instant},
 };
@@ -81,16 +80,7 @@ impl GatewayHttpTransport {
             .find(|address| matches!(address.ip(), IpAddr::V4(_)))
             .copied()
             .ok_or(GatewayTransportError::NotEntered)?;
-        let client = Client::builder()
-            .https_only(true)
-            .no_proxy()
-            .redirect(reqwest::redirect::Policy::none())
-            .connect_timeout(Duration::from_secs(5))
-            .timeout(Duration::from_secs(15))
-            .pool_max_idle_per_host(0)
-            .resolve(hostname, pinned)
-            .build()
-            .map_err(|_| GatewayTransportError::NotEntered)?;
+        let client = pinned_client(hostname, pinned)?;
         Ok(Self {
             client,
             origin: origin.to_owned(),
@@ -101,7 +91,7 @@ impl GatewayHttpTransport {
     /// Sends one request after a durable claim. Any incomplete response is
     /// conservatively unknown, even when the error occurred before a socket
     /// connected; it never authorizes a retry.
-    pub(crate) fn write(
+    pub(crate) async fn write(
         &self,
         request: &ClosedProviderRequest,
         lease: &StoredSecretLease,
@@ -121,12 +111,12 @@ impl GatewayHttpTransport {
             .body(request.body().to_vec())
             .build()
             .map_err(|_| GatewayTransportError::NotEntered)?;
-        let mut response = match self.client.execute(outbound) {
+        let mut response = match self.client.execute(outbound).await {
             Ok(response) => response,
             Err(_) => return Ok(WriteTransportOutcome::Unknown),
         };
         let status = response.status().as_u16();
-        let Some(bytes) = read_bounded(&mut response, MAX_WRITE_RESPONSE_BYTES) else {
+        let Some(bytes) = read_bounded(&mut response, MAX_WRITE_RESPONSE_BYTES).await else {
             return Ok(WriteTransportOutcome::Unknown);
         };
         Ok(WriteTransportOutcome::ResponseRecorded {
@@ -137,7 +127,7 @@ impl GatewayHttpTransport {
 
     /// Performs a separate bounded read-only equality check. Failure leaves
     /// the write stage unchanged and does not license a second write.
-    pub(crate) fn observe(
+    pub(crate) async fn observe(
         &self,
         request: &ClosedObservationRequest,
         lease: &StoredSecretLease,
@@ -153,11 +143,11 @@ impl GatewayHttpTransport {
             .header(ACCEPT, "application/json")
             .build()
             .ok()?;
-        let mut response = self.client.execute(outbound).ok()?;
+        let mut response = self.client.execute(outbound).await.ok()?;
         if !response.status().is_success() {
             return None;
         }
-        let bytes = read_bounded(&mut response, request.maximum_response_bytes())?;
+        let bytes = read_bounded(&mut response, request.maximum_response_bytes()).await?;
         let decoded: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
         decoded
             .pointer(request.json_pointer())
@@ -175,6 +165,19 @@ impl GatewayHttpTransport {
                     && url.password().is_none()
             })
     }
+}
+
+fn pinned_client(hostname: &str, pinned: SocketAddr) -> Result<Client, GatewayTransportError> {
+    Client::builder()
+        .https_only(true)
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .connect_timeout(Duration::from_secs(5))
+        .timeout(Duration::from_secs(15))
+        .pool_max_idle_per_host(0)
+        .resolve(hostname, pinned)
+        .build()
+        .map_err(|_| GatewayTransportError::NotEntered)
 }
 
 fn credential_headers(
@@ -210,13 +213,15 @@ fn credential_headers(
     Ok(headers)
 }
 
-fn read_bounded(response: &mut reqwest::blocking::Response, maximum: usize) -> Option<Vec<u8>> {
+async fn read_bounded(response: &mut reqwest::Response, maximum: usize) -> Option<Vec<u8>> {
     let mut bytes = Vec::new();
-    response
-        .take((maximum + 1) as u64)
-        .read_to_end(&mut bytes)
-        .ok()?;
-    (bytes.len() <= maximum).then_some(bytes)
+    while let Some(chunk) = response.chunk().await.ok()? {
+        if bytes.len().checked_add(chunk.len())? > maximum {
+            return None;
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    Some(bytes)
 }
 
 fn public_ipv4(ip: Ipv4Addr) -> bool {
@@ -233,6 +238,13 @@ fn public_ipv4(ip: Ipv4Addr) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn async_client_drops_on_runtime_worker_without_nested_runtime_panic() {
+        let pinned = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 443);
+        let client = pinned_client("api.example.com", pinned).expect("client");
+        drop(client);
+    }
 
     #[test]
     fn private_and_documentation_destinations_are_rejected() {

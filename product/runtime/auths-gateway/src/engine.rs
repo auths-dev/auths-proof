@@ -294,7 +294,7 @@ impl GatewayEngine {
             Ok(value) => value,
             Err(_) => return checkpoint_not_entered(claim),
         };
-        let write = match transport.write(&request, &lease) {
+        let write = match transport.write(&request, &lease).await {
             Ok(value) => value,
             Err(_) => return checkpoint_not_entered(claim),
         };
@@ -311,7 +311,7 @@ impl GatewayEngine {
                 let Some(observation) = request.observation() else {
                     return GatewaySubmitResult::ResponseRecorded { status };
                 };
-                let Some(matched) = transport.observe(observation, &lease) else {
+                let Some(matched) = transport.observe(observation, &lease).await else {
                     return GatewaySubmitResult::ResponseRecorded { status };
                 };
                 match recorded.record_observation(matched) {
