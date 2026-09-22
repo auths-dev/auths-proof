@@ -39,10 +39,27 @@ pub struct GatewayConnectionDescriptor {
 }
 
 impl GatewayConnectionDescriptor {
-    /// Creates a descriptor solely from a validated recipe for operator
-    /// approval, never from an application submission.
-    #[must_use]
-    pub fn from_recipe(recipe: &CompiledRecipe) -> Self {
+    /// Creates a descriptor only when the operator-selected injection header
+    /// matches the recipe's declared credential requirement.
+    ///
+    /// # Errors
+    /// Refuses a recipe/header mismatch before credential installation.
+    pub fn approve(
+        recipe: &CompiledRecipe,
+        injection_header: &str,
+    ) -> Result<Self, GatewayConnectionError> {
+        let expected = Self::expected(recipe);
+        let name = match &expected.credential {
+            CredentialRequirement::Bearer => "Authorization",
+            CredentialRequirement::HeaderApiKey { header } => header.as_str(),
+        };
+        if injection_header != name {
+            return Err(GatewayConnectionError::Mismatch);
+        }
+        Ok(expected)
+    }
+
+    fn expected(recipe: &CompiledRecipe) -> Self {
         Self {
             namespace: recipe.namespace().clone(),
             recipe_digest: *recipe.digest(),
@@ -93,7 +110,7 @@ impl GatewayConnectionDescriptor {
         if canonical != bytes || wire.schema != SCHEMA {
             return Err(GatewayConnectionError::InvalidDescriptor);
         }
-        let expected = Self::from_recipe(recipe);
+        let expected = Self::expected(recipe);
         if wire.operator_namespace != expected.namespace.as_str()
             || wire.recipe_digest != hex::encode(expected.recipe_digest)
             || wire.credential != expected.credential
@@ -121,18 +138,44 @@ mod tests {
         ))
         .expect("binding scenarios");
         assert_eq!(cases["schema"], "auths.gateway-binding-scenarios/1");
-        assert_eq!(cases["cases"].as_array().expect("cases").len(), 6);
+        assert_eq!(cases["cases"].as_array().expect("cases").len(), 7);
         let recipe = CompiledRecipe::compile(
             include_bytes!("../../../../bindings/fixtures/gateway/airtable/recipe.json"),
             include_bytes!("../../../../bindings/fixtures/gateway/airtable/profile.lock.json"),
         )
         .expect("recipe");
-        let descriptor = GatewayConnectionDescriptor::from_recipe(&recipe);
+        let descriptor = GatewayConnectionDescriptor::approve(&recipe, "Authorization")
+            .expect("bearer header approved");
         let bytes = descriptor.to_bytes().expect("canonical descriptor");
         let value: serde_json::Value = serde_json::from_slice(&bytes).expect("JSON");
         assert_eq!(value["schema"], SCHEMA);
         assert_eq!(value["operator_namespace"], recipe.namespace().as_str());
         assert_eq!(value["recipe_digest"], recipe.digest_hex());
         assert_eq!(value["credential"]["kind"], "bearer");
+        assert!(matches!(
+            GatewayConnectionDescriptor::approve(&recipe, "X-Api-Key"),
+            Err(GatewayConnectionError::Mismatch)
+        ));
+    }
+
+    #[test]
+    fn api_key_injection_header_is_independently_operator_bound() {
+        let mut source: serde_json::Value = serde_json::from_slice(include_bytes!(
+            "../../../../bindings/fixtures/gateway/todoist/recipe.json"
+        ))
+        .expect("recipe JSON");
+        source["credential"] = serde_json::json!({"kind":"header-api-key","header":"X-Api-Key"});
+        let source = serde_json::to_vec(&source).expect("recipe bytes");
+        let recipe = CompiledRecipe::compile(
+            &source,
+            include_bytes!("../../../../bindings/fixtures/gateway/todoist/profile.lock.json"),
+        )
+        .expect("API-key recipe");
+        assert!(matches!(
+            GatewayConnectionDescriptor::approve(&recipe, "X-Other-Key"),
+            Err(GatewayConnectionError::Mismatch)
+        ));
+        GatewayConnectionDescriptor::approve(&recipe, "X-Api-Key")
+            .expect("operator selected the declared header");
     }
 }

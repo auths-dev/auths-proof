@@ -379,15 +379,41 @@
       "python": "bindings/python/tests/test_gateway_client.py",
       "experience": {
         "targetJourney": "submit-one-exact-authorized-write-without-app-provider-credential",
-        "imports": ["gateway", "generated-exact-tool"],
-        "securityNouns": ["Authority", "Action"],
-        "domainConcepts": ["operator-approved recipe", "connection"],
-        "setupDecisions": ["local gateway socket"],
-        "apiMechanics": ["author proof", "submit proof and action", "inspect stage"],
-        "requiredApplicationComponents": ["proof", "canonical action", "gateway socket"],
+        "imports": [
+          "gateway",
+          "generated-exact-tool"
+        ],
+        "securityNouns": [
+          "Authority",
+          "Action"
+        ],
+        "domainConcepts": [
+          "operator-approved recipe",
+          "connection"
+        ],
+        "setupDecisions": [
+          "local gateway socket"
+        ],
+        "apiMechanics": [
+          "author proof",
+          "submit proof and action",
+          "inspect stage"
+        ],
+        "requiredApplicationComponents": [
+          "proof",
+          "canonical action",
+          "gateway socket"
+        ],
         "executableStatements": 8,
         "applicationOrchestratedSecurityTransitions": 0,
-        "terminalOutcomes": ["denied", "indeterminate", "not-entered", "unknown", "response-recorded", "observed"],
+        "terminalOutcomes": [
+          "denied",
+          "indeterminate",
+          "not-entered",
+          "unknown",
+          "response-recorded",
+          "observed"
+        ],
         "consumerRequiresRust": false
       }
     }

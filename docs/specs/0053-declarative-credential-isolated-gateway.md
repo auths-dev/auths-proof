@@ -61,14 +61,16 @@ Current bounded terminal flow (paths and account labels are operator values):
 
 ```text
 $ auths-profile generate profile.toml
-$ auths gateway recipe check --recipe recipe.json --profile-lock profile.lock.json
+$ auths gateway recipe check --recipe recipe.json --profile-lock profile.lock.json \
+    --credential-header <operator-selected-header>
   # Review the exact JSON mapping and immutable digest; no token is loaded.
 
 # Separate operator/admin identity and channel:
 $ auths-gateway install --state-dir <private-short-path> --recipe recipe.json \
     --profile-lock profile.lock.json --trusted-context trusted.context.cbor \
     --approve-digest <reviewed-digest> --provider <provider> --alias <alias> \
-    --account-label <account> --credential-stdin
+    --account-label <account> --credential-header <operator-selected-header> \
+    --credential-stdin
   # The operator pipes a credential on stdin; no token appears in argv.
 $ auths-gateway serve --state-dir <private-short-path> --app-socket <app-socket>
 $ auths-gateway doctor --state-dir <private-short-path> \
@@ -203,6 +205,11 @@ permits:
   headers. A derived recipe records only its credential requirement;
   `recipe check` fails if that requirement and the binding disagree. The recipe
   cannot name or set the injection header as an ordinary header. Operator
+  approval supplies the injection header independently: bearer requires
+  `Authorization` and a header-key requirement must exactly match the
+  operator's named header at both `recipe check` and installation. The
+  operator value is committed into the connection descriptor; submit-time
+  inputs cannot change it. Operator
   approval cannot widen the recipe-header allowlist; all other recipe headers,
   including custom `X-*` headers, are rejected;
 - a fixed-shape JSON or form body of literals and typed field references;

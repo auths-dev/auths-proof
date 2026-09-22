@@ -75,6 +75,9 @@ mod unix {
             alias: String,
             #[arg(long)]
             account_label: String,
+            /// Operator-selected header; must match the recipe's requirement.
+            #[arg(long, default_value = "Authorization")]
+            credential_header: String,
             #[arg(long, default_value_t = false)]
             credential_stdin: bool,
         },
@@ -220,6 +223,7 @@ mod unix {
         provider_text: String,
         alias_text: String,
         account_label: String,
+        credential_header: String,
         credential_stdin: bool,
     ) -> Result<(), &'static str> {
         if !credential_stdin || std::io::stdin().is_terminal() {
@@ -233,6 +237,10 @@ mod unix {
         if approved != recipe.digest_hex() {
             return Err("gateway.install.approval-digest-mismatch");
         }
+        let descriptor = GatewayConnectionDescriptor::approve(&recipe, &credential_header)
+            .map_err(|_| "gateway.install.credential-header-mismatch")?
+            .to_bytes()
+            .map_err(|_| "gateway.install.invalid-descriptor")?;
         let provider = ProviderKind::parse(provider_text.clone())
             .map_err(|_| "gateway.install.invalid-provider")?;
         let alias = ConnectionAlias::parse(alias_text.clone())
@@ -271,9 +279,6 @@ mod unix {
             )
             .await
             .map_err(|_| "gateway.install.credential-store-unavailable")?;
-        let descriptor = GatewayConnectionDescriptor::from_recipe(&recipe)
-            .to_bytes()
-            .map_err(|_| "gateway.install.invalid-descriptor")?;
         let profile = ConnectionProfile::new(
             SemanticId::parse("auths.mcp").map_err(|_| "gateway.install.profile")?,
             2,
@@ -698,6 +703,7 @@ mod unix {
                 provider,
                 alias,
                 account_label,
+                credential_header,
                 credential_stdin,
             } => {
                 install(
@@ -709,6 +715,7 @@ mod unix {
                     provider,
                     alias,
                     account_label,
+                    credential_header,
                     credential_stdin,
                 )
                 .await

@@ -12,7 +12,7 @@ import json
 import struct
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Union
+from typing import Literal, Mapping, Union, cast
 
 _REQUEST_SCHEMA = "auths.gateway-submit/1"
 _MAX_PROOF_BYTES = 4 * 1024 * 1024
@@ -101,23 +101,25 @@ GatewayResult = Union[
 
 def _parse_result(raw: bytes) -> GatewayResult:
     try:
-        decoded = json.loads(raw)
+        decoded: object = json.loads(raw)
     except (UnicodeDecodeError, ValueError) as error:
         raise GatewayProtocolError("gateway returned invalid JSON") from error
     if not isinstance(decoded, dict):
         raise GatewayProtocolError("gateway returned invalid result")
-    outcome = decoded.get("outcome")
+    value = cast(Mapping[str, object], decoded)
+    outcome = value.get("outcome")
     if outcome in {"denied", "indeterminate", "not-entered"}:
-        if set(decoded) != {"outcome", "code"} or not isinstance(decoded["code"], str):
+        code = value.get("code")
+        if set(value) != {"outcome", "code"} or not isinstance(code, str):
             raise GatewayProtocolError("gateway returned invalid refusal")
-        if not 1 <= len(decoded["code"]) <= 128:
+        if not 1 <= len(code) <= 128:
             raise GatewayProtocolError("gateway returned invalid code")
         if outcome == "denied":
-            return GatewayDenied(decoded["code"])
+            return GatewayDenied(code)
         if outcome == "indeterminate":
-            return GatewayIndeterminate(decoded["code"])
-        return GatewayNotEntered(decoded["code"])
-    if outcome == "unknown" and set(decoded) == {"outcome"}:
+            return GatewayIndeterminate(code)
+        return GatewayNotEntered(code)
+    if outcome == "unknown" and set(value) == {"outcome"}:
         return GatewayUnknown()
     if outcome in {"response-recorded", "observed"}:
         expected = (
@@ -125,18 +127,20 @@ def _parse_result(raw: bytes) -> GatewayResult:
             if outcome == "response-recorded"
             else {"outcome", "status", "matched"}
         )
-        status = decoded.get("status")
+        status = value.get("status")
         if (
-            set(decoded) != expected
-            or type(status) is not int
+            set(value) != expected
+            or not isinstance(status, int)
+            or isinstance(status, bool)
             or not 100 <= status <= 599
         ):
             raise GatewayProtocolError("gateway returned invalid response stage")
         if outcome == "response-recorded":
             return GatewayResponseRecorded(status)
-        if type(decoded.get("matched")) is not bool:
+        matched = value.get("matched")
+        if not isinstance(matched, bool):
             raise GatewayProtocolError("gateway returned invalid observation")
-        return GatewayObserved(status, decoded["matched"])
+        return GatewayObserved(status, matched)
     raise GatewayProtocolError("gateway returned unknown result stage")
 
 

@@ -5,6 +5,7 @@
     {"id": "changed-recipe-digest", "result": "not-entered"},
     {"id": "changed-operator-namespace", "result": "not-entered"},
     {"id": "credential-header-mismatch", "result": "not-entered"},
+    {"id": "api-key-header-mismatch-at-approval", "result": "approval-refused"},
     {"id": "disabled-connection", "result": "not-entered"},
     {"id": "rotated-generation", "result": "not-entered"}
   ]
