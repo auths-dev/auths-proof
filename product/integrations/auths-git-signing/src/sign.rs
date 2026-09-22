@@ -64,6 +64,18 @@ impl DelegationLink {
             issuer_evidence,
         }
     }
+
+    /// Returns the signed grant.
+    #[must_use]
+    pub const fn grant(&self) -> &SignedGrant {
+        &self.grant
+    }
+
+    /// Returns the issuer's control evidence.
+    #[must_use]
+    pub const fn issuer_evidence(&self) -> &EvidenceObject {
+        &self.issuer_evidence
+    }
 }
 
 /// A grant chain from a pinned root to the signer, root first.
@@ -93,7 +105,19 @@ impl Delegation {
         Ok(Self { links })
     }
 
-    fn terminal(&self) -> Result<&SignedGrant, SignError> {
+    /// Returns the links, root first.
+    #[must_use]
+    pub fn links(&self) -> &[DelegationLink] {
+        &self.links
+    }
+
+    /// Returns the grant issued to the signer.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SignError::Delegation`] only for an empty chain, which
+    /// [`Delegation::new`] never builds.
+    pub fn terminal(&self) -> Result<&SignedGrant, SignError> {
         self.links
             .last()
             .map(|link| &link.grant)
@@ -122,6 +146,37 @@ pub enum SignError {
     /// The proof or action exceeds the envelope limits.
     #[error("git signature envelope: {0}")]
     Envelope(#[from] EnvelopeError),
+    /// The installed grant does not cover this object now.
+    #[error("the installed grant does not cover this signature (capability or validity)")]
+    NotCovered,
+}
+
+/// Checks locally that the installed grant covers signing `payload` in
+/// `repository` at `now`, so the signer can refuse early with a clear
+/// message. The verifier remains the authority.
+///
+/// # Errors
+///
+/// Returns [`SignError::NotCovered`] when the terminal grant lacks the
+/// permission or is not valid at `now`, and [`SignError::Action`] for an
+/// invalid action.
+pub fn check_coverage(
+    delegation: &Delegation,
+    payload: &UnsignedPayload,
+    repository: &RepositoryId,
+    now: u64,
+) -> Result<(), SignError> {
+    let permission = GitSignatureAction::for_payload(repository, payload)?.permission()?;
+    let terminal = delegation.terminal()?.statement();
+    if terminal.permissions().contains(&permission)
+        && terminal
+            .validity()
+            .contains(auths_model::Timestamp::new(now))
+    {
+        Ok(())
+    } else {
+        Err(SignError::NotCovered)
+    }
 }
 
 /// Signs `payload` for `repository` as `signer`, under `delegation`.

@@ -59,35 +59,48 @@ required check. A repository that does not run the verifier is unaffected.
 
 ## 2. UX
 
-Operator (root) setup, once per repository or organization:
+The commands ship as two binaries in `auths-git-signing`: `auths-git` for
+operators, and `auths-git-sign` as the program Git calls. They are not
+`auths git …` subcommands of `auths-node`, because that binary already
+depends on `auths-did-keri`, which §5 forbids.
+
+Operator (root) setup, once per repository or organization, with trust
+committed to the protected branch:
 
 ```text
-$ auths git root init --out root.did-key          # or: an existing root principal
-$ auths git trust init --root <root-principal> --repository github.com/acme/app \
-    --out .auths/git-trust.cbor
+$ auths-git key init --label root                  # prints did:key:z6Mk…; no secret on stdout
+$ auths-git trust init --root root --repository github.com/acme/app --out .auths/git
+$ git add .auths/git && git commit -m "pin git signing trust"
 ```
 
 Delegating a local agent (the port of `auths id agent add`):
 
 ```text
 # On the agent host:
-$ auths git agent init --label claude-release     # prints did:key:z6Mk…; no secret on stdout
+$ auths-git key init --label claude-release        # prints did:key:z6Mk…
 # On the root host:
-$ auths git grant --root <root> --subject did:key:z6Mk… \
+$ auths-git grant --root root --subject did:key:z6Mk… \
     --repository github.com/acme/app --capability sign-commit,sign-tag \
-    --expires-in 90d --out claude-release.grant.cbor
+    --expires-in 7776000 --out claude-release.grant.json
 # On the agent host:
-$ auths git agent install-grant claude-release.grant.cbor
+$ auths-git install-grant --label claude-release claude-release.grant.json
 $ git config gpg.format x509
 $ git config gpg.x509.program auths-git-sign
 $ git config user.signingkey auths:claude-release
-$ git commit -S -m "…"                            # headless; no prompt, no re-signing
+$ git config auths.repository github.com/acme/app
+$ git config auths.trustDir .auths/git              # for git verify-commit
+$ git commit -S -m "…"                              # headless; no prompt, no re-signing
 ```
+
+Local keys and installed grants live under `$AUTHS_GIT_HOME` (default
+`~/.auths-git`, mode 0700). The signer refuses, and Git creates no object,
+when the installed grant does not cover the object's capability or the
+current time.
 
 Delegating a CI workload names the exact workload subject rather than a key:
 
 ```text
-$ auths git grant --root <root> \
+$ auths-git grant --root <root> \
     --subject 'oidc-workload:<pct-issuer>#<pct-subject>' \
     --repository github.com/acme/app --capability sign-tag --expires-in 365d
 ```
@@ -105,23 +118,27 @@ not a pattern.
 Revocation (the port of the sibling project's one-line revoke):
 
 ```text
-$ auths git revoke --root <root> --grant <grant-id> --out status/<grant-id>.cbor
-# Merge the status record into the verifier's trust material (§3.5).
+$ auths-git revoke --root root --repository github.com/acme/app \
+    --grant claude-release.grant.json --out .auths/git/revocations/claude-release.sig
+# Commit the record to the protected branch (§3.5).
 ```
 
 Verification:
 
 ```text
-$ auths git verify origin/main..HEAD --trust-from-ref origin/main
-  3 commits verified
-  a1b2c3d  did:key:z6Mk… (claude-release) ← root did:key:z6Mf…  git/sign-commit
+$ auths-git verify origin/main..HEAD --trust-from-ref origin/main
+  a1b2c3d4e5f6  verified  did:key:z6Mk… <- did:key:z6Mf…
   …
-$ auths git verify HEAD --trust-from-ref origin/main --json
+  3 objects; trust sha256 <digest>; evaluated at <unix time>
+$ auths-git verify v1.0.0 --trust-from-ref origin/main --json
 ```
+
+Exit codes: 0 when every object verified, 1 when any was denied, 2 for an
+indeterminate result or an operational error.
 
 `git verify-commit` and `git log --show-signature` MUST also work through the
 same program when `gpg.x509.program` is set. They report good or bad; the
-detailed result comes from `auths git verify`.
+detailed result comes from `auths-git verify`.
 
 The terminal and JSON output MUST show the signing principal, each grant in
 the chain, the root, the capability used, the evaluation time, and the digest
@@ -280,7 +297,7 @@ executes `src/git_protocol_tests.rs` against each runner's Git:
 
 1. reads the payload from stdin and computes `payload_digest`;
 2. builds the canonical action from the payload and the repository recorded
-   by `auths git agent init` (`auths.repository` in Git config); if the
+   in `git config auths.repository`; if the
    payload cannot be parsed as the expected kind, or the repository is unset,
    it refuses;
 3. checks locally that an installed grant covers the capability and
@@ -330,23 +347,43 @@ those methods are enabled, the expected repository, the status records, and
 the executable registry configuration commitment. Its source is outside the
 objects being verified:
 
-- `auths git verify` MUST take trust from `--trusted-context <path>` or
+- `auths-git verify` MUST take trust from `--trust-dir <path>` or
   `--trust-from-ref <ref>`. With `--trust-from-ref`, it MUST refuse with
   `git.trust-from-verified-range` when the ref resolves to a commit inside the
   verified range. A pull request cannot supply its own trust.
 - The provided CI action MUST read trust from the protected base branch.
 
-Status records (`.auths/git-status/*.cbor`) sit next to the trusted context
-and are selected revoked-dominant under the registered status methods. In
-this epic, revocation takes effect for a verifier **when the revocation record
-is present in the trust material it reads**. Status freshness (a maximum age
-after which the verifier requires a newer signed "active" record) is
-supported by the registry but is **off by default**. Turning it on requires a
-root that re-signs status periodically, which conflicts with a rarely used
-human root. Without freshness, rolling back the trust material by deleting a
-revocation record from the protected branch would restore the old grant.
-Branch protection on the trust path is the control for that. The status
-freshness mode is documented, not defaulted.
+**Revocation.** The kernel's grant-status snapshot cannot express revoking a
+long-lived signature. Every status statement in the snapshot must be bound
+inside the proof being verified (`control_for` in
+`core/crates/auths-verifier/src/lib.rs`). A commit is signed once and
+verified later, so a revocation issued after signing can never be bound into
+it. The registered `local-deny-list-v1` status method is not implemented.
+
+Revocation is therefore its own Auths proof (`src/revoke.rs`):
+
+1. An authorized principal signs a `revoke-grant` action (`git/revoke-grant`
+   on `git://<repository>/grants`) over one grant identifier. That is
+   normally the pinned root acting directly; the trust anchor carries this
+   permission.
+2. The record is armored in the same envelope as a signature, and lives in
+   `.auths/git/revocations/*.sig` next to `trust.cbor`.
+3. The kernel verifies each record against the same pinned trust, at the
+   record's own issue time. The kernel requires the action window to lie
+   inside the revoker's authority, and reading the time from the record
+   cannot widen anything because a revocation only removes authority.
+4. The verifier holds the verified set as explicit local state. It denies
+   any signature whose grant chain contains a revoked grant with
+   `git.grant-revoked`.
+5. A record that does not verify makes the whole trust fail with
+   `git.revocation-invalid`, so it is never ignored.
+
+A revocation takes effect for a verifier **when the record is present in the
+trust material it reads**. Rolling back the trust material by deleting a
+record from the protected branch would restore the grant, and branch
+protection on the trust path is the control for that. A freshness mode,
+where the root periodically re-signs an "active" record, is not
+implemented. It would conflict with a rarely used human root.
 
 Evaluation time is supplied by the verifier: the wall clock for a gate, or an
 explicit `--at` time. This is **gate-time verification**. Re-verifying an old
@@ -392,16 +429,20 @@ They use the `git.` prefix. Kernel stage codes pass through unchanged.
 ## 4. Placement and architecture
 
 ```text
-product/integrations/auths-git-signing/     (new vertical package)
-  canonical.rs   CommitSignatureAction, TagSignatureAction, payload digest
-  object.rs      bounded commit/tag payload parsers; envelope armor
-  evaluate.rs    per-action evaluators and VerifiedCommitSignature / VerifiedTagSignature
-  grant.rs       grant and revocation authoring over existing auths-author
-  signer.rs      did:key software custody; sigstore/oidc producer calls
-  verify.rs      range verification, trust-source rule, result rendering
-  bin/auths-git-sign.rs
-product/runtime/auths-node      `auths git …` subcommands (thin)
-.github/actions/verify-commits  composite action for branch protection
+product/integrations/auths-git-signing/
+  envelope.rs    the armored, length-framed envelope
+  object.rs      bounded commit/tag parsing and the payload digest
+  program.rs     Git's signing-program protocol
+  action.rs      CommitSignatureAction, TagSignatureAction
+  sign.rs        method-agnostic signing behind GitProofSigner
+  verify.rs      method-agnostic verification; GitTrust
+  revoke.rs      revocation records
+  trust.rs       repository trust and grant issuance
+  custody.rs     did:key software custody
+  files.rs       delegation files
+  tool.rs        process boundary and the one enabled-method list
+  bin/auths-git.rs, bin/auths-git-sign.rs
+.github/actions/verify-git-signatures      composite action for branch protection
 ```
 
 - Core is unchanged unless a missing canonical binding is shown. Principal
@@ -429,12 +470,14 @@ consumer's branch protection controls.
 
 "No KERI code path" is checked mechanically, not by review:
 
-1. `auths-git-signing` and the `auths git` subcommands MUST NOT depend,
+1. `auths-git-signing` and its binaries MUST NOT depend,
    directly or transitively, on `auths-did-keri`. An `xtask arch` rule
    enforces this.
-2. The default verifier registry for `auths git verify` enables `did-key-v1`,
-   `sigstore-keyless-v1`, and `oidc-workload-v1`. `did-keri-v1` is enabled
-   only by an explicit operator flag, and its absence is tested.
+2. The default verifier registry for `auths-git verify` enables `did-key-v1`,
+   `sigstore-keyless-v1`, and `oidc-workload-v1`. `did-keri-v1` is not
+   available in these binaries at all, because rule 1 forbids the
+   dependency. A deployment that needs it verifies through another build
+   whose trust names that method.
 3. One verifier invocation over one range MUST accept commits whose chains
    end in all three default methods under one root.
 
@@ -457,16 +500,16 @@ Sizes are for one engineer or agent, as in 0057 §3.
 3. **Actions, evaluators, verifier** (1 week). §3.1–3.2 and §3.5–3.7,
    exercised with `did:key` as the enabled method. Done: the vector corpus
    passes; denial happens before any status or network access;
-   `--trust-from-ref` inside the range is refused. The library path (actions,
-   method-agnostic signing and verification, sign-then-verify against the
-   kernel) landed first; `--trust-from-ref` lands with the CLI in step 4.
-4. **Signer and delegation commands** (1 week). `auths-git-sign`, `agent
+   `--trust-from-ref` inside the range is refused (tested in step 4's
+   end-to-end test).
+4. **Signer and delegation commands** (1 week). `auths-git-sign`, `key
    init`, `grant`, `install-grant`, `revoke`, and software custody. Done: a
    hosted test commits with `git commit -S` headlessly, verifies it, revokes
-   the grant, and sees the next verification denied.
+   the grant, and sees the next verification denied
+   (`tests/cli_end_to_end.rs`).
 5. **Sigstore and OIDC signers** (1 week). Done: a hosted GitHub Actions job
    signs one commit through `sigstore-keyless` and one through
-   `oidc-workload`, and a single `auths git verify` over a range holding
+   `oidc-workload`, and a single `auths-git verify` over a range holding
    those two and one `did:key` commit accepts all three under one root, with
    `auths-did-keri` absent from the dependency graph (§5).
 6. **Branch-protection action and dogfood** (2–3 days). The composite

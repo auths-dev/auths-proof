@@ -20,16 +20,23 @@
 #![forbid(unsafe_code)]
 
 pub mod action;
+pub mod custody;
 pub mod envelope;
+pub mod files;
 pub mod object;
 pub mod program;
+pub mod revoke;
 pub mod sign;
+pub mod tool;
+pub mod trust;
 pub mod verify;
 
 #[cfg(all(test, unix))]
 mod git_protocol_tests;
 #[cfg(test)]
 mod verify_tests;
+#[cfg(all(test, unix))]
+mod workflow_tests;
 
 pub use action::{
     ActionError, CommitSignatureAction, GitSignatureAction, RepositoryId, TagSignatureAction,

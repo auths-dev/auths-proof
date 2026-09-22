@@ -443,15 +443,15 @@ kind = "cargo"
 layer = "product"
 path = "product/integrations/auths-git-signing"
 core_apis = ["auths-author", "auths-codec", "auths-did-key", "auths-model", "auths-multikey", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-verifier"]
-protocol_versions = ["auths-proof/v1", "auths.git-signature-envelope/1", "auths.git-signing-object-vectors/1"]
-wire_objects = ["CanonicalAction", "GitSignatureEnvelope", "ProofBundle", "SignedObject", "TrustedContext", "UnsignedPayload", "VerifiedAction"]
+protocol_versions = ["auths-proof/v1", "auths.git-delegation/1", "auths.git-signature-envelope/1", "auths.git-signing-object-vectors/1"]
+wire_objects = ["CanonicalAction", "GitDelegationFile", "GitSignatureEnvelope", "ProofBundle", "RevocationRecord", "SignedGrant", "SignedObject", "TrustedContext", "UnsignedPayload", "VerifiedAction"]
 fixture_suites = ["product/integrations/auths-git-signing/fixtures"]
 principal_families = ["did-key-v1", "raw-key-v1"]
 signature_families = ["ed25519-v1"]
 profiles = ["auths.git-signature/1"]
 transports = ["git-signing-program"]
-configuration_inputs = ["enabled-principal-methods", "git-trust-context", "gpg.format", "gpg.x509.program", "user.signingkey"]
-security_state = []
+configuration_inputs = ["auths.repository", "auths.trustDir", "enabled-principal-methods", "git-trust-context", "gpg.format", "gpg.x509.program", "user.signingkey"]
+security_state = ["installed-delegation", "revocation-records", "software-custody-key"]
 
 [packages.auths-git-signing.claims]
 core-api-consumer = [
@@ -470,6 +470,17 @@ proof-author-or-assembler = [
   "product/integrations/auths-git-signing/src/git_protocol_tests.rs#git_verification_is_good_only_for_the_good_status",
   "product/integrations/auths-git-signing/src/git_protocol_tests.rs#git_objects_split_the_same_way_in_the_parser_for_both_formats",
   "product/integrations/auths-git-signing/src/object.rs#object_vectors_match_the_independent_generator",
+]
+runtime-enforcement-boundary = [
+  "product/integrations/auths-git-signing/tests/cli_end_to_end.rs#delegated_agent_signs_headlessly_and_revocation_denies_it",
+]
+stateful-replay-budget-component = [
+  "product/integrations/auths-git-signing/src/workflow_tests.rs#revocation_by_the_root_denies_the_revoked_grant",
+  "product/integrations/auths-git-signing/src/workflow_tests.rs#invalid_revocations_fail_the_trust_instead_of_being_ignored",
+]
+principal-evidence-integration = [
+  "product/integrations/auths-git-signing/src/custody.rs#software_keys_are_owner_only_and_never_overwritten",
+  "product/integrations/auths-git-signing/src/workflow_tests.rs#a_grant_file_moves_from_root_to_agent_and_signs_commits",
 ]
 
 [packages.auths-github]

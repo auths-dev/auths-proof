@@ -19,12 +19,13 @@ use crate::action::{GitSignatureAction, RepositoryId};
 use crate::envelope::GitSignatureEnvelope;
 use crate::object::{ObjectKind, SignedObject, UnsignedPayload};
 use crate::program::{VerifiedSigner, VerifyStatus};
+use crate::revoke::verify_revocation;
 use auths_codec::{
     decode_bundle, decode_canonical_action, decode_verifier_context, encode_canonical_action,
-    plan_id,
+    grant_id, plan_id,
 };
 use auths_model::{
-    Audience, AuthorizationPlan, Challenge, CompositionRequirement, PrincipalId, ProofRef,
+    Audience, AuthorizationPlan, Challenge, CompositionRequirement, GrantId, PrincipalId, ProofRef,
     Timestamp, TrustedContext,
 };
 use auths_registries::ImmutableRegistries;
@@ -41,6 +42,7 @@ pub struct GitTrust {
     context: TrustedContext,
     repository: RepositoryId,
     audience: Audience,
+    revoked: Vec<GrantId>,
 }
 
 /// Why trust material was rejected.
@@ -52,6 +54,9 @@ pub enum TrustError {
     /// The context audience is not `git://<repository>`.
     #[error("git trust context does not name a repository")]
     NotARepository,
+    /// A revocation record in the trust material did not verify.
+    #[error("a revocation record in the trust material did not verify")]
+    RevocationInvalid,
 }
 
 impl TrustError {
@@ -61,6 +66,7 @@ impl TrustError {
         match self {
             Self::Malformed => "git.trust-malformed",
             Self::NotARepository => "git.trust-repository-invalid",
+            Self::RevocationInvalid => "git.revocation-invalid",
         }
     }
 }
@@ -83,6 +89,7 @@ impl GitTrust {
             context,
             repository,
             audience,
+            revoked: Vec::new(),
         })
     }
 
@@ -94,6 +101,35 @@ impl GitTrust {
     /// verifier context, and the [`GitTrust::new`] errors.
     pub fn decode(bytes: &[u8]) -> Result<Self, TrustError> {
         Self::new(decode_verifier_context(bytes).map_err(|_| TrustError::Malformed)?)
+    }
+
+    /// Adds verified revocations from the trust material.
+    ///
+    /// Every record must verify under this trust at its own issue time.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`TrustError::RevocationInvalid`] if any record fails, so a
+    /// damaged revocation can never be silently ignored.
+    pub fn with_revocations(
+        mut self,
+        records: &[Vec<u8>],
+        registries: &ImmutableRegistries<'_>,
+    ) -> Result<Self, TrustError> {
+        for record in records {
+            let grant = verify_revocation(record, &self.repository, &self.context, registries)
+                .map_err(|_| TrustError::RevocationInvalid)?;
+            if !self.revoked.contains(&grant) {
+                self.revoked.push(grant);
+            }
+        }
+        Ok(self)
+    }
+
+    /// Returns the trusted context.
+    #[must_use]
+    pub const fn context(&self) -> &TrustedContext {
+        &self.context
     }
 
     #[cfg(test)]
@@ -248,7 +284,7 @@ fn verify_inner(
     Ok(
         match verify(envelope.proof(), &expected_canonical, &context, registries) {
             VerificationOutcome::Authorized(_) => {
-                GitVerification::Verified(report(&envelope, payload, limits)?)
+                GitVerification::Verified(report(&envelope, payload, limits, &trust.revoked)?)
             }
             VerificationOutcome::Denied(reason) => GitVerification::Denied(reason.code()),
             VerificationOutcome::Indeterminate(requirement) => {
@@ -263,8 +299,15 @@ fn report(
     envelope: &GitSignatureEnvelope,
     payload: &UnsignedPayload,
     limits: &auths_model::VerifierLimits,
+    revoked: &[GrantId],
 ) -> Result<VerifiedGitSignature, &'static str> {
     let bundle = decode_bundle(envelope.proof(), limits).map_err(|_| "git.action-malformed")?;
+    for grant in bundle.grants() {
+        let identifier = grant_id(grant.statement()).map_err(|_| "git.action-malformed")?;
+        if revoked.contains(&identifier) {
+            return Err("git.grant-revoked");
+        }
+    }
     let signer = bundle
         .actions()
         .first()

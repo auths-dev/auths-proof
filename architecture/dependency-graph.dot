@@ -238,13 +238,13 @@ digraph auths_architecture {
   "auths-gateway" -> "auths-verifier" [label="normal"];
   "auths-git-signing" -> "auths-author" [label="normal"];
   "auths-git-signing" -> "auths-codec" [label="normal"];
-  "auths-git-signing" -> "auths-did-key" [label="dev"];
+  "auths-git-signing" -> "auths-did-key" [label="normal"];
   "auths-git-signing" -> "auths-model" [label="normal"];
-  "auths-git-signing" -> "auths-multikey" [label="dev"];
-  "auths-git-signing" -> "auths-ports" [label="dev"];
+  "auths-git-signing" -> "auths-multikey" [label="normal"];
+  "auths-git-signing" -> "auths-ports" [label="normal"];
   "auths-git-signing" -> "auths-raw-key" [label="dev"];
   "auths-git-signing" -> "auths-registries" [label="normal"];
-  "auths-git-signing" -> "auths-signature" [label="dev"];
+  "auths-git-signing" -> "auths-signature" [label="normal"];
   "auths-git-signing" -> "auths-verifier" [label="normal"];
   "auths-github" -> "auths-bounded-policy" [label="normal"];
   "auths-github" -> "auths-lifecycle" [label="normal"];

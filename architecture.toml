@@ -244,9 +244,13 @@ allowed_workspace_dependencies = [
   "auths-authority",
   "auths-codec",
   "auths-composition",
+  "auths-did-key",
   "auths-model",
+  "auths-multikey",
   "auths-ports",
   "auths-registries",
+  "auths-signature",
+  "auths-signature-core",
   "auths-verifier",
 ]
 

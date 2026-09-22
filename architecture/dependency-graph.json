@@ -3398,7 +3398,7 @@
       "target": "auths-did-key",
       "target_layer": "core",
       "scope": "internal",
-      "kind": "dev",
+      "kind": "normal",
       "target_condition": null,
       "optional": false,
       "default_features": false,
@@ -3422,7 +3422,7 @@
       "target": "auths-multikey",
       "target_layer": "core",
       "scope": "internal",
-      "kind": "dev",
+      "kind": "normal",
       "target_condition": null,
       "optional": false,
       "default_features": false,
@@ -3434,7 +3434,7 @@
       "target": "auths-ports",
       "target_layer": "core",
       "scope": "internal",
-      "kind": "dev",
+      "kind": "normal",
       "target_condition": null,
       "optional": false,
       "default_features": false,
@@ -3470,7 +3470,7 @@
       "target": "auths-signature",
       "target_layer": "core",
       "scope": "internal",
-      "kind": "dev",
+      "kind": "normal",
       "target_condition": null,
       "optional": false,
       "default_features": false,
@@ -3505,10 +3505,24 @@
     {
       "source": "auths-git-signing",
       "source_layer": "product",
+      "target": "clap",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "derive"
+      ]
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
       "target": "ed25519-dalek",
       "target_layer": null,
       "scope": "external",
-      "kind": "dev",
+      "kind": "normal",
       "target_condition": null,
       "optional": false,
       "default_features": false,
@@ -3516,6 +3530,18 @@
         "alloc",
         "zeroize"
       ]
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
+      "target": "getrandom",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
     },
     {
       "source": "auths-git-signing",
@@ -3618,6 +3644,20 @@
       "optional": false,
       "default_features": false,
       "features": []
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
+      "target": "zeroize",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "derive"
+      ]
     },
     {
       "source": "auths-github",
