@@ -131,6 +131,15 @@ transactional shared attempt store and equivalent service/network isolation;
 the single-host file store from AP-SPEC-051 does not become one by relabeling.
 The release claim records which deployment mode was exercised.
 
+The first operator installation may be performed offline by a CLI running as
+the gateway identity. It takes an explicit digest approval, independently
+provisioned trusted-context bytes, and a credential through stdin, then
+publishes an immutable private installation record. That offline installer is
+an operator-only channel, not an application endpoint. Once serving, live
+disable, rotation, and revocation use the private admin socket; the app socket
+continues to accept proof and action bytes only. A same-UID development run
+demonstrates mechanics but cannot establish credential isolation.
+
 ### 3.1 Immutable operation binding
 
 An operation consists of a versioned `ExactMcpTool` contract, a compiled

@@ -3170,6 +3170,34 @@
     {
       "source": "auths-gateway",
       "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "clap",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "derive"
+      ]
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
       "target": "getrandom",
       "target_layer": null,
       "scope": "external",
@@ -3301,6 +3329,27 @@
       "optional": false,
       "default_features": false,
       "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "tokio",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "fs",
+        "io-util",
+        "macros",
+        "net",
+        "rt-multi-thread",
+        "signal",
+        "sync",
+        "time"
+      ]
     },
     {
       "source": "auths-gateway",

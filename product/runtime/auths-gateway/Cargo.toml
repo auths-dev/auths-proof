@@ -21,6 +21,8 @@ auths-registries.workspace = true
 auths-signature.workspace = true
 auths-stores.workspace = true
 auths-verifier.workspace = true
+base64ct.workspace = true
+clap.workspace = true
 hex.workspace = true
 getrandom.workspace = true
 rustix.workspace = true
@@ -31,6 +33,7 @@ serde_json_canonicalizer.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 tempfile.workspace = true
+tokio.workspace = true
 url.workspace = true
 
 [lints]

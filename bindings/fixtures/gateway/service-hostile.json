@@ -1,0 +1,17 @@
+{
+  "schema": "auths.gateway-service-hostile/1",
+  "cases": [
+    {"id": "submit-runtime-url", "decision": "frame-rejected", "provider_entries": 0},
+    {"id": "submit-runtime-method", "decision": "frame-rejected", "provider_entries": 0},
+    {"id": "submit-runtime-headers", "decision": "frame-rejected", "provider_entries": 0},
+    {"id": "submit-runtime-body", "decision": "frame-rejected", "provider_entries": 0},
+    {"id": "proof-denied", "decision": "denied", "provider_entries": 0},
+    {"id": "proof-indeterminate", "decision": "indeterminate", "provider_entries": 0},
+    {"id": "verified-recipe-mismatch", "decision": "not-entered", "provider_entries": 0},
+    {"id": "disabled-connection", "decision": "not-entered", "provider_entries": 0},
+    {"id": "replayed-logical-id", "decision": "not-entered", "provider_entries": 0},
+    {"id": "crash-after-claim", "decision": "unknown", "provider_entries": 0},
+    {"id": "app-reads-gateway-secret", "decision": "access-denied", "provider_entries": 0},
+    {"id": "app-connects-admin", "decision": "access-denied", "provider_entries": 0}
+  ]
+}
