@@ -43,9 +43,9 @@ separate provider token can still bypass Auths.
 On 2026-09-22, the developer-owned Airtable and Todoist gateway recipes made
 live calls through the field-lab `run-demo.sh` gateway mode using the packaged
 Python wheel. Airtable returned `observed` with a matching separate GET of
-[the disposable record](https://airtable.com/appQD3Qf0YFBCW9bV/tblHscC7D9Kp7hiRw/viw8KMXQZw8bd3XXJ/recc20fysorU22tQT).
-Todoist returned `response-recorded` (HTTP 200), then a separate operator
-read found [the task](https://app.todoist.com/app/task/6hXvvMxXRrmpR7Rm).
+the disposable record. Todoist returned `response-recorded` (HTTP 200), then
+a separate operator read found the created task. Provider dashboard links are
+shared privately with the operator, not retained in this public ledger.
 These runs used disposable self-trusting testkit authority and same-UID local
 processes. They establish the request piping and observed provider state,
 not independent production trust, credential unreadability by a distinct app
