@@ -178,8 +178,10 @@ impl GitSignatureEnvelope {
 }
 
 fn push_field(frame: &mut Vec<u8>, field: &[u8]) {
-    // INVARIANT: `new` bounds every field far below `u32::MAX`.
-    #[allow(clippy::cast_possible_truncation)]
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "INVARIANT: `new` bounds every field far below `u32::MAX`"
+    )]
     let length = field.len() as u32;
     frame.extend_from_slice(&length.to_be_bytes());
     frame.extend_from_slice(field);

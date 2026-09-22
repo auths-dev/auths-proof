@@ -442,18 +442,27 @@ operational-diagnostics = ["product/operations/auths-operations-otel/src/lib.rs#
 kind = "cargo"
 layer = "product"
 path = "product/integrations/auths-git-signing"
-core_apis = []
-protocol_versions = ["auths.git-signature-envelope/1", "auths.git-signing-object-vectors/1"]
-wire_objects = ["GitSignatureEnvelope", "SignedObject", "UnsignedPayload"]
+core_apis = ["auths-author", "auths-codec", "auths-model", "auths-registries", "auths-verifier"]
+protocol_versions = ["auths-proof/v1", "auths.git-signature-envelope/1", "auths.git-signing-object-vectors/1"]
+wire_objects = ["CanonicalAction", "GitSignatureEnvelope", "ProofBundle", "SignedObject", "TrustedContext", "UnsignedPayload", "VerifiedAction"]
 fixture_suites = ["product/integrations/auths-git-signing/fixtures"]
 principal_families = []
 signature_families = []
-profiles = []
+profiles = ["auths.git-signature/1"]
 transports = ["git-signing-program"]
-configuration_inputs = ["gpg.format", "gpg.x509.program", "user.signingkey"]
+configuration_inputs = ["enabled-principal-methods", "git-trust-context", "gpg.format", "gpg.x509.program", "user.signingkey"]
 security_state = []
 
 [packages.auths-git-signing.claims]
+core-api-consumer = [
+  "product/integrations/auths-git-signing/src/verify_tests.rs#delegated_agent_signatures_verify_for_commits_and_tags",
+  "product/integrations/auths-git-signing/src/verify_tests.rs#the_enabled_method_set_is_configuration_bound_by_trust",
+]
+profile-contract = [
+  "product/integrations/auths-git-signing/src/action.rs#actions_bind_kind_repository_format_digest_and_tag",
+  "product/integrations/auths-git-signing/src/action.rs#signed_bodies_are_checked_field_by_field_with_stable_codes",
+  "product/integrations/auths-git-signing/src/verify_tests.rs#verification_derives_the_request_from_the_object",
+]
 proof-author-or-assembler = [
   "product/integrations/auths-git-signing/src/envelope.rs#envelope_round_trips_canonically",
   "product/integrations/auths-git-signing/src/envelope.rs#envelope_rejects_noncanonical_armor_with_stable_codes",

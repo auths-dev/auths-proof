@@ -3371,6 +3371,126 @@
     {
       "source": "auths-git-signing",
       "source_layer": "product",
+      "target": "auths-author",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
+      "target": "auths-codec",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
+      "target": "auths-did-key",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
+      "target": "auths-model",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
+      "target": "auths-multikey",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
+      "target": "auths-ports",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
+      "target": "auths-raw-key",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
+      "target": "auths-registries",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
+      "target": "auths-signature",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
+      "target": "auths-verifier",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
       "target": "base64ct",
       "target_layer": null,
       "scope": "external",
@@ -3380,6 +3500,21 @@
       "default_features": false,
       "features": [
         "alloc"
+      ]
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
+      "target": "ed25519-dalek",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "zeroize"
       ]
     },
     {
@@ -3397,10 +3532,25 @@
     {
       "source": "auths-git-signing",
       "source_layer": "product",
+      "target": "serde",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "derive"
+      ]
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
       "target": "serde_json",
       "target_layer": null,
       "scope": "external",
-      "kind": "dev",
+      "kind": "normal",
       "target_condition": null,
       "optional": false,
       "default_features": false,
@@ -3408,6 +3558,18 @@
         "alloc",
         "preserve_order"
       ]
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
+      "target": "serde_json_canonicalizer",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
     },
     {
       "source": "auths-git-signing",

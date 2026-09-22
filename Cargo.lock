@@ -611,9 +611,22 @@ dependencies = [
 name = "auths-git-signing"
 version = "1.0.0-rc.1"
 dependencies = [
+ "auths-author",
+ "auths-codec",
+ "auths-did-key",
+ "auths-model",
+ "auths-multikey",
+ "auths-ports",
+ "auths-raw-key",
+ "auths-registries",
+ "auths-signature",
+ "auths-verifier",
  "base64ct",
+ "ed25519-dalek 2.2.0",
  "proptest",
+ "serde",
  "serde_json",
+ "serde_json_canonicalizer",
  "sha2 0.10.9",
  "tempfile",
  "thiserror 2.0.19",

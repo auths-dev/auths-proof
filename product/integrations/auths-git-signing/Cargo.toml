@@ -8,13 +8,26 @@ description = "Git commit and tag signing under any registered Auths principal m
 publish = false
 
 [dependencies]
+auths-author.workspace = true
+auths-codec.workspace = true
+auths-model.workspace = true
+auths-registries.workspace = true
+auths-verifier.workspace = true
 base64ct.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_json_canonicalizer.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
+auths-did-key.workspace = true
+auths-multikey.workspace = true
+auths-ports.workspace = true
+auths-raw-key.workspace = true
+auths-signature.workspace = true
+ed25519-dalek.workspace = true
 proptest.workspace = true
-serde_json.workspace = true
 tempfile.workspace = true
 
 [lints]

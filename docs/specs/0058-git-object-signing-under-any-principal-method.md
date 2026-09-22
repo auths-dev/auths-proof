@@ -155,12 +155,16 @@ Capabilities and resources, using the registered `uri-namespace-v1` matcher:
 
 ```text
 git/sign-commit   git://<repository>/commits
-git/sign-tag      git://<repository>/refs/tags/<tag_name>
+git/sign-tag      git://<repository>/tags
 ```
 
-A grant on `git://<repository>/refs/tags/` covers every tag in that
-repository. A grant on `git://<repository>/refs/tags/release/` covers only
-tags under `release/`. The sibling project's `sign_commit` and `sign_release`
+The tag name is bound in the signed action body, not in the resource. The
+kernel matches grant permissions by exact equality, and prefix-matches
+resources only against trust-anchor namespaces. A per-tag resource would
+therefore need one grant per tag, and a grant cannot say "every tag under
+`release/`". Restricting an agent to a tag namespace is not available in this
+version; the root's anchor namespace `git://<repository>/` bounds the
+repository. The sibling project's `sign_commit` and `sign_release`
 scopes map to `git/sign-commit` and `git/sign-tag`. There is no alias
 spelling (AGENTS.md prelaunch rule).
 
@@ -301,6 +305,25 @@ acquisition happens in the signer, never in the verifier.
 
 ### 3.5 Trust, status, and evaluation time
 
+A proof is bound to its object, not to a request:
+
+- **Challenge and proof reference.** The action challenge and the proof
+  reference are both the payload digest. The verifier re-derives the
+  challenge and the exact composition plan from the object.
+- **Audience.** The audience is `git://<repository>`. The trusted context's
+  expected audience names the repository, and the verifier builds the
+  expected action from that repository and the object.
+- **Validity.** The action is valid for the terminal grant's validity window,
+  so a gate can verify it for as long as the grant is valid.
+
+The signed action must equal the expected action byte for byte, with
+field-level codes for the first difference. The kernel verifies the proof
+against the expected action, never against action bytes taken from the
+signature. The verifier receives the executable registries for the methods
+it enables as a parameter, and the trusted context's configuration commitment
+binds that set. No principal method is named on the signing or verification
+path (`src/sign.rs`, `src/verify.rs`).
+
 The verifier's trusted context names the pinned roots, the accepted principal
 methods, the Fulcio and Rekor anchors and pinned OIDC issuer key sets when
 those methods are enabled, the expected repository, the status records, and
@@ -431,9 +454,12 @@ Sizes are for one engineer or agent, as in 0057 §3.
    vectors landed with their parser. The action vectors move to the start of
    step 3, because the canonical action encoding needs core types that the
    package is not yet allowed to depend on.
-3. **Actions, evaluators, verifier** (1 week). §3.1–3.2 and §3.5–3.7 with
-   `did:key` only. Done: the vector corpus passes; denial happens before any
-   status or network access; `--trust-from-ref` inside the range is refused.
+3. **Actions, evaluators, verifier** (1 week). §3.1–3.2 and §3.5–3.7,
+   exercised with `did:key` as the enabled method. Done: the vector corpus
+   passes; denial happens before any status or network access;
+   `--trust-from-ref` inside the range is refused. The library path (actions,
+   method-agnostic signing and verification, sign-then-verify against the
+   kernel) landed first; `--trust-from-ref` lands with the CLI in step 4.
 4. **Signer and delegation commands** (1 week). `auths-git-sign`, `agent
    init`, `grant`, `install-grant`, `revoke`, and software custody. Done: a
    hosted test commits with `git commit -S` headlessly, verifies it, revokes

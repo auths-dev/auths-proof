@@ -237,7 +237,18 @@ allowed_workspace_dependencies = ["auths-model", "auths-ports", "auths-raw-key-c
 # explicit, reviewed additions as later steps need core crates.
 [dependency_boundaries.git-signing]
 roots = ["auths-git-signing"]
-allowed_workspace_dependencies = []
+allowed_workspace_dependencies = [
+  "auths-algebra-kernel",
+  "auths-assurance",
+  "auths-author",
+  "auths-authority",
+  "auths-codec",
+  "auths-composition",
+  "auths-model",
+  "auths-ports",
+  "auths-registries",
+  "auths-verifier",
+]
 
 [dependency_boundaries.iroh-transport]
 roots = ["auths-iroh"]

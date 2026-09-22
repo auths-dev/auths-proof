@@ -116,9 +116,9 @@ pub const fn sign_created_status() -> &'static [u8] {
 
 /// The verification outcome reported to Git.
 ///
-/// `Good` carries a [`VerifiedSigner`], which only this crate can construct.
-/// Until the verifier exists, nothing outside the crate can make Git report a
-/// good signature.
+/// `Good` carries a [`VerifiedSigner`], which only a verified
+/// [`crate::verify::GitVerification`] constructs, so nothing else can make Git
+/// report a good signature.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum VerifyStatus {
     /// A verified Auths signature.
@@ -135,9 +135,7 @@ pub struct VerifiedSigner(String);
 
 impl VerifiedSigner {
     /// Wraps a principal display string, replacing control characters so it
-    /// cannot inject status lines.
-    // Constructed only by the verifier in a later step, and by tests now.
-    #[cfg_attr(not(test), allow(dead_code))]
+    /// cannot inject status lines. Only a verified result constructs one.
     pub(crate) fn new(principal: &str) -> Self {
         Self(
             principal
