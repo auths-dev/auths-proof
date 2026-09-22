@@ -114,6 +114,7 @@ auths-codec = "core"
 auths-composition = "core"
 auths-cross-company-incident-edgeshield-demo = "demos"
 auths-formal-refinement = "core"
+auths-git-signing = "product"
 auths-github = "product"
 auths-config = "product"
 auths-custody = "product"
@@ -231,6 +232,12 @@ allowed_workspace_dependencies = ["auths-identity", "auths-identity-raw-key", "a
 [dependency_boundaries.principal-adapters]
 roots = ["auths-hsm-attested", "auths-oidc-workload", "auths-sigstore-keyless", "auths-spiffe-x509", "auths-webauthn"]
 allowed_workspace_dependencies = ["auths-model", "auths-ports", "auths-raw-key-core"]
+
+# Git signing must never reach auths-did-keri. The allowlist grows only by
+# explicit, reviewed additions as later steps need core crates.
+[dependency_boundaries.git-signing]
+roots = ["auths-git-signing"]
+allowed_workspace_dependencies = []
 
 [dependency_boundaries.iroh-transport]
 roots = ["auths-iroh"]

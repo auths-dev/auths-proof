@@ -32,6 +32,7 @@ digraph auths_architecture {
   "auths-explain" [group="product"];
   "auths-formal-refinement" [group="core"];
   "auths-gateway" [group="product"];
+  "auths-git-signing" [group="product"];
   "auths-github" [group="product"];
   "auths-hsm-attested" [group="core"];
   "auths-identity" [group="core"];

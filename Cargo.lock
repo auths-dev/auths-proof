@@ -608,6 +608,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-git-signing"
+version = "1.0.0-rc.1"
+dependencies = [
+ "base64ct",
+ "proptest",
+ "tempfile",
+ "thiserror 2.0.19",
+]
+
+[[package]]
 name = "auths-github"
 version = "1.0.0-rc.1"
 dependencies = [

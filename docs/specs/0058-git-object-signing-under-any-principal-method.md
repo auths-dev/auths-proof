@@ -194,9 +194,18 @@ same mechanism `gitsign` uses:
 
 ```text
 gpgsig -----BEGIN SIGNED MESSAGE-----
- <base64 of: "AUTHS-GIT-SIGNATURE/1\n" || proof CBOR || canonical action CBOR>
+ <standard padded base64 of the frame, 64 characters per line>
  -----END SIGNED MESSAGE-----
+
+frame = "AUTHS-GIT-SIGNATURE/1\n"
+        || u32be(len(proof)) || proof CBOR
+        || u32be(len(action)) || canonical action CBOR
 ```
+
+The frame carries explicit lengths, so splitting it never depends on
+decoding CBOR. Decoding accepts exactly one byte string per envelope: fixed
+line width, `\n` line endings only, canonical base64, non-empty fields, and
+no trailing data (`product/integrations/auths-git-signing/src/envelope.rs`).
 
 It was chosen over the alternatives below because it travels with the
 object, needs no history rewrite, and makes `git commit -S` headless:
@@ -210,10 +219,28 @@ object, needs no history rewrite, and makes `git commit -S` headless:
 Accepted costs: GitHub shows these commits as "Unverified"; a commit cannot
 also carry a GPG or SSH signature; and a verifier configured with a different
 x509 program (such as `gitsign`) fails to parse the envelope. Each failure is
-closed rather than a false accept. Step 1 of §6 MUST confirm the armor and the
-status-line protocol against Git on hosted Linux and macOS before any other
-code lands. If Git rejects the envelope, this section is revised before
-implementation continues.
+closed rather than a false accept.
+
+**Confirmed Git protocol** (step 1 of §6). This was observed with local Git
+2.54 on macOS. The hosted Linux and macOS evidence is the
+`.github/workflows/git-signing.yml` run on the step-1 revision, which
+executes `src/git_protocol_tests.rs` against each runner's Git:
+
+- Signing runs `<program> --status-fd=2 -bsau <user.signingkey>` with the
+  exact unsigned payload of §3.2 on stdin. Git stores the program's stdout
+  byte for byte: as the `gpgsig` header of a commit, or appended to a tag's
+  payload.
+- Git refuses to create the object unless the program's stderr contains
+  `\n[GNUPG:] SIG_CREATED `, whatever the exit code.
+- Verifying runs `<program> --status-fd=1 --verify <signature-file> -` with
+  the same payload on stdin and the stored envelope in the file.
+- Git reports a good signature only when the program exits 0 **and** stdout
+  contains `\n[GNUPG:] GOODSIG `, including the leading newline. Every
+  other output fails. The program therefore emits `GOODSIG` only from a
+  verified result, and replaces control characters in the principal it
+  displays, so text cannot inject a status line.
+- The program accepts exactly these two argument forms and rejects every
+  other vector, so a future Git flag cannot silently change a call's meaning.
 
 ### 3.4 Signing
 
@@ -283,8 +310,9 @@ validity until a separate decision records the rule.
 | Input | Limit | On excess |
 | --- | ---: | --- |
 | Unsigned payload | 1 MiB | `git.payload-too-large` |
-| Armored envelope | 192 KiB | `git.envelope-too-large` |
-| Decoded proof | 128 KiB, and each method's registered evidence ceiling | kernel stage code |
+| Armored envelope | 200 KiB (holds both fields at their limits) | `git.envelope-too-large` |
+| Decoded proof | 128 KiB, and each method's registered evidence ceiling | `git.envelope-too-large`, then kernel stage codes |
+| Canonical action | 16 KiB | `git.envelope-too-large` |
 | Grant chain depth | 4 | kernel stage code |
 | Commits in one `verify` range | 10,000 | `git.range-too-large` |
 | Status records read | 4,096 | `git.status-set-too-large` |

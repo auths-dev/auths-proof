@@ -438,6 +438,29 @@ security_state = ["bounded-export-buffer", "drop-counter", "fixed-attribute-regi
 [packages.auths-operations-otel.claims]
 operational-diagnostics = ["product/operations/auths-operations-otel/src/lib.rs#exporter_failure_is_inert_and_buffer_is_bounded", "product/operations/auths-operations-otel/src/lib.rs#prometheus_projection_has_only_frozen_dimensions"]
 
+[packages.auths-git-signing]
+kind = "cargo"
+layer = "product"
+path = "product/integrations/auths-git-signing"
+core_apis = []
+protocol_versions = ["auths.git-signature-envelope/1"]
+wire_objects = ["GitSignatureEnvelope"]
+fixture_suites = []
+principal_families = []
+signature_families = []
+profiles = []
+transports = ["git-signing-program"]
+configuration_inputs = ["gpg.format", "gpg.x509.program", "user.signingkey"]
+security_state = []
+
+[packages.auths-git-signing.claims]
+proof-author-or-assembler = [
+  "product/integrations/auths-git-signing/src/envelope.rs#envelope_round_trips_canonically",
+  "product/integrations/auths-git-signing/src/envelope.rs#envelope_rejects_noncanonical_armor_with_stable_codes",
+  "product/integrations/auths-git-signing/src/git_protocol_tests.rs#git_commit_signing_uses_the_program_protocol_and_stores_the_envelope",
+  "product/integrations/auths-git-signing/src/git_protocol_tests.rs#git_verification_is_good_only_for_the_good_status",
+]
+
 [packages.auths-github]
 kind = "cargo"
 layer = "product"
