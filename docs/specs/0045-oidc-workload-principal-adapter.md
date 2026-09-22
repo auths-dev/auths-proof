@@ -343,6 +343,23 @@ issuer set. Each pinned key contributes `kid`, its binding, the bound
 suite's own `configuration_id()`, and its material bytes, so replacing a
 suite implementation changes the adapter commitment.
 
+Each GitHub Actions policy contributes one component: the prefix
+`github-policy-v2`, then its repository id, owner id, workflow pin (absent,
+`any-ref` with a path, or `exact` with path, ref, and commit), ref, and
+environment. Every field is tagged and length-prefixed, and an absent
+optional field is encoded explicitly. Two distinct policies therefore never
+share a commitment.
+
+*Amended 2026-09-22.* The earlier encoding had two defects. It
+concatenated ref and environment with no separators, so `ref=refs/heads/ab,
+environment=c` and `ref=refs/heads/a, environment=bc` produced the same
+bytes. It also left the workflow pin out of the commitment, although the
+pin was enforced. A verifier's trusted context could therefore name one
+policy while running another. The regression test
+`distinct_github_policies_never_share_a_configuration_encoding` covers both
+defects. Under the prelaunch rule, earlier trust is regenerated rather than
+read.
+
 ### 5.1 `JwsAlgorithmName`
 
 Defined in AP-SPEC-047 section 6.1: 1 to 64 bytes from `[A-Za-z0-9+/_-]`,

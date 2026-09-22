@@ -438,6 +438,66 @@ security_state = ["bounded-export-buffer", "drop-counter", "fixed-attribute-regi
 [packages.auths-operations-otel.claims]
 operational-diagnostics = ["product/operations/auths-operations-otel/src/lib.rs#exporter_failure_is_inert_and_buffer_is_bounded", "product/operations/auths-operations-otel/src/lib.rs#prometheus_projection_has_only_frozen_dimensions"]
 
+[packages.auths-git-signing]
+kind = "cargo"
+layer = "product"
+path = "product/integrations/auths-git-signing"
+core_apis = ["auths-author", "auths-codec", "auths-did-key", "auths-model", "auths-multikey", "auths-oidc-workload", "auths-path-webpki", "auths-ports", "auths-raw-key", "auths-raw-key-core", "auths-registries", "auths-signature", "auths-signature-rsa-pkcs1-sha256", "auths-sigstore-keyless", "auths-verifier"]
+protocol_versions = ["auths-proof/v1", "auths.git-delegation/1", "auths.git-methods/1", "auths.git-signature-envelope/1", "auths.git-signing-object-vectors/1"]
+wire_objects = ["CanonicalAction", "GitDelegationFile", "GitSignatureEnvelope", "ProofBundle", "RevocationRecord", "SignedGrant", "SignedObject", "TrustedContext", "UnsignedPayload", "VerifiedAction"]
+fixture_suites = ["product/integrations/auths-git-signing/fixtures"]
+principal_families = ["did-key-v1", "oidc-workload-v1", "raw-key-v1", "sigstore-keyless-v1"]
+signature_families = ["ed25519-v1", "p256-sha256-v1", "rsa-pkcs1-sha256-v1"]
+profiles = ["auths.git-signature/1"]
+transports = ["git-signing-program", "github-actions-oidc-token", "sigstore-fulcio-v2-https", "sigstore-rekor-v1-https"]
+configuration_inputs = ["auths.repository", "auths.signer", "auths.trustDir", "enabled-principal-methods", "git-trust-context", "gpg.format", "gpg.x509.program", "methods.json", "user.signingkey"]
+security_state = ["ephemeral-workload-key", "installed-delegation", "revocation-records", "software-custody-key"]
+
+[packages.auths-git-signing.claims]
+core-api-consumer = [
+  "product/integrations/auths-git-signing/src/verify_tests.rs#delegated_agent_signatures_verify_for_commits_and_tags",
+  "product/integrations/auths-git-signing/src/verify_tests.rs#the_enabled_method_set_is_configuration_bound_by_trust",
+  "product/integrations/auths-git-signing/src/workload_tests.rs#one_verifier_accepts_three_principal_methods_under_one_root",
+  "product/integrations/auths-git-signing/src/workload_tests.rs#the_configuration_commitment_binds_the_pinned_issuer_keys",
+]
+profile-contract = [
+  "product/integrations/auths-git-signing/src/action.rs#actions_bind_kind_repository_format_digest_and_tag",
+  "product/integrations/auths-git-signing/src/action.rs#signed_bodies_are_checked_field_by_field_with_stable_codes",
+  "product/integrations/auths-git-signing/src/verify_tests.rs#verification_derives_the_request_from_the_object",
+]
+proof-author-or-assembler = [
+  "product/integrations/auths-git-signing/src/envelope.rs#envelope_round_trips_canonically",
+  "product/integrations/auths-git-signing/src/envelope.rs#envelope_rejects_noncanonical_armor_with_stable_codes",
+  "product/integrations/auths-git-signing/src/git_protocol_tests.rs#git_commit_signing_uses_the_program_protocol_and_stores_the_envelope",
+  "product/integrations/auths-git-signing/src/git_protocol_tests.rs#git_verification_is_good_only_for_the_good_status",
+  "product/integrations/auths-git-signing/src/git_protocol_tests.rs#git_objects_split_the_same_way_in_the_parser_for_both_formats",
+  "product/integrations/auths-git-signing/src/object.rs#object_vectors_match_the_independent_generator",
+]
+runtime-enforcement-boundary = [
+  "product/integrations/auths-git-signing/tests/cli_end_to_end.rs#delegated_agent_signs_headlessly_and_revocation_denies_it",
+]
+stateful-replay-budget-component = [
+  "product/integrations/auths-git-signing/src/workflow_tests.rs#revocation_by_the_root_denies_the_revoked_grant",
+  "product/integrations/auths-git-signing/src/workflow_tests.rs#invalid_revocations_fail_the_trust_instead_of_being_ignored",
+]
+principal-evidence-integration = [
+  "product/integrations/auths-git-signing/src/custody.rs#software_keys_are_owner_only_and_never_overwritten",
+  "product/integrations/auths-git-signing/src/workflow_tests.rs#a_grant_file_moves_from_root_to_agent_and_signs_commits",
+  "product/integrations/auths-git-signing/src/workload_tests.rs#oidc_workload_commits_verify_under_a_did_key_root_while_the_token_is_live",
+  "product/integrations/auths-git-signing/src/workload_tests.rs#expired_tokens_and_tokens_for_other_repositories_are_not_verified",
+  "product/integrations/auths-git-signing/src/workload_tests.rs#sigstore_keyless_commits_verify_under_a_did_key_root",
+  "product/integrations/auths-git-signing/src/workload_tests.rs#sigstore_keyless_commits_verify_through_a_p256_log_signing_high_s_der",
+  "product/integrations/auths-git-signing/src/workload_tests.rs#tampered_entries_and_foreign_fulcio_roots_are_not_verified",
+  "product/integrations/auths-git-signing/src/sigstore_client.rs#a_recorded_rekor_response_maps_to_evidence_the_adapter_parses",
+  "product/integrations/auths-git-signing/src/methods.rs#each_rekor_log_pins_exactly_one_key_of_its_named_type",
+  "product/integrations/auths-git-signing/src/workload_tests.rs#one_verifier_accepts_three_principal_methods_under_one_root",
+]
+configuration-compiler = [
+  "product/integrations/auths-git-signing/src/methods.rs#method_files_are_strict_and_typed",
+  "product/integrations/auths-git-signing/src/methods.rs#rsa_jwk_members_encode_as_minimal_pkcs1_der",
+  "product/integrations/auths-git-signing/tests/cli_end_to_end.rs#workload_methods_travel_with_trust_and_bind_the_verifier",
+]
+
 [packages.auths-github]
 kind = "cargo"
 layer = "product"

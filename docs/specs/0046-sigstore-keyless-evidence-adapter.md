@@ -344,7 +344,8 @@ the table order is explanatory and is not an alternate ordering rule.
 | `hashes` | array of 32-byte strings | inclusion proof, at most `MAX_PROOF_HASHES` |
 | `integrated_time` | uint | seconds since the Unix epoch |
 | `log_id` | 32 bytes | `LogId` |
-| `log_index` | uint | leaf index |
+| `log_index` | uint | whole-log entry index, as the Signed Entry Timestamp signs it |
+| `proof_index` | uint | leaf index in the tree the checkpoint names (section 15.4) |
 | `signed_entry_timestamp` | bytes | Rekor v1 Signed Entry Timestamp signature, at most `MAX_SET_BYTES` |
 | `tree_size` | uint | tree size at the checkpoint |
 
@@ -731,3 +732,107 @@ gate.
   offline adapter.
 - Any status method for `oidc-workload:` principals.
 - A `LogKind` with a hash other than SHA-256; it is an additive variant.
+
+## 15. Amendment: public-good Sigstore interoperability
+
+Recorded public-good data (Rekor v1 at `rekor.sigstore.dev`, Fulcio at
+`fulcio.sigstore.dev`) showed four places where sections 3, 6, 7, and 10
+would reject every real entry. This section amends them; where it conflicts
+with an earlier section, this section governs.
+
+### 15.1 DER log signatures
+
+Public-good Rekor signs Signed Entry Timestamps and checkpoint notes with
+DER-encoded ECDSA P-256, and its `s` may lie in either half of the group
+order. The kernel's `p256-sha256-v1` suite is unchanged: it accepts only
+fixed-width 64-byte `r ‖ s` with low `S`.
+
+When a pinned log's binding names `p256-sha256-v1`, section 7 steps 5 and 7
+first convert the signature bytes: the adapter accepts exactly the unique
+DER encoding of `SEQUENCE { INTEGER r, INTEGER s }` (short-form lengths,
+minimal positive integers, no trailing bytes) with `1 <= r, s < n`, replaces
+`s` by `n - s` when `s > floor(n / 2)`, and passes the resulting 64 bytes to
+the suite. Malleability is irrelevant here: the signer is a pinned log key
+and the signed content is fixed by the evidence. A conversion failure is the
+step's existing error (`SignedEntryTimestamp` or
+`Checkpoint(CheckpointError::Signature)`). A log bound to any other suite,
+including `ed25519-v1`, passes its signature bytes unchanged.
+
+The conversion is encoding plus one subtraction against the group-order
+constant; it verifies nothing. The adapter still depends on no signature,
+curve, or path-building crate (section 12).
+
+### 15.2 By-value entry signature
+
+Rekor's `hashedrekord` body carries the artifact signature DER-encoded. When
+`input.signature_suite` is `p256-sha256-v1`, section 7 step 4 compares by
+value: `body.signature` MUST convert under section 15.1, and the resulting 64
+bytes MUST equal `input.signature` byte for byte; otherwise
+`EntrySignatureMismatch`. Because the suite accepts only low `S`, a producer
+signs, normalizes to low `S`, uses the fixed-width form as the Auths action
+signature, and submits its DER encoding to Rekor. The high-`S` fixed-width
+twin of a logged signature never matches. Every other suite keeps byte-exact
+equality.
+
+What is checked: the logged signature and the action signature are the same
+`(r, s)` value, the body commits to `SHA-256(signing preimage)` and the leaf,
+and the kernel verifies that value over the preimage under the leaf key. What
+is not checked: the adapter does not separately verify the logged signature,
+and it does not check that Rekor itself verified the entry.
+
+### 15.3 Note key hint for P-256 logs
+
+For a log bound to `p256-sha256-v1`, `note_key_hint` is the first four bytes
+of `SHA-256(DER SubjectPublicKeyInfo)`, the ECDSA key id Rekor writes in its
+checkpoint notes. It coincides with `LogId[0..4]`; section 3 constraint 4
+does not apply to such logs. Other logs keep the key-name derivation of
+section 5.
+
+### 15.4 Sharded logs: two indices
+
+Public-good Rekor is sharded. The whole-log `logIndex` that the Signed Entry
+Timestamp signs differs from the inclusion proof's leaf index in the active
+tree for every entry outside the first shard. The entry map therefore has
+nine keys: `log_index` enters only the SET preimage, and `proof_index` enters
+only the inclusion proof, so section 6.2's `log_index >= tree_size` rule
+applies to `proof_index`. The SET does not bind `proof_index`; the Merkle fold
+and the signed checkpoint do. The bundle import tool of section 11 passes
+the bundle's `inclusionProof.logIndex` as `proof_index`. It reads 64-bit
+integers as JSON numbers or canonical decimal strings, because a bundle's
+protobuf JSON encoding writes them as strings. No single-tree positional
+encoder remains.
+
+### 15.5 Deprecated Fulcio extensions and the principal
+
+Public-good Fulcio still emits the deprecated arcs `1.3.6.1.4.1.57264.1.1`
+through `.1.6` as raw, non-DER strings beside their DER successors. The
+adapter bounds them by `MAX_EXTENSION_BYTES`, rejects duplicates, and ignores
+their values; no identity is derived from them. Section 10's "V1 issuer form
+only" case is still rejected, as `Extension(Missing)` for the absent `.1.8`,
+rather than as a deprecated form.
+
+The principal `oidc-workload:<issuer>#<subject>` is derived from `.1.8`
+(Issuer V2, the token `iss`) and `.1.24` (Token Subject, the raw token `sub`),
+both DER UTF8String, matching Fulcio's published OID registry. For GitHub
+Actions this equals the principal computed from any token the same job
+mints, so the grant can be issued before the certificate exists.
+
+### 15.6 Evidence
+
+The adapter's tests verify a recorded public-good `hashedrekord` entry signed
+by a GitHub Actions workflow: its SET and its inclusion proof and checkpoint
+under the pinned Rekor key, the leaf's path to Fulcio's published root, and
+the issuer, token subject, and GitHub policy join extracted from it. One
+flipped bit in the SET, integrated time, log index, a proof hash, the proof
+index, or the checkpoint signature is rejected.
+
+### 15.7 GitHub policy commitment
+
+Each GitHub Actions policy contributes one configuration component: the
+prefix `github-policy-v2`, then its repository id, owner id, workflow pin
+(absent, `any-ref` with a path, or `exact` with path, ref, and commit), ref,
+and environment. Every field is tagged and length-prefixed. The earlier
+component committed only the repository id and owner id, while the adapter
+also enforced the workflow pin, ref, and environment. A trusted context could
+therefore name a narrower policy than the one it ran. The regression test
+`distinct_github_policies_never_share_a_configuration_encoding` covers this.

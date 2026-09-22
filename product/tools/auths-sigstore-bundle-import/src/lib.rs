@@ -1,5 +1,8 @@
 use auths_model::Digest;
-use auths_sigstore_keyless::{chain::CertificateChain, entry::encode_fields};
+use auths_sigstore_keyless::{
+    chain::CertificateChain,
+    entry::{EntryFields, encode_entry},
+};
 use base64ct::{Base64, Encoding as _};
 use serde_json::Value;
 
@@ -70,21 +73,17 @@ pub fn import_bundle(bytes: &[u8]) -> Result<(Vec<u8>, Vec<u8>), ImportError> {
     )?
     .try_into()
     .map_err(|_| ImportError::Encoding)?;
-    let log_index = entry
-        .get("logIndex")
-        .and_then(Value::as_u64)
-        .ok_or(ImportError::Shape)?;
-    let integrated = entry
-        .get("integratedTime")
-        .and_then(Value::as_u64)
-        .ok_or(ImportError::Shape)?;
-    let tree_size = proof
-        .get("treeSize")
-        .and_then(Value::as_u64)
-        .ok_or(ImportError::Shape)?;
-    let entry_bytes = encode_fields(
-        &body, checkpoint, &hashes, integrated, &log_id, log_index, &set, tree_size,
-    )
+    let entry_bytes = encode_entry(&EntryFields {
+        body: &body,
+        checkpoint,
+        hashes: &hashes,
+        integrated_time: integer(entry, "integratedTime")?,
+        log_id: &log_id,
+        log_index: integer(entry, "logIndex")?,
+        proof_index: integer(proof, "logIndex")?,
+        signed_entry_timestamp: &set,
+        tree_size: integer(proof, "treeSize")?,
+    })
     .map_err(|_| ImportError::Evidence)?;
     let material = bundle
         .get("verificationMaterial")
@@ -113,6 +112,22 @@ pub fn import_bundle(bytes: &[u8]) -> Result<(Vec<u8>, Vec<u8>), ImportError> {
     let chain = CertificateChain::encode(&certificates).map_err(|_| ImportError::Evidence)?;
     Ok((chain, entry_bytes))
 }
+/// Reads an unsigned integer that the bundle's JSON encoding may write as a
+/// number or, for 64-bit fields, as a canonical decimal string.
+fn integer(object: &Value, key: &str) -> Result<u64, ImportError> {
+    match object.get(key).ok_or(ImportError::Shape)? {
+        Value::Number(number) => number.as_u64().ok_or(ImportError::Shape),
+        Value::String(text)
+            if !text.is_empty()
+                && text.bytes().all(|byte| byte.is_ascii_digit())
+                && (text == "0" || !text.starts_with('0')) =>
+        {
+            text.parse().map_err(|_| ImportError::Shape)
+        }
+        _ => Err(ImportError::Shape),
+    }
+}
+
 fn value<'a>(object: &'a Value, key: &str) -> Result<&'a str, ImportError> {
     object
         .get(key)

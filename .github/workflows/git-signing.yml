@@ -1,0 +1,273 @@
+name: Git signing protocol
+
+# Exercises the signing-program protocol against the Git shipped on hosted
+# Linux and macOS runners.
+on:
+  pull_request:
+    paths:
+      - .github/workflows/git-signing.yml
+      - product/integrations/auths-git-signing/**
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/git-signing.yml
+      - product/integrations/auths-git-signing/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  git-protocol:
+    name: git protocol (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+          compiler-cache: "false"
+      - run: git --version
+      - run: cargo test --locked -p auths-git-signing
+
+  # Signs one commit as this job's GitHub Actions OIDC workload and one as a
+  # did:key agent, both delegated by one did:key root, and verifies the
+  # range in one `auths-git verify` call. The OIDC token is verified live, so
+  # verification runs within minutes of signing. Only jobs this repository
+  # controls may mint a token: pushes to main, manual runs, and pull
+  # requests from branches of this repository.
+  live-oidc:
+    name: live OIDC workload signing
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+          compiler-cache: "false"
+      - name: Build the signing binaries
+        run: cargo build --locked -p auths-git-signing --bins
+      - name: Sign through OIDC and did:key, verify under one root
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin="$(cargo metadata --locked --format-version 1 --no-deps | jq -r .target_directory)/debug"
+          export AUTHS_GIT_HOME="$RUNNER_TEMP/auths-git-home"
+          repository="github.com/${GITHUB_REPOSITORY}"
+          issuer="https://token.actions.githubusercontent.com"
+
+          # Pin GitHub's current issuer keys and this repository's ids.
+          curl --fail --silent --show-error --max-time 30 \
+            "$issuer/.well-known/jwks" --output "$RUNNER_TEMP/jwks.json"
+          jq --arg issuer "$issuer" \
+             --arg repository_id "$GITHUB_REPOSITORY_ID" \
+             --arg owner_id "$GITHUB_REPOSITORY_OWNER_ID" '{
+              schema: "auths.git-methods/1",
+              oidc_workload: {issuers: [{
+                issuer: $issuer,
+                max_token_lifetime_seconds: 3600,
+                keys: [.keys[] | select(.kty == "RSA")
+                       | {kid, kty, alg: (.alg // "RS256"), n, e}],
+                profile: {github_actions: [
+                  {repository_id: $repository_id, owner_id: $owner_id}
+                ]}
+              }]}
+            }' "$RUNNER_TEMP/jwks.json" > "$RUNNER_TEMP/methods.json"
+
+          scratch="$RUNNER_TEMP/scratch"
+          git init -q -b main "$scratch"
+          cd "$scratch"
+          git config user.name "CI"
+          git config user.email "ci@example.invalid"
+          git config gpg.format x509
+          git config gpg.x509.program "$bin/auths-git-sign"
+          git config auths.repository "$repository"
+
+          "$bin/auths-git" key init --label root
+          agent="$("$bin/auths-git" key init --label agent)"
+          "$bin/auths-git" trust init --root root --repository "$repository" \
+            --out .auths/git --methods "$RUNNER_TEMP/methods.json"
+          git add .auths/git
+          git commit -q -m "pin git signing trust"
+          trust="$(git rev-parse HEAD)"
+
+          workload="$("$bin/auths-git" workload-principal --github-actions)"
+          echo "workload principal: $workload"
+          "$bin/auths-git" grant --root root --subject "$workload" \
+            --repository "$repository" --capability sign-commit \
+            --expires-in 3600 --out "$RUNNER_TEMP/ci.grant.json"
+          "$bin/auths-git" grant --root root --subject "$agent" \
+            --repository "$repository" --capability sign-commit \
+            --expires-in 3600 --out "$RUNNER_TEMP/agent.grant.json"
+          "$bin/auths-git" install-grant --workload --label ci "$RUNNER_TEMP/ci.grant.json"
+          "$bin/auths-git" install-grant --label agent "$RUNNER_TEMP/agent.grant.json"
+
+          git config user.signingkey auths:ci
+          git config auths.signer oidc-workload
+          echo oidc > oidc.txt
+          git add oidc.txt
+          git commit -q -S -m "signed by the OIDC workload"
+
+          git config user.signingkey auths:agent
+          git config auths.signer did-key
+          echo agent > agent.txt
+          git add agent.txt
+          git commit -q -S -m "signed by a did:key agent"
+
+          "$bin/auths-git" verify "$trust..HEAD" --trust-from-ref "$trust" | tee "$RUNNER_TEMP/verify.txt"
+          test "$(grep -c '  verified  ' "$RUNNER_TEMP/verify.txt")" -eq 2
+          grep -qF "verified  $workload <- " "$RUNNER_TEMP/verify.txt"
+          grep -qF "verified  $agent <- " "$RUNNER_TEMP/verify.txt"
+
+  # Signs one commit through public-good Sigstore as this job's GitHub
+  # Actions workload — an ephemeral P-256 key, a Fulcio certificate, and a
+  # Rekor v1 entry for the exact signature — and one as a did:key agent,
+  # both delegated by one did:key root, and verifies the range in one
+  # `auths-git verify` call. Trust pins Fulcio's current root and Rekor's
+  # current key and shard origin, fetched at run time, and admits only this
+  # repository and owner by immutable id. The evidence is verified offline;
+  # it does not expire with the token. Same trigger guard as `live-oidc`.
+  live-sigstore:
+    name: live Sigstore keyless signing
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+          compiler-cache: "false"
+      - name: Build the signing binaries
+        run: cargo build --locked -p auths-git-signing --bins
+      - name: Sign through Sigstore and did:key, verify under one root
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin="$(cargo metadata --locked --format-version 1 --no-deps | jq -r .target_directory)/debug"
+          export AUTHS_GIT_HOME="$RUNNER_TEMP/auths-git-home"
+          repository="github.com/${GITHUB_REPOSITORY}"
+          issuer="https://token.actions.githubusercontent.com"
+          fulcio="https://fulcio.sigstore.dev"
+          rekor="https://rekor.sigstore.dev"
+          fetch() {
+            curl --fail --silent --show-error --max-time 30 "$1" --output "$2"
+          }
+
+          # Fulcio's roots: the last certificate of each trust-bundle chain.
+          fetch "$fulcio/api/v2/trustBundle" "$RUNNER_TEMP/trust-bundle.json"
+          : > "$RUNNER_TEMP/fulcio-roots.txt"
+          count="$(jq '.chains | length' "$RUNNER_TEMP/trust-bundle.json")"
+          test "$count" -ge 1
+          for index in $(seq 0 $((count - 1))); do
+            jq -r ".chains[$index].certificates[-1]" "$RUNNER_TEMP/trust-bundle.json" \
+              | openssl x509 -outform DER | base64 -w0 >> "$RUNNER_TEMP/fulcio-roots.txt"
+            echo >> "$RUNNER_TEMP/fulcio-roots.txt"
+          done
+
+          # Rekor's key, and the origin of the shard now accepting entries:
+          # the first line of its signed tree head.
+          fetch "$rekor/api/v1/log/publicKey" "$RUNNER_TEMP/rekor.pem"
+          rekor_spki="$(openssl pkey -pubin -in "$RUNNER_TEMP/rekor.pem" -outform DER | base64 -w0)"
+          fetch "$rekor/api/v1/log" "$RUNNER_TEMP/rekor-log.json"
+          origin="$(jq -r '.signedTreeHead | split("\n")[0]' "$RUNNER_TEMP/rekor-log.json")"
+          echo "rekor origin: $origin"
+
+          jq -n --arg issuer "$issuer" \
+             --arg origin "$origin" \
+             --arg rekor_spki "$rekor_spki" \
+             --rawfile roots "$RUNNER_TEMP/fulcio-roots.txt" \
+             --arg repository_id "$GITHUB_REPOSITORY_ID" \
+             --arg owner_id "$GITHUB_REPOSITORY_OWNER_ID" '{
+              schema: "auths.git-methods/1",
+              sigstore_keyless: {
+                fulcio_roots: ($roots | split("\n") | map(select(length > 0)) | unique),
+                rekor_logs: [{
+                  origin: $origin,
+                  key_name: "rekor.sigstore.dev",
+                  p256_spki: $rekor_spki
+                }],
+                issuers: [{
+                  issuer: $issuer,
+                  profile: {github_actions: [
+                    {repository_id: $repository_id, owner_id: $owner_id}
+                  ]}
+                }],
+                max_leaf_validity_seconds: 600
+              }
+            }' > "$RUNNER_TEMP/methods.json"
+
+          scratch="$RUNNER_TEMP/scratch"
+          git init -q -b main "$scratch"
+          cd "$scratch"
+          git config user.name "CI"
+          git config user.email "ci@example.invalid"
+          git config gpg.format x509
+          git config gpg.x509.program "$bin/auths-git-sign"
+          git config auths.repository "$repository"
+
+          "$bin/auths-git" key init --label root
+          agent="$("$bin/auths-git" key init --label agent)"
+          "$bin/auths-git" trust init --root root --repository "$repository" \
+            --out .auths/git --methods "$RUNNER_TEMP/methods.json"
+          git add .auths/git
+          git commit -q -m "pin git signing trust"
+          trust="$(git rev-parse HEAD)"
+
+          # Fulcio copies the token's iss and sub into the certificate, so
+          # the principal read from a token of this job names the Sigstore
+          # signer too.
+          workload="$("$bin/auths-git" workload-principal --github-actions)"
+          echo "workload principal: $workload"
+          "$bin/auths-git" grant --root root --subject "$workload" \
+            --repository "$repository" --capability sign-commit \
+            --expires-in 3600 --out "$RUNNER_TEMP/ci.grant.json"
+          "$bin/auths-git" grant --root root --subject "$agent" \
+            --repository "$repository" --capability sign-commit \
+            --expires-in 3600 --out "$RUNNER_TEMP/agent.grant.json"
+          "$bin/auths-git" install-grant --workload --label ci "$RUNNER_TEMP/ci.grant.json"
+          "$bin/auths-git" install-grant --label agent "$RUNNER_TEMP/agent.grant.json"
+
+          git config user.signingkey auths:ci
+          git config auths.signer sigstore-keyless
+          echo sigstore > sigstore.txt
+          git add sigstore.txt
+          git commit -q -S -m "signed through Sigstore keyless"
+
+          git config user.signingkey auths:agent
+          git config auths.signer did-key
+          echo agent > agent.txt
+          git add agent.txt
+          git commit -q -S -m "signed by a did:key agent"
+
+          "$bin/auths-git" verify "$trust..HEAD" --trust-from-ref "$trust" | tee "$RUNNER_TEMP/verify.txt"
+          test "$(grep -c '  verified  ' "$RUNNER_TEMP/verify.txt")" -eq 2
+          grep -qF "verified  $workload <- " "$RUNNER_TEMP/verify.txt"
+          grep -qF "verified  $agent <- " "$RUNNER_TEMP/verify.txt"

@@ -10,6 +10,9 @@ use crate::{ExtensionError, SigstoreError};
 
 pub const MAX_POLICIES: usize = 64;
 pub const MAX_EXTENSION_BYTES: usize = 1024;
+/// Fulcio extension arcs under `1.3.6.1.4.1.57264.1` that carry deprecated
+/// raw, non-DER strings and are ignored.
+const DEPRECATED_RAW_ARCS: [&str; 6] = ["1", "2", "3", "4", "5", "6"];
 
 macro_rules! text {
     ($name:ident, $max:expr, $valid:expr) => {
@@ -345,15 +348,66 @@ impl FulcioIssuerProfile {
                 .as_slice()
                 .iter()
                 .map(|p| {
-                    let mut v = Vec::new();
-                    v.extend_from_slice(&p.repository_id.get().to_be_bytes());
-                    v.extend_from_slice(&p.owner_id.get().to_be_bytes());
-                    v
+                    github_policy_component(
+                        p.repository_id.get(),
+                        p.owner_id.get(),
+                        p.workflow.as_ref(),
+                        p.git_ref.as_ref(),
+                        p.environment.as_ref(),
+                    )
                 })
                 .collect(),
         }
     }
 }
+/// Appends one tagged, length-prefixed optional field, so that no two
+/// distinct policies share an encoding.
+fn push_policy_field(out: &mut Vec<u8>, tag: u8, value: Option<&[u8]>) {
+    out.push(tag);
+    match value {
+        None => out.push(0),
+        Some(bytes) => {
+            out.push(1);
+            out.extend_from_slice(&u32::try_from(bytes.len()).unwrap_or(u32::MAX).to_be_bytes());
+            out.extend_from_slice(bytes);
+        }
+    }
+}
+
+/// Canonical configuration encoding of a GitHub workload policy: every field,
+/// including the workflow pin, tagged and length-prefixed.
+fn github_policy_component(
+    repository_id: u64,
+    owner_id: u64,
+    workflow: Option<&WorkflowPin>,
+    git_ref: Option<&GitRef>,
+    environment: Option<&Environment>,
+) -> Vec<u8> {
+    let mut value = b"github-policy-v2".to_vec();
+    push_policy_field(&mut value, 1, Some(&repository_id.to_be_bytes()));
+    push_policy_field(&mut value, 2, Some(&owner_id.to_be_bytes()));
+    match workflow {
+        None => push_policy_field(&mut value, 3, None),
+        Some(WorkflowPin::Exact {
+            path,
+            git_ref,
+            commit,
+        }) => {
+            push_policy_field(&mut value, 3, Some(b"exact"));
+            push_policy_field(&mut value, 4, Some(path.as_str().as_bytes()));
+            push_policy_field(&mut value, 5, Some(git_ref.as_str().as_bytes()));
+            push_policy_field(&mut value, 6, Some(commit.as_str().as_bytes()));
+        }
+        Some(WorkflowPin::AnyRef { path }) => {
+            push_policy_field(&mut value, 3, Some(b"any-ref"));
+            push_policy_field(&mut value, 4, Some(path.as_str().as_bytes()));
+        }
+    }
+    push_policy_field(&mut value, 7, git_ref.map(|v| v.as_str().as_bytes()));
+    push_policy_field(&mut value, 8, environment.map(|v| v.as_str().as_bytes()));
+    value
+}
+
 fn github_admits(p: &FulcioGithubPolicy, i: &FulcioGithubIdentity) -> bool {
     p.repository_id == i.repository_id
         && p.owner_id == i.owner_id
@@ -391,19 +445,25 @@ impl FulcioFacts {
         let mut values = Vec::new();
         for ext in cert.iter_extensions() {
             let oid = ext.oid.to_id_string();
-            if oid.starts_with("1.3.6.1.4.1.57264.1.") {
-                if values.iter().any(|(prior, _)| prior == &oid) {
-                    return Err(SigstoreError::Extension(ExtensionError::Duplicate));
-                }
-                let value = der_string(ext.value)?;
-                if value.len() > MAX_EXTENSION_BYTES {
-                    return Err(SigstoreError::Extension(ExtensionError::Limit));
-                }
-                values.push((oid, value));
+            let Some(arc) = oid.strip_prefix("1.3.6.1.4.1.57264.1.") else {
+                continue;
+            };
+            if values.iter().any(|(prior, _)| prior == &oid) {
+                return Err(SigstoreError::Extension(ExtensionError::Duplicate));
             }
-        }
-        if values.iter().any(|(oid, _)| oid == "1.3.6.1.4.1.57264.1.1") {
-            return Err(SigstoreError::Extension(ExtensionError::Deprecated));
+            // Arcs 1 through 6 are the deprecated raw-string forms that
+            // Fulcio still emits beside their DER successors. They are
+            // bounded but never read: identity comes only from DER arcs.
+            let (length, value) = if DEPRECATED_RAW_ARCS.contains(&arc) {
+                (ext.value.len(), String::new())
+            } else {
+                let value = der_string(ext.value)?;
+                (value.len(), value)
+            };
+            if length > MAX_EXTENSION_BYTES {
+                return Err(SigstoreError::Extension(ExtensionError::Limit));
+            }
+            values.push((oid, value));
         }
         let issuer = IssuerUrl::parse(required(&values, "1.3.6.1.4.1.57264.1.8")?)
             .map_err(SigstoreError::Extension)?;
@@ -589,4 +649,49 @@ fn tlv(v: &[u8], tag: u8) -> Result<(usize, usize), SigstoreError> {
         l = l * 256 + usize::from(*b);
     }
     Ok((2 + n, l))
+}
+
+#[cfg(test)]
+mod policy_commitment_tests {
+    use super::*;
+
+    fn policy(
+        git_ref: Option<&str>,
+        environment: Option<&str>,
+        workflow: Option<WorkflowPin>,
+    ) -> FulcioGithubPolicy {
+        FulcioGithubPolicy {
+            repository_id: RepositoryId::parse("123").expect("repository id"),
+            owner_id: RepositoryOwnerId::parse("456").expect("owner id"),
+            workflow,
+            git_ref: git_ref.map(|value| GitRef::parse(value).expect("ref")),
+            environment: environment.map(|value| Environment::parse(value).expect("environment")),
+        }
+    }
+
+    fn components(policy: FulcioGithubPolicy) -> Vec<Vec<u8>> {
+        FulcioIssuerProfile::GithubActions {
+            policies: BoundedSet::new(vec![policy]).expect("policies"),
+        }
+        .components()
+    }
+
+    #[test]
+    fn distinct_github_policies_never_share_a_configuration_encoding() {
+        assert_ne!(
+            components(policy(Some("refs/heads/ab"), Some("c"), None)),
+            components(policy(Some("refs/heads/a"), Some("bc"), None))
+        );
+        assert_ne!(
+            components(policy(Some("refs/heads/main"), None, None)),
+            components(policy(None, Some("refs/heads/main"), None))
+        );
+        let pinned = WorkflowPin::AnyRef {
+            path: WorkflowPath::parse(".github/workflows/release.yml").expect("path"),
+        };
+        assert_ne!(
+            components(policy(None, None, Some(pinned))),
+            components(policy(None, None, None))
+        );
+    }
 }

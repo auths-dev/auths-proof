@@ -1,0 +1,81 @@
+name: Verify Auths Git signatures
+description: >-
+  Verify every commit in base..head against Auths trust read from the
+  protected base, never from the pull request itself. Fails the job when any
+  commit is unsigned, denied, or indeterminate.
+
+inputs:
+  base:
+    description: Base revision that holds the trust material (normally the pull request base).
+    required: true
+  head:
+    description: Head revision to verify (normally the pull request head).
+    required: true
+  binary:
+    description: Path to a prebuilt auths-git binary. When empty, auths-git is installed from auths-proof at `revision`.
+    required: false
+    default: ""
+  revision:
+    description: auths-proof commit to install auths-git from when `binary` is empty.
+    required: false
+    default: ""
+  working-directory:
+    description: Repository to verify.
+    required: false
+    default: "."
+
+outputs:
+  report:
+    description: Path of the JSON verification report.
+    value: ${{ steps.verify.outputs.report }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install auths-git
+      if: inputs.binary == ''
+      shell: bash
+      env:
+        AUTHS_PROOF_REVISION: ${{ inputs.revision }}
+      run: |
+        set -euo pipefail
+        if [ -z "$AUTHS_PROOF_REVISION" ]; then
+          echo "::error::set either binary or revision"
+          exit 2
+        fi
+        cargo install --locked --git https://github.com/auths-dev/auths-proof \
+          --rev "$AUTHS_PROOF_REVISION" auths-git-signing --bin auths-git
+        echo "AUTHS_GIT_BIN=$HOME/.cargo/bin/auths-git" >> "$GITHUB_ENV"
+
+    - name: Use the provided auths-git
+      if: inputs.binary != ''
+      shell: bash
+      env:
+        AUTHS_GIT_PROVIDED: ${{ inputs.binary }}
+      run: echo "AUTHS_GIT_BIN=$AUTHS_GIT_PROVIDED" >> "$GITHUB_ENV"
+
+    - name: Verify base..head against trust from base
+      id: verify
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        AUTHS_BASE: ${{ inputs.base }}
+        AUTHS_HEAD: ${{ inputs.head }}
+      run: |
+        set -uo pipefail
+        report="$RUNNER_TEMP/auths-git-verify.json"
+        echo "report=$report" >> "$GITHUB_OUTPUT"
+        base=$(git rev-parse --verify "$AUTHS_BASE^{commit}")
+        head=$(git rev-parse --verify "$AUTHS_HEAD^{commit}")
+        "$AUTHS_GIT_BIN" verify "$base..$head" --trust-from-ref "$base" --json > "$report"
+        status=$?
+        {
+          echo "### Auths Git signatures"
+          echo
+          echo "Trust from \`$base\`; verified \`$base..$head\`; exit status $status."
+          echo
+          echo '```json'
+          cat "$report"
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"
+        exit "$status"

@@ -65,6 +65,7 @@ members = [
     "product/integrations/auths-custody-pkcs11",
     "product/integrations/auths-resolver-did-web",
     "product/integrations/auths-radicle",
+    "product/integrations/auths-git-signing",
     "product/integrations/auths-github",
     "product/integrations/auths-stripe",
     "product/integrations/auths-kubernetes",
@@ -209,6 +210,7 @@ auths-custody = { version = "1.0.0-rc.1", path = "product/integrations/auths-cus
 auths-custody-aws-kms = { version = "1.0.0-rc.1", path = "product/integrations/auths-custody-aws-kms" }
 auths-custody-pkcs11 = { version = "1.0.0-rc.1", path = "product/integrations/auths-custody-pkcs11" }
 auths-radicle = { version = "1.0.0-rc.1", path = "product/integrations/auths-radicle" }
+auths-git-signing = { version = "1.0.0-rc.1", path = "product/integrations/auths-git-signing" }
 auths-github = { version = "1.0.0-rc.1", path = "product/integrations/auths-github" }
 auths-stripe = { version = "1.0.0-rc.1", path = "product/integrations/auths-stripe" }
 auths-stripe-payment-demo-common = { version = "1.0.0-rc.1", path = "demos/stripe-payment-common" }
@@ -275,6 +277,7 @@ hex = "0.4.3"
 p256 = { version = "0.13.2", default-features = false, features = ["alloc", "ecdsa", "pkcs8"] }
 pyo3 = { version = "0.29.0", features = ["abi3-py39"] }
 proptest = "1.9.0"
+rcgen = "=0.13.2"
 serde = { version = "1.0.228", default-features = false, features = ["alloc", "derive"] }
 serde_json = { version = "1.0.149", default-features = false, features = ["alloc", "preserve_order"] }
 serde-wasm-bindgen = "0.6.5"

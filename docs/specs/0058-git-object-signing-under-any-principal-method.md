@@ -1,7 +1,8 @@
 # AP-SPEC-058: Git object signing under any principal method
 
-- **Status:** Draft; written as the first commit of AP-SPEC-057 Epic 3.
-  Nothing in this document is implemented.
+- **Status:** Engineering implemented in `product/integrations/auths-git-signing`
+  (§6 records the evidence and the gaps). Not accepted: the two human
+  adoption clauses in §6 have no evidence yet.
 - **Depends on:** [AP-SPEC-057 Epic 3](0057-evidence-program-for-the-exact-action-boundary.md),
   [AP-SPEC-045](0045-oidc-workload-principal-adapter.md),
   [AP-SPEC-046](0046-sigstore-keyless-evidence-adapter.md),
@@ -59,35 +60,48 @@ required check. A repository that does not run the verifier is unaffected.
 
 ## 2. UX
 
-Operator (root) setup, once per repository or organization:
+The commands ship as two binaries in `auths-git-signing`: `auths-git` for
+operators, and `auths-git-sign` as the program Git calls. They are not
+`auths git …` subcommands of `auths-node`, because that binary already
+depends on `auths-did-keri`, which §5 forbids.
+
+Operator (root) setup, once per repository or organization, with trust
+committed to the protected branch:
 
 ```text
-$ auths git root init --out root.did-key          # or: an existing root principal
-$ auths git trust init --root <root-principal> --repository github.com/acme/app \
-    --out .auths/git-trust.cbor
+$ auths-git key init --label root                  # prints did:key:z6Mk…; no secret on stdout
+$ auths-git trust init --root root --repository github.com/acme/app --out .auths/git
+$ git add .auths/git && git commit -m "pin git signing trust"
 ```
 
 Delegating a local agent (the port of `auths id agent add`):
 
 ```text
 # On the agent host:
-$ auths git agent init --label claude-release     # prints did:key:z6Mk…; no secret on stdout
+$ auths-git key init --label claude-release        # prints did:key:z6Mk…
 # On the root host:
-$ auths git grant --root <root> --subject did:key:z6Mk… \
+$ auths-git grant --root root --subject did:key:z6Mk… \
     --repository github.com/acme/app --capability sign-commit,sign-tag \
-    --expires-in 90d --out claude-release.grant.cbor
+    --expires-in 7776000 --out claude-release.grant.json
 # On the agent host:
-$ auths git agent install-grant claude-release.grant.cbor
+$ auths-git install-grant --label claude-release claude-release.grant.json
 $ git config gpg.format x509
 $ git config gpg.x509.program auths-git-sign
 $ git config user.signingkey auths:claude-release
-$ git commit -S -m "…"                            # headless; no prompt, no re-signing
+$ git config auths.repository github.com/acme/app
+$ git config auths.trustDir .auths/git              # for git verify-commit
+$ git commit -S -m "…"                              # headless; no prompt, no re-signing
 ```
+
+Local keys and installed grants live under `$AUTHS_GIT_HOME` (default
+`~/.auths-git`, mode 0700). The signer refuses, and Git creates no object,
+when the installed grant does not cover the object's capability or the
+current time.
 
 Delegating a CI workload names the exact workload subject rather than a key:
 
 ```text
-$ auths git grant --root <root> \
+$ auths-git grant --root <root> \
     --subject 'oidc-workload:<pct-issuer>#<pct-subject>' \
     --repository github.com/acme/app --capability sign-tag --expires-in 365d
 ```
@@ -105,23 +119,27 @@ not a pattern.
 Revocation (the port of the sibling project's one-line revoke):
 
 ```text
-$ auths git revoke --root <root> --grant <grant-id> --out status/<grant-id>.cbor
-# Merge the status record into the verifier's trust material (§3.5).
+$ auths-git revoke --root root --repository github.com/acme/app \
+    --grant claude-release.grant.json --out .auths/git/revocations/claude-release.sig
+# Commit the record to the protected branch (§3.5).
 ```
 
 Verification:
 
 ```text
-$ auths git verify origin/main..HEAD --trust-from-ref origin/main
-  3 commits verified
-  a1b2c3d  did:key:z6Mk… (claude-release) ← root did:key:z6Mf…  git/sign-commit
+$ auths-git verify origin/main..HEAD --trust-from-ref origin/main
+  a1b2c3d4e5f6  verified  did:key:z6Mk… <- did:key:z6Mf…
   …
-$ auths git verify HEAD --trust-from-ref origin/main --json
+  3 objects; trust sha256 <digest>; evaluated at <unix time>
+$ auths-git verify v1.0.0 --trust-from-ref origin/main --json
 ```
+
+Exit codes: 0 when every object verified, 1 when any was denied, 2 for an
+indeterminate result or an operational error.
 
 `git verify-commit` and `git log --show-signature` MUST also work through the
 same program when `gpg.x509.program` is set. They report good or bad; the
-detailed result comes from `auths git verify`.
+detailed result comes from `auths-git verify`.
 
 The terminal and JSON output MUST show the signing principal, each grant in
 the chain, the root, the capability used, the evaluation time, and the digest
@@ -155,12 +173,16 @@ Capabilities and resources, using the registered `uri-namespace-v1` matcher:
 
 ```text
 git/sign-commit   git://<repository>/commits
-git/sign-tag      git://<repository>/refs/tags/<tag_name>
+git/sign-tag      git://<repository>/tags
 ```
 
-A grant on `git://<repository>/refs/tags/` covers every tag in that
-repository. A grant on `git://<repository>/refs/tags/release/` covers only
-tags under `release/`. The sibling project's `sign_commit` and `sign_release`
+The tag name is bound in the signed action body, not in the resource. The
+kernel matches grant permissions by exact equality, and prefix-matches
+resources only against trust-anchor namespaces. A per-tag resource would
+therefore need one grant per tag, and a grant cannot say "every tag under
+`release/`". Restricting an agent to a tag namespace is not available in this
+version; the root's anchor namespace `git://<repository>/` bounds the
+repository. The sibling project's `sign_commit` and `sign_release`
 scopes map to `git/sign-commit` and `git/sign-tag`. There is no alias
 spelling (AGENTS.md prelaunch rule).
 
@@ -186,6 +208,34 @@ produces `git.payload-digest-mismatch`.
 For tags, the verifier MUST also check that the payload's `tag` header equals
 `tag_name` in the action.
 
+The object parser (`src/object.rs`) interprets only what the split, the
+object format, and the tag name need. Everything else is bound byte for byte
+by the digest. It refuses every object whose split would be ambiguous rather
+than guessing:
+
+- **Commits.** The signature is the header named for the object format:
+  `gpgsig` for SHA-1 and `gpgsig-sha256` for SHA-256, as Git writes them.
+  The following are all `git.signature-ambiguous`:
+  - a second signature header;
+  - the other format's signature header;
+  - an unsigned payload that already carries one.
+
+  Headers must start `tree`, `parent`*, `author`, `committer`. Other headers
+  (`encoding`, `mergetag`, ...) are kept in the payload as they are. CR or NUL
+  in the headers, or NUL in the message, is `git.object-malformed`.
+- **Tags.**
+  - Exactly `object`, `type commit`, `tag`, and `tagger` headers are
+    accepted. Tags of other object types are refused.
+  - Git splits a tag at the last line that opens a signature armor, so a tag
+    with more than one such line is `git.signature-ambiguous`.
+  - Tag names are a closed ASCII subset, stricter than Git's; a rejected name
+    is `git.tag-name-invalid`.
+
+The vectors in `fixtures/objects.json` come from an independent Python
+generator that shares no code with the parser. Real-Git tests also require
+the parser's split of Git's own SHA-1 and SHA-256 objects to equal the
+payload Git sent to the signing program.
+
 ### 3.3 Where the proof lives
 
 The proof is carried in Git's native signature slot through the external
@@ -194,9 +244,18 @@ same mechanism `gitsign` uses:
 
 ```text
 gpgsig -----BEGIN SIGNED MESSAGE-----
- <base64 of: "AUTHS-GIT-SIGNATURE/1\n" || proof CBOR || canonical action CBOR>
+ <standard padded base64 of the frame, 64 characters per line>
  -----END SIGNED MESSAGE-----
+
+frame = "AUTHS-GIT-SIGNATURE/1\n"
+        || u32be(len(proof)) || proof CBOR
+        || u32be(len(action)) || canonical action CBOR
 ```
+
+The frame carries explicit lengths, so splitting it never depends on
+decoding CBOR. Decoding accepts exactly one byte string per envelope: fixed
+line width, `\n` line endings only, canonical base64, non-empty fields, and
+no trailing data (`product/integrations/auths-git-signing/src/envelope.rs`).
 
 It was chosen over the alternatives below because it travels with the
 object, needs no history rewrite, and makes `git commit -S` headless:
@@ -210,10 +269,28 @@ object, needs no history rewrite, and makes `git commit -S` headless:
 Accepted costs: GitHub shows these commits as "Unverified"; a commit cannot
 also carry a GPG or SSH signature; and a verifier configured with a different
 x509 program (such as `gitsign`) fails to parse the envelope. Each failure is
-closed rather than a false accept. Step 1 of §6 MUST confirm the armor and the
-status-line protocol against Git on hosted Linux and macOS before any other
-code lands. If Git rejects the envelope, this section is revised before
-implementation continues.
+closed rather than a false accept.
+
+**Confirmed Git protocol** (step 1 of §6). This was observed with local Git
+2.54 on macOS. The hosted Linux and macOS evidence is the
+`.github/workflows/git-signing.yml` run on the step-1 revision, which
+executes `src/git_protocol_tests.rs` against each runner's Git:
+
+- Signing runs `<program> --status-fd=2 -bsau <user.signingkey>` with the
+  exact unsigned payload of §3.2 on stdin. Git stores the program's stdout
+  byte for byte: as the `gpgsig` header of a commit, or appended to a tag's
+  payload.
+- Git refuses to create the object unless the program's stderr contains
+  `\n[GNUPG:] SIG_CREATED `, whatever the exit code.
+- Verifying runs `<program> --status-fd=1 --verify <signature-file> -` with
+  the same payload on stdin and the stored envelope in the file.
+- Git reports a good signature only when the program exits 0 **and** stdout
+  contains `\n[GNUPG:] GOODSIG `, including the leading newline. Every
+  other output fails. The program therefore emits `GOODSIG` only from a
+  verified result, and replaces control characters in the principal it
+  displays, so text cannot inject a status line.
+- The program accepts exactly these two argument forms and rejects every
+  other vector, so a future Git flag cannot silently change a call's meaning.
 
 ### 3.4 Signing
 
@@ -221,7 +298,7 @@ implementation continues.
 
 1. reads the payload from stdin and computes `payload_digest`;
 2. builds the canonical action from the payload and the repository recorded
-   by `auths git agent init` (`auths.repository` in Git config); if the
+   in `git config auths.repository`; if the
    payload cannot be parsed as the expected kind, or the repository is unset,
    it refuses;
 3. checks locally that an installed grant covers the capability and
@@ -246,29 +323,68 @@ acquisition happens in the signer, never in the verifier.
 
 ### 3.5 Trust, status, and evaluation time
 
+A proof is bound to its object, not to a request:
+
+- **Challenge and proof reference.** The action challenge and the proof
+  reference are both the payload digest. The verifier re-derives the
+  challenge and the exact composition plan from the object.
+- **Audience.** The audience is `git://<repository>`. The trusted context's
+  expected audience names the repository, and the verifier builds the
+  expected action from that repository and the object.
+- **Validity.** The action is valid for the terminal grant's validity window,
+  so a gate can verify it for as long as the grant is valid.
+
+The signed action must equal the expected action byte for byte, with
+field-level codes for the first difference. The kernel verifies the proof
+against the expected action, never against action bytes taken from the
+signature. The verifier receives the executable registries for the methods
+it enables as a parameter, and the trusted context's configuration commitment
+binds that set. No principal method is named on the signing or verification
+path (`src/sign.rs`, `src/verify.rs`).
+
 The verifier's trusted context names the pinned roots, the accepted principal
 methods, the Fulcio and Rekor anchors and pinned OIDC issuer key sets when
 those methods are enabled, the expected repository, the status records, and
 the executable registry configuration commitment. Its source is outside the
 objects being verified:
 
-- `auths git verify` MUST take trust from `--trusted-context <path>` or
+- `auths-git verify` MUST take trust from `--trust-dir <path>` or
   `--trust-from-ref <ref>`. With `--trust-from-ref`, it MUST refuse with
   `git.trust-from-verified-range` when the ref resolves to a commit inside the
   verified range. A pull request cannot supply its own trust.
 - The provided CI action MUST read trust from the protected base branch.
 
-Status records (`.auths/git-status/*.cbor`) sit next to the trusted context
-and are selected revoked-dominant under the registered status methods. In
-this epic, revocation takes effect for a verifier **when the revocation record
-is present in the trust material it reads**. Status freshness (a maximum age
-after which the verifier requires a newer signed "active" record) is
-supported by the registry but is **off by default**. Turning it on requires a
-root that re-signs status periodically, which conflicts with a rarely used
-human root. Without freshness, rolling back the trust material by deleting a
-revocation record from the protected branch would restore the old grant.
-Branch protection on the trust path is the control for that. The status
-freshness mode is documented, not defaulted.
+**Revocation.** The kernel's grant-status snapshot cannot express revoking a
+long-lived signature. Every status statement in the snapshot must be bound
+inside the proof being verified (`control_for` in
+`core/crates/auths-verifier/src/lib.rs`). A commit is signed once and
+verified later, so a revocation issued after signing can never be bound into
+it. The registered `local-deny-list-v1` status method is not implemented.
+
+Revocation is therefore its own Auths proof (`src/revoke.rs`):
+
+1. An authorized principal signs a `revoke-grant` action (`git/revoke-grant`
+   on `git://<repository>/grants`) over one grant identifier. That is
+   normally the pinned root acting directly; the trust anchor carries this
+   permission.
+2. The record is armored in the same envelope as a signature, and lives in
+   `.auths/git/revocations/*.sig` next to `trust.cbor`.
+3. The kernel verifies each record against the same pinned trust, at the
+   record's own issue time. The kernel requires the action window to lie
+   inside the revoker's authority, and reading the time from the record
+   cannot widen anything because a revocation only removes authority.
+4. The verifier holds the verified set as explicit local state. It denies
+   any signature whose grant chain contains a revoked grant with
+   `git.grant-revoked`.
+5. A record that does not verify makes the whole trust fail with
+   `git.revocation-invalid`, so it is never ignored.
+
+A revocation takes effect for a verifier **when the record is present in the
+trust material it reads**. Rolling back the trust material by deleting a
+record from the protected branch would restore the grant, and branch
+protection on the trust path is the control for that. A freshness mode,
+where the root periodically re-signs an "active" record, is not
+implemented. It would conflict with a rarely used human root.
 
 Evaluation time is supplied by the verifier: the wall clock for a gate, or an
 explicit `--at` time. This is **gate-time verification**. Re-verifying an old
@@ -283,8 +399,9 @@ validity until a separate decision records the rule.
 | Input | Limit | On excess |
 | --- | ---: | --- |
 | Unsigned payload | 1 MiB | `git.payload-too-large` |
-| Armored envelope | 192 KiB | `git.envelope-too-large` |
-| Decoded proof | 128 KiB, and each method's registered evidence ceiling | kernel stage code |
+| Armored envelope | 200 KiB (holds both fields at their limits) | `git.envelope-too-large` |
+| Decoded proof | 128 KiB, and each method's registered evidence ceiling | `git.envelope-too-large`, then kernel stage codes |
+| Canonical action | 16 KiB | `git.envelope-too-large` |
 | Grant chain depth | 4 | kernel stage code |
 | Commits in one `verify` range | 10,000 | `git.range-too-large` |
 | Status records read | 4,096 | `git.status-set-too-large` |
@@ -297,6 +414,9 @@ They use the `git.` prefix. Kernel stage codes pass through unchanged.
 | Code | Class | Meaning |
 | --- | --- | --- |
 | `git.unsigned` | denied | No signature header |
+| `git.signature-ambiguous` | denied | The signature cannot be separated from the payload in exactly one way (§3.2) |
+| `git.object-malformed` | denied | Object structure outside the accepted subset (§3.2) |
+| `git.tag-name-invalid` | denied | Tag name outside the accepted set (§3.2) |
 | `git.not-auths-envelope` | denied | Signature present but not this envelope |
 | `git.envelope-malformed` | denied | Envelope armor, prefix, or CBOR framing invalid |
 | `git.payload-digest-mismatch` | denied | Recomputed payload does not match the action |
@@ -310,16 +430,20 @@ They use the `git.` prefix. Kernel stage codes pass through unchanged.
 ## 4. Placement and architecture
 
 ```text
-product/integrations/auths-git-signing/     (new vertical package)
-  canonical.rs   CommitSignatureAction, TagSignatureAction, payload digest
-  object.rs      bounded commit/tag payload parsers; envelope armor
-  evaluate.rs    per-action evaluators and VerifiedCommitSignature / VerifiedTagSignature
-  grant.rs       grant and revocation authoring over existing auths-author
-  signer.rs      did:key software custody; sigstore/oidc producer calls
-  verify.rs      range verification, trust-source rule, result rendering
-  bin/auths-git-sign.rs
-product/runtime/auths-node      `auths git …` subcommands (thin)
-.github/actions/verify-commits  composite action for branch protection
+product/integrations/auths-git-signing/
+  envelope.rs    the armored, length-framed envelope
+  object.rs      bounded commit/tag parsing and the payload digest
+  program.rs     Git's signing-program protocol
+  action.rs      CommitSignatureAction, TagSignatureAction
+  sign.rs        method-agnostic signing behind GitProofSigner
+  verify.rs      method-agnostic verification; GitTrust
+  revoke.rs      revocation records
+  trust.rs       repository trust and grant issuance
+  custody.rs     did:key software custody
+  files.rs       delegation files
+  tool.rs        process boundary and the one enabled-method list
+  bin/auths-git.rs, bin/auths-git-sign.rs
+.github/actions/verify-git-signatures      composite action for branch protection
 ```
 
 - Core is unchanged unless a missing canonical binding is shown. Principal
@@ -347,12 +471,14 @@ consumer's branch protection controls.
 
 "No KERI code path" is checked mechanically, not by review:
 
-1. `auths-git-signing` and the `auths git` subcommands MUST NOT depend,
+1. `auths-git-signing` and its binaries MUST NOT depend,
    directly or transitively, on `auths-did-keri`. An `xtask arch` rule
    enforces this.
-2. The default verifier registry for `auths git verify` enables `did-key-v1`,
-   `sigstore-keyless-v1`, and `oidc-workload-v1`. `did-keri-v1` is enabled
-   only by an explicit operator flag, and its absence is tested.
+2. The default verifier registry for `auths-git verify` enables `did-key-v1`,
+   `sigstore-keyless-v1`, and `oidc-workload-v1`. `did-keri-v1` is not
+   available in these binaries at all, because rule 1 forbids the
+   dependency. A deployment that needs it verifies through another build
+   whose trust names that method.
 3. One verifier invocation over one range MUST accept commits whose chains
    end in all three default methods under one root.
 
@@ -368,32 +494,76 @@ Sizes are for one engineer or agent, as in 0057 §3.
 2. **Fixtures first** (2–3 days). Canonical valid and invalid vectors for
    both actions, hostile payloads (extra headers, duplicated `gpgsig`, CRLF,
    NUL, oversized, SHA-256 repositories), and envelope mutations. Done: vectors
-   exist and fail against the empty implementation.
-3. **Actions, evaluators, verifier** (1 week). §3.1–3.2 and §3.5–3.7 with
-   `did:key` only. Done: the vector corpus passes; denial happens before any
-   status or network access; `--trust-from-ref` inside the range is refused.
-4. **Signer and delegation commands** (1 week). `auths-git-sign`, `agent
+   exist and fail against the empty implementation. The object and envelope
+   vectors landed with their parser. The action vectors move to the start of
+   step 3, because the canonical action encoding needs core types that the
+   package is not yet allowed to depend on.
+3. **Actions, evaluators, verifier** (1 week). §3.1–3.2 and §3.5–3.7,
+   exercised with `did:key` as the enabled method. Done: the vector corpus
+   passes; denial happens before any status or network access;
+   `--trust-from-ref` inside the range is refused (tested in step 4's
+   end-to-end test).
+4. **Signer and delegation commands** (1 week). `auths-git-sign`, `key
    init`, `grant`, `install-grant`, `revoke`, and software custody. Done: a
    hosted test commits with `git commit -S` headlessly, verifies it, revokes
-   the grant, and sees the next verification denied.
+   the grant, and sees the next verification denied
+   (`tests/cli_end_to_end.rs`).
 5. **Sigstore and OIDC signers** (1 week). Done: a hosted GitHub Actions job
    signs one commit through `sigstore-keyless` and one through
-   `oidc-workload`, and a single `auths git verify` over a range holding
+   `oidc-workload`, and a single `auths-git verify` over a range holding
    those two and one `did:key` commit accepts all three under one root, with
    `auths-did-keri` absent from the dependency graph (§5).
+
+   What was built:
+   - **Method configuration.** Workload methods are configured by
+     `methods.json` in the trust directory (schema `auths.git-methods/1`).
+     It pins OIDC issuer keys as JWKs, Fulcio roots, and Rekor log keys.
+     The trust's configuration commitment binds them, and changing one
+     pinned key changes it.
+   - **OIDC workload.** The live job in `.github/workflows/git-signing.yml`
+     signs with this job's GitHub Actions token and a `did:key` agent under
+     one root, and verifies the range. OIDC tokens are verified live, so
+     this is a gate-time method only.
+   - **Sigstore keyless.** The signer uses public-good Fulcio and Rekor
+     through a client port (`src/sigstore_client.rs`), with a deterministic
+     local Fulcio CA and Rekor log for offline tests. The acceptance test
+     `one_verifier_accepts_three_principal_methods_under_one_root`
+     (`src/workload_tests.rs`) verifies `did:key`, `oidc-workload`, and
+     `sigstore-keyless` commits through one verifier under one root. The
+     hosted `live-sigstore` job signs through real public-good Sigstore.
+   - **DER signatures.** Public-good Rekor signs with DER-encoded ECDSA,
+     and its entries carry the artifact signature in DER. The adapter
+     converts both to fixed-width low-S form and then verifies through the
+     unchanged strict `p256-sha256-v1` suite. Auths action signatures stay
+     strict and non-malleable. The adapter's own spec records this, with
+     tests on a recorded public-good entry.
+   - **Complete workload policies.** Both workload adapters now commit to
+     every GitHub policy field (workflow pin, `ref`, `environment`) with
+     tagged, length-prefixed encoding. The earlier OIDC encoding let two
+     different policies collide. `methods.json` accepts all of these
+     fields.
+
 6. **Branch-protection action and dogfood** (2–3 days). The composite
    action, and this repository's own agent commits signed through it in
    place of the sibling project's `claude-release` agent. Done: a PR in this
    repository shows the required check passing on agent-signed commits and
    failing on an unsigned one.
 
+   The action is `.github/actions/verify-git-signatures`. Its hosted
+   self-test (`.github/workflows/git-signing-action.yml`,
+   [run 35789962132](https://github.com/auths-dev/auths-proof/actions/runs/35789962132))
+   passes on agent-signed commits and fails on an unsigned one in a scratch
+   repository. Using it on this repository needs a root key held by the
+   owner, trust committed to `main`, and a branch-protection rule. Those are
+   owner decisions (board §9).
+
 **Acceptance (from 0057 Epic 3), split by who can supply the evidence:**
 
 | Clause | Evidence | Who |
 | --- | --- | --- |
-| The same verifier accepts proofs chained to Sigstore keyless and to `did:key`, with no KERI code path | Step 5 hosted run and the §5 dependency rule | Agent |
-| Delegation commands ported | Step 4 hosted test | Agent |
-| Demo from three principal methods | Step 5 range | Agent |
+| The same verifier accepts proofs chained to Sigstore keyless and to `did:key`, with no KERI code path | `one_verifier_accepts_three_principal_methods_under_one_root` and the hosted `live-sigstore` job (public-good Sigstore) in `git-signing.yml`, and the `git-signing` dependency boundary | Agent |
+| Delegation commands ported | `tests/cli_end_to_end.rs` in the hosted `git-signing.yml` job | Agent |
+| Demo from three principal methods | The same acceptance test; the hosted live job covers OIDC and `did:key` together | Agent |
 | Twenty external repositories verify agent-signed commits through the pinned root | Public list of repositories with the action required | Humans; board §9 |
 | One organization enforces verification in branch protection | That organization's settings or a written statement from it | Humans; board §9 |
 
@@ -432,7 +602,8 @@ when the two human rows have evidence. A commit title MUST NOT say
 ## 9. Verification and release boundary
 
 Development is fixture-first. Hosted CI on the exact revision is the gate;
-this specification runs no checks and asserts no outcomes. Until step 6 is
-green, the sibling project's `claude-release` agent remains the only working
-agent signing path. Documentation MUST NOT describe auths-proof as able to
-sign commits before then.
+this specification runs no checks and asserts no outcomes. auths-proof can
+sign and verify commits and tags with `did:key`, GitHub Actions OIDC
+workloads, and public-good Sigstore keyless, as far as the hosted jobs on the
+PR's final revision show. Documentation MUST NOT claim adoption until the
+human rows of the acceptance table have evidence.
