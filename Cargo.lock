@@ -579,11 +579,14 @@ name = "auths-gateway"
 version = "1.0.0-rc.1"
 dependencies = [
  "auths-profile-mcp",
+ "getrandom 0.3.4",
  "hex",
+ "rustix",
  "serde",
  "serde_json",
  "serde_json_canonicalizer",
  "sha2 0.10.9",
+ "tempfile",
  "thiserror 2.0.19",
  "url",
 ]

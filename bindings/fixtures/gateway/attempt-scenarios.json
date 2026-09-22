@@ -1,0 +1,14 @@
+{
+  "schema": "auths.gateway-attempt-scenarios/1",
+  "cases": [
+    {"id": "first-claim", "transition": "unclaimed->attempting", "provider_entries": 0},
+    {"id": "same-id-fresh-challenge", "transition": "attempting->replay-refused", "provider_entries": 0},
+    {"id": "changed-action-same-id", "transition": "attempting->replay-refused", "provider_entries": 0},
+    {"id": "crash-after-claim", "transition": "attempting->unknown-on-restart", "provider_entries": 0},
+    {"id": "complete-http-response", "transition": "attempting->response-recorded", "provider_entries": 1},
+    {"id": "ambiguous-transport", "transition": "attempting->unknown", "provider_entries": 1},
+    {"id": "matching-read-back", "transition": "response-recorded->observed-match", "provider_entries": 1},
+    {"id": "mismatching-read-back", "transition": "response-recorded->observed-mismatch", "provider_entries": 1},
+    {"id": "observation-unavailable", "transition": "response-recorded->response-recorded", "provider_entries": 1}
+  ]
+}

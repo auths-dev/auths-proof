@@ -7,8 +7,13 @@
 #![forbid(unsafe_code)]
 
 mod recipe;
+mod store;
 
 pub use recipe::{
     ClosedObservationRequest, ClosedProviderRequest, CompiledRecipe, CredentialRequirement,
     GatewayRecipeError, LogicalOperationId, OperatorNamespace, RecipeReview, WriteMethod,
+};
+pub use store::{
+    ClaimedGatewayAttempt, FileGatewayAttemptStore, GatewayAttemptError, GatewayAttemptSnapshot,
+    GatewayAttemptStage, ResponseRecordedGatewayAttempt,
 };
