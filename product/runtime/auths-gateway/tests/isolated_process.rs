@@ -55,7 +55,7 @@ fn start_gateway(state: &Path, app_socket: &Path) -> RunningGateway {
     panic!("gateway did not bind live sockets");
 }
 
-fn run_doctor(state: &Path, app_socket: &Path, group: &str) {
+fn run_doctor(state: &Path, app_socket: &Path, group: &str, phase: &str) {
     let doctor = Command::new("sudo")
         .arg("-n")
         .arg(BIN)
@@ -72,7 +72,7 @@ fn run_doctor(state: &Path, app_socket: &Path, group: &str) {
         .expect("run distinct-UID doctor");
     assert!(
         doctor.status.success(),
-        "distinct-UID boundary failed: {}",
+        "distinct-UID boundary failed during {phase}: {}",
         String::from_utf8_lossy(&doctor.stderr)
     );
     assert!(
@@ -199,11 +199,11 @@ fn distinct_uid_cannot_read_credential_or_reach_admin() {
     let group = Command::new("id").arg("-g").output().expect("runner group");
     assert!(group.status.success());
     let group = String::from_utf8(group.stdout).expect("numeric group");
-    run_doctor(&state, &app_socket, group.trim());
+    run_doctor(&state, &app_socket, group.trim(), "initial service");
 
     // A crash leaves socket inodes behind. The same installed authority can
     // start again without deleting its credential or one-use claim state.
     drop(gateway);
     let _restarted = start_gateway(&state, &app_socket);
-    run_doctor(&state, &app_socket, group.trim());
+    run_doctor(&state, &app_socket, group.trim(), "restarted service");
 }

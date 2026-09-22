@@ -520,7 +520,7 @@ mod unix {
         }
     }
 
-    fn secure_socket_parent(path: &Path) -> bool {
+    fn secure_socket_parent(path: &Path, owner_uid: u32) -> bool {
         let Some(parent) = path.parent() else {
             return false;
         };
@@ -528,7 +528,7 @@ mod unix {
             return false;
         };
         metadata.file_type().is_dir()
-            && metadata.uid() == rustix::process::geteuid().as_raw()
+            && metadata.uid() == owner_uid
             && metadata.permissions().mode() & 0o022 == 0
             && fs::canonicalize(parent).is_ok_and(|canonical| canonical == parent)
     }
@@ -541,7 +541,7 @@ mod unix {
             Ok(metadata) => {
                 // Only replace a dead socket owned by this gateway inside its own
                 // non-writable directory. A live listener or foreign inode fails closed.
-                if !secure_socket_parent(path)
+                if !secure_socket_parent(path, rustix::process::geteuid().as_raw())
                     || !metadata.file_type().is_socket()
                     || metadata.uid() != rustix::process::geteuid().as_raw()
                     || !matches!(
@@ -693,7 +693,8 @@ mod unix {
             || credential.permissions().mode() & 0o077 != 0
             || !admin.file_type().is_socket()
             || !app.file_type().is_socket()
-            || !secure_socket_parent(&app_socket)
+            || !secure_socket_parent(&app_socket, state.uid())
+            || app.uid() != state.uid()
             || state.uid() != credential.uid()
             || state.uid() == application_uid
         {
