@@ -31,8 +31,8 @@ struct Operator {
 impl Operator {
     fn new() -> Self {
         let directory = tempfile::tempdir().expect("tempdir");
-        let root = SoftwareKey::generate(&directory.path().join("root.seed")).expect("root");
-        let agent = SoftwareKey::generate(&directory.path().join("agent.seed")).expect("agent");
+        let root = SoftwareKey::from_test_seed(0x51);
+        let agent = SoftwareKey::from_test_seed(0x52);
         Self {
             _directory: directory,
             root,

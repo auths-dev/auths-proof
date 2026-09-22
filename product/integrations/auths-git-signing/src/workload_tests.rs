@@ -40,8 +40,8 @@ struct Signing {
 impl Signing {
     fn new() -> Self {
         let directory = tempfile::tempdir().expect("tempdir");
-        let root = SoftwareKey::generate(&directory.path().join("root.seed")).expect("root");
-        let agent = SoftwareKey::generate(&directory.path().join("agent.seed")).expect("agent");
+        let root = SoftwareKey::from_test_seed(0x51);
+        let agent = SoftwareKey::from_test_seed(0x52);
         Self {
             _directory: directory,
             root,
@@ -247,6 +247,49 @@ fn sigstore_keyless_commits_verify_under_a_did_key_root() {
     };
     assert_eq!(verified.signer(), &signer.principal());
     assert_eq!(signing_method(&raw), "sigstore-keyless-v1");
+}
+
+/// Public-good Rekor signs with DER ECDSA P-256 and may emit high-S
+/// signatures; the fake log always does. The action signature stays the
+/// fixed-width low-S form, and Rekor records its DER encoding.
+#[test]
+fn sigstore_keyless_commits_verify_through_a_p256_log_signing_high_s_der() {
+    let repository = Signing::new();
+    let issuer = FakeIssuer::new(0x47);
+    let sigstore = FakeSigstore::with_p256_log(0x48, 0x49);
+    let methods = enabled(&methods_file(
+        None,
+        Some(sigstore.methods(GITHUB_ISSUER, SUBJECT)),
+    ));
+    let trust = repository.trust(&methods);
+    let tokens = MintingSource {
+        issuer: &issuer,
+        repository_id: REPOSITORY_ID,
+        issued_at: NOW - 60,
+    };
+    let signer = SigstoreKeylessSigner::acquire(&tokens, &sigstore).expect("signer");
+    assert_eq!(signer.descriptor().suite().as_str(), "p256-sha256-v1");
+    let signature = signer.sign(b"preimage").expect("signature");
+    assert_eq!(signature.as_slice().len(), 64);
+    assert!(
+        signature.as_slice()[32] < 0x80,
+        "the action signature is low-S"
+    );
+
+    let delegation = repository.grant(signer.principal());
+    let raw = repository.sign(&commit("p256 log"), &signer, &delegation);
+    let GitVerification::Verified(verified) = verify(&methods, &trust, &raw, NOW) else {
+        panic!("not verified: {:?}", verify(&methods, &trust, &raw, NOW));
+    };
+    assert_eq!(verified.signer(), &signer.principal());
+
+    sigstore.corrupt_entry.set(true);
+    let signer = SigstoreKeylessSigner::acquire(&tokens, &sigstore).expect("signer");
+    let tampered = repository.sign(&commit("tampered"), &signer, &delegation);
+    assert_eq!(
+        refusal(verify(&methods, &trust, &tampered, NOW)),
+        "principal-method-mismatch"
+    );
 }
 
 #[test]

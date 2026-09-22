@@ -148,6 +148,12 @@ impl SoftwareKey {
         })
     }
 
+    /// Builds a key from a fixed seed so tests reproduce with identical keys.
+    #[cfg(test)]
+    pub(crate) fn from_test_seed(seed: u8) -> Self {
+        Self::from_seed(&[seed; 32]).expect("a fixed seed yields a key")
+    }
+
     /// Returns the `did:key` public evidence.
     #[must_use]
     pub const fn evidence(&self) -> &DidKeyEvidence {

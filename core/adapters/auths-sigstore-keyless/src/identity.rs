@@ -10,6 +10,9 @@ use crate::{ExtensionError, SigstoreError};
 
 pub const MAX_POLICIES: usize = 64;
 pub const MAX_EXTENSION_BYTES: usize = 1024;
+/// Fulcio extension arcs under `1.3.6.1.4.1.57264.1` that carry deprecated
+/// raw, non-DER strings and are ignored.
+const DEPRECATED_RAW_ARCS: [&str; 6] = ["1", "2", "3", "4", "5", "6"];
 
 macro_rules! text {
     ($name:ident, $max:expr, $valid:expr) => {
@@ -442,19 +445,25 @@ impl FulcioFacts {
         let mut values = Vec::new();
         for ext in cert.iter_extensions() {
             let oid = ext.oid.to_id_string();
-            if oid.starts_with("1.3.6.1.4.1.57264.1.") {
-                if values.iter().any(|(prior, _)| prior == &oid) {
-                    return Err(SigstoreError::Extension(ExtensionError::Duplicate));
-                }
-                let value = der_string(ext.value)?;
-                if value.len() > MAX_EXTENSION_BYTES {
-                    return Err(SigstoreError::Extension(ExtensionError::Limit));
-                }
-                values.push((oid, value));
+            let Some(arc) = oid.strip_prefix("1.3.6.1.4.1.57264.1.") else {
+                continue;
+            };
+            if values.iter().any(|(prior, _)| prior == &oid) {
+                return Err(SigstoreError::Extension(ExtensionError::Duplicate));
             }
-        }
-        if values.iter().any(|(oid, _)| oid == "1.3.6.1.4.1.57264.1.1") {
-            return Err(SigstoreError::Extension(ExtensionError::Deprecated));
+            // Arcs 1 through 6 are the deprecated raw-string forms that
+            // Fulcio still emits beside their DER successors. They are
+            // bounded but never read: identity comes only from DER arcs.
+            let (length, value) = if DEPRECATED_RAW_ARCS.contains(&arc) {
+                (ext.value.len(), String::new())
+            } else {
+                let value = der_string(ext.value)?;
+                (value.len(), value)
+            };
+            if length > MAX_EXTENSION_BYTES {
+                return Err(SigstoreError::Extension(ExtensionError::Limit));
+            }
+            values.push((oid, value));
         }
         let issuer = IssuerUrl::parse(required(&values, "1.3.6.1.4.1.57264.1.8")?)
             .map_err(SigstoreError::Extension)?;

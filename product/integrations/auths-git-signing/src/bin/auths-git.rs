@@ -97,7 +97,9 @@ enum Command {
         /// Delegation file.
         file: PathBuf,
     },
-    /// Print an OIDC workload principal to grant to.
+    /// Print an OIDC workload principal to grant to. The same principal
+    /// names the workload under `oidc-workload` and `sigstore-keyless`:
+    /// Fulcio copies the token's issuer and subject into the certificate.
     WorkloadPrincipal {
         /// Issuer URL; requires `--subject`.
         #[arg(long, requires = "subject", conflicts_with = "github_actions")]

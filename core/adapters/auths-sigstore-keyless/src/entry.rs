@@ -100,7 +100,13 @@ impl InclusionProof {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RekorEntry {
     pub log: LogId,
+    /// The entry's index across the whole log, as the Signed Entry
+    /// Timestamp signs it.
+    pub log_index: u64,
     pub body: HashedRekordBody,
+    /// The inclusion proof, whose index is the leaf position in the tree the
+    /// checkpoint names. A sharded log numbers these per tree, so it differs
+    /// from `log_index` for every entry outside the first shard.
     pub proof: InclusionProof,
     pub checkpoint: Checkpoint,
     pub integrated: Timestamp,
@@ -113,115 +119,50 @@ impl RekorEntry {
     ///
     /// Returns [`EntryError`] when the entry is malformed, non-canonical,
     /// exceeds a bound, or contains inconsistent checkpoint/proof fields.
-    #[allow(clippy::too_many_lines)]
     pub fn parse(bytes: &[u8]) -> Result<Self, EntryError> {
         let mut decoder = Decoder::new(bytes);
         let count = decoder
             .map()
             .map_err(|_| EntryError::Cbor)?
             .ok_or(EntryError::Cbor)?;
-        if count != 8 {
+        if count != ENTRY_FIELDS {
             return Err(EntryError::Cbor);
         }
-        let mut body = None;
-        let mut checkpoint = None;
-        let mut hashes = None;
-        let mut integrated = None;
-        let mut log_id = None;
-        let mut log_index = None;
-        let mut set = None;
-        let mut tree_size = None;
+        let mut raw = RawEntry::default();
         for _ in 0..count {
-            let key = decoder.str().map_err(|_| EntryError::Cbor)?;
-            match key {
-                "body" => body = Some(decoder.bytes().map_err(|_| EntryError::Cbor)?.to_vec()),
-                "checkpoint" => {
-                    checkpoint = Some(
-                        decoder
-                            .str()
-                            .map_err(|_| EntryError::Cbor)?
-                            .as_bytes()
-                            .to_vec(),
-                    );
-                }
-                "hashes" => {
-                    let length = decoder
-                        .array()
-                        .map_err(|_| EntryError::Cbor)?
-                        .ok_or(EntryError::Cbor)?;
-                    if length > MAX_PROOF_HASHES as u64 {
-                        return Err(EntryError::Limit);
-                    }
-                    let mut values = Vec::new();
-                    for _ in 0..length {
-                        values.push(Digest::new(
-                            decoder
-                                .bytes()
-                                .map_err(|_| EntryError::Cbor)?
-                                .try_into()
-                                .map_err(|_| EntryError::Cbor)?,
-                        ));
-                    }
-                    hashes = Some(values);
-                }
-                "integrated_time" => {
-                    integrated = Some(decoder.u64().map_err(|_| EntryError::Cbor)?);
-                }
-                "log_id" => {
-                    log_id = Some(
-                        decoder
-                            .bytes()
-                            .map_err(|_| EntryError::Cbor)?
-                            .try_into()
-                            .map_err(|_| EntryError::Cbor)?,
-                    );
-                }
-                "log_index" => log_index = Some(decoder.u64().map_err(|_| EntryError::Cbor)?),
-                "signed_entry_timestamp" => {
-                    set = Some(decoder.bytes().map_err(|_| EntryError::Cbor)?.to_vec());
-                }
-                "tree_size" => tree_size = Some(decoder.u64().map_err(|_| EntryError::Cbor)?),
-                _ => return Err(EntryError::Cbor),
-            }
+            raw.decode_field(&mut decoder)?;
         }
         if decoder.position() != bytes.len() {
             return Err(EntryError::Cbor);
         }
-        let body = body.ok_or(EntryError::Cbor)?;
-        let checkpoint_bytes = checkpoint.ok_or(EntryError::Cbor)?;
-        let hashes = hashes.ok_or(EntryError::Cbor)?;
-        let integrated = integrated.ok_or(EntryError::Cbor)?;
-        let log_id = log_id.ok_or(EntryError::Cbor)?;
-        let log_index = log_index.ok_or(EntryError::Cbor)?;
-        let set = set.ok_or(EntryError::Cbor)?;
-        let tree_size = tree_size.ok_or(EntryError::Cbor)?;
-        let canonical = encode_fields(
-            &body,
-            core::str::from_utf8(&checkpoint_bytes).map_err(|_| EntryError::Cbor)?,
-            &hashes,
-            integrated,
-            &log_id,
-            log_index,
-            &set,
-            tree_size,
-        )?;
-        if canonical != bytes {
+        let fields = raw.complete()?;
+        if encode_entry(&fields)? != bytes {
             return Err(EntryError::NonCanonical);
         }
-        let checkpoint = Checkpoint::parse(&checkpoint_bytes).map_err(EntryError::Checkpoint)?;
-        if checkpoint.tree_size != tree_size {
+        let checkpoint =
+            Checkpoint::parse(fields.checkpoint.as_bytes()).map_err(EntryError::Checkpoint)?;
+        if checkpoint.tree_size != fields.tree_size {
             return Err(EntryError::Proof);
         }
         Ok(Self {
-            log: LogId(log_id),
-            body: HashedRekordBody::parse(body)?,
-            proof: InclusionProof::new(log_index, tree_size, hashes)?,
+            log: LogId(*fields.log_id),
+            log_index: fields.log_index,
+            body: HashedRekordBody::parse(fields.body.to_vec())?,
+            proof: InclusionProof::new(
+                fields.proof_index,
+                fields.tree_size,
+                fields.hashes.to_vec(),
+            )?,
             checkpoint,
-            integrated: Timestamp::new(integrated),
-            signed_entry_timestamp: BoundedBytes::new(set).map_err(|_| EntryError::Limit)?,
+            integrated: Timestamp::new(fields.integrated_time),
+            signed_entry_timestamp: BoundedBytes::new(fields.signed_entry_timestamp.to_vec())
+                .map_err(|_| EntryError::Limit)?,
         })
     }
 
+    /// The exact bytes the Signed Entry Timestamp signs: the RFC 8785
+    /// canonical JSON of the entry's body, integration time, log id, and
+    /// whole-log index.
     #[must_use]
     pub fn set_preimage(&self) -> Vec<u8> {
         let body = Base64::encode_string(&self.body.raw);
@@ -229,10 +170,111 @@ impl RekorEntry {
         format!(
             "{{\"body\":\"{body}\",\"integratedTime\":{},\"logID\":\"{log}\",\"logIndex\":{}}}",
             self.integrated.get(),
-            self.proof.index
+            self.log_index
         )
         .into_bytes()
     }
+}
+
+/// Number of keys in the canonical entry map.
+const ENTRY_FIELDS: u64 = 9;
+
+/// The fields of one Rekor entry evidence object.
+#[derive(Clone, Copy, Debug)]
+pub struct EntryFields<'a> {
+    /// The canonical `hashedrekord` body, exactly as the log returned it.
+    pub body: &'a [u8],
+    /// The signed checkpoint note.
+    pub checkpoint: &'a str,
+    /// The inclusion proof hashes, leaf to root.
+    pub hashes: &'a [Digest],
+    /// The integration time the Signed Entry Timestamp signs.
+    pub integrated_time: u64,
+    /// SHA-256 of the log's DER public key.
+    pub log_id: &'a [u8; 32],
+    /// The entry's index across the whole log.
+    pub log_index: u64,
+    /// The entry's leaf index in the tree the checkpoint names.
+    pub proof_index: u64,
+    /// The log's signature over the entry metadata.
+    pub signed_entry_timestamp: &'a [u8],
+    /// The size of the tree the checkpoint names.
+    pub tree_size: u64,
+}
+
+/// Owned fields while decoding, each present at most once.
+#[derive(Default)]
+struct RawEntry {
+    body: Option<Vec<u8>>,
+    checkpoint: Option<String>,
+    hashes: Option<Vec<Digest>>,
+    integrated: Option<u64>,
+    log_id: Option<[u8; 32]>,
+    log_index: Option<u64>,
+    proof_index: Option<u64>,
+    set: Option<Vec<u8>>,
+    tree_size: Option<u64>,
+}
+impl RawEntry {
+    fn decode_field(&mut self, decoder: &mut Decoder<'_>) -> Result<(), EntryError> {
+        let cbor = |_| EntryError::Cbor;
+        match decoder.str().map_err(cbor)? {
+            "body" => self.body = Some(decoder.bytes().map_err(cbor)?.to_vec()),
+            "checkpoint" => self.checkpoint = Some(decoder.str().map_err(cbor)?.into()),
+            "hashes" => self.hashes = Some(decode_hashes(decoder)?),
+            "integrated_time" => self.integrated = Some(decoder.u64().map_err(cbor)?),
+            "log_id" => {
+                self.log_id = Some(
+                    decoder
+                        .bytes()
+                        .map_err(cbor)?
+                        .try_into()
+                        .map_err(|_| EntryError::Cbor)?,
+                );
+            }
+            "log_index" => self.log_index = Some(decoder.u64().map_err(cbor)?),
+            "proof_index" => self.proof_index = Some(decoder.u64().map_err(cbor)?),
+            "signed_entry_timestamp" => self.set = Some(decoder.bytes().map_err(cbor)?.to_vec()),
+            "tree_size" => self.tree_size = Some(decoder.u64().map_err(cbor)?),
+            _ => return Err(EntryError::Cbor),
+        }
+        Ok(())
+    }
+
+    fn complete(&self) -> Result<EntryFields<'_>, EntryError> {
+        Ok(EntryFields {
+            body: self.body.as_deref().ok_or(EntryError::Cbor)?,
+            checkpoint: self.checkpoint.as_deref().ok_or(EntryError::Cbor)?,
+            hashes: self.hashes.as_deref().ok_or(EntryError::Cbor)?,
+            integrated_time: self.integrated.ok_or(EntryError::Cbor)?,
+            log_id: self.log_id.as_ref().ok_or(EntryError::Cbor)?,
+            log_index: self.log_index.ok_or(EntryError::Cbor)?,
+            proof_index: self.proof_index.ok_or(EntryError::Cbor)?,
+            signed_entry_timestamp: self.set.as_deref().ok_or(EntryError::Cbor)?,
+            tree_size: self.tree_size.ok_or(EntryError::Cbor)?,
+        })
+    }
+}
+
+fn decode_hashes(decoder: &mut Decoder<'_>) -> Result<Vec<Digest>, EntryError> {
+    let length = decoder
+        .array()
+        .map_err(|_| EntryError::Cbor)?
+        .ok_or(EntryError::Cbor)?;
+    if length > MAX_PROOF_HASHES as u64 {
+        return Err(EntryError::Limit);
+    }
+    let mut values = Vec::new();
+    for _ in 0..length {
+        values.push(Digest::new(
+            decoder
+                .bytes()
+                .map_err(|_| EntryError::Cbor)?
+                .try_into()
+                .map_err(|_| EntryError::Cbor)?,
+        ));
+    }
+    Ok(values)
 }
 
 /// Encodes the canonical bounded field map for one Rekor entry.
@@ -241,56 +283,49 @@ impl RekorEntry {
 ///
 /// Returns [`EntryError`] if a field count or value cannot be represented by
 /// the canonical CBOR encoder.
-#[allow(clippy::too_many_arguments)]
-pub fn encode_fields(
-    body: &[u8],
-    checkpoint: &str,
-    hashes: &[Digest],
-    integrated: u64,
-    log_id: &[u8; 32],
-    log_index: u64,
-    set: &[u8],
-    tree_size: u64,
-) -> Result<Vec<u8>, EntryError> {
+pub fn encode_entry(fields: &EntryFields<'_>) -> Result<Vec<u8>, EntryError> {
+    let cbor = |_| EntryError::Cbor;
     let mut encoder = Encoder::new(Vec::new());
-    encoder.map(8).map_err(|_| EntryError::Cbor)?;
+    encoder.map(ENTRY_FIELDS).map_err(cbor)?;
     encoder
         .str("body")
-        .and_then(|e| e.bytes(body))
-        .map_err(|_| EntryError::Cbor)?;
+        .and_then(|e| e.bytes(fields.body))
+        .map_err(cbor)?;
     encoder
         .str("hashes")
-        .and_then(|e| e.array(hashes.len() as u64))
-        .map_err(|_| EntryError::Cbor)?;
-    for hash in hashes {
-        encoder
-            .bytes(hash.as_bytes())
-            .map_err(|_| EntryError::Cbor)?;
+        .and_then(|e| e.array(fields.hashes.len() as u64))
+        .map_err(cbor)?;
+    for hash in fields.hashes {
+        encoder.bytes(hash.as_bytes()).map_err(cbor)?;
     }
     encoder
         .str("log_id")
-        .and_then(|e| e.bytes(log_id))
-        .map_err(|_| EntryError::Cbor)?;
+        .and_then(|e| e.bytes(fields.log_id))
+        .map_err(cbor)?;
     encoder
         .str("log_index")
-        .and_then(|e| e.u64(log_index))
-        .map_err(|_| EntryError::Cbor)?;
+        .and_then(|e| e.u64(fields.log_index))
+        .map_err(cbor)?;
     encoder
         .str("tree_size")
-        .and_then(|e| e.u64(tree_size))
-        .map_err(|_| EntryError::Cbor)?;
+        .and_then(|e| e.u64(fields.tree_size))
+        .map_err(cbor)?;
     encoder
         .str("checkpoint")
-        .and_then(|e| e.str(checkpoint))
-        .map_err(|_| EntryError::Cbor)?;
+        .and_then(|e| e.str(fields.checkpoint))
+        .map_err(cbor)?;
+    encoder
+        .str("proof_index")
+        .and_then(|e| e.u64(fields.proof_index))
+        .map_err(cbor)?;
     encoder
         .str("integrated_time")
-        .and_then(|e| e.u64(integrated))
-        .map_err(|_| EntryError::Cbor)?;
+        .and_then(|e| e.u64(fields.integrated_time))
+        .map_err(cbor)?;
     encoder
         .str("signed_entry_timestamp")
-        .and_then(|e| e.bytes(set))
-        .map_err(|_| EntryError::Cbor)?;
+        .and_then(|e| e.bytes(fields.signed_entry_timestamp))
+        .map_err(cbor)?;
     Ok(encoder.into_writer())
 }
 

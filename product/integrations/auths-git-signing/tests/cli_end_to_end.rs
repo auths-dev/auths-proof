@@ -416,7 +416,7 @@ fn workload_methods_travel_with_trust_and_bind_the_verifier() {
     journey.git_ok(&["config", "user.signingkey", "auths:ci"]);
     for (signer, message) in [
         ("oidc-workload", "ACTIONS_ID_TOKEN_REQUEST_URL is unset"),
-        ("sigstore-keyless", "sigstore-keyless is not available"),
+        ("sigstore-keyless", "ACTIONS_ID_TOKEN_REQUEST_URL is unset"),
     ] {
         journey.git_ok(&["config", "auths.signer", signer]);
         journey.write(signer);

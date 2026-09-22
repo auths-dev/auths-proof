@@ -447,9 +447,9 @@ protocol_versions = ["auths-proof/v1", "auths.git-delegation/1", "auths.git-meth
 wire_objects = ["CanonicalAction", "GitDelegationFile", "GitSignatureEnvelope", "ProofBundle", "RevocationRecord", "SignedGrant", "SignedObject", "TrustedContext", "UnsignedPayload", "VerifiedAction"]
 fixture_suites = ["product/integrations/auths-git-signing/fixtures"]
 principal_families = ["did-key-v1", "oidc-workload-v1", "raw-key-v1", "sigstore-keyless-v1"]
-signature_families = ["ed25519-v1", "rsa-pkcs1-sha256-v1"]
+signature_families = ["ed25519-v1", "p256-sha256-v1", "rsa-pkcs1-sha256-v1"]
 profiles = ["auths.git-signature/1"]
-transports = ["git-signing-program", "github-actions-oidc-token"]
+transports = ["git-signing-program", "github-actions-oidc-token", "sigstore-fulcio-v2-https", "sigstore-rekor-v1-https"]
 configuration_inputs = ["auths.repository", "auths.signer", "auths.trustDir", "enabled-principal-methods", "git-trust-context", "gpg.format", "gpg.x509.program", "methods.json", "user.signingkey"]
 security_state = ["ephemeral-workload-key", "installed-delegation", "revocation-records", "software-custody-key"]
 
@@ -486,7 +486,10 @@ principal-evidence-integration = [
   "product/integrations/auths-git-signing/src/workload_tests.rs#oidc_workload_commits_verify_under_a_did_key_root_while_the_token_is_live",
   "product/integrations/auths-git-signing/src/workload_tests.rs#expired_tokens_and_tokens_for_other_repositories_are_not_verified",
   "product/integrations/auths-git-signing/src/workload_tests.rs#sigstore_keyless_commits_verify_under_a_did_key_root",
+  "product/integrations/auths-git-signing/src/workload_tests.rs#sigstore_keyless_commits_verify_through_a_p256_log_signing_high_s_der",
   "product/integrations/auths-git-signing/src/workload_tests.rs#tampered_entries_and_foreign_fulcio_roots_are_not_verified",
+  "product/integrations/auths-git-signing/src/sigstore_client.rs#a_recorded_rekor_response_maps_to_evidence_the_adapter_parses",
+  "product/integrations/auths-git-signing/src/methods.rs#each_rekor_log_pins_exactly_one_key_of_its_named_type",
   "product/integrations/auths-git-signing/src/workload_tests.rs#one_verifier_accepts_three_principal_methods_under_one_root",
 ]
 configuration-compiler = [

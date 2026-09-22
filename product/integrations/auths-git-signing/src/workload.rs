@@ -1,9 +1,10 @@
 //! Signers for CI workloads, whose principal is the workload identity an
 //! OIDC issuer attests, `oidc-workload:<issuer>#<subject>`.
 //!
-//! Both signers hold an ephemeral Ed25519 key that exists only in process
-//! memory and is zeroized on drop. They differ in how the key is bound to
-//! the workload identity:
+//! Both signers hold an ephemeral key that exists only in process memory and
+//! is zeroized on drop — Ed25519 for the OIDC signer, P-256 for the Sigstore
+//! signer, whose key Fulcio certifies and Rekor records. They differ in how
+//! the key is bound to the workload identity:
 //!
 //! - [`OidcWorkloadSigner`] requests a token whose audience commits to the
 //!   key descriptor, and presents the token and descriptor as evidence. A
@@ -28,11 +29,12 @@ use auths_oidc_workload::identity::{IssuerUrl, Subject};
 use auths_oidc_workload::jws::CompactJws;
 use auths_oidc_workload::{OIDC_WORKLOAD_V1, TOKEN_MEDIA_TYPE, audience_commitment};
 use auths_raw_key_core::{RAW_KEY_V2_MEDIA_TYPE, RawKeyDescriptorV2};
-use auths_signature::ED25519_V1;
+use auths_signature::{ED25519_V1, P256_SHA256_V1};
 use auths_sigstore_keyless::chain::CertificateChain;
-use auths_sigstore_keyless::entry::encode_fields;
+use auths_sigstore_keyless::entry::{EntryFields, encode_entry};
 use auths_sigstore_keyless::{CHAIN_MEDIA_TYPE, ENTRY_MEDIA_TYPE, SIGSTORE_KEYLESS_V1};
 use ed25519_dalek::{Signer as _, SigningKey};
+use p256::ecdsa::{Signature as P256Signature, SigningKey as P256SigningKey};
 use sha2::{Digest as _, Sha256};
 use std::cell::RefCell;
 use std::io::Read as _;
@@ -40,7 +42,7 @@ use std::time::Duration;
 use thiserror::Error;
 use zeroize::Zeroizing;
 
-use crate::methods::ED25519_SPKI_PREFIX;
+use crate::methods::P256_SPKI_PREFIX;
 
 /// Audience Fulcio requires on the token it exchanges for a certificate.
 pub const SIGSTORE_AUDIENCE: &str = "sigstore";
@@ -228,12 +230,35 @@ fn evidence(kind: &str, media: &str, bytes: Vec<u8>) -> Result<EvidenceObject, W
 fn descriptor(
     method: &str,
     verification_method: auths_model::VerificationMethod,
+    suite: &str,
 ) -> Result<SignatureDescriptor, WorkloadError> {
     Ok(SignatureDescriptor::new(
         PrincipalMethodId::parse(method).map_err(|_| WorkloadError::Identity)?,
         verification_method,
-        SignatureSuiteId::parse(ED25519_V1).map_err(|_| WorkloadError::Identity)?,
+        SignatureSuiteId::parse(suite).map_err(|_| WorkloadError::Identity)?,
     ))
+}
+
+/// Generates an ephemeral P-256 key. The scalar bytes are zeroized after
+/// use and the key zeroizes itself on drop. A candidate outside the group
+/// order, with probability about 2^-32, is drawn again.
+fn ephemeral_p256_key() -> Result<P256SigningKey, WorkloadError> {
+    for _ in 0..8 {
+        let mut scalar = Zeroizing::new([0_u8; 32]);
+        getrandom::fill(scalar.as_mut()).map_err(|_| WorkloadError::Identity)?;
+        if let Ok(key) = P256SigningKey::from_bytes(&(*scalar).into()) {
+            return Ok(key);
+        }
+    }
+    Err(WorkloadError::Identity)
+}
+
+/// Signs with ECDSA P-256/SHA-256 and returns the signature in the low-S
+/// form the kernel's P-256 suite accepts. `to_der` of the result is the
+/// encoding Fulcio and Rekor take.
+fn sign_p256(key: &P256SigningKey, message: &[u8]) -> P256Signature {
+    let signature: P256Signature = p256::ecdsa::signature::Signer::sign(key, message);
+    signature.normalize_s().unwrap_or(signature)
 }
 
 fn sign_ed25519(key: &SigningKey, preimage: &[u8]) -> Result<SignatureBytes, SignError> {
@@ -285,7 +310,7 @@ impl OidcWorkloadSigner {
         Ok(Self {
             key,
             principal: identity.principal,
-            descriptor: descriptor(OIDC_WORKLOAD_V1, method)?,
+            descriptor: descriptor(OIDC_WORKLOAD_V1, method, ED25519_V1)?,
             evidence,
         })
     }
@@ -313,9 +338,9 @@ impl GitProofSigner for OidcWorkloadSigner {
 pub struct CertificateRequest<'a> {
     /// The OIDC token, with audience [`SIGSTORE_AUDIENCE`].
     pub token: &'a str,
-    /// DER `SubjectPublicKeyInfo` of the ephemeral key.
+    /// DER `SubjectPublicKeyInfo` of the ephemeral P-256 key.
     pub public_key_spki: &'a [u8],
-    /// The ephemeral key's signature over the token's `sub` claim.
+    /// The ephemeral key's DER ECDSA signature over the token's `sub` claim.
     pub proof_of_possession: &'a [u8],
 }
 
@@ -323,7 +348,7 @@ pub struct CertificateRequest<'a> {
 pub struct HashedRekordRequest<'a> {
     /// SHA-256 of the signed bytes.
     pub artifact_sha256: [u8; 32],
-    /// The exact signature.
+    /// The DER encoding of the exact low-S action signature.
     pub signature: &'a [u8],
     /// DER of the leaf certificate for the signing key.
     pub certificate_der: &'a [u8],
@@ -341,8 +366,10 @@ pub struct RekorEntryFields {
     pub integrated_time: u64,
     /// SHA-256 of the log's public key.
     pub log_id: [u8; 32],
-    /// The entry's index.
+    /// The entry's index across the whole log.
     pub log_index: u64,
+    /// The entry's leaf index in the tree the checkpoint names.
+    pub proof_index: u64,
     /// The log's signature over the entry.
     pub signed_entry_timestamp: Vec<u8>,
     /// The tree size the proof and checkpoint refer to.
@@ -375,7 +402,7 @@ pub trait SigstoreClient {
 /// A workload signer whose control evidence is a Fulcio certificate chain
 /// and the Rekor entry for the exact signature.
 pub struct SigstoreKeylessSigner<'c> {
-    key: SigningKey,
+    key: P256SigningKey,
     principal: PrincipalId,
     descriptor: SignatureDescriptor,
     leaf: Vec<u8>,
@@ -385,7 +412,7 @@ pub struct SigstoreKeylessSigner<'c> {
 }
 
 impl<'c> SigstoreKeylessSigner<'c> {
-    /// Creates an ephemeral key and obtains its certificate.
+    /// Creates an ephemeral P-256 key and obtains its certificate.
     ///
     /// # Errors
     ///
@@ -395,16 +422,16 @@ impl<'c> SigstoreKeylessSigner<'c> {
         tokens: &dyn TokenSource,
         client: &'c dyn SigstoreClient,
     ) -> Result<Self, WorkloadError> {
-        let key = ephemeral_key()?;
-        let mut spki = ED25519_SPKI_PREFIX.to_vec();
-        spki.extend_from_slice(key.verifying_key().as_bytes());
+        let key = ephemeral_p256_key()?;
+        let mut spki = P256_SPKI_PREFIX.to_vec();
+        spki.extend_from_slice(key.verifying_key().to_encoded_point(false).as_bytes());
         let token = tokens.token(SIGSTORE_AUDIENCE)?;
         let identity = TokenIdentity::read(token.as_bytes(), SIGSTORE_AUDIENCE)?;
-        let proof = key.sign(identity.subject.as_bytes()).to_bytes();
+        let proof = sign_p256(&key, identity.subject.as_bytes()).to_der();
         let chain = client.issue_certificate(&CertificateRequest {
             token: token.as_str(),
             public_key_spki: &spki,
-            proof_of_possession: &proof,
+            proof_of_possession: proof.as_bytes(),
         })?;
         let leaf = chain
             .first()
@@ -418,7 +445,7 @@ impl<'c> SigstoreKeylessSigner<'c> {
                 .map_err(|_| WorkloadError::Identity)?;
         Ok(Self {
             key,
-            descriptor: descriptor(SIGSTORE_KEYLESS_V1, method)?,
+            descriptor: descriptor(SIGSTORE_KEYLESS_V1, method, P256_SHA256_V1)?,
             principal: identity.principal,
             leaf,
             chain: evidence(SIGSTORE_KEYLESS_V1, CHAIN_MEDIA_TYPE, encoded)?,
@@ -446,31 +473,35 @@ impl GitProofSigner for SigstoreKeylessSigner<'_> {
         evidence
     }
 
+    /// Signs `preimage` and records the signature in Rekor. The action
+    /// carries the fixed-width low-S signature; Rekor records its DER
+    /// encoding, which the adapter compares by value.
     fn sign(&self, preimage: &[u8]) -> Result<SignatureBytes, SignError> {
-        let signature = sign_ed25519(&self.key, preimage)?;
+        let signature = sign_p256(&self.key, preimage);
         let fields = self
             .client
             .submit_hashed_rekord(&HashedRekordRequest {
                 artifact_sha256: Sha256::digest(preimage).into(),
-                signature: signature.as_slice(),
+                signature: signature.to_der().as_bytes(),
                 certificate_der: &self.leaf,
             })
             .map_err(|_| SignError::Signer)?;
         let hashes: Vec<Digest> = fields.hashes.iter().copied().map(Digest::new).collect();
-        let entry = encode_fields(
-            &fields.body,
-            &fields.checkpoint,
-            &hashes,
-            fields.integrated_time,
-            &fields.log_id,
-            fields.log_index,
-            &fields.signed_entry_timestamp,
-            fields.tree_size,
-        )
+        let entry = encode_entry(&EntryFields {
+            body: &fields.body,
+            checkpoint: &fields.checkpoint,
+            hashes: &hashes,
+            integrated_time: fields.integrated_time,
+            log_id: &fields.log_id,
+            log_index: fields.log_index,
+            proof_index: fields.proof_index,
+            signed_entry_timestamp: &fields.signed_entry_timestamp,
+            tree_size: fields.tree_size,
+        })
         .map_err(|_| SignError::Signer)?;
         let entry = evidence(SIGSTORE_KEYLESS_V1, ENTRY_MEDIA_TYPE, entry)
             .map_err(|_| SignError::Signer)?;
         *self.entry.borrow_mut() = Some(entry);
-        Ok(signature)
+        SignatureBytes::new(signature.to_bytes().to_vec()).map_err(|_| SignError::Signer)
     }
 }

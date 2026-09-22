@@ -25,7 +25,7 @@
 //!   "sigstore_keyless": {
 //!     "fulcio_roots": ["<base64 DER certificate>"],
 //!     "rekor_logs": [
-//!       {"origin": "…", "key_name": "…", "ed25519_spki": "<base64 DER SPKI>"}
+//!       {"origin": "…", "key_name": "…", "p256_spki": "<base64 DER SPKI>"}
 //!     ],
 //!     "issuers": [{"issuer": "…", "profile": {"generic": ["<subject>"]}}],
 //!     "max_leaf_validity_seconds": 600
@@ -40,9 +40,11 @@
 //! adapters bind every one of these fields into their configuration
 //! commitment, so trust commits to every rule it applies.
 //!
-//! Only Ed25519 Rekor log keys are accepted. The kernel's P-256 suite takes
-//! fixed-width low-S signatures, while Rekor signs with DER-encoded ECDSA, so
-//! a P-256 log key could never verify an entry.
+//! Each Rekor log pins exactly one key, as `p256_spki` (public-good Rekor)
+//! or `ed25519_spki`. A P-256 log's DER ECDSA signatures are converted to
+//! the kernel suite's fixed-width low-S form by the adapter before they are
+//! verified. Fulcio leaves must carry P-256 keys, the key type the Sigstore
+//! keyless signer generates.
 
 use auths_model::{BoundedSet, SignatureSuiteId};
 use auths_oidc_workload::identity::{
@@ -55,7 +57,7 @@ use auths_ports::{
     AlgorithmBinding, AlgorithmBindingSet, AlgorithmIdentifierDer, CertificateDer,
     JwsAlgorithmName, KeyForm, SignatureSuite, TrustAnchorSet,
 };
-use auths_signature::ED25519_V1;
+use auths_signature::{ED25519_V1, P256_SHA256_V1};
 use auths_signature_rsa_pkcs1_sha256::RSA_PKCS1_SHA256_V1;
 use auths_sigstore_keyless::checkpoint::{CheckpointOrigin, NoteName};
 use auths_sigstore_keyless::identity::{
@@ -81,6 +83,17 @@ pub const ED25519_ALGORITHM_IDENTIFIER: [u8; 7] = [0x30, 0x05, 0x06, 0x03, 0x2b,
 /// DER prefix of an Ed25519 `SubjectPublicKeyInfo`; the 32-byte key follows.
 pub const ED25519_SPKI_PREFIX: [u8; 12] = [
     0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x70, 0x03, 0x21, 0x00,
+];
+/// DER `AlgorithmIdentifier` of an EC public key on P-256 (RFC 5480).
+pub const P256_ALGORITHM_IDENTIFIER: [u8; 21] = [
+    0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01, 0x06, 0x08, 0x2a, 0x86, 0x48,
+    0xce, 0x3d, 0x03, 0x01, 0x07,
+];
+/// DER prefix of a P-256 `SubjectPublicKeyInfo`; the 65-byte uncompressed
+/// point follows.
+pub const P256_SPKI_PREFIX: [u8; 26] = [
+    0x30, 0x59, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01, 0x06, 0x08, 0x2a,
+    0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07, 0x03, 0x42, 0x00,
 ];
 
 /// Why a method configuration was rejected.
@@ -186,7 +199,8 @@ struct SigstoreFile {
 struct RekorLogFile {
     origin: String,
     key_name: String,
-    ed25519_spki: String,
+    ed25519_spki: Option<String>,
+    p256_spki: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -231,8 +245,8 @@ pub struct MethodConfiguration {
 
 impl MethodConfiguration {
     /// Parses and validates `methods.json`. `suites` must contain every
-    /// suite the file may name (Ed25519 and RSA PKCS#1 SHA-256); they are
-    /// used only to validate key material.
+    /// suite the file may name (Ed25519, RSA PKCS#1 SHA-256, and P-256);
+    /// they are used only to validate key material.
     ///
     /// # Errors
     ///
@@ -581,30 +595,50 @@ fn sigstore_configuration(
     })?;
     Ok(SigstoreConfiguration {
         anchors,
-        key_bindings: ed25519_leaf_bindings(suites)?,
+        key_bindings: p256_leaf_bindings(suites)?,
         logs,
         issuers,
         leaf_validity,
     })
 }
 
-/// Workload signers in this package hold ephemeral Ed25519 keys, so an
-/// Ed25519 Fulcio leaf is the only accepted leaf key algorithm.
-fn ed25519_leaf_bindings(
+/// The Sigstore keyless signer holds an ephemeral P-256 key, so a P-256
+/// Fulcio leaf is the only accepted leaf key algorithm.
+fn p256_leaf_bindings(
     suites: &[&dyn SignatureSuite],
 ) -> Result<AlgorithmBindingSet, MethodConfigError> {
-    AlgorithmBindingSet::new(vec![ed25519_spki_binding()?], suites)
-        .map_err(|_| invalid("sigstore_keyless", "the Ed25519 suite is not available"))
+    AlgorithmBindingSet::new(vec![p256_spki_binding()?], suites)
+        .map_err(|_| invalid("sigstore_keyless", "the P-256 suite is not available"))
+}
+
+fn spki_binding(
+    algorithm: &[u8],
+    suite: &str,
+    key_form: KeyForm,
+) -> Result<AlgorithmBinding, MethodConfigError> {
+    Ok(AlgorithmBinding::Spki {
+        algorithm: AlgorithmIdentifierDer::new(algorithm.to_vec())
+            .map_err(|_| invalid("sigstore_keyless", "invalid compiled algorithm identifier"))?,
+        suite: SignatureSuiteId::parse(suite)
+            .map_err(|_| invalid("sigstore_keyless", "invalid compiled suite"))?,
+        key_form,
+    })
 }
 
 fn ed25519_spki_binding() -> Result<AlgorithmBinding, MethodConfigError> {
-    Ok(AlgorithmBinding::Spki {
-        algorithm: AlgorithmIdentifierDer::new(ED25519_ALGORITHM_IDENTIFIER.to_vec())
-            .map_err(|_| invalid("sigstore_keyless", "invalid compiled algorithm identifier"))?,
-        suite: SignatureSuiteId::parse(ED25519_V1)
-            .map_err(|_| invalid("sigstore_keyless", "invalid compiled suite"))?,
-        key_form: KeyForm::BitStringContents,
-    })
+    spki_binding(
+        &ED25519_ALGORITHM_IDENTIFIER,
+        ED25519_V1,
+        KeyForm::BitStringContents,
+    )
+}
+
+fn p256_spki_binding() -> Result<AlgorithmBinding, MethodConfigError> {
+    spki_binding(
+        &P256_ALGORITHM_IDENTIFIER,
+        P256_SHA256_V1,
+        KeyForm::Sec1Compressed,
+    )
 }
 
 fn rekor_log(
@@ -612,17 +646,35 @@ fn rekor_log(
     suites: &[&dyn SignatureSuite],
 ) -> Result<RekorLog, MethodConfigError> {
     const FIELD: &str = "sigstore_keyless.rekor_logs";
-    let spki = Base64::decode_vec(&file.ed25519_spki)
-        .map_err(|_| invalid(FIELD, "ed25519_spki is not padded base64"))?;
+    let (encoded, binding, reason) = match (&file.ed25519_spki, &file.p256_spki) {
+        (Some(key), None) => (
+            key,
+            ed25519_spki_binding()?,
+            "ed25519_spki is not an Ed25519 SubjectPublicKeyInfo",
+        ),
+        (None, Some(key)) => (
+            key,
+            p256_spki_binding()?,
+            "p256_spki is not a P-256 SubjectPublicKeyInfo",
+        ),
+        _ => {
+            return Err(invalid(
+                FIELD,
+                "each log needs exactly one of ed25519_spki and p256_spki",
+            ));
+        }
+    };
+    let spki = Base64::decode_vec(encoded)
+        .map_err(|_| invalid(FIELD, "the log key is not padded base64"))?;
     RekorLog::new(
         CheckpointOrigin::parse(&file.origin).map_err(|_| invalid(FIELD, "invalid origin"))?,
         NoteName::parse(&file.key_name).map_err(|_| invalid(FIELD, "invalid key_name"))?,
         spki,
-        ed25519_spki_binding()?,
+        binding,
         LogKind::Rfc6962Sha256,
         suites,
     )
-    .map_err(|_| invalid(FIELD, "ed25519_spki is not an Ed25519 SubjectPublicKeyInfo"))
+    .map_err(|_| invalid(FIELD, reason))
 }
 
 fn sigstore_issuer(file: SigstoreIssuerFile) -> Result<IssuerPolicy, MethodConfigError> {
@@ -660,16 +712,67 @@ fn sigstore_issuer(file: SigstoreIssuerFile) -> Result<IssuerPolicy, MethodConfi
 #[cfg(test)]
 mod tests {
     use super::*;
-    use auths_signature::Ed25519Suite;
+    use auths_signature::{Ed25519Suite, P256Sha256Suite};
     use auths_signature_rsa_pkcs1_sha256::RsaPkcs1Sha256Suite;
 
     fn parse(json: &serde_json::Value) -> Result<MethodConfiguration, MethodConfigError> {
         let ed25519 = Ed25519Suite::new().expect("suite");
         let rsa = RsaPkcs1Sha256Suite::new().expect("suite");
+        let p256 = P256Sha256Suite::new().expect("suite");
         MethodConfiguration::parse(
             json.to_string().as_bytes(),
-            &[&ed25519 as &dyn SignatureSuite, &rsa],
+            &[&ed25519 as &dyn SignatureSuite, &rsa, &p256],
         )
+    }
+
+    /// Public-good Rekor's key, from `GET /api/v1/log/publicKey`.
+    const REKOR_P256_SPKI: &str = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE2G2Y+2tabdTV5BcGiBIx0a9fAFwrkBbmLSGtks4L3qX6yYY0zufBnhC8Ur/iy55GhWP/9A/bY2LhC30M9+RYtw==";
+
+    #[test]
+    fn each_rekor_log_pins_exactly_one_key_of_its_named_type() {
+        let edwards = ed25519_dalek::SigningKey::from_bytes(&[7; 32]).verifying_key();
+        let mut ed25519 = ED25519_SPKI_PREFIX.to_vec();
+        ed25519.extend_from_slice(edwards.as_bytes());
+        let ed25519 = Base64::encode_string(&ed25519);
+        let file = |log: serde_json::Value| {
+            serde_json::json!({
+                "schema": METHODS_SCHEMA,
+                "sigstore_keyless": {
+                    "fulcio_roots": [Base64::encode_string(&[0x30, 0x03, 0x02, 0x01, 0x01])],
+                    "rekor_logs": [log],
+                    "issuers": [{"issuer": "https://token.actions.githubusercontent.com",
+                                 "profile": {"github_actions": [{"repository_id": "1", "owner_id": "2"}]}}],
+                    "max_leaf_validity_seconds": 600,
+                },
+            })
+        };
+        let origin = "rekor.sigstore.dev - 1193050959916656506";
+        let name = "rekor.sigstore.dev";
+        let public_good = parse(&file(
+            serde_json::json!({"origin": origin, "key_name": name, "p256_spki": REKOR_P256_SPKI}),
+        ))
+        .expect("public-good Rekor")
+        .sigstore
+        .expect("sigstore");
+        assert_eq!(
+            hex::encode(public_good.logs[0].id().bytes()),
+            "c0d23d6ad406973f9559f3ba2d1ca01f84147d8ffc5b8445c224f98b9591801d"
+        );
+        assert!(
+            parse(&file(
+                serde_json::json!({"origin": origin, "key_name": name, "ed25519_spki": ed25519})
+            ))
+            .is_ok()
+        );
+        for log in [
+            serde_json::json!({"origin": origin, "key_name": name}),
+            serde_json::json!({"origin": origin, "key_name": name, "p256_spki": REKOR_P256_SPKI, "ed25519_spki": ed25519}),
+            serde_json::json!({"origin": origin, "key_name": name, "p256_spki": ed25519}),
+            serde_json::json!({"origin": origin, "key_name": name, "ed25519_spki": REKOR_P256_SPKI}),
+            serde_json::json!({"origin": origin, "key_name": name, "p256_spki": REKOR_P256_SPKI, "extra": 1}),
+        ] {
+            assert!(parse(&file(log.clone())).is_err(), "accepted {log}");
+        }
     }
 
     fn modulus() -> Vec<u8> {

@@ -2,7 +2,7 @@
 //! Rekor. Keys come from fixed seeds and times are fixed, so every run
 //! produces the same verification outcomes.
 
-use crate::methods::{ED25519_SPKI_PREFIX, METHODS_SCHEMA};
+use crate::methods::{ED25519_SPKI_PREFIX, METHODS_SCHEMA, P256_SPKI_PREFIX};
 use crate::workload::{
     CertificateRequest, HashedRekordRequest, RekorEntryFields, SigstoreClient, TokenSource,
     WorkloadError,
@@ -10,7 +10,9 @@ use crate::workload::{
 use auths_oidc_workload::jws::CompactJws;
 use auths_sigstore_keyless::merkle::leaf_hash;
 use base64ct::{Base64, Base64UrlUnpadded, Encoding as _};
-use ed25519_dalek::{Signer as _, SigningKey, Verifier as _};
+use ed25519_dalek::SigningKey;
+use p256::ecdsa::signature::{Signer as _, Verifier as _};
+use p256::ecdsa::{Signature as P256Signature, SigningKey as P256SigningKey, VerifyingKey};
 use rcgen::{
     BasicConstraints, CertificateParams, CustomExtension, DistinguishedName, DnType,
     ExtendedKeyUsagePurpose, IsCa, KeyPair, KeyUsagePurpose, PublicKeyData, SanType,
@@ -143,15 +145,16 @@ impl TokenSource for MintingSource<'_> {
     }
 }
 
-struct RawEd25519([u8; 32]);
+/// A P-256 public key as the uncompressed point rcgen embeds.
+struct RawP256(Vec<u8>);
 
-impl PublicKeyData for RawEd25519 {
+impl PublicKeyData for RawP256 {
     fn der_bytes(&self) -> &[u8] {
         &self.0
     }
 
     fn algorithm(&self) -> &SignatureAlgorithm {
-        &rcgen::PKCS_ED25519
+        &rcgen::PKCS_ECDSA_P256_SHA256
     }
 }
 
@@ -191,13 +194,85 @@ fn set_validity(params: &mut CertificateParams, from: u64, until: u64) {
     params.not_after = base + Duration::from_secs(until - BASE);
 }
 
-/// Fulcio and Rekor. Fulcio issues Ed25519 leaves with the issuer and
-/// subject extensions and the code-signing usage; Rekor is a one-entry log
-/// with an Ed25519 key.
+/// The key a fake Rekor log signs with.
+pub enum FakeLogKey {
+    /// Raw Ed25519 signatures.
+    Ed25519(SigningKey),
+    /// DER ECDSA signatures, always the high-S member of their pair, as a
+    /// real log may emit.
+    P256(P256SigningKey),
+}
+
+impl FakeLogKey {
+    fn spki(&self) -> Vec<u8> {
+        match self {
+            Self::Ed25519(key) => {
+                let mut spki = ED25519_SPKI_PREFIX.to_vec();
+                spki.extend_from_slice(key.verifying_key().as_bytes());
+                spki
+            }
+            Self::P256(key) => {
+                let mut spki = P256_SPKI_PREFIX.to_vec();
+                spki.extend_from_slice(key.verifying_key().to_encoded_point(false).as_bytes());
+                spki
+            }
+        }
+    }
+
+    fn sign(&self, message: &[u8]) -> Vec<u8> {
+        match self {
+            Self::Ed25519(key) => ed25519_dalek::Signer::sign(key, message)
+                .to_bytes()
+                .to_vec(),
+            Self::P256(key) => {
+                let signature: P256Signature = key.sign(message);
+                let low = signature.normalize_s().unwrap_or(signature);
+                let (r, s) = low.split_scalars();
+                let high = P256Signature::from_scalars(r.to_bytes(), (-*s).to_bytes())
+                    .expect("high-S pair");
+                assert!(
+                    high.normalize_s().is_some(),
+                    "the emitted signature is high-S"
+                );
+                high.to_der().as_bytes().to_vec()
+            }
+        }
+    }
+
+    /// The signed-note key hint: Rekor's ECDSA key id for P-256, the key
+    /// name and SPKI digest otherwise.
+    fn hint(&self, name: &str) -> Vec<u8> {
+        let digest = match self {
+            Self::Ed25519(_) => {
+                let mut input = name.as_bytes().to_vec();
+                input.push(b'\n');
+                input.extend(self.spki());
+                Sha256::digest(&input)
+            }
+            Self::P256(_) => Sha256::digest(self.spki()),
+        };
+        digest[..4].to_vec()
+    }
+
+    fn methods_member(&self) -> &'static str {
+        match self {
+            Self::Ed25519(_) => "ed25519_spki",
+            Self::P256(_) => "p256_spki",
+        }
+    }
+}
+
+/// The whole-log index the fake Rekor reports. It differs from the proof
+/// index, as it does for a sharded log.
+const FAKE_LOG_INDEX: u64 = 1_000;
+
+/// Fulcio and Rekor. Fulcio issues P-256 leaves with the issuer and
+/// subject extensions, a deprecated raw issuer extension as real Fulcio
+/// still emits, and the code-signing usage; Rekor is a one-entry log.
 pub struct FakeSigstore {
     ca_key: KeyPair,
     ca: rcgen::Certificate,
-    log_key: SigningKey,
+    log_key: FakeLogKey,
     origin: &'static str,
     key_name: &'static str,
     /// Leaf validity, `[from, until)`.
@@ -213,9 +288,23 @@ impl FakeSigstore {
         Self::with_keys(seed, seed.wrapping_add(1))
     }
 
-    /// A Fulcio CA from `ca_seed` and a Rekor log key from `log_seed`.
+    /// A Fulcio CA from `ca_seed` and an Ed25519 Rekor log key from
+    /// `log_seed`.
     pub fn with_keys(ca_seed: u8, log_seed: u8) -> Self {
-        let seed = ca_seed;
+        Self::with_log(
+            ca_seed,
+            FakeLogKey::Ed25519(SigningKey::from_bytes(&[log_seed; 32])),
+        )
+    }
+
+    /// A Fulcio CA from `ca_seed` and a P-256 Rekor log key from `log_seed`,
+    /// like public-good Rekor.
+    pub fn with_p256_log(ca_seed: u8, log_seed: u8) -> Self {
+        let key = P256SigningKey::from_bytes(&[log_seed; 32].into()).expect("P-256 log key");
+        Self::with_log(ca_seed, FakeLogKey::P256(key))
+    }
+
+    fn with_log(seed: u8, log_key: FakeLogKey) -> Self {
         let ca_key = KeyPair::try_from(ed25519_pkcs8(seed).as_slice()).expect("CA key");
         let mut params = CertificateParams::new(Vec::<String>::new()).expect("CA params");
         params.distinguished_name = DistinguishedName::new();
@@ -233,7 +322,7 @@ impl FakeSigstore {
         Self {
             ca_key,
             ca,
-            log_key: SigningKey::from_bytes(&[log_seed; 32]),
+            log_key,
             origin: "rekor.fake - 1",
             key_name: "rekor.fake",
             leaf_window: (NOW - 300, NOW + 300),
@@ -242,22 +331,15 @@ impl FakeSigstore {
         }
     }
 
-    fn log_spki(&self) -> Vec<u8> {
-        let mut spki = ED25519_SPKI_PREFIX.to_vec();
-        spki.extend_from_slice(self.log_key.verifying_key().as_bytes());
-        spki
-    }
-
     /// The `sigstore_keyless` section of `methods.json` pinning this CA and
     /// log, admitting `subject` from `issuer`.
     pub fn methods(&self, issuer: &str, subject: &str) -> serde_json::Value {
+        let mut log = serde_json::json!({"origin": self.origin, "key_name": self.key_name});
+        log[self.log_key.methods_member()] =
+            serde_json::Value::String(Base64::encode_string(&self.log_key.spki()));
         serde_json::json!({
             "fulcio_roots": [Base64::encode_string(self.ca.der())],
-            "rekor_logs": [{
-                "origin": self.origin,
-                "key_name": self.key_name,
-                "ed25519_spki": Base64::encode_string(&self.log_spki()),
-            }],
+            "rekor_logs": [log],
             "issuers": [{"issuer": issuer, "profile": {"generic": [subject]}}],
             "max_leaf_validity_seconds": 600,
         })
@@ -265,11 +347,8 @@ impl FakeSigstore {
 
     fn checkpoint(&self, root: &[u8]) -> String {
         let body = format!("{}\n1\n{}\n", self.origin, Base64::encode_string(root));
-        let mut hint_input = self.key_name.as_bytes().to_vec();
-        hint_input.push(b'\n');
-        hint_input.extend(self.log_spki());
-        let mut note = Sha256::digest(&hint_input)[..4].to_vec();
-        note.extend(self.log_key.sign(body.as_bytes()).to_bytes());
+        let mut note = self.log_key.hint(self.key_name);
+        note.extend(self.log_key.sign(body.as_bytes()));
         format!(
             "{body}\n\u{2014} {} {}\n",
             self.key_name,
@@ -284,21 +363,20 @@ impl SigstoreClient for FakeSigstore {
         request: &CertificateRequest<'_>,
     ) -> Result<Vec<Vec<u8>>, WorkloadError> {
         let refuse = |reason: &str| WorkloadError::Sigstore(reason.to_owned());
-        let raw: [u8; 32] = request
+        let key = request
             .public_key_spki
-            .strip_prefix(ED25519_SPKI_PREFIX.as_slice())
-            .and_then(|key| key.try_into().ok())
-            .ok_or_else(|| refuse("not an Ed25519 key"))?;
+            .strip_prefix(P256_SPKI_PREFIX.as_slice())
+            .and_then(|point| VerifyingKey::from_sec1_bytes(point).ok())
+            .ok_or_else(|| refuse("not a P-256 key"))?;
         let jws = CompactJws::parse(request.token.as_bytes()).map_err(|_| refuse("token"))?;
         let claims: serde_json::Value =
             serde_json::from_slice(&jws.payload).map_err(|_| refuse("claims"))?;
         let (Some(issuer), Some(subject)) = (claims["iss"].as_str(), claims["sub"].as_str()) else {
             return Err(refuse("claims"));
         };
-        let proof = ed25519_dalek::Signature::from_slice(request.proof_of_possession)
+        let proof = P256Signature::from_der(request.proof_of_possession)
             .map_err(|_| refuse("proof of possession"))?;
-        ed25519_dalek::VerifyingKey::from_bytes(&raw)
-            .and_then(|key| key.verify(subject.as_bytes(), &proof))
+        key.verify(subject.as_bytes(), &proof)
             .map_err(|_| refuse("proof of possession"))?;
 
         let mut params = CertificateParams::new(Vec::<String>::new()).expect("leaf params");
@@ -313,6 +391,10 @@ impl SigstoreClient for FakeSigstore {
         )];
         params.custom_extensions = vec![
             CustomExtension::from_oid_content(
+                &[1, 3, 6, 1, 4, 1, 57264, 1, 1],
+                issuer.as_bytes().to_vec(),
+            ),
+            CustomExtension::from_oid_content(
                 &[1, 3, 6, 1, 4, 1, 57264, 1, 8],
                 utf8_string(issuer),
             ),
@@ -322,8 +404,9 @@ impl SigstoreClient for FakeSigstore {
             ),
         ];
         set_validity(&mut params, self.leaf_window.0, self.leaf_window.1);
+        let point = key.to_encoded_point(false).as_bytes().to_vec();
         let leaf = params
-            .signed_by(&RawEd25519(raw), &self.ca, &self.ca_key)
+            .signed_by(&RawP256(point), &self.ca, &self.ca_key)
             .map_err(|_| refuse("leaf"))?;
         Ok(vec![leaf.der().to_vec()])
     }
@@ -339,21 +422,18 @@ impl SigstoreClient for FakeSigstore {
             Base64::encode_string(pem(request.certificate_der).as_bytes()),
         )
         .into_bytes();
-        let log_id: [u8; 32] = Sha256::digest(self.log_spki()).into();
+        let log_id: [u8; 32] = Sha256::digest(self.log_key.spki()).into();
         let root = leaf_hash(&body);
         let set_preimage = format!(
-            "{{\"body\":\"{}\",\"integratedTime\":{},\"logID\":\"{}\",\"logIndex\":0}}",
+            "{{\"body\":\"{}\",\"integratedTime\":{},\"logID\":\"{}\",\"logIndex\":{FAKE_LOG_INDEX}}}",
             Base64::encode_string(&body),
             self.integrated_time,
             hex::encode(log_id),
         );
-        let mut signed_entry_timestamp = self
-            .log_key
-            .sign(set_preimage.as_bytes())
-            .to_bytes()
-            .to_vec();
+        let mut signed_entry_timestamp = self.log_key.sign(set_preimage.as_bytes());
         if self.corrupt_entry.get() {
-            signed_entry_timestamp[0] ^= 1;
+            let last = signed_entry_timestamp.len() - 1;
+            signed_entry_timestamp[last] ^= 1;
         }
         Ok(RekorEntryFields {
             checkpoint: self.checkpoint(root.as_bytes()),
@@ -361,7 +441,8 @@ impl SigstoreClient for FakeSigstore {
             hashes: Vec::new(),
             integrated_time: self.integrated_time,
             log_id,
-            log_index: 0,
+            log_index: FAKE_LOG_INDEX,
+            proof_index: 0,
             signed_entry_timestamp,
             tree_size: 1,
         })

@@ -3626,6 +3626,22 @@
     {
       "source": "auths-git-signing",
       "source_layer": "product",
+      "target": "p256",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "ecdsa",
+        "pkcs8"
+      ]
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
       "target": "proptest",
       "target_layer": null,
       "scope": "external",
@@ -13766,6 +13782,18 @@
     {
       "source": "auths-sigstore-keyless",
       "source_layer": "core",
+      "target": "hex",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-sigstore-keyless",
+      "source_layer": "core",
       "target": "minicbor",
       "target_layer": null,
       "scope": "external",
@@ -13788,6 +13816,22 @@
       "optional": false,
       "default_features": true,
       "features": []
+    },
+    {
+      "source": "auths-sigstore-keyless",
+      "source_layer": "core",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order",
+        "std"
+      ]
     },
     {
       "source": "auths-sigstore-keyless",

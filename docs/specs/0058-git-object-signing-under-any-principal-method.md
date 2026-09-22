@@ -524,24 +524,25 @@ Sizes are for one engineer or agent, as in 0057 §3.
      signs with this job's GitHub Actions token and a `did:key` agent under
      one root, and verifies the range. OIDC tokens are verified live, so
      this is a gate-time method only.
-   - **Sigstore keyless.** The signer runs against a client port. The
-     acceptance test `one_verifier_accepts_three_principal_methods_under_one_root`
+   - **Sigstore keyless.** The signer uses public-good Fulcio and Rekor
+     through a client port (`src/sigstore_client.rs`), with a deterministic
+     local Fulcio CA and Rekor log for offline tests. The acceptance test
+     `one_verifier_accepts_three_principal_methods_under_one_root`
      (`src/workload_tests.rs`) verifies `did:key`, `oidc-workload`, and
-     `sigstore-keyless` commits through one verifier under one root, with a
-     deterministic local Fulcio CA and an Ed25519 Rekor log.
+     `sigstore-keyless` commits through one verifier under one root. The
+     hosted `live-sigstore` job signs through real public-good Sigstore.
+   - **DER signatures.** Public-good Rekor signs with DER-encoded ECDSA,
+     and its entries carry the artifact signature in DER. The adapter
+     converts both to fixed-width low-S form and then verifies through the
+     unchanged strict `p256-sha256-v1` suite. Auths action signatures stay
+     strict and non-malleable. The adapter's own spec records this, with
+     tests on a recorded public-good entry.
+   - **Complete workload policies.** Both workload adapters now commit to
+     every GitHub policy field (workflow pin, `ref`, `environment`) with
+     tagged, length-prefixed encoding. The earlier OIDC encoding let two
+     different policies collide. `methods.json` accepts all of these
+     fields.
 
-   Two gaps are open:
-   - **No public Sigstore.** Real public-good Sigstore output cannot verify.
-     The kernel's only P-256 suite accepts 64-byte low-S signatures, while
-     Rekor and cosign sign with DER-encoded ECDSA. There is no production
-     Sigstore client, and `auths.signer sigstore-keyless` refuses clearly.
-     The fix is a core signature suite owned by the Sigstore adapter's
-     spec (board §9).
-   - **Narrower workload policies.** The OIDC adapter's configuration
-     commitment omits workflow pins and joins `ref` and `environment`
-     without a separator. The Sigstore adapter's omits ref, environment, and
-     workflow. `methods.json` accepts only the fields each adapter binds:
-     repository id and owner id, plus `ref` for OIDC.
 6. **Branch-protection action and dogfood** (2–3 days). The composite
    action, and this repository's own agent commits signed through it in
    place of the sibling project's `claude-release` agent. Done: a PR in this
@@ -560,7 +561,7 @@ Sizes are for one engineer or agent, as in 0057 §3.
 
 | Clause | Evidence | Who |
 | --- | --- | --- |
-| The same verifier accepts proofs chained to Sigstore keyless and to `did:key`, with no KERI code path | `one_verifier_accepts_three_principal_methods_under_one_root`, run by the hosted `git-signing.yml` job, and the `git-signing` dependency boundary. Sigstore evidence is from a local CA and log; public-good Sigstore is blocked (step 5) | Agent |
+| The same verifier accepts proofs chained to Sigstore keyless and to `did:key`, with no KERI code path | `one_verifier_accepts_three_principal_methods_under_one_root` and the hosted `live-sigstore` job (public-good Sigstore) in `git-signing.yml`, and the `git-signing` dependency boundary | Agent |
 | Delegation commands ported | `tests/cli_end_to_end.rs` in the hosted `git-signing.yml` job | Agent |
 | Demo from three principal methods | The same acceptance test; the hosted live job covers OIDC and `did:key` together | Agent |
 | Twenty external repositories verify agent-signed commits through the pinned root | Public list of repositories with the action required | Humans; board §9 |
@@ -602,7 +603,7 @@ when the two human rows have evidence. A commit title MUST NOT say
 
 Development is fixture-first. Hosted CI on the exact revision is the gate;
 this specification runs no checks and asserts no outcomes. auths-proof can
-sign and verify commits and tags with `did:key` and GitHub Actions OIDC
-workloads. Documentation MUST NOT claim public-good Sigstore signing until
-the DER-ECDSA gap in step 5 is closed. It MUST NOT claim adoption until the
+sign and verify commits and tags with `did:key`, GitHub Actions OIDC
+workloads, and public-good Sigstore keyless, as far as the hosted jobs on the
+PR's final revision show. Documentation MUST NOT claim adoption until the
 human rows of the acceptance table have evidence.

@@ -30,10 +30,14 @@
 //! Verifiers accept such a signature only while the token is live (a few
 //! minutes), so this signer is for gates that verify as the job runs.
 //!
-//! `auths.signer sigstore-keyless` is refused: this build ships no Fulcio
-//! and Rekor client. Public-good Rekor signs its entries and checkpoints
-//! with DER-encoded ECDSA P-256, which the kernel's P-256 suite, restricted
-//! to fixed-width low-S signatures, never accepts.
+//! `auths.signer sigstore-keyless` signs through public-good Sigstore
+//! instead. Each signature uses a fresh in-memory P-256 key: a token with
+//! audience `sigstore` obtains a Fulcio certificate for it, and the exact
+//! signature is recorded in Rekor. The certificate chain and the Rekor
+//! entry are embedded as evidence, so verification is offline and does not
+//! expire with the token. Its principal is the same `oidc-workload:`
+//! principal `workload-principal --github-actions` prints: Fulcio copies the
+//! token's `iss` and `sub` into the certificate.
 //!
 //! Signing never writes the `SIG_CREATED` status unless a signature was
 //! produced, so Git refuses to create the object on any failure. Verifying
@@ -42,12 +46,15 @@
 use auths_git_signing::object::{MAX_PAYLOAD_BYTES, UnsignedPayload};
 use auths_git_signing::program::{ProgramRequest, parse_arguments, sign_created_status};
 use auths_git_signing::sign::{check_coverage, sign_payload};
+use auths_git_signing::sigstore_client::HttpSigstoreClient;
 use auths_git_signing::tool::{
     EnabledMethods, SignerKind, TrustMaterial, configured_repository, git_config, load_delegation,
     load_key, now, state_home, timestamp,
 };
 use auths_git_signing::verify::{GitVerification, verify_signature};
-use auths_git_signing::workload::{GithubActionsTokenSource, OidcWorkloadSigner};
+use auths_git_signing::workload::{
+    GithubActionsTokenSource, OidcWorkloadSigner, SigstoreKeylessSigner,
+};
 use std::io::{Read as _, Write as _};
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -85,12 +92,11 @@ fn sign(label: &str) -> Result<(), String> {
             sign_payload(&payload, &repository, &signer, &delegation, signed_at)
         }
         SignerKind::SigstoreKeyless => {
-            return Err(
-                "auths.signer sigstore-keyless is not available in this build: no \
-                        Fulcio and Rekor client ships, and public-good Rekor's DER-encoded \
-                        ECDSA signatures do not verify under the kernel's P-256 suite"
-                    .to_owned(),
-            );
+            let tokens = GithubActionsTokenSource::from_env().map_err(|error| error.to_string())?;
+            let client = HttpSigstoreClient::public_good().map_err(|error| error.to_string())?;
+            let signer = SigstoreKeylessSigner::acquire(&tokens, &client)
+                .map_err(|error| error.to_string())?;
+            sign_payload(&payload, &repository, &signer, &delegation, signed_at)
         }
     }
     .map_err(|error| error.to_string())?;

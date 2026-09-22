@@ -34,7 +34,7 @@ use auths_oidc_workload::OidcWorkloadMethod;
 use auths_path_webpki::WebPkiPathVerifier;
 use auths_ports::{AssuranceClaimRule, PrincipalMethod, SignatureSuite};
 use auths_registries::ImmutableRegistries;
-use auths_signature::Ed25519Suite;
+use auths_signature::{Ed25519Suite, P256Sha256Suite};
 use auths_signature_rsa_pkcs1_sha256::RsaPkcs1Sha256Suite;
 use auths_sigstore_keyless::SigstoreKeylessMethod;
 use std::ffi::OsStr;
@@ -422,6 +422,7 @@ pub struct EnabledMethods {
     did_key: DidKeyMethod,
     ed25519: Ed25519Suite,
     rsa: Option<RsaPkcs1Sha256Suite>,
+    p256: Option<P256Sha256Suite>,
     path_verifier: WebPkiPathVerifier,
     configuration: MethodConfiguration,
     claims: Vec<RegisteredClaim>,
@@ -457,9 +458,10 @@ impl EnabledMethods {
         let invalid = |_| ToolError::State("invalid compiled registry".to_owned());
         let ed25519 = Ed25519Suite::new().map_err(invalid)?;
         let rsa = RsaPkcs1Sha256Suite::new().map_err(invalid)?;
+        let p256 = P256Sha256Suite::new().map_err(invalid)?;
         let configuration = methods
             .map(|bytes| {
-                MethodConfiguration::parse(bytes, &[&ed25519 as &dyn SignatureSuite, &rsa])
+                MethodConfiguration::parse(bytes, &[&ed25519 as &dyn SignatureSuite, &rsa, &p256])
             })
             .transpose()?
             .unwrap_or_default();
@@ -480,6 +482,7 @@ impl EnabledMethods {
         let enabled = Self {
             did_key: DidKeyMethod::new().map_err(invalid)?,
             rsa: configuration.uses_rsa.then_some(rsa),
+            p256: configuration.sigstore.is_some().then_some(p256),
             ed25519,
             path_verifier: WebPkiPathVerifier::new(),
             configuration,
@@ -508,6 +511,9 @@ impl EnabledMethods {
         let mut suites: Vec<&dyn SignatureSuite> = vec![&self.ed25519];
         if let Some(rsa) = &self.rsa {
             suites.push(rsa);
+        }
+        if let Some(p256) = &self.p256 {
+            suites.push(p256);
         }
         let oidc = self
             .configuration

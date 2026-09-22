@@ -32,6 +32,7 @@ pub mod object;
 pub mod program;
 pub mod revoke;
 pub mod sign;
+pub mod sigstore_client;
 pub mod tool;
 pub mod trust;
 pub mod verify;

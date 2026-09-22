@@ -631,6 +631,7 @@ dependencies = [
  "ed25519-dalek 2.2.0",
  "getrandom 0.3.4",
  "hex",
+ "p256",
  "proptest",
  "rcgen",
  "reqwest",
@@ -1829,8 +1830,10 @@ dependencies = [
  "auths-signature",
  "base64ct",
  "ed25519-dalek 2.2.0",
+ "hex",
  "minicbor",
  "rcgen",
+ "serde_json",
  "sha2 0.10.9",
  "x509-parser",
 ]

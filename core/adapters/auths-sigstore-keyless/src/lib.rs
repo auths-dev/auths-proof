@@ -7,9 +7,12 @@ extern crate alloc;
 
 pub mod chain;
 pub mod checkpoint;
+pub mod ecdsa_der;
 pub mod entry;
 pub mod identity;
 pub mod merkle;
+#[cfg(test)]
+mod public_good_tests;
 
 use alloc::{format, string::String, vec, vec::Vec};
 use auths_model::{
@@ -69,7 +72,6 @@ pub enum ExtensionError {
     Certificate,
     Missing,
     Duplicate,
-    Deprecated,
     IdentitySan,
     InvalidValue,
     Limit,
@@ -182,14 +184,8 @@ impl RekorLog {
             .validate_key(&key)
             .map_err(|_| ConfigurationError::InvalidKey)?;
         let id = LogId::new(Sha256::digest(&spki).into());
-        let mut hint_input = Vec::new();
-        hint_input.extend_from_slice(note_key_name.as_str().as_bytes());
-        hint_input.push(b'\n');
-        hint_input.extend_from_slice(&spki);
-        let digest: [u8; 32] = Sha256::digest(hint_input).into();
-        let hint = digest[..4]
-            .try_into()
-            .map_err(|_| ConfigurationError::InvalidNote)?;
+        let hint = note_key_hint(&note_key_name, &spki, suite.as_str())
+            .map_err(|()| ConfigurationError::InvalidNote)?;
         Ok(Self {
             id,
             note_key_name,
@@ -331,7 +327,6 @@ impl<'a> SigstoreKeylessMethod<'a> {
     ///
     /// Returns [`SigstoreError`] for malformed or inconsistent evidence,
     /// failed transparency/path/signature checks, or rejected workload policy.
-    #[allow(clippy::too_many_lines)]
     pub fn verify_detailed(
         &self,
         input: &PrincipalControlInput<'_>,
@@ -353,76 +348,16 @@ impl<'a> SigstoreKeylessMethod<'a> {
             .iter()
             .find(|log| log.id == entry.log)
             .ok_or(SigstoreError::UnknownLog)?;
-        let digest: [u8; 32] = Sha256::digest(input.signing_preimage).into();
-        if entry.body.artifact_digest != Digest::new(digest) {
-            return Err(SigstoreError::PreimageMismatch);
-        }
-        if entry.body.signature.as_slice() != input.signature {
-            return Err(SigstoreError::EntrySignatureMismatch);
-        }
-        if entry.body.certificate != *chain.leaf().der() {
-            return Err(SigstoreError::LeafMismatch);
-        }
-        self.verify_log_signature(
-            log,
-            &entry.set_preimage(),
-            entry.signed_entry_timestamp.as_slice(),
-        )
-        .map_err(|e| match e {
-            SigstoreError::SuiteContract => e,
-            _ => SigstoreError::SignedEntryTimestamp,
-        })?;
-        let root = merkle::fold(
-            entry.proof.index,
-            entry.proof.tree_size,
-            merkle::leaf_hash(&entry.body.raw),
-            &entry.proof.hashes,
-        )
-        .map_err(|_| SigstoreError::Inclusion)?;
-        if root != entry.checkpoint.root {
-            return Err(SigstoreError::Inclusion);
-        }
-        if entry.checkpoint.origin != log.origin {
-            return Err(SigstoreError::Checkpoint(CheckpointError::Origin));
-        }
-        let note = entry
-            .checkpoint
-            .signatures
-            .iter()
-            .find(|signature| {
-                signature.name == log.note_key_name && signature.hint == log.note_key_hint
-            })
-            .ok_or(SigstoreError::Checkpoint(CheckpointError::UnknownKey))?;
-        self.verify_log_signature(log, &entry.checkpoint.body, &note.bytes)
-            .map_err(|e| match e {
-                SigstoreError::SuiteContract => e,
-                _ => SigstoreError::Checkpoint(CheckpointError::Signature),
-            })?;
+        bind_entry(&entry, input, &chain)?;
+        verify_signed_entry_timestamp(self.suites, log, &entry)?;
+        verify_inclusion(self.suites, log, &entry)?;
         let instant = signing_instant(
             chain.leaf(),
             entry.integrated,
             input.asserted_signing_time,
             input.evaluation_time,
         )?;
-        let verified = self
-            .path_verifier
-            .verify(PathInput {
-                leaf: chain.leaf().der(),
-                intermediates: chain.intermediates(),
-                anchors: &self.anchors,
-                at: instant,
-                required_eku: &ExtendedKeyUsage::code_signing(),
-            })
-            .map_err(SigstoreError::Path)?;
-        if verified.der() != chain.leaf().der()
-            || verified.not_before() != chain.leaf().not_before()
-            || verified.not_after() != chain.leaf().not_after()
-            || verified.verified_at() != instant
-            || verified.spki() != chain.leaf().spki()
-            || verified.spki_algorithm() != chain.leaf().spki_algorithm()
-        {
-            return Err(SigstoreError::PathVerifierContract);
-        }
+        let verified = self.verify_path(&chain, instant)?;
         let facts = FulcioFacts::extract(&verified)?;
         if facts.issuer != issuer.url {
             return Err(SigstoreError::IssuerMismatch);
@@ -470,32 +405,31 @@ impl<'a> SigstoreKeylessMethod<'a> {
         )
         .map_err(|_| SigstoreError::LimitExceeded)
     }
-    fn verify_log_signature(
+    fn verify_path(
         &self,
-        log: &RekorLog,
-        message: &[u8],
-        signature: &[u8],
-    ) -> Result<(), SigstoreError> {
-        let suite = self
-            .suites
-            .iter()
-            .find(|candidate| candidate.id() == log.binding.suite())
-            .ok_or(SigstoreError::SuiteContract)?;
-        let AlgorithmBinding::Spki { key_form, .. } = log.binding else {
-            return Err(SigstoreError::SuiteContract);
-        };
-        let key = project_key(log.spki.as_slice(), key_form)
-            .map_err(|()| SigstoreError::SuiteContract)?;
-        suite
-            .verify(SignatureInput {
-                verification_key: &key,
-                signing_preimage: message,
-                signature,
+        chain: &CertificateChain,
+        instant: Timestamp,
+    ) -> Result<auths_ports::VerifiedLeaf, SigstoreError> {
+        let verified = self
+            .path_verifier
+            .verify(PathInput {
+                leaf: chain.leaf().der(),
+                intermediates: chain.intermediates(),
+                anchors: &self.anchors,
+                at: instant,
+                required_eku: &ExtendedKeyUsage::code_signing(),
             })
-            .map_err(|e| match e {
-                SignatureError::InvalidKey => SigstoreError::SuiteContract,
-                _ => SigstoreError::Checkpoint(CheckpointError::Signature),
-            })
+            .map_err(SigstoreError::Path)?;
+        if verified.der() != chain.leaf().der()
+            || verified.not_before() != chain.leaf().not_before()
+            || verified.not_after() != chain.leaf().not_after()
+            || verified.verified_at() != instant
+            || verified.spki() != chain.leaf().spki()
+            || verified.spki_algorithm() != chain.leaf().spki_algorithm()
+        {
+            return Err(SigstoreError::PathVerifierContract);
+        }
+        Ok(verified)
     }
     fn select<'b>(
         &self,
@@ -576,6 +510,157 @@ impl PrincipalMethod for SigstoreKeylessMethod<'_> {
     ) -> Result<ControlEvidence, PrincipalControlError> {
         self.verify_detailed(&input).map_err(map_error)
     }
+}
+
+/// Binds the logged entry to this action: the body must record the digest
+/// of the exact signing preimage, the action signature, and the chain's leaf.
+///
+/// For a P-256 action the body carries the signature as DER, as Rekor
+/// requires; it is compared by value, after conversion to the fixed-width
+/// low-S form, and that form must equal the action signature byte for byte.
+/// Any other suite compares the raw bytes.
+fn bind_entry(
+    entry: &RekorEntry,
+    input: &PrincipalControlInput<'_>,
+    chain: &CertificateChain,
+) -> Result<(), SigstoreError> {
+    let digest: [u8; 32] = Sha256::digest(input.signing_preimage).into();
+    if entry.body.artifact_digest != Digest::new(digest) {
+        return Err(SigstoreError::PreimageMismatch);
+    }
+    if !entry_signature_matches(
+        input.signature_suite.as_str(),
+        entry.body.signature.as_slice(),
+        input.signature,
+    ) {
+        return Err(SigstoreError::EntrySignatureMismatch);
+    }
+    if entry.body.certificate != *chain.leaf().der() {
+        return Err(SigstoreError::LeafMismatch);
+    }
+    Ok(())
+}
+
+/// Whether a logged entry signature is the action signature.
+pub(crate) fn entry_signature_matches(suite: &str, logged: &[u8], action: &[u8]) -> bool {
+    if suite == ecdsa_der::P256_SHA256_SUITE {
+        ecdsa_der::low_s_fixed(logged).is_ok_and(|fixed| fixed.as_slice() == action)
+    } else {
+        logged == action
+    }
+}
+
+/// Verifies the log's Signed Entry Timestamp over the re-derived entry
+/// metadata.
+pub(crate) fn verify_signed_entry_timestamp(
+    suites: &[&dyn SignatureSuite],
+    log: &RekorLog,
+    entry: &RekorEntry,
+) -> Result<(), SigstoreError> {
+    verify_log_signature(
+        suites,
+        log,
+        &entry.set_preimage(),
+        entry.signed_entry_timestamp.as_slice(),
+    )
+    .map_err(|e| match e {
+        SigstoreError::SuiteContract => e,
+        _ => SigstoreError::SignedEntryTimestamp,
+    })
+}
+
+/// Verifies that the entry body is included under the checkpoint root and
+/// that the checkpoint is signed by the pinned log key.
+pub(crate) fn verify_inclusion(
+    suites: &[&dyn SignatureSuite],
+    log: &RekorLog,
+    entry: &RekorEntry,
+) -> Result<(), SigstoreError> {
+    let root = merkle::fold(
+        entry.proof.index,
+        entry.proof.tree_size,
+        merkle::leaf_hash(&entry.body.raw),
+        &entry.proof.hashes,
+    )
+    .map_err(|_| SigstoreError::Inclusion)?;
+    if root != entry.checkpoint.root {
+        return Err(SigstoreError::Inclusion);
+    }
+    if entry.checkpoint.origin != log.origin {
+        return Err(SigstoreError::Checkpoint(CheckpointError::Origin));
+    }
+    let note = entry
+        .checkpoint
+        .signatures
+        .iter()
+        .find(|signature| {
+            signature.name == log.note_key_name && signature.hint == log.note_key_hint
+        })
+        .ok_or(SigstoreError::Checkpoint(CheckpointError::UnknownKey))?;
+    verify_log_signature(suites, log, &entry.checkpoint.body, &note.bytes).map_err(|e| match e {
+        SigstoreError::SuiteContract => e,
+        _ => SigstoreError::Checkpoint(CheckpointError::Signature),
+    })
+}
+
+/// Verifies one signature by a pinned log key through its bound suite.
+///
+/// A log bound to the P-256 suite signs with DER ECDSA and may emit either
+/// member of a malleability pair; the signature is converted to the suite's
+/// fixed-width low-S form first. Malleability is irrelevant here: the
+/// signer is a pinned log and the signed content is fixed by the evidence.
+fn verify_log_signature(
+    suites: &[&dyn SignatureSuite],
+    log: &RekorLog,
+    message: &[u8],
+    signature: &[u8],
+) -> Result<(), SigstoreError> {
+    let suite = suites
+        .iter()
+        .find(|candidate| candidate.id() == log.binding.suite())
+        .ok_or(SigstoreError::SuiteContract)?;
+    let AlgorithmBinding::Spki { key_form, .. } = log.binding else {
+        return Err(SigstoreError::SuiteContract);
+    };
+    let key =
+        project_key(log.spki.as_slice(), key_form).map_err(|()| SigstoreError::SuiteContract)?;
+    let fixed;
+    let signature = if log.binding.suite().as_str() == ecdsa_der::P256_SHA256_SUITE {
+        fixed = ecdsa_der::low_s_fixed(signature)
+            .map_err(|_| SigstoreError::Checkpoint(CheckpointError::Signature))?;
+        fixed.as_slice()
+    } else {
+        signature
+    };
+    suite
+        .verify(SignatureInput {
+            verification_key: &key,
+            signing_preimage: message,
+            signature,
+        })
+        .map_err(|e| match e {
+            SignatureError::InvalidKey => SigstoreError::SuiteContract,
+            _ => SigstoreError::Checkpoint(CheckpointError::Signature),
+        })
+}
+
+/// Derives a log's signed-note key hint.
+///
+/// A P-256 log uses Rekor's ECDSA key id, the first four bytes of SHA-256
+/// of the DER `SubjectPublicKeyInfo` — the same bytes as the log id prefix.
+/// Every other log uses the first four bytes of SHA-256 of the key name, a
+/// newline, and the DER `SubjectPublicKeyInfo`.
+fn note_key_hint(name: &NoteName, spki: &[u8], suite: &str) -> Result<[u8; 4], ()> {
+    let digest: [u8; 32] = if suite == ecdsa_der::P256_SHA256_SUITE {
+        Sha256::digest(spki).into()
+    } else {
+        let mut input = Vec::new();
+        input.extend_from_slice(name.as_str().as_bytes());
+        input.push(b'\n');
+        input.extend_from_slice(spki);
+        Sha256::digest(input).into()
+    };
+    digest[..4].try_into().map_err(|_| ())
 }
 
 fn signing_instant(
