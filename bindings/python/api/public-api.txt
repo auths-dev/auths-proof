@@ -81,6 +81,18 @@ RunResult
 reconcile_read_only
 run_once
 
+[auths.gateway]
+GatewayClient
+GatewayDenied
+GatewayEndpoint
+GatewayIndeterminate
+GatewayNotEntered
+GatewayObserved
+GatewayProtocolError
+GatewayResponseRecorded
+GatewayResult
+GatewayUnknown
+
 [auths.self_hosted]
 ArrayField
 AuthorizedCommand

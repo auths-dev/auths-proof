@@ -426,12 +426,8 @@ fn replace(root: &Path, path: &Path, record: &Record) -> Result<(), GatewayAttem
             (
                 GatewayAttemptStage::Attempting,
                 GatewayAttemptStage::NotEntered
-            ) | (
-                GatewayAttemptStage::Attempting,
-                GatewayAttemptStage::Unknown
-            ) | (
-                GatewayAttemptStage::Attempting,
-                GatewayAttemptStage::ResponseRecorded
+                    | GatewayAttemptStage::Unknown
+                    | GatewayAttemptStage::ResponseRecorded
             ) | (
                 GatewayAttemptStage::ResponseRecorded,
                 GatewayAttemptStage::Observed

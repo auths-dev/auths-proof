@@ -252,7 +252,12 @@ fn python_surface() -> Result<PublicSurface, String> {
 
 pub(crate) fn classify_typescript_entry(entry: &str) -> &'static str {
     match entry {
-        "." | "./verify" | "./self-hosted" | "./identity" | "./identity/authoring" => "product",
+        "."
+        | "./verify"
+        | "./self-hosted"
+        | "./gateway"
+        | "./identity"
+        | "./identity/authoring" => "product",
         "./identity/adapters" | "./adapters" => "mechanism",
         "./protocol" | "./profile-runtime" => "extension",
         "./testkit" => "test",
@@ -268,6 +273,7 @@ pub(crate) fn classify_python_module(module: &str) -> &'static str {
         | "auths.attempts"
         | "auths.execution"
         | "auths.self_hosted"
+        | "auths.gateway"
         | "auths.identity"
         | "auths.identity.authoring" => "product",
         "auths.identity.adapters"
@@ -383,6 +389,7 @@ mod tests {
     fn ownership_classification_is_explicit() {
         assert_eq!(classify_typescript_entry("."), "product");
         assert_eq!(classify_typescript_entry("./self-hosted"), "product");
+        assert_eq!(classify_typescript_entry("./gateway"), "product");
         assert_eq!(classify_typescript_entry("./mcp"), "internal-leak");
         assert_eq!(classify_typescript_entry("./adapters"), "mechanism");
         assert_eq!(classify_typescript_entry("./protocol"), "extension");
@@ -393,6 +400,7 @@ mod tests {
         assert_eq!(classify_python_module("auths.attempts"), "product");
         assert_eq!(classify_python_module("auths.execution"), "product");
         assert_eq!(classify_python_module("auths.self_hosted"), "product");
+        assert_eq!(classify_python_module("auths.gateway"), "product");
         assert_eq!(
             classify_python_module("auths.adapters.custody"),
             "mechanism"

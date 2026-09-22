@@ -24,6 +24,7 @@
       "generated error-registry digest without root-load registry hashing",
       "effect-free identity and verification utilities",
       "self-hosted exact MCP authorization with application-owned provider credentials and unqualified effects",
+      "proof/action-only local gateway client with distinct refusal, unknown, response, and observation outcomes; deployment isolation is operator-owned",
       "closed bounded enumeration fields in self-hosted exact MCP argument contracts"
     ],
     "excluded": [
@@ -31,6 +32,7 @@
       "Auths application access tokens",
       "provider credentials in qualified managed-profile application code or SDK configuration",
       "qualified execution claims for self-hosted application-owned provider calls",
+      "credential-isolation claims from an SDK client without a separately tested gateway deployment",
       "caller-defined profile callbacks or dynamic runtime plugins",
       "independent review, production readiness, and package publication authorization"
     ]

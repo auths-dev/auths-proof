@@ -797,7 +797,7 @@ fn validate_origin(origin: &str) -> Result<(), GatewayRecipeError> {
     if domain.len() > 253
         || domain == "localhost"
         || domain.ends_with(".localhost")
-        || domain.ends_with(".local")
+        || domain.split('.').next_back() == Some("local")
         || domain.ends_with(".internal")
         || !domain.contains('.')
     {
@@ -884,7 +884,7 @@ fn validate_body(
                         }
                         validate_value_expr(value, fields, used, 0, &mut nodes)?;
                     }
-                    _ => return Err(GatewayRecipeError::UnsafeTemplate),
+                    FormExpr::String { .. } => return Err(GatewayRecipeError::UnsafeTemplate),
                 }
             }
             Ok(())
@@ -978,7 +978,9 @@ fn build_path(
                         path.push(char::from(byte));
                     } else {
                         path.push('%');
-                        path.push_str(&format!("{byte:02X}"));
+                        const HEX: &[u8; 16] = b"0123456789ABCDEF";
+                        path.push(char::from(HEX[usize::from(byte >> 4)]));
+                        path.push(char::from(HEX[usize::from(byte & 0x0f)]));
                     }
                 }
             }

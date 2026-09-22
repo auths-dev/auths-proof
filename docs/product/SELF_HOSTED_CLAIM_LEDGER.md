@@ -22,6 +22,24 @@ provisioning, non-bypassable enforcement, or qualified provider behavior.
 Applications that hold their own token can bypass the SDK gate. A separate
 credential-owning gateway is needed for a stronger enforcement claim.
 
+## Developer gateway claim boundary (AP-SPEC-053, in progress)
+
+The new local gateway client surfaces accept proof and canonical action bytes
+only. The Rust gateway compiles an operator-approved request recipe, reuses
+native sealed verification and connection/credential stores, claims a logical
+operation once, and distinguishes `not-entered`, `unknown`,
+`response-recorded`, and optional `observed` read-back. A complete HTTP
+response is not provider-effect confirmation; even matching read-back is not
+exclusive causation. The first file claim store is single-host only.
+
+This is **not yet** a production-qualified or non-bypassable product claim.
+The separate Unix process and admin/app sockets still require hosted green
+tests, a documented distinct-UID deployment in which the app cannot read the
+gateway credential or reach the admin socket, egress and hostile-action
+evidence, and live provider read-back on the same revision. The SDK clients
+alone establish none of those deployment facts. An app that retains a
+separate provider token can still bypass Auths.
+
 ## Packaged clean-consumer exercise
 
 Exercised at auths-proof commit

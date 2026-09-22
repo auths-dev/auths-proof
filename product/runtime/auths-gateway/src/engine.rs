@@ -1,5 +1,9 @@
 //! Native-verified, digest-bound single-host execution coordinator.
 
+// Explicit matches keep each verification and transport failure mapped to its
+// distinct public stage; `let...else` would obscure those boundary decisions.
+#![allow(clippy::manual_let_else)]
+
 use crate::transport::{GatewayHttpTransport, WriteTransportOutcome};
 use crate::{
     ClosedProviderRequest, CompiledRecipe, FileGatewayAttemptStore, GatewayConnectionDescriptor,
