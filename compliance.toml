@@ -442,21 +442,23 @@ operational-diagnostics = ["product/operations/auths-operations-otel/src/lib.rs#
 kind = "cargo"
 layer = "product"
 path = "product/integrations/auths-git-signing"
-core_apis = ["auths-author", "auths-codec", "auths-did-key", "auths-model", "auths-multikey", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-verifier"]
-protocol_versions = ["auths-proof/v1", "auths.git-delegation/1", "auths.git-signature-envelope/1", "auths.git-signing-object-vectors/1"]
+core_apis = ["auths-author", "auths-codec", "auths-did-key", "auths-model", "auths-multikey", "auths-oidc-workload", "auths-path-webpki", "auths-ports", "auths-raw-key", "auths-raw-key-core", "auths-registries", "auths-signature", "auths-signature-rsa-pkcs1-sha256", "auths-sigstore-keyless", "auths-verifier"]
+protocol_versions = ["auths-proof/v1", "auths.git-delegation/1", "auths.git-methods/1", "auths.git-signature-envelope/1", "auths.git-signing-object-vectors/1"]
 wire_objects = ["CanonicalAction", "GitDelegationFile", "GitSignatureEnvelope", "ProofBundle", "RevocationRecord", "SignedGrant", "SignedObject", "TrustedContext", "UnsignedPayload", "VerifiedAction"]
 fixture_suites = ["product/integrations/auths-git-signing/fixtures"]
-principal_families = ["did-key-v1", "raw-key-v1"]
-signature_families = ["ed25519-v1"]
+principal_families = ["did-key-v1", "oidc-workload-v1", "raw-key-v1", "sigstore-keyless-v1"]
+signature_families = ["ed25519-v1", "rsa-pkcs1-sha256-v1"]
 profiles = ["auths.git-signature/1"]
-transports = ["git-signing-program"]
-configuration_inputs = ["auths.repository", "auths.trustDir", "enabled-principal-methods", "git-trust-context", "gpg.format", "gpg.x509.program", "user.signingkey"]
-security_state = ["installed-delegation", "revocation-records", "software-custody-key"]
+transports = ["git-signing-program", "github-actions-oidc-token"]
+configuration_inputs = ["auths.repository", "auths.signer", "auths.trustDir", "enabled-principal-methods", "git-trust-context", "gpg.format", "gpg.x509.program", "methods.json", "user.signingkey"]
+security_state = ["ephemeral-workload-key", "installed-delegation", "revocation-records", "software-custody-key"]
 
 [packages.auths-git-signing.claims]
 core-api-consumer = [
   "product/integrations/auths-git-signing/src/verify_tests.rs#delegated_agent_signatures_verify_for_commits_and_tags",
   "product/integrations/auths-git-signing/src/verify_tests.rs#the_enabled_method_set_is_configuration_bound_by_trust",
+  "product/integrations/auths-git-signing/src/workload_tests.rs#one_verifier_accepts_three_principal_methods_under_one_root",
+  "product/integrations/auths-git-signing/src/workload_tests.rs#the_configuration_commitment_binds_the_pinned_issuer_keys",
 ]
 profile-contract = [
   "product/integrations/auths-git-signing/src/action.rs#actions_bind_kind_repository_format_digest_and_tag",
@@ -481,6 +483,16 @@ stateful-replay-budget-component = [
 principal-evidence-integration = [
   "product/integrations/auths-git-signing/src/custody.rs#software_keys_are_owner_only_and_never_overwritten",
   "product/integrations/auths-git-signing/src/workflow_tests.rs#a_grant_file_moves_from_root_to_agent_and_signs_commits",
+  "product/integrations/auths-git-signing/src/workload_tests.rs#oidc_workload_commits_verify_under_a_did_key_root_while_the_token_is_live",
+  "product/integrations/auths-git-signing/src/workload_tests.rs#expired_tokens_and_tokens_for_other_repositories_are_not_verified",
+  "product/integrations/auths-git-signing/src/workload_tests.rs#sigstore_keyless_commits_verify_under_a_did_key_root",
+  "product/integrations/auths-git-signing/src/workload_tests.rs#tampered_entries_and_foreign_fulcio_roots_are_not_verified",
+  "product/integrations/auths-git-signing/src/workload_tests.rs#one_verifier_accepts_three_principal_methods_under_one_root",
+]
+configuration-compiler = [
+  "product/integrations/auths-git-signing/src/methods.rs#method_files_are_strict_and_typed",
+  "product/integrations/auths-git-signing/src/methods.rs#rsa_jwk_members_encode_as_minimal_pkcs1_der",
+  "product/integrations/auths-git-signing/tests/cli_end_to_end.rs#workload_methods_travel_with_trust_and_bind_the_verifier",
 ]
 
 [packages.auths-github]

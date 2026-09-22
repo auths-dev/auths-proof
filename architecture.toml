@@ -247,10 +247,15 @@ allowed_workspace_dependencies = [
   "auths-did-key",
   "auths-model",
   "auths-multikey",
+  "auths-oidc-workload",
+  "auths-path-webpki",
   "auths-ports",
+  "auths-raw-key-core",
   "auths-registries",
   "auths-signature",
   "auths-signature-core",
+  "auths-signature-rsa-pkcs1-sha256",
+  "auths-sigstore-keyless",
   "auths-verifier",
 ]
 

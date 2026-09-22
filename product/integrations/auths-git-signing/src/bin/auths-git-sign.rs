@@ -8,7 +8,32 @@
 //! git config user.signingkey auths:<label>
 //! git config auths.repository <host/owner/name>
 //! git config auths.trustDir <path to trust material>   # for verify-commit
+//! git config auths.signer did-key                       # the default
 //! ```
+//!
+//! The signing label names the installed grant (`$AUTHS_GIT_HOME/grants/
+//! <label>.json`) and, for `did-key`, the local key.
+//!
+//! A GitHub Actions job signs as its OIDC workload identity instead:
+//!
+//! ```text
+//! # The job needs `permissions: id-token: write`.
+//! auths-git workload-principal --github-actions   # the principal to grant
+//! auths-git install-grant --workload --label ci ci.grant.json
+//! git config user.signingkey auths:ci
+//! git config auths.signer oidc-workload
+//! ```
+//!
+//! Each signature then uses a fresh in-memory Ed25519 key and a token from
+//! `ACTIONS_ID_TOKEN_REQUEST_URL` whose audience commits to that key. The
+//! token is embedded in the signature as evidence and is never printed.
+//! Verifiers accept such a signature only while the token is live (a few
+//! minutes), so this signer is for gates that verify as the job runs.
+//!
+//! `auths.signer sigstore-keyless` is refused: this build ships no Fulcio
+//! and Rekor client. Public-good Rekor signs its entries and checkpoints
+//! with DER-encoded ECDSA P-256, which the kernel's P-256 suite, restricted
+//! to fixed-width low-S signatures, never accepts.
 //!
 //! Signing never writes the `SIG_CREATED` status unless a signature was
 //! produced, so Git refuses to create the object on any failure. Verifying
@@ -18,10 +43,11 @@ use auths_git_signing::object::{MAX_PAYLOAD_BYTES, UnsignedPayload};
 use auths_git_signing::program::{ProgramRequest, parse_arguments, sign_created_status};
 use auths_git_signing::sign::{check_coverage, sign_payload};
 use auths_git_signing::tool::{
-    EnabledMethods, TrustMaterial, configured_repository, git_config, load_delegation, load_key,
-    now, state_home, timestamp,
+    EnabledMethods, SignerKind, TrustMaterial, configured_repository, git_config, load_delegation,
+    load_key, now, state_home, timestamp,
 };
 use auths_git_signing::verify::{GitVerification, verify_signature};
+use auths_git_signing::workload::{GithubActionsTokenSource, OidcWorkloadSigner};
 use std::io::{Read as _, Write as _};
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -43,11 +69,31 @@ fn sign(label: &str) -> Result<(), String> {
         .map_err(|error| error.code().to_owned())?;
     let repository = configured_repository().map_err(|error| error.to_string())?;
     let home = state_home().map_err(|error| error.to_string())?;
-    let key = load_key(&home, label).map_err(|error| error.to_string())?;
+    let kind = SignerKind::configured().map_err(|error| error.to_string())?;
     let delegation = load_delegation(&home, label).map_err(|error| error.to_string())?;
-    check_coverage(&delegation, &payload, &repository, now()).map_err(|error| error.to_string())?;
-    let envelope = sign_payload(&payload, &repository, &key, &delegation, now())
+    let signed_at = now();
+    check_coverage(&delegation, &payload, &repository, signed_at)
         .map_err(|error| error.to_string())?;
+    let envelope = match kind {
+        SignerKind::DidKey => {
+            let key = load_key(&home, label).map_err(|error| error.to_string())?;
+            sign_payload(&payload, &repository, &key, &delegation, signed_at)
+        }
+        SignerKind::OidcWorkload => {
+            let tokens = GithubActionsTokenSource::from_env().map_err(|error| error.to_string())?;
+            let signer = OidcWorkloadSigner::acquire(&tokens).map_err(|error| error.to_string())?;
+            sign_payload(&payload, &repository, &signer, &delegation, signed_at)
+        }
+        SignerKind::SigstoreKeyless => {
+            return Err(
+                "auths.signer sigstore-keyless is not available in this build: no \
+                        Fulcio and Rekor client ships, and public-good Rekor's DER-encoded \
+                        ECDSA signatures do not verify under the kernel's P-256 suite"
+                    .to_owned(),
+            );
+        }
+    }
+    .map_err(|error| error.to_string())?;
     let mut stdout = std::io::stdout().lock();
     stdout
         .write_all(envelope.to_armored().as_bytes())
@@ -66,7 +112,7 @@ fn verify(signature: &PathBuf) -> Result<GitVerification, String> {
         .ok_or_else(|| "set `git config auths.trustDir <trust material directory>`".to_owned())?;
     let material = TrustMaterial::from_directory(&PathBuf::from(directory))
         .map_err(|error| error.to_string())?;
-    let methods = EnabledMethods::new().map_err(|error| error.to_string())?;
+    let methods = EnabledMethods::from_material(&material).map_err(|error| error.to_string())?;
     let trust = methods
         .load_trust(&material)
         .map_err(|error| error.to_string())?;

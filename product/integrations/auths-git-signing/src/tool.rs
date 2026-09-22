@@ -15,6 +15,7 @@
 //!
 //! ```text
 //! trust.cbor            canonical trusted context
+//! methods.json          optional workload methods (see `methods`)
 //! revocations/*.sig     root-signed revocation records
 //! ```
 
@@ -22,13 +23,20 @@ use crate::action::RepositoryId;
 use crate::claims::{RegisteredClaim, registries};
 use crate::custody::{CustodyError, SoftwareKey};
 use crate::files::decode_delegation;
+use crate::methods::{
+    MAX_METHODS_FILE_BYTES, METHODS_FILE, MethodConfigError, MethodConfiguration,
+};
 use crate::sign::Delegation;
 use crate::verify::{GitTrust, TrustError};
 use auths_did_key::DidKeyMethod;
 use auths_model::Timestamp;
+use auths_oidc_workload::OidcWorkloadMethod;
+use auths_path_webpki::WebPkiPathVerifier;
 use auths_ports::{AssuranceClaimRule, PrincipalMethod, SignatureSuite};
 use auths_registries::ImmutableRegistries;
 use auths_signature::Ed25519Suite;
+use auths_signature_rsa_pkcs1_sha256::RsaPkcs1Sha256Suite;
+use auths_sigstore_keyless::SigstoreKeylessMethod;
 use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -72,6 +80,47 @@ pub enum ToolError {
     /// A delegation file is invalid.
     #[error("the installed grant is invalid")]
     Delegation,
+    /// The workload method configuration is invalid.
+    #[error("{0}")]
+    Methods(#[from] MethodConfigError),
+}
+
+/// How `auths-git-sign` signs (`git config auths.signer`).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SignerKind {
+    /// A local software `did:key` held under the signing label (default).
+    DidKey,
+    /// An ephemeral key bound to a GitHub Actions OIDC token.
+    OidcWorkload,
+    /// An ephemeral key with a Fulcio certificate and a Rekor entry.
+    SigstoreKeyless,
+}
+
+impl SignerKind {
+    /// Parses `did-key`, `oidc-workload`, or `sigstore-keyless`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ToolError::State`] for any other value.
+    pub fn parse(value: &str) -> Result<Self, ToolError> {
+        match value {
+            "did-key" => Ok(Self::DidKey),
+            "oidc-workload" => Ok(Self::OidcWorkload),
+            "sigstore-keyless" => Ok(Self::SigstoreKeyless),
+            other => Err(ToolError::State(format!(
+                "auths.signer must be did-key, oidc-workload, or sigstore-keyless, not {other}"
+            ))),
+        }
+    }
+
+    /// Returns the configured signer, `did-key` when unset.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ToolError::State`] for an unknown value.
+    pub fn configured() -> Result<Self, ToolError> {
+        git_config("auths.signer").map_or(Ok(Self::DidKey), |value| Self::parse(&value))
+    }
 }
 
 impl From<TrustError> for ToolError {
@@ -206,11 +255,14 @@ pub fn now() -> u64 {
         .map_or(0, |elapsed| elapsed.as_secs())
 }
 
-/// Raw trust material: the trusted context and revocation records.
+/// Raw trust material: the trusted context, the workload method
+/// configuration, and revocation records.
 #[derive(Clone, Debug)]
 pub struct TrustMaterial {
     /// Canonical trusted-context bytes.
     pub context: Vec<u8>,
+    /// `methods.json`, when present.
+    pub methods: Option<Vec<u8>>,
     /// Armored revocation records.
     pub revocations: Vec<Vec<u8>>,
 }
@@ -224,6 +276,12 @@ impl TrustMaterial {
     /// material.
     pub fn from_directory(directory: &Path) -> Result<Self, ToolError> {
         let context = read_bounded(&directory.join(TRUST_FILE), MAX_TRUST_FILE_BYTES)?;
+        let methods_path = directory.join(METHODS_FILE);
+        let methods = if methods_path.exists() {
+            Some(read_bounded(&methods_path, MAX_METHODS_FILE_BYTES)?)
+        } else {
+            None
+        };
         let mut revocations = Vec::new();
         let revocation_directory = directory.join(REVOCATIONS_DIRECTORY);
         if revocation_directory.is_dir() {
@@ -243,6 +301,7 @@ impl TrustMaterial {
         }
         Ok(Self {
             context,
+            methods,
             revocations,
         })
     }
@@ -257,6 +316,22 @@ impl TrustMaterial {
         if context.len() > MAX_TRUST_FILE_BYTES {
             return Err(ToolError::Trust("trust file exceeds its limit".to_owned()));
         }
+        let methods_path = format!("{TRUST_DIRECTORY}/{METHODS_FILE}");
+        let methods = if git(["ls-tree", "--name-only", commit, &methods_path])?.is_empty() {
+            None
+        } else {
+            let object = format!("{commit}:{methods_path}");
+            let size = String::from_utf8_lossy(&git(["cat-file", "-s", &object])?)
+                .trim()
+                .parse::<usize>()
+                .map_err(|_| ToolError::Trust("unreadable methods file size".to_owned()))?;
+            if size > MAX_METHODS_FILE_BYTES {
+                return Err(ToolError::Trust(
+                    "methods file exceeds its limit".to_owned(),
+                ));
+            }
+            Some(git(["show", &object])?)
+        };
         let listing = git([
             "ls-tree",
             "--name-only",
@@ -285,11 +360,14 @@ impl TrustMaterial {
         }
         Ok(Self {
             context,
+            methods,
             revocations,
         })
     }
 
-    /// Returns the lowercase SHA-256 of the trusted-context bytes.
+    /// Returns the lowercase SHA-256 of the trusted-context bytes. The
+    /// context's configuration commitment covers the method configuration,
+    /// so this digest identifies both.
     #[must_use]
     pub fn digest(&self) -> String {
         use sha2::{Digest as _, Sha256};
@@ -309,34 +387,114 @@ fn read_bounded(path: &Path, limit: usize) -> Result<Vec<u8>, ToolError> {
     fs::read(path).map_err(|error| ToolError::Trust(format!("{}: {error}", path.display())))
 }
 
-/// The principal methods and signature suites this build can execute.
+/// Assurance claims the OIDC workload adapter may emit.
+const OIDC_CLAIMS: &[&str] = &[
+    "oidc.issuer",
+    "oidc.subject",
+    "oidc.policy",
+    "oidc.repository",
+    "oidc.workflow",
+    "oidc.ref",
+    "oidc.environment",
+    "oidc.runner",
+    "oidc.actor",
+    "oidc.token-window",
+];
+/// Assurance claims the Sigstore keyless adapter may emit.
+const SIGSTORE_CLAIMS: &[&str] = &[
+    "oidc.issuer",
+    "oidc.subject",
+    "oidc.policy",
+    "sigstore.certificate",
+    "sigstore.transparency",
+];
+
+/// The principal methods, signature suites, and claim rules this build can
+/// execute.
 ///
-/// This is the only place that names them. Trust built with
-/// [`EnabledMethods::with_registries`] commits to exactly this set, and a
-/// verifier running a different set fails the configuration check.
+/// This is the only place that names them. `did:key` is always enabled; the
+/// OIDC workload and Sigstore keyless methods are enabled by the trust
+/// directory's `methods.json`. Trust built with [`EnabledMethods::with_sets`]
+/// commits to exactly this set, including every pinned issuer key, Fulcio
+/// root, and Rekor log key, and a verifier running a different set fails the
+/// configuration check.
 pub struct EnabledMethods {
     did_key: DidKeyMethod,
     ed25519: Ed25519Suite,
+    rsa: Option<RsaPkcs1Sha256Suite>,
+    path_verifier: WebPkiPathVerifier,
+    configuration: MethodConfiguration,
     claims: Vec<RegisteredClaim>,
 }
 
 impl EnabledMethods {
-    /// Constructs the compiled method set.
+    /// Constructs the `did:key`-only method set.
     ///
     /// # Errors
     ///
     /// Returns [`ToolError::State`] if a compiled registry identifier is
     /// invalid.
     pub fn new() -> Result<Self, ToolError> {
+        Self::from_configuration(None)
+    }
+
+    /// Constructs the method set the trust material enables.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ToolError::Methods`] for an invalid `methods.json`.
+    pub fn from_material(material: &TrustMaterial) -> Result<Self, ToolError> {
+        Self::from_configuration(material.methods.as_deref())
+    }
+
+    /// Constructs `did:key` plus the workload methods `methods` configures.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ToolError::Methods`] for an invalid configuration, and
+    /// [`ToolError::State`] if the configured methods cannot be assembled.
+    pub fn from_configuration(methods: Option<&[u8]>) -> Result<Self, ToolError> {
         let invalid = |_| ToolError::State("invalid compiled registry".to_owned());
-        Ok(Self {
+        let ed25519 = Ed25519Suite::new().map_err(invalid)?;
+        let rsa = RsaPkcs1Sha256Suite::new().map_err(invalid)?;
+        let configuration = methods
+            .map(|bytes| {
+                MethodConfiguration::parse(bytes, &[&ed25519 as &dyn SignatureSuite, &rsa])
+            })
+            .transpose()?
+            .unwrap_or_default();
+        let mut claim_ids: Vec<&str> = Vec::new();
+        if configuration.oidc_issuers.is_some() {
+            claim_ids.extend(OIDC_CLAIMS);
+        }
+        if configuration.sigstore.is_some() {
+            claim_ids.extend(SIGSTORE_CLAIMS);
+        }
+        claim_ids.sort_unstable();
+        claim_ids.dedup();
+        let claims = claim_ids
+            .into_iter()
+            .map(RegisteredClaim::new)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(invalid)?;
+        let enabled = Self {
             did_key: DidKeyMethod::new().map_err(invalid)?,
-            ed25519: Ed25519Suite::new().map_err(invalid)?,
-            claims: Vec::new(),
-        })
+            rsa: configuration.uses_rsa.then_some(rsa),
+            ed25519,
+            path_verifier: WebPkiPathVerifier::new(),
+            configuration,
+            claims,
+        };
+        enabled.with_registries(|_| ())?;
+        Ok(enabled)
     }
 
     /// Runs `use_sets` with the method, suite, and claim-rule slices.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ToolError::State`] if a configured method cannot be
+    /// constructed over the enabled suites.
     pub fn with_sets<R>(
         &self,
         use_sets: impl FnOnce(
@@ -344,15 +502,50 @@ impl EnabledMethods {
             &[&dyn SignatureSuite],
             &[&dyn AssuranceClaimRule],
         ) -> R,
-    ) -> R {
-        let methods = [&self.did_key as &dyn PrincipalMethod];
-        let suites = [&self.ed25519 as &dyn SignatureSuite];
+    ) -> Result<R, ToolError> {
+        let unavailable =
+            |name: &str| ToolError::State(format!("the configured {name} method is invalid"));
+        let mut suites: Vec<&dyn SignatureSuite> = vec![&self.ed25519];
+        if let Some(rsa) = &self.rsa {
+            suites.push(rsa);
+        }
+        let oidc = self
+            .configuration
+            .oidc_issuers
+            .as_ref()
+            .map(|issuers| OidcWorkloadMethod::new(issuers.clone(), &suites))
+            .transpose()
+            .map_err(|_| unavailable("oidc-workload"))?;
+        let sigstore = self
+            .configuration
+            .sigstore
+            .as_ref()
+            .map(|config| {
+                SigstoreKeylessMethod::new(
+                    config.anchors.clone(),
+                    &self.path_verifier,
+                    config.key_bindings.clone(),
+                    config.logs.clone(),
+                    config.issuers.clone(),
+                    config.leaf_validity,
+                    &suites,
+                )
+            })
+            .transpose()
+            .map_err(|_| unavailable("sigstore-keyless"))?;
+        let mut methods: Vec<&dyn PrincipalMethod> = vec![&self.did_key];
+        if let Some(oidc) = &oidc {
+            methods.push(oidc);
+        }
+        if let Some(sigstore) = &sigstore {
+            methods.push(sigstore);
+        }
         let claims: Vec<&dyn AssuranceClaimRule> = self
             .claims
             .iter()
             .map(|claim| claim as &dyn AssuranceClaimRule)
             .collect();
-        use_sets(&methods, &suites, &claims)
+        Ok(use_sets(&methods, &suites, &claims))
     }
 
     /// Runs `check` with the executable registries.
@@ -368,7 +561,7 @@ impl EnabledMethods {
             registries(methods, suites, claims)
                 .map(|registries| check(&registries))
                 .map_err(|_| ToolError::State("could not assemble registries".to_owned()))
-        })
+        })?
     }
 
     /// Decodes trust material and applies its revocations.

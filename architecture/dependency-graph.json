@@ -3431,6 +3431,34 @@
     {
       "source": "auths-git-signing",
       "source_layer": "product",
+      "target": "auths-oidc-workload",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
+      "target": "auths-path-webpki",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
       "target": "auths-ports",
       "target_layer": "core",
       "scope": "internal",
@@ -3447,6 +3475,18 @@
       "target_layer": "core",
       "scope": "internal",
       "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
+      "target": "auths-raw-key-core",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
       "target_condition": null,
       "optional": false,
       "default_features": false,
@@ -3475,6 +3515,34 @@
       "optional": false,
       "default_features": false,
       "features": []
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
+      "target": "auths-signature-rsa-pkcs1-sha256",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
+      "target": "auths-sigstore-keyless",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
     },
     {
       "source": "auths-git-signing",
@@ -3566,6 +3634,35 @@
       "optional": false,
       "default_features": true,
       "features": []
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
+      "target": "rcgen",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
+      "target": "reqwest",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "blocking",
+        "form",
+        "query",
+        "rustls"
+      ]
     },
     {
       "source": "auths-git-signing",

@@ -277,6 +277,7 @@ hex = "0.4.3"
 p256 = { version = "0.13.2", default-features = false, features = ["alloc", "ecdsa", "pkcs8"] }
 pyo3 = { version = "0.29.0", features = ["abi3-py39"] }
 proptest = "1.9.0"
+rcgen = "=0.13.2"
 serde = { version = "1.0.228", default-features = false, features = ["alloc", "derive"] }
 serde_json = { version = "1.0.149", default-features = false, features = ["alloc", "preserve_order"] }
 serde-wasm-bindgen = "0.6.5"

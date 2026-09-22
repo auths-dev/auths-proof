@@ -241,10 +241,15 @@ digraph auths_architecture {
   "auths-git-signing" -> "auths-did-key" [label="normal"];
   "auths-git-signing" -> "auths-model" [label="normal"];
   "auths-git-signing" -> "auths-multikey" [label="normal"];
+  "auths-git-signing" -> "auths-oidc-workload" [label="normal"];
+  "auths-git-signing" -> "auths-path-webpki" [label="normal"];
   "auths-git-signing" -> "auths-ports" [label="normal"];
   "auths-git-signing" -> "auths-raw-key" [label="dev"];
+  "auths-git-signing" -> "auths-raw-key-core" [label="normal"];
   "auths-git-signing" -> "auths-registries" [label="normal"];
   "auths-git-signing" -> "auths-signature" [label="normal"];
+  "auths-git-signing" -> "auths-signature-rsa-pkcs1-sha256" [label="normal"];
+  "auths-git-signing" -> "auths-sigstore-keyless" [label="normal"];
   "auths-git-signing" -> "auths-verifier" [label="normal"];
   "auths-github" -> "auths-bounded-policy" [label="normal"];
   "auths-github" -> "auths-lifecycle" [label="normal"];

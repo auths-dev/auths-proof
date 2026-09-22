@@ -11,7 +11,10 @@
 //!
 //! Principal methods are never named on the signing or verification path.
 //! A signer plugs in through [`sign::GitProofSigner`], and a verifier passes
-//! the executable registries for the methods it enables.
+//! the executable registries for the methods it enables. Local agents sign
+//! as `did:key` ([`custody`]); CI workloads sign as their OIDC workload
+//! identity ([`workload`]). The trust directory's `methods.json`
+//! ([`methods`]) enables the workload methods.
 //!
 //! The package must never depend on `auths-did-keri`, directly or
 //! transitively. `architecture.toml` enforces that with an explicit
@@ -24,6 +27,7 @@ pub mod claims;
 pub mod custody;
 pub mod envelope;
 pub mod files;
+pub mod methods;
 pub mod object;
 pub mod program;
 pub mod revoke;
@@ -31,6 +35,7 @@ pub mod sign;
 pub mod tool;
 pub mod trust;
 pub mod verify;
+pub mod workload;
 
 #[cfg(all(test, unix))]
 mod git_protocol_tests;
@@ -38,6 +43,10 @@ mod git_protocol_tests;
 mod verify_tests;
 #[cfg(all(test, unix))]
 mod workflow_tests;
+#[cfg(test)]
+mod workload_fakes;
+#[cfg(test)]
+mod workload_tests;
 
 pub use action::{
     ActionError, CommitSignatureAction, GitSignatureAction, RepositoryId, TagSignatureAction,
