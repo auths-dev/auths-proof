@@ -213,6 +213,25 @@ mod unix {
             .map_err(|_| "gateway.clock.unavailable")
     }
 
+    fn read_install_credential() -> Result<SecretBytes, &'static str> {
+        let mut bytes = Vec::new();
+        std::io::stdin()
+            .take(4_098)
+            .read_to_end(&mut bytes)
+            .map_err(|_| "gateway.install.credential-unavailable")?;
+        if bytes.last() == Some(&b'\n') {
+            bytes.pop();
+        }
+        if bytes.is_empty()
+            || bytes.len() > 4_096
+            || !bytes.iter().all(|byte| (0x21..=0x7e).contains(byte))
+        {
+            bytes.fill(0);
+            return Err("gateway.install.invalid-credential");
+        }
+        SecretBytes::new(bytes).map_err(|_| "gateway.install.invalid-credential")
+    }
+
     #[allow(clippy::too_many_arguments)]
     async fn install(
         state_dir: PathBuf,
@@ -250,20 +269,7 @@ mod unix {
         if account_label.is_empty() || account_label.len() > 256 {
             return Err("gateway.install.invalid-account-label");
         }
-        let mut secret = Vec::new();
-        std::io::stdin()
-            .take(4_098)
-            .read_to_end(&mut secret)
-            .map_err(|_| "gateway.install.credential-unavailable")?;
-        if secret.last() == Some(&b'\n') {
-            secret.pop();
-        }
-        if secret.is_empty()
-            || secret.len() > 4_096
-            || !secret.iter().all(|byte| (0x21..=0x7e).contains(byte))
-        {
-            return Err("gateway.install.invalid-credential");
-        }
+        let secret = read_install_credential()?;
         private_root(&state_dir)?;
         if state_dir.join("installation.json").exists() {
             return Err("gateway.install.already-installed");
@@ -274,11 +280,7 @@ mod unix {
             ConnectionId::generate().map_err(|_| "gateway.install.randomness-unavailable")?;
         let generation = NonZeroU64::new(1).ok_or("gateway.install.generation")?;
         let reference = credentials
-            .install(
-                &connection_id,
-                generation,
-                SecretBytes::new(secret).map_err(|_| "gateway.install.invalid-credential")?,
-            )
+            .install(&connection_id, generation, secret)
             .await
             .map_err(|_| "gateway.install.credential-store-unavailable")?;
         let profile = ConnectionProfile::new(
@@ -410,8 +412,9 @@ mod unix {
         if bytes.is_empty() || bytes.len() > MAX_FRAME_BYTES {
             return Err("gateway.ipc.invalid-size");
         }
+        let length = u32::try_from(bytes.len()).map_err(|_| "gateway.ipc.invalid-size")?;
         stream
-            .write_u32(bytes.len() as u32)
+            .write_u32(length)
             .await
             .map_err(|_| "gateway.ipc.write-failed")?;
         stream
@@ -624,11 +627,11 @@ mod unix {
     }
 
     async fn admin_command(
-        state_dir: PathBuf,
+        state_dir: &Path,
         command: &'static [u8],
         secret: Option<&[u8]>,
     ) -> Result<(), &'static str> {
-        private_root(&state_dir)?;
+        private_root(state_dir)?;
         let mut stream = UnixStream::connect(state_dir.join("admin.sock"))
             .await
             .map_err(|_| "gateway.admin.socket-unavailable")?;
@@ -639,7 +642,7 @@ mod unix {
         let bytes = read_frame(&mut stream).await?;
         let response: serde_json::Value =
             serde_json::from_slice(&bytes).map_err(|_| "gateway.admin.invalid-response")?;
-        println!("{}", response);
+        println!("{response}");
         if response.get("ok").and_then(serde_json::Value::as_bool) == Some(true) {
             Ok(())
         } else {
@@ -647,7 +650,7 @@ mod unix {
         }
     }
 
-    async fn rotate(state_dir: PathBuf, credential_stdin: bool) -> Result<(), &'static str> {
+    async fn rotate(state_dir: &Path, credential_stdin: bool) -> Result<(), &'static str> {
         if !credential_stdin || std::io::stdin().is_terminal() {
             return Err("gateway.admin.credential-must-be-piped-to-stdin");
         }
@@ -673,8 +676,8 @@ mod unix {
     fn doctor(
         state_dir: PathBuf,
         app_socket: PathBuf,
-        app_uid: u32,
-        app_gid: u32,
+        application_uid: u32,
+        probe_group: u32,
     ) -> Result<(), &'static str> {
         let state =
             fs::symlink_metadata(&state_dir).map_err(|_| "gateway.doctor.state-unavailable")?;
@@ -692,7 +695,7 @@ mod unix {
             || !app.file_type().is_socket()
             || !secure_socket_parent(&app_socket)
             || state.uid() != credential.uid()
-            || state.uid() == app_uid
+            || state.uid() == application_uid
         {
             return Err("gateway.doctor.isolation-not-established");
         }
@@ -707,8 +710,8 @@ mod unix {
         .arg(&state_dir)
         .arg("--app-socket")
         .arg(&app_socket)
-        .gid(app_gid)
-        .uid(app_uid)
+        .gid(probe_group)
+        .uid(application_uid)
         .status()
         .map_err(|_| "gateway.doctor.probe-unavailable")?;
         if !status.success() {
@@ -768,15 +771,15 @@ mod unix {
                 action,
             } => submit(app_socket, proof, action).await,
             Command::Disable { state_dir } => {
-                admin_command(state_dir, br#"{"command":"disable"}"#, None).await
+                admin_command(&state_dir, br#"{"command":"disable"}"#, None).await
             }
             Command::Revoke { state_dir } => {
-                admin_command(state_dir, br#"{"command":"revoke"}"#, None).await
+                admin_command(&state_dir, br#"{"command":"revoke"}"#, None).await
             }
             Command::Rotate {
                 state_dir,
                 credential_stdin,
-            } => rotate(state_dir, credential_stdin).await,
+            } => rotate(&state_dir, credential_stdin).await,
             Command::Doctor {
                 state_dir,
                 app_socket,
@@ -801,7 +804,7 @@ mod unix {
             ))
             .expect("service hostile cases");
             assert_eq!(cases["schema"], "auths.gateway-service-hostile/1");
-            assert_eq!(cases["cases"].as_array().expect("cases").len(), 14);
+            assert_eq!(cases["cases"].as_array().expect("cases").len(), 15);
             let canonical = serde_json::json!({
                 "schema": APP_REQUEST_SCHEMA,
                 "proof_b64": "AA",

@@ -167,6 +167,35 @@ fn distinct_uid_cannot_read_credential_or_reach_admin() {
     let app_socket = root.path().join("app.sock");
     let gateway = start_gateway(&state, &app_socket);
 
+    let mut competitor = RunningGateway(
+        Command::new(BIN)
+            .arg("serve")
+            .arg("--state-dir")
+            .arg(&state)
+            .arg("--app-socket")
+            .arg(&app_socket)
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("start competing gateway"),
+    );
+    let competitor_deadline = Instant::now() + Duration::from_secs(5);
+    let refusal = loop {
+        if let Some(status) = competitor.0.try_wait().expect("poll competing gateway") {
+            break status;
+        }
+        assert!(
+            Instant::now() < competitor_deadline,
+            "competing gateway unexpectedly kept serving"
+        );
+        thread::sleep(Duration::from_millis(20));
+    };
+    assert!(!refusal.success(), "competing gateway must not bind");
+    assert!(
+        UnixStream::connect(&app_socket).is_ok(),
+        "the first gateway must remain reachable"
+    );
+
     let group = Command::new("id").arg("-g").output().expect("runner group");
     assert!(group.status.success());
     let group = String::from_utf8(group.stdout).expect("numeric group");
