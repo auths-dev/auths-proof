@@ -8,6 +8,7 @@ use std::{
     fs,
     io::Write as _,
     os::unix::fs::PermissionsExt as _,
+    os::unix::net::UnixStream,
     path::Path,
     process::{Child, Command, Stdio},
     thread,
@@ -28,6 +29,55 @@ impl Drop for RunningGateway {
         let _ = self.0.kill();
         let _ = self.0.wait();
     }
+}
+
+fn start_gateway(state: &Path, app_socket: &Path) -> RunningGateway {
+    let child = Command::new(BIN)
+        .arg("serve")
+        .arg("--state-dir")
+        .arg(state)
+        .arg("--app-socket")
+        .arg(app_socket)
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("start gateway");
+    let gateway = RunningGateway(child);
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < deadline {
+        if UnixStream::connect(app_socket).is_ok()
+            && UnixStream::connect(state.join("admin.sock")).is_ok()
+        {
+            return gateway;
+        }
+        thread::sleep(Duration::from_millis(20));
+    }
+    panic!("gateway did not bind live sockets");
+}
+
+fn run_doctor(state: &Path, app_socket: &Path, group: &str) {
+    let doctor = Command::new("sudo")
+        .arg("-n")
+        .arg(BIN)
+        .arg("doctor")
+        .arg("--state-dir")
+        .arg(state)
+        .arg("--app-socket")
+        .arg(app_socket)
+        .arg("--app-uid")
+        .arg("65534")
+        .arg("--app-gid")
+        .arg(group)
+        .output()
+        .expect("run distinct-UID doctor");
+    assert!(
+        doctor.status.success(),
+        "distinct-UID boundary failed: {}",
+        String::from_utf8_lossy(&doctor.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&doctor.stdout).contains("gateway state and admin socket denied")
+    );
 }
 
 fn install(
@@ -115,50 +165,16 @@ fn distinct_uid_cannot_read_credential_or_reach_admin() {
         "synthetic gateway installation refused"
     );
     let app_socket = root.path().join("app.sock");
-    let gateway = Command::new(BIN)
-        .arg("serve")
-        .arg("--state-dir")
-        .arg(&state)
-        .arg("--app-socket")
-        .arg(&app_socket)
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("start gateway");
-    let _gateway = RunningGateway(gateway);
-    let deadline = Instant::now() + Duration::from_secs(5);
-    while (!app_socket.exists() || !state.join("admin.sock").exists()) && Instant::now() < deadline
-    {
-        thread::sleep(Duration::from_millis(20));
-    }
-    assert!(
-        app_socket.exists() && state.join("admin.sock").exists(),
-        "gateway did not bind sockets"
-    );
+    let gateway = start_gateway(&state, &app_socket);
 
     let group = Command::new("id").arg("-g").output().expect("runner group");
     assert!(group.status.success());
     let group = String::from_utf8(group.stdout).expect("numeric group");
-    let doctor = Command::new("sudo")
-        .arg("-n")
-        .arg(BIN)
-        .arg("doctor")
-        .arg("--state-dir")
-        .arg(&state)
-        .arg("--app-socket")
-        .arg(&app_socket)
-        .arg("--app-uid")
-        .arg("65534")
-        .arg("--app-gid")
-        .arg(group.trim())
-        .output()
-        .expect("run distinct-UID doctor");
-    assert!(
-        doctor.status.success(),
-        "distinct-UID boundary failed: {}",
-        String::from_utf8_lossy(&doctor.stderr)
-    );
-    assert!(
-        String::from_utf8_lossy(&doctor.stdout).contains("gateway state and admin socket denied")
-    );
+    run_doctor(&state, &app_socket, group.trim());
+
+    // A crash leaves socket inodes behind. The same installed authority can
+    // start again without deleting its credential or one-use claim state.
+    drop(gateway);
+    let _restarted = start_gateway(&state, &app_socket);
+    run_doctor(&state, &app_socket, group.trim());
 }

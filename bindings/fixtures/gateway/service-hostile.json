@@ -13,6 +13,7 @@
     {"id": "crash-after-claim", "decision": "unknown", "provider_entries": 0},
     {"id": "app-reads-gateway-secret", "decision": "access-denied", "provider_entries": 0},
     {"id": "app-connects-admin", "decision": "access-denied", "provider_entries": 0},
-    {"id": "invalid-trusted-context-install", "decision": "installation-refused", "provider_entries": 0}
+    {"id": "invalid-trusted-context-install", "decision": "installation-refused", "provider_entries": 0},
+    {"id": "restart-stale-sockets", "decision": "service-restarted", "provider_entries": 0}
   ]
 }

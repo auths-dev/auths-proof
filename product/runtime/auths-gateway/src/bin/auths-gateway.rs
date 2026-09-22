@@ -517,20 +517,55 @@ mod unix {
         }
     }
 
+    fn secure_socket_parent(path: &Path) -> bool {
+        let Some(parent) = path.parent() else {
+            return false;
+        };
+        let Ok(metadata) = fs::symlink_metadata(parent) else {
+            return false;
+        };
+        metadata.file_type().is_dir()
+            && metadata.uid() == rustix::process::geteuid().as_raw()
+            && metadata.permissions().mode() & 0o022 == 0
+            && fs::canonicalize(parent).is_ok_and(|canonical| canonical == parent)
+    }
+
+    fn bind_recovering_socket(
+        path: &Path,
+        code: &'static str,
+    ) -> Result<UnixListener, &'static str> {
+        match fs::symlink_metadata(path) {
+            Ok(metadata) => {
+                // Only replace a dead socket owned by this gateway inside its own
+                // non-writable directory. A live listener or foreign inode fails closed.
+                if !secure_socket_parent(path)
+                    || !metadata.file_type().is_socket()
+                    || metadata.uid() != rustix::process::geteuid().as_raw()
+                    || !matches!(
+                        std::os::unix::net::UnixStream::connect(path),
+                        Err(error) if error.kind() == std::io::ErrorKind::ConnectionRefused
+                    )
+                {
+                    return Err(code);
+                }
+                fs::remove_file(path).map_err(|_| code)?;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => return Err(code),
+        }
+        UnixListener::bind(path).map_err(|_| code)
+    }
+
     async fn serve(state_dir: PathBuf, app_socket: PathBuf) -> Result<(), &'static str> {
         let engine = Arc::new(load_engine(&state_dir)?);
-        if !app_socket.is_absolute() || app_socket.exists() {
+        if !app_socket.is_absolute() {
             return Err("gateway.serve.invalid-app-socket");
         }
         let admin_socket = state_dir.join("admin.sock");
-        if admin_socket.exists() {
-            return Err("gateway.serve.admin-socket-exists");
-        }
-        let app = UnixListener::bind(&app_socket).map_err(|_| "gateway.serve.app-bind-failed")?;
+        let app = bind_recovering_socket(&app_socket, "gateway.serve.app-bind-failed")?;
         fs::set_permissions(&app_socket, fs::Permissions::from_mode(0o660))
             .map_err(|_| "gateway.serve.app-permissions-failed")?;
-        let admin =
-            UnixListener::bind(&admin_socket).map_err(|_| "gateway.serve.admin-bind-failed")?;
+        let admin = bind_recovering_socket(&admin_socket, "gateway.serve.admin-bind-failed")?;
         fs::set_permissions(&admin_socket, fs::Permissions::from_mode(0o600))
             .map_err(|_| "gateway.serve.admin-permissions-failed")?;
         println!(
@@ -655,6 +690,7 @@ mod unix {
             || credential.permissions().mode() & 0o077 != 0
             || !admin.file_type().is_socket()
             || !app.file_type().is_socket()
+            || !secure_socket_parent(&app_socket)
             || state.uid() != credential.uid()
             || state.uid() == app_uid
         {
@@ -765,7 +801,7 @@ mod unix {
             ))
             .expect("service hostile cases");
             assert_eq!(cases["schema"], "auths.gateway-service-hostile/1");
-            assert_eq!(cases["cases"].as_array().expect("cases").len(), 13);
+            assert_eq!(cases["cases"].as_array().expect("cases").len(), 14);
             let canonical = serde_json::json!({
                 "schema": APP_REQUEST_SCHEMA,
                 "proof_b64": "AA",
