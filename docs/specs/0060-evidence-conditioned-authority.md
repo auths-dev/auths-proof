@@ -2,8 +2,10 @@
 
 - **Status:** Draft; written on owner direction before its epic starts
   (board §4, 2026-09-22). Steps 1–3 of §9 (formal model, fixtures, core)
-  are implemented; steps 4 and 5 are not. §13 records the readings the
-  kernel's real structure forced. This is a
+  are implemented. Step 4 (gateway observer) is implemented in
+  `product/runtime/auths-gateway` with repository-local tests; no hosted CI
+  result is cited yet. Step 5 is not done. §13 records the readings the
+  kernel's real structure forced; §14 records the gateway's. This is a
   **core protocol change**: new wire objects, a new critical extension, a
   trusted-context field, a port method, a verifier stage, and a new
   registry manifest.
@@ -371,4 +373,20 @@ The executable contract is `core/spec/v1/` and the canonical corpus.
 | 12 | §8: new manifest, trusted-context field, result reporting | — | The manifest is `34` repeated 32 times and the configuration commitment includes the new handler. The trusted context always carries key 14 (zero to 32 observer anchors, strictly ordered). The portable result is ABI 3 and always carries key 16, the sorted `(requirement ID, observation digest)` pairs. Thirty-three observer anchors are covered by a unit test, because every corpus context must decode. |
 | 13 | §3.2: requirements on grants | Critical-extension handlers do not see their carrier. | The handler validates `observation-requirement-v1` wherever it appears; the stage reads it only from grants, so on an action it has no effect. |
 | 14 | §7: predicates extractable and qualified | — | `observation_fresh`, `observation_subject_equal`, `fact_name_equal`, `fact_value_equal`, `uint_range_contains`, `member_values_contain`, `observation_fact`, `condition_value_holds`, `observation_condition_holds`, `observation_conditions_hold`, and `requirement_verdict` in `auths-model` are translated by the pinned Charon/Aeneas route and exercised by qualification cases. The Lean theorems are over the abstract model; a refinement proof linking them to the translated predicates is not yet written. |
+
+## 14. Gateway observer readings
+
+The gateway is the first observer. Where §5 left a choice open, the
+implementation fixed the narrowest reading below.
+
+| # | Question | Reading fixed |
+|---|---|---|
+| 1 | Observer key and principal | A `raw-key-v1` Ed25519 principal. The operator creates its 32-byte seed with `auths-gateway observer-init` in the gateway's private state directory (mode 0600, never overwritten, zeroized in memory); `observer-show` prints the anchor facts (principal, method, suite, both schemas, subject namespaces) and the verifier configuration to pin. The application socket never reaches the seed. Custody is software, not hardware. |
+| 2 | How the agent obtains observations | A separate closed application request, `auths.gateway-observe/1`, of kind `read-back` (exactly the recipe's observation path arguments) or `outcome` (a logical operation ID). The result carries the canonical signed observation and the attachment media type. The submit result is unchanged. Without a provisioned observer key every request is refused. |
+| 3 | Read-back subject and facts | Subject: the closed observation URL with the observed JSON pointer as fragment. Facts: `value` (a string of at most 256 bytes as text, a non-negative integer as uint; anything else is refused, not coerced) and `echo` when the recipe declares one and the record carries a string. `observed_at` is taken before the GET is sent. |
+| 4 | Outcome subject and facts | Subject: `auths-gateway://<namespace>/operations/<operation-id>`. Facts: `commitment` (lowercase hex text, so it compares with an MCP string argument) and `stage` (the stored stage in kebab-case, with an `attempting` record read as `unknown`, as the store reports it). No provider is contacted. |
+| 5 | Action facts | `mcp-arguments-v1` exposes top-level verified MCP arguments by name with the same typing as observed values, accepts only canonical `auths.mcp/2` actions, and is committed in the gateway's verifier configuration. The trusted context selects it as its profile policy. |
+| 6 | Binding an action-fact subject to the written record | The recipe gains an optional `preconditions` block: `read_back_subject` names the argument that must equal this request's read-back subject, and `verified` lists arguments no request renders, compared only by observation requirements. The gateway refuses a mismatched subject with `gateway.recipe.precondition-subject-mismatch` before any claim. Without it, an observation of one record could license a write to another. |
+| 7 | Evaluation time | The gateway verifies each submission at its own clock through `TrustedContext::for_request`, keeping the installed audience and challenge. Freshness against an install-time evaluation time would be meaningless. |
+| 8 | "Step N is indeterminate until step N−1 is provider-bound" | With no outcome observation attached, step N is `observation-missing` (indeterminate). With a signed outcome of another stage, it is `observation-condition-false` (denied), as §4.1 requires for an eligible observation that falsifies a condition. Either way step N's logical operation stays unclaimed, so a later action with a fresh observation can proceed. |
 
