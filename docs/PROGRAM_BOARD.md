@@ -43,6 +43,8 @@ Independent baseline: [How revolutionary is Auths Proof, really?](research/compe
 | 0057 Epic 2 — gateway + hostile proof | `codex/developer-profile-gateway` | done for the documented single-host development deployment; provider qualification and AP-SPEC-053 production-trust/adoption claims remain open | [Draft PR #125](https://github.com/auths-dev/auths-proof/pull/125) is green at `90973d64` in [exact-tip hosted CI](https://github.com/auths-dev/auths-proof/actions/runs/35690791146). Field-lab [commit `fbbeb58`](https://github.com/auths-dev/auths-field-lab/commit/fbbeb58) records the distinct-UID hostile run with three expected entries and zero unauthorized entries. Field-lab [commit `afa733b`](https://github.com/auths-dev/auths-field-lab/commit/afa733b) records fresh Airtable and Todoist writes through `--mode isolated`: both preflight isolation probes passed, Airtable returned `observed` with matching read-back, and Todoist returned `response-recorded` followed by independent task observation. The ledger limits this to the bound credentials, testkit trust, trusted Docker/host operator, and the single-host store. | Review the evidence and merge only on owner direction. The next newly unblocked evidence-program work is Epic 5; do not relabel this as provider qualification or production trust. |
 | 0057 Epic 3 — signing under any principal method | merged in PR #129 (`9de31899`) | engineering implemented, steps 1–6; not accepted (two human clauses) | Hosted green on Linux and macOS through the Git signing protocol workflow for steps 1–4 (runs 35782280920, and later ones at `31b640b8`, `1f46f0db`, `6598e168`); step 6 [action self-test](https://github.com/auths-dev/auths-proof/actions/runs/35789962132) green. Step 5 acceptance test verifies `did:key`, OIDC-workload, and Sigstore-keyless under one root; the live OIDC job and full CI on the final tip are recorded in the PR. Public-good Sigstore and complete workload policies are closed in code; hosted live runs are recorded in the PR. Open: dogfooding this repository and the two human adoption clauses (§9). | Owner: decide root-key custody and branch protection for this repository. |
 | 059 — commitment-bound provider evidence | merged in PR #130 (`4b53cd22`) | steps 1–4 implemented; step 5 (live Airtable through the isolated gateway) open | Local: `cargo test -p auths-gateway` (21 unit, 1 binary), Python and TypeScript gateway client tests, public-API inventories regenerated; hosted results recorded in the PR. The claim ledger states the claim and non-claim and that the live run is not done. | Operator: add a text field `auths_echo` to the disposable Airtable table, then run the isolated live journey with the updated field-lab recipe. |
+| 060 — evidence-conditioned authority | merged in PR #133 (`1dc213de`); clients in #134 | epic steps 1–4 implemented; §15–§17 amendments specified (SDK attach, Rust–Lean link, K-of-N observer quorum over operator domains, per-extension attenuation) | #133 full CI green on `91864f96`; Rust, Go, and TypeScript agree on 148 vectors; Lean attenuation theorems registered. | Implement §17 before Epic 5 (its delegation cases need it), then §16 and §15. Operator: live run. |
+| 0056 — OpenAPI-derived recipes (Epic 6) | `epic-6-openapi-derivation` | in progress | Corpus merged in PR #132 (`0640b6a7`). | Record the corpus prerequisite decisions in 0056's readings. |
 
 ## 2. Queued — single-agent order, with gates
 
@@ -61,17 +63,7 @@ gates do not shrink.
 
 ## 3. Backlog — one paragraph each; specs only where the owner directed
 
-- **059 Commitment-bound effect evidence.** Spec:
-  [AP-SPEC-059](specs/0059-commitment-bound-provider-evidence.md) (draft,
-  not started). A gateway-derived echo token in a provider field binds the
-  provider record to the exact authorized action; adds
-  `observed-by-provider`. The idempotency key stays per 053 (see the 059
-  §2 correction). Smallest of the three.
-- **060 Evidence-conditioned authority.** Spec:
-  [AP-SPEC-060](specs/0060-evidence-conditioned-authority.md) (draft, not
-  started; core wire change). Grants carry observation requirements (four
-  atoms, AND only) checked against signed, fresh observer statements;
-  observers are separate from authority anchors.
+- **059 / 060** are implemented and merged; see §1.
 - **061 End-to-end machine-checked verifier.** Spec:
   [AP-SPEC-061](specs/0061-end-to-end-machine-checked-verifier.md) (draft,
   not started). Phased codec → crypto link → control flow, with a claim
@@ -88,6 +80,13 @@ gates do not shrink.
   novelty-axis result. After 061.
 - **053 extensions the vendor corpus will demand:** typed query segments,
   omit-when-null bodies. Decide from Epic 4's rejection walls, not before.
+  Typed query segments also let 059 resolve an `unknown` create.
+- **Multi-host gateway.** The gateway's attempt, evidence, and outcome state
+  is single-host today. It moves to the qualified PostgreSQL store under
+  AP-SPEC-038 §9.1.
+- **Surface-area cost.** Formal, kernel, gateway, bindings, and signing have
+  grown faster than adoption. Before each new epic, name what it retires or
+  consolidates, and track the per-PR regeneration and freeze overhead.
 
 ## 4. Decisions log
 
@@ -112,6 +111,7 @@ gates do not shrink.
 | 2026-09-22 | Owner directed AP-SPEC-059, 060, and 061 to be written as drafts before their epics start, overriding the §5 "not doing" row, whose reason (no gateway) no longer holds. Writing a spec does not start an epic; the WIP limit still governs implementation. 059 keeps the 053 idempotency key and adds an echo field; 060 is a core wire change with observers separate from authority anchors; 061 phases 0–1 may start before 059/060. | 0059 §2, 0060 §3.3, 0061 §8 |
 | 2026-09-22 | Owner directed Epic 3 implementation to start, which waives Epic 1's done gate for Epic 3 only, as the owner did for the #123 merge; Epic 1's historical field-lab hosted gate and owner review stay unclaimed. Step 1 fixed the envelope frame with explicit lengths and raised the armored limit to 200 KiB so both fields fit at their limits. | 0058 §3.3, §3.6 |
 | 2026-09-23 | Owner directed 059 implementation after Epic 3 merged (#129). `observed-by-provider` requires the exact token and the verified value; the idempotency key stays per 053; readings are in 0059 §7.1. | 0059 §2, §7.1 |
+| 2026-09-23 | Owner directed spec amendments with no shortcuts: 0038 §9 (gateway, observer, and Git signing in the production substrate; separation of duties; K-of-N observer quorum); 0060 §15 (SDK attach, Rust–Lean link), §16 (K-of-N observer quorum counted per operator domain), and §17 (per-extension attenuation, which lets delegates add observation requirements and narrow policy bounds); 0025 §24 (the tranches Epic 5 needs, using §17). Epic 5 now depends on 0060 §17. | 0038 §9, 0060 §15–§17, 0025 §24 |
 
 ## 5. Not doing
 
