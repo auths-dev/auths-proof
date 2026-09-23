@@ -445,20 +445,24 @@ const maxDocumentBytes = 32 * 1024 * 1024;
 const maxDerivationBytes = 262_144;
 const editedByHand = "derived file edited by hand; re-derive, or delete derivation.json to declare the files hand-owned";
 
-let packagedWasm;
+let packagedDeriveWasm;
 
-/** Loads the packaged WASM module that owns derivation; every derived byte comes from it. */
-async function loadWasm() {
-  if (packagedWasm) return packagedWasm;
-  const loaded = await import(new URL("../wasm/auths_proof_wasm.js", import.meta.url).href);
+/**
+ * Loads the packaged derivation WASM module on first use; every derived byte
+ * comes from it. It is separate from the runtime verifier module, which never
+ * carries the authoring-only mapper.
+ */
+async function loadDeriveWasm() {
+  if (packagedDeriveWasm) return packagedDeriveWasm;
+  const loaded = await import(new URL("../wasm/auths_openapi_derive_wasm.js", import.meta.url).href);
   if (typeof loaded.default === "function") {
-    await loaded.default({ module_or_path: await readFile(new URL("../wasm/auths_proof_wasm_bg.wasm", import.meta.url)) });
+    await loaded.default({ module_or_path: await readFile(new URL("../wasm/auths_openapi_derive_wasm_bg.wasm", import.meta.url)) });
   }
   if (typeof loaded.deriveOpenapiOperationV1 !== "function" || typeof loaded.readDerivationRecordV1 !== "function") {
-    throw new Error("the packaged WASM module does not export the derivation functions");
+    throw new Error("the packaged derivation WASM module does not export the derivation functions");
   }
-  packagedWasm = loaded;
-  return packagedWasm;
+  packagedDeriveWasm = loaded;
+  return packagedDeriveWasm;
 }
 
 /** Reads a derivation.json through the native reader both CLIs share. */
@@ -467,7 +471,7 @@ async function readDerivation(record) {
   if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size > maxDerivationBytes) {
     throw new Error("derivation.json must be a bounded regular file");
   }
-  const wasm = await loadWasm();
+  const wasm = await loadDeriveWasm();
   const result = JSON.parse(wasm.readDerivationRecordV1(new Uint8Array(await readFile(record))));
   if (!result || result.schema !== recordResultSchema) throw new Error("native derivation record result is invalid");
   if (result.ok !== true) throw new Error(String(result.message ?? "derivation.json is invalid"));
@@ -506,7 +510,7 @@ export async function derivedEdits(directory) {
 
 /** Runs the shared mapper; the result carries files or diagnostics. */
 export async function deriveOperation(document, documentName, args) {
-  const wasm = await loadWasm();
+  const wasm = await loadDeriveWasm();
   const result = JSON.parse(wasm.deriveOpenapiOperationV1(document, documentName, [...args]));
   if (!result || result.schema !== deriveResultSchema || !Array.isArray(result.lines)) {
     throw new Error("native derivation result is invalid");

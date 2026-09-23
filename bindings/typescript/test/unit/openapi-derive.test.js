@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -53,6 +53,22 @@ test("the WASM route reproduces every derivation corpus case", async () => {
     }
   }
   assert.ok(skipped <= 7, "only vendor cases may be skipped");
+});
+
+test("the derive module is separate from the runtime verifier module", async () => {
+  const abi = JSON.parse(await readFile(new URL("../../../wasm/auths-openapi-derive-wasm/derive-abi-v1.json",
+    import.meta.url), "utf8"));
+  const derive = await import(new URL("../../wasm/auths_openapi_derive_wasm.js", import.meta.url).href);
+  const published = Object.keys(derive).filter(name => name !== "default" && name !== "initSync").sort();
+  assert.deepEqual(published, [...abi.exports, ...abi.types].sort());
+  const runtime = await import(new URL("../../wasm/auths_proof_wasm.js", import.meta.url).href);
+  for (const name of abi.exports) assert.equal(name in runtime, false, `runtime module exports ${name}`);
+  const dist = fileURLToPath(new URL("../../dist/", import.meta.url));
+  for (const entry of await readdir(dist, { recursive: true, withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const source = await readFile(join(entry.parentPath ?? entry.path, entry.name), "utf8");
+    assert.equal(source.includes("auths_openapi_derive"), false, `${entry.name} reaches the derive module`);
+  }
 });
 
 function run(...args) {

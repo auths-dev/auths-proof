@@ -6,6 +6,7 @@ on:
       - "bindings/typescript/**"
       - "bindings/fixtures/openapi-derivation/**"
       - "product/tools/auths-openapi-derive/**"
+      - "bindings/wasm/auths-openapi-derive-wasm/**"
       - ".github/workflows/typescript-sdk.yml"
   push:
     branches: [main]
@@ -13,6 +14,7 @@ on:
       - "bindings/typescript/**"
       - "bindings/fixtures/openapi-derivation/**"
       - "product/tools/auths-openapi-derive/**"
+      - "bindings/wasm/auths-openapi-derive-wasm/**"
       - ".github/workflows/typescript-sdk.yml"
   workflow_dispatch:
 
