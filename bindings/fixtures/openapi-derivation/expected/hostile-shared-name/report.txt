@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.ambiguous-override
+    --literal id names more than one construct, such as a parameter and a body property with the same name; no spelling separates them, so derive this operation by hand
+nothing written

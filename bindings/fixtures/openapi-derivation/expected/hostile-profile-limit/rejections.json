@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.profile-limit",
+    "pointer": "#/paths/~1profile-limit/post",
+    "overrides": []
+  }
+]

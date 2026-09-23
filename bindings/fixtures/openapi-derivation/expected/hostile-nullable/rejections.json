@@ -1,0 +1,9 @@
+[
+  {
+    "code": "contract.derive.compiler-limit",
+    "pointer": "#/paths/~1nullable/post/requestBody/content/application~1json/schema/properties/note",
+    "overrides": [
+      "--pick note=string"
+    ]
+  }
+]

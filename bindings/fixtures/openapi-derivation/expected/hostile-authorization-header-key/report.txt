@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.credential-scheme-out-of-scope  #/components/securitySchemes/AuthorizationKey
+    security scheme "AuthorizationKey" is apiKey in header named "Authorization"; only bearer and one non-reserved API-key header are in scope; no override exists
+nothing written

@@ -1,0 +1,10 @@
+  document:   sha256:ac5abcb1297d6be0709a8f5d7799d0384148dcf2ae7bf719f72f7ccd3e7e1d5f  (todoist.json, 1205196 bytes, OpenAPI 3.1.0)
+  operation:  POST /api/v1/tasks  (create_task_api_v1_tasks_post)
+  security:   bearer (--security-scheme; the document declares none)
+  arguments:  4 fields (1 derived + 3 gateway binding), worst-case 2775 bytes canonical JSON
+  recipe:     POST https://api.todoist.com/api/v1/tasks  body: application/json
+  omitted:    description (--omit) project_id (--omit) section_id (--omit) parent_id (--omit) order (--omit) labels (--omit) priority (--omit) assignee_id (--omit) due_string (--omit) due_date (--omit) due_datetime (--omit) due_lang (--omit) duration (--omit) duration_unit (--omit) deadline_date (--omit)
+  overrides:  --max-bytes content=256 --omit assignee_id --omit deadline_date --omit description --omit due_date --omit due_datetime --omit due_lang --omit due_string --omit duration --omit duration_unit --omit labels --omit order --omit parent_id --omit priority --omit project_id --omit section_id --closed . --security-scheme bearer --tool create_task
+  wrote:      profile.toml recipe.json derivation.json
+  next:       auths-profile generate profile.toml && auths gateway recipe check --recipe recipe.json --profile-lock profile.lock.json
+  claim:      derived shape only; provider effect unqualified

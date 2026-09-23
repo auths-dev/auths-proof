@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.query-parameter  #/paths/~1required-query/post/parameters/0
+    query parameter "q" has no form in the recipe language; no override exists
+nothing written

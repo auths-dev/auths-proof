@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.name-collision  #/paths/~1collision/post/requestBody/content/application~1json/schema/properties/operation_id
+    argument "operation_id" is derived twice or collides with a gateway binding field; no override exists
+nothing written

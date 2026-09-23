@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.slice-limit  #/paths/~1slice/post
+    the operation with every reference inlined exceeds 256 KiB; no override exists
+nothing written

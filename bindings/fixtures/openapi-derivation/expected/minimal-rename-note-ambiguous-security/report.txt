@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.ambiguous-security  #/paths/~1notes~1{note_id}/patch/security
+    2 security requirements apply; one must be selected; pass --security NotesKey or --security NotesBearer
+nothing written

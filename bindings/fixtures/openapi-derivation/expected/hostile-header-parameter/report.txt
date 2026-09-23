@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.unsupported-parameter  #/paths/~1header/post/parameters/0
+    header parameter "X-Trace" has no form in the recipe language; no override exists
+nothing written

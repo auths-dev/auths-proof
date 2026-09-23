@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.compiler-limit  #/paths/~1nullable/post/requestBody/content/application~1json/schema/properties/note
+    note is a nullable string; the gateway recipe compiler has no nullable field, so a derived request always sends a value; pass --pick note=string
+nothing written

@@ -1,0 +1,67 @@
+{
+  "schema": "auths.openapi-derivation/1",
+  "document": {
+    "sha256": "b133ad4f209093da4d3724e5a504d2cf458160db15a38a04af48f22b330be8ef",
+    "bytes": 1408,
+    "openapi": "3.1.0"
+  },
+  "operation": {
+    "operation_id": "create_task_api_v1_tasks_post",
+    "method": "POST",
+    "path": "/api/v1/tasks",
+    "pointer": "#/paths/~1api~1v1~1tasks/post"
+  },
+  "server": {
+    "listed": "https://api.todoist.com/",
+    "origin": "https://api.todoist.com",
+    "base_path": []
+  },
+  "security": {
+    "scheme": null,
+    "type": "http/bearer",
+    "source": "--security-scheme",
+    "acquisition": "static-credential",
+    "credential": {
+      "kind": "bearer"
+    }
+  },
+  "profile": {
+    "name": "todoist-gateway-task-create",
+    "service": "todoist-gateway-demo",
+    "tool": "create_task",
+    "version": 1,
+    "operator_namespace": "todoist-demo"
+  },
+  "arguments": [
+    {
+      "name": "content",
+      "pointer": "#/components/schemas/Body_37565102/properties/content"
+    }
+  ],
+  "overrides": [
+    "--max-bytes content=256",
+    "--omit description",
+    "--omit priority",
+    "--closed .",
+    "--security-scheme bearer",
+    "--tool create_task"
+  ],
+  "omitted": [
+    {
+      "pointer": "#/components/schemas/Body_37565102/properties/description",
+      "path": "description",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/components/schemas/Body_37565102/properties/priority",
+      "path": "priority",
+      "reason": "--omit"
+    }
+  ],
+  "unenforced": [],
+  "generator_format": 2,
+  "outputs": {
+    "profile.toml": "c3b195032c26857ee2a6e10ca8f6de135d239be6c3757f402ca657aa3de74708",
+    "recipe.json": "2a924a7a68e3cd3b22ab058d48675615206fa38e252b1049c68a8eab86224c1e"
+  }
+}

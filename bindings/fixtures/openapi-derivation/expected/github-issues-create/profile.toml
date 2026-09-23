@@ -1,0 +1,38 @@
+# Derived by auths-profile derive; derivation.json records the source and overrides.
+[profile]
+name = "github-gateway-issue-create"
+version = 1
+service = "github-gateway-demo"
+tool = "issues_create"
+
+[arguments]
+type = "object"
+
+[arguments.fields.operator_namespace]
+type = "enum"
+variants = ["github-demo"]
+
+[arguments.fields.operation_id]
+type = "string"
+min_bytes = 1
+max_bytes = 128
+
+[arguments.fields.recipe_digest]
+type = "string"
+min_bytes = 64
+max_bytes = 64
+
+[arguments.fields.owner]
+type = "string"
+min_bytes = 1
+max_bytes = 64
+
+[arguments.fields.repo]
+type = "string"
+min_bytes = 1
+max_bytes = 128
+
+[arguments.fields.title]
+type = "string"
+min_bytes = 0
+max_bytes = 256

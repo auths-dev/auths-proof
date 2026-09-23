@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.uncredentialed-operation  #/paths/~1no-auth/post/security
+    the document declares that this operation needs no credential; the gateway sends only credentialed requests; no override exists
+nothing written

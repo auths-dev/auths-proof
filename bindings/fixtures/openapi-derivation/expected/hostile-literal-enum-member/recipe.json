@@ -1,0 +1,36 @@
+{
+  "schema": "auths.gateway-recipe-source/1",
+  "profile_schema_digest": "245011e2bdf4718d913d7d1bb3758dba223efdd23065a3828efec232bd962b82",
+  "service": "hostile",
+  "tool": "hLiteralEnum_v1",
+  "operator_namespace": "hostile",
+  "credential": {
+    "kind": "bearer"
+  },
+  "origin": "https://api.hostile.example",
+  "write": {
+    "method": "POST",
+    "path": [
+      {
+        "kind": "fixed",
+        "value": "literal-enum"
+      }
+    ],
+    "body": {
+      "kind": "json",
+      "value": {
+        "kind": "object",
+        "fields": {
+          "p": {
+            "kind": "integer",
+            "value": 2
+          },
+          "a": {
+            "kind": "field",
+            "name": "a"
+          }
+        }
+      }
+    }
+  }
+}

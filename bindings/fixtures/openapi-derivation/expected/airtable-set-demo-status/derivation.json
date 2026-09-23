@@ -1,0 +1,76 @@
+{
+  "schema": "auths.openapi-derivation/1",
+  "document": {
+    "sha256": "90a1724a18d3b6500ba6740fdc9fb7d9e6c5c631b6981ce5154f2c09f2780cb4",
+    "bytes": 1924,
+    "openapi": "3.1.0"
+  },
+  "operation": {
+    "operation_id": "set_demo_status",
+    "method": "PATCH",
+    "path": "/appTEST0000000001/tblTEST0000000001/{record_id}",
+    "pointer": "#/paths/~1appTEST0000000001~1tblTEST0000000001~1{record_id}/patch"
+  },
+  "server": {
+    "listed": "https://api.airtable.com/v0",
+    "origin": "https://api.airtable.com",
+    "base_path": [
+      "v0"
+    ]
+  },
+  "security": {
+    "scheme": "PersonalAccessToken",
+    "type": "http/bearer",
+    "source": "document",
+    "acquisition": "static-credential",
+    "credential": {
+      "kind": "bearer"
+    }
+  },
+  "profile": {
+    "name": "airtable-gateway-record-update",
+    "service": "airtable-gateway-demo",
+    "tool": "set_demo_status",
+    "version": 1,
+    "operator_namespace": "airtable-demo"
+  },
+  "arguments": [
+    {
+      "name": "record_id",
+      "pointer": "#/paths/~1appTEST0000000001~1tblTEST0000000001~1{record_id}/patch/parameters/0/schema"
+    },
+    {
+      "name": "fields_DemoStatus",
+      "pointer": "#/paths/~1appTEST0000000001~1tblTEST0000000001~1{record_id}/patch/requestBody/content/application~1json/schema/properties/fields/properties/DemoStatus"
+    }
+  ],
+  "overrides": [
+    "--omit returnFieldsByFieldId",
+    "--omit typecast"
+  ],
+  "omitted": [
+    {
+      "pointer": "#/paths/~1appTEST0000000001~1tblTEST0000000001~1{record_id}/patch/parameters/1",
+      "path": "returnFieldsByFieldId",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/paths/~1appTEST0000000001~1tblTEST0000000001~1{record_id}/patch/requestBody/content/application~1json/schema/properties/typecast",
+      "path": "typecast",
+      "reason": "--omit"
+    }
+  ],
+  "unenforced": [
+    {
+      "pointer": "#/paths/~1appTEST0000000001~1tblTEST0000000001~1{record_id}/patch/parameters/0/schema/minLength",
+      "path": "record_id",
+      "keyword": "minLength",
+      "note": "minLength counts characters and min_bytes counts UTF-8 bytes; a multibyte value with fewer characters is admitted and left to the provider"
+    }
+  ],
+  "generator_format": 2,
+  "outputs": {
+    "profile.toml": "52695f1294af65a77681c0c316b23e646d8fcdef1d715bc43c411a543d31c5a3",
+    "recipe.json": "4433c4dc8973f129e1109b789bc3ba8d9b856fa337f7392cfb060bfed35527a3"
+  }
+}

@@ -1,0 +1,10 @@
+  document:   sha256:9b3fe0902e71ad60004949c1b4bef39b79503c39506466c283a613f9fa65aea9  (openai.json, 4235459 bytes, OpenAPI 3.1.0)
+  operation:  POST /vector_stores  (createVectorStore)
+  security:   bearer (http/bearer "ApiKeyAuth")
+  arguments:  4 fields (1 derived + 3 gateway binding), worst-case 2003 bytes canonical JSON
+  recipe:     POST https://api.openai.com/v1/vector_stores  body: application/json
+  omitted:    file_ids (--omit) description (--omit) expires_after (--omit) chunking_strategy (--omit) metadata (--omit)
+  overrides:  --max-bytes name=128 --require name --omit chunking_strategy --omit description --omit expires_after --omit file_ids --omit metadata
+  wrote:      profile.toml recipe.json derivation.json
+  next:       auths-profile generate profile.toml && auths gateway recipe check --recipe recipe.json --profile-lock profile.lock.json
+  claim:      derived shape only; provider effect unqualified

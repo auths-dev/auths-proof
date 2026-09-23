@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.remote-ref  #/paths/~1remote-ref/post/requestBody/content/application~1json/schema/$ref
+    reference "https://schemas.evil.example/body.json" leaves the document; only local #/ references are read; no override exists
+nothing written

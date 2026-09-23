@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.document-invalid  #
+    the document is not valid bounded JSON: nesting exceeds 32 levels at line 1 column 63; no override exists
+nothing written

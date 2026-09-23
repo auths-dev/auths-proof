@@ -17,7 +17,7 @@ What was checked, and what was not:
 | Operation slice size and `$ref` count | measured (method in `cases.json`); all three are far below the 256 KiB and 256-resolution limits |
 | Tool names against the packaged profile grammar | checked; only GitHub's `issues/create` fails |
 | Candidates against the recipe compiler's origin and binding-field rules | read from the compiler source; gaps recorded as findings |
-| A derivation mapper, `profile generate`, or `gateway recipe check` | **not checked**: none of these has been run on the candidates |
+| A derivation mapper, `profile generate`, or `gateway recipe check` | checked on 2026-09-23: the native mapper reproduces each rejection wall's pointers, the candidate override sets derive, and every derived recipe compiles; exact outputs are in `../openapi-derivation/` |
 | Provider behavior or effects | **not checked** |
 
 The upstream documents are not committed. GitHub's pinned description is
@@ -35,11 +35,13 @@ what the vendor operation can do. The proposed overrides are not accepted
 recipes. Provider effects and read-back meaning are not part of derivation and
 are not part of this corpus.
 
-Open issues for the mapper are listed under `findings` in `cases.json`: the
-unspecified `--closed` root spelling; the character-versus-byte minimum; the
-OpenAPI 3.1 `anyOf [T, null]` nullable spelling; server base paths that the
-recipe compiler's origin rule does not accept; and the gateway binding fields
-that the compiler requires but the argument-mapping table does not produce.
+The mapper findings listed under `findings` in `cases.json` are resolved. The
+root body object is spelled `.` in override paths, so the candidate sets use
+`--closed .`. `minLength` maps to `min_bytes` and is recorded as unenforced
+when it exceeds 1. `anyOf [T, null]` is recognized as nullable. Server base
+paths become fixed leading segments. Derivation writes the gateway binding
+fields. AP-SPEC-056 records each reading, and the derivation corpus in
+`../openapi-derivation/` holds the resulting outputs.
 
 `bindings/python/tests/test_openapi_corpus.py` checks the manifest's shape and
 internal consistency. When `AUTHS_OPENAPI_CORPUS_DIR` names a directory that

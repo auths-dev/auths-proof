@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.ref-limit  #/paths/~1many-refs/post/requestBody/content/application~1json/schema/properties/p256/$ref
+    the operation needs more than 256 reference resolutions; no override exists
+nothing written

@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.ref-limit",
+    "pointer": "#/paths/~1many-refs/post/requestBody/content/application~1json/schema/properties/p256/$ref",
+    "overrides": []
+  }
+]

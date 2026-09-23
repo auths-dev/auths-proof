@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.unsupported-construct",
+    "pointer": "#/paths/~1all-of/post/requestBody/content/application~1json/schema/allOf",
+    "overrides": []
+  }
+]

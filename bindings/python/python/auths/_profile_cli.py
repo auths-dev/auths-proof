@@ -447,7 +447,8 @@ def profile_diff(path: Path) -> dict[str, object]:
     if target.is_symlink():
         raise ValueError("profile lock cannot be a symlink")
     if not target.exists():
-        return {"status": "new", "stage": "contract", "code": "profile.contract.new",
+        return {"derived_edits": list(derived_edits(path.parent)),
+                "status": "new", "stage": "contract", "code": "profile.contract.new",
                 "changed_fields": [], "changes": [], "action_identity_changed": True,
                 "next_action": "Run profile generate."}
     try:
@@ -469,6 +470,7 @@ def profile_diff(path: Path) -> dict[str, object]:
     same_version_drift = old.get("version") == contract.version and old != current
     status = "version-required" if same_version_drift else "changed" if old != current else "current"
     return {
+        "derived_edits": list(derived_edits(path.parent)),
         "status": status, "stage": "contract",
         "code": f"profile.contract.{status}",
         "old_version": old.get("version"), "new_version": contract.version,
@@ -591,9 +593,165 @@ def write_profile(directory: Path, contract: ProfileContract, *, seal: bool = Tr
         target.write_text(contents, encoding="utf-8")
 
 
+_DERIVE_RESULT_SCHEMA = "auths.openapi-derive-result/1"
+_RECORD_RESULT_SCHEMA = "auths.openapi-derivation-record-result/1"
+_DERIVED_FILES = ("profile.toml", "recipe.json", "derivation.json")
+_MAX_DOCUMENT_BYTES = 32 * 1024 * 1024
+_MAX_DERIVATION_BYTES = 262_144
+_EDITED_BY_HAND = "derived file edited by hand; re-derive, or delete derivation.json to declare the files hand-owned"
+
+
+def _read_derivation(record: Path) -> tuple[int, dict[str, str]]:
+    """Read a derivation.json through the native reader both CLIs share."""
+    from . import _native
+
+    if record.is_symlink() or not record.is_file() or record.stat().st_size > _MAX_DERIVATION_BYTES:
+        raise ValueError("derivation.json must be a bounded regular file")
+    result = cast(object, json.loads(_native.read_derivation_record_v1(record.read_bytes())))
+    if not isinstance(result, dict) or cast(dict[str, object], result).get("schema") != _RECORD_RESULT_SCHEMA:
+        raise ValueError("native derivation record result is invalid")
+    fields = cast(dict[str, object], result)
+    if fields.get("ok") is not True:
+        raise ValueError(str(fields.get("message", "derivation.json is invalid")))
+    version, outputs = fields.get("version"), fields.get("outputs")
+    if type(version) is not int or not isinstance(outputs, dict):
+        raise ValueError("native derivation record result is invalid")
+    digests = {name: cast(dict[str, object], outputs).get(name) for name in ("profile.toml", "recipe.json")}
+    if not all(isinstance(value, str) for value in digests.values()):
+        raise ValueError("native derivation record result is invalid")
+    return version, cast(dict[str, str], digests)
+
+
+def derived_edits(directory: Path) -> tuple[str, ...]:
+    """Name each derived file whose bytes no longer match derivation.json."""
+    record = directory / "derivation.json"
+    if not record.exists() and not record.is_symlink():
+        return ()
+    _, outputs = _read_derivation(record)
+    edited: list[str] = []
+    for name, expected in outputs.items():
+        target = directory / name
+        if (
+            target.is_symlink() or not target.is_file()
+            or target.stat().st_size > _MAX_DERIVATION_BYTES
+            or hashlib.sha256(target.read_bytes()).hexdigest() != expected
+        ):
+            edited.append(name)
+    return tuple(edited)
+
+
+def derive_operation(document: bytes, document_name: str, arguments: Sequence[str]) -> dict[str, object]:
+    """Run the native mapper; the result carries files or diagnostics."""
+    from . import _native
+
+    result = cast(object, json.loads(_native.derive_openapi_operation_v1(
+        document, document_name, list(arguments),
+    )))
+    if not isinstance(result, dict) or cast(dict[str, object], result).get("schema") != _DERIVE_RESULT_SCHEMA:
+        raise ValueError("native derivation result is invalid")
+    return cast(dict[str, object], result)
+
+
+def _read_document(path: Path) -> bytes:
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("contract.derive.document-unreadable: --openapi must name a local regular file, not a symlink")
+    if not 0 < path.stat().st_size <= _MAX_DOCUMENT_BYTES:
+        raise ValueError("contract.derive.document-unreadable: the document must be 1 byte to 32 MiB")
+    document = path.read_bytes()
+    if not 0 < len(document) <= _MAX_DOCUMENT_BYTES:
+        raise ValueError("contract.derive.document-unreadable: the document changed size while it was read")
+    return document
+
+
+def _check_derive_target(directory: Path, derivation: str, version: int) -> bool:
+    """Refuse an unsafe target; return True when the files already match."""
+    if directory.is_symlink():
+        raise ValueError("contract.derive.directory-not-derived: the output directory cannot be a symlink")
+    if not directory.exists():
+        return False
+    for name in _DERIVED_FILES:
+        if (directory / name).is_symlink():
+            raise ValueError(f"contract.derive.directory-not-derived: {name} cannot be a symlink")
+    record = directory / "derivation.json"
+    if not record.exists():
+        if any((directory / name).exists() for name in ("profile.toml", "recipe.json")):
+            raise ValueError(
+                "contract.derive.directory-not-derived: profile.toml or recipe.json exists without "
+                "derivation.json; derive into an empty directory or remove the hand-owned files"
+            )
+        return False
+    old_version, _ = _read_derivation(record)
+    edited = derived_edits(directory)
+    if edited:
+        raise ValueError(
+            f"contract.derive.derived-edited: {', '.join(edited)} changed since the last derivation; "
+            "delete derivation.json to keep the hand edits, or restore the files before re-deriving"
+        )
+    if record.read_bytes() == derivation.encode("utf-8"):
+        return True
+    if version <= old_version:
+        raise ValueError(
+            f"contract.derive.version-required: the derivation changed under profile version {old_version}; "
+            f"pass --version {old_version + 1}"
+        )
+    return False
+
+
+def _derive_main(argv: Sequence[str]) -> int:
+    rest: list[str] = []
+    openapi: Path | None = None
+    directory = Path(".")
+    values = list(argv)
+    index = 0
+    while index < len(values):
+        flag = values[index]
+        value = values[index + 1] if index + 1 < len(values) else None
+        if flag in {"--openapi", "--directory"}:
+            if value is None or value.startswith("--"):
+                raise ValueError(f"contract.derive.invalid-request: {flag} needs a value")
+            if flag == "--openapi":
+                if openapi is not None:
+                    raise ValueError("contract.derive.invalid-request: --openapi is given twice")
+                openapi = Path(value)
+            else:
+                directory = Path(value)
+            index += 2
+            continue
+        rest.append(flag)
+        index += 1
+    if openapi is None:
+        raise ValueError("contract.derive.invalid-request: --openapi is required")
+    result = derive_operation(_read_document(openapi), openapi.name, rest)
+    lines = result.get("lines")
+    if not isinstance(lines, list):
+        raise ValueError("native derivation result is invalid")
+    if result.get("ok") is not True:
+        for line in cast(list[object], lines):
+            print(str(line), file=sys.stderr)
+        return 1
+    files = result.get("files")
+    version = result.get("version")
+    if not isinstance(files, dict) or type(version) is not int:
+        raise ValueError("native derivation result is invalid")
+    contents = {name: cast(dict[str, object], files).get(name) for name in _DERIVED_FILES}
+    if not all(isinstance(value, str) for value in contents.values()):
+        raise ValueError("native derivation result is invalid")
+    unchanged = _check_derive_target(directory, cast(str, contents["derivation.json"]), version)
+    if not unchanged:
+        directory.mkdir(parents=True, exist_ok=True)
+        for name in _DERIVED_FILES:
+            (directory / name).write_bytes(cast(str, contents[name]).encode("utf-8"))
+    for line in cast(list[object], lines):
+        text = str(line)
+        if unchanged and text.startswith("  wrote:"):
+            text = "  wrote:      nothing; the files already match this derivation"
+        print(text)
+    return 0
+
+
 def check_profile(path: Path) -> tuple[str, ...]:
+    problems: list[str] = [f"{name}: {_EDITED_BY_HAND}" for name in derived_edits(path.parent)]
     contract = parse_contract(_source_at(path))
-    problems: list[str] = []
     for name, expected in (
         ("generated.py", render_generated(contract)),
         ("vectors.json", render_vectors(contract)),
@@ -606,12 +764,20 @@ def check_profile(path: Path) -> tuple[str, ...]:
 
 
 def _main_text(argv: Sequence[str] | None = None) -> int:
+    values = list(sys.argv[1:] if argv is None else argv)
+    if values[:1] == ["derive"]:
+        try:
+            return _derive_main(values[1:])
+        except (OSError, UnicodeError, ValueError, ImportError) as error:
+            print(f"auths-profile: {error}", file=sys.stderr)
+            return 1
     parser = argparse.ArgumentParser(prog="auths-profile")
     actions = parser.add_subparsers(dest="action", required=True)
     init = actions.add_parser("init")
     init.add_argument("--language", choices=("python",), required=True)
     init.add_argument("--name", required=True)
     init.add_argument("--directory", type=Path, default=Path("."))
+    actions.add_parser("derive", help="derive profile.toml and recipe.json from one OpenAPI operation")
     for name in ("generate", "check", "diff", "doctor", "test"):
         action = actions.add_parser(name)
         action.add_argument("profile", type=Path, nargs="?", default=Path("profile.toml"))
@@ -667,6 +833,11 @@ def _main_text(argv: Sequence[str] | None = None) -> int:
         elif args.action == "diff":
             result = profile_diff(args.profile)
             print(result["code"])
+            edits = result.get("derived_edits")
+            if not isinstance(edits, list):
+                raise ValueError("profile diff derived edits are invalid")
+            for edited in cast(list[object], edits):
+                print(f"{edited}: {_EDITED_BY_HAND}")
             changes = result.get("changes")
             if not isinstance(changes, list):
                 raise ValueError("profile diff changes are invalid")
@@ -761,6 +932,11 @@ def _diagnostic(action: str, status: int, message: str) -> tuple[str, str, str]:
     if status == 0:
         return ("profile.generated.current" if action == "check" else "profile.operation.ok",
                 "generated" if action == "check" else "contract", "No action required.")
+    derive_code = re.search(r"\bcontract\.derive\.[a-z-]+", message)
+    if derive_code:
+        return derive_code.group(0), "contract", "Apply a named override or narrow the operation, then rerun derive."
+    if "edited by hand" in message:
+        return "profile.contract.derived-edited", "contract", "Re-derive, or delete derivation.json to declare the files hand-owned."
     if "without a version bump" in message or "version cannot move backward" in message:
         return "profile.contract.version-required", "contract", "Increase profile.version, then review profile diff."
     if "has drifted" in message:

@@ -1,0 +1,11 @@
+  document:   sha256:90a1724a18d3b6500ba6740fdc9fb7d9e6c5c631b6981ce5154f2c09f2780cb4  (airtable-record-update.json, 1924 bytes, OpenAPI 3.1.0)
+  operation:  PATCH /appTEST0000000001/tblTEST0000000001/{record_id}  (set_demo_status)
+  security:   bearer (http/bearer "PersonalAccessToken")
+  arguments:  5 fields (2 derived + 3 gateway binding), worst-case 1531 bytes canonical JSON
+  recipe:     PATCH https://api.airtable.com/v0/appTEST0000000001/tblTEST0000000001/<record_id>  body: application/json
+  omitted:    returnFieldsByFieldId (--omit) typecast (--omit)
+  overrides:  --omit returnFieldsByFieldId --omit typecast
+  unenforced: record_id minLength (#/paths/~1appTEST0000000001~1tblTEST0000000001~1{record_id}/patch/parameters/0/schema/minLength)
+  wrote:      profile.toml recipe.json derivation.json
+  next:       auths-profile generate profile.toml && auths gateway recipe check --recipe recipe.json --profile-lock profile.lock.json
+  claim:      derived shape only; provider effect unqualified

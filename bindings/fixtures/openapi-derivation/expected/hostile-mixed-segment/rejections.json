@@ -1,0 +1,12 @@
+[
+  {
+    "code": "contract.derive.unsupported-construct",
+    "pointer": "#/paths/~1files~1{file_id}.json",
+    "overrides": []
+  },
+  {
+    "code": "contract.derive.unsupported-construct",
+    "pointer": "#/paths/~1files~1{file_id}.json/post/parameters/0",
+    "overrides": []
+  }
+]

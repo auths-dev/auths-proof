@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.document-format  #
+    the document is not a JSON object; YAML is not read, so convert it to JSON with a safe loader first; no override exists
+nothing written

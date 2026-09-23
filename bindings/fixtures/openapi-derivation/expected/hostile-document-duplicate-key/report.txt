@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.document-invalid  #
+    the document is not valid bounded JSON: duplicate object key "openapi" at line 1 column 70; no override exists
+nothing written

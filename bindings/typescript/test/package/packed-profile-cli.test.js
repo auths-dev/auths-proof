@@ -50,6 +50,32 @@ test("packed SDK generates and checks a typed external exact-tool consumer", asy
     { cwd: directory, stdio: "pipe" }));
 });
 
+test("packed SDK derives, generates, and checks one OpenAPI operation", async () => {
+  const { directory } = await installPackedSdk("auths-typescript-derive-");
+  const cli = join(directory, "node_modules", "@auths-dev", "sdk", "tools", "profile-cli.mjs");
+  const corpus = fileURLToPath(new URL("../../../fixtures/openapi-derivation/", import.meta.url));
+  const { cases } = JSON.parse(await readFile(join(corpus, "cases.json"), "utf8"));
+  const item = cases.find(entry => entry.id === "minimal-create-note");
+  const expected = join(corpus, "expected", item.id);
+  const target = join(directory, "derived");
+  const output = execFileSync(process.execPath, [cli, "derive", "--openapi",
+    join(corpus, item.document.file), "--directory", target, ...item.arguments], { cwd: directory, encoding: "utf8" });
+  assert.equal(output, await readFile(join(expected, "report.txt"), "utf8"));
+  for (const name of ["profile.toml", "recipe.json", "derivation.json"]) {
+    assert.deepEqual(await readFile(join(target, name)), await readFile(join(expected, name)));
+  }
+  const manifest = join(target, "profile.toml");
+  execFileSync(process.execPath, [cli, "generate", manifest], { cwd: directory });
+  execFileSync(process.execPath, [cli, "check", manifest], { cwd: directory });
+  assert.deepEqual(await readFile(join(target, "profile.lock.json")), await readFile(join(expected, "profile.lock.json")));
+  const recipe = JSON.parse(await readFile(join(target, "recipe.json"), "utf8"));
+  const lock = JSON.parse(await readFile(join(target, "profile.lock.json"), "utf8"));
+  assert.equal(lock.schema_digest, recipe.profile_schema_digest);
+  await writeFile(manifest, (await readFile(manifest, "utf8")).replace("max_bytes = 100", "max_bytes = 99"));
+  assert.throws(() => execFileSync(process.execPath, [cli, "check", manifest], { cwd: directory, stdio: "pipe" }),
+    /derived file edited by hand/);
+});
+
 test("packed SDK signs under supplied trust, makes one write, and reconciles an unknown result", async () => {
   const { directory } = await installPackedSdk("auths-typescript-signed-consumer-");
   try {

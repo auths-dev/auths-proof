@@ -1,0 +1,15 @@
+{
+  "schema": "auths.wasm-derive-abi/1",
+  "abiVersion": 1,
+  "audience": "authoring-tool",
+  "loadedBy": "bindings/typescript/tools/profile-cli.mjs",
+  "exports": [
+    "deriveOpenapiOperationV1",
+    "readDerivationRecordV1"
+  ],
+  "types": [],
+  "resultSchemas": [
+    "auths.openapi-derive-result/1",
+    "auths.openapi-derivation-record-result/1"
+  ]
+}

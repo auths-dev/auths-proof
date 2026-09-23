@@ -1,0 +1,109 @@
+{
+  "schema": "auths.openapi-derivation/1",
+  "document": {
+    "sha256": "03c7d11a545e67141ae6d79436a2006207435a879bb5a175a3a1357e6d50c465",
+    "bytes": 4316,
+    "openapi": "3.1.0"
+  },
+  "operation": {
+    "operation_id": "createNote",
+    "method": "POST",
+    "path": "/notebooks/{notebook_id}/notes",
+    "pointer": "#/paths/~1notebooks~1{notebook_id}~1notes/post"
+  },
+  "server": {
+    "listed": "https://api.notes.example/api/",
+    "origin": "https://api.notes.example",
+    "base_path": [
+      "api"
+    ]
+  },
+  "security": {
+    "scheme": "NotesKey",
+    "type": "apiKey/header",
+    "source": "document",
+    "acquisition": "static-credential",
+    "credential": {
+      "kind": "header-api-key",
+      "header": "X-Notes-Key"
+    }
+  },
+  "profile": {
+    "name": "create-note",
+    "service": "notes",
+    "tool": "createNote",
+    "version": 1,
+    "operator_namespace": "notes-demo"
+  },
+  "arguments": [
+    {
+      "name": "notebook_id",
+      "pointer": "#/components/parameters/NotebookId/schema"
+    },
+    {
+      "name": "title",
+      "pointer": "#/components/schemas/Note/properties/title"
+    },
+    {
+      "name": "status",
+      "pointer": "#/components/schemas/Note/properties/status"
+    },
+    {
+      "name": "pinned",
+      "pointer": "#/components/schemas/Note/properties/pinned"
+    },
+    {
+      "name": "priority",
+      "pointer": "#/components/schemas/Note/properties/priority"
+    },
+    {
+      "name": "meta_color",
+      "pointer": "#/components/schemas/Note/properties/meta/properties/color"
+    }
+  ],
+  "overrides": [
+    "--max-bytes title=100",
+    "--require pinned",
+    "--require priority",
+    "--omit dry_run",
+    "--omit meta.weight",
+    "--pick priority=integer",
+    "--literal body=\"Created through the Auths gateway\""
+  ],
+  "omitted": [
+    {
+      "pointer": "#/paths/~1notebooks~1{notebook_id}~1notes/post/parameters/0",
+      "path": "dry_run",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/components/schemas/Note/properties/id",
+      "path": "id",
+      "reason": "readOnly"
+    },
+    {
+      "pointer": "#/components/schemas/Note/properties/meta/properties/weight",
+      "path": "meta.weight",
+      "reason": "--omit"
+    }
+  ],
+  "unenforced": [
+    {
+      "pointer": "#/components/parameters/NotebookId/schema/pattern",
+      "path": "notebook_id",
+      "keyword": "pattern",
+      "note": "patterns are not validated by the contract; the provider may reject a value"
+    },
+    {
+      "pointer": "#/components/parameters/NotebookId/schema/minLength",
+      "path": "notebook_id",
+      "keyword": "minLength",
+      "note": "minLength counts characters and min_bytes counts UTF-8 bytes; a multibyte value with fewer characters is admitted and left to the provider"
+    }
+  ],
+  "generator_format": 2,
+  "outputs": {
+    "profile.toml": "abdd6b04a70731e2e7ace1ed734b901900e3c5ec643decab77bd5501300b4f97",
+    "recipe.json": "27b85c442e044fb2c0e4e1d605cc45ee6331f9c4e8eb89f2add1af2fab3d2d58"
+  }
+}

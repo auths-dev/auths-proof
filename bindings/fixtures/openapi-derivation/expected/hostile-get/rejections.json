@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.unsupported-method",
+    "pointer": "#/paths/~1read/get",
+    "overrides": []
+  }
+]

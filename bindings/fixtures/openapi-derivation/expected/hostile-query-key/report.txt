@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.credential-scheme-out-of-scope  #/components/securitySchemes/QueryKey
+    security scheme "QueryKey" is apiKey in query named "key"; only bearer and one non-reserved API-key header are in scope; no override exists
+nothing written

@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.unsafe-server  #/paths/~1http-server/post/servers/0
+    server "http://api.hostile.example" is not an https URL; no override exists
+nothing written

@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.field-limit  #/paths/~1worst-case/post/requestBody/content/application~1json/schema/properties/a
+    worst-case canonical arguments are 50387 bytes; the limit is 4096; no override exists
+nothing written

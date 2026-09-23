@@ -1,0 +1,51 @@
+{
+  "schema": "auths.openapi-derivation/1",
+  "document": {
+    "sha256": "92c1c496286dde0101a763591f9b7468b8c8fda337e0a32baae74fa43e6665a4",
+    "bytes": 144630,
+    "openapi": "3.0.3"
+  },
+  "operation": {
+    "operation_id": "hIntegerPath",
+    "method": "POST",
+    "path": "/items/{item_id}",
+    "pointer": "#/paths/~1items~1{item_id}/post"
+  },
+  "server": {
+    "listed": "https://api.hostile.example",
+    "origin": "https://api.hostile.example",
+    "base_path": []
+  },
+  "security": {
+    "scheme": "Bearer",
+    "type": "http/bearer",
+    "source": "document",
+    "acquisition": "static-credential",
+    "credential": {
+      "kind": "bearer"
+    }
+  },
+  "profile": {
+    "name": "hostile",
+    "service": "hostile",
+    "tool": "hIntegerPath",
+    "version": 1,
+    "operator_namespace": "hostile"
+  },
+  "arguments": [
+    {
+      "name": "a",
+      "pointer": "#/paths/~1items~1{item_id}/post/requestBody/content/application~1json/schema/properties/a"
+    }
+  ],
+  "overrides": [
+    "--literal item_id=7"
+  ],
+  "omitted": [],
+  "unenforced": [],
+  "generator_format": 2,
+  "outputs": {
+    "profile.toml": "e6181e8019948119c9de8173e8e10c775fac573e77f921dd9af7b625d14d06ce",
+    "recipe.json": "2dbf84fdba9e18944c21f3068926439c20f1c4efe28fa5f3cc718d076b529641"
+  }
+}

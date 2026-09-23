@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.recipe-limit  #/paths/~1recipe-limit/post
+    the derived recipe.json is 68992 bytes; the gateway recipe compiler reads at most 65536; no override exists
+nothing written

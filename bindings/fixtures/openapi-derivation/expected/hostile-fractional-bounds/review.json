@@ -1,0 +1,17 @@
+{
+  "schema": "auths.gateway-recipe-review/1",
+  "digest": "ed57bc533dcbdec87bb1903195885cd4e6b3b64fe941c1f9b16bcc21b65fedc0",
+  "operator_namespace": "hostile",
+  "service": "hostile",
+  "tool": "hFractionalBounds_v1",
+  "origin": "https://api.hostile.example",
+  "method": "POST",
+  "path": [
+    "fraction-bounds"
+  ],
+  "credential": {
+    "kind": "bearer"
+  },
+  "operator_credential_header": "Authorization",
+  "has_observation": false
+}

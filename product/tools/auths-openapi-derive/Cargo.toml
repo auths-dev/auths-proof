@@ -1,0 +1,23 @@
+[package]
+name = "auths-openapi-derive"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "Generation-time derivation of one exact operation contract and gateway recipe from a local OpenAPI document"
+publish = false
+
+[dependencies]
+hex.workspace = true
+serde = { workspace = true, features = ["std"] }
+serde_json = { workspace = true, features = ["std"] }
+serde_json_canonicalizer.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+auths-gateway.workspace = true
+
+[lints]
+workspace = true

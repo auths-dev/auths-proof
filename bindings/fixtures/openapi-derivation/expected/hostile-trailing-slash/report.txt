@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.unsupported-construct  #/paths/~1items~1
+    an empty path segment or trailing slash has no recipe form; no override exists
+nothing written

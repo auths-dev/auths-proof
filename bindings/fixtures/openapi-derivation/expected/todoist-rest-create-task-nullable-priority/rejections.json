@@ -1,0 +1,9 @@
+[
+  {
+    "code": "contract.derive.compiler-limit",
+    "pointer": "#/components/schemas/Body_37565102/properties/priority",
+    "overrides": [
+      "--pick priority=integer"
+    ]
+  }
+]

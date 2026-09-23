@@ -1,0 +1,20 @@
+{
+  "schema": "auths.gateway-recipe-review/1",
+  "digest": "731ceb3a2f5661fefaf32b0c841c4b49b5b54dc700d627125428a1aaf8bca4ac",
+  "operator_namespace": "airtable-demo",
+  "service": "airtable-gateway-demo",
+  "tool": "set_demo_status_v1",
+  "origin": "https://api.airtable.com",
+  "method": "PATCH",
+  "path": [
+    "v0",
+    "appTEST0000000001",
+    "tblTEST0000000001",
+    "<record_id>"
+  ],
+  "credential": {
+    "kind": "bearer"
+  },
+  "operator_credential_header": "Authorization",
+  "has_observation": false
+}

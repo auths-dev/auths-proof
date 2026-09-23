@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.unsupported-construct  #/paths/~1literal-multiple/post/requestBody/content/application~1json/schema/properties/p/multipleOf
+    schema keyword "multipleOf" has no restricted-schema form; no override exists
+nothing written

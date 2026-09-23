@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.ref-cycle",
+    "pointer": "#/components/schemas/Loop/properties/next/$ref",
+    "overrides": []
+  }
+]

@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.invalid-override  #/components/schemas/Note/properties/meta/properties/color
+    --literal for meta.color does not satisfy the document schema; no override exists
+nothing written

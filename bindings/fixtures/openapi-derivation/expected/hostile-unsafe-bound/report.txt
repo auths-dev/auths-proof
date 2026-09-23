@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.unsupported-construct  #/paths/~1unsafe-bound/post/requestBody/content/application~1json/schema/properties/p/minimum
+    minimum lies outside the safe-integer range; no override exists
+nothing written

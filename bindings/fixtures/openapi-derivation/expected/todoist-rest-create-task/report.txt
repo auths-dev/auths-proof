@@ -1,0 +1,10 @@
+  document:   sha256:b133ad4f209093da4d3724e5a504d2cf458160db15a38a04af48f22b330be8ef  (todoist-rest-create-task.json, 1408 bytes, OpenAPI 3.1.0)
+  operation:  POST /api/v1/tasks  (create_task_api_v1_tasks_post)
+  security:   bearer (--security-scheme; the document declares none)
+  arguments:  4 fields (1 derived + 3 gateway binding), worst-case 2775 bytes canonical JSON
+  recipe:     POST https://api.todoist.com/api/v1/tasks  body: application/json
+  omitted:    description (--omit) priority (--omit)
+  overrides:  --max-bytes content=256 --omit description --omit priority --closed . --security-scheme bearer --tool create_task
+  wrote:      profile.toml recipe.json derivation.json
+  next:       auths-profile generate profile.toml && auths gateway recipe check --recipe recipe.json --profile-lock profile.lock.json
+  claim:      derived shape only; provider effect unqualified

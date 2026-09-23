@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.slice-limit",
+    "pointer": "#/paths/~1slice/post",
+    "overrides": []
+  }
+]

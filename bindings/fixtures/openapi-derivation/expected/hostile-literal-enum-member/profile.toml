@@ -1,0 +1,28 @@
+# Derived by auths-profile derive; derivation.json records the source and overrides.
+[profile]
+name = "hostile"
+version = 1
+service = "hostile"
+tool = "hLiteralEnum"
+
+[arguments]
+type = "object"
+
+[arguments.fields.operator_namespace]
+type = "enum"
+variants = ["hostile"]
+
+[arguments.fields.operation_id]
+type = "string"
+min_bytes = 1
+max_bytes = 128
+
+[arguments.fields.recipe_digest]
+type = "string"
+min_bytes = 64
+max_bytes = 64
+
+[arguments.fields.a]
+type = "string"
+min_bytes = 0
+max_bytes = 8

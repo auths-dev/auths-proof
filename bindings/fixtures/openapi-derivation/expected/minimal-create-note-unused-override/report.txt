@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.unused-override
+    --omit archived does not apply to any construct of this operation
+nothing written

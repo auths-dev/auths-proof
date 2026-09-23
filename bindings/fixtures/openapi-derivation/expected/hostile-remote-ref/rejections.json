@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.remote-ref",
+    "pointer": "#/paths/~1remote-ref/post/requestBody/content/application~1json/schema/$ref",
+    "overrides": []
+  }
+]

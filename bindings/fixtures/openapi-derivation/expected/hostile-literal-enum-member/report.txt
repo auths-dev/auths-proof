@@ -1,0 +1,10 @@
+  document:   sha256:92c1c496286dde0101a763591f9b7468b8c8fda337e0a32baae74fa43e6665a4  (hostile.json, 144630 bytes, OpenAPI 3.0.3)
+  operation:  POST /literal-enum  (hLiteralEnum)
+  security:   bearer (http/bearer "Bearer")
+  arguments:  4 fields (1 derived + 3 gateway binding), worst-case 1276 bytes canonical JSON
+  recipe:     POST https://api.hostile.example/literal-enum  body: application/json
+  omitted:    none
+  overrides:  --literal p=2
+  wrote:      profile.toml recipe.json derivation.json
+  next:       auths-profile generate profile.toml && auths gateway recipe check --recipe recipe.json --profile-lock profile.lock.json
+  claim:      derived shape only; provider effect unqualified

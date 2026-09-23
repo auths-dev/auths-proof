@@ -1,0 +1,61 @@
+{
+  "schema": "auths.openapi-derivation/1",
+  "document": {
+    "sha256": "03c7d11a545e67141ae6d79436a2006207435a879bb5a175a3a1357e6d50c465",
+    "bytes": 4316,
+    "openapi": "3.1.0"
+  },
+  "operation": {
+    "operation_id": "renameNote",
+    "method": "PATCH",
+    "path": "/notes/{note_id}",
+    "pointer": "#/paths/~1notes~1{note_id}/patch"
+  },
+  "server": {
+    "listed": "https://api.notes.example/api/",
+    "origin": "https://api.notes.example",
+    "base_path": [
+      "api"
+    ]
+  },
+  "security": {
+    "scheme": "NotesBearer",
+    "type": "http/bearer",
+    "source": "document",
+    "acquisition": "static-credential",
+    "credential": {
+      "kind": "bearer"
+    }
+  },
+  "profile": {
+    "name": "rename-note",
+    "service": "notes",
+    "tool": "renameNote",
+    "version": 1,
+    "operator_namespace": "notes-demo"
+  },
+  "arguments": [
+    {
+      "name": "note_id",
+      "pointer": "#/components/parameters/NoteId/schema"
+    },
+    {
+      "name": "title",
+      "pointer": "#/paths/~1notes~1{note_id}/patch/requestBody/content/application~1x-www-form-urlencoded/schema/properties/title"
+    },
+    {
+      "name": "revision",
+      "pointer": "#/paths/~1notes~1{note_id}/patch/requestBody/content/application~1x-www-form-urlencoded/schema/properties/revision"
+    }
+  ],
+  "overrides": [
+    "--security NotesBearer"
+  ],
+  "omitted": [],
+  "unenforced": [],
+  "generator_format": 2,
+  "outputs": {
+    "profile.toml": "ec520c84fd6eb51132162f2749050f8c088a0e1b8d6bdb0ba5f7788f9d3167f1",
+    "recipe.json": "2751a40174856c946e9083609e9f52221ef6297c6cb57e4b1e8e19a9f68717e8"
+  }
+}

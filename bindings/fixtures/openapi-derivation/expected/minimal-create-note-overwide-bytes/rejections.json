@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.invalid-override",
+    "pointer": "#/components/schemas/Title/maxLength",
+    "overrides": []
+  }
+]

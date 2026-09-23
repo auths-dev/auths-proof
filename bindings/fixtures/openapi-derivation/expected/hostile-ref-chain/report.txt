@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.ref-cycle  #/components/schemas/ChainB/$ref
+    reference "#/components/schemas/ChainA" is reached from itself; no override exists
+nothing written

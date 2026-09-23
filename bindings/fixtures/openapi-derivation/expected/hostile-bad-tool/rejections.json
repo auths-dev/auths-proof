@@ -1,0 +1,9 @@
+[
+  {
+    "code": "contract.derive.tool-name",
+    "pointer": "#/paths/~1bad-tool/post/operationId",
+    "overrides": [
+      "--tool op_9_bad_tool"
+    ]
+  }
+]

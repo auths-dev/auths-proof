@@ -1,0 +1,23 @@
+[package]
+name = "auths-openapi-derive-wasm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+repository.workspace = true
+homepage.workspace = true
+description = "WebAssembly boundary for the generation-time OpenAPI operation derivation tool"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+auths-openapi-derive.workspace = true
+wasm-bindgen.workspace = true
+
+[dev-dependencies]
+serde_json = { workspace = true, features = ["std"] }
+
+[lints]
+workspace = true

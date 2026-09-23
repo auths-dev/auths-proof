@@ -1,0 +1,36 @@
+{
+  "schema": "auths.gateway-recipe-source/1",
+  "profile_schema_digest": "6682c07816a161a09e67d13c839a7bfabc363337ce348eda8fd8b707446be961",
+  "service": "openai-vector-stores",
+  "tool": "createVectorStore_v1",
+  "operator_namespace": "openai-demo",
+  "credential": {
+    "kind": "bearer"
+  },
+  "origin": "https://api.openai.com",
+  "write": {
+    "method": "POST",
+    "path": [
+      {
+        "kind": "fixed",
+        "value": "v1"
+      },
+      {
+        "kind": "fixed",
+        "value": "vector_stores"
+      }
+    ],
+    "body": {
+      "kind": "json",
+      "value": {
+        "kind": "object",
+        "fields": {
+          "name": {
+            "kind": "field",
+            "name": "name"
+          }
+        }
+      }
+    }
+  }
+}

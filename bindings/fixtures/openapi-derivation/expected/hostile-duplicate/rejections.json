@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.duplicate-operation",
+    "pointer": "#/paths/~1dup-b/post",
+    "overrides": []
+  }
+]

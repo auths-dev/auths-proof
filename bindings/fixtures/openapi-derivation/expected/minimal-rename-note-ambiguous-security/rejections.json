@@ -1,0 +1,10 @@
+[
+  {
+    "code": "contract.derive.ambiguous-security",
+    "pointer": "#/paths/~1notes~1{note_id}/patch/security",
+    "overrides": [
+      "--security NotesKey",
+      "--security NotesBearer"
+    ]
+  }
+]

@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.compiler-limit",
+    "pointer": "#/paths/~1notes~1{note_id}/delete/requestBody",
+    "overrides": []
+  }
+]

@@ -2,7 +2,7 @@
   "schema": "auths.openapi-manual-rejection-corpus/1",
   "reviewedOn": "2026-09-21",
   "reverifiedOn": "2026-09-23",
-  "qualification": "manual mapping only; no derivation mapper, recipe compiler run, provider call, or effect observation was performed; candidate overrides are not accepted recipes",
+  "qualification": "the rejection walls were first mapped by hand and are now reproduced by the derivation mapper; candidate overrides derive and compile, but no provider call or effect observation was performed and candidate overrides are not accepted recipes",
   "measurement": {
     "method": "Parse the pinned document bytes as JSON, select the operation object, and follow every local $ref it reaches (including responses). distinctComponentRefs counts distinct targets; refResolutionsInlined counts resolutions when every $ref is inlined; inlinedOperationBytes is the compact UTF-8 JSON length of the fully inlined operation object.",
     "operationSliceLimitBytes": 262144,
@@ -36,7 +36,7 @@
         { "pointer": "#/security", "rule": "3.1 security", "reason": "neither the root nor the operation declares a security requirement, and components declare no securitySchemes", "overrides": ["--security-scheme bearer"] },
         { "pointer": "#/components/parameters/owner/schema", "rule": "3.2 string without maxLength", "reason": "required path parameter owner is an unbounded string", "overrides": ["--max-bytes owner=64"] },
         { "pointer": "#/components/parameters/repo/schema", "rule": "3.2 string without maxLength", "reason": "required path parameter repo is an unbounded string", "overrides": ["--max-bytes repo=128"] },
-        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema", "rule": "3.2 object with additionalProperties absent", "reason": "the inline body object omits additionalProperties", "overrides": ["--closed body"], "note": "root-object path spelling is provisional" },
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema", "rule": "3.2 object with additionalProperties absent", "reason": "the inline body object omits additionalProperties", "overrides": ["--closed ."], "note": "the root body object is spelled . (see finding closed-root-spelling)" },
         { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/title", "rule": "3.2 scalar oneOf", "reason": "required title is oneOf string or integer, and neither branch is bounded", "overrides": ["--pick title=string", "--max-bytes title=256"] },
         { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/body", "rule": "3.2 property not in required", "reason": "optional unbounded string", "overrides": ["--omit body"] },
         { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/assignee", "rule": "3.2 property not in required", "reason": "optional nullable unbounded string", "overrides": ["--omit assignee"] },
@@ -49,7 +49,7 @@
       ],
       "candidateOverrides": [
         "--tool issues_create", "--security-scheme bearer", "--max-bytes owner=64",
-        "--max-bytes repo=128", "--closed body", "--pick title=string",
+        "--max-bytes repo=128", "--closed .", "--pick title=string",
         "--max-bytes title=256", "--omit body", "--omit assignee",
         "--omit milestone", "--omit labels", "--omit assignees",
         "--omit issue_field_values", "--omit type", "--omit parent_issue_id"
@@ -81,7 +81,7 @@
       },
       "unmodifiedRejections": [
         { "pointer": "#/security", "rule": "3.1 security", "reason": "no root or operation security requirement and no securitySchemes", "overrides": ["--security-scheme bearer"] },
-        { "pointer": "#/components/schemas/Body_37565102", "rule": "3.2 object with additionalProperties absent", "reason": "the body object omits additionalProperties", "overrides": ["--closed body"], "note": "root-object path spelling is provisional" },
+        { "pointer": "#/components/schemas/Body_37565102", "rule": "3.2 object with additionalProperties absent", "reason": "the body object omits additionalProperties", "overrides": ["--closed ."], "note": "the root body object is spelled . (see finding closed-root-spelling)" },
         { "pointer": "#/components/schemas/Body_37565102/properties/content", "rule": "3.2 string without maxLength", "reason": "required content has minLength 1 and no maxLength", "overrides": ["--max-bytes content=256"] },
         { "pointer": "#/components/schemas/Body_37565102/properties/description", "rule": "3.2 property not in required", "reason": "optional anyOf string or null; unbounded", "overrides": ["--omit description"] },
         { "pointer": "#/components/schemas/Body_37565102/properties/project_id", "rule": "3.2 property not in required", "reason": "optional anyOf string or null; unbounded", "overrides": ["--omit project_id"] },
@@ -100,7 +100,7 @@
         { "pointer": "#/components/schemas/Body_37565102/properties/deadline_date", "rule": "3.2 property not in required", "reason": "optional anyOf string or null; unbounded", "overrides": ["--omit deadline_date"] }
       ],
       "candidateOverrides": [
-        "--security-scheme bearer", "--closed body", "--max-bytes content=256",
+        "--security-scheme bearer", "--closed .", "--max-bytes content=256",
         "--omit description", "--omit project_id", "--omit section_id",
         "--omit parent_id", "--omit order", "--omit labels", "--omit priority",
         "--omit assignee_id", "--omit due_string", "--omit due_date",
@@ -150,11 +150,11 @@
     }
   ],
   "findings": [
-    { "id": "closed-root-spelling", "status": "open", "text": "The CLI does not define how --closed names the root body object. body is used here as a provisional spelling; the mapper must reject an ambiguous alias rather than guess between it and an absolute JSON pointer." },
-    { "id": "min-length-characters", "status": "open", "text": "Mapping minLength (characters) to min_bytes (UTF-8 bytes) admits multibyte strings with fewer characters than the vendor minimum when minLength is greater than 1. No case here exercises it: Todoist content has minLength 1, which maps exactly." },
-    { "id": "nullable-anyof-null", "status": "open", "text": "OpenAPI 3.1 documents such as Todoist spell nullable as anyOf [T, {type: null}]. The mapping table recognizes nullable: true and type: [T, \"null\"], and reads other anyOf as rejected without override. Every such field in this corpus is optional and omitted, but requiring one would have no override path under a literal reading." },
-    { "id": "server-base-path", "status": "open", "text": "The recipe compiler on main accepts only an https origin whose path is exactly / and that does not end in a slash. OpenAI's server https://api.openai.com/v1 must become origin https://api.openai.com plus a fixed v1 path segment, and Todoist's https://api.todoist.com/ must drop its trailing slash. The request-mapping table says only that servers become the operator-pinned origin." },
-    { "id": "gateway-binding-fields", "status": "open", "text": "The recipe compiler on main requires the profile to carry operator_namespace (single-variant enum), operation_id (string with min_bytes at least 1 and max_bytes at most 128), and recipe_digest (string, exactly 64 bytes). The argument-mapping table maps only the JSON body and path parameters, so derivation must add these fields or recipe check will reject every candidate here." },
-    { "id": "recipe-check-not-run", "status": "open", "text": "No candidate was written as profile.toml and recipe.toml or run through the recipe compiler. Slice sizes and $ref counts above were measured; derivation, compilation, and provider behavior were not checked." }
+    { "id": "closed-root-spelling", "status": "resolved", "text": "The root request-body object is spelled . in override paths; every other path is a dotted property path, so --closed body names a property called body (GitHub's issues/create has one). The candidate override sets above use --closed .." },
+    { "id": "min-length-characters", "status": "resolved", "text": "min_bytes = minLength as the mapping table states. When minLength exceeds 1 the derived contract admits a multibyte value with fewer characters than the vendor minimum, which the provider must reject; derivation.json records it under unenforced and the report prints it. No case here exercises it." },
+    { "id": "nullable-anyof-null", "status": "resolved", "text": "The mapper normalizes oneOf/anyOf alternatives, 3.1 type arrays, and 3.0 nullable: true into one alternative list, so anyOf [T, {type: null}] is a nullable T. The gateway recipe compiler has no nullable field, so a required nullable property is rejected with contract.derive.compiler-limit and resolved by --pick path=T, which always sends a value." },
+    { "id": "server-base-path", "status": "resolved", "text": "A listed server becomes the https origin plus fixed leading path segments, and one trailing slash is dropped: OpenAI's https://api.openai.com/v1 becomes origin https://api.openai.com and segment v1, and Todoist's https://api.todoist.com/ becomes the bare origin. Unsafe servers fail with contract.derive.unsafe-server." },
+    { "id": "gateway-binding-fields", "status": "resolved", "text": "Derivation writes operator_namespace (a one-variant enum from the required --operator-namespace flag), operation_id (1-128 bytes), and recipe_digest (64 bytes) ahead of the derived fields; a document field with one of these names is a contract.derive.name-collision." },
+    { "id": "recipe-check-not-run", "status": "resolved", "text": "The candidate override sets now derive through the native mapper, and every derived recipe compiles under the gateway recipe compiler; the exact outputs and recipe digests are in bindings/fixtures/openapi-derivation (cases github-issues-create, todoist-create-task, openai-create-vector-store), which run when AUTHS_OPENAPI_CORPUS_DIR holds the pinned documents. Provider behavior remains unchecked." }
   ]
 }

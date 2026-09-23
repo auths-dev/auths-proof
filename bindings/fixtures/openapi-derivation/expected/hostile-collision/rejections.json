@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.name-collision",
+    "pointer": "#/paths/~1collision/post/requestBody/content/application~1json/schema/properties/operation_id",
+    "overrides": []
+  }
+]

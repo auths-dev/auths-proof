@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.compiler-limit  #/components/schemas/Body_37565102/properties/priority
+    priority is a nullable integer; the gateway recipe compiler has no nullable field, so a derived request always sends a value; pass --pick priority=integer
+nothing written

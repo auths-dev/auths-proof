@@ -1,0 +1,48 @@
+{
+  "schema": "auths.gateway-recipe-source/1",
+  "profile_schema_digest": "0dda3f3e84a069ff32ae7f3f09ace84289030061ff2641f64c308bc159d439b4",
+  "service": "github-gateway-demo",
+  "tool": "create_issue_v1",
+  "operator_namespace": "github-demo",
+  "credential": {
+    "kind": "bearer"
+  },
+  "origin": "https://api.github.com",
+  "write": {
+    "method": "POST",
+    "path": [
+      {
+        "kind": "fixed",
+        "value": "repos"
+      },
+      {
+        "kind": "fixed",
+        "value": "auths-dev"
+      },
+      {
+        "kind": "fixed",
+        "value": "gateway-fixture-repo"
+      },
+      {
+        "kind": "fixed",
+        "value": "issues"
+      }
+    ],
+    "body": {
+      "kind": "json",
+      "value": {
+        "kind": "object",
+        "fields": {
+          "title": {
+            "kind": "field",
+            "name": "title"
+          },
+          "body": {
+            "kind": "field",
+            "name": "body"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+REJECTED  contract
+  contract.derive.unsupported-construct  #/paths/~1files~1{file_id}.json
+    path segment "{file_id}.json" is not a safe fixed literal or a whole template variable; no override exists
+  contract.derive.unsupported-construct  #/paths/~1files~1{file_id}.json/post/parameters/0
+    path parameter "file_id" is not in the path template; no override exists
+nothing written

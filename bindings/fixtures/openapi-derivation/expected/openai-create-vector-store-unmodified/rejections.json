@@ -1,0 +1,50 @@
+[
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/file_ids",
+    "overrides": [
+      "--omit file_ids",
+      "--require file_ids"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/name",
+    "overrides": [
+      "--omit name",
+      "--require name"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/description",
+    "overrides": [
+      "--omit description",
+      "--require description"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/expires_after",
+    "overrides": [
+      "--omit expires_after",
+      "--require expires_after"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/chunking_strategy",
+    "overrides": [
+      "--omit chunking_strategy",
+      "--require chunking_strategy"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/metadata",
+    "overrides": [
+      "--omit metadata",
+      "--require metadata"
+    ]
+  }
+]

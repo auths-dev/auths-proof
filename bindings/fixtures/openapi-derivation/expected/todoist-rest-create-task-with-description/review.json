@@ -1,0 +1,19 @@
+{
+  "schema": "auths.gateway-recipe-review/1",
+  "digest": "17ce51c68cd9ebcc1564ded16bd86cd6158b684bfcda8e13d89a36f33a4952c5",
+  "operator_namespace": "todoist-demo",
+  "service": "todoist-gateway-demo",
+  "tool": "create_task_v2",
+  "origin": "https://api.todoist.com",
+  "method": "POST",
+  "path": [
+    "api",
+    "v1",
+    "tasks"
+  ],
+  "credential": {
+    "kind": "bearer"
+  },
+  "operator_credential_header": "Authorization",
+  "has_observation": false
+}

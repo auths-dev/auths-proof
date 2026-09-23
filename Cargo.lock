@@ -977,6 +977,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-openapi-derive"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-gateway",
+ "hex",
+ "serde",
+ "serde_json",
+ "serde_json_canonicalizer",
+ "sha2 0.10.9",
+]
+
+[[package]]
+name = "auths-openapi-derive-wasm"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-openapi-derive",
+ "serde_json",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "auths-opentofu"
 version = "1.0.0-rc.1"
 dependencies = [
@@ -1425,6 +1446,7 @@ dependencies = [
  "auths-identity-raw-key",
  "auths-lifecycle",
  "auths-model",
+ "auths-openapi-derive",
  "auths-ports",
  "auths-production-client",
  "auths-profile-api",

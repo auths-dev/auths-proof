@@ -121,6 +121,8 @@ Every profile command accepts `--json` for a bounded
 | `profile.authority.grant-missing` | Supply the signed grant chain. |
 | `profile.trust.context-missing` | Supply independently provisioned trust. |
 | `profile.provider.adapter-test-failed` | Wire and inspect the fake-provider adapter tests. |
+| `profile.contract.derived-edited` | A file written by `derive` no longer matches `derivation.json`; re-derive, or delete `derivation.json` to own the files by hand. |
+| `contract.derive.*` | `derive` rejected the document or a flag; the message names the JSON pointer and the flag that resolves it, if one exists. |
 
 `auths-profile doctor --production` checks the signer identifier and bounded,
 distinct local authority files. Python parses the grant and trusted-context
@@ -128,3 +130,28 @@ bytes; TypeScript checks file presence and bounds but does not parse their
 bytes. Neither can infer trust provenance, signer connectivity, provider-token
 validity, or live provider behavior. The CLI does not silently fall back to
 testkit authority.
+
+## Deriving a gateway operation from OpenAPI
+
+For the credential-isolated gateway path, `auths-profile derive` can write the
+contract and its request recipe from one operation in a local OpenAPI 3.0 or
+3.1 JSON document. It reads no network and no credential:
+
+```text
+auths-profile derive --openapi ./vendor/api.json --operation create_task \
+  --service todoist-gateway-demo --name todoist-task-create \
+  --operator-namespace todoist-demo --security-scheme bearer --closed . \
+  --max-bytes content=256 --omit description --directory ./todoist
+auths-profile generate ./todoist/profile.toml
+auths gateway recipe check --recipe ./todoist/recipe.json --profile-lock ./todoist/profile.lock.json
+```
+
+It writes `profile.toml`, `recipe.json`, and `derivation.json`, the last of
+which records the document digest and every flag used. Any construct the
+restricted schema or the recipe compiler cannot express is rejected. Each
+rejection gives a JSON pointer and the flag that resolves it, if one exists.
+The command never guesses a bound, server, or credential scheme. `profile
+check` reports a derived file that was edited by hand. Changing the document
+or a flag requires a `--version` bump. The derived recipe claims only the
+request shape; provider effect remains unqualified. The Python and TypeScript
+commands call the same native mapper and write identical bytes.

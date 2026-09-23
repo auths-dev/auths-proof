@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.invalid-override  #/paths/~1fraction-bounds/post/requestBody/content/application~1json/schema/properties/p
+    --range p=0:10 widens the document's bounds; no override exists
+nothing written

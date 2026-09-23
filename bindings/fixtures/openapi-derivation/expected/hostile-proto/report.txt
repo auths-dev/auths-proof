@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.invalid-name  #/paths/~1proto/post/requestBody/content/application~1json/schema/properties/constructor
+    argument name "constructor" is not a generated field name; no override exists
+nothing written

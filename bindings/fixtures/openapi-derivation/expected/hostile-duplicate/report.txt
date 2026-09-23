@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.duplicate-operation  #/paths/~1dup-b/post
+    operationId "hDuplicate" is not unique; no override exists
+nothing written

@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.unsupported-construct",
+    "pointer": "#/paths/~1literal-byte/post/requestBody/content/application~1json/schema/properties/p/format",
+    "overrides": []
+  }
+]

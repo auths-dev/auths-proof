@@ -1,0 +1,49 @@
+{
+  "schema": "auths.gateway-recipe-source/1",
+  "profile_schema_digest": "7d7364459ae29c8072ecd012025cca8cb4a4cecc57d8e292a54e9175b918bf5f",
+  "service": "notes",
+  "tool": "setNoteLabel_v1",
+  "operator_namespace": "notes-demo",
+  "credential": {
+    "kind": "header-api-key",
+    "header": "X-Notes-Key"
+  },
+  "origin": "https://labels-eu.notes.example",
+  "write": {
+    "method": "PUT",
+    "path": [
+      {
+        "kind": "fixed",
+        "value": "v2"
+      },
+      {
+        "kind": "fixed",
+        "value": "notes"
+      },
+      {
+        "kind": "field",
+        "name": "note_id"
+      },
+      {
+        "kind": "fixed",
+        "value": "label"
+      }
+    ],
+    "body": {
+      "kind": "json",
+      "value": {
+        "kind": "object",
+        "fields": {
+          "label": {
+            "kind": "field",
+            "name": "label"
+          },
+          "source": {
+            "kind": "string",
+            "value": "auths"
+          }
+        }
+      }
+    }
+  }
+}

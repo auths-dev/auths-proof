@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.unsafe-server  #/paths/~1ip/post/servers/0
+    server "https://192.168.10.1" is not a public lowercase DNS host without a port; no override exists
+nothing written

@@ -1,0 +1,19 @@
+{
+  "schema": "auths.gateway-recipe-review/1",
+  "digest": "e30c18db45c26ed42d223dc66247b2930424c32c765d8c1b9965f83bfe15b341",
+  "operator_namespace": "notes-demo",
+  "service": "notes",
+  "tool": "renameNote_v1",
+  "origin": "https://api.notes.example",
+  "method": "PATCH",
+  "path": [
+    "api",
+    "notes",
+    "<note_id>"
+  ],
+  "credential": {
+    "kind": "bearer"
+  },
+  "operator_credential_header": "Authorization",
+  "has_observation": false
+}

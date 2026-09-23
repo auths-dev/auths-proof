@@ -1,0 +1,70 @@
+{
+  "schema": "auths.gateway-recipe-source/1",
+  "profile_schema_digest": "3b7cf471aac444931be7ec82435618d77a3a50d90f1c855e0b0ba589e2135de3",
+  "service": "notes",
+  "tool": "createNote_v1",
+  "operator_namespace": "notes-demo",
+  "credential": {
+    "kind": "header-api-key",
+    "header": "X-Notes-Key"
+  },
+  "origin": "https://api.notes.example",
+  "write": {
+    "method": "POST",
+    "path": [
+      {
+        "kind": "fixed",
+        "value": "api"
+      },
+      {
+        "kind": "fixed",
+        "value": "notebooks"
+      },
+      {
+        "kind": "field",
+        "name": "notebook_id"
+      },
+      {
+        "kind": "fixed",
+        "value": "notes"
+      }
+    ],
+    "body": {
+      "kind": "json",
+      "value": {
+        "kind": "object",
+        "fields": {
+          "title": {
+            "kind": "field",
+            "name": "title"
+          },
+          "status": {
+            "kind": "field",
+            "name": "status"
+          },
+          "pinned": {
+            "kind": "field",
+            "name": "pinned"
+          },
+          "priority": {
+            "kind": "field",
+            "name": "priority"
+          },
+          "meta": {
+            "kind": "object",
+            "fields": {
+              "color": {
+                "kind": "field",
+                "name": "meta_color"
+              }
+            }
+          },
+          "body": {
+            "kind": "string",
+            "value": "Created through the Auths gateway"
+          }
+        }
+      }
+    }
+  }
+}

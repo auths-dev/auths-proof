@@ -1,0 +1,38 @@
+REJECTED  contract
+  contract.derive.missing-security  #/security
+    the document declares no security requirement for this operation; pass --security-scheme bearer or --security-scheme apikey:<Header-Name>
+  contract.derive.open-object  #/components/schemas/Body_37565102
+    object request body does not declare additionalProperties: false; pass --closed .
+  contract.derive.unbounded-string  #/components/schemas/Body_37565102/properties/content
+    content is a string without maxLength; pass --max-bytes content=<N>
+  contract.derive.optional-property  #/components/schemas/Body_37565102/properties/description
+    description is optional; a fixed-shape request has no encoding for absence; pass --omit description or --require description
+  contract.derive.optional-property  #/components/schemas/Body_37565102/properties/project_id
+    project_id is optional; a fixed-shape request has no encoding for absence; pass --omit project_id or --require project_id
+  contract.derive.optional-property  #/components/schemas/Body_37565102/properties/section_id
+    section_id is optional; a fixed-shape request has no encoding for absence; pass --omit section_id or --require section_id
+  contract.derive.optional-property  #/components/schemas/Body_37565102/properties/parent_id
+    parent_id is optional; a fixed-shape request has no encoding for absence; pass --omit parent_id or --require parent_id
+  contract.derive.optional-property  #/components/schemas/Body_37565102/properties/order
+    order is optional; a fixed-shape request has no encoding for absence; pass --omit order or --require order
+  contract.derive.optional-property  #/components/schemas/Body_37565102/properties/labels
+    labels is optional; a fixed-shape request has no encoding for absence; pass --omit labels or --require labels
+  contract.derive.optional-property  #/components/schemas/Body_37565102/properties/priority
+    priority is optional; a fixed-shape request has no encoding for absence; pass --omit priority or --require priority
+  contract.derive.optional-property  #/components/schemas/Body_37565102/properties/assignee_id
+    assignee_id is optional; a fixed-shape request has no encoding for absence; pass --omit assignee_id or --require assignee_id
+  contract.derive.optional-property  #/components/schemas/Body_37565102/properties/due_string
+    due_string is optional; a fixed-shape request has no encoding for absence; pass --omit due_string or --require due_string
+  contract.derive.optional-property  #/components/schemas/Body_37565102/properties/due_date
+    due_date is optional; a fixed-shape request has no encoding for absence; pass --omit due_date or --require due_date
+  contract.derive.optional-property  #/components/schemas/Body_37565102/properties/due_datetime
+    due_datetime is optional; a fixed-shape request has no encoding for absence; pass --omit due_datetime or --require due_datetime
+  contract.derive.optional-property  #/components/schemas/Body_37565102/properties/due_lang
+    due_lang is optional; a fixed-shape request has no encoding for absence; pass --omit due_lang or --require due_lang
+  contract.derive.optional-property  #/components/schemas/Body_37565102/properties/duration
+    duration is optional; a fixed-shape request has no encoding for absence; pass --omit duration or --require duration
+  contract.derive.optional-property  #/components/schemas/Body_37565102/properties/duration_unit
+    duration_unit is optional; a fixed-shape request has no encoding for absence; pass --omit duration_unit or --require duration_unit
+  contract.derive.optional-property  #/components/schemas/Body_37565102/properties/deadline_date
+    deadline_date is optional; a fixed-shape request has no encoding for absence; pass --omit deadline_date or --require deadline_date
+nothing written

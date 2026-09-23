@@ -1,0 +1,44 @@
+{
+  "schema": "auths.gateway-recipe-source/1",
+  "profile_schema_digest": "edc46422990c3f827b6c762b53dc705a1d559aa6f6c217b08b25b24fcde78822",
+  "service": "notes",
+  "tool": "renameNote_v1",
+  "operator_namespace": "notes-demo",
+  "credential": {
+    "kind": "bearer"
+  },
+  "origin": "https://api.notes.example",
+  "write": {
+    "method": "PATCH",
+    "path": [
+      {
+        "kind": "fixed",
+        "value": "api"
+      },
+      {
+        "kind": "fixed",
+        "value": "notes"
+      },
+      {
+        "kind": "field",
+        "name": "note_id"
+      }
+    ],
+    "body": {
+      "kind": "form",
+      "fields": {
+        "title": {
+          "kind": "field",
+          "name": "title"
+        },
+        "revision": {
+          "kind": "json",
+          "value": {
+            "kind": "field",
+            "name": "revision"
+          }
+        }
+      }
+    }
+  }
+}

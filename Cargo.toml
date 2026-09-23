@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "demos/offline-verification",
     "bindings/wasm/auths-proof-wasm",
+    "bindings/wasm/auths-openapi-derive-wasm",
     "bindings/python",
     "core/crates/auths",
     "core/crates/auths-proof",
@@ -92,6 +93,7 @@ members = [
     "product/qualification/auths-qualification-supervisor",
     "product/qualification/auths-qualification-evidence-source",
     "product/tools/auths-explain",
+    "product/tools/auths-openapi-derive",
     "product/tools/auths-sigstore-bundle-import",
     "demos/testkit/auths-apps-testkit",
     "demos/live-lab",
@@ -156,6 +158,7 @@ auths-multikey = { version = "1.0.0-rc.1", path = "core/crates/auths-multikey", 
 auths-testkit = { version = "1.0.0-rc.1", path = "core/testkit/auths-testkit" }
 auths-proof = { version = "1.0.0-rc.1", path = "core/crates/auths-proof", default-features = false }
 auths-proof-wasm = { version = "1.0.0-rc.1", path = "bindings/wasm/auths-proof-wasm" }
+auths-openapi-derive-wasm = { version = "1.0.0-rc.1", path = "bindings/wasm/auths-openapi-derive-wasm" }
 auths-raw-key = { version = "1.0.0-rc.1", path = "core/adapters/auths-raw-key", default-features = false }
 auths-did-key = { version = "1.0.0-rc.1", path = "core/adapters/auths-did-key", default-features = false }
 auths-did-keri = { version = "1.0.0-rc.1", path = "core/adapters/auths-did-keri", default-features = false }
@@ -202,6 +205,7 @@ auths-sdk = { version = "1.0.0-rc.1", path = "product/sdk/auths-sdk" }
 auths-profile-kit = { version = "1.0.0-rc.1", path = "product/sdk/auths-profile-kit" }
 auths-errors = { version = "1.0.0-rc.1", path = "product/errors/auths-errors", default-features = false }
 auths-sigstore-bundle-import = { version = "1.0.0-rc.1", path = "product/tools/auths-sigstore-bundle-import" }
+auths-openapi-derive = { version = "1.0.0-rc.1", path = "product/tools/auths-openapi-derive" }
 auths-bounded-policy = { version = "1.0.0-rc.1", path = "product/policy/auths-bounded-policy", default-features = false }
 auths-enforcement = { version = "1.0.0-rc.1", path = "product/integrations/auths-enforcement" }
 auths-resolver-did-web = { version = "1.0.0-rc.1", path = "product/integrations/auths-resolver-did-web" }

@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.enum-variant  #/paths/~1bad-enum/post/requestBody/content/application~1json/schema/properties/mode/enum
+    mode enum variant "very slow" is not a 1-64 byte [A-Za-z0-9_.-] string; no override exists
+nothing written

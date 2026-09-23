@@ -1,0 +1,110 @@
+[
+  {
+    "code": "contract.derive.tool-name",
+    "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/operationId",
+    "overrides": [
+      "--tool issues_create"
+    ]
+  },
+  {
+    "code": "contract.derive.missing-security",
+    "pointer": "#/security",
+    "overrides": [
+      "--security-scheme bearer",
+      "--security-scheme apikey:<Header-Name>"
+    ]
+  },
+  {
+    "code": "contract.derive.unbounded-string",
+    "pointer": "#/components/parameters/owner/schema",
+    "overrides": [
+      "--max-bytes owner=<N>"
+    ]
+  },
+  {
+    "code": "contract.derive.unbounded-string",
+    "pointer": "#/components/parameters/repo/schema",
+    "overrides": [
+      "--max-bytes repo=<N>"
+    ]
+  },
+  {
+    "code": "contract.derive.open-object",
+    "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema",
+    "overrides": [
+      "--closed ."
+    ]
+  },
+  {
+    "code": "contract.derive.scalar-union",
+    "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/title",
+    "overrides": [
+      "--pick title=string",
+      "--pick title=integer"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/body",
+    "overrides": [
+      "--omit body",
+      "--require body"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/assignee",
+    "overrides": [
+      "--omit assignee",
+      "--require assignee"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/milestone",
+    "overrides": [
+      "--omit milestone",
+      "--require milestone"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/labels",
+    "overrides": [
+      "--omit labels",
+      "--require labels"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/assignees",
+    "overrides": [
+      "--omit assignees",
+      "--require assignees"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/issue_field_values",
+    "overrides": [
+      "--omit issue_field_values",
+      "--require issue_field_values"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/type",
+    "overrides": [
+      "--omit type",
+      "--require type"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/parent_issue_id",
+    "overrides": [
+      "--omit parent_issue_id",
+      "--require parent_issue_id"
+    ]
+  }
+]

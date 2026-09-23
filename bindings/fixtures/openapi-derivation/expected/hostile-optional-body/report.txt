@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.unsupported-body  #/paths/~1optional-body/post/requestBody
+    the request body is not required: true; no override exists
+nothing written

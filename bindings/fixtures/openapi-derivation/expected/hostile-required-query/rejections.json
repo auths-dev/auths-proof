@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.query-parameter",
+    "pointer": "#/paths/~1required-query/post/parameters/0",
+    "overrides": []
+  }
+]

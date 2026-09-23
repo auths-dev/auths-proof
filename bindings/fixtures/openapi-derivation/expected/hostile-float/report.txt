@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.unsupported-construct  #/paths/~1float/post/requestBody/content/application~1json/schema/properties/amount
+    amount is a number; floats are not in the command API; no override exists
+nothing written
