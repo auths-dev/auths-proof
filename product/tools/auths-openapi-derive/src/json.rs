@@ -88,11 +88,6 @@ impl Json {
         Some(value as i64)
     }
 
-    /// Returns whether the value is any JSON number.
-    pub(crate) fn is_number(&self) -> bool {
-        matches!(self, Self::Number(_))
-    }
-
     /// Compact UTF-8 serialization length, used only to bound slices.
     pub(crate) fn compact_len(&self) -> usize {
         match self {

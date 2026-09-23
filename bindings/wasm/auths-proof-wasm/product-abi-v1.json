@@ -26,6 +26,7 @@
     "profileReceiptPayloadCommitmentV2",
     "decodePortableReceiptV1",
     "deriveOpenapiOperationV1",
+    "readDerivationRecordV1",
     "verifyPinnedReceiptV1"
   ],
   "types": [

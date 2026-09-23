@@ -71,7 +71,7 @@ test("packed SDK derives, generates, and checks one OpenAPI operation", async ()
   const recipe = JSON.parse(await readFile(join(target, "recipe.json"), "utf8"));
   const lock = JSON.parse(await readFile(join(target, "profile.lock.json"), "utf8"));
   assert.equal(lock.schema_digest, recipe.profile_schema_digest);
-  await writeFile(manifest, (await readFile(manifest, "utf8")).replace("max_bytes = 240", "max_bytes = 239"));
+  await writeFile(manifest, (await readFile(manifest, "utf8")).replace("max_bytes = 100", "max_bytes = 99"));
   assert.throws(() => execFileSync(process.execPath, [cli, "check", manifest], { cwd: directory, stdio: "pipe" }),
     /derived file edited by hand/);
 });

@@ -314,7 +314,7 @@ kind = "cargo"
 layer = "product"
 path = "product/tools/auths-openapi-derive"
 core_apis = []
-protocol_versions = ["auths.gateway-recipe-source/1", "auths.openapi-derivation/1", "auths.openapi-derive-result/1", "auths.self-hosted-profile-lock/1"]
+protocol_versions = ["auths.gateway-recipe-source/1", "auths.openapi-derivation-record-result/1", "auths.openapi-derivation/1", "auths.openapi-derive-result/1", "auths.self-hosted-profile-lock/1"]
 wire_objects = []
 fixture_suites = ["bindings/fixtures/openapi-corpus", "bindings/fixtures/openapi-derivation"]
 principal_families = []
@@ -332,6 +332,10 @@ configuration-compiler = [
   "product/tools/auths-openapi-derive/tests/corpus.rs#derived_airtable_and_todoist_recipes_compare_with_the_hand_authored_fixtures",
   "product/tools/auths-openapi-derive/tests/corpus.rs#a_changed_document_or_override_changes_the_provenance",
   "product/tools/auths-openapi-derive/src/document.rs#references_are_local_escaped_and_acyclic",
+  "product/tools/auths-openapi-derive/src/schema.rs#integer_bounds_round_inward_and_keep_the_tighter_bound",
+  "product/tools/auths-openapi-derive/tests/hostile_scale.rs#a_megabyte_reference_is_refused_without_per_node_copies",
+  "product/tools/auths-openapi-derive/tests/hostile_scale.rs#measuring_many_nodes_under_a_long_reference_stays_linear",
+  "product/tools/auths-openapi-derive/tests/hostile_scale.rs#derivation_records_are_read_strictly",
 ]
 
 [packages.auths-lab-matrix]

@@ -1,0 +1,17 @@
+{
+  "schema": "auths.gateway-recipe-review/1",
+  "digest": "ed4fc08df988125999d1d0c2ac8167e9e6087d03d4f25abc5a0d96028b6fead4",
+  "operator_namespace": "hostile",
+  "service": "hostile",
+  "tool": "hLiteralEnum_v1",
+  "origin": "https://api.hostile.example",
+  "method": "POST",
+  "path": [
+    "literal-enum"
+  ],
+  "credential": {
+    "kind": "bearer"
+  },
+  "operator_credential_header": "Authorization",
+  "has_observation": false
+}

@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.uncredentialed-operation",
+    "pointer": "#/paths/~1no-auth/post/security",
+    "overrides": []
+  }
+]

@@ -53,7 +53,7 @@ pub(crate) enum SchemeOverride {
 #[derive(Debug)]
 pub(crate) struct Table<T> {
     flag: &'static str,
-    entries: BTreeMap<String, (T, bool)>,
+    entries: BTreeMap<String, (T, usize)>,
 }
 
 impl<T: Clone> Table<T> {
@@ -72,24 +72,25 @@ impl<T: Clone> Table<T> {
                 entry.key()
             ))),
             Entry::Vacant(entry) => {
-                entry.insert((value, false));
+                entry.insert((value, 0));
                 Ok(())
             }
         }
     }
 
-    /// Returns and consumes the override for `path`.
+    /// Returns the override for `path` and counts the construct that
+    /// consumed it.
     pub(crate) fn take(&mut self, path: &str) -> Option<T> {
-        self.entries.get_mut(path).map(|(value, used)| {
-            *used = true;
+        self.entries.get_mut(path).map(|(value, uses)| {
+            *uses += 1;
             value.clone()
         })
     }
 
-    fn unused(&self) -> impl Iterator<Item = String> + '_ {
+    fn with_uses(&self, test: fn(usize) -> bool) -> impl Iterator<Item = String> + '_ {
         self.entries
             .iter()
-            .filter(|(_, (_, used))| !used)
+            .filter(move |(_, (_, uses))| test(*uses))
             .map(|(path, _)| format!("{} {path}", self.flag))
     }
 }
@@ -108,18 +109,28 @@ pub(crate) struct Overrides {
 }
 
 impl Overrides {
+    fn tables(&self, test: fn(usize) -> bool) -> Vec<String> {
+        self.max_bytes
+            .with_uses(test)
+            .chain(self.range.with_uses(test))
+            .chain(self.max_items.with_uses(test))
+            .chain(self.require.with_uses(test))
+            .chain(self.omit.with_uses(test))
+            .chain(self.closed.with_uses(test))
+            .chain(self.pick.with_uses(test))
+            .chain(self.literal.with_uses(test))
+            .collect()
+    }
+
     /// Lists every override no construct consumed.
     pub(crate) fn unused(&self) -> Vec<String> {
-        self.max_bytes
-            .unused()
-            .chain(self.range.unused())
-            .chain(self.max_items.unused())
-            .chain(self.require.unused())
-            .chain(self.omit.unused())
-            .chain(self.closed.unused())
-            .chain(self.pick.unused())
-            .chain(self.literal.unused())
-            .collect()
+        self.tables(|uses| uses == 0)
+    }
+
+    /// Lists every override more than one construct consumed, such as a path
+    /// parameter and a body property that share a name.
+    pub(crate) fn ambiguous(&self) -> Vec<String> {
+        self.tables(|uses| uses > 1)
     }
 }
 

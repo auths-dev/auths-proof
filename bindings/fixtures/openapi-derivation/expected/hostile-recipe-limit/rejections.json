@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.recipe-limit",
+    "pointer": "#/paths/~1recipe-limit/post",
+    "overrides": []
+  }
+]

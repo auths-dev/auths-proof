@@ -36,6 +36,12 @@ pub const DERIVATION_SCHEMA: &str = "auths.openapi-derivation/1";
 /// Schema of the in-process result both language bindings decode.
 pub const RESULT_SCHEMA: &str = "auths.openapi-derive-result/1";
 
+/// Schema of the in-process result of reading a provenance record.
+pub const RECORD_RESULT_SCHEMA: &str = "auths.openapi-derivation-record-result/1";
+
+/// Largest `derivation.json` read back.
+pub const MAX_DERIVATION_BYTES: usize = 262_144;
+
 /// Output file names, in the order they are written.
 pub const OUTPUT_FILES: [&str; 3] = ["profile.toml", "recipe.json", "derivation.json"];
 
@@ -257,7 +263,7 @@ pub fn derive(
     let mapping = mapper
         .map(&request, &selected)
         .map_err(|diagnostics| Rejected { diagnostics })?;
-    let rendered = render::render(&request, &mapping, &source);
+    let rendered = render::render(&request, &mapping, &source).map_err(reject)?;
     Ok(Derived {
         profile_toml: rendered.profile_toml,
         recipe_json: rendered.recipe_json,
@@ -294,6 +300,105 @@ pub fn derive_to_json(document: &[u8], document_name: &str, arguments: &[String]
                 "overrides": diagnostic.overrides(),
             })).collect::<Vec<_>>(),
             "lines": rejected.lines(),
+        }),
+    };
+    value.to_string()
+}
+
+/// The facts `profile check`, `profile diff`, and `derive` read back from a
+/// written `derivation.json`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DerivationRecord {
+    version: u16,
+    profile_sha256: String,
+    recipe_sha256: String,
+}
+
+impl DerivationRecord {
+    /// Returns the profile version the files were derived under.
+    #[must_use]
+    pub const fn version(&self) -> u16 {
+        self.version
+    }
+
+    /// Returns the recorded lowercase SHA-256 of `profile.toml`.
+    #[must_use]
+    pub fn profile_sha256(&self) -> &str {
+        &self.profile_sha256
+    }
+
+    /// Returns the recorded lowercase SHA-256 of `recipe.json`.
+    #[must_use]
+    pub fn recipe_sha256(&self) -> &str {
+        &self.recipe_sha256
+    }
+}
+
+/// Reads a `derivation.json` strictly: bounded UTF-8 JSON without duplicate
+/// keys, the provenance schema, an integer `profile.version` from 1 to 9999
+/// (`1.0` is rejected), and two 64-character lowercase hex digests. Both
+/// CLIs call this, so they accept and reject exactly the same records.
+///
+/// # Errors
+/// Returns a human reason when any of those rules fails.
+pub fn read_derivation_record(bytes: &[u8]) -> Result<DerivationRecord, String> {
+    let invalid = || "derivation.json is invalid".to_owned();
+    if bytes.is_empty() || bytes.len() > MAX_DERIVATION_BYTES {
+        return Err("derivation.json must be 1 byte to 256 KiB".to_owned());
+    }
+    let tree = json::parse(bytes).map_err(|_| invalid())?;
+    if tree.get("schema").and_then(json::Json::as_str) != Some(DERIVATION_SCHEMA) {
+        return Err(invalid());
+    }
+    let version = match tree
+        .get("profile")
+        .and_then(|profile| profile.get("version"))
+    {
+        Some(json::Json::Number(number)) => number
+            .as_u64()
+            .and_then(|value| u16::try_from(value).ok())
+            .filter(|value| (1..=9999).contains(value))
+            .ok_or_else(invalid)?,
+        _ => return Err(invalid()),
+    };
+    let digest = |name: &str| {
+        tree.get("outputs")
+            .and_then(|outputs| outputs.get(name))
+            .and_then(json::Json::as_str)
+            .filter(|value| {
+                value.len() == 64
+                    && value
+                        .bytes()
+                        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+            })
+            .map(str::to_owned)
+            .ok_or_else(invalid)
+    };
+    Ok(DerivationRecord {
+        version,
+        profile_sha256: digest("profile.toml")?,
+        recipe_sha256: digest("recipe.json")?,
+    })
+}
+
+/// Runs [`read_derivation_record`] and encodes the outcome as the JSON both
+/// bindings decode. This never fails: an invalid record is `ok: false`.
+#[must_use]
+pub fn read_derivation_record_to_json(bytes: &[u8]) -> String {
+    let value = match read_derivation_record(bytes) {
+        Ok(record) => json!({
+            "schema": RECORD_RESULT_SCHEMA,
+            "ok": true,
+            "version": record.version,
+            "outputs": {
+                "profile.toml": record.profile_sha256,
+                "recipe.json": record.recipe_sha256,
+            },
+        }),
+        Err(message) => json!({
+            "schema": RECORD_RESULT_SCHEMA,
+            "ok": false,
+            "message": message,
         }),
     };
     value.to_string()

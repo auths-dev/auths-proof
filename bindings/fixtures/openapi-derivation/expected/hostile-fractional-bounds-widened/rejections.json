@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.invalid-override",
+    "pointer": "#/paths/~1fraction-bounds/post/requestBody/content/application~1json/schema/properties/p",
+    "overrides": []
+  }
+]

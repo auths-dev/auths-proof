@@ -1,6 +1,6 @@
 {
   "schema": "auths.gateway-recipe-review/1",
-  "digest": "616d2e2c352d318ee60650b6881887be7587ace2d72c8214098220edf15af05b",
+  "digest": "9bea2b9fbb3104e4c80598dd6954c6fa05873c458fc77d26993b3f832c3b864e",
   "operator_namespace": "notes-demo",
   "service": "notes",
   "tool": "createNote_v1",

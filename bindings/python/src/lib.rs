@@ -110,11 +110,19 @@ fn derive_openapi_operation_v1(
     auths_openapi_derive::derive_to_json(document, document_name, &arguments)
 }
 
+/// Reads a written `derivation.json` strictly; the JSON result carries `ok`,
+/// the recorded profile version, and the two output digests.
+#[pyfunction]
+fn read_derivation_record_v1(record: &[u8]) -> String {
+    auths_openapi_derive::read_derivation_record_to_json(record)
+}
+
 /// Installs the private native extension consumed by `auths`.
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(generate_challenge_v1, module)?)?;
     module.add_function(wrap_pyfunction!(derive_openapi_operation_v1, module)?)?;
+    module.add_function(wrap_pyfunction!(read_derivation_record_v1, module)?)?;
     module.add_function(wrap_pyfunction!(
         qualification_client_cancellation_result_v1,
         module

@@ -1,8 +1,8 @@
 {
   "schema": "auths.openapi-derivation/1",
   "document": {
-    "sha256": "8fd651d74f0c52ea37f672ee5d75420af799044f29868504f7d9fe27476d5df3",
-    "bytes": 99093,
+    "sha256": "92c1c496286dde0101a763591f9b7468b8c8fda337e0a32baae74fa43e6665a4",
+    "bytes": 144630,
     "openapi": "3.0.3"
   },
   "operation": {

@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.unsupported-construct  #/paths/~1literal-fraction/post/requestBody/content/application~1json/schema/properties/p/maxLength
+    maxLength is not a non-negative integer; no override exists
+nothing written

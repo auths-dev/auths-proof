@@ -438,22 +438,44 @@ async function writeProfile(directory, contract, options = {}) {
   }
 }
 
-const derivationSchema = "auths.openapi-derivation/1";
 const deriveResultSchema = "auths.openapi-derive-result/1";
+const recordResultSchema = "auths.openapi-derivation-record-result/1";
 const derivedFiles = ["profile.toml", "recipe.json", "derivation.json"];
 const maxDocumentBytes = 32 * 1024 * 1024;
 const maxDerivationBytes = 262_144;
 const editedByHand = "derived file edited by hand; re-derive, or delete derivation.json to declare the files hand-owned";
 
+let packagedWasm;
+
+/** Loads the packaged WASM module that owns derivation; every derived byte comes from it. */
+async function loadWasm() {
+  if (packagedWasm) return packagedWasm;
+  const loaded = await import(new URL("../wasm/auths_proof_wasm.js", import.meta.url).href);
+  if (typeof loaded.default === "function") {
+    await loaded.default({ module_or_path: await readFile(new URL("../wasm/auths_proof_wasm_bg.wasm", import.meta.url)) });
+  }
+  if (typeof loaded.deriveOpenapiOperationV1 !== "function" || typeof loaded.readDerivationRecordV1 !== "function") {
+    throw new Error("the packaged WASM module does not export the derivation functions");
+  }
+  packagedWasm = loaded;
+  return packagedWasm;
+}
+
+/** Reads a derivation.json through the native reader both CLIs share. */
 async function readDerivation(record) {
   const metadata = await lstat(record);
   if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size > maxDerivationBytes) {
     throw new Error("derivation.json must be a bounded regular file");
   }
-  let value;
-  try { value = JSON.parse(await readFile(record, "utf8")); } catch { throw new Error("derivation.json is invalid"); }
-  if (!value || typeof value !== "object" || value.schema !== derivationSchema) throw new Error("derivation.json is invalid");
-  return value;
+  const wasm = await loadWasm();
+  const result = JSON.parse(wasm.readDerivationRecordV1(new Uint8Array(await readFile(record))));
+  if (!result || result.schema !== recordResultSchema) throw new Error("native derivation record result is invalid");
+  if (result.ok !== true) throw new Error(String(result.message ?? "derivation.json is invalid"));
+  if (!Number.isSafeInteger(result.version) || typeof result.outputs?.["profile.toml"] !== "string" ||
+      typeof result.outputs?.["recipe.json"] !== "string") {
+    throw new Error("native derivation record result is invalid");
+  }
+  return { version: result.version, outputs: result.outputs };
 }
 
 async function exists(path) {
@@ -467,12 +489,9 @@ async function exists(path) {
 export async function derivedEdits(directory) {
   const record = join(directory, "derivation.json");
   if (!(await exists(record))) return [];
-  const outputs = (await readDerivation(record)).outputs;
-  if (!outputs || typeof outputs !== "object") throw new Error("derivation.json is invalid");
+  const { outputs } = await readDerivation(record);
   const edited = [];
   for (const name of ["profile.toml", "recipe.json"]) {
-    const expected = outputs[name];
-    if (typeof expected !== "string" || !/^[0-9a-f]{64}$/.test(expected)) throw new Error("derivation.json is invalid");
     let actual;
     try {
       const metadata = await lstat(join(directory, name));
@@ -480,31 +499,15 @@ export async function derivedEdits(directory) {
         actual = createHash("sha256").update(await readFile(join(directory, name))).digest("hex");
       }
     } catch (error) { if (error.code !== "ENOENT") throw error; }
-    if (actual !== expected) edited.push(name);
+    if (actual !== outputs[name]) edited.push(name);
   }
   return edited;
 }
 
-let nativeDerive;
-
-/** Loads the packaged WASM mapper; every derived byte comes from it. */
-async function loadDerive() {
-  if (nativeDerive) return nativeDerive;
-  const loaded = await import(new URL("../wasm/auths_proof_wasm.js", import.meta.url).href);
-  if (typeof loaded.default === "function") {
-    await loaded.default({ module_or_path: await readFile(new URL("../wasm/auths_proof_wasm_bg.wasm", import.meta.url)) });
-  }
-  if (typeof loaded.deriveOpenapiOperationV1 !== "function") {
-    throw new Error("the packaged WASM module does not export deriveOpenapiOperationV1");
-  }
-  nativeDerive = loaded.deriveOpenapiOperationV1;
-  return nativeDerive;
-}
-
 /** Runs the shared mapper; the result carries files or diagnostics. */
 export async function deriveOperation(document, documentName, args) {
-  const derive = await loadDerive();
-  const result = JSON.parse(derive(document, documentName, [...args]));
+  const wasm = await loadWasm();
+  const result = JSON.parse(wasm.deriveOpenapiOperationV1(document, documentName, [...args]));
   if (!result || result.schema !== deriveResultSchema || !Array.isArray(result.lines)) {
     throw new Error("native derivation result is invalid");
   }
@@ -526,8 +529,9 @@ async function readDocument(path) {
   return new Uint8Array(document.buffer, document.byteOffset, document.length);
 }
 
+/** Refuses an unsafe target; returns true when the files already match. */
 async function checkDeriveTarget(directory, derivation, version) {
-  if (!(await exists(directory))) return;
+  if (!(await exists(directory))) return false;
   if ((await lstat(directory)).isSymbolicLink()) {
     throw new Error("contract.derive.directory-not-derived: the output directory cannot be a symlink");
   }
@@ -542,16 +546,20 @@ async function checkDeriveTarget(directory, derivation, version) {
       throw new Error("contract.derive.directory-not-derived: profile.toml or recipe.json exists without " +
         "derivation.json; derive into an empty directory or remove the hand-owned files");
     }
-    return;
+    return false;
   }
-  const recorded = await readDerivation(record);
-  if (Buffer.from(await readFile(record)).equals(Buffer.from(derivation, "utf8"))) return;
-  const oldVersion = recorded.profile?.version;
-  if (!Number.isSafeInteger(oldVersion)) throw new Error("derivation.json is invalid");
+  const { version: oldVersion } = await readDerivation(record);
+  const edited = await derivedEdits(directory);
+  if (edited.length) {
+    throw new Error(`contract.derive.derived-edited: ${edited.join(", ")} changed since the last derivation; ` +
+      "delete derivation.json to keep the hand edits, or restore the files before re-deriving");
+  }
+  if (Buffer.from(await readFile(record)).equals(Buffer.from(derivation, "utf8"))) return true;
   if (version <= oldVersion) {
     throw new Error(`contract.derive.version-required: the derivation changed under profile version ${oldVersion}; ` +
       `pass --version ${oldVersion + 1}`);
   }
+  return false;
 }
 
 async function deriveMain(args) {
@@ -584,10 +592,14 @@ async function deriveMain(args) {
   if (!files || !Number.isSafeInteger(result.version) || derivedFiles.some(name => typeof files[name] !== "string")) {
     throw new Error("native derivation result is invalid");
   }
-  await checkDeriveTarget(directory, files["derivation.json"], result.version);
-  await mkdir(directory, { recursive: true });
-  for (const name of derivedFiles) await writeFile(join(directory, name), files[name], "utf8");
-  process.stdout.write(`${result.lines.join("\n")}\n`);
+  const unchanged = await checkDeriveTarget(directory, files["derivation.json"], result.version);
+  if (!unchanged) {
+    await mkdir(directory, { recursive: true });
+    for (const name of derivedFiles) await writeFile(join(directory, name), files[name], "utf8");
+  }
+  const lines = result.lines.map(line => unchanged && line.startsWith("  wrote:")
+    ? "  wrote:      nothing; the files already match this derivation" : line);
+  process.stdout.write(`${lines.join("\n")}\n`);
 }
 
 async function checkProfile(path) {

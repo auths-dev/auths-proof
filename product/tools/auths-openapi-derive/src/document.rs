@@ -7,6 +7,10 @@ use crate::json::{Json, escape_token, string_len};
 pub(crate) const MAX_REF_RESOLUTIONS: usize = 256;
 /// Maximum compact bytes of the operation after inlining every reference.
 pub(crate) const MAX_SLICE_BYTES: usize = 256 * 1024;
+/// Longest `$ref` string or selected path template read.
+pub(crate) const MAX_REFERENCE_BYTES: usize = 1024;
+/// Deepest nesting of the operation once every reference is inlined.
+const MAX_SLICE_DEPTH: usize = 256;
 
 const METHODS: [&str; 8] = [
     "get", "put", "post", "delete", "options", "head", "patch", "trace",
@@ -129,6 +133,11 @@ pub(crate) fn select<'a>(
             "#/paths",
             format!("no operation has operationId {operation_id:?}"),
         )),
+        1 if found[0].path.len() > MAX_REFERENCE_BYTES => Err(Diagnostic::new(
+            DeriveCode::UnsupportedConstruct,
+            "#/paths",
+            format!("the path template of {operation_id:?} is longer than 1024 bytes"),
+        )),
         1 => Ok(found.remove(0)),
         _ => Err(Diagnostic::new(
             DeriveCode::DuplicateOperation,
@@ -142,12 +151,19 @@ pub(crate) fn select<'a>(
 fn lookup<'a>(
     document: &'a Json,
     reference: &str,
-    at: &str,
+    at: &dyn Fn() -> String,
 ) -> Result<(&'a Json, String), Diagnostic> {
+    if reference.len() > MAX_REFERENCE_BYTES {
+        return Err(Diagnostic::new(
+            DeriveCode::UnsupportedConstruct,
+            at(),
+            "a reference longer than 1024 bytes is not read",
+        ));
+    }
     let Some(rest) = reference.strip_prefix('#') else {
         return Err(Diagnostic::new(
             DeriveCode::RemoteRef,
-            at,
+            at(),
             format!(
                 "reference {reference:?} leaves the document; only local #/ references are read"
             ),
@@ -156,7 +172,7 @@ fn lookup<'a>(
     if !(rest.is_empty() || rest.starts_with('/')) || rest.contains('%') {
         return Err(Diagnostic::new(
             DeriveCode::UnsupportedConstruct,
-            at,
+            at(),
             format!("reference {reference:?} is not a plain local JSON pointer"),
         ));
     }
@@ -165,7 +181,7 @@ fn lookup<'a>(
         if raw.contains('~') && !valid_escapes(raw) {
             return Err(Diagnostic::new(
                 DeriveCode::UnsupportedConstruct,
-                at,
+                at(),
                 format!("reference {reference:?} has an invalid escape"),
             ));
         }
@@ -182,7 +198,7 @@ fn lookup<'a>(
         .ok_or_else(|| {
             Diagnostic::new(
                 DeriveCode::UnsupportedConstruct,
-                at,
+                at(),
                 format!("reference {reference:?} does not resolve"),
             )
         })?;
@@ -228,7 +244,7 @@ pub(crate) fn resolve<'a>(
             ));
         }
         chain.push(reference.to_owned());
-        let (target, target_pointer) = lookup(document, reference, &format!("{at}/$ref"))?;
+        let (target, target_pointer) = lookup(document, reference, &|| format!("{at}/$ref"))?;
         current = target;
         at = target_pointer;
     }
@@ -264,72 +280,131 @@ pub(crate) fn measure(
         document,
         resolutions: 0,
         bytes: 0,
-        stack: Vec::new(),
-        start: pointer.to_owned(),
+        references: Vec::new(),
+        path: Vec::new(),
+        start: pointer,
     };
-    state.visit(node, pointer)?;
+    state.visit(node)?;
     Ok(SliceMeasure {
         resolutions: state.resolutions,
         bytes: state.bytes,
     })
 }
 
-struct Measure<'a> {
+/// One step of the location being measured. Pointers are rendered only when
+/// a diagnostic needs one, so long keys or references never multiply work.
+#[derive(Clone, Copy)]
+enum Step<'a> {
+    Reference(&'a str),
+    Key(&'a str),
+    Index(usize),
+}
+
+struct Measure<'a, 's> {
     document: &'a Json,
     resolutions: usize,
     bytes: usize,
-    stack: Vec<String>,
-    start: String,
+    references: Vec<&'a str>,
+    path: Vec<Step<'a>>,
+    start: &'s str,
 }
 
-impl<'a> Measure<'a> {
+impl<'a> Measure<'a, '_> {
+    fn pointer(&self) -> String {
+        let base = self
+            .path
+            .iter()
+            .rposition(|step| matches!(step, Step::Reference(_)));
+        let mut pointer = match base {
+            Some(index) => match self.path[index] {
+                Step::Reference(reference) => reference.to_owned(),
+                Step::Key(_) | Step::Index(_) => String::new(),
+            },
+            None => self.start.to_owned(),
+        };
+        for step in &self.path[base.map_or(0, |index| index + 1)..] {
+            match step {
+                Step::Key(key) => {
+                    pointer.push('/');
+                    pointer.push_str(&escape_token(key));
+                }
+                Step::Index(index) => {
+                    pointer.push('/');
+                    pointer.push_str(&index.to_string());
+                }
+                Step::Reference(_) => {}
+            }
+        }
+        pointer
+    }
+
     fn add(&mut self, bytes: usize) -> Result<(), Diagnostic> {
         self.bytes += bytes;
         if self.bytes > MAX_SLICE_BYTES {
             return Err(Diagnostic::new(
                 DeriveCode::SliceLimit,
-                self.start.clone(),
+                self.start,
                 "the operation with every reference inlined exceeds 256 KiB",
             ));
         }
         Ok(())
     }
 
-    fn visit(&mut self, node: &'a Json, at: &str) -> Result<(), Diagnostic> {
+    fn enter(&mut self, step: Step<'a>) -> Result<(), Diagnostic> {
+        if self.path.len() >= MAX_SLICE_DEPTH {
+            return Err(Diagnostic::new(
+                DeriveCode::SliceLimit,
+                self.start,
+                "the operation nests deeper than 256 levels once references are inlined",
+            ));
+        }
+        self.path.push(step);
+        Ok(())
+    }
+
+    fn visit(&mut self, node: &'a Json) -> Result<(), Diagnostic> {
         if let Some(reference) = node.get("$ref").and_then(Json::as_str) {
             self.resolutions += 1;
             if self.resolutions > MAX_REF_RESOLUTIONS {
                 return Err(Diagnostic::new(
                     DeriveCode::RefLimit,
-                    format!("{at}/$ref"),
+                    format!("{}/$ref", self.pointer()),
                     "the operation needs more than 256 reference resolutions",
                 ));
             }
-            if self.stack.iter().any(|seen| seen == reference) {
+            if self.references.contains(&reference) {
                 return Err(Diagnostic::new(
                     DeriveCode::RefCycle,
-                    format!("{at}/$ref"),
+                    format!("{}/$ref", self.pointer()),
                     format!("reference {reference:?} is reached from itself"),
                 ));
             }
-            let (target, pointer) = lookup(self.document, reference, &format!("{at}/$ref"))?;
-            self.stack.push(reference.to_owned());
-            self.visit(target, &pointer)?;
-            self.stack.pop();
+            let (target, _) = lookup(self.document, reference, &|| {
+                format!("{}/$ref", self.pointer())
+            })?;
+            self.enter(Step::Reference(reference))?;
+            self.references.push(reference);
+            self.visit(target)?;
+            self.references.pop();
+            self.path.pop();
             return Ok(());
         }
         match node {
             Json::Array(items) => {
                 self.add(2 + items.len().saturating_sub(1))?;
                 for (index, item) in items.iter().enumerate() {
-                    self.visit(item, &format!("{at}/{index}"))?;
+                    self.enter(Step::Index(index))?;
+                    self.visit(item)?;
+                    self.path.pop();
                 }
             }
             Json::Object(entries) => {
                 self.add(2 + entries.len().saturating_sub(1))?;
                 for (key, value) in entries {
                     self.add(string_len(key) + 1)?;
-                    self.visit(value, &format!("{at}/{}", escape_token(key)))?;
+                    self.enter(Step::Key(key))?;
+                    self.visit(value)?;
+                    self.path.pop();
                 }
             }
             scalar => self.add(scalar.compact_len())?,

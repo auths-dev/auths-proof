@@ -99,11 +99,13 @@ def test_derive_generate_check_and_hand_edit(tmp_path: Path, capsys: pytest.Capt
     assert main(["check", str(manifest)]) == 0
     capsys.readouterr()
 
-    # Re-deriving unchanged inputs is idempotent; a changed override is not
+    # Re-deriving unchanged inputs writes nothing; a changed override is not
     # accepted under the same version.
+    before = {name: (target / name).stat().st_mtime_ns for name in ("profile.toml", "recipe.json", "derivation.json")}
     assert _derive(target, "minimal-create-note") == 0
-    capsys.readouterr()
-    narrowed = [value.replace("title=240", "title=200") for value in _case("minimal-create-note")["arguments"]]
+    assert "wrote:      nothing; the files already match this derivation" in capsys.readouterr().out
+    assert before == {name: (target / name).stat().st_mtime_ns for name in before}
+    narrowed = [value.replace("title=100", "title=80") for value in _case("minimal-create-note")["arguments"]]
     changed = ["derive", "--openapi", str(_CORPUS / "documents/minimal.json"), "--directory", str(target), *narrowed]
     assert main(changed) == 1
     assert "contract.derive.version-required" in capsys.readouterr().err
@@ -114,7 +116,7 @@ def test_derive_generate_check_and_hand_edit(tmp_path: Path, capsys: pytest.Capt
     assert main(["check", str(manifest)]) == 0
     capsys.readouterr()
 
-    manifest.write_bytes(manifest.read_bytes().replace(b"max_bytes = 200", b"max_bytes = 199"))
+    manifest.write_bytes(manifest.read_bytes().replace(b"max_bytes = 80", b"max_bytes = 79"))
     assert main(["check", str(manifest)]) == 1
     assert "profile.toml: derived file edited by hand" in capsys.readouterr().err
     assert main(["--json", "check", str(manifest)]) == 1
@@ -124,6 +126,11 @@ def test_derive_generate_check_and_hand_edit(tmp_path: Path, capsys: pytest.Capt
     diff = capsys.readouterr().out
     assert "profile.toml: derived file edited by hand" in diff
     assert "profile.contract.version-required" in diff
+    # derive refuses to overwrite a hand edit, even with a version bump.
+    edited = manifest.read_bytes()
+    assert main([*changed, "--version", "3"]) == 1
+    assert "contract.derive.derived-edited" in capsys.readouterr().err
+    assert manifest.read_bytes() == edited
     (target / "derivation.json").unlink()
     assert main(["diff", str(manifest)]) == 0
     assert "edited by hand" not in capsys.readouterr().out
@@ -163,3 +170,18 @@ def test_derive_refuses_hand_owned_files_and_unsafe_documents(
     assert "contract.derive.document-unreadable" in capsys.readouterr().err
     assert main(["derive", "--directory", str(tmp_path / "out"), *case["arguments"]]) == 1
     assert "--openapi is required" in capsys.readouterr().err
+
+
+def test_derivation_record_is_read_by_the_shared_native_reader(tmp_path: Path) -> None:
+    from auths._profile_cli import derived_edits
+
+    target = tmp_path / "notes"
+    assert _derive(target, "minimal-create-note") == 0
+    record = target / "derivation.json"
+    original = record.read_bytes()
+    record.write_bytes(original.replace(b'"version": 1,', b'"version": 1.0,'))
+    with pytest.raises(ValueError, match="derivation.json is invalid"):
+        derived_edits(target)
+    record.write_bytes(b"\xff" + original)
+    with pytest.raises(ValueError, match="derivation.json is invalid"):
+        derived_edits(target)

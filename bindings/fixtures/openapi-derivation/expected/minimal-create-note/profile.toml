@@ -30,7 +30,7 @@ max_bytes = 32
 [arguments.fields.title]
 type = "string"
 min_bytes = 1
-max_bytes = 240
+max_bytes = 100
 
 [arguments.fields.status]
 type = "enum"

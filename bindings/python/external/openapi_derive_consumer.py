@@ -61,7 +61,7 @@ def main() -> None:
         if lock["schema_digest"] != recipe["profile_schema_digest"] or lock["tool"] != review["tool"]:
             raise SystemExit("derived recipe is not bound to the generated profile lock")
         profile = target / "profile.toml"
-        profile.write_bytes(profile.read_bytes().replace(b"max_bytes = 240", b"max_bytes = 239"))
+        profile.write_bytes(profile.read_bytes().replace(b"max_bytes = 100", b"max_bytes = 99"))
         edited = run([tool, "check", manifest], expect=1)
         if "derived file edited by hand" not in edited.stderr:
             raise SystemExit("check did not report the hand edit")

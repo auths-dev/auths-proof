@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.unsupported-construct  #/paths/~1literal-byte/post/requestBody/content/application~1json/schema/properties/p/format
+    p has format byte; encoded binary bodies are not derived; no override exists
+nothing written

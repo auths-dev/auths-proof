@@ -284,9 +284,9 @@ fn a_changed_document_or_override_changes_the_provenance() {
     let mut narrowed = arguments(&case);
     let at = narrowed
         .iter()
-        .position(|value| value == "title=240")
+        .position(|value| value == "title=100")
         .unwrap();
-    narrowed[at] = "title=200".to_owned();
+    narrowed[at] = "title=80".to_owned();
     let changed_override = auths_openapi_derive::derive(&bytes, &name, &narrowed).unwrap();
     assert_ne!(base.profile_toml(), changed_override.profile_toml());
     assert_ne!(base.derivation_json(), changed_override.derivation_json());

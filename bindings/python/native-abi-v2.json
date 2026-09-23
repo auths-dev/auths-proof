@@ -91,6 +91,7 @@
     "project_sdk_event_json_v2",
     "qualification_client_cancellation_result_v1",
     "raw_key_identity_v2",
+    "read_derivation_record_v1",
     "resume_mcp_execution",
     "review_mcp_call",
     "root_grant",

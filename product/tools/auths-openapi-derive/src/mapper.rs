@@ -55,6 +55,13 @@ impl<'a> Mapper<'a> {
         let path = self.path(selected, &parameters, server.as_ref());
         let body = self.body(selected);
         self.limits(request, body.as_ref());
+        for ambiguous in self.overrides.ambiguous() {
+            self.push(Diagnostic::new(
+                DeriveCode::AmbiguousOverride,
+                "",
+                format!("{ambiguous} names more than one construct, such as a parameter and a body property with the same name; no spelling separates them, so derive this operation by hand"),
+            ));
+        }
         if self.diagnostics.is_empty() {
             for unused in self.overrides.unused() {
                 self.push(Diagnostic::new(
@@ -237,6 +244,14 @@ impl<'a> Mapper<'a> {
                 DeriveCode::UnsupportedConstruct,
                 pointer,
                 "security is not an array",
+            ));
+            return None;
+        }
+        if declared.is_some() && requirements.is_empty() {
+            self.push(Diagnostic::new(
+                DeriveCode::UncredentialedOperation,
+                pointer,
+                "the document declares that this operation needs no credential; the gateway sends only credentialed requests",
             ));
             return None;
         }

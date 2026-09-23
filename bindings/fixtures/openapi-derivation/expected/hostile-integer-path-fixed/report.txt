@@ -1,4 +1,4 @@
-  document:   sha256:8fd651d74f0c52ea37f672ee5d75420af799044f29868504f7d9fe27476d5df3  (hostile.json, 99093 bytes, OpenAPI 3.0.3)
+  document:   sha256:92c1c496286dde0101a763591f9b7468b8c8fda337e0a32baae74fa43e6665a4  (hostile.json, 144630 bytes, OpenAPI 3.0.3)
   operation:  POST /items/{item_id}  (hIntegerPath)
   security:   bearer (http/bearer "Bearer")
   arguments:  4 fields (1 derived + 3 gateway binding), worst-case 1276 bytes canonical JSON

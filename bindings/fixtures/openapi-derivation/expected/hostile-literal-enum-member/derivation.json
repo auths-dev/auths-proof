@@ -1,0 +1,51 @@
+{
+  "schema": "auths.openapi-derivation/1",
+  "document": {
+    "sha256": "92c1c496286dde0101a763591f9b7468b8c8fda337e0a32baae74fa43e6665a4",
+    "bytes": 144630,
+    "openapi": "3.0.3"
+  },
+  "operation": {
+    "operation_id": "hLiteralEnum",
+    "method": "POST",
+    "path": "/literal-enum",
+    "pointer": "#/paths/~1literal-enum/post"
+  },
+  "server": {
+    "listed": "https://api.hostile.example",
+    "origin": "https://api.hostile.example",
+    "base_path": []
+  },
+  "security": {
+    "scheme": "Bearer",
+    "type": "http/bearer",
+    "source": "document",
+    "acquisition": "static-credential",
+    "credential": {
+      "kind": "bearer"
+    }
+  },
+  "profile": {
+    "name": "hostile",
+    "service": "hostile",
+    "tool": "hLiteralEnum",
+    "version": 1,
+    "operator_namespace": "hostile"
+  },
+  "arguments": [
+    {
+      "name": "a",
+      "pointer": "#/paths/~1literal-enum/post/requestBody/content/application~1json/schema/properties/a"
+    }
+  ],
+  "overrides": [
+    "--literal p=2"
+  ],
+  "omitted": [],
+  "unenforced": [],
+  "generator_format": 2,
+  "outputs": {
+    "profile.toml": "a5eeaeb66a6567f01bd1a13ba15465ba06a873664e94e0122548dcea9aaa3f35",
+    "recipe.json": "36732257fb8abb4b83c1215d03235ecfe5447d528adb4032c4e74e52ef533437"
+  }
+}

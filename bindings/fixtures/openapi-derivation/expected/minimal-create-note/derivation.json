@@ -62,7 +62,7 @@
     }
   ],
   "overrides": [
-    "--max-bytes title=240",
+    "--max-bytes title=100",
     "--require pinned",
     "--require priority",
     "--omit dry_run",
@@ -103,7 +103,7 @@
   ],
   "generator_format": 2,
   "outputs": {
-    "profile.toml": "155b0818351698f6dd4666ca0855307e630deb2c4b5938ec642b9ff9b2c62050",
-    "recipe.json": "a85456b63bda7a5e2468328aeae98c8f19bd53ed99860948f40c441bfe3f4ef2"
+    "profile.toml": "abdd6b04a70731e2e7ace1ed734b901900e3c5ec643decab77bd5501300b4f97",
+    "recipe.json": "27b85c442e044fb2c0e4e1d605cc45ee6331f9c4e8eb89f2add1af2fab3d2d58"
   }
 }

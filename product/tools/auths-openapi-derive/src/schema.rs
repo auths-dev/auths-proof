@@ -376,57 +376,19 @@ impl<'a> Mapper<'a> {
         if let Some(values) = node.get("enum") {
             return enumeration(values, &format!("{pointer}/enum"), path);
         }
-        if let Some(format) = node.get("format").and_then(Json::as_str) {
-            if matches!(format, "byte" | "binary") {
-                return Err(unsupported(
-                    format!("{pointer}/format"),
-                    format!("{path} has format {format}; encoded binary bodies are not derived"),
-                ));
-            }
-            self.unenforce(
-                pointer,
-                path,
-                "format",
-                "string formats are not validated by the contract",
-            );
-        }
-        if node.get("pattern").is_some() {
-            self.unenforce(
-                pointer,
-                path,
-                "pattern",
-                "patterns are not validated by the contract; the provider may reject a value",
-            );
-        }
-        let length = |key: &str| -> Result<Option<usize>, Diagnostic> {
-            node.get(key)
-                .map(|value| {
-                    value
-                        .as_integer()
-                        .and_then(|number| usize::try_from(number).ok())
-                        .ok_or_else(|| {
-                            unsupported(
-                                format!("{pointer}/{key}"),
-                                format!("{key} is not a non-negative integer"),
-                            )
-                        })
-                })
-                .transpose()
-        };
-        let maximum_length = length("maxLength")?;
-        let minimum = length("minLength")?.unwrap_or(0);
+        self.string_format(node, pointer, path)?;
+        let (minimum, maximum_length) = lengths(node, pointer)?;
+        let minimum = minimum.unwrap_or(0);
         let maximum = match (self.overrides.max_bytes.take(path), maximum_length) {
-            (Some(bytes), Some(characters))
-                if bytes <= (characters.saturating_mul(4)).min(MAX_STRING_BYTES) =>
-            {
-                bytes
-            }
+            // Every character is at least one UTF-8 byte, so a byte bound at
+            // or below the character bound never admits a longer value.
+            (Some(bytes), Some(characters)) if bytes <= characters => bytes,
             (Some(bytes), Some(characters)) => {
                 return Err(Diagnostic::new(
                     DeriveCode::InvalidOverride,
                     format!("{pointer}/maxLength"),
                     format!(
-                        "--max-bytes {path}={bytes} exceeds min(4 x maxLength {characters}, 4096)"
+                        "--max-bytes {path}={bytes} would admit more than maxLength {characters} characters; a byte override may only narrow"
                     ),
                 ));
             }
@@ -516,29 +478,20 @@ impl<'a> Mapper<'a> {
         });
     }
 
-    /// Checks a `--literal` value against the schema it replaces.
+    /// Checks a `--literal` value against the schema it replaces, applying
+    /// the same keyword rules as a derived argument plus exact membership in
+    /// any `enum`. A malformed schema is an error, never a pass.
     pub(crate) fn literal_fits(
-        &self,
+        &mut self,
         node: &'a Json,
         pointer: &str,
         path: &str,
         literal: &Literal,
     ) -> Result<(), Diagnostic> {
-        let fits = self.alternatives(node, pointer)?.iter().any(|alternative| {
-            match (literal, alternative.kind) {
-                (Literal::String(text), Kind::String) => {
-                    string_literal_fits(alternative.node, text)
-                }
-                (Literal::Integer(number), Kind::Integer) => {
-                    integer_bounds(alternative.node, pointer).is_ok_and(|(low, high)| {
-                        low.is_none_or(|bound| *number >= bound)
-                            && high.is_none_or(|bound| *number <= bound)
-                    })
-                }
-                (Literal::Boolean(_), Kind::Boolean) => true,
-                _ => false,
-            }
-        });
+        let mut fits = false;
+        for alternative in self.alternatives(node, pointer)? {
+            fits |= self.literal_matches(&alternative, path, literal)?;
+        }
         if fits {
             Ok(())
         } else {
@@ -550,7 +503,98 @@ impl<'a> Mapper<'a> {
         }
     }
 
-    /// Maps an object's properties into flattened arguments and a template.
+    fn literal_matches(
+        &mut self,
+        alternative: &Alternative<'a>,
+        path: &str,
+        literal: &Literal,
+    ) -> Result<bool, Diagnostic> {
+        let Alternative {
+            kind,
+            node,
+            pointer,
+        } = alternative;
+        match (literal, kind) {
+            (Literal::String(text), Kind::String) => {
+                check_keys(
+                    node,
+                    pointer,
+                    &[
+                        "type",
+                        "nullable",
+                        "maxLength",
+                        "minLength",
+                        "enum",
+                        "format",
+                        "pattern",
+                    ],
+                )?;
+                self.string_format(node, pointer, path)?;
+                let characters = text.chars().count();
+                let within = lengths(node, pointer)?;
+                Ok(enum_allows(node, pointer, &Json::String(text.clone()))?
+                    && within.0.is_none_or(|minimum| characters >= minimum)
+                    && within.1.is_none_or(|maximum| characters <= maximum))
+            }
+            (Literal::Integer(number), Kind::Integer) => {
+                check_keys(
+                    node,
+                    pointer,
+                    &[
+                        "type",
+                        "nullable",
+                        "minimum",
+                        "maximum",
+                        "exclusiveMinimum",
+                        "exclusiveMaximum",
+                        "format",
+                        "enum",
+                    ],
+                )?;
+                let (lower, upper) = integer_bounds(node, pointer)?;
+                Ok(enum_allows(node, pointer, &Json::Number((*number).into()))?
+                    && lower.is_none_or(|bound| *number >= bound)
+                    && upper.is_none_or(|bound| *number <= bound))
+            }
+            (Literal::Boolean(flag), Kind::Boolean) => {
+                check_keys(node, pointer, &["type", "nullable", "enum"])?;
+                enum_allows(node, pointer, &Json::Bool(*flag))
+            }
+            _ => Ok(false),
+        }
+    }
+
+    /// Rejects encoded binary formats and records any other format or
+    /// pattern as a constraint the contract does not enforce.
+    fn string_format(&mut self, node: &Json, pointer: &str, path: &str) -> Result<(), Diagnostic> {
+        if let Some(format) = node.get("format") {
+            let format = format.as_str().ok_or_else(|| {
+                unsupported(format!("{pointer}/format"), "format is not a string")
+            })?;
+            if matches!(format, "byte" | "binary") {
+                return Err(unsupported(
+                    format!("{pointer}/format"),
+                    format!("{path} has format {format}; encoded binary bodies are not derived"),
+                ));
+            }
+            self.unenforce(
+                pointer,
+                path,
+                "format",
+                "string formats are not validated by the contract",
+            );
+        }
+        if node.get("pattern").is_some() {
+            self.unenforce(
+                pointer,
+                path,
+                "pattern",
+                "patterns are not validated by the contract; the provider may reject a value",
+            );
+        }
+        Ok(())
+    }
+
     /// Applies the closed-object rule; `None` stops mapping this object,
     /// `Some(false)` records a rejection but keeps mapping its properties.
     fn closed(&mut self, node: &Json, pointer: &str, path: Option<&str>) -> Option<bool> {
@@ -897,52 +941,163 @@ fn enumeration(values: &Json, pointer: &str, path: &str) -> Result<ArgSchema, Di
     Ok(ArgSchema::Enum(variants))
 }
 
-fn string_literal_fits(node: &Json, text: &str) -> bool {
-    if let Some(values) = node.get("enum").and_then(Json::as_array) {
-        return values.iter().any(|value| value.as_str() == Some(text));
-    }
-    let characters = text.chars().count();
-    let within = |key: &str, test: &dyn Fn(usize) -> bool| {
+/// Reads `minLength` and `maxLength`; a present bound must be a
+/// non-negative integer.
+fn lengths(node: &Json, pointer: &str) -> Result<(Option<usize>, Option<usize>), Diagnostic> {
+    let read = |key: &str| -> Result<Option<usize>, Diagnostic> {
         node.get(key)
-            .and_then(Json::as_integer)
-            .and_then(|number| usize::try_from(number).ok())
-            .is_none_or(test)
+            .map(|value| {
+                value
+                    .as_integer()
+                    .and_then(|number| usize::try_from(number).ok())
+                    .ok_or_else(|| {
+                        unsupported(
+                            format!("{pointer}/{key}"),
+                            format!("{key} is not a non-negative integer"),
+                        )
+                    })
+            })
+            .transpose()
     };
-    within("maxLength", &|bound| characters <= bound)
-        && within("minLength", &|bound| characters >= bound)
+    Ok((read("minLength")?, read("maxLength")?))
 }
 
-/// Reads inclusive integer bounds, folding both exclusive spellings.
+/// Reports whether `value` is a member of the node's `enum`, if it has one.
+fn enum_allows(node: &Json, pointer: &str, value: &Json) -> Result<bool, Diagnostic> {
+    match node.get("enum") {
+        None => Ok(true),
+        Some(Json::Array(items)) => Ok(items.iter().any(|item| match (item, value) {
+            (Json::Number(_), Json::Number(_)) => {
+                item.as_integer().is_some() && item.as_integer() == value.as_integer()
+            }
+            _ => item == value,
+        })),
+        Some(_) => Err(unsupported(
+            format!("{pointer}/enum"),
+            "enum is not an array",
+        )),
+    }
+}
+
+/// One numeric bound, rejected outside the safe-integer range.
+fn bound(node: &Json, pointer: &str, key: &str) -> Result<Option<f64>, Diagnostic> {
+    let Some(value) = node.get(key) else {
+        return Ok(None);
+    };
+    let Json::Number(number) = value else {
+        return Err(unsupported(
+            format!("{pointer}/{key}"),
+            format!("{key} is not a number"),
+        ));
+    };
+    // INVARIANT: every finite JSON number has an f64 value; values beyond
+    // the safe range are rejected below, so rounding error cannot move an
+    // accepted bound.
+    #[allow(clippy::cast_precision_loss)]
+    let limit = SAFE_INTEGER as f64;
+    match number.as_f64() {
+        Some(parsed) if parsed.abs() <= limit => Ok(Some(parsed)),
+        _ => Err(unsupported(
+            format!("{pointer}/{key}"),
+            format!("{key} lies outside the safe-integer range"),
+        )),
+    }
+}
+
+/// Converts an integral, safe-range f64 to i64.
+fn integral(value: f64) -> i64 {
+    // INVARIANT: callers pass floor/ceil of a value within the safe-integer
+    // range, which i64 represents exactly.
+    #[allow(clippy::cast_possible_truncation)]
+    let converted = value as i64;
+    converted
+}
+
+/// Reads inclusive integer bounds. Fractional bounds round inward, an
+/// exclusive bound excludes its own value, and when inclusive and exclusive
+/// bounds are both present the tighter one wins.
 fn integer_bounds(node: &Json, pointer: &str) -> Result<(Option<i64>, Option<i64>), Diagnostic> {
-    let read = |key: &str| -> Result<Option<i64>, Diagnostic> {
-        match node.get(key) {
-            None => Ok(None),
-            Some(value) if value.is_number() => Ok(value.as_integer()),
-            Some(_) => Err(unsupported(
-                format!("{pointer}/{key}"),
-                format!("{key} is not a number"),
-            )),
+    let minimum = bound(node, pointer, "minimum")?;
+    let maximum = bound(node, pointer, "maximum")?;
+    let at_least = |value: f64| integral(value.ceil());
+    let above = |value: f64| integral(value.floor()) + 1;
+    let at_most = |value: f64| integral(value.floor());
+    let below = |value: f64| integral(value.ceil()) - 1;
+    // The 3.0 spelling is a boolean beside the bound; the 3.1 spelling is a
+    // number of its own, read below.
+    let flag = |key: &str| node.get(key).and_then(Json::as_bool);
+    let lower = match flag("exclusiveMinimum") {
+        Some(true) => minimum.map(above),
+        Some(false) => minimum.map(at_least),
+        None => {
+            let exclusive = bound(node, pointer, "exclusiveMinimum")?.map(above);
+            match (minimum.map(at_least), exclusive) {
+                (Some(inclusive), Some(exclusive)) => Some(inclusive.max(exclusive)),
+                (inclusive, exclusive) => inclusive.or(exclusive),
+            }
         }
     };
-    let mut lower = read("minimum")?;
-    let mut upper = read("maximum")?;
-    match node.get("exclusiveMinimum") {
-        Some(Json::Bool(true)) => lower = lower.map(|bound| bound + 1),
-        Some(Json::Bool(false)) | None => {}
-        Some(_) => {
-            lower = read("exclusiveMinimum")?
-                .map(|bound| lower.map_or(bound + 1, |current| current.max(bound + 1)));
+    let upper = match flag("exclusiveMaximum") {
+        Some(true) => maximum.map(below),
+        Some(false) => maximum.map(at_most),
+        None => {
+            let exclusive = bound(node, pointer, "exclusiveMaximum")?.map(below);
+            match (maximum.map(at_most), exclusive) {
+                (Some(inclusive), Some(exclusive)) => Some(inclusive.min(exclusive)),
+                (inclusive, exclusive) => inclusive.or(exclusive),
+            }
         }
-    }
-    match node.get("exclusiveMaximum") {
-        Some(Json::Bool(true)) => upper = upper.map(|bound| bound - 1),
-        Some(Json::Bool(false)) | None => {}
-        Some(_) => {
-            upper = read("exclusiveMaximum")?
-                .map(|bound| upper.map_or(bound - 1, |current| current.min(bound - 1)));
-        }
-    }
+    };
     let safe =
-        |bound: Option<i64>| bound.filter(|value| (-SAFE_INTEGER..=SAFE_INTEGER).contains(value));
-    Ok((safe(lower), safe(upper)))
+        |value: Option<i64>| value.filter(|number| (-SAFE_INTEGER..=SAFE_INTEGER).contains(number));
+    match (lower, upper) {
+        (Some(low), _) if safe(Some(low)).is_none() => Err(unsupported(
+            pointer,
+            "the lower bound lies outside the safe-integer range",
+        )),
+        (_, Some(high)) if safe(Some(high)).is_none() => Err(unsupported(
+            pointer,
+            "the upper bound lies outside the safe-integer range",
+        )),
+        bounds => Ok(bounds),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::json::parse;
+
+    fn bounds(schema: &str) -> Result<(Option<i64>, Option<i64>), Diagnostic> {
+        integer_bounds(&parse(schema.as_bytes()).unwrap(), "#")
+    }
+
+    #[test]
+    fn integer_bounds_round_inward_and_keep_the_tighter_bound() {
+        assert_eq!(bounds(r#"{"minimum":0.5,"maximum":10.5}"#).unwrap(), (Some(1), Some(10)));
+        assert_eq!(bounds(r#"{"minimum":-0.5,"maximum":-0.5}"#).unwrap(), (Some(0), Some(-1)));
+        assert_eq!(
+            bounds(r#"{"minimum":10,"exclusiveMinimum":0.5,"maximum":20,"exclusiveMaximum":30}"#)
+                .unwrap(),
+            (Some(10), Some(20))
+        );
+        assert_eq!(
+            bounds(r#"{"minimum":0,"exclusiveMinimum":5,"maximum":9,"exclusiveMaximum":4.5}"#)
+                .unwrap(),
+            (Some(6), Some(4))
+        );
+        assert_eq!(
+            bounds(r#"{"minimum":1,"exclusiveMinimum":true,"maximum":4,"exclusiveMaximum":true}"#)
+                .unwrap(),
+            (Some(2), Some(3))
+        );
+        assert_eq!(bounds(r#"{"exclusiveMinimum":2.5}"#).unwrap(), (Some(3), None));
+        assert!(bounds(r#"{"minimum":1e16}"#).is_err());
+        assert!(bounds(r#"{"maximum":9007199254740992}"#).is_err());
+        assert!(bounds(r#"{"minimum":"1"}"#).is_err());
+        assert_eq!(
+            bounds(r#"{"minimum":-9007199254740991,"maximum":9007199254740991}"#).unwrap(),
+            (Some(-9_007_199_254_740_991), Some(9_007_199_254_740_991))
+        );
+    }
 }

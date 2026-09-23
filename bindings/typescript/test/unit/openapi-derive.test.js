@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -78,10 +78,16 @@ test("derive, generate, check, and a hand edit through the packaged command", as
     const manifest = join(target, "profile.toml");
     assert.equal(run("generate", manifest).status, 0);
     assert.equal(run("check", manifest).status, 0);
-    assert.equal(derive(target, "minimal-create-note").status, 0);
+    const before = await Promise.all(["profile.toml", "recipe.json", "derivation.json"]
+      .map(async name => (await stat(join(target, name), { bigint: true })).mtimeNs));
+    const again = derive(target, "minimal-create-note");
+    assert.equal(again.status, 0);
+    assert.match(again.stdout, /wrote: {6}nothing; the files already match this derivation/);
+    assert.deepEqual(await Promise.all(["profile.toml", "recipe.json", "derivation.json"]
+      .map(async name => (await stat(join(target, name), { bigint: true })).mtimeNs)), before);
 
     const item = cases.find(entry => entry.id === "minimal-create-note");
-    const narrowed = item.arguments.map(value => value.replace("title=240", "title=200"));
+    const narrowed = item.arguments.map(value => value.replace("title=100", "title=80"));
     const changed = ["derive", "--openapi", join(corpus, "documents/minimal.json"), "--directory", target, ...narrowed];
     const refused = run(...changed);
     assert.equal(refused.status, 1);
@@ -91,7 +97,7 @@ test("derive, generate, check, and a hand edit through the packaged command", as
     assert.equal(run("generate", manifest).status, 0);
     assert.equal(run("check", manifest).status, 0);
 
-    await writeFile(manifest, (await readFile(manifest, "utf8")).replace("max_bytes = 200", "max_bytes = 199"));
+    await writeFile(manifest, (await readFile(manifest, "utf8")).replace("max_bytes = 80", "max_bytes = 79"));
     const edited = run("check", manifest);
     assert.equal(edited.status, 1);
     assert.match(edited.stderr, /profile\.toml: derived file edited by hand/);
@@ -101,6 +107,11 @@ test("derive, generate, check, and a hand edit through the packaged command", as
     assert.equal(diff.status, 0);
     assert.match(diff.stdout, /profile\.toml: derived file edited by hand/);
     assert.match(diff.stdout, /profile\.contract\.version-required/);
+    const editedBytes = await readFile(manifest);
+    const refusedEdit = run(...changed, "--version", "3");
+    assert.equal(refusedEdit.status, 1);
+    assert.match(refusedEdit.stderr, /contract\.derive\.derived-edited/);
+    assert.deepEqual(await readFile(manifest), editedBytes);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -130,6 +141,26 @@ test("rejected, hand-owned, and unsafe derivations write nothing", async () => {
     const unsafe = run("derive", "--openapi", link, "--directory", join(directory, "out"), ...item.arguments);
     assert.equal(unsafe.status, 1);
     assert.match(unsafe.stderr, /contract\.derive\.document-unreadable/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("a derivation record is read by the shared native reader", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auths-derive-record-"));
+  try {
+    const target = join(directory, "notes");
+    assert.equal(derive(target, "minimal-create-note").status, 0);
+    const record = join(target, "derivation.json");
+    const original = await readFile(record);
+    await writeFile(record, original.toString("utf8").replace('"version": 1,', '"version": 1.0,'));
+    const float = run("check", join(target, "profile.toml"));
+    assert.equal(float.status, 1);
+    assert.match(float.stderr, /derivation\.json is invalid/);
+    await writeFile(record, Buffer.concat([Buffer.from([0xff]), original]));
+    const utf8 = run("check", join(target, "profile.toml"));
+    assert.equal(utf8.status, 1);
+    assert.match(utf8.stderr, /derivation\.json is invalid/);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

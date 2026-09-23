@@ -130,6 +130,14 @@ pub fn derive_openapi_operation_v1(
     auths_openapi_derive::derive_to_json(document, document_name, &arguments)
 }
 
+/// Reads a written `derivation.json` strictly for the packaged profile CLI;
+/// an invalid record is an `ok: false` JSON result, never an exception.
+#[must_use]
+#[wasm_bindgen(js_name = readDerivationRecordV1)]
+pub fn read_derivation_record_v1(record: &[u8]) -> String {
+    auths_openapi_derive::read_derivation_record_to_json(record)
+}
+
 const MAX_VERIFICATION_BATCH_ITEMS: usize = 256;
 const MAX_VERIFICATION_BATCH_BYTES: usize = 16 * 1024 * 1024;
 

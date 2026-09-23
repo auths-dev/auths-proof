@@ -2,6 +2,9 @@
 
 use std::fmt;
 
+/// Longest pointer a diagnostic carries; longer ones are cut with `...`.
+const MAX_POINTER_BYTES: usize = 2048;
+
 /// One stable derivation rejection code in the `contract` stage.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum DeriveCode {
@@ -71,6 +74,14 @@ pub enum DeriveCode {
     InvalidOverride,
     /// An override did not apply to any construct.
     UnusedOverride,
+    /// One override name applies to more than one construct.
+    AmbiguousOverride,
+    /// The derived `profile.toml` exceeds what the profile generators read.
+    ProfileLimit,
+    /// The derived recipe exceeds what the gateway recipe compiler reads.
+    RecipeLimit,
+    /// The document declares that the operation needs no credential.
+    UncredentialedOperation,
 }
 
 impl DeriveCode {
@@ -111,6 +122,10 @@ impl DeriveCode {
             Self::FieldLimit => "contract.derive.field-limit",
             Self::InvalidOverride => "contract.derive.invalid-override",
             Self::UnusedOverride => "contract.derive.unused-override",
+            Self::AmbiguousOverride => "contract.derive.ambiguous-override",
+            Self::ProfileLimit => "contract.derive.profile-limit",
+            Self::RecipeLimit => "contract.derive.recipe-limit",
+            Self::UncredentialedOperation => "contract.derive.uncredentialed-operation",
         }
     }
 }
@@ -138,9 +153,18 @@ impl Diagnostic {
         pointer: impl Into<String>,
         message: impl Into<String>,
     ) -> Self {
+        let mut pointer = pointer.into();
+        if pointer.len() > MAX_POINTER_BYTES {
+            let mut end = MAX_POINTER_BYTES;
+            while !pointer.is_char_boundary(end) {
+                end -= 1;
+            }
+            pointer.truncate(end);
+            pointer.push_str("...");
+        }
         Self {
             code,
-            pointer: pointer.into(),
+            pointer,
             message: message.into(),
             overrides: Vec::new(),
         }

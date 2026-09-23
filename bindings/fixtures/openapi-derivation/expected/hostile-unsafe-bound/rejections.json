@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.unsupported-construct",
+    "pointer": "#/paths/~1unsafe-bound/post/requestBody/content/application~1json/schema/properties/p/minimum",
+    "overrides": []
+  }
+]

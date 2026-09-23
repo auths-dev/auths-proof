@@ -593,25 +593,33 @@ def write_profile(directory: Path, contract: ProfileContract, *, seal: bool = Tr
         target.write_text(contents, encoding="utf-8")
 
 
-_DERIVATION_SCHEMA = "auths.openapi-derivation/1"
 _DERIVE_RESULT_SCHEMA = "auths.openapi-derive-result/1"
+_RECORD_RESULT_SCHEMA = "auths.openapi-derivation-record-result/1"
 _DERIVED_FILES = ("profile.toml", "recipe.json", "derivation.json")
 _MAX_DOCUMENT_BYTES = 32 * 1024 * 1024
 _MAX_DERIVATION_BYTES = 262_144
-_HEX_DIGEST = re.compile(r"^[0-9a-f]{64}$")
 _EDITED_BY_HAND = "derived file edited by hand; re-derive, or delete derivation.json to declare the files hand-owned"
 
 
-def _read_derivation(record: Path) -> dict[str, object]:
+def _read_derivation(record: Path) -> tuple[int, dict[str, str]]:
+    """Read a derivation.json through the native reader both CLIs share."""
+    from . import _native
+
     if record.is_symlink() or not record.is_file() or record.stat().st_size > _MAX_DERIVATION_BYTES:
         raise ValueError("derivation.json must be a bounded regular file")
-    try:
-        value = cast(object, json.loads(record.read_bytes()))
-    except (OSError, ValueError) as error:
-        raise ValueError("derivation.json is invalid") from error
-    if not isinstance(value, dict) or cast(dict[str, object], value).get("schema") != _DERIVATION_SCHEMA:
-        raise ValueError("derivation.json is invalid")
-    return cast(dict[str, object], value)
+    result = cast(object, json.loads(_native.read_derivation_record_v1(record.read_bytes())))
+    if not isinstance(result, dict) or cast(dict[str, object], result).get("schema") != _RECORD_RESULT_SCHEMA:
+        raise ValueError("native derivation record result is invalid")
+    fields = cast(dict[str, object], result)
+    if fields.get("ok") is not True:
+        raise ValueError(str(fields.get("message", "derivation.json is invalid")))
+    version, outputs = fields.get("version"), fields.get("outputs")
+    if type(version) is not int or not isinstance(outputs, dict):
+        raise ValueError("native derivation record result is invalid")
+    digests = {name: cast(dict[str, object], outputs).get(name) for name in ("profile.toml", "recipe.json")}
+    if not all(isinstance(value, str) for value in digests.values()):
+        raise ValueError("native derivation record result is invalid")
+    return version, cast(dict[str, str], digests)
 
 
 def derived_edits(directory: Path) -> tuple[str, ...]:
@@ -619,14 +627,9 @@ def derived_edits(directory: Path) -> tuple[str, ...]:
     record = directory / "derivation.json"
     if not record.exists() and not record.is_symlink():
         return ()
-    outputs = _read_derivation(record).get("outputs")
-    if not isinstance(outputs, dict):
-        raise ValueError("derivation.json is invalid")
+    _, outputs = _read_derivation(record)
     edited: list[str] = []
-    for name in ("profile.toml", "recipe.json"):
-        expected = cast(dict[str, object], outputs).get(name)
-        if not isinstance(expected, str) or not _HEX_DIGEST.fullmatch(expected):
-            raise ValueError("derivation.json is invalid")
+    for name, expected in outputs.items():
         target = directory / name
         if (
             target.is_symlink() or not target.is_file()
@@ -660,11 +663,12 @@ def _read_document(path: Path) -> bytes:
     return document
 
 
-def _check_derive_target(directory: Path, derivation: str, version: int) -> None:
+def _check_derive_target(directory: Path, derivation: str, version: int) -> bool:
+    """Refuse an unsafe target; return True when the files already match."""
     if directory.is_symlink():
         raise ValueError("contract.derive.directory-not-derived: the output directory cannot be a symlink")
     if not directory.exists():
-        return
+        return False
     for name in _DERIVED_FILES:
         if (directory / name).is_symlink():
             raise ValueError(f"contract.derive.directory-not-derived: {name} cannot be a symlink")
@@ -675,19 +679,22 @@ def _check_derive_target(directory: Path, derivation: str, version: int) -> None
                 "contract.derive.directory-not-derived: profile.toml or recipe.json exists without "
                 "derivation.json; derive into an empty directory or remove the hand-owned files"
             )
-        return
-    recorded = _read_derivation(record)
+        return False
+    old_version, _ = _read_derivation(record)
+    edited = derived_edits(directory)
+    if edited:
+        raise ValueError(
+            f"contract.derive.derived-edited: {', '.join(edited)} changed since the last derivation; "
+            "delete derivation.json to keep the hand edits, or restore the files before re-deriving"
+        )
     if record.read_bytes() == derivation.encode("utf-8"):
-        return
-    profile = recorded.get("profile")
-    old_version = cast(dict[str, object], profile).get("version") if isinstance(profile, dict) else None
-    if type(old_version) is not int:
-        raise ValueError("derivation.json is invalid")
+        return True
     if version <= old_version:
         raise ValueError(
             f"contract.derive.version-required: the derivation changed under profile version {old_version}; "
             f"pass --version {old_version + 1}"
         )
+    return False
 
 
 def _derive_main(argv: Sequence[str]) -> int:
@@ -729,12 +736,16 @@ def _derive_main(argv: Sequence[str]) -> int:
     contents = {name: cast(dict[str, object], files).get(name) for name in _DERIVED_FILES}
     if not all(isinstance(value, str) for value in contents.values()):
         raise ValueError("native derivation result is invalid")
-    _check_derive_target(directory, cast(str, contents["derivation.json"]), version)
-    directory.mkdir(parents=True, exist_ok=True)
-    for name in _DERIVED_FILES:
-        (directory / name).write_bytes(cast(str, contents[name]).encode("utf-8"))
+    unchanged = _check_derive_target(directory, cast(str, contents["derivation.json"]), version)
+    if not unchanged:
+        directory.mkdir(parents=True, exist_ok=True)
+        for name in _DERIVED_FILES:
+            (directory / name).write_bytes(cast(str, contents[name]).encode("utf-8"))
     for line in cast(list[object], lines):
-        print(str(line))
+        text = str(line)
+        if unchanged and text.startswith("  wrote:"):
+            text = "  wrote:      nothing; the files already match this derivation"
+        print(text)
     return 0
 
 

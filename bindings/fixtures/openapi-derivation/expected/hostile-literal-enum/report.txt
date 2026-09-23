@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.invalid-override  #/paths/~1literal-enum/post/requestBody/content/application~1json/schema/properties/p
+    --literal for p does not satisfy the document schema; no override exists
+nothing written

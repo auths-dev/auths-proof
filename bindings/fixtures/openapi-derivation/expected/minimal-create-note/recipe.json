@@ -1,6 +1,6 @@
 {
   "schema": "auths.gateway-recipe-source/1",
-  "profile_schema_digest": "41a15de0289db5c266fc2aa0d42074297422b651c35194ef8b36a3625048e64e",
+  "profile_schema_digest": "3b7cf471aac444931be7ec82435618d77a3a50d90f1c855e0b0ba589e2135de3",
   "service": "notes",
   "tool": "createNote_v1",
   "operator_namespace": "notes-demo",

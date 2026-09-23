@@ -1,0 +1,49 @@
+{
+  "schema": "auths.openapi-derivation/1",
+  "document": {
+    "sha256": "92c1c496286dde0101a763591f9b7468b8c8fda337e0a32baae74fa43e6665a4",
+    "bytes": 144630,
+    "openapi": "3.0.3"
+  },
+  "operation": {
+    "operation_id": "hFractionalBounds",
+    "method": "POST",
+    "path": "/fraction-bounds",
+    "pointer": "#/paths/~1fraction-bounds/post"
+  },
+  "server": {
+    "listed": "https://api.hostile.example",
+    "origin": "https://api.hostile.example",
+    "base_path": []
+  },
+  "security": {
+    "scheme": "Bearer",
+    "type": "http/bearer",
+    "source": "document",
+    "acquisition": "static-credential",
+    "credential": {
+      "kind": "bearer"
+    }
+  },
+  "profile": {
+    "name": "hostile",
+    "service": "hostile",
+    "tool": "hFractionalBounds",
+    "version": 1,
+    "operator_namespace": "hostile"
+  },
+  "arguments": [
+    {
+      "name": "p",
+      "pointer": "#/paths/~1fraction-bounds/post/requestBody/content/application~1json/schema/properties/p"
+    }
+  ],
+  "overrides": [],
+  "omitted": [],
+  "unenforced": [],
+  "generator_format": 2,
+  "outputs": {
+    "profile.toml": "4bf53daaaf7bbdefd79d7a5e1a07bbe7d8552fbc47626e16368929c353989fd6",
+    "recipe.json": "fc426d8b9a0235088ea237cdcdbc5a230ccbb3aaf5a4b77bba2d48d35f673b58"
+  }
+}

@@ -1,5 +1,6 @@
 //! Byte-exact rendering of the three derived files and the report.
 
+use crate::diagnostic::{DeriveCode, Diagnostic};
 use crate::mapper::worst_case_json;
 use crate::model::{
     ArgSchema, CredentialKind, Mapping, Media, OPERATION_ID_MAX_BYTES, Segment, Template,
@@ -346,15 +347,48 @@ fn report(request: &Request, mapping: &Mapping, source: &Source<'_>) -> Vec<Stri
 }
 
 /// Renders the three files and the report.
-pub(crate) fn render(request: &Request, mapping: &Mapping, source: &Source<'_>) -> Rendered {
+/// Largest `profile.toml` the packaged profile generators read.
+const MAX_PROFILE_BYTES: usize = 16_384;
+/// Largest recipe source the gateway recipe compiler reads.
+const MAX_RECIPE_BYTES: usize = 65_536;
+
+/// Renders the three files and the report.
+///
+/// # Errors
+/// Rejects a `profile.toml` or recipe larger than its consumer reads.
+pub(crate) fn render(
+    request: &Request,
+    mapping: &Mapping,
+    source: &Source<'_>,
+) -> Result<Rendered, Diagnostic> {
     let fields = profile_fields(request, mapping);
     let profile_toml = profile_toml(request, mapping, &fields);
+    if profile_toml.len() > MAX_PROFILE_BYTES {
+        return Err(Diagnostic::new(
+            DeriveCode::ProfileLimit,
+            source.pointer.clone(),
+            format!(
+                "the derived profile.toml is {} bytes; the profile generators read at most 16384",
+                profile_toml.len()
+            ),
+        ));
+    }
     let recipe_json = recipe_json(request, mapping, &schema_digest(&fields), &source.method);
+    if recipe_json.len() > MAX_RECIPE_BYTES {
+        return Err(Diagnostic::new(
+            DeriveCode::RecipeLimit,
+            source.pointer.clone(),
+            format!(
+                "the derived recipe.json is {} bytes; the gateway recipe compiler reads at most 65536",
+                recipe_json.len()
+            ),
+        ));
+    }
     let derivation_json = derivation_json(request, mapping, source, &profile_toml, &recipe_json);
-    Rendered {
+    Ok(Rendered {
         lines: report(request, mapping, source),
         profile_toml,
         recipe_json,
         derivation_json,
-    }
+    })
 }
