@@ -1,5 +1,7 @@
-//! Single-host customer-operated gateway. The app socket accepts proof and
-//! action only; installation and administration require the operator channel.
+//! Customer-operated gateway. The app socket accepts proof and action only;
+//! installation and administration require the operator channel. A
+//! development installation keeps attempts on one host; a production
+//! installation keeps them in the qualified multi-host `PostgreSQL` store.
 
 #[cfg(not(unix))]
 fn main() {
@@ -15,13 +17,15 @@ mod unix {
         SecretBytes, SemanticId,
     };
     use auths_gateway::{
-        CompiledRecipe, FileGatewayAttemptStore, GatewayConnectionDescriptor, GatewayEngine,
-        GatewayObserveRequest, GatewayObserveResult, GatewayObserver, GatewayObserverError,
-        GatewaySubmitResult, OperatorNamespace, gateway_verifier_configuration,
+        CompiledRecipe, FileGatewayAttemptStore, GatewayAttempts, GatewayConnectionDescriptor,
+        GatewayEngine, GatewayObserveRequest, GatewayObserveResult, GatewayObserver,
+        GatewayObserverError, GatewaySubmitResult, OperatorNamespace, PostgresGatewayAttemptStore,
+        PrincipalSeparationError, check_principal_separation, gateway_verifier_configuration,
     };
-    use auths_stores::PersistentConnectionStore;
+    use auths_model::PrincipalId;
+    use auths_stores::{PersistentConnectionStore, PostgresLifecycleStore, PostgresStoreConfig};
     use base64ct::{Base64UrlUnpadded, Encoding as _};
-    use clap::{Parser, Subcommand};
+    use clap::{Parser, Subcommand, ValueEnum};
     use serde::{Deserialize, Serialize};
     use sha2::{Digest as _, Sha256};
     use std::{
@@ -42,7 +46,7 @@ mod unix {
         sync::Semaphore,
     };
 
-    const MANIFEST_SCHEMA: &str = "auths.gateway-installation/1";
+    const MANIFEST_SCHEMA: &str = "auths.gateway-installation/2";
     const APP_REQUEST_SCHEMA: &str = "auths.gateway-submit/1";
     const APP_OBSERVE_SCHEMA: &str = "auths.gateway-observe/1";
     const OBSERVER_SEED: &str = "observer.seed";
@@ -83,6 +87,15 @@ mod unix {
             credential_header: String,
             #[arg(long, default_value_t = false)]
             credential_stdin: bool,
+            /// `development` keeps attempts in a single-host file store;
+            /// `production` requires the qualified `PostgreSQL` store, a
+            /// separate operator principal, and no software observer key.
+            #[arg(long, value_enum, default_value_t = Deployment::Development)]
+            deployment: Deployment,
+            /// The operator's principal, which must be neither a root nor an
+            /// observer of the installed trust. Required for production.
+            #[arg(long)]
+            operator_principal: Option<String>,
         },
         /// Serve a restricted application socket and private admin socket.
         Serve {
@@ -160,6 +173,13 @@ mod unix {
         },
     }
 
+    #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, ValueEnum)]
+    #[serde(rename_all = "kebab-case")]
+    enum Deployment {
+        Development,
+        Production,
+    }
+
     #[derive(Deserialize, Serialize)]
     #[serde(deny_unknown_fields)]
     struct Installation {
@@ -169,6 +189,8 @@ mod unix {
         trusted_context_sha256: String,
         provider: String,
         alias: String,
+        deployment: Deployment,
+        operator_principal: Option<String>,
     }
 
     #[derive(Deserialize, Serialize)]
@@ -272,6 +294,25 @@ mod unix {
         SecretBytes::new(bytes).map_err(|_| "gateway.install.invalid-credential")
     }
 
+    /// A production installation names an operator principal that is neither
+    /// a root nor an observer of the trust it installs.
+    fn separated_operator(
+        context: &auths_model::TrustedContext,
+        deployment: Deployment,
+        operator: Option<&str>,
+    ) -> Result<(), &'static str> {
+        match (operator, deployment) {
+            (Some(operator), _) => {
+                let operator = PrincipalId::parse(operator)
+                    .map_err(|_| "gateway.install.invalid-operator-principal")?;
+                check_principal_separation(context, &operator, None)
+                    .map_err(PrincipalSeparationError::code)
+            }
+            (None, Deployment::Production) => Err("gateway.install.operator-principal-required"),
+            (None, Deployment::Development) => Ok(()),
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     async fn install(
         state_dir: PathBuf,
@@ -284,6 +325,8 @@ mod unix {
         account_label: String,
         credential_header: String,
         credential_stdin: bool,
+        deployment: Deployment,
+        operator_principal: Option<String>,
     ) -> Result<(), &'static str> {
         if !credential_stdin || std::io::stdin().is_terminal() {
             return Err("gateway.install.credential-must-be-piped-to-stdin");
@@ -291,8 +334,9 @@ mod unix {
         let source = read_bounded(&recipe_path, 65_536)?;
         let lock = read_bounded(&lock_path, 65_536)?;
         let trust = read_bounded(&context_path, 4 * 1024 * 1024)?;
-        auths_codec::decode_verifier_context(&trust)
+        let context = auths_codec::decode_verifier_context(&trust)
             .map_err(|_| "gateway.install.invalid-trusted-context")?;
+        separated_operator(&context, deployment, operator_principal.as_deref())?;
         let recipe = CompiledRecipe::compile(&source, &lock)
             .map_err(|_| "gateway.install.invalid-recipe")?;
         if approved != recipe.digest_hex() {
@@ -369,6 +413,8 @@ mod unix {
             trusted_context_sha256: digest(&trust),
             provider: provider_text,
             alias: alias_text,
+            deployment,
+            operator_principal,
         };
         let manifest_bytes = serde_json_canonicalizer::to_vec(&manifest)
             .map_err(|_| "gateway.install.manifest-invalid")?;
@@ -380,8 +426,7 @@ mod unix {
         Ok(())
     }
 
-    fn load_engine(state_dir: &Path) -> Result<GatewayEngine, &'static str> {
-        private_root(state_dir)?;
+    fn installation(state_dir: &Path) -> Result<Installation, &'static str> {
         let manifest_bytes = read_bounded(&state_dir.join("installation.json"), 4_096)?;
         let manifest: Installation = serde_json::from_slice(&manifest_bytes)
             .map_err(|_| "gateway.serve.invalid-installation")?;
@@ -392,6 +437,35 @@ mod unix {
         {
             return Err("gateway.serve.invalid-installation");
         }
+        Ok(manifest)
+    }
+
+    /// Opens the attempt store the installation names. Production uses the
+    /// qualified `PostgreSQL` store from the reference deployment's secret
+    /// slots; it blocks, so the caller must not be on an async executor.
+    fn attempt_store(
+        state_dir: &Path,
+        deployment: Deployment,
+    ) -> Result<GatewayAttempts, &'static str> {
+        Ok(GatewayAttempts::new(match deployment {
+            Deployment::Development => Arc::new(
+                FileGatewayAttemptStore::open(state_dir.join("attempts"))
+                    .map_err(|_| "gateway.serve.attempt-store-unavailable")?,
+            ),
+            Deployment::Production => {
+                let configuration = PostgresStoreConfig::from_env(Vec::new(), 1_000_000)
+                    .map_err(|_| "gateway.serve.postgres-configuration")?;
+                Arc::new(PostgresGatewayAttemptStore::new(Arc::new(
+                    PostgresLifecycleStore::connect(configuration)
+                        .map_err(|_| "gateway.serve.attempt-store-unavailable")?,
+                )))
+            }
+        }))
+    }
+
+    fn load_engine(state_dir: &Path) -> Result<GatewayEngine, &'static str> {
+        private_root(state_dir)?;
+        let manifest = installation(state_dir)?;
         let source = read_bounded(&state_dir.join("recipe.json"), 65_536)?;
         let lock = read_bounded(&state_dir.join("profile.lock.json"), 65_536)?;
         let trust = read_bounded(&state_dir.join("trusted.context.cbor"), 4 * 1024 * 1024)?;
@@ -412,6 +486,9 @@ mod unix {
         )
         .map_err(|_| "gateway.serve.profile")?;
         let observer = load_observer(state_dir)?;
+        if manifest.deployment == Deployment::Production && observer.is_some() {
+            return Err("gateway.production.observer-software-custody");
+        }
         let engine = GatewayEngine::new(
             recipe,
             approved,
@@ -427,14 +504,21 @@ mod unix {
             .map_err(|_| "gateway.serve.connection-store-unavailable")?,
             PersistentCredentialStore::open(state_dir.join("credentials.cbor"))
                 .map_err(|_| "gateway.serve.credential-store-unavailable")?,
-            FileGatewayAttemptStore::open(state_dir.join("attempts"))
-                .map_err(|_| "gateway.serve.attempt-store-unavailable")?,
+            attempt_store(state_dir, manifest.deployment)?,
         )
         .map_err(|_| "gateway.serve.invalid-installation")?;
-        Ok(match observer {
+        let engine = match observer {
             Some(observer) => engine.with_observer(observer),
             None => engine,
-        })
+        };
+        if let Some(operator) = &manifest.operator_principal {
+            let operator =
+                PrincipalId::parse(operator).map_err(|_| "gateway.serve.invalid-installation")?;
+            engine
+                .check_principal_separation(&operator)
+                .map_err(PrincipalSeparationError::code)?;
+        }
+        Ok(engine)
     }
 
     /// Loads the observer key when the operator provisioned one. A present
@@ -481,6 +565,9 @@ mod unix {
     }
 
     fn observer_init(state_dir: &Path) -> Result<(), &'static str> {
+        if installation(state_dir)?.deployment == Deployment::Production {
+            return Err("gateway.production.observer-software-custody");
+        }
         private_root(state_dir)?;
         let recipe = installed_recipe(state_dir)?;
         let observer = GatewayObserver::generate(&state_dir.join(OBSERVER_SEED))
@@ -687,7 +774,12 @@ mod unix {
     }
 
     async fn serve(state_dir: PathBuf, app_socket: PathBuf) -> Result<(), &'static str> {
-        let engine = Arc::new(load_engine(&state_dir)?);
+        let loading = state_dir.clone();
+        let engine = Arc::new(
+            tokio::task::spawn_blocking(move || load_engine(&loading))
+                .await
+                .map_err(|_| "gateway.serve.load-failed")??,
+        );
         if !app_socket.is_absolute() {
             return Err("gateway.serve.invalid-app-socket");
         }
@@ -917,6 +1009,8 @@ mod unix {
                 account_label,
                 credential_header,
                 credential_stdin,
+                deployment,
+                operator_principal,
             } => {
                 install(
                     state_dir,
@@ -929,6 +1023,8 @@ mod unix {
                     account_label,
                     credential_header,
                     credential_stdin,
+                    deployment,
+                    operator_principal,
                 )
                 .await
             }

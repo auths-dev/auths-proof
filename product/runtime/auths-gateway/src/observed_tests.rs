@@ -12,10 +12,11 @@ use crate::engine::{
     not_entered, observe_outcome, observe_read_back, reobserve, replay_refused, verify_command,
 };
 use crate::observer::{OUTCOME_SCHEMA, READ_BACK_SCHEMA, operation_subject};
+use crate::store_testkit::{Backend, TestAttempts, postgres_configured};
 use crate::transport::{GatewayTransportError, ProviderPort, WriteTransportOutcome};
 use crate::{
-    ClosedObservationRequest, ClosedProviderRequest, CompiledRecipe, FileGatewayAttemptStore,
-    GatewayAttemptError, GatewayObserver, LogicalOperationId, OperatorNamespace,
+    ClosedObservationRequest, ClosedProviderRequest, CompiledRecipe, GatewayAttemptError,
+    GatewayObserver, LogicalOperationId, OperatorNamespace,
 };
 use auths_codec::{
     action_id, action_signing_preimage, attachment_digest, body_digest, domain_commitment,
@@ -256,31 +257,52 @@ fn context(
     observer: &PrincipalId,
     configuration: Option<[u8; 32]>,
 ) -> TrustedContext {
+    context_with(
+        &[root],
+        observer,
+        configuration,
+        CompositionRequirement::new(None, 1, 1, 1).expect("composition"),
+    )
+}
+
+/// Trust pinned to every root in `roots` under one composition requirement.
+fn context_with(
+    roots: &[&Signer],
+    observer: &PrincipalId,
+    configuration: Option<[u8; 32]>,
+    composition: CompositionRequirement,
+) -> TrustedContext {
     let configuration = configuration.map_or_else(
         || gateway_verifier_configuration().expect("configuration"),
         auths_model::VerifierConfigurationId::new,
     );
     let assurance = AssurancePolicyId::parse(ASSURANCE).expect("assurance");
-    let anchor = TrustAnchor::new(
-        TrustAnchorId::parse("root").expect("anchor ID"),
-        root.principal.clone(),
-        vec![PrincipalMethodId::parse(RAW_KEY_V1).expect("method")],
-        vec![call(&Map::new()).profile_ref().expect("profile")],
-        PermissionSet::new(vec![call(&Map::new()).permission().expect("permission")])
-            .expect("permissions"),
-        vec![ResourceId::parse(&format!("mcp://{SERVICE}/")).expect("namespace")],
-        AudienceSet::new(vec![audience()]).expect("audiences"),
-        window(NOW - 86_400, NOW + 86_400),
-        None,
-        1,
-        assurance.clone(),
-        StatusPolicy::ExpiryOnly,
-    )
-    .expect("trust anchor");
+    let anchors = roots
+        .iter()
+        .enumerate()
+        .map(|(index, root)| {
+            TrustAnchor::new(
+                TrustAnchorId::parse(&format!("root-{index}")).expect("anchor ID"),
+                root.principal.clone(),
+                vec![PrincipalMethodId::parse(RAW_KEY_V1).expect("method")],
+                vec![call(&Map::new()).profile_ref().expect("profile")],
+                PermissionSet::new(vec![call(&Map::new()).permission().expect("permission")])
+                    .expect("permissions"),
+                vec![ResourceId::parse(&format!("mcp://{SERVICE}/")).expect("namespace")],
+                AudienceSet::new(vec![audience()]).expect("audiences"),
+                window(NOW - 86_400, NOW + 86_400),
+                None,
+                1,
+                assurance.clone(),
+                StatusPolicy::ExpiryOnly,
+            )
+            .expect("trust anchor")
+        })
+        .collect();
     TrustedContext::new(
         configuration,
-        CompositionRequirement::new(None, 1, 1, 1).expect("composition"),
-        vec![anchor],
+        composition,
+        anchors,
         accepted_registries(),
         audience(),
         Challenge::new([0; 32]),
@@ -624,20 +646,19 @@ impl ProviderPort for CountingProvider {
 struct Harness {
     recipe: CompiledRecipe,
     context: TrustedContext,
-    store: FileGatewayAttemptStore,
+    store: TestAttempts,
     provider: CountingProvider,
     observer: GatewayObserver,
     root: Signer,
     agent: Signer,
-    _temp: tempfile::TempDir,
 }
 
 impl Harness {
-    fn open(recipe: CompiledRecipe) -> Self {
+    fn open(recipe: CompiledRecipe, backend: Backend) -> Self {
         let root = Signer::new(0x11);
         let observer = GatewayObserver::from_test_seed(0x33);
         let context = context(&root, observer.principal(), None);
-        Self::with(recipe, context, observer, root, Signer::new(0x22))
+        Self::with(recipe, context, observer, root, Signer::new(0x22), backend)
     }
 
     fn with(
@@ -646,20 +667,16 @@ impl Harness {
         observer: GatewayObserver,
         root: Signer,
         agent: Signer,
+        backend: Backend,
     ) -> Self {
-        let temp = tempfile::tempdir().expect("temp directory");
-        let store_root = std::fs::canonicalize(temp.path())
-            .expect("canonical temp")
-            .join("attempts");
         Self {
             recipe,
             context,
-            store: FileGatewayAttemptStore::open(&store_root).expect("store"),
+            store: TestAttempts::open(backend),
             provider: CountingProvider::new(),
             observer,
             root,
             agent,
-            _temp: temp,
         }
     }
 
@@ -700,15 +717,16 @@ impl Harness {
             Ok(value) => value,
             Err(result) => return result,
         };
-        match self.store.claim(&request, *self.recipe.digest()) {
+        let attempts = self.store.attempts();
+        match attempts.claim(&request, *self.recipe.digest()).await {
             Ok(claim) => {
                 self.provider.leases.fetch_add(1, Ordering::SeqCst);
                 execute_claimed(claim, &request, &self.provider).await
             }
             Err(GatewayAttemptError::Replay) => {
-                match self
-                    .store
+                match attempts
                     .resume_observable(&request, *self.recipe.digest())
+                    .await
                 {
                     Ok(Some(attempt)) => {
                         self.provider.leases.fetch_add(1, Ordering::SeqCst);
@@ -731,8 +749,15 @@ impl Harness {
         signed_bytes(observe_read_back(&target, &self.observer, &self.provider, || Some(at)).await)
     }
 
-    fn outcome(&self, operation: &str, at: u64) -> GatewayObserveResult {
-        observe_outcome(&self.store, &namespace(), &self.observer, operation, at)
+    async fn outcome(&self, operation: &str, at: u64) -> GatewayObserveResult {
+        observe_outcome(
+            self.store.attempts(),
+            &namespace(),
+            &self.observer,
+            operation,
+            at,
+        )
+        .await
     }
 }
 
@@ -781,9 +806,8 @@ fn update_extra(record: &str, expected: &str) -> Value {
     json!({"expected": expected, "record_uri": read_back_subject(record)})
 }
 
-#[tokio::test]
-async fn fresh_matching_read_back_authorizes_the_replacement_write() {
-    let harness = Harness::open(update_recipe());
+async fn fresh_matching_read_back_authorizes_the_replacement_write(backend: Backend) {
+    let harness = Harness::open(update_recipe(), backend);
     let observation = harness.read_back(RECORD, NOW).await;
     let arguments = harness.arguments("update-1", RECORD, &update_extra(RECORD, "Pending"));
     let signed = harness.sign(Some(read_back_requirement()), &arguments, &[observation]);
@@ -805,8 +829,7 @@ async fn fresh_matching_read_back_authorizes_the_replacement_write() {
     );
 }
 
-#[tokio::test]
-async fn stale_changed_or_missing_expected_is_refused_before_credential_access() {
+async fn stale_changed_or_missing_expected_is_refused_before_credential_access(backend: Backend) {
     let cases = [
         (
             "stale-by-one-second",
@@ -831,7 +854,7 @@ async fn stale_changed_or_missing_expected_is_refused_before_credential_access()
         ),
     ];
     for (id, at, expected, attach, outcome) in cases {
-        let harness = Harness::open(update_recipe());
+        let harness = Harness::open(update_recipe(), backend);
         let observation = harness.read_back(RECORD, NOW).await;
         let arguments = harness.arguments(id, RECORD, &update_extra(RECORD, expected));
         let attached = if attach {
@@ -848,16 +871,20 @@ async fn stale_changed_or_missing_expected_is_refused_before_credential_access()
         );
         let operation = LogicalOperationId::parse(id).expect("operation");
         assert_eq!(
-            harness.store.read(&namespace(), &operation).expect("read"),
+            harness
+                .store
+                .attempts()
+                .read(&namespace(), &operation)
+                .await
+                .expect("read"),
             None,
             "{id}: a refused action consumes no logical operation"
         );
     }
 }
 
-#[tokio::test]
-async fn read_back_of_another_record_cannot_license_this_write() {
-    let harness = Harness::open(update_recipe());
+async fn read_back_of_another_record_cannot_license_this_write(backend: Backend) {
+    let harness = Harness::open(update_recipe(), backend);
     harness.provider.overwrite(RECORD, "Approved");
     let observation = harness.read_back(OTHER_RECORD, NOW).await;
     let arguments = harness.arguments("swap", RECORD, &update_extra(OTHER_RECORD, "Pending"));
@@ -869,9 +896,8 @@ async fn read_back_of_another_record_cannot_license_this_write() {
     assert_eq!(harness.provider.counts(), (0, 1, 1));
 }
 
-#[tokio::test]
-async fn replaced_in_between_is_authorized_inside_the_documented_window() {
-    let harness = Harness::open(update_recipe());
+async fn replaced_in_between_is_authorized_inside_the_documented_window(backend: Backend) {
+    let harness = Harness::open(update_recipe(), backend);
     let observation = harness.read_back(RECORD, NOW).await;
     harness.provider.overwrite(RECORD, "Approved");
     let arguments = harness.arguments("window", RECORD, &update_extra(RECORD, "Pending"));
@@ -884,9 +910,8 @@ async fn replaced_in_between_is_authorized_inside_the_documented_window() {
     assert_eq!(harness.provider.counts().0, 1);
 }
 
-#[tokio::test]
-async fn chained_step_is_refused_until_the_previous_step_is_provider_bound() {
-    let harness = Harness::open(chained_recipe());
+async fn chained_step_is_refused_until_the_previous_step_is_provider_bound(backend: Backend) {
+    let harness = Harness::open(chained_recipe(), backend);
     let first = harness.sign(
         None,
         &harness.arguments(
@@ -909,7 +934,7 @@ async fn chained_step_is_refused_until_the_previous_step_is_provider_bound() {
     };
     let commitment = hex::encode(first.commitment);
     assert_eq!(
-        harness.outcome("step-1", NOW),
+        harness.outcome("step-1", NOW).await,
         GatewayObserveResult::Refused {
             code: "gateway.observer.operation-unknown".to_owned()
         }
@@ -925,7 +950,7 @@ async fn chained_step_is_refused_until_the_previous_step_is_provider_bound() {
         harness.submit(&first, NOW + 1).await,
         GatewaySubmitResult::Unknown
     );
-    let unknown = signed_bytes(harness.outcome("step-1", NOW + 10));
+    let unknown = signed_bytes(harness.outcome("step-1", NOW + 10).await);
     assert_eq!(stage_of(&unknown), "unknown");
     assert_eq!(
         harness
@@ -943,7 +968,7 @@ async fn chained_step_is_refused_until_the_previous_step_is_provider_bound() {
         harness.submit(&first, NOW + 30).await,
         GatewaySubmitResult::ObservedByProvider { status: None, .. }
     ));
-    let bound = signed_bytes(harness.outcome("step-1", NOW + 40));
+    let bound = signed_bytes(harness.outcome("step-1", NOW + 40).await);
     assert_eq!(stage_of(&bound), "observed-by-provider");
     assert_eq!(
         harness
@@ -967,9 +992,8 @@ async fn chained_step_is_refused_until_the_previous_step_is_provider_bound() {
     assert_eq!(harness.provider.counts().0, 2, "one entry per step");
 }
 
-#[tokio::test]
-async fn self_signed_or_forged_observations_never_satisfy() {
-    let harness = Harness::open(update_recipe());
+async fn self_signed_or_forged_observations_never_satisfy(backend: Backend) {
+    let harness = Harness::open(update_recipe(), backend);
     let arguments = harness.arguments("forged", RECORD, &update_extra(RECORD, "Pending"));
     for observation in [
         forged_read_back(&harness.agent, &harness.agent.principal, RECORD, "Pending"),
@@ -989,8 +1013,7 @@ async fn self_signed_or_forged_observations_never_satisfy() {
     assert_eq!(harness.provider.counts(), (0, 0, 0));
 }
 
-#[tokio::test]
-async fn observer_in_the_authority_chain_is_refused() {
+async fn observer_in_the_authority_chain_is_refused(backend: Backend) {
     let root = Signer::new(0x11);
     let agent = Signer::new(0x22);
     let context = context(&root, &agent.principal, None);
@@ -1000,6 +1023,7 @@ async fn observer_in_the_authority_chain_is_refused() {
         GatewayObserver::from_test_seed(0x33),
         root,
         agent,
+        backend,
     );
     let observation = forged_read_back(&harness.agent, &harness.agent.principal, RECORD, "Pending");
     let arguments = harness.arguments("self-observer", RECORD, &update_extra(RECORD, "Pending"));
@@ -1011,8 +1035,7 @@ async fn observer_in_the_authority_chain_is_refused() {
     assert_eq!(harness.provider.counts(), (0, 0, 0));
 }
 
-#[tokio::test]
-async fn action_fact_policy_is_bound_into_the_pinned_configuration() {
+async fn action_fact_policy_is_bound_into_the_pinned_configuration(backend: Backend) {
     let raw_key = auths_raw_key::RawKeyMethod::new().expect("raw key");
     let did_key = auths_did_key::DidKeyMethod::new().expect("did:key");
     let did_keri = auths_did_keri::DidKeriMethod::new().expect("did:keri");
@@ -1033,7 +1056,14 @@ async fn action_fact_policy_is_bound_into_the_pinned_configuration() {
     let root = Signer::new(0x11);
     let observer = GatewayObserver::from_test_seed(0x33);
     let context = context(&root, observer.principal(), Some(without_policy));
-    let harness = Harness::with(update_recipe(), context, observer, root, Signer::new(0x22));
+    let harness = Harness::with(
+        update_recipe(),
+        context,
+        observer,
+        root,
+        Signer::new(0x22),
+        backend,
+    );
     let observation = harness.read_back(RECORD, NOW).await;
     let arguments = harness.arguments("unpinned", RECORD, &update_extra(RECORD, "Pending"));
     let signed = harness.sign(Some(read_back_requirement()), &arguments, &[observation]);
@@ -1043,3 +1073,242 @@ async fn action_fact_policy_is_bound_into_the_pinned_configuration() {
     );
     assert_eq!(harness.provider.counts().0, 0);
 }
+
+/// A threshold proof: one branch per index in `signing`, each a grant from
+/// `roots[index]` to `agent` and an action under it, combined in a `k`-of-n
+/// plan. A root may own more than one branch. The trust, not the plan, sets
+/// how many distinct roots must authorize.
+fn threshold_submission(
+    roots: &[&Signer],
+    signing: &[usize],
+    k: u16,
+    agent: &Signer,
+    arguments: &Map<String, Value>,
+) -> Submission {
+    let bytes = call(arguments).canonical_bytes().expect("canonical call");
+    let canonical: CanonicalAction = McpProfile.canonicalize(&bytes).expect("canonical action");
+    let proof_ref = |index: usize| ProofRef::new([0x40 + u8::try_from(index).expect("index"); 32]);
+    let plan = match signing {
+        [only] => AuthorizationPlan::proof(proof_ref(*only)),
+        _ => AuthorizationPlan::k_of_n(
+            k,
+            signing
+                .iter()
+                .map(|index| AuthorizationPlan::proof(proof_ref(*index)))
+                .collect(),
+        )
+        .expect("threshold plan"),
+    };
+    let mut grants = Vec::new();
+    let mut actions = Vec::new();
+    let mut bindings = Vec::new();
+    let mut evidence = vec![agent.evidence()];
+    for &index in signing {
+        let root = roots[index];
+        let signed = grant(root, agent, None);
+        let action = sign_action(
+            agent,
+            envelope(
+                agent,
+                &canonical,
+                &signed,
+                &plan,
+                proof_ref(index),
+                Vec::new(),
+            ),
+        );
+        if !grants.contains(&signed) {
+            bindings.push(
+                ControlBinding::new(
+                    StatementRef::Grant(grant_id(signed.statement()).expect("grant ID")),
+                    vec![root.evidence().id()],
+                )
+                .expect("grant binding"),
+            );
+            grants.push(signed);
+        }
+        bindings.push(
+            ControlBinding::new(
+                StatementRef::Action(action_id(action.envelope()).expect("action ID")),
+                vec![agent.evidence().id()],
+            )
+            .expect("action binding"),
+        );
+        if !evidence.contains(&root.evidence()) {
+            evidence.push(root.evidence());
+        }
+        actions.push(action);
+    }
+    evidence.sort_by_key(EvidenceObject::id);
+    let bundle = ProofBundle::new(
+        BundleHeader::v1(),
+        grants,
+        actions,
+        plan,
+        evidence,
+        bindings,
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        Some(canonical.body().to_vec()),
+    )
+    .expect("bundle");
+    let action = encode_canonical_action(&canonical).expect("action bytes");
+    let commitment = *domain_commitment("auths.canonical-action.v1", &action)
+        .expect("commitment")
+        .as_bytes();
+    Submission {
+        proof: encode_bundle(&bundle).expect("proof bytes"),
+        action,
+        commitment,
+    }
+}
+
+/// A 2-of-3 root: three trust anchors and a composition requirement of two
+/// authorized branches from two distinct roots. Two roots signing through
+/// the kernel's `KOfN` plan authorize; one root, even with two branches, is
+/// refused before any claim or credential lease.
+async fn two_of_three_root_authorizes_only_with_two_distinct_roots(backend: Backend) {
+    let roots = [Signer::new(0x51), Signer::new(0x52), Signer::new(0x53)];
+    let roots: Vec<&Signer> = roots.iter().collect();
+    let observer = GatewayObserver::from_test_seed(0x33);
+    let context = context_with(
+        &roots,
+        observer.principal(),
+        None,
+        CompositionRequirement::new(None, 2, 1, 2).expect("2-of-3 composition"),
+    );
+    let harness = Harness::with(
+        update_recipe(),
+        context,
+        observer,
+        Signer::new(0x51),
+        Signer::new(0x22),
+        backend,
+    );
+    let submit = |operation: &str, branches: &[&Signer], signing: &[usize]| {
+        let arguments = harness.arguments(
+            operation,
+            RECORD,
+            &json!({"expected": "Pending", "record_uri": read_back_subject(RECORD)}),
+        );
+        threshold_submission(branches, signing, 2, &harness.agent, &arguments)
+    };
+    let one_root_twice = [roots[0], roots[0], roots[1]];
+    for (operation, branches, signing) in [
+        ("one-root", &roots[..], vec![1]),
+        ("one-root-two-branches", &one_root_twice[..], vec![0, 1]),
+    ] {
+        let result = harness
+            .submit(&submit(operation, branches, &signing), NOW)
+            .await;
+        assert_eq!(
+            result,
+            denied("composition-requirement-not-met"),
+            "{operation}"
+        );
+    }
+    assert_eq!(harness.provider.counts(), (0, 0, 0));
+    for (operation, signing) in [("roots-0-1", [0, 1]), ("roots-1-2", [1, 2])] {
+        let result = harness
+            .submit(&submit(operation, &roots, &signing), NOW)
+            .await;
+        assert!(
+            matches!(result, GatewaySubmitResult::ObservedByProvider { .. }),
+            "{operation}: {result:?}"
+        );
+    }
+    assert_eq!(
+        harness.provider.counts().0,
+        2,
+        "one entry per authorized operation"
+    );
+}
+
+/// Root, operator, and observer principals must not overlap.
+#[test]
+fn production_principals_must_be_separate() {
+    use crate::{PrincipalSeparationError as E, check_principal_separation as check};
+    let root = Signer::new(0x11);
+    let operator = Signer::new(0x44);
+    let observer = GatewayObserver::from_test_seed(0x33);
+    let trust = context(&root, observer.principal(), None);
+    assert_eq!(
+        check(&trust, &operator.principal, Some(observer.principal())),
+        Ok(())
+    );
+    assert_eq!(
+        check(&trust, &root.principal, Some(observer.principal())),
+        Err(E::OperatorIsRoot)
+    );
+    assert_eq!(
+        check(&trust, observer.principal(), Some(observer.principal())),
+        Err(E::OperatorIsObserver)
+    );
+    let operator_observes = context(&root, &operator.principal, None);
+    assert_eq!(
+        check(&operator_observes, &operator.principal, None),
+        Err(E::OperatorIsObserver)
+    );
+    let root_observes = context(&root, &root.principal, None);
+    assert_eq!(
+        check(&root_observes, &operator.principal, None),
+        Err(E::ObserverIsRoot)
+    );
+    let unanchored = GatewayObserver::from_test_seed(0x77);
+    assert_eq!(
+        check(&trust, &operator.principal, Some(unanchored.principal())),
+        Err(E::ObserverNotAnchored)
+    );
+    for (error, code) in [
+        (E::OperatorIsRoot, "gateway.trust.operator-is-root"),
+        (E::OperatorIsObserver, "gateway.trust.operator-is-observer"),
+        (E::ObserverIsRoot, "gateway.trust.observer-is-root"),
+        (
+            E::ObserverNotAnchored,
+            "gateway.trust.observer-not-anchored",
+        ),
+    ] {
+        assert_eq!(error.code(), code);
+    }
+}
+
+/// Runs every hostile observation-conditioned case against the single-host
+/// file store and, with the TLS fixture, the qualified multi-host store.
+macro_rules! on_both_stores {
+    ($($case:ident),* $(,)?) => {
+        mod file_store {
+            use super::Backend;
+            $(
+                #[tokio::test]
+                async fn $case() {
+                    super::$case(Backend::File).await;
+                }
+            )*
+        }
+
+        mod postgres_store {
+            use super::{Backend, postgres_configured};
+            $(
+                #[tokio::test]
+                #[ignore = "needs the TLS PostgreSQL fixture"]
+                async fn $case() {
+                    assert!(postgres_configured(), "TLS PostgreSQL environment slots are required");
+                    super::$case(Backend::Postgres).await;
+                }
+            )*
+        }
+    };
+}
+
+on_both_stores!(
+    fresh_matching_read_back_authorizes_the_replacement_write,
+    stale_changed_or_missing_expected_is_refused_before_credential_access,
+    read_back_of_another_record_cannot_license_this_write,
+    replaced_in_between_is_authorized_inside_the_documented_window,
+    chained_step_is_refused_until_the_previous_step_is_provider_bound,
+    self_signed_or_forged_observations_never_satisfy,
+    observer_in_the_authority_chain_is_refused,
+    action_fact_policy_is_bound_into_the_pinned_configuration,
+    two_of_three_root_authorizes_only_with_two_distinct_roots,
+);

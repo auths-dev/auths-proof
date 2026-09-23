@@ -12,6 +12,7 @@ auths-connections.workspace = true
 auths-codec.workspace = true
 auths-did-keri.workspace = true
 auths-did-key.workspace = true
+auths-lifecycle.workspace = true
 auths-model.workspace = true
 auths-ports.workspace = true
 auths-profile-api.workspace = true
@@ -37,6 +38,12 @@ tempfile.workspace = true
 tokio.workspace = true
 url.workspace = true
 zeroize.workspace = true
+
+[dev-dependencies]
+postgres.workspace = true
+rustls.workspace = true
+rustls-pki-types = { workspace = true, features = ["std"] }
+tokio-postgres-rustls.workspace = true
 
 [lints]
 workspace = true

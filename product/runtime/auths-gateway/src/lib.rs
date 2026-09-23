@@ -11,11 +11,14 @@ mod binding;
 mod engine;
 mod observer;
 mod recipe;
+mod separation;
 mod store;
 mod transport;
 
 #[cfg(test)]
 mod observed_tests;
+#[cfg(test)]
+mod store_testkit;
 
 pub use action_facts::{MCP_ARGUMENTS_V1, McpArgumentsPolicy};
 pub use binding::{GatewayConnectionDescriptor, GatewayConnectionError};
@@ -33,8 +36,10 @@ pub use recipe::{
     GatewayRecipeError, LogicalOperationId, OperatorNamespace, RecipeEchoReview,
     RecipePreconditionReview, RecipeReview, WriteMethod, echo_token,
 };
+pub use separation::{PrincipalSeparationError, check_principal_separation};
 pub use store::{
-    ClaimedGatewayAttempt, FileGatewayAttemptStore, GatewayAttemptError, GatewayAttemptSnapshot,
-    GatewayAttemptStage, GatewayEvidenceChannel, GatewayObservationFact, GatewayProviderEvidence,
-    ObservableGatewayAttempt,
+    ClaimedGatewayAttempt, FileGatewayAttemptStore, GatewayAttemptError, GatewayAttemptKey,
+    GatewayAttemptSnapshot, GatewayAttemptStage, GatewayAttemptStore, GatewayAttempts,
+    GatewayEvidenceChannel, GatewayObservationFact, GatewayProviderEvidence,
+    ObservableGatewayAttempt, PostgresGatewayAttemptStore,
 };
