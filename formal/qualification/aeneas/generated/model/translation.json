@@ -4,7 +4,7 @@
   "crate": "auths_model",
   "functions": [
     {
-      "def_id": 88,
+      "def_id": 91,
       "lean_name": "auths_model.Array.Insts.CoreCmpOrd.cmp",
       "lean_file": "qualification/aeneas/generated/model/FunsExternal_Template.lean",
       "rust_name": "core::array::{impl core::cmp::Ord for [T; N]}::cmp",
@@ -21,7 +21,7 @@
       "reducible": false
     },
     {
-      "def_id": 110,
+      "def_id": 113,
       "lean_name": "auths_model.alloc.string.String.Insts.CoreCmpPartialEqString.eq",
       "lean_file": "qualification/aeneas/generated/model/FunsExternal_Template.lean",
       "rust_name": "alloc::string::{impl core::cmp::PartialEq<alloc::string::String> for alloc::string::String}::eq",
@@ -38,7 +38,7 @@
       "reducible": false
     },
     {
-      "def_id": 85,
+      "def_id": 88,
       "lean_name": "auths_model.alloc.string.String.Insts.CoreCmpOrd.cmp",
       "lean_file": "qualification/aeneas/generated/model/FunsExternal_Template.lean",
       "rust_name": "alloc::string::{impl core::cmp::Ord for alloc::string::String}::cmp",
@@ -55,7 +55,7 @@
       "reducible": false
     },
     {
-      "def_id": 43,
+      "def_id": 44,
       "lean_name": "auths_model.alloc.string.String.as_bytes",
       "lean_file": "qualification/aeneas/generated/model/FunsExternal_Template.lean",
       "rust_name": "alloc::string::{alloc::string::String}::as_bytes",
@@ -72,7 +72,7 @@
       "reducible": false
     },
     {
-      "def_id": 38,
+      "def_id": 39,
       "lean_name": "auths_model.bounded.BoundedSet.as_slice",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::bounded::{auths_model::bounded::BoundedSet<T, MAX>}::as_slice",
@@ -89,7 +89,7 @@
       "reducible": false
     },
     {
-      "def_id": 37,
+      "def_id": 38,
       "lean_name": "auths_model.bounded.BoundedSet.len",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::bounded::{auths_model::bounded::BoundedSet<T, MAX>}::len",
@@ -106,7 +106,24 @@
       "reducible": false
     },
     {
-      "def_id": 44,
+      "def_id": 70,
+      "lean_name": "auths_model.Digest.as_bytes",
+      "lean_file": "qualification/aeneas/generated/model/Funs.lean",
+      "rust_name": "auths_model::{auths_model::Digest}::as_bytes",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 249,
+        "end_line": 251
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 45,
       "lean_name": "auths_model.byte_slices_equal",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::byte_slices_equal",
@@ -123,7 +140,41 @@
       "reducible": false
     },
     {
-      "def_id": 97,
+      "def_id": 55,
+      "lean_name": "auths_model.bounded_policy.digest_equal",
+      "lean_file": "qualification/aeneas/generated/model/Funs.lean",
+      "rust_name": "auths_model::bounded_policy::digest_equal",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-model/src/bounded_policy.rs",
+        "begin_line": 177,
+        "end_line": 179
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 37,
+      "lean_name": "auths_model.bounded_policy.bounded_policy_link_accepts",
+      "lean_file": "qualification/aeneas/generated/model/Funs.lean",
+      "rust_name": "auths_model::bounded_policy::bounded_policy_link_accepts",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-model/src/bounded_policy.rs",
+        "begin_line": 188,
+        "end_line": 199
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 100,
       "lean_name": "auths_model.Audience.Insts.CoreCmpPartialEqAudience.eq",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::PartialEq<auths_model::Audience> for auths_model::Audience}::eq",
@@ -140,7 +191,7 @@
       "reducible": false
     },
     {
-      "def_id": 83,
+      "def_id": 86,
       "lean_name": "auths_model.Audience.Insts.CoreCmpEq.assert_fields_are_eq",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::Eq for auths_model::Audience}::assert_fields_are_eq",
@@ -157,7 +208,7 @@
       "reducible": false
     },
     {
-      "def_id": 104,
+      "def_id": 107,
       "lean_name": "auths_model.CapabilityId.Insts.CoreCmpPartialEqCapabilityId.eq",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::PartialEq<auths_model::CapabilityId> for auths_model::CapabilityId}::eq",
@@ -174,7 +225,7 @@
       "reducible": false
     },
     {
-      "def_id": 105,
+      "def_id": 108,
       "lean_name": "auths_model.ResourceId.Insts.CoreCmpPartialEqResourceId.eq",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::PartialEq<auths_model::ResourceId> for auths_model::ResourceId}::eq",
@@ -191,7 +242,7 @@
       "reducible": false
     },
     {
-      "def_id": 57,
+      "def_id": 60,
       "lean_name": "auths_model.Audience.Insts.CoreCmpOrd.cmp",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::Ord for auths_model::Audience}::cmp",
@@ -208,7 +259,7 @@
       "reducible": false
     },
     {
-      "def_id": 84,
+      "def_id": 87,
       "lean_name": "auths_model.Audience.Insts.CoreCmpPartialOrdAudience.partial_cmp",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::PartialOrd<auths_model::Audience> for auths_model::Audience}::partial_cmp",
@@ -225,7 +276,7 @@
       "reducible": false
     },
     {
-      "def_id": 81,
+      "def_id": 84,
       "lean_name": "auths_model.CapabilityId.Insts.CoreCmpOrd.cmp",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::Ord for auths_model::CapabilityId}::cmp",
@@ -242,7 +293,7 @@
       "reducible": false
     },
     {
-      "def_id": 82,
+      "def_id": 85,
       "lean_name": "auths_model.ResourceId.Insts.CoreCmpOrd.cmp",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::Ord for auths_model::ResourceId}::cmp",
@@ -276,15 +327,15 @@
       "reducible": false
     },
     {
-      "def_id": 98,
+      "def_id": 101,
       "lean_name": "auths_model.Digest.Insts.CoreCmpPartialEqDigest.eq",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::PartialEq<auths_model::Digest> for auths_model::Digest}::eq",
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 235,
-        "end_line": 235
+        "begin_line": 237,
+        "end_line": 237
       },
       "is_opaque": false,
       "can_fail": true,
@@ -293,15 +344,15 @@
       "reducible": false
     },
     {
-      "def_id": 86,
+      "def_id": 89,
       "lean_name": "auths_model.Digest.Insts.CoreCmpEq.assert_fields_are_eq",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::Eq for auths_model::Digest}::assert_fields_are_eq",
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 235,
-        "end_line": 235
+        "begin_line": 237,
+        "end_line": 237
       },
       "is_opaque": false,
       "can_fail": true,
@@ -310,15 +361,15 @@
       "reducible": false
     },
     {
-      "def_id": 58,
+      "def_id": 61,
       "lean_name": "auths_model.Digest.Insts.CoreCmpOrd.cmp",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::Ord for auths_model::Digest}::cmp",
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 235,
-        "end_line": 235
+        "begin_line": 237,
+        "end_line": 237
       },
       "is_opaque": false,
       "can_fail": true,
@@ -327,15 +378,15 @@
       "reducible": false
     },
     {
-      "def_id": 87,
+      "def_id": 90,
       "lean_name": "auths_model.Digest.Insts.CoreCmpPartialOrdDigest.partial_cmp",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::PartialOrd<auths_model::Digest> for auths_model::Digest}::partial_cmp",
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 235,
-        "end_line": 235
+        "begin_line": 237,
+        "end_line": 237
       },
       "is_opaque": false,
       "can_fail": true,
@@ -344,32 +395,15 @@
       "reducible": false
     },
     {
-      "def_id": 67,
-      "lean_name": "auths_model.Digest.as_bytes",
-      "lean_file": "qualification/aeneas/generated/model/Funs.lean",
-      "rust_name": "auths_model::{auths_model::Digest}::as_bytes",
-      "is_local": true,
-      "source": {
-        "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 247,
-        "end_line": 249
-      },
-      "is_opaque": false,
-      "can_fail": true,
-      "can_diverge": false,
-      "is_rec": false,
-      "reducible": false
-    },
-    {
-      "def_id": 50,
+      "def_id": 51,
       "lean_name": "auths_model.GrantId.as_bytes",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::{auths_model::GrantId}::as_bytes",
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 274,
-        "end_line": 276
+        "begin_line": 276,
+        "end_line": 278
       },
       "is_opaque": false,
       "can_fail": true,
@@ -385,8 +419,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 409,
-        "end_line": 416
+        "begin_line": 411,
+        "end_line": 418
       },
       "is_opaque": false,
       "can_fail": true,
@@ -402,8 +436,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 421,
-        "end_line": 428
+        "begin_line": 423,
+        "end_line": 430
       },
       "is_opaque": false,
       "can_fail": true,
@@ -419,8 +453,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 464,
-        "end_line": 466
+        "begin_line": 466,
+        "end_line": 468
       },
       "is_opaque": false,
       "can_fail": true,
@@ -436,8 +470,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 473,
-        "end_line": 480
+        "begin_line": 475,
+        "end_line": 482
       },
       "is_opaque": false,
       "can_fail": true,
@@ -461,8 +495,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 473,
-        "end_line": 480
+        "begin_line": 475,
+        "end_line": 482
       },
       "is_opaque": false,
       "can_fail": true,
@@ -486,8 +520,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 471,
-        "end_line": 480
+        "begin_line": 473,
+        "end_line": 482
       },
       "is_opaque": false,
       "can_fail": true,
@@ -503,8 +537,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 485,
-        "end_line": 487
+        "begin_line": 487,
+        "end_line": 489
       },
       "is_opaque": false,
       "can_fail": true,
@@ -520,8 +554,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 492,
-        "end_line": 494
+        "begin_line": 494,
+        "end_line": 496
       },
       "is_opaque": false,
       "can_fail": true,
@@ -537,8 +571,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 499,
-        "end_line": 505
+        "begin_line": 501,
+        "end_line": 507
       },
       "is_opaque": false,
       "can_fail": true,
@@ -547,15 +581,15 @@
       "reducible": false
     },
     {
-      "def_id": 96,
+      "def_id": 99,
       "lean_name": "auths_model.Permission.Insts.CoreCmpPartialEqPermission.eq",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::PartialEq<auths_model::Permission> for auths_model::Permission}::eq",
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 507,
-        "end_line": 507
+        "begin_line": 509,
+        "end_line": 509
       },
       "is_opaque": false,
       "can_fail": true,
@@ -564,15 +598,15 @@
       "reducible": false
     },
     {
-      "def_id": 79,
+      "def_id": 82,
       "lean_name": "auths_model.Permission.Insts.CoreCmpEq.assert_fields_are_eq",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::Eq for auths_model::Permission}::assert_fields_are_eq",
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 507,
-        "end_line": 507
+        "begin_line": 509,
+        "end_line": 509
       },
       "is_opaque": false,
       "can_fail": true,
@@ -581,15 +615,15 @@
       "reducible": false
     },
     {
-      "def_id": 56,
+      "def_id": 59,
       "lean_name": "auths_model.Permission.Insts.CoreCmpOrd.cmp",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::Ord for auths_model::Permission}::cmp",
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 507,
-        "end_line": 507
+        "begin_line": 509,
+        "end_line": 509
       },
       "is_opaque": false,
       "can_fail": true,
@@ -598,15 +632,15 @@
       "reducible": false
     },
     {
-      "def_id": 80,
+      "def_id": 83,
       "lean_name": "auths_model.Permission.Insts.CoreCmpPartialOrdPermission.partial_cmp",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::{impl core::cmp::PartialOrd<auths_model::Permission> for auths_model::Permission}::partial_cmp",
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 507,
-        "end_line": 507
+        "begin_line": 509,
+        "end_line": 509
       },
       "is_opaque": false,
       "can_fail": true,
@@ -615,15 +649,15 @@
       "reducible": false
     },
     {
-      "def_id": 39,
+      "def_id": 40,
       "lean_name": "auths_model.permissions_equal",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::permissions_equal",
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 533,
-        "end_line": 536
+        "begin_line": 535,
+        "end_line": 538
       },
       "is_opaque": false,
       "can_fail": true,
@@ -639,8 +673,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 578,
-        "end_line": 585
+        "begin_line": 580,
+        "end_line": 587
       },
       "is_opaque": false,
       "can_fail": true,
@@ -664,8 +698,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 578,
-        "end_line": 585
+        "begin_line": 580,
+        "end_line": 587
       },
       "is_opaque": false,
       "can_fail": true,
@@ -689,8 +723,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 576,
-        "end_line": 585
+        "begin_line": 578,
+        "end_line": 587
       },
       "is_opaque": false,
       "can_fail": true,
@@ -706,8 +740,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 592,
-        "end_line": 599
+        "begin_line": 594,
+        "end_line": 601
       },
       "is_opaque": false,
       "can_fail": true,
@@ -731,8 +765,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 592,
-        "end_line": 599
+        "begin_line": 594,
+        "end_line": 601
       },
       "is_opaque": false,
       "can_fail": true,
@@ -756,8 +790,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 590,
-        "end_line": 599
+        "begin_line": 592,
+        "end_line": 601
       },
       "is_opaque": false,
       "can_fail": true,
@@ -766,15 +800,15 @@
       "reducible": true
     },
     {
-      "def_id": 40,
+      "def_id": 41,
       "lean_name": "auths_model.audiences_equal",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::audiences_equal",
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 604,
-        "end_line": 606
+        "begin_line": 606,
+        "end_line": 608
       },
       "is_opaque": false,
       "can_fail": true,
@@ -790,8 +824,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 645,
-        "end_line": 652
+        "begin_line": 647,
+        "end_line": 654
       },
       "is_opaque": false,
       "can_fail": true,
@@ -815,8 +849,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 645,
-        "end_line": 652
+        "begin_line": 647,
+        "end_line": 654
       },
       "is_opaque": false,
       "can_fail": true,
@@ -840,8 +874,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 643,
-        "end_line": 652
+        "begin_line": 645,
+        "end_line": 654
       },
       "is_opaque": false,
       "can_fail": true,
@@ -857,8 +891,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 659,
-        "end_line": 666
+        "begin_line": 661,
+        "end_line": 668
       },
       "is_opaque": false,
       "can_fail": true,
@@ -882,8 +916,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 659,
-        "end_line": 666
+        "begin_line": 661,
+        "end_line": 668
       },
       "is_opaque": false,
       "can_fail": true,
@@ -907,8 +941,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 657,
-        "end_line": 666
+        "begin_line": 659,
+        "end_line": 668
       },
       "is_opaque": false,
       "can_fail": true,
@@ -917,15 +951,15 @@
       "reducible": true
     },
     {
-      "def_id": 41,
+      "def_id": 42,
       "lean_name": "auths_model.digests_equal",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::digests_equal",
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 672,
-        "end_line": 674
+        "begin_line": 674,
+        "end_line": 676
       },
       "is_opaque": false,
       "can_fail": true,
@@ -941,8 +975,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 716,
-        "end_line": 723
+        "begin_line": 718,
+        "end_line": 725
       },
       "is_opaque": false,
       "can_fail": true,
@@ -966,8 +1000,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 716,
-        "end_line": 723
+        "begin_line": 718,
+        "end_line": 725
       },
       "is_opaque": false,
       "can_fail": true,
@@ -991,8 +1025,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 714,
-        "end_line": 723
+        "begin_line": 716,
+        "end_line": 725
       },
       "is_opaque": false,
       "can_fail": true,
@@ -1008,8 +1042,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 730,
-        "end_line": 737
+        "begin_line": 732,
+        "end_line": 739
       },
       "is_opaque": false,
       "can_fail": true,
@@ -1033,8 +1067,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 730,
-        "end_line": 737
+        "begin_line": 732,
+        "end_line": 739
       },
       "is_opaque": false,
       "can_fail": true,
@@ -1058,8 +1092,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 728,
-        "end_line": 737
+        "begin_line": 730,
+        "end_line": 739
       },
       "is_opaque": false,
       "can_fail": true,
@@ -1068,15 +1102,15 @@
       "reducible": true
     },
     {
-      "def_id": 42,
+      "def_id": 43,
       "lean_name": "auths_model.body_digest_set_only_contains_loop.body",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::body_digest_set_only_contains",
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 748,
-        "end_line": 755
+        "begin_line": 750,
+        "end_line": 757
       },
       "is_opaque": false,
       "can_fail": true,
@@ -1093,15 +1127,15 @@
       "parent_lean_name": "auths_model.body_digest_set_only_contains"
     },
     {
-      "def_id": 42,
+      "def_id": 43,
       "lean_name": "auths_model.body_digest_set_only_contains_loop",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::body_digest_set_only_contains",
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 748,
-        "end_line": 755
+        "begin_line": 750,
+        "end_line": 757
       },
       "is_opaque": false,
       "can_fail": true,
@@ -1118,15 +1152,15 @@
       "parent_lean_name": "auths_model.body_digest_set_only_contains"
     },
     {
-      "def_id": 42,
+      "def_id": 43,
       "lean_name": "auths_model.body_digest_set_only_contains",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::body_digest_set_only_contains",
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 746,
-        "end_line": 755
+        "begin_line": 748,
+        "end_line": 757
       },
       "is_opaque": false,
       "can_fail": true,
@@ -1142,8 +1176,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 802,
-        "end_line": 808
+        "begin_line": 804,
+        "end_line": 810
       },
       "is_opaque": false,
       "can_fail": true,
@@ -1159,8 +1193,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 813,
-        "end_line": 833
+        "begin_line": 815,
+        "end_line": 835
       },
       "is_opaque": false,
       "can_fail": true,
@@ -1176,25 +1210,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 872,
-        "end_line": 875
-      },
-      "is_opaque": false,
-      "can_fail": true,
-      "can_diverge": false,
-      "is_rec": false,
-      "reducible": false
-    },
-    {
-      "def_id": 45,
-      "lean_name": "auths_model.BudgetCeiling.attenuates",
-      "lean_file": "qualification/aeneas/generated/model/Funs.lean",
-      "rust_name": "auths_model::{auths_model::BudgetCeiling}::attenuates",
-      "is_local": true,
-      "source": {
-        "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 858,
-        "end_line": 860
+        "begin_line": 874,
+        "end_line": 877
       },
       "is_opaque": false,
       "can_fail": true,
@@ -1204,14 +1221,31 @@
     },
     {
       "def_id": 46,
+      "lean_name": "auths_model.BudgetCeiling.attenuates",
+      "lean_file": "qualification/aeneas/generated/model/Funs.lean",
+      "rust_name": "auths_model::{auths_model::BudgetCeiling}::attenuates",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 860,
+        "end_line": 862
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 47,
       "lean_name": "auths_model.BudgetCeiling.covers",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::{auths_model::BudgetCeiling}::covers",
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 864,
-        "end_line": 866
+        "begin_line": 866,
+        "end_line": 868
       },
       "is_opaque": false,
       "can_fail": true,
@@ -1227,8 +1261,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 882,
-        "end_line": 891
+        "begin_line": 884,
+        "end_line": 893
       },
       "is_opaque": false,
       "can_fail": true,
@@ -1244,8 +1278,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 903,
-        "end_line": 912
+        "begin_line": 905,
+        "end_line": 914
       },
       "is_opaque": false,
       "can_fail": true,
@@ -1261,8 +1295,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 950,
-        "end_line": 960
+        "begin_line": 952,
+        "end_line": 962
       },
       "is_opaque": false,
       "can_fail": true,
@@ -1278,8 +1312,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1012,
-        "end_line": 1030
+        "begin_line": 1014,
+        "end_line": 1032
       },
       "is_opaque": false,
       "can_fail": true,
@@ -1295,8 +1329,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1120,
-        "end_line": 1127
+        "begin_line": 1122,
+        "end_line": 1129
       },
       "is_opaque": false,
       "can_fail": true,
@@ -1320,8 +1354,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1120,
-        "end_line": 1127
+        "begin_line": 1122,
+        "end_line": 1129
       },
       "is_opaque": false,
       "can_fail": true,
@@ -1345,8 +1379,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1115,
-        "end_line": 1127
+        "begin_line": 1117,
+        "end_line": 1129
       },
       "is_opaque": false,
       "can_fail": true,
@@ -1362,8 +1396,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1132,
-        "end_line": 1134
+        "begin_line": 1134,
+        "end_line": 1136
       },
       "is_opaque": false,
       "can_fail": true,
@@ -1379,8 +1413,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1139,
-        "end_line": 1141
+        "begin_line": 1141,
+        "end_line": 1143
       },
       "is_opaque": false,
       "can_fail": true,
@@ -1396,8 +1430,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1146,
-        "end_line": 1148
+        "begin_line": 1148,
+        "end_line": 1150
       },
       "is_opaque": false,
       "can_fail": true,
@@ -1743,7 +1777,7 @@
       "reducible": false
     },
     {
-      "def_id": 128,
+      "def_id": 131,
       "lean_name": "auths_model.observation.observer_anchor_id_equal",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::observer_anchor_id_equal",
@@ -1760,7 +1794,7 @@
       "reducible": false
     },
     {
-      "def_id": 129,
+      "def_id": 132,
       "lean_name": "auths_model.observation.observation_schema_equal",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::observation_schema_equal",
@@ -1777,7 +1811,7 @@
       "reducible": false
     },
     {
-      "def_id": 130,
+      "def_id": 133,
       "lean_name": "auths_model.observation.requirement_subject_equal",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::requirement_subject_equal",
@@ -1794,7 +1828,7 @@
       "reducible": false
     },
     {
-      "def_id": 135,
+      "def_id": 138,
       "lean_name": "auths_model.observation.member_values_equal_loop.body",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::member_values_equal",
@@ -1819,7 +1853,7 @@
       "parent_lean_name": "auths_model.observation.member_values_equal"
     },
     {
-      "def_id": 135,
+      "def_id": 138,
       "lean_name": "auths_model.observation.member_values_equal_loop",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::member_values_equal",
@@ -1844,7 +1878,7 @@
       "parent_lean_name": "auths_model.observation.member_values_equal"
     },
     {
-      "def_id": 135,
+      "def_id": 138,
       "lean_name": "auths_model.observation.member_values_equal",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::member_values_equal",
@@ -1861,7 +1895,7 @@
       "reducible": false
     },
     {
-      "def_id": 134,
+      "def_id": 137,
       "lean_name": "auths_model.observation.condition_test_equal",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::condition_test_equal",
@@ -1878,7 +1912,7 @@
       "reducible": false
     },
     {
-      "def_id": 131,
+      "def_id": 134,
       "lean_name": "auths_model.observation.observation_condition_equal",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::observation_condition_equal",
@@ -1895,7 +1929,7 @@
       "reducible": false
     },
     {
-      "def_id": 132,
+      "def_id": 135,
       "lean_name": "auths_model.observation.observation_conditions_contain_loop.body",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::observation_conditions_contain",
@@ -1920,7 +1954,7 @@
       "parent_lean_name": "auths_model.observation.observation_conditions_contain"
     },
     {
-      "def_id": 132,
+      "def_id": 135,
       "lean_name": "auths_model.observation.observation_conditions_contain_loop",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::observation_conditions_contain",
@@ -1945,7 +1979,7 @@
       "parent_lean_name": "auths_model.observation.observation_conditions_contain"
     },
     {
-      "def_id": 132,
+      "def_id": 135,
       "lean_name": "auths_model.observation.observation_conditions_contain",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::observation_conditions_contain",
@@ -1962,7 +1996,7 @@
       "reducible": true
     },
     {
-      "def_id": 103,
+      "def_id": 106,
       "lean_name": "auths_model.observation.observation_conditions_include_loop.body",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::observation_conditions_include",
@@ -1987,7 +2021,7 @@
       "parent_lean_name": "auths_model.observation.observation_conditions_include"
     },
     {
-      "def_id": 103,
+      "def_id": 106,
       "lean_name": "auths_model.observation.observation_conditions_include_loop",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::observation_conditions_include",
@@ -2012,7 +2046,7 @@
       "parent_lean_name": "auths_model.observation.observation_conditions_include"
     },
     {
-      "def_id": 103,
+      "def_id": 106,
       "lean_name": "auths_model.observation.observation_conditions_include",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::observation_conditions_include",
@@ -2029,7 +2063,7 @@
       "reducible": true
     },
     {
-      "def_id": 102,
+      "def_id": 105,
       "lean_name": "auths_model.observation.observation_conditions_equal_loop.body",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::observation_conditions_equal",
@@ -2054,7 +2088,7 @@
       "parent_lean_name": "auths_model.observation.observation_conditions_equal"
     },
     {
-      "def_id": 102,
+      "def_id": 105,
       "lean_name": "auths_model.observation.observation_conditions_equal_loop",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::observation_conditions_equal",
@@ -2079,7 +2113,7 @@
       "parent_lean_name": "auths_model.observation.observation_conditions_equal"
     },
     {
-      "def_id": 102,
+      "def_id": 105,
       "lean_name": "auths_model.observation.observation_conditions_equal",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::observation_conditions_equal",
@@ -2096,7 +2130,7 @@
       "reducible": false
     },
     {
-      "def_id": 101,
+      "def_id": 104,
       "lean_name": "auths_model.observation.observation_requirement_same_target",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::observation_requirement_same_target",
@@ -2113,7 +2147,7 @@
       "reducible": false
     },
     {
-      "def_id": 94,
+      "def_id": 97,
       "lean_name": "auths_model.observation.observation_requirement_equal",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::observation_requirement_equal",
@@ -2130,7 +2164,7 @@
       "reducible": false
     },
     {
-      "def_id": 95,
+      "def_id": 98,
       "lean_name": "auths_model.observation.observation_requirement_narrows",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::observation_requirement_narrows",
@@ -2147,7 +2181,7 @@
       "reducible": false
     },
     {
-      "def_id": 68,
+      "def_id": 71,
       "lean_name": "auths_model.observation.observation_requirement_covers",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::observation_requirement_covers",
@@ -2164,7 +2198,7 @@
       "reducible": false
     },
     {
-      "def_id": 52,
+      "def_id": 53,
       "lean_name": "auths_model.observation.observation_requirement_retained_loop.body",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::observation_requirement_retained",
@@ -2189,7 +2223,7 @@
       "parent_lean_name": "auths_model.observation.observation_requirement_retained"
     },
     {
-      "def_id": 52,
+      "def_id": 53,
       "lean_name": "auths_model.observation.observation_requirement_retained_loop",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::observation_requirement_retained",
@@ -2214,7 +2248,7 @@
       "parent_lean_name": "auths_model.observation.observation_requirement_retained"
     },
     {
-      "def_id": 52,
+      "def_id": 53,
       "lean_name": "auths_model.observation.observation_requirement_retained",
       "lean_file": "qualification/aeneas/generated/model/Funs.lean",
       "rust_name": "auths_model::observation::observation_requirement_retained",
@@ -2309,6 +2343,18 @@
         "file": "core/crates/auths-model/src/bounded.rs",
         "begin_line": 31,
         "end_line": 31
+      }
+    },
+    {
+      "def_id": 8,
+      "lean_name": "auths_model.Digest",
+      "lean_file": "qualification/aeneas/generated/model/Types.lean",
+      "rust_name": "auths_model::Digest",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 238,
+        "end_line": 238
       }
     },
     {
@@ -2456,18 +2502,6 @@
       }
     },
     {
-      "def_id": 8,
-      "lean_name": "auths_model.Digest",
-      "lean_file": "qualification/aeneas/generated/model/Types.lean",
-      "rust_name": "auths_model::Digest",
-      "is_local": true,
-      "source": {
-        "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 236,
-        "end_line": 236
-      }
-    },
-    {
       "def_id": 25,
       "lean_name": "auths_model.GrantId",
       "lean_file": "qualification/aeneas/generated/model/Types.lean",
@@ -2475,8 +2509,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 255,
-        "end_line": 255
+        "begin_line": 257,
+        "end_line": 257
       }
     },
     {
@@ -2487,8 +2521,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 343,
-        "end_line": 343
+        "begin_line": 345,
+        "end_line": 345
       }
     },
     {
@@ -2499,8 +2533,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 358,
-        "end_line": 361
+        "begin_line": 360,
+        "end_line": 363
       }
     },
     {
@@ -2511,8 +2545,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 431,
-        "end_line": 434
+        "begin_line": 433,
+        "end_line": 436
       }
     },
     {
@@ -2523,8 +2557,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 508,
-        "end_line": 511
+        "begin_line": 510,
+        "end_line": 513
       }
     },
     {
@@ -2535,8 +2569,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 539,
-        "end_line": 539
+        "begin_line": 541,
+        "end_line": 541
       }
     },
     {
@@ -2547,8 +2581,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 602,
-        "end_line": 602
+        "begin_line": 604,
+        "end_line": 604
       }
     },
     {
@@ -2559,8 +2593,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 670,
-        "end_line": 670
+        "begin_line": 672,
+        "end_line": 672
       }
     },
     {
@@ -2571,8 +2605,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 759,
-        "end_line": 766
+        "begin_line": 761,
+        "end_line": 768
       }
     },
     {
@@ -2583,8 +2617,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 836,
-        "end_line": 839
+        "begin_line": 838,
+        "end_line": 841
       }
     },
     {
@@ -2595,8 +2629,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 931,
-        "end_line": 937
+        "begin_line": 933,
+        "end_line": 939
       }
     },
     {
@@ -2607,8 +2641,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 964,
-        "end_line": 964
+        "begin_line": 966,
+        "end_line": 966
       }
     },
     {
@@ -2619,8 +2653,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 989,
-        "end_line": 999
+        "begin_line": 991,
+        "end_line": 1001
       }
     },
     {
@@ -2631,8 +2665,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1033,
-        "end_line": 1036
+        "begin_line": 1035,
+        "end_line": 1038
       }
     },
     {
@@ -2643,8 +2677,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1064,
-        "end_line": 1064
+        "begin_line": 1066,
+        "end_line": 1066
       }
     },
     {
@@ -2890,8 +2924,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 235,
-        "end_line": 235
+        "begin_line": 237,
+        "end_line": 237
       },
       "impl_trait_def_id": 5,
       "impl_trait_rust_name": "core::cmp::PartialEq",
@@ -2905,8 +2939,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 235,
-        "end_line": 235
+        "begin_line": 237,
+        "end_line": 237
       },
       "impl_trait_def_id": 2,
       "impl_trait_rust_name": "core::cmp::Eq",
@@ -2920,8 +2954,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 235,
-        "end_line": 235
+        "begin_line": 237,
+        "end_line": 237
       },
       "impl_trait_def_id": 3,
       "impl_trait_rust_name": "core::cmp::PartialOrd",
@@ -2935,8 +2969,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 235,
-        "end_line": 235
+        "begin_line": 237,
+        "end_line": 237
       },
       "impl_trait_def_id": 0,
       "impl_trait_rust_name": "core::cmp::Ord",
@@ -2950,8 +2984,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 507,
-        "end_line": 507
+        "begin_line": 509,
+        "end_line": 509
       },
       "impl_trait_def_id": 5,
       "impl_trait_rust_name": "core::cmp::PartialEq",
@@ -2965,8 +2999,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 507,
-        "end_line": 507
+        "begin_line": 509,
+        "end_line": 509
       },
       "impl_trait_def_id": 2,
       "impl_trait_rust_name": "core::cmp::Eq",
@@ -2980,8 +3014,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 507,
-        "end_line": 507
+        "begin_line": 509,
+        "end_line": 509
       },
       "impl_trait_def_id": 3,
       "impl_trait_rust_name": "core::cmp::PartialOrd",
@@ -2995,8 +3029,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 507,
-        "end_line": 507
+        "begin_line": 509,
+        "end_line": 509
       },
       "impl_trait_def_id": 0,
       "impl_trait_rust_name": "core::cmp::Ord",

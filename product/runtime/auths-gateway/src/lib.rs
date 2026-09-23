@@ -8,6 +8,7 @@
 
 mod action_facts;
 mod binding;
+mod bounds;
 mod engine;
 mod observer;
 mod recipe;
@@ -21,6 +22,12 @@ mod quorum_tests;
 
 pub use action_facts::{MCP_ARGUMENTS_V1, McpArgumentsPolicy};
 pub use binding::{GatewayConnectionDescriptor, GatewayConnectionError};
+pub use bounds::{
+    ARGUMENT_CEILING_CANONICALIZATION_V1, ARGUMENT_CEILING_EVALUATOR_V1,
+    ARGUMENT_CEILING_POLICY_TYPE_V1, ARGUMENT_CEILING_POLICY_VERSION, ArgumentCeilingPolicy,
+    BoundedCountStore, BoundedPolicyError, MAX_WINDOW_COUNT, MAX_WINDOW_SECONDS,
+    gateway_evaluator_registrations,
+};
 pub use engine::{
     GatewayEngine, GatewayEngineConfigurationError, GatewayEvidenceSummary, GatewayObserveRequest,
     GatewayObserveResult, GatewaySubmitResult, gateway_verifier_configuration,

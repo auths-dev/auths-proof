@@ -259,7 +259,7 @@ func resolveAndVerifyControl(
 	context *verifierContext,
 	adapters adapterContext,
 ) ([]verifiedControl, error) {
-	if !bytes.Equal(context.registryManifest, bytes.Repeat([]byte{0x35}, 32)) {
+	if !bytes.Equal(context.registryManifest, bytes.Repeat([]byte{0x36}, 32)) {
 		return nil, denied("registry-manifest-mismatch")
 	}
 	localConfiguration, err := hex.DecodeString(adapters.Configuration)
@@ -902,6 +902,8 @@ func extensionLaw(id string, child, parent *criticalExtension, accepted []string
 	switch id {
 	case "exact-marker-v1":
 		return parent != nil && bytes.Equal(child.bytes, parent.bytes)
+	case boundedPolicyExtension:
+		return boundedPolicyLaw(child, parent)
 	case observationExtension:
 		childRequirements, err := decodeRequirements(child.bytes)
 		if err != nil {
@@ -927,6 +929,12 @@ func evaluateCriticalExtensions(extensions []criticalExtension, accepted []strin
 		}
 		if extension.id == observationExtension {
 			if err := evaluateObservationExtension(extension); err != nil {
+				return err
+			}
+			continue
+		}
+		if extension.id == boundedPolicyExtension {
+			if err := evaluateBoundedPolicyExtension(extension); err != nil {
 				return err
 			}
 			continue

@@ -11,7 +11,7 @@
 
 use crate::engine::{
     GatewaySubmitResult, execute_claimed, gateway_verifier_configuration, not_entered,
-    replay_refused, verify_command,
+    replay_refused, reserve_bound, verify_command,
 };
 use crate::transport::{GatewayTransportError, ProviderPort, WriteTransportOutcome};
 use crate::{
@@ -640,7 +640,8 @@ impl CountingProvider {
     }
 }
 
-/// Mirrors the engine: verify, claim, lease, then enter the provider.
+/// Mirrors the engine: verify, claim, reserve any bound, lease, then enter
+/// the provider.
 async fn submit(
     recipe: &CompiledRecipe,
     context: &TrustedContext,
@@ -649,12 +650,16 @@ async fn submit(
     proof: &[u8],
     action: &[u8],
 ) -> GatewaySubmitResult {
-    let request = match verify_command(recipe, context, NOW, proof, action) {
+    let (request, bound) = match verify_command(recipe, context, NOW, proof, action) {
         Ok(value) => value,
         Err(result) => return result,
     };
     match store.claim(&request, *recipe.digest()) {
         Ok(claim) => {
+            let claim = match reserve_bound(store, bound.as_ref(), &request, claim) {
+                Ok(claim) => claim,
+                Err(result) => return result,
+            };
             provider.leases.fetch_add(1, Ordering::SeqCst);
             execute_claimed(claim, &request, provider).await
         }
