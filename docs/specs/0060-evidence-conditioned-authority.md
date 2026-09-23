@@ -5,8 +5,9 @@
   #134. Step 5 (live) is open. §17 (per-extension attenuation) is
   implemented on `epic-5-policy` (AP-SPEC-057 Epic 5, step 1) for the
   `exact-marker-v1` and `observation-requirement-v1` laws, with the
-  readings in §18; the `bounded-policy-commitment-v1` law lands with
-  AP-SPEC-025 §24. §15 (SDK attachment, the Rust–Lean link) and §16 (the
+  readings in §18; the `bounded-policy-commitment-v1` law is implemented
+  with AP-SPEC-025 §24 on `epic-5-bounds` (Epic 5, step 2), readings in
+  AP-SPEC-025 §25. §15 (SDK attachment, the Rust–Lean link) and §16 (the
   observer quorum) are specified and not implemented. §16 is a wire
   change.
 - **Depends on:** [AP-SPEC-011](0011-rich-authority-refinement-and-bounded-authorization.md)
@@ -659,4 +660,4 @@ Each reading is the narrowest fail-closed choice that keeps §17's claim.
 | 8 | §17.3: "a per-identifier preorder … given each law is a preorder that narrows" | The rich Lean model takes the registered laws as a class `ExtensionLaws v` (law, and the worlds a payload admits) and the premise `ExtensionLawsNarrow v`. `delegate_never_widens_authority` and `chain_never_widens_authority` prove that no accepted edge or chain admits an authorization fact, including every extension payload, that its start refuses. The refinement theorems hold for every law the translated handler-law instance computes (premise `LawsRefine`). |
 | 9 | §17.3: discharge for the marker and observation requirements | `exact_marker_law_lawful` and `observation_requirement_law_lawful` prove each law a narrowing preorder over decoded payloads. The observation discharge uses `requirements_monotone`'s argument extended with `fresh_monotone_max_age`, not §16.4's theorems, which do not exist yet. That the byte-level handler agrees with the decoded law rests on the canonical codec, recorded as a residual assumption. |
 | 10 | §17.3: "re-qualified with Aeneas" | The kernel predicates (`critical_extensions_attenuate`, the retained and admitted loops, and `extensions_attenuate`) are in `auths-authority`, generic over the laws, and translated by the pinned Charon/Aeneas route; their model leaves (`critical_extension_find`, `_entries`, `_id`, `_payload`) and the observation law predicates are translated in `auths-model`. The requirement-law predicates are qualified and exercised natively; their Lean link to the abstract law is §15.2's work. |
-
+| 11 | §17.2 and §17.3: `bounded-policy-commitment-v1` | The kernel law checks only the parent link: a child keeps the extension only with the digest of its parent's exact extension bytes, and adds it to an unbounded parent only without one. Narrowing is the registered product evaluator's tightening decider, run by the gateway before eligibility; `Auths.Product.CeilingCount.bounded_policy_law_lawful` discharges the premise for the one registered evaluator and the assurance manifest records it as a product-layer premise, not a kernel theorem. |

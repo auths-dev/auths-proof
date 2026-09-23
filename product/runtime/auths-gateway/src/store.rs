@@ -777,3 +777,48 @@ fn sync_directory(root: &Path) -> Result<(), GatewayAttemptError> {
     let _ = root;
     Ok(())
 }
+
+impl crate::bounds::BoundedCountStore for FileGatewayAttemptStore {
+    fn insert_count_slot(
+        &self,
+        key: &[u8; 32],
+        record: &[u8],
+    ) -> Result<bool, GatewayAttemptError> {
+        if record.is_empty() || record.len() > MAX_RECORD_BYTES {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        let path = self.count_path(key);
+        let mut options = OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt as _;
+            options.mode(0o600);
+        }
+        let mut file = match options.open(&path) {
+            Ok(file) => file,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(false),
+            Err(_) => return Err(GatewayAttemptError::Unavailable),
+        };
+        file.write_all(record)
+            .and_then(|()| file.sync_all())
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        sync_directory(&self.root)?;
+        Ok(true)
+    }
+
+    fn count_slot_exists(&self, key: &[u8; 32]) -> Result<bool, GatewayAttemptError> {
+        match fs::symlink_metadata(self.count_path(key)) {
+            Ok(metadata) if metadata.file_type().is_file() => Ok(true),
+            Ok(_) => Err(GatewayAttemptError::Corrupt),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(_) => Err(GatewayAttemptError::Unavailable),
+        }
+    }
+}
+
+impl FileGatewayAttemptStore {
+    fn count_path(&self, key: &[u8; 32]) -> PathBuf {
+        self.root.join(format!("count-{}.json", hex::encode(key)))
+    }
+}

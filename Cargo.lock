@@ -580,6 +580,7 @@ dependencies = [
 name = "auths-gateway"
 version = "1.0.0-rc.1"
 dependencies = [
+ "auths-bounded-policy",
  "auths-codec",
  "auths-connections",
  "auths-did-keri",
@@ -598,6 +599,7 @@ dependencies = [
  "ed25519-dalek 2.2.0",
  "getrandom 0.3.4",
  "hex",
+ "minicbor",
  "reqwest",
  "rustix",
  "serde",

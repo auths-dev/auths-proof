@@ -630,3 +630,36 @@ observation-satisfaction = {
   0: digest32,              ; observation requirement ID (identifier type 11)
   1: digest32,              ; attachment digest of the satisfying observation
 }
+
+; ---------------------------------------------------------------------------
+; Bounded-policy commitments
+;
+; A grant may carry the critical extension `bounded-policy-commitment-v1`,
+; whose bytes are the canonical `bounded-policy-commitment` below. Core checks
+; only the shape, that the policy bytes open to the committed digest, and,
+; across a delegation edge, the parent link. The policy's meaning is the
+; registered product-layer evaluator's.
+
+policy-id = text .size (1..128)       ; ASCII letters, digits, and . / : _ -
+policy-canonicalization-id = text .size (1..64) ; same vocabulary
+
+policy-commitment = {
+  0: policy-id,                         ; policy type
+  1: uint .ge 1 .le 65535,              ; policy version
+  2: policy-canonicalization-id,
+  3: digest32,                          ; policy digest: domain commitment
+                                        ; "auths.bounded-policy.v1" over key 1
+  4: policy-id,                         ; evaluator semantic identifier
+}
+
+; The exact bytes of the `bounded-policy-commitment-v1` critical extension.
+bounded-policy-commitment = {
+  0: policy-commitment,
+  1: bytes .size (1..4096),             ; canonical policy bytes
+  2: digest32 / null,                   ; parent link: domain commitment
+                                        ; "auths.bounded-policy-commitment.v1"
+                                        ; over the parent grant's exact
+                                        ; extension bytes, or null when the
+                                        ; parent carries no bound
+}
+

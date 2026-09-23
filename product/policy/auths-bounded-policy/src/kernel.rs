@@ -68,6 +68,63 @@ pub const fn checked_div_u64(left: u64, right: u64) -> Option<u64> {
     left.checked_div(right)
 }
 
+/// Stable projection of one argument-ceiling and window-count evaluation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CeilingCountCode {
+    /// The value is within the ceiling and the window has room.
+    Eligible,
+    /// The verified argument value exceeds the ceiling.
+    AboveCeiling,
+    /// The window already counts the maximum number of authorized actions.
+    WindowExhausted,
+}
+
+/// Evaluates one verified argument `value` against `ceiling`, and the
+/// `count` of actions already authorized in the current window against
+/// `max_count`. The ceiling is checked first.
+#[must_use]
+pub const fn ceiling_count_code(
+    value: u64,
+    ceiling: u64,
+    count: u64,
+    max_count: u64,
+) -> CeilingCountCode {
+    if value > ceiling {
+        CeilingCountCode::AboveCeiling
+    } else if count >= max_count {
+        CeilingCountCode::WindowExhausted
+    } else {
+        CeilingCountCode::Eligible
+    }
+}
+
+/// The numeric tightening decider: the child keeps the parent's window, and
+/// its ceiling and maximum count are no larger than the parent's.
+#[must_use]
+pub const fn ceiling_count_tightens(
+    child_ceiling: u64,
+    child_max_count: u64,
+    child_window: u64,
+    parent_ceiling: u64,
+    parent_max_count: u64,
+    parent_window: u64,
+) -> bool {
+    if child_window != parent_window {
+        return false;
+    }
+    if child_ceiling > parent_ceiling {
+        return false;
+    }
+    child_max_count <= parent_max_count
+}
+
+/// The index of the window of `window_seconds` that contains `now`; `None`
+/// for a zero-length window.
+#[must_use]
+pub const fn window_index(now: u64, window_seconds: u64) -> Option<u64> {
+    now.checked_div(window_seconds)
+}
+
 #[cfg(kani)]
 mod proofs {
     use super::*;
@@ -130,6 +187,66 @@ mod proofs {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ceiling_count_checks_the_ceiling_before_the_window() {
+        assert_eq!(ceiling_count_code(10, 10, 0, 1), CeilingCountCode::Eligible);
+        assert_eq!(
+            ceiling_count_code(11, 10, 0, 1),
+            CeilingCountCode::AboveCeiling
+        );
+        assert_eq!(
+            ceiling_count_code(10, 10, 1, 1),
+            CeilingCountCode::WindowExhausted
+        );
+        assert_eq!(
+            ceiling_count_code(11, 10, 1, 1),
+            CeilingCountCode::AboveCeiling
+        );
+        assert_eq!(window_index(7_200, 3_600), Some(2));
+        assert_eq!(window_index(7_200, 0), None);
+    }
+
+    #[test]
+    fn tightening_decider_is_sound_on_a_grid() {
+        for child_ceiling in 0..4 {
+            for parent_ceiling in 0..4 {
+                for child_max in 0..4 {
+                    for parent_max in 0..4 {
+                        for (child_window, parent_window) in [(60, 60), (60, 120)] {
+                            if !ceiling_count_tightens(
+                                child_ceiling,
+                                child_max,
+                                child_window,
+                                parent_ceiling,
+                                parent_max,
+                                parent_window,
+                            ) {
+                                continue;
+                            }
+                            for value in 0..5 {
+                                for count in 0..5 {
+                                    if ceiling_count_code(value, child_ceiling, count, child_max)
+                                        == CeilingCountCode::Eligible
+                                    {
+                                        assert_eq!(
+                                            ceiling_count_code(
+                                                value,
+                                                parent_ceiling,
+                                                count,
+                                                parent_max
+                                            ),
+                                            CeilingCountCode::Eligible
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn configuration_projection_is_exhaustive() {

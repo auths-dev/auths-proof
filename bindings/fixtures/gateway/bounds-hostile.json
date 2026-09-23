@@ -1,0 +1,13 @@
+{
+  "schema": "auths.gateway-bounds-hostile/1",
+  "cases": [
+    {"id": "a-inside-a-bound", "decision": "entered", "code": null, "provider_entries": 1},
+    {"id": "a-outside-a-bound", "decision": "not-entered", "code": "gateway.policy.above-ceiling", "provider_entries": 0},
+    {"id": "a-presents-b-bound", "decision": "denied", "code": "broken-grant-chain", "provider_entries": 0},
+    {"id": "sub-agent-narrower-inside", "decision": "entered", "code": null, "provider_entries": 1},
+    {"id": "sub-agent-wider-than-parent", "decision": "not-entered", "code": "gateway.policy.expanded", "provider_entries": 0},
+    {"id": "sub-agent-unlinked-bound", "decision": "denied", "code": "delegation-expanded", "provider_entries": 0},
+    {"id": "window-exhausted", "decision": "not-entered", "code": "gateway.policy.window-exhausted", "provider_entries": 1},
+    {"id": "unregistered-evaluator", "decision": "not-entered", "code": "gateway.policy.evaluator-unregistered", "provider_entries": 0}
+  ]
+}

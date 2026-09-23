@@ -22,10 +22,11 @@ use core::fmt;
 
 /// Pinned identifier for the complete target V1 executable registry.
 ///
-/// The set includes the `observation-requirement-v1` critical extension and
-/// the per-extension attenuation laws; a context pinned to an earlier
-/// manifest is denied, not dual-read.
-pub const TARGET_V1_REGISTRY_MANIFEST: RegistryManifestId = RegistryManifestId::new([0x35; 32]);
+/// The set includes the `observation-requirement-v1` and
+/// `bounded-policy-commitment-v1` critical extensions and the per-extension
+/// attenuation laws; a context pinned to an earlier manifest is denied, not
+/// dual-read.
+pub const TARGET_V1_REGISTRY_MANIFEST: RegistryManifestId = RegistryManifestId::new([0x36; 32]);
 /// Target V1 resource-matching algebra.
 pub const URI_NAMESPACE_V1: &str = "uri-namespace-v1";
 /// Target V1 profile policy used by the reference corpus.
@@ -37,6 +38,10 @@ pub const NUMERIC_CEILING_V1: &str = "numeric-ceiling-v1";
 pub const EXACT_MARKER_EXTENSION_V1: &str = "exact-marker-v1";
 /// Grant critical extension carrying observation requirements.
 pub const OBSERVATION_REQUIREMENT_EXTENSION_V1: &str = "observation-requirement-v1";
+/// Grant critical extension committing to a closed product-layer policy.
+pub const BOUNDED_POLICY_COMMITMENT_EXTENSION_V1: &str = "bounded-policy-commitment-v1";
+/// Attenuation law committed by the `bounded-policy-commitment-v1` handler.
+const BOUNDED_POLICY_ATTENUATION_LAW: &str = "attenuation-law:bounded-policy-link-v1";
 /// Attenuation law committed by the `exact-marker-v1` handler.
 const MARKER_ATTENUATION_LAW: &str = "attenuation-law:byte-equality-v1";
 /// Attenuation law committed by the `observation-requirement-v1` handler.
@@ -264,6 +269,77 @@ impl CriticalExtensionHandler for ObservationRequirementExtension {
             )),
             None => Ok(true),
         }
+    }
+}
+
+fn decode_bounded_policy(
+    bytes: &[u8],
+) -> Result<auths_model::BoundedPolicyCommitment, RegistryOperationError> {
+    auths_codec::decode_bounded_policy_commitment(bytes).map_err(|error| match error {
+        auths_codec::CodecError::LimitExceeded => RegistryOperationError::ResourceLimitExceeded,
+        _ => RegistryOperationError::InvalidInput,
+    })
+}
+
+/// Validates the shape of a bounded-policy commitment and applies its link
+/// law. Whether a child policy is tighter than its parent's is decided by the
+/// product layer's registered evaluator, never here.
+struct BoundedPolicyCommitmentExtension {
+    id: ExtensionId,
+}
+
+impl CriticalExtensionHandler for BoundedPolicyCommitmentExtension {
+    fn id(&self) -> &ExtensionId {
+        &self.id
+    }
+
+    fn configuration_id(&self) -> AdapterConfigurationId {
+        auths_ports::configuration_id(
+            self.id.as_str().as_bytes(),
+            [BOUNDED_POLICY_ATTENUATION_LAW.as_bytes()],
+        )
+    }
+
+    fn maximum_work_units(&self, extension: &auths_model::CriticalExtension) -> u64 {
+        u64::try_from(extension.bytes().len().saturating_add(1)).unwrap_or(u64::MAX)
+    }
+
+    fn evaluate(
+        &self,
+        extension: &auths_model::CriticalExtension,
+    ) -> Result<(), RegistryOperationError> {
+        if extension.id() != &self.id {
+            return Err(RegistryOperationError::InvalidInput);
+        }
+        decode_bounded_policy(extension.bytes()).map(|_| ())
+    }
+
+    /// The child keeps the extension only by linking the digest of the
+    /// parent's exact extension bytes; a child adding it to an unbounded
+    /// parent carries no link.
+    fn attenuates(
+        &self,
+        child: Option<&[u8]>,
+        parent: Option<&[u8]>,
+    ) -> Result<bool, RegistryOperationError> {
+        let Some(child) = child else {
+            return Ok(false);
+        };
+        let child = decode_bounded_policy(child)?;
+        let parent_digest = match parent {
+            Some(parent) => {
+                decode_bounded_policy(parent)?;
+                Some(
+                    auths_codec::bounded_policy_link(parent)
+                        .map_err(|_| RegistryOperationError::ResourceLimitExceeded)?,
+                )
+            }
+            None => None,
+        };
+        Ok(auths_model::bounded_policy_link_accepts(
+            child.parent(),
+            parent_digest.as_ref(),
+        ))
     }
 }
 
@@ -560,6 +636,7 @@ struct CoreSemantics {
     budget: NumericBudgetAlgebra,
     extension: ExactMarkerExtension,
     observation: ObservationRequirementExtension,
+    bounded_policy: BoundedPolicyCommitmentExtension,
     status: Vec<ExactStatusMethod>,
     claims: Vec<ExactClaimRule>,
 }
@@ -585,6 +662,10 @@ impl CoreSemantics {
             },
             observation: ObservationRequirementExtension {
                 id: ExtensionId::parse(OBSERVATION_REQUIREMENT_EXTENSION_V1)
+                    .map_err(|_| RegistryError::InvalidBuiltin)?,
+            },
+            bounded_policy: BoundedPolicyCommitmentExtension {
+                id: ExtensionId::parse(BOUNDED_POLICY_COMMITMENT_EXTENSION_V1)
                     .map_err(|_| RegistryError::InvalidBuiltin)?,
             },
             status: ["auths-principal-status-v1", "auths-grant-status-v1"]
@@ -683,6 +764,11 @@ fn verifier_configuration_id(
         5,
         core.observation.id().as_str().into(),
         core.observation.configuration_id(),
+    ));
+    entries.push((
+        5,
+        core.bounded_policy.id().as_str().into(),
+        core.bounded_policy.configuration_id(),
     ));
     entries.extend(pure.status_methods.iter().map(|implementation| {
         (
@@ -801,10 +887,11 @@ impl<'a> ImmutableRegistries<'a> {
                 .budget_algebras
                 .iter()
                 .any(|item| item.id() == core.budget.id())
-            || pure
-                .extension_handlers
-                .iter()
-                .any(|item| item.id() == core.extension.id() || item.id() == core.observation.id())
+            || pure.extension_handlers.iter().any(|item| {
+                item.id() == core.extension.id()
+                    || item.id() == core.observation.id()
+                    || item.id() == core.bounded_policy.id()
+            })
             || pure
                 .status_methods
                 .iter()
@@ -946,6 +1033,9 @@ impl<'a> ImmutableRegistries<'a> {
         if self.core.observation.id() == id {
             return Some(&self.core.observation);
         }
+        if self.core.bounded_policy.id() == id {
+            return Some(&self.core.bounded_policy);
+        }
         self.pure
             .extension_handlers
             .iter()
@@ -1081,6 +1171,7 @@ impl CriticalExtensionLaws for AcceptedExtensionLaws<'_, '_> {
 pub struct CoreExtensionLaws {
     marker: ExactMarkerExtension,
     observation: ObservationRequirementExtension,
+    bounded_policy: BoundedPolicyCommitmentExtension,
 }
 
 impl CoreExtensionLaws {
@@ -1095,6 +1186,7 @@ impl CoreExtensionLaws {
         Ok(Self {
             marker: core.extension,
             observation: core.observation,
+            bounded_policy: core.bounded_policy,
         })
     }
 }
@@ -1105,6 +1197,8 @@ impl CriticalExtensionLaws for CoreExtensionLaws {
             &self.marker
         } else if id == self.observation.id() {
             &self.observation
+        } else if id == self.bounded_policy.id() {
+            &self.bounded_policy
         } else {
             return false;
         };
@@ -1262,6 +1356,55 @@ mod tests {
             vec![condition("b", 1), condition("a", 5)],
         )]);
         assert!(!observation(&reordered, Some(&parent)));
+    }
+
+    fn bounded(policy: &[u8], parent: Option<auths_model::Digest>) -> Vec<u8> {
+        let commitment = auths_model::PolicyCommitment::new(
+            auths_model::PolicyIdentifier::parse("auths.test.policy/1", 128).expect("type"),
+            1,
+            auths_model::PolicyIdentifier::parse("auths.test.canonical/1", 64).expect("canon"),
+            auths_codec::bounded_policy_digest(policy).expect("digest"),
+            auths_model::PolicyIdentifier::parse("auths.test.evaluate/1", 128).expect("eval"),
+        )
+        .expect("commitment");
+        auths_codec::encode_bounded_policy_commitment(
+            &auths_model::BoundedPolicyCommitment::new(commitment, policy.to_vec(), parent)
+                .expect("body"),
+        )
+        .expect("bytes")
+    }
+
+    #[test]
+    fn bounded_policy_law_checks_only_the_parent_link() {
+        let id = id(BOUNDED_POLICY_COMMITMENT_EXTENSION_V1);
+        let parent = bounded(b"parent", None);
+        let link = auths_codec::bounded_policy_link(&parent).expect("link");
+        let linked = bounded(b"any tighter or looser policy", Some(link));
+        assert!(laws().attenuates(&id, Some(&linked), Some(&parent)));
+        let wrong = bounded(b"child", Some(auths_model::Digest::new([7; 32])));
+        assert!(!laws().attenuates(&id, Some(&wrong), Some(&parent)));
+        let unlinked = bounded(b"child", None);
+        assert!(!laws().attenuates(&id, Some(&unlinked), Some(&parent)));
+        assert!(
+            laws().attenuates(&id, Some(&unlinked), None),
+            "adding to an unbounded grant"
+        );
+        assert!(
+            !laws().attenuates(&id, Some(&linked), None),
+            "a link with no parent"
+        );
+        assert!(!laws().attenuates(&id, None, Some(&parent)));
+    }
+
+    #[test]
+    fn bounded_policy_shape_opens_the_policy_digest() {
+        let mut bytes = bounded(b"policy", None);
+        let last = bytes.len() - 3;
+        bytes[last] ^= 1;
+        assert_eq!(
+            auths_codec::decode_bounded_policy_commitment(&bytes),
+            Err(auths_codec::CodecError::DigestMismatch)
+        );
     }
 
     #[test]

@@ -31,4 +31,31 @@ example :
       ok none := by
   rfl
 
+
+-- The ceiling is checked before the window count.
+example : kernel.ceiling_count_code 11#u64 10#u64 5#u64 1#u64 =
+    ok kernel.CeilingCountCode.AboveCeiling := by
+  rfl
+
+example : kernel.ceiling_count_code 10#u64 10#u64 1#u64 1#u64 =
+    ok kernel.CeilingCountCode.WindowExhausted := by
+  rfl
+
+example : kernel.ceiling_count_code 10#u64 10#u64 0#u64 1#u64 =
+    ok kernel.CeilingCountCode.Eligible := by
+  rfl
+
+-- The decider refuses a different window and a larger ceiling or count.
+example : kernel.ceiling_count_tightens 5#u64 1#u64 60#u64 10#u64 2#u64 60#u64 = ok true := by
+  rfl
+
+example : kernel.ceiling_count_tightens 5#u64 1#u64 60#u64 10#u64 2#u64 120#u64 = ok false := by
+  rfl
+
+example : kernel.ceiling_count_tightens 11#u64 1#u64 60#u64 10#u64 2#u64 60#u64 = ok false := by
+  rfl
+
+example : kernel.ceiling_count_tightens 5#u64 3#u64 60#u64 10#u64 2#u64 60#u64 = ok false := by
+  rfl
+
 end qualification.aeneas.cases
