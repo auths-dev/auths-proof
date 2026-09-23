@@ -1,6 +1,6 @@
 schema = 1
 canonical_corpus = "core/fixtures/v1/manifest.json"
-portable_abi_version = 2
+portable_abi_version = 3
 report_schema = "auths-product-core-compliance/v1"
 scope_layers = ["bindings", "demos", "product"]
 

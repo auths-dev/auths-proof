@@ -153,6 +153,18 @@ fn write_scenario_vectors(output: &std::path::Path) -> Result<(), Box<dyn std::e
             manifest.push(serde_json::json!({ "id": id, "kind": kind, "name": name }));
         }
     }
+    // Every evidence-conditioned authority vector uses raw-key identities this
+    // distribution registers, so none may be dropped by the code filter above.
+    let corpus: serde_json::Value =
+        serde_json::from_slice(&fs::read(fixture_root.join("manifest.json"))?)?;
+    for fixture in corpus["fixtures"].as_array().into_iter().flatten() {
+        let name = fixture["name"].as_str().unwrap_or_default();
+        if (name.starts_with("observation-") || name.starts_with("observer-"))
+            && !manifest.iter().any(|entry| entry["name"] == name)
+        {
+            return Err(format!("WASM scenario vectors omit {name}").into());
+        }
+    }
     manifest.sort_by(|left, right| left["id"].as_str().cmp(&right["id"].as_str()));
     fs::write(
         output.join("scenarios.json"),

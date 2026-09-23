@@ -27,8 +27,8 @@ node --experimental-strip-types \
 Both trees also contain independent target V1 semantic verifiers. They decode
 all proof and context objects, resolve the digest graph, verify all seven
 principal methods and both signature suites, apply attenuation, status,
-assurance, and composition rules, and derive the three-valued result without
-consulting the expected manifest result:
+assurance, observation-requirement, and composition rules, and derive the
+three-valued result without consulting the expected manifest result:
 
 ```sh
 cd implementations/go
