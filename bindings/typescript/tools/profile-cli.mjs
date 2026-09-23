@@ -476,7 +476,7 @@ export async function derivedEdits(directory) {
     let actual;
     try {
       const metadata = await lstat(join(directory, name));
-      if (metadata.isFile() && !metadata.isSymbolicLink()) {
+      if (metadata.isFile() && !metadata.isSymbolicLink() && metadata.size <= maxDerivationBytes) {
         actual = createHash("sha256").update(await readFile(join(directory, name))).digest("hex");
       }
     } catch (error) { if (error.code !== "ENOENT") throw error; }
@@ -544,8 +544,9 @@ async function checkDeriveTarget(directory, derivation, version) {
     }
     return;
   }
+  const recorded = await readDerivation(record);
   if (Buffer.from(await readFile(record)).equals(Buffer.from(derivation, "utf8"))) return;
-  const oldVersion = (await readDerivation(record)).profile?.version;
+  const oldVersion = recorded.profile?.version;
   if (!Number.isSafeInteger(oldVersion)) throw new Error("derivation.json is invalid");
   if (version <= oldVersion) {
     throw new Error(`contract.derive.version-required: the derivation changed under profile version ${oldVersion}; ` +

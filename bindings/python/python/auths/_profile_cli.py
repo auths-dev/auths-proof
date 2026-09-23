@@ -630,6 +630,7 @@ def derived_edits(directory: Path) -> tuple[str, ...]:
         target = directory / name
         if (
             target.is_symlink() or not target.is_file()
+            or target.stat().st_size > _MAX_DERIVATION_BYTES
             or hashlib.sha256(target.read_bytes()).hexdigest() != expected
         ):
             edited.append(name)
@@ -675,9 +676,10 @@ def _check_derive_target(directory: Path, derivation: str, version: int) -> None
                 "derivation.json; derive into an empty directory or remove the hand-owned files"
             )
         return
+    recorded = _read_derivation(record)
     if record.read_bytes() == derivation.encode("utf-8"):
         return
-    profile = _read_derivation(record).get("profile")
+    profile = recorded.get("profile")
     old_version = cast(dict[str, object], profile).get("version") if isinstance(profile, dict) else None
     if type(old_version) is not int:
         raise ValueError("derivation.json is invalid")
