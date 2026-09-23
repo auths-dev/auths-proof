@@ -153,7 +153,7 @@ def trusted_context() -> native.TrustedContext:
         None,
         "none-v1",
         ["raw-key-v1"],
-        ["extension.test-v1"],
+        ["exact-marker-v1"],
     )
 
 
@@ -230,7 +230,7 @@ def test_attach_and_delegate_use_native_authority_without_protocol_bytes() -> No
                 assert child.identity.principal.principal.value == CHILD.value
                 assert child.authority.issuer.value == PARENT.value
                 assert child.authority.subject.value == CHILD.value
-                assert child.authority.critical_extensions == ("extension.test-v1",)
+                assert child.authority.critical_extensions == ("exact-marker-v1",)
                 assert child.delegation is not None
                 assert child.delegation.diff.delegation_depth == (2, 1)
                 assert child.delegation.warnings == ("any-body", "delegation-allowed")
