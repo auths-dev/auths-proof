@@ -48,11 +48,43 @@ def bounded.BoundedSet.len
   := do
   ok (alloc.vec.Vec.len self)
 
+/-- [auths_model::{auths_model::Digest}::as_bytes]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 249:4-251:5
+    Visibility: public -/
+def Digest.as_bytes (self : Digest) : Result (Array Std.U8 32#usize) := do
+  ok self
+
 /-- [auths_model::byte_slices_equal]:
     Source: 'core/crates/auths-model/src/lib.rs', lines 115:0-117:1 -/
 def byte_slices_equal
   (left : Slice Std.U8) (right : Slice Std.U8) : Result Bool := do
   core.slice.cmp.PartialEqSlice.eq core.cmp.PartialEqU8 left right
+
+/-- [auths_model::bounded_policy::digest_equal]:
+    Source: 'core/crates/auths-model/src/bounded_policy.rs', lines 177:0-179:1
+    Visibility: public -/
+def bounded_policy.digest_equal
+  (left : Digest) (right : Digest) : Result Bool := do
+  let a ← Digest.as_bytes left
+  let s ← lift (Array.to_slice a)
+  let a1 ← Digest.as_bytes right
+  let s1 ← lift (Array.to_slice a1)
+  byte_slices_equal s s1
+
+/-- [auths_model::bounded_policy::bounded_policy_link_accepts]:
+    Source: 'core/crates/auths-model/src/bounded_policy.rs', lines 188:0-199:1
+    Visibility: public -/
+def bounded_policy.bounded_policy_link_accepts
+  (child_link : Option Digest) (parent_digest : Option Digest) :
+  Result Bool
+  := do
+  match child_link with
+  | none => ok (core.option.Option.is_none parent_digest)
+  | some child_link1 =>
+    match parent_digest with
+    | none => ok false
+    | some parent_digest1 =>
+      bounded_policy.digest_equal child_link1 parent_digest1
 
 /-- [auths_model::{impl core::cmp::PartialEq<auths_model::Audience> for auths_model::Audience}::eq]:
     Source: 'core/crates/auths-model/src/lib.rs', lines 121:35-121:44
@@ -155,28 +187,28 @@ def principal_id_equal
   byte_slices_equal s s1
 
 /-- [auths_model::{impl core::cmp::PartialEq<auths_model::Digest> for auths_model::Digest}::eq]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 235:33-235:42
+    Source: 'core/crates/auths-model/src/lib.rs', lines 237:33-237:42
     Visibility: public -/
 def Digest.Insts.CoreCmpPartialEqDigest.eq
   (self : Digest) (other : Digest) : Result Bool := do
   core.array.equality.PartialEqArray.eq core.cmp.PartialEqU8 self other
 
 /-- Trait implementation: [auths_model::{impl core::cmp::PartialEq<auths_model::Digest> for auths_model::Digest}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 235:33-235:42 -/
+    Source: 'core/crates/auths-model/src/lib.rs', lines 237:33-237:42 -/
 @[reducible]
 def Digest.Insts.CoreCmpPartialEqDigest : core.cmp.PartialEq Digest Digest := {
   eq := Digest.Insts.CoreCmpPartialEqDigest.eq
 }
 
 /-- [auths_model::{impl core::cmp::Eq for auths_model::Digest}::assert_fields_are_eq]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 235:29-235:31
+    Source: 'core/crates/auths-model/src/lib.rs', lines 237:29-237:31
     Visibility: public -/
 def Digest.Insts.CoreCmpEq.assert_fields_are_eq
   (self : Digest) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [auths_model::{impl core::cmp::Eq for auths_model::Digest}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 235:29-235:31 -/
+    Source: 'core/crates/auths-model/src/lib.rs', lines 237:29-237:31 -/
 @[reducible]
 def Digest.Insts.CoreCmpEq : core.cmp.Eq Digest := {
   partialEqInst := Digest.Insts.CoreCmpPartialEqDigest
@@ -184,14 +216,14 @@ def Digest.Insts.CoreCmpEq : core.cmp.Eq Digest := {
 }
 
 /-- [auths_model::{impl core::cmp::Ord for auths_model::Digest}::cmp]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 235:44-235:47
+    Source: 'core/crates/auths-model/src/lib.rs', lines 237:44-237:47
     Visibility: public -/
 def Digest.Insts.CoreCmpOrd.cmp
   (self : Digest) (other : Digest) : Result Ordering := do
   Array.Insts.CoreCmpOrd.cmp core.cmp.OrdU8 self other
 
 /-- [auths_model::{impl core::cmp::PartialOrd<auths_model::Digest> for auths_model::Digest}::partial_cmp]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 235:49-235:59
+    Source: 'core/crates/auths-model/src/lib.rs', lines 237:49-237:59
     Visibility: public -/
 def Digest.Insts.CoreCmpPartialOrdDigest.partial_cmp
   (self : Digest) (other : Digest) : Result (Option Ordering) := do
@@ -199,7 +231,7 @@ def Digest.Insts.CoreCmpPartialOrdDigest.partial_cmp
   ok (some o)
 
 /-- Trait implementation: [auths_model::{impl core::cmp::PartialOrd<auths_model::Digest> for auths_model::Digest}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 235:49-235:59 -/
+    Source: 'core/crates/auths-model/src/lib.rs', lines 237:49-237:59 -/
 @[reducible]
 def Digest.Insts.CoreCmpPartialOrdDigest : core.cmp.PartialOrd Digest Digest
   := {
@@ -208,7 +240,7 @@ def Digest.Insts.CoreCmpPartialOrdDigest : core.cmp.PartialOrd Digest Digest
 }
 
 /-- Trait implementation: [auths_model::{impl core::cmp::Ord for auths_model::Digest}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 235:44-235:47 -/
+    Source: 'core/crates/auths-model/src/lib.rs', lines 237:44-237:47 -/
 @[reducible]
 def Digest.Insts.CoreCmpOrd : core.cmp.Ord Digest := {
   eqInst := Digest.Insts.CoreCmpEq
@@ -216,20 +248,14 @@ def Digest.Insts.CoreCmpOrd : core.cmp.Ord Digest := {
   cmp := Digest.Insts.CoreCmpOrd.cmp
 }
 
-/-- [auths_model::{auths_model::Digest}::as_bytes]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 247:4-249:5
-    Visibility: public -/
-def Digest.as_bytes (self : Digest) : Result (Array Std.U8 32#usize) := do
-  ok self
-
 /-- [auths_model::{auths_model::GrantId}::as_bytes]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 274:12-276:13
+    Source: 'core/crates/auths-model/src/lib.rs', lines 276:12-278:13
     Visibility: public -/
 def GrantId.as_bytes (self : GrantId) : Result (Array Std.U8 32#usize) := do
   Digest.as_bytes self
 
 /-- [auths_model::inclusive_window_contains]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 409:0-416:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 411:0-418:1
     Visibility: public -/
 def inclusive_window_contains
   (parent_start : Std.U64) (parent_end : Std.U64) (child_start : Std.U64)
@@ -241,7 +267,7 @@ def inclusive_window_contains
   else ok false
 
 /-- [auths_model::validity_window_contains]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 421:0-428:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 423:0-430:1
     Visibility: public -/
 def validity_window_contains
   (parent : ValidityWindow) (child : ValidityWindow) : Result Bool := do
@@ -252,7 +278,7 @@ def validity_window_contains
   inclusive_window_contains i i1 i2 i3
 
 /-- [auths_model::profile_ref_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 464:0-466:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 466:0-468:1
     Visibility: public -/
 def profile_ref_equal
   (left : ProfileRef) (right : ProfileRef) : Result Bool := do
@@ -266,7 +292,7 @@ def profile_ref_equal
   else ok false
 
 /-- [auths_model::profile_slice_contains]: loop body 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 473:4-480:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 475:4-482:1
     Visibility: public -/
 @[rust_loop_body]
 def profile_slice_contains_loop.body
@@ -285,7 +311,7 @@ def profile_slice_contains_loop.body
   else ok (done false)
 
 /-- [auths_model::profile_slice_contains]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 473:4-480:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 475:4-482:1
     Visibility: public -/
 @[rust_loop]
 def profile_slice_contains_loop
@@ -297,7 +323,7 @@ def profile_slice_contains_loop
     index
 
 /-- [auths_model::profile_slice_contains]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 471:0-480:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 473:0-482:1
     Visibility: public -/
 @[reducible]
 def profile_slice_contains
@@ -305,7 +331,7 @@ def profile_slice_contains
   profile_slice_contains_loop profiles profile 0#usize
 
 /-- [auths_model::assurance_policy_id_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 485:0-487:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 487:0-489:1
     Visibility: public -/
 def assurance_policy_id_equal
   (left : AssurancePolicyId) (right : AssurancePolicyId) : Result Bool := do
@@ -314,7 +340,7 @@ def assurance_policy_id_equal
   byte_slices_equal s s1
 
 /-- [auths_model::grant_id_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 492:0-494:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 494:0-496:1
     Visibility: public -/
 def grant_id_equal (left : GrantId) (right : GrantId) : Result Bool := do
   let a ← GrantId.as_bytes left
@@ -324,7 +350,7 @@ def grant_id_equal (left : GrantId) (right : GrantId) : Result Bool := do
   byte_slices_equal s s1
 
 /-- [auths_model::optional_grant_id_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 499:0-505:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 501:0-507:1
     Visibility: public -/
 def optional_grant_id_equal
   (left : Option GrantId) (right : Option GrantId) : Result Bool := do
@@ -338,7 +364,7 @@ def optional_grant_id_equal
     | some right1 => grant_id_equal left1 right1
 
 /-- [auths_model::{impl core::cmp::PartialEq<auths_model::Permission> for auths_model::Permission}::eq]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 507:27-507:36
+    Source: 'core/crates/auths-model/src/lib.rs', lines 509:27-509:36
     Visibility: public -/
 def Permission.Insts.CoreCmpPartialEqPermission.eq
   (self : Permission) (other : Permission) : Result Bool := do
@@ -351,7 +377,7 @@ def Permission.Insts.CoreCmpPartialEqPermission.eq
   else ok false
 
 /-- Trait implementation: [auths_model::{impl core::cmp::PartialEq<auths_model::Permission> for auths_model::Permission}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 507:27-507:36 -/
+    Source: 'core/crates/auths-model/src/lib.rs', lines 509:27-509:36 -/
 @[reducible]
 def Permission.Insts.CoreCmpPartialEqPermission : core.cmp.PartialEq Permission
   Permission := {
@@ -359,14 +385,14 @@ def Permission.Insts.CoreCmpPartialEqPermission : core.cmp.PartialEq Permission
 }
 
 /-- [auths_model::{impl core::cmp::Eq for auths_model::Permission}::assert_fields_are_eq]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 507:23-507:25
+    Source: 'core/crates/auths-model/src/lib.rs', lines 509:23-509:25
     Visibility: public -/
 def Permission.Insts.CoreCmpEq.assert_fields_are_eq
   (self : Permission) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [auths_model::{impl core::cmp::Eq for auths_model::Permission}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 507:23-507:25 -/
+    Source: 'core/crates/auths-model/src/lib.rs', lines 509:23-509:25 -/
 @[reducible]
 def Permission.Insts.CoreCmpEq : core.cmp.Eq Permission := {
   partialEqInst := Permission.Insts.CoreCmpPartialEqPermission
@@ -374,7 +400,7 @@ def Permission.Insts.CoreCmpEq : core.cmp.Eq Permission := {
 }
 
 /-- [auths_model::{impl core::cmp::Ord for auths_model::Permission}::cmp]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 507:38-507:41
+    Source: 'core/crates/auths-model/src/lib.rs', lines 509:38-509:41
     Visibility: public -/
 def Permission.Insts.CoreCmpOrd.cmp
   (self : Permission) (other : Permission) : Result Ordering := do
@@ -385,7 +411,7 @@ def Permission.Insts.CoreCmpOrd.cmp
   | Ordering.gt => ok Ordering.gt
 
 /-- [auths_model::{impl core::cmp::PartialOrd<auths_model::Permission> for auths_model::Permission}::partial_cmp]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 507:43-507:53
+    Source: 'core/crates/auths-model/src/lib.rs', lines 509:43-509:53
     Visibility: public -/
 def Permission.Insts.CoreCmpPartialOrdPermission.partial_cmp
   (self : Permission) (other : Permission) : Result (Option Ordering) := do
@@ -393,7 +419,7 @@ def Permission.Insts.CoreCmpPartialOrdPermission.partial_cmp
   ok (some o)
 
 /-- Trait implementation: [auths_model::{impl core::cmp::PartialOrd<auths_model::Permission> for auths_model::Permission}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 507:43-507:53 -/
+    Source: 'core/crates/auths-model/src/lib.rs', lines 509:43-509:53 -/
 @[reducible]
 def Permission.Insts.CoreCmpPartialOrdPermission : core.cmp.PartialOrd
   Permission Permission := {
@@ -402,7 +428,7 @@ def Permission.Insts.CoreCmpPartialOrdPermission : core.cmp.PartialOrd
 }
 
 /-- Trait implementation: [auths_model::{impl core::cmp::Ord for auths_model::Permission}]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 507:38-507:41 -/
+    Source: 'core/crates/auths-model/src/lib.rs', lines 509:38-509:41 -/
 @[reducible]
 def Permission.Insts.CoreCmpOrd : core.cmp.Ord Permission := {
   eqInst := Permission.Insts.CoreCmpEq
@@ -411,7 +437,7 @@ def Permission.Insts.CoreCmpOrd : core.cmp.Ord Permission := {
 }
 
 /-- [auths_model::permissions_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 533:0-536:1 -/
+    Source: 'core/crates/auths-model/src/lib.rs', lines 535:0-538:1 -/
 def permissions_equal
   (left : Permission) (right : Permission) : Result Bool := do
   let s := left.capability
@@ -429,7 +455,7 @@ def permissions_equal
   else ok false
 
 /-- [auths_model::permission_set_contains]: loop body 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 578:4-585:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 580:4-587:1
     Visibility: public -/
 @[rust_loop_body]
 def permission_set_contains_loop.body
@@ -449,7 +475,7 @@ def permission_set_contains_loop.body
   else ok (done false)
 
 /-- [auths_model::permission_set_contains]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 578:4-585:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 580:4-587:1
     Visibility: public -/
 @[rust_loop]
 def permission_set_contains_loop
@@ -462,7 +488,7 @@ def permission_set_contains_loop
     (set, index)
 
 /-- [auths_model::permission_set_contains]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 576:0-585:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 578:0-587:1
     Visibility: public -/
 @[reducible]
 def permission_set_contains
@@ -470,7 +496,7 @@ def permission_set_contains
   permission_set_contains_loop set permission 0#usize
 
 /-- [auths_model::permission_set_is_subset]: loop body 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 592:4-599:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 594:4-601:1
     Visibility: public -/
 @[rust_loop_body]
 def permission_set_is_subset_loop.body
@@ -491,7 +517,7 @@ def permission_set_is_subset_loop.body
   else ok (done true)
 
 /-- [auths_model::permission_set_is_subset]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 592:4-599:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 594:4-601:1
     Visibility: public -/
 @[rust_loop]
 def permission_set_is_subset_loop
@@ -504,7 +530,7 @@ def permission_set_is_subset_loop
     (child, child_index)
 
 /-- [auths_model::permission_set_is_subset]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 590:0-599:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 592:0-601:1
     Visibility: public -/
 @[reducible]
 def permission_set_is_subset
@@ -512,14 +538,14 @@ def permission_set_is_subset
   permission_set_is_subset_loop child parent 0#usize
 
 /-- [auths_model::audiences_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 604:0-606:1 -/
+    Source: 'core/crates/auths-model/src/lib.rs', lines 606:0-608:1 -/
 def audiences_equal (left : Audience) (right : Audience) : Result Bool := do
   let s ← alloc.string.String.as_bytes left
   let s1 ← alloc.string.String.as_bytes right
   byte_slices_equal s s1
 
 /-- [auths_model::audience_set_contains]: loop body 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 645:4-652:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 647:4-654:1
     Visibility: public -/
 @[rust_loop_body]
 def audience_set_contains_loop.body
@@ -539,7 +565,7 @@ def audience_set_contains_loop.body
   else ok (done false)
 
 /-- [auths_model::audience_set_contains]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 645:4-652:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 647:4-654:1
     Visibility: public -/
 @[rust_loop]
 def audience_set_contains_loop
@@ -552,7 +578,7 @@ def audience_set_contains_loop
     (set, index)
 
 /-- [auths_model::audience_set_contains]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 643:0-652:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 645:0-654:1
     Visibility: public -/
 @[reducible]
 def audience_set_contains
@@ -560,7 +586,7 @@ def audience_set_contains
   audience_set_contains_loop set audience 0#usize
 
 /-- [auths_model::audience_set_is_subset]: loop body 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 659:4-666:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 661:4-668:1
     Visibility: public -/
 @[rust_loop_body]
 def audience_set_is_subset_loop.body
@@ -581,7 +607,7 @@ def audience_set_is_subset_loop.body
   else ok (done true)
 
 /-- [auths_model::audience_set_is_subset]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 659:4-666:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 661:4-668:1
     Visibility: public -/
 @[rust_loop]
 def audience_set_is_subset_loop
@@ -594,7 +620,7 @@ def audience_set_is_subset_loop
     (child, child_index)
 
 /-- [auths_model::audience_set_is_subset]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 657:0-666:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 659:0-668:1
     Visibility: public -/
 @[reducible]
 def audience_set_is_subset
@@ -602,14 +628,14 @@ def audience_set_is_subset
   audience_set_is_subset_loop child parent 0#usize
 
 /-- [auths_model::digests_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 672:0-674:1 -/
+    Source: 'core/crates/auths-model/src/lib.rs', lines 674:0-676:1 -/
 def digests_equal (left : Digest) (right : Digest) : Result Bool := do
   let s ← core.array.Array.as_slice left
   let s1 ← core.array.Array.as_slice right
   byte_slices_equal s s1
 
 /-- [auths_model::body_digest_set_contains]: loop body 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 716:4-723:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 718:4-725:1
     Visibility: public -/
 @[rust_loop_body]
 def body_digest_set_contains_loop.body
@@ -629,7 +655,7 @@ def body_digest_set_contains_loop.body
   else ok (done false)
 
 /-- [auths_model::body_digest_set_contains]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 716:4-723:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 718:4-725:1
     Visibility: public -/
 @[rust_loop]
 def body_digest_set_contains_loop
@@ -642,7 +668,7 @@ def body_digest_set_contains_loop
     (set, index)
 
 /-- [auths_model::body_digest_set_contains]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 714:0-723:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 716:0-725:1
     Visibility: public -/
 @[reducible]
 def body_digest_set_contains
@@ -650,7 +676,7 @@ def body_digest_set_contains
   body_digest_set_contains_loop set digest 0#usize
 
 /-- [auths_model::body_digest_set_is_subset]: loop body 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 730:4-737:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 732:4-739:1
     Visibility: public -/
 @[rust_loop_body]
 def body_digest_set_is_subset_loop.body
@@ -671,7 +697,7 @@ def body_digest_set_is_subset_loop.body
   else ok (done true)
 
 /-- [auths_model::body_digest_set_is_subset]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 730:4-737:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 732:4-739:1
     Visibility: public -/
 @[rust_loop]
 def body_digest_set_is_subset_loop
@@ -684,7 +710,7 @@ def body_digest_set_is_subset_loop
     (child, child_index)
 
 /-- [auths_model::body_digest_set_is_subset]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 728:0-737:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 730:0-739:1
     Visibility: public -/
 @[reducible]
 def body_digest_set_is_subset
@@ -692,7 +718,7 @@ def body_digest_set_is_subset
   body_digest_set_is_subset_loop child parent 0#usize
 
 /-- [auths_model::body_digest_set_only_contains]: loop body 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 748:4-755:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 750:4-757:1
     Visibility: public -/
 @[rust_loop_body]
 def body_digest_set_only_contains_loop.body
@@ -712,7 +738,7 @@ def body_digest_set_only_contains_loop.body
   else ok (done true)
 
 /-- [auths_model::body_digest_set_only_contains]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 748:4-755:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 750:4-757:1
     Visibility: public -/
 @[rust_loop]
 def body_digest_set_only_contains_loop
@@ -725,7 +751,7 @@ def body_digest_set_only_contains_loop
     (set, index)
 
 /-- [auths_model::body_digest_set_only_contains]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 746:0-755:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 748:0-757:1
     Visibility: public -/
 @[reducible]
 def body_digest_set_only_contains
@@ -733,7 +759,7 @@ def body_digest_set_only_contains
   body_digest_set_only_contains_loop set digest 0#usize
 
 /-- [auths_model::action_constraint_allows]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 802:0-808:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 804:0-810:1
     Visibility: public -/
 def action_constraint_allows
   (constraint : ActionConstraint) (digest : Digest) : Result Bool := do
@@ -744,7 +770,7 @@ def action_constraint_allows
     body_digest_set_contains allowed digest
 
 /-- [auths_model::action_constraint_attenuates]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 813:0-833:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 815:0-835:1
     Visibility: public -/
 def action_constraint_attenuates
   (child : ActionConstraint) (parent : ActionConstraint) : Result Bool := do
@@ -765,7 +791,7 @@ def action_constraint_attenuates
       body_digest_set_is_subset child1 parent1
 
 /-- [auths_model::budget_ceiling_attenuates]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 872:0-875:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 874:0-877:1
     Visibility: public -/
 def budget_ceiling_attenuates
   (child : BudgetCeiling) (parent : BudgetCeiling) : Result Bool := do
@@ -779,21 +805,21 @@ def budget_ceiling_attenuates
   else ok false
 
 /-- [auths_model::{auths_model::BudgetCeiling}::attenuates]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 858:4-860:5
+    Source: 'core/crates/auths-model/src/lib.rs', lines 860:4-862:5
     Visibility: public -/
 def BudgetCeiling.attenuates
   (self : BudgetCeiling) (parent : BudgetCeiling) : Result Bool := do
   budget_ceiling_attenuates self parent
 
 /-- [auths_model::{auths_model::BudgetCeiling}::covers]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 864:4-866:5
+    Source: 'core/crates/auths-model/src/lib.rs', lines 866:4-868:5
     Visibility: public -/
 def BudgetCeiling.covers
   (self : BudgetCeiling) (requested : BudgetCeiling) : Result Bool := do
   BudgetCeiling.attenuates requested self
 
 /-- [auths_model::optional_budget_attenuates]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 882:0-891:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 884:0-893:1
     Visibility: public -/
 def optional_budget_attenuates
   (child : Option BudgetCeiling) (parent : Option BudgetCeiling) :
@@ -807,7 +833,7 @@ def optional_budget_attenuates
     | some child1 => BudgetCeiling.attenuates child1 parent1
 
 /-- [auths_model::optional_budget_covers]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 903:0-912:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 905:0-914:1
     Visibility: public -/
 def optional_budget_covers
   (ceiling : Option BudgetCeiling) (requested : Option BudgetCeiling) :
@@ -821,7 +847,7 @@ def optional_budget_covers
     | some requested1 => BudgetCeiling.covers ceiling1 requested1
 
 /-- [auths_model::budget_ceiling_covers_action]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 950:0-960:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 952:0-962:1
     Visibility: public -/
 def budget_ceiling_covers_action
   (ceiling : Option BudgetCeiling) (requested : Option BudgetCeiling)
@@ -837,7 +863,7 @@ def budget_ceiling_covers_action
   | some _ => optional_budget_covers ceiling requested
 
 /-- [auths_model::status_policy_attenuates]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1012:0-1030:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1014:0-1032:1
     Visibility: public -/
 def status_policy_attenuates
   (child : StatusPolicy) (parent : StatusPolicy) : Result Bool := do
@@ -855,7 +881,7 @@ def status_policy_attenuates
       else ok false
 
 /-- [auths_model::critical_extension_find]: loop body 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1120:4-1127:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1122:4-1129:1
     Visibility: public -/
 @[rust_loop_body]
 def critical_extension_find_loop.body
@@ -880,7 +906,7 @@ def critical_extension_find_loop.body
   else ok (done none)
 
 /-- [auths_model::critical_extension_find]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1120:4-1127:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1122:4-1129:1
     Visibility: public -/
 @[rust_loop]
 def critical_extension_find_loop
@@ -893,7 +919,7 @@ def critical_extension_find_loop
     (extensions, id, index)
 
 /-- [auths_model::critical_extension_find]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1115:0-1127:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1117:0-1129:1
     Visibility: public -/
 @[reducible]
 def critical_extension_find
@@ -903,21 +929,21 @@ def critical_extension_find
   critical_extension_find_loop extensions id 0#usize
 
 /-- [auths_model::critical_extension_entries]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1132:0-1134:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1134:0-1136:1
     Visibility: public -/
 def critical_extension_entries
   (extensions : CriticalExtensions) : Result (Slice CriticalExtension) := do
   ok (alloc.vec.Vec.deref extensions)
 
 /-- [auths_model::critical_extension_id]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1139:0-1141:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1141:0-1143:1
     Visibility: public -/
 def critical_extension_id
   (extension : CriticalExtension) : Result ExtensionId := do
   ok extension.id
 
 /-- [auths_model::critical_extension_payload]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1146:0-1148:1
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1148:0-1150:1
     Visibility: public -/
 def critical_extension_payload
   (extension : CriticalExtension) : Result (Slice Std.U8) := do

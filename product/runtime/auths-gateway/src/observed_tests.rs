@@ -9,7 +9,8 @@
 
 use crate::engine::{
     GatewayObserveResult, GatewaySubmitResult, execute_claimed, gateway_verifier_configuration,
-    not_entered, observe_outcome, observe_read_back, reobserve, replay_refused, verify_command,
+    not_entered, observe_outcome, observe_read_back, reobserve, replay_refused, reserve_bound,
+    verify_command,
 };
 use crate::observer::{OUTCOME_SCHEMA, READ_BACK_SCHEMA, operation_subject};
 use crate::store_testkit::{Backend, TestAttempts, postgres_configured};
@@ -51,6 +52,9 @@ use serde_json::{Map, Value, json};
 use sha2::{Digest as _, Sha256};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
+
+#[path = "bounds_tests.rs"]
+mod bounds_tests;
 
 const NOW: u64 = 1_790_000_000;
 const SERVICE: &str = "gateway-observer-test";
@@ -247,7 +251,11 @@ fn accepted_registries() -> AcceptedRegistries {
         Vec::new(),
         vec![ResourceMatcherId::parse("uri-namespace-v1").expect("matcher")],
         Vec::new(),
-        vec![ExtensionId::parse(OBSERVATION_REQUIREMENT_EXTENSION_V1).expect("extension")],
+        vec![
+            ExtensionId::parse(auths_registries::BOUNDED_POLICY_COMMITMENT_EXTENSION_V1)
+                .expect("extension"),
+            ExtensionId::parse(OBSERVATION_REQUIREMENT_EXTENSION_V1).expect("extension"),
+        ],
         vec![call(&Map::new()).profile_ref().expect("profile")],
         vec![ProfilePolicyId::parse(crate::MCP_ARGUMENTS_V1).expect("policy")],
     )
@@ -260,11 +268,22 @@ fn context(
     observer: &PrincipalId,
     configuration: Option<[u8; 32]>,
 ) -> TrustedContext {
+    context_with_depth(root, observer, configuration, 1)
+}
+
+/// Trust pinned to `root` that permits `depth` delegation edges.
+fn context_with_depth(
+    root: &Signer,
+    observer: &PrincipalId,
+    configuration: Option<[u8; 32]>,
+    depth: u16,
+) -> TrustedContext {
     context_with(
         &[root],
         observer,
         configuration,
         CompositionRequirement::new(None, 1, 1, 1).expect("composition"),
+        depth,
     )
 }
 
@@ -274,6 +293,7 @@ fn context_with(
     observer: &PrincipalId,
     configuration: Option<[u8; 32]>,
     composition: CompositionRequirement,
+    depth: u16,
 ) -> TrustedContext {
     let configuration = configuration.map_or_else(
         || gateway_verifier_configuration().expect("configuration"),
@@ -295,7 +315,7 @@ fn context_with(
                 AudienceSet::new(vec![audience()]).expect("audiences"),
                 window(NOW - 86_400, NOW + 86_400),
                 None,
-                1,
+                depth,
                 assurance.clone(),
                 StatusPolicy::ExpiryOnly,
             )
@@ -710,7 +730,7 @@ impl Harness {
 
     /// Mirrors the engine: verify, claim, lease, then enter the provider.
     async fn submit(&self, submission: &Submission, now: u64) -> GatewaySubmitResult {
-        let request = match verify_command(
+        let (request, bound) = match verify_command(
             &self.recipe,
             &self.context,
             now,
@@ -723,6 +743,10 @@ impl Harness {
         let attempts = self.store.attempts();
         match attempts.claim(&request, *self.recipe.digest()).await {
             Ok(claim) => {
+                let claim = match reserve_bound(attempts, bound.as_ref(), &request, claim).await {
+                    Ok(value) => value,
+                    Err(result) => return result,
+                };
                 self.provider.leases.fetch_add(1, Ordering::SeqCst);
                 execute_claimed(claim, &request, &self.provider).await
             }
@@ -1180,6 +1204,7 @@ async fn two_of_three_root_authorizes_only_with_two_distinct_roots(backend: Back
         observer.principal(),
         None,
         CompositionRequirement::new(None, 2, 1, 2).expect("2-of-3 composition"),
+        1,
     );
     let harness = Harness::with(
         update_recipe(),

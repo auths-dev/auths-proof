@@ -1019,3 +1019,43 @@ fn sync_directory(root: &Path) -> Result<(), GatewayAttemptError> {
     let _ = root;
     Ok(())
 }
+
+/// Per-window count slots use the same insert-once mechanism as attempt
+/// claims, under keys from their own hash domain, so every attempt store,
+/// including the qualified multi-host store, also holds the counts.
+impl<S: GatewayAttemptStore + ?Sized> crate::bounds::BoundedCountStore for S {
+    fn insert_count_slot(
+        &self,
+        key: &[u8; 32],
+        record: &[u8],
+    ) -> Result<bool, GatewayAttemptError> {
+        match self.insert(&GatewayAttemptKey(*key), record) {
+            Ok(()) => Ok(true),
+            Err(GatewayAttemptError::Replay) => Ok(false),
+            Err(error) => Err(error),
+        }
+    }
+
+    fn count_slot_exists(&self, key: &[u8; 32]) -> Result<bool, GatewayAttemptError> {
+        self.load(&GatewayAttemptKey(*key))
+            .map(|slot| slot.is_some())
+    }
+}
+
+impl GatewayAttempts {
+    /// Reserves one per-window count slot off the async executor.
+    pub(crate) async fn reserve_window(
+        &self,
+        reservation: &crate::bounds::WindowReservation,
+        operation: &LogicalOperationId,
+    ) -> Result<(), crate::bounds::ReserveRefusal> {
+        let store = Arc::clone(&self.store);
+        let reservation = reservation.clone();
+        let operation = operation.clone();
+        tokio::task::spawn_blocking(move || {
+            crate::bounds::reserve_window(&*store, &reservation, &operation)
+        })
+        .await
+        .map_err(|_| crate::bounds::ReserveRefusal::Unavailable)?
+    }
+}

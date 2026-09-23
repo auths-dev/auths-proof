@@ -6,9 +6,9 @@ or contradictory identifier appears. No parser, adapter, or algorithm
 fallback is permitted.
 
 The complete executable target-V1 set is bound by the pinned manifest
-`35` repeated 32 times. The set gained per-extension attenuation laws; a
-context carrying the earlier `34` manifest, or any other manifest, is denied
-before pluggable verification. Every implementation declares a conservative maximum
+`36` repeated 32 times. The set gained the `bounded-policy-commitment-v1`
+critical extension; a context carrying the earlier `35` manifest, or any
+other manifest, is denied before pluggable verification. Every implementation declares a conservative maximum
 work cost that is reserved before invocation.
 
 ## Pure semantic registries
@@ -20,6 +20,7 @@ work cost that is reserved before invocation.
 | Budget algebra | `numeric-ceiling-v1` | Exact-algebra attenuation and coverage using unsigned `<=` |
 | Critical extension | `exact-marker-v1` | Requires the exact byte string `h'01'` and otherwise changes no authority. Attenuation law: byte equality; adding it is refused |
 | Critical extension | `observation-requirement-v1` | Bytes are canonical `observation-requirements`; the observation stage evaluates those carried by grants, and one on an action has no effect. Attenuation law: every parent requirement kept byte-identical or strictly narrowed; the child may add requirements, and adding the extension is accepted |
+| Critical extension | `bounded-policy-commitment-v1` | Bytes are a canonical `bounded-policy-commitment` whose policy bytes open to the committed digest; core never reads the policy. Attenuation law: a child keeps a bound only by linking the digest of its parent's exact extension bytes, and adds one to an unbounded parent only without a link |
 | Principal status | `auths-principal-status-v1` | Trusted issuer, method, floor, freshness, and revoked-dominant latest selection |
 | Grant status | `auths-grant-status-v1` | Same selection rules as principal status |
 
@@ -185,6 +186,22 @@ Signed observations travel as detached attachments whose descriptors carry
 the media type `application/vnd.auths.observation.v1+cbor`. Each is at most
 4 KiB, an action binds at most 32, and a trusted context carries at most 32
 observer anchors.
+
+### Bounded-policy commitments
+
+`bounded-policy-commitment-v1` is carried by grants. Its bytes commit to one
+closed product-layer policy and evaluator (AP-SPEC-025 §6): a policy type and
+version, a canonicalization identifier, the policy digest, and an evaluator
+semantic identifier, followed by the canonical policy bytes (1 to 4096) and an
+optional parent link. The handler checks canonical encoding, identifier
+syntax and lengths, a non-zero version, and that the policy bytes open to the
+digest. A byte bound is `resource-limit-exceeded`; any other failure is
+`local-policy-denied`.
+
+The kernel's law checks only the parent link. Whether a child's policy is
+tighter than its parent's is decided before eligibility by the registered
+product evaluator's tightening decider; a verifier without that product layer
+enforces the link and nothing about the policy's meaning.
 
 ## Profile-policy action facts
 

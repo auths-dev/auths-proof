@@ -5,6 +5,7 @@
 #![allow(clippy::manual_let_else)]
 
 use crate::action_facts::McpArgumentsPolicy;
+use crate::bounds::{WindowReservation, admit_bounds};
 use crate::observer::{
     GatewayObserver, GatewaySignedObservation, OUTCOME_SCHEMA, READ_BACK_SCHEMA, operation_subject,
     outcome_facts, read_back_facts,
@@ -379,7 +380,7 @@ impl GatewayEngine {
                 code: "gateway.verify.clock-unavailable".to_owned(),
             };
         };
-        let request = match verify_command(
+        let (request, bound) = match verify_command(
             &self.recipe,
             &self.trusted_context,
             now,
@@ -402,6 +403,10 @@ impl GatewayEngine {
                     .await;
             }
             Err(_) => return not_entered("gateway.attempt.unavailable"),
+        };
+        let claim = match reserve_bound(&self.attempts, bound.as_ref(), &request, claim).await {
+            Ok(value) => value,
+            Err(result) => return result,
         };
         let lease = match self.lease(&binding).await {
             Ok(value) => value,
@@ -562,18 +567,20 @@ pub fn gateway_verifier_configuration() -> Result<VerifierConfigurationId, &'sta
         .ok_or("gateway.verify.registry-unavailable")
 }
 
-/// Verifies proof and action natively at the gateway clock `now` and closes
-/// the approved request from the verified command. Trust, registries, and the
+/// Verifies proof and action natively at the gateway clock `now`, admits the
+/// action under every bounded policy in its authorized chain, and closes the
+/// approved request from the verified command. Trust, registries, and the
 /// installed challenge and audience come from the operator; only the
-/// evaluation time is the gateway's own, so observation freshness and grant
-/// validity are judged when the request arrives, not when trust was installed.
+/// evaluation time is the gateway's own, so observation freshness, grant
+/// validity, and the counting window are judged when the request arrives.
+/// The returned reservation, if any, is taken after the claim.
 pub(crate) fn verify_command(
     recipe: &CompiledRecipe,
     context: &TrustedContext,
     now: u64,
     proof_cbor: &[u8],
     action_cbor: &[u8],
-) -> Result<ClosedProviderRequest, GatewaySubmitResult> {
+) -> Result<(ClosedProviderRequest, Option<WindowReservation>), GatewaySubmitResult> {
     if proof_cbor.is_empty()
         || proof_cbor.len() > MAX_PROOF_BYTES
         || action_cbor.is_empty()
@@ -610,6 +617,7 @@ pub(crate) fn verify_command(
             }
         });
     };
+    let bound = admit_bounds(proof_cbor, action, recipe.namespace(), now)?;
     let command = McpProfile
         .decode_verified(action)
         .map_err(|_| not_entered("gateway.action.projection"))?;
@@ -617,9 +625,30 @@ pub(crate) fn verify_command(
         .map_err(|_| not_entered("gateway.action.commitment"))?;
     let action_commitment = auths_codec::domain_commitment("auths.canonical-action.v1", &canonical)
         .map_err(|_| not_entered("gateway.action.commitment"))?;
-    recipe
+    let request = recipe
         .closed_request(&command, *action_commitment.as_bytes())
-        .map_err(|error| not_entered(error.code()))
+        .map_err(|error| not_entered(error.code()))?;
+    Ok((request, bound))
+}
+
+/// Reserves the bound's window slot for a fresh claim before any lease. An
+/// exhausted or unavailable count leaves the claim `not-entered`.
+pub(crate) async fn reserve_bound(
+    attempts: &GatewayAttempts,
+    bound: Option<&WindowReservation>,
+    request: &ClosedProviderRequest,
+    claim: ClaimedGatewayAttempt,
+) -> Result<ClaimedGatewayAttempt, GatewaySubmitResult> {
+    let Some(bound) = bound else {
+        return Ok(claim);
+    };
+    match attempts.reserve_window(bound, request.operation_id()).await {
+        Ok(()) => Ok(claim),
+        Err(refusal) => Err(match claim.record_not_entered().await {
+            Ok(_) => not_entered(refusal.code()),
+            Err(_) => GatewaySubmitResult::Unknown,
+        }),
+    }
 }
 
 fn indeterminate_registry() -> GatewaySubmitResult {

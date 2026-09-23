@@ -6,12 +6,17 @@
 
 extern crate alloc;
 
+mod bounded_policy;
 mod decode;
 mod encode;
 mod error;
 mod hash;
 mod observation;
 
+pub use bounded_policy::{
+    bounded_policy_digest, bounded_policy_link, decode_bounded_policy_commitment,
+    encode_bounded_policy_commitment,
+};
 pub use decode::{
     decode_action_envelope, decode_bundle, decode_canonical_action, decode_grant_statement,
     decode_grant_status_snapshot, decode_grant_status_statement, decode_principal_status_snapshot,
