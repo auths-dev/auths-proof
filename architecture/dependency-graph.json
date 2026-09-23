@@ -3203,6 +3203,21 @@
     {
       "source": "auths-gateway",
       "source_layer": "product",
+      "target": "ed25519-dalek",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "zeroize"
+      ]
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
       "target": "getrandom",
       "target_layer": null,
       "scope": "external",
@@ -3367,6 +3382,20 @@
       "optional": false,
       "default_features": true,
       "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "zeroize",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "derive"
+      ]
     },
     {
       "source": "auths-git-signing",
@@ -12881,6 +12910,18 @@
       "features": [
         "cors"
       ]
+    },
+    {
+      "source": "auths-registries",
+      "source_layer": "core",
+      "target": "auths-codec",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
     },
     {
       "source": "auths-registries",

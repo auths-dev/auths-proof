@@ -252,6 +252,7 @@ type Context = {
   evaluationTime: bigint; assuranceID: string; assurance: AssuranceRequirement[];
   principalSnapshot: Snapshot<PrincipalStatus>; grantSnapshot: Snapshot<GrantStatus>;
   resourceMatcher: string; profilePolicy: string; channelPolicy: string; limits: bigint[];
+  observerAnchors: ObserverAnchor[];
 };
 type Bundle = {
   raw: Uint8Array; grants: Grant[]; actions: Action[]; plan: Plan; evidence: Evidence[];
@@ -510,7 +511,7 @@ function snapshot<T>(value: V, decode: (entry: V) => T): Snapshot<T> {
 
 function context(data: Uint8Array): Context {
   const root = new Decoder(data).complete();
-  exactMap(root, 14);
+  exactMap(root, 15);
   const limitMap = mapAt(root, 0);
   exactMap(limitMap, 27);
   const compositionValue = mapAt(root, 2);
@@ -591,6 +592,7 @@ function context(data: Uint8Array): Context {
     profilePolicy: text(mapAt(root, 12)),
     channelPolicy: text(mapAt(root, 13)),
     limits: Array.from({ length: 27 }, (_, index) => uint(mapAt(limitMap, index))),
+    observerAnchors: observerAnchors(mapAt(root, 14)),
   };
   return result;
 }
@@ -1299,7 +1301,7 @@ function resolveAndVerifyControl(
   contextValue: Context,
   adapters: any,
 ): VerifiedControl[] {
-  if (!equal(contextValue.registryManifest, new Uint8Array(32).fill(0x33))) {
+  if (!equal(contextValue.registryManifest, new Uint8Array(32).fill(0x34))) {
     throw denied("registry-manifest-mismatch");
   }
   const localConfiguration = typeof adapters.configuration === "string"
@@ -1745,6 +1747,7 @@ function verifyFromAnchor(
   const reports: Participant[] = [];
   if (chain.length === 0) reports.push(report(rootControl, 0n));
   chain.forEach((grantValue, index) => {
+    if (index > 0) requireParentRequirements(chain[index - 1]!, grantValue);
     const grantStatusValue = checkGrantStatus(grantValue.status, grantValue.id, contextValue);
     if (grantStatusValue) {
       const statusControl = controls.get(refKey({ kind: 3n, id: grantStatusValue.id }));
@@ -1902,6 +1905,10 @@ function sharedAction(left: Action, right: Action): boolean {
 function evaluateCriticalExtensions(values: Extension[], accepted: string[]): void {
   for (const value of values) {
     if (!contains(accepted, value.id)) throw denied("critical-extension-unknown");
+    if (value.id === OBSERVATION_EXTENSION) {
+      evaluateObservationExtension(value);
+      continue;
+    }
     if (value.id !== "exact-marker-v1") throw indeterminate("unsupported-critical-extension");
     if (!equal(value.bytes, Uint8Array.of(1))) throw denied("local-policy-denied");
   }
@@ -1933,6 +1940,7 @@ function verifyAuthority(
   controls: VerifiedControl[],
   contextValue: Context,
   canonical: CanonicalAction,
+  adapters: any,
 ): { actionIDs: Uint8Array[]; branches: Uint8Array[]; assurance: Participant[] } {
   if (
     !contains(contextValue.resourceMatchers, contextValue.resourceMatcher) ||
@@ -1977,6 +1985,7 @@ function verifyAuthority(
     if (actionValue.channel !== contextValue.channelPolicy) throw denied("local-policy-denied");
     if (!sharedAction(first, actionValue)) throw denied("plan-action-mismatch");
     evaluateCriticalExtensions(actionValue.extensions, contextValue.extensions);
+    validateObservationAttachments(actionValue);
   }
   const actionByRef = new Map(value.actions.map((item) => [keyOf(item.proofRef), item]));
   const grantByID = new Map(value.grants.map((item) => [keyOf(item.id), item]));
@@ -2007,12 +2016,11 @@ function verifyAuthority(
     for (const anchor of contextValue.anchors) {
       if (anchor.principal !== root) continue;
       try {
-        return {
-          actionID: actionValue.id,
-          reports: verifyFromAnchor(
-            actionValue, chain, rootControl, anchor, contextValue, controlByStatement,
-          ),
-        };
+        const branchReports = verifyFromAnchor(
+          actionValue, chain, rootControl, anchor, contextValue, controlByStatement,
+        );
+        evaluateObservations(chain, anchor.principal, actionValue, canonical, contextValue, adapters);
+        return { actionID: actionValue.id, reports: branchReports };
       } catch (error) {
         if (error instanceof Failure && firstFailure === undefined) firstFailure = error;
         else if (!(error instanceof Failure)) return { error: denied("malformed-proof") };
@@ -2066,7 +2074,7 @@ function verifySemantic(
       throw denied("composition-requirement-not-met");
     }
     const controls = resolveAndVerifyControl(proof, contextValue, adapters);
-    const authority = verifyAuthority(proof, controls, contextValue, canonical);
+    const authority = verifyAuthority(proof, controls, contextValue, canonical, adapters);
     result.decision = "authorized";
     result.code = "authorized";
     result.actionIDs = authority.actionIDs;
@@ -2173,4 +2181,403 @@ export function semanticAudit(manifestPath: string): string {
     writeResult(summary, result);
   }
   return `${manifest.fixtures.length}:${summary.digest("hex")}`;
+}
+
+// Evidence-conditioned authority: observation requirements carried by
+// grants, signed observations attached to the action, and the per-branch
+// observation stage. Written from the V1 specification, not from the Rust
+// verifier.
+
+const OBSERVATION_EXTENSION = "observation-requirement-v1";
+const OBSERVATION_MEDIA_TYPE = "application/vnd.auths.observation.v1+cbor";
+
+class ObservationLimit extends Error {}
+
+type FactValue = { kind: "uint"; uint: bigint } | { kind: "bytes"; bytes: Uint8Array } |
+  { kind: "text"; text: string };
+type ObservationCondition = {
+  name: string; tag: bigint; literal?: FactValue; action?: string; lo?: bigint; hi?: bigint;
+  members?: FactValue[];
+};
+type ObservationRequirement = {
+  raw: Uint8Array; anchor: string; schema: string; subjectKind: bigint; subject: string;
+  maxAge: bigint; conditions: ObservationCondition[];
+};
+type ObserverAnchor = {
+  id: string; principal: string; methods: string[]; schemas: string[]; namespaces: string[];
+  notBefore: bigint; expiresAt: bigint;
+};
+type SignedObservation = {
+  digest: Uint8Array; observer: string; schema: string; subject: string; observedAt: bigint;
+  facts: Array<{ name: string; value: FactValue }>; statementRaw: Uint8Array;
+  signature: Signature; evidence: Evidence[]; authentic?: boolean;
+};
+
+function sameFact(left: FactValue, right: FactValue): boolean {
+  if (left.kind === "uint" && right.kind === "uint") return left.uint === right.uint;
+  if (left.kind === "bytes" && right.kind === "bytes") return equal(left.bytes, right.bytes);
+  if (left.kind === "text" && right.kind === "text") return left.text === right.text;
+  return false;
+}
+
+function boundedIdentifier(value: V, maximum: number): string {
+  const result = text(value);
+  if (result.length === 0 || Buffer.byteLength(result) > maximum || /[\s\p{Cc}]/u.test(result)) {
+    throw new Error("invalid bounded identifier");
+  }
+  return result;
+}
+
+function factValue(value: V): FactValue {
+  if (value.major === 0) return { kind: "uint", uint: value.uint };
+  if (value.major === 2) {
+    if (value.bytes!.length > 64) throw new ObservationLimit();
+    return { kind: "bytes", bytes: value.bytes! };
+  }
+  if (value.major === 3) {
+    if (Buffer.byteLength(value.text!) > 256) throw new ObservationLimit();
+    return { kind: "text", text: value.text! };
+  }
+  throw new Error("invalid fact value");
+}
+
+function boundedArray(value: V, minimum: number, maximum: number): V[] {
+  const items = array(value);
+  if (items.length > maximum) throw new ObservationLimit();
+  if (items.length < minimum) throw new Error("array below its minimum");
+  return items;
+}
+
+function observationCondition(value: V): ObservationCondition {
+  const tag = uint(mapAt(value, 0));
+  exactMap(value, tag === 2n ? 4 : 3);
+  const name = boundedIdentifier(mapAt(value, 1), 128);
+  const operand = mapAt(value, 2);
+  if (tag === 0n) return { name, tag, literal: factValue(operand) };
+  if (tag === 1n) return { name, tag, action: boundedIdentifier(operand, 128) };
+  if (tag === 2n) {
+    const lo = uint(operand);
+    const hi = uint(mapAt(value, 3));
+    if (lo > hi) throw new Error("inverted range");
+    return { name, tag, lo, hi };
+  }
+  if (tag === 3n) {
+    const members: FactValue[] = [];
+    for (const item of boundedArray(operand, 1, 16)) {
+      const member = factValue(item);
+      if (members.some((previous) => sameFact(previous, member))) {
+        throw new Error("duplicate member value");
+      }
+      members.push(member);
+    }
+    return { name, tag, members };
+  }
+  throw new Error("unknown condition atom");
+}
+
+function observationRequirement(value: V): ObservationRequirement {
+  exactMap(value, 5);
+  const subject = mapAt(value, 2);
+  exactMap(subject, 2);
+  const subjectKind = uint(mapAt(subject, 0));
+  if (subjectKind > 1n) throw new Error("unknown subject kind");
+  const result: ObservationRequirement = {
+    raw: value.raw,
+    anchor: boundedIdentifier(mapAt(value, 0), 128),
+    schema: boundedIdentifier(mapAt(value, 1), 128),
+    subjectKind,
+    subject: boundedIdentifier(mapAt(subject, 1), subjectKind === 0n ? 1024 : 128),
+    maxAge: uint(mapAt(value, 3)),
+    conditions: boundedArray(mapAt(value, 4), 1, 16).map(observationCondition),
+  };
+  if (result.maxAge === 0n || result.maxAge > 86400n) throw new Error("maximum age out of range");
+  return result;
+}
+
+function observationRequirements(data: Uint8Array): ObservationRequirement[] {
+  const requirements: ObservationRequirement[] = [];
+  for (const node of boundedArray(new Decoder(data).complete(), 1, 8)) {
+    const requirement = observationRequirement(node);
+    if (requirements.some((previous) => equal(previous.raw, requirement.raw))) {
+      throw new Error("duplicate observation requirement");
+    }
+    requirements.push(requirement);
+  }
+  return requirements;
+}
+
+function requirementFailure(error: unknown): Failure {
+  return error instanceof ObservationLimit
+    ? denied("resource-limit-exceeded")
+    : denied("local-policy-denied");
+}
+
+function evaluateObservationExtension(value: Extension): void {
+  try {
+    observationRequirements(value.bytes);
+  } catch (error) {
+    throw requirementFailure(error);
+  }
+}
+
+function observerAnchors(value: V): ObserverAnchor[] {
+  const nodes = array(value);
+  if (nodes.length > 32) throw denied("resource-limit-exceeded");
+  const anchors: ObserverAnchor[] = [];
+  for (const node of nodes) {
+    exactMap(node, 7);
+    const anchor: ObserverAnchor = {
+      id: text(mapAt(node, 0)),
+      principal: text(mapAt(node, 1)),
+      methods: textArray(mapAt(node, 2)),
+      schemas: textArray(mapAt(node, 3)),
+      namespaces: textArray(mapAt(node, 4)),
+      notBefore: uint(mapAt(node, 5)),
+      expiresAt: uint(mapAt(node, 6)),
+    };
+    if (anchor.methods.length === 0 || anchor.schemas.length === 0 ||
+        anchor.namespaces.length === 0 || anchor.notBefore > anchor.expiresAt) {
+      throw new Error("invalid observer anchor");
+    }
+    const previous = anchors[anchors.length - 1];
+    if (previous !== undefined && Buffer.compare(Buffer.from(previous.id), Buffer.from(anchor.id)) >= 0) {
+      throw new Error("observer anchors are not strictly ordered");
+    }
+    anchors.push(anchor);
+  }
+  return anchors;
+}
+
+function signedObservation(data: Uint8Array, digest: Uint8Array, limits: bigint[]): SignedObservation {
+  if (data.length > 4096) throw new ObservationLimit();
+  const root = new Decoder(data).complete();
+  exactMap(root, 3);
+  const statement = mapAt(root, 0);
+  exactMap(statement, 6);
+  if (uint(mapAt(statement, 0)) !== 1n) throw new Error("unsupported observation version");
+  const facts: Array<{ name: string; value: FactValue }> = [];
+  for (const node of boundedArray(mapAt(statement, 5), 1, 16)) {
+    exactMap(node, 2);
+    const name = boundedIdentifier(mapAt(node, 0), 128);
+    const previous = facts[facts.length - 1];
+    if (previous !== undefined && Buffer.compare(Buffer.from(previous.name), Buffer.from(name)) >= 0) {
+      throw new Error("observation facts are not strictly ordered");
+    }
+    facts.push({ name, value: factValue(mapAt(node, 1)) });
+  }
+  const signatureValue = signature(mapAt(root, 1));
+  if (BigInt(signatureValue.signature.length) > limits[16]!) throw new ObservationLimit();
+  const evidenceValues: Evidence[] = [];
+  for (const node of boundedArray(mapAt(root, 2), 0, 4)) {
+    const object = evidence(node, limits[9]!);
+    const previous = evidenceValues[evidenceValues.length - 1];
+    if (previous !== undefined && Buffer.compare(previous.id, object.id) >= 0) {
+      throw new Error("observation evidence is not strictly ordered");
+    }
+    evidenceValues.push(object);
+  }
+  return {
+    digest,
+    observer: text(mapAt(statement, 1)),
+    schema: boundedIdentifier(mapAt(statement, 2), 128),
+    subject: boundedIdentifier(mapAt(statement, 3), 1024),
+    observedAt: uint(mapAt(statement, 4)),
+    facts,
+    statementRaw: statement.raw,
+    signature: signatureValue,
+    evidence: evidenceValues,
+  };
+}
+
+function validateObservationAttachments(actionValue: Action): void {
+  let count = 0;
+  for (const descriptor of actionValue.attachments) {
+    if (text(mapAt(descriptor, 1)) !== OBSERVATION_MEDIA_TYPE) continue;
+    count += 1;
+    if (count > 32 || uint(mapAt(descriptor, 2)) > 4096n) throw denied("resource-limit-exceeded");
+  }
+}
+
+function chainRequirements(chain: Grant[]): ObservationRequirement[] {
+  const requirements: ObservationRequirement[] = [];
+  for (const grantValue of chain) {
+    for (const extension of grantValue.extensions) {
+      if (extension.id !== OBSERVATION_EXTENSION) continue;
+      let decoded: ObservationRequirement[];
+      try {
+        decoded = observationRequirements(extension.bytes);
+      } catch (error) {
+        throw requirementFailure(error);
+      }
+      for (const requirement of decoded) {
+        if (!requirements.some((existing) => equal(existing.raw, requirement.raw))) {
+          requirements.push(requirement);
+        }
+      }
+    }
+  }
+  if (requirements.length > 32) throw denied("resource-limit-exceeded");
+  return requirements;
+}
+
+function requireParentRequirements(parent: Grant, child: Grant): void {
+  const parentRequirements = chainRequirements([parent]);
+  let childRequirements: ObservationRequirement[] = [];
+  try {
+    childRequirements = chainRequirements([child]);
+  } catch {
+    childRequirements = [];
+  }
+  for (const requirement of parentRequirements) {
+    if (!childRequirements.some((candidate) => equal(candidate.raw, requirement.raw))) {
+      throw denied("observation-requirement-dropped");
+    }
+  }
+}
+
+function namespaceMatches(namespace: string, resource: string): boolean {
+  return resource === namespace || (
+    resource.startsWith(namespace) &&
+    (namespace.endsWith("/") ||
+      ["/", "?", "#"].includes(resource.slice(namespace.length, namespace.length + 1)))
+  );
+}
+
+function observationConditionsHold(
+  conditions: ObservationCondition[],
+  facts: Array<{ name: string; value: FactValue }>,
+): boolean {
+  return conditions.every((condition) => {
+    const observed = facts.find((fact) => fact.name === condition.name)?.value;
+    if (observed === undefined) return false;
+    if (condition.tag === 0n) return sameFact(observed, condition.literal!);
+    if (condition.tag === 2n) {
+      return observed.kind === "uint" && observed.uint >= condition.lo! && observed.uint <= condition.hi!;
+    }
+    if (condition.tag === 3n) return condition.members!.some((member) => sameFact(observed, member));
+    return false;
+  });
+}
+
+function observationAuthentic(
+  candidate: SignedObservation,
+  contextValue: Context,
+  adapters: any,
+): boolean {
+  const descriptor = candidate.signature.descriptor;
+  const preimage = signingPreimage(9, { id: "", version: 0n }, candidate.statementRaw, descriptor.raw);
+  let verified: Control;
+  try {
+    verified = control(
+      descriptor.method, candidate.observer, descriptor, 2n, candidate.observedAt,
+      preimage, candidate.evidence, contextValue, adapters,
+    );
+  } catch {
+    return false;
+  }
+  const consumed = verified.consumed.map((id) => keyOf(id)).sort();
+  const supplied = candidate.evidence.map((object) => keyOf(object.id)).sort();
+  if (consumed.length !== supplied.length || consumed.some((id, index) => id !== supplied[index])) {
+    return false;
+  }
+  return verifySignature(
+    descriptor.suite, verified.key, verified.signatureMessage ?? preimage,
+    candidate.signature.signature,
+  );
+}
+
+function observationEligible(
+  requirement: ObservationRequirement,
+  anchor: ObserverAnchor,
+  candidate: SignedObservation,
+  contextValue: Context,
+  adapters: any,
+): boolean {
+  const now = contextValue.evaluationTime;
+  if (candidate.observer !== anchor.principal || candidate.schema !== requirement.schema ||
+      !contains(anchor.schemas, requirement.schema) || candidate.subject !== requirement.subject ||
+      candidate.observedAt > now || now - candidate.observedAt > requirement.maxAge ||
+      candidate.observedAt < anchor.notBefore || candidate.observedAt > anchor.expiresAt ||
+      !contains(anchor.methods, candidate.signature.descriptor.method) ||
+      !anchor.namespaces.some((namespace) => namespaceMatches(namespace, candidate.subject))) {
+    return false;
+  }
+  candidate.authentic ??= observationAuthentic(candidate, contextValue, adapters);
+  return candidate.authentic;
+}
+
+// The core registry's exact-v1 profile policy, the only one this verifier
+// implements, defines no action facts.
+function evaluateRequirement(
+  requirement: ObservationRequirement,
+  anchor: ObserverAnchor | undefined,
+  candidates: SignedObservation[],
+  contextValue: Context,
+  adapters: any,
+): Failure | undefined {
+  if (anchor === undefined) return indeterminate("observation-missing");
+  if (requirement.subjectKind === 1n || requirement.conditions.some((condition) => condition.tag === 1n)) {
+    return indeterminate("observation-action-fact-unavailable");
+  }
+  let anyEligible = false;
+  for (const candidate of candidates) {
+    if (!observationEligible(requirement, anchor, candidate, contextValue, adapters)) continue;
+    anyEligible = true;
+    if (observationConditionsHold(requirement.conditions, candidate.facts)) return undefined;
+  }
+  return anyEligible
+    ? denied("observation-condition-false")
+    : indeterminate("observation-missing");
+}
+
+function observationCandidates(
+  actionValue: Action,
+  canonical: CanonicalAction,
+  contextValue: Context,
+): SignedObservation[] {
+  const candidates: SignedObservation[] = [];
+  for (const descriptor of actionValue.attachments) {
+    if (text(mapAt(descriptor, 1)) !== OBSERVATION_MEDIA_TYPE) continue;
+    const digest = bytes(mapAt(descriptor, 0), 32);
+    const detached = canonical.detached.find((attachment) => equal(attachment.digest, digest));
+    if (detached === undefined) continue;
+    try {
+      candidates.push(signedObservation(detached.bytes, digest, contextValue.limits));
+    } catch (error) {
+      if (error instanceof ObservationLimit) throw denied("resource-limit-exceeded");
+      if (error instanceof Failure) throw error;
+      throw denied("malformed-proof");
+    }
+  }
+  return candidates.sort((left, right) => Buffer.compare(left.digest, right.digest));
+}
+
+function evaluateObservations(
+  chain: Grant[],
+  root: string,
+  actionValue: Action,
+  canonical: CanonicalAction,
+  contextValue: Context,
+  adapters: any,
+): void {
+  const requirements = chainRequirements(chain);
+  if (requirements.length === 0) return;
+  const authorities = new Set([root, actionValue.actor]);
+  for (const grantValue of chain) {
+    authorities.add(grantValue.issuer);
+    authorities.add(grantValue.subject);
+  }
+  const anchors = requirements.map((requirement) =>
+    contextValue.observerAnchors.find((anchor) => anchor.id === requirement.anchor));
+  if (anchors.some((anchor) => anchor !== undefined && authorities.has(anchor.principal))) {
+    throw denied("observer-in-authority-chain");
+  }
+  const candidates = observationCandidates(actionValue, canonical, contextValue);
+  let unavailable: Failure | undefined;
+  requirements.forEach((requirement, index) => {
+    const failure = evaluateRequirement(requirement, anchors[index], candidates, contextValue, adapters);
+    if (failure?.decision === "denied") throw failure;
+    unavailable ??= failure;
+  });
+  if (unavailable !== undefined) throw unavailable;
 }

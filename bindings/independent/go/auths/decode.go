@@ -584,7 +584,7 @@ func decodeContext(data []byte) (*verifierContext, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := exactMap(root, 14); err != nil {
+	if err := exactMap(root, 15); err != nil {
 		return nil, err
 	}
 	result := &verifierContext{raw: append([]byte(nil), data...)}
@@ -757,6 +757,10 @@ func decodeContext(data []byte) (*verifierContext, error) {
 		return nil, err
 	}
 	result.channelPolicy, err = textValue(mustMap(root, 13))
+	if err != nil {
+		return nil, err
+	}
+	result.observerAnchors, err = decodeObserverAnchors(mustMap(root, 14))
 	if err != nil {
 		return nil, err
 	}

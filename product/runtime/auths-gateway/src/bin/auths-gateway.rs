@@ -16,7 +16,8 @@ mod unix {
     };
     use auths_gateway::{
         CompiledRecipe, FileGatewayAttemptStore, GatewayConnectionDescriptor, GatewayEngine,
-        GatewaySubmitResult,
+        GatewayObserveRequest, GatewayObserveResult, GatewayObserver, GatewayObserverError,
+        GatewaySubmitResult, OperatorNamespace, gateway_verifier_configuration,
     };
     use auths_stores::PersistentConnectionStore;
     use base64ct::{Base64UrlUnpadded, Encoding as _};
@@ -43,6 +44,8 @@ mod unix {
 
     const MANIFEST_SCHEMA: &str = "auths.gateway-installation/1";
     const APP_REQUEST_SCHEMA: &str = "auths.gateway-submit/1";
+    const APP_OBSERVE_SCHEMA: &str = "auths.gateway-observe/1";
+    const OBSERVER_SEED: &str = "observer.seed";
     const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
 
     #[derive(Parser)]
@@ -114,6 +117,28 @@ mod unix {
             #[arg(long, default_value_t = false)]
             credential_stdin: bool,
         },
+        /// Operator-only: create the observer signing key in gateway state.
+        ObserverInit {
+            #[arg(long)]
+            state_dir: PathBuf,
+        },
+        /// Operator-only: print the observer anchor facts and the verifier
+        /// configuration a trusted context must pin. Prints no secret.
+        ObserverShow {
+            #[arg(long)]
+            state_dir: PathBuf,
+        },
+        /// Ask the app socket for one signed observation; never a write.
+        Observe {
+            #[arg(long)]
+            app_socket: PathBuf,
+            /// JSON object naming exactly the recipe observation path fields.
+            #[arg(long, conflicts_with = "outcome", required_unless_present = "outcome")]
+            read_back: Option<String>,
+            /// Logical operation ID whose stored outcome to sign.
+            #[arg(long)]
+            outcome: Option<String>,
+        },
         /// Test isolation from the actual application UID and GID.
         Doctor {
             #[arg(long)]
@@ -152,6 +177,21 @@ mod unix {
         schema: String,
         proof_b64: String,
         action_b64: String,
+    }
+
+    #[derive(Deserialize, Serialize)]
+    #[serde(deny_unknown_fields)]
+    struct AppObservation {
+        schema: String,
+        request: GatewayObserveRequest,
+    }
+
+    /// Every application frame is exactly one of the two closed schemas.
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum AppFrame {
+        Submit(AppSubmission),
+        Observe(AppObservation),
     }
 
     #[derive(Deserialize)]
@@ -371,10 +411,11 @@ mod unix {
             2,
         )
         .map_err(|_| "gateway.serve.profile")?;
-        GatewayEngine::new(
+        let observer = load_observer(state_dir)?;
+        let engine = GatewayEngine::new(
             recipe,
             approved,
-            trust,
+            &trust,
             ProviderKind::parse(manifest.provider).map_err(|_| "gateway.serve.invalid-provider")?,
             ConnectionAlias::parse(manifest.alias).map_err(|_| "gateway.serve.invalid-alias")?,
             "gateway".to_owned(),
@@ -389,7 +430,72 @@ mod unix {
             FileGatewayAttemptStore::open(state_dir.join("attempts"))
                 .map_err(|_| "gateway.serve.attempt-store-unavailable")?,
         )
-        .map_err(|_| "gateway.serve.invalid-installation")
+        .map_err(|_| "gateway.serve.invalid-installation")?;
+        Ok(match observer {
+            Some(observer) => engine.with_observer(observer),
+            None => engine,
+        })
+    }
+
+    /// Loads the observer key when the operator provisioned one. A present
+    /// but unsafe or malformed key stops the gateway rather than serving
+    /// without it.
+    fn load_observer(state_dir: &Path) -> Result<Option<GatewayObserver>, &'static str> {
+        let path = state_dir.join(OBSERVER_SEED);
+        match fs::symlink_metadata(&path) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(_) => Err("gateway.observer.key-unavailable"),
+            Ok(_) => GatewayObserver::load(&path)
+                .map(Some)
+                .map_err(GatewayObserverError::code),
+        }
+    }
+
+    fn installed_recipe(state_dir: &Path) -> Result<CompiledRecipe, &'static str> {
+        let source = read_bounded(&state_dir.join("recipe.json"), 65_536)?;
+        let lock = read_bounded(&state_dir.join("profile.lock.json"), 65_536)?;
+        let recipe =
+            CompiledRecipe::compile(&source, &lock).map_err(|_| "gateway.serve.invalid-recipe")?;
+        if recipe.digest_hex() != engine_recipe_marker(state_dir)? {
+            return Err("gateway.serve.recipe-changed");
+        }
+        Ok(recipe)
+    }
+
+    fn print_observer(
+        observer: &GatewayObserver,
+        recipe: &CompiledRecipe,
+    ) -> Result<(), &'static str> {
+        let namespace: &OperatorNamespace = recipe.namespace();
+        let configuration = gateway_verifier_configuration()?;
+        let output = serde_json::json!({
+            "observer_anchor": observer.anchor_template(recipe.review().origin(), namespace),
+            "verifier_configuration": hex::encode(configuration.as_bytes()),
+            "profile_policy": auths_gateway::MCP_ARGUMENTS_V1,
+        });
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&output).map_err(|_| "gateway.observer.output")?
+        );
+        Ok(())
+    }
+
+    fn observer_init(state_dir: &Path) -> Result<(), &'static str> {
+        private_root(state_dir)?;
+        let recipe = installed_recipe(state_dir)?;
+        let observer = GatewayObserver::generate(&state_dir.join(OBSERVER_SEED))
+            .map_err(GatewayObserverError::code)?;
+        File::open(state_dir)
+            .and_then(|dir| dir.sync_all())
+            .map_err(|_| "gateway.state.sync-failed")?;
+        print_observer(&observer, &recipe)
+    }
+
+    fn observer_show(state_dir: &Path) -> Result<(), &'static str> {
+        private_root(state_dir)?;
+        let recipe = installed_recipe(state_dir)?;
+        let observer = load_observer(state_dir)?.ok_or("gateway.observer.not-provisioned")?;
+        print_observer(&observer, &recipe)
     }
 
     async fn read_frame(stream: &mut UnixStream) -> Result<Vec<u8>, &'static str> {
@@ -423,30 +529,51 @@ mod unix {
             .map_err(|_| "gateway.ipc.write-failed")
     }
 
-    async fn app_session(mut stream: UnixStream, engine: Arc<GatewayEngine>) {
-        let result =
-            match tokio::time::timeout(Duration::from_secs(5), read_frame(&mut stream)).await {
-                Ok(Ok(bytes)) => match serde_json::from_slice::<AppSubmission>(&bytes) {
-                    Ok(submission) if submission.schema == APP_REQUEST_SCHEMA => {
-                        match (
-                            Base64UrlUnpadded::decode_vec(&submission.proof_b64),
-                            Base64UrlUnpadded::decode_vec(&submission.action_b64),
-                        ) {
-                            (Ok(proof), Ok(action)) => engine.submit(&proof, &action).await,
-                            _ => GatewaySubmitResult::Indeterminate {
-                                code: "gateway.submit.invalid-encoding".to_owned(),
-                            },
-                        }
-                    }
-                    _ => GatewaySubmitResult::Indeterminate {
-                        code: "gateway.submit.invalid-frame".to_owned(),
-                    },
-                },
+    fn invalid_frame() -> GatewaySubmitResult {
+        GatewaySubmitResult::Indeterminate {
+            code: "gateway.submit.invalid-frame".to_owned(),
+        }
+    }
+
+    async fn submit_frame(submission: AppSubmission, engine: &GatewayEngine) -> Vec<u8> {
+        let result = if submission.schema == APP_REQUEST_SCHEMA {
+            match (
+                Base64UrlUnpadded::decode_vec(&submission.proof_b64),
+                Base64UrlUnpadded::decode_vec(&submission.action_b64),
+            ) {
+                (Ok(proof), Ok(action)) => engine.submit(&proof, &action).await,
                 _ => GatewaySubmitResult::Indeterminate {
-                    code: "gateway.submit.invalid-frame".to_owned(),
+                    code: "gateway.submit.invalid-encoding".to_owned(),
                 },
+            }
+        } else {
+            invalid_frame()
+        };
+        serde_json::to_vec(&result).unwrap_or_default()
+    }
+
+    async fn observe_frame(observation: AppObservation, engine: &GatewayEngine) -> Vec<u8> {
+        let result = if observation.schema == APP_OBSERVE_SCHEMA {
+            engine.observe(&observation.request).await
+        } else {
+            GatewayObserveResult::Refused {
+                code: "gateway.observer.invalid-frame".to_owned(),
+            }
+        };
+        serde_json::to_vec(&result).unwrap_or_default()
+    }
+
+    async fn app_session(mut stream: UnixStream, engine: Arc<GatewayEngine>) {
+        let bytes =
+            match tokio::time::timeout(Duration::from_secs(5), read_frame(&mut stream)).await {
+                Ok(Ok(bytes)) => match serde_json::from_slice::<AppFrame>(&bytes) {
+                    Ok(AppFrame::Submit(submission)) => submit_frame(submission, &engine).await,
+                    Ok(AppFrame::Observe(observation)) => observe_frame(observation, &engine).await,
+                    Err(_) => serde_json::to_vec(&invalid_frame()).unwrap_or_default(),
+                },
+                _ => serde_json::to_vec(&invalid_frame()).unwrap_or_default(),
             };
-        if let Ok(bytes) = serde_json::to_vec(&result) {
+        if !bytes.is_empty() {
             let _ = write_frame(&mut stream, &bytes).await;
         }
     }
@@ -626,6 +753,41 @@ mod unix {
         Ok(())
     }
 
+    async fn observe(
+        socket: PathBuf,
+        read_back: Option<String>,
+        outcome: Option<String>,
+    ) -> Result<(), &'static str> {
+        let request = match (read_back, outcome) {
+            (Some(arguments), None) => GatewayObserveRequest::ReadBack {
+                arguments: serde_json::from_str(&arguments)
+                    .map_err(|_| "gateway.observe.invalid-arguments")?,
+            },
+            (None, Some(operation_id)) => GatewayObserveRequest::Outcome { operation_id },
+            _ => return Err("gateway.observe.invalid-request"),
+        };
+        let bytes = serde_json::to_vec(&AppObservation {
+            schema: APP_OBSERVE_SCHEMA.to_owned(),
+            request,
+        })
+        .map_err(|_| "gateway.observe.encoding-failed")?;
+        let mut stream = UnixStream::connect(socket)
+            .await
+            .map_err(|_| "gateway.observe.socket-unavailable")?;
+        write_frame(&mut stream, &bytes).await?;
+        let response = read_frame(&mut stream).await?;
+        let result: GatewayObserveResult =
+            serde_json::from_slice(&response).map_err(|_| "gateway.observe.invalid-response")?;
+        println!(
+            "{}",
+            serde_json::to_string(&result).map_err(|_| "gateway.observe.invalid-response")?
+        );
+        match result {
+            GatewayObserveResult::Signed { .. } => Ok(()),
+            GatewayObserveResult::Refused { .. } => Err("gateway.observe.refused"),
+        }
+    }
+
     async fn admin_command(
         state_dir: &Path,
         command: &'static [u8],
@@ -686,6 +848,13 @@ mod unix {
         let admin = fs::symlink_metadata(state_dir.join("admin.sock"))
             .map_err(|_| "gateway.doctor.admin-unavailable")?;
         let app = fs::symlink_metadata(app_socket).map_err(|_| "gateway.doctor.app-unavailable")?;
+        let observer_private = match fs::symlink_metadata(state_dir.join(OBSERVER_SEED)) {
+            Ok(seed) => {
+                let exposed = seed.permissions().mode() & 0o077 != 0;
+                seed.file_type().is_file() && !exposed && seed.uid() == state.uid()
+            }
+            Err(error) => error.kind() == std::io::ErrorKind::NotFound,
+        };
         if !state.file_type().is_dir()
             || state.permissions().mode() & 0o077 != 0
             || !credential.file_type().is_file()
@@ -696,6 +865,7 @@ mod unix {
             || app.uid() != state.uid()
             || state.uid() != credential.uid()
             || state.uid() == application_uid
+            || !observer_private
         {
             return Err("gateway.doctor.isolation-not-established");
         }
@@ -725,6 +895,7 @@ mod unix {
 
     fn probe(state_dir: &Path, app_socket: &Path) -> Result<(), &'static str> {
         if File::open(state_dir.join("credentials.cbor")).is_ok()
+            || File::open(state_dir.join(OBSERVER_SEED)).is_ok()
             || std::os::unix::net::UnixStream::connect(state_dir.join("admin.sock")).is_ok()
             || std::os::unix::net::UnixStream::connect(app_socket).is_err()
         {
@@ -780,6 +951,13 @@ mod unix {
                 state_dir,
                 credential_stdin,
             } => rotate(&state_dir, credential_stdin).await,
+            Command::ObserverInit { state_dir } => observer_init(&state_dir),
+            Command::ObserverShow { state_dir } => observer_show(&state_dir),
+            Command::Observe {
+                app_socket,
+                read_back,
+                outcome,
+            } => observe(app_socket, read_back, outcome).await,
             Command::Doctor {
                 state_dir,
                 app_socket,
@@ -821,6 +999,49 @@ mod unix {
                 mutated[key] = serde_json::Value::String(value.to_owned());
                 assert!(serde_json::from_value::<AppSubmission>(mutated).is_err());
             }
+        }
+
+        #[test]
+        fn observation_frame_is_closed_and_read_only() {
+            let read_back = serde_json::json!({
+                "schema": APP_OBSERVE_SCHEMA,
+                "request": {"kind": "read-back", "arguments": {"record_id": "recTEST0000000001"}}
+            });
+            let outcome = serde_json::json!({
+                "schema": APP_OBSERVE_SCHEMA,
+                "request": {"kind": "outcome", "operation_id": "step-1"}
+            });
+            for frame in [&read_back, &outcome] {
+                assert!(matches!(
+                    serde_json::from_value::<AppFrame>(frame.clone()),
+                    Ok(AppFrame::Observe(_))
+                ));
+            }
+            for (key, value) in [
+                ("url", "https://attacker.example"),
+                ("method", "PUT"),
+                ("headers", "Authorization: stolen"),
+                ("body", "arbitrary"),
+                ("subject", "https://attacker.example/"),
+                ("observed_at", "0"),
+                ("schema", "auths.gateway-readback/1"),
+            ] {
+                let mut mutated = read_back.clone();
+                mutated["request"][key] = serde_json::Value::String(value.to_owned());
+                assert!(
+                    serde_json::from_value::<AppFrame>(mutated).is_err(),
+                    "{key}"
+                );
+                let mut outer = outcome.clone();
+                outer[key] = serde_json::Value::String(value.to_owned());
+                assert!(
+                    key == "schema" || serde_json::from_value::<AppFrame>(outer).is_err(),
+                    "{key}"
+                );
+            }
+            let mut unknown = outcome;
+            unknown["request"]["kind"] = serde_json::Value::String("write".to_owned());
+            assert!(serde_json::from_value::<AppFrame>(unknown).is_err());
         }
     }
 }

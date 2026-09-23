@@ -23,6 +23,7 @@ auths-stores.workspace = true
 auths-verifier.workspace = true
 base64ct.workspace = true
 clap.workspace = true
+ed25519-dalek.workspace = true
 hex.workspace = true
 getrandom.workspace = true
 rustix.workspace = true
@@ -35,6 +36,7 @@ thiserror.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
 url.workspace = true
+zeroize.workspace = true
 
 [lints]
 workspace = true

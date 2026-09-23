@@ -225,7 +225,7 @@ func verifySemantic(
 	if err != nil {
 		return failedResult(result, err)
 	}
-	actionIDs, branches, assurance, err := verifyAuthority(bundle, controls, context, action)
+	actionIDs, branches, assurance, err := verifyAuthority(bundle, controls, context, action, adapters)
 	if err != nil {
 		return failedResult(result, err)
 	}
@@ -259,7 +259,7 @@ func resolveAndVerifyControl(
 	context *verifierContext,
 	adapters adapterContext,
 ) ([]verifiedControl, error) {
-	if !bytes.Equal(context.registryManifest, bytes.Repeat([]byte{0x33}, 32)) {
+	if !bytes.Equal(context.registryManifest, bytes.Repeat([]byte{0x34}, 32)) {
 		return nil, denied("registry-manifest-mismatch")
 	}
 	localConfiguration, err := hex.DecodeString(adapters.Configuration)
@@ -578,6 +578,7 @@ func verifyAuthority(
 	controls []verifiedControl,
 	context *verifierContext,
 	canonical canonicalAction,
+	adapters adapterContext,
 ) ([][]byte, [][]byte, []participantReport, error) {
 	if !containsText(context.resourceMatchers, context.resourceMatcher) ||
 		context.resourceMatcher != "uri-namespace-v1" {
@@ -639,6 +640,9 @@ func verifyAuthority(
 		if err := evaluateCriticalExtensions(action.extensions, context.extensions); err != nil {
 			return nil, nil, nil, err
 		}
+		if err := validateObservationAttachments(action); err != nil {
+			return nil, nil, nil, err
+		}
 	}
 	actionByRef := make(map[string]*signedAction)
 	grantByID := make(map[string]*signedGrant)
@@ -694,6 +698,12 @@ func verifyAuthority(
 			branchReports, err := verifyFromAnchor(
 				action, chain, rootControl, anchor, context, controlByStatement,
 			)
+			if err == nil {
+				err = observationStage{
+					chain: chain, root: anchor.principal, action: action,
+					canonical: canonical, context: context, adapters: adapters,
+				}.evaluate()
+			}
 			if err == nil {
 				return branchResult{actionID: action.id, reports: branchReports}
 			}
@@ -858,6 +868,12 @@ func evaluateCriticalExtensions(extensions []criticalExtension, accepted []strin
 		if !containsText(accepted, extension.id) {
 			return denied("critical-extension-unknown")
 		}
+		if extension.id == observationExtension {
+			if err := evaluateObservationExtension(extension); err != nil {
+				return err
+			}
+			continue
+		}
 		if extension.id != "exact-marker-v1" {
 			return indeterminate("unsupported-critical-extension")
 		}
@@ -1012,6 +1028,11 @@ func verifyFromAnchor(
 		reports = append(reports, report(rootControl, 0))
 	}
 	for index, grant := range chain {
+		if index > 0 {
+			if err := requireParentRequirements(chain[index-1], grant); err != nil {
+				return nil, err
+			}
+		}
 		grantStatusValue, err := checkGrantStatus(grant.status, grant.id, context)
 		if err != nil {
 			return nil, err

@@ -1,3 +1,4 @@
+use auths_model::MAX_FACT_VALUE_TEXT_BYTES;
 use auths_profile_mcp::McpCommand;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -17,6 +18,8 @@ const ECHO_DOMAIN: &[u8] = b"auths.gateway-echo/1\0";
 const ECHO_PREFIX: &str = "auths-e1-";
 const MAX_POINTER_BYTES: usize = 128;
 const ECHO_DISCLOSURE: &str = "the gateway writes a token derived from the authorized action into this provider field; the provider stores it and anyone who can read the record can read it; do not declare echo when the observation response may contain secrets";
+const MAX_VERIFIED_FIELDS: usize = 8;
+const PRECONDITION_DISCLOSURE: &str = "these arguments are never sent to the provider; only observation requirements in the proof's grants compare them, so a grant without such a requirement leaves them unchecked; the read-back subject argument must name exactly the record this request observes";
 
 /// Operator-controlled account namespace. A different proof challenge never
 /// creates a new replay namespace.
@@ -180,6 +183,17 @@ pub enum GatewayRecipeError {
     /// appears anywhere other than the compiler-owned placement.
     #[error("recipe echo conflicts with the request template")]
     EchoConflict,
+    /// A read-back subject argument was declared without a read-only observation.
+    #[error("recipe precondition subject requires an observation")]
+    PreconditionWithoutObservation,
+    /// A precondition argument is a binding field, is used by the request,
+    /// is repeated, or has no observation-fact form.
+    #[error("recipe precondition conflicts with the request template")]
+    PreconditionConflict,
+    /// The verified read-back subject argument does not name the record this
+    /// request observes.
+    #[error("verified read-back subject does not name the observed record")]
+    PreconditionSubjectMismatch,
 }
 
 impl GatewayRecipeError {
@@ -199,6 +213,11 @@ impl GatewayRecipeError {
             Self::ActionMismatch => "gateway.recipe.action-mismatch",
             Self::EchoWithoutObservation => "gateway.recipe.echo-without-observation",
             Self::EchoConflict => "gateway.recipe.echo-conflict",
+            Self::PreconditionWithoutObservation => {
+                "gateway.recipe.precondition-without-observation"
+            }
+            Self::PreconditionConflict => "gateway.recipe.precondition-conflict",
+            Self::PreconditionSubjectMismatch => "gateway.recipe.precondition-subject-mismatch",
         }
     }
 }
@@ -218,6 +237,21 @@ struct RecipeSource {
     observation: Option<ObservationSource>,
     #[serde(skip_serializing_if = "Option::is_none")]
     echo: Option<EchoSource>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    preconditions: Option<PreconditionSource>,
+}
+
+/// Verified arguments the request never renders. They exist so that a grant's
+/// observation requirements can name them as action facts: the read-back
+/// subject names the observed record, and each verified argument is compared
+/// only by those requirements.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PreconditionSource {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    read_back_subject: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    verified: Vec<String>,
 }
 
 /// Recipe-declared provider field that carries the gateway echo token. The
@@ -348,6 +382,16 @@ impl FieldSchema {
     fn is_path_scalar(&self) -> bool {
         matches!(self, Self::String { .. } | Self::Enum { .. })
     }
+
+    /// Reports whether every valid value maps to an observation fact value.
+    fn has_fact_form(&self) -> bool {
+        match self {
+            Self::String { maximum, .. } => *maximum <= MAX_FACT_VALUE_TEXT_BYTES,
+            Self::Enum { .. } => true,
+            Self::Integer { minimum, .. } => *minimum >= 0,
+            Self::Boolean => false,
+        }
+    }
 }
 
 /// Operator review facts that are safe to show without a credential.
@@ -362,6 +406,32 @@ pub struct RecipeReview {
     maximum_body_bytes: usize,
     has_observation: bool,
     echo: Option<RecipeEchoReview>,
+    preconditions: Option<RecipePreconditionReview>,
+}
+
+/// Operator review of the verified arguments the request never renders.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RecipePreconditionReview {
+    read_back_subject: Option<String>,
+    verified: Vec<String>,
+}
+
+impl RecipePreconditionReview {
+    /// Returns the argument that must name the observed record, if declared.
+    #[must_use]
+    pub fn read_back_subject(&self) -> Option<&str> {
+        self.read_back_subject.as_deref()
+    }
+    /// Returns the arguments compared only by observation requirements.
+    #[must_use]
+    pub fn verified(&self) -> &[String] {
+        &self.verified
+    }
+    /// States that these arguments reach no provider and who checks them.
+    #[must_use]
+    pub const fn disclosure(&self) -> &'static str {
+        PRECONDITION_DISCLOSURE
+    }
 }
 
 /// Operator review of the provider field that will carry the echo token.
@@ -434,6 +504,11 @@ impl RecipeReview {
     #[must_use]
     pub const fn echo(&self) -> Option<&RecipeEchoReview> {
         self.echo.as_ref()
+    }
+    /// Returns the declared precondition arguments, if any.
+    #[must_use]
+    pub const fn preconditions(&self) -> Option<&RecipePreconditionReview> {
+        self.preconditions.as_ref()
     }
 }
 
@@ -508,6 +583,14 @@ impl CompiledRecipe {
                 .ok_or(GatewayRecipeError::EchoWithoutObservation)?;
             validate_echo(echo, &source.write.body, observation)?;
         }
+        if let Some(preconditions) = &source.preconditions {
+            validate_preconditions(
+                preconditions,
+                source.observation.is_some(),
+                &fields,
+                &mut used,
+            )?;
+        }
         for field in fields.keys() {
             if !matches!(
                 field.as_str(),
@@ -574,6 +657,12 @@ impl CompiledRecipe {
             echo: self.source.echo.as_ref().map(|echo| RecipeEchoReview {
                 write: echo.write.clone(),
                 observe: echo.observe.clone(),
+            }),
+            preconditions: self.source.preconditions.as_ref().map(|source| {
+                RecipePreconditionReview {
+                    read_back_subject: source.read_back_subject.clone(),
+                    verified: source.verified.clone(),
+                }
             }),
         }
     }
@@ -658,6 +747,7 @@ impl CompiledRecipe {
                 })
             })
             .transpose()?;
+        self.check_read_back_subject(arguments, observation.as_ref())?;
         Ok(ClosedProviderRequest {
             namespace: self.namespace.clone(),
             operation_id,
@@ -669,6 +759,85 @@ impl CompiledRecipe {
             body,
             credential_requirement: self.source.credential.clone(),
             observation,
+        })
+    }
+}
+
+impl CompiledRecipe {
+    /// Refuses a verified action whose declared read-back subject argument
+    /// does not name exactly the record this request observes. Without this,
+    /// a requirement whose subject is that argument could be met by an
+    /// observation of one record while the write targets another.
+    fn check_read_back_subject(
+        &self,
+        arguments: &Map<String, Value>,
+        observation: Option<&ClosedObservationRequest>,
+    ) -> Result<(), GatewayRecipeError> {
+        let Some(field) = self
+            .source
+            .preconditions
+            .as_ref()
+            .and_then(|source| source.read_back_subject.as_deref())
+        else {
+            return Ok(());
+        };
+        let subject = observation
+            .ok_or(GatewayRecipeError::PreconditionWithoutObservation)?
+            .subject();
+        if arguments.get(field).and_then(Value::as_str) == Some(subject.as_str()) {
+            Ok(())
+        } else {
+            Err(GatewayRecipeError::PreconditionSubjectMismatch)
+        }
+    }
+
+    /// Builds the recipe's read-only observation for a gateway read-back
+    /// observation requested before any action exists. `arguments` must name
+    /// exactly the observation path's fields, each valid under the profile
+    /// lock; the URL is built from the approved origin and path alone. The
+    /// result carries no expected value and is never compared or recorded.
+    ///
+    /// # Errors
+    /// Rejects a recipe without an observation, a missing or extra argument,
+    /// or a value outside its schema.
+    pub fn read_back_target(
+        &self,
+        arguments: &Map<String, Value>,
+    ) -> Result<ClosedObservationRequest, GatewayRecipeError> {
+        let source = self
+            .source
+            .observation
+            .as_ref()
+            .ok_or(GatewayRecipeError::ActionMismatch)?;
+        let names: BTreeSet<&str> = source
+            .path
+            .iter()
+            .filter_map(|segment| match segment {
+                PathSegment::Field { name } => Some(name.as_str()),
+                PathSegment::Fixed { .. } | PathSegment::Echo => None,
+            })
+            .collect();
+        if arguments.len() != names.len()
+            || !arguments.iter().all(|(name, value)| {
+                names.contains(name.as_str())
+                    && self
+                        .fields
+                        .get(name)
+                        .is_some_and(|schema| schema.validate_value(value))
+            })
+        {
+            return Err(GatewayRecipeError::ActionMismatch);
+        }
+        Ok(ClosedObservationRequest {
+            url: format!(
+                "{}{}",
+                self.source.origin,
+                build_path(&source.path, arguments)?
+            ),
+            json_pointer: source.json_pointer.clone(),
+            expected: Value::Null,
+            maximum_response_bytes: source.maximum_response_bytes,
+            echo_pointer: self.source.echo.as_ref().map(|echo| echo.observe.clone()),
         })
     }
 }
@@ -789,6 +958,32 @@ impl ClosedObservationRequest {
     #[must_use]
     pub fn echo_pointer(&self) -> Option<&str> {
         self.echo_pointer.as_deref()
+    }
+
+    /// Returns the canonical subject URI of a gateway read-back observation:
+    /// the closed observation URL with the observed JSON pointer as its
+    /// fragment, so observations of different fields of one record differ.
+    #[must_use]
+    pub fn subject(&self) -> String {
+        format!("{}#{}", self.url, self.json_pointer)
+    }
+
+    /// Extracts the observed value and, when an echo field is declared and
+    /// present, its value from bounded response bytes. A response that is too
+    /// large, not JSON, or lacks the observed value yields `None`.
+    pub(crate) fn observed_values(&self, response: &[u8]) -> Option<(Value, Option<Value>)> {
+        if response.len() > self.maximum_response_bytes {
+            return None;
+        }
+        let decoded: Value = serde_json::from_slice(response).ok()?;
+        let value = decoded.pointer(&self.json_pointer)?.clone();
+        let echo = self
+            .echo_pointer
+            .as_deref()
+            .and_then(|pointer| decoded.pointer(pointer))
+            .filter(|echo| !echo.is_null())
+            .cloned();
+        Some((value, echo))
     }
 
     /// Classifies bounded response bytes against the verified expected value
@@ -1209,6 +1404,54 @@ fn insert_echo(body: &mut Value, pointer: &str, token: &str) -> Result<(), Gatew
     Ok(())
 }
 
+/// Admits precondition arguments: each must be a non-binding profile field
+/// that no request template uses, appear once, and map to a fact value. The
+/// read-back subject must be a bounded string and needs an observation.
+fn validate_preconditions(
+    source: &PreconditionSource,
+    has_observation: bool,
+    fields: &BTreeMap<String, FieldSchema>,
+    used: &mut BTreeSet<String>,
+) -> Result<(), GatewayRecipeError> {
+    if source.read_back_subject.is_none() && source.verified.is_empty() {
+        return Err(GatewayRecipeError::InvalidSource);
+    }
+    if source.verified.len() > MAX_VERIFIED_FIELDS {
+        return Err(GatewayRecipeError::PreconditionConflict);
+    }
+    let mut claim = |name: &str, admissible: bool| {
+        if !admissible
+            || matches!(
+                name,
+                "operator_namespace" | "operation_id" | "recipe_digest"
+            )
+            || !used.insert(name.to_owned())
+        {
+            return Err(GatewayRecipeError::PreconditionConflict);
+        }
+        Ok(())
+    };
+    if let Some(subject) = &source.read_back_subject {
+        if !has_observation {
+            return Err(GatewayRecipeError::PreconditionWithoutObservation);
+        }
+        claim(
+            subject,
+            matches!(
+                fields.get(subject),
+                Some(schema @ FieldSchema::String { .. }) if schema.has_fact_form()
+            ),
+        )?;
+    }
+    for name in &source.verified {
+        claim(
+            name,
+            fields.get(name).is_some_and(FieldSchema::has_fact_form),
+        )?;
+    }
+    Ok(())
+}
+
 fn validate_observation(
     source: &ObservationSource,
     fields: &BTreeMap<String, FieldSchema>,
@@ -1417,6 +1660,206 @@ mod tests {
             let result = CompiledRecipe::compile(&bytes, lock).expect_err("hostile recipe");
             assert_eq!(result.code(), expected, "{}", case["id"]);
         }
+    }
+
+    /// Compiles the Airtable fixture with `extra` profile fields and an
+    /// optional precondition block, recomputing the lock digest.
+    fn with_preconditions(
+        extra: &Value,
+        preconditions: Option<Value>,
+        without_observation: bool,
+    ) -> Result<CompiledRecipe, GatewayRecipeError> {
+        let (source, lock) = fixture("airtable");
+        let mut lock: Value = serde_json::from_slice(lock).expect("lock");
+        for (key, value) in extra.as_object().expect("extra") {
+            lock["command_schema"]["fields"][key] = value.clone();
+        }
+        let digest = hex::encode(Sha256::digest(
+            serde_json_canonicalizer::to_vec(&lock["command_schema"]).expect("schema"),
+        ));
+        lock["schema_digest"] = Value::String(digest.clone());
+        let mut source: Value = serde_json::from_slice(source).expect("source");
+        source["profile_schema_digest"] = Value::String(digest);
+        if let Some(preconditions) = preconditions {
+            source["preconditions"] = preconditions;
+        }
+        if without_observation {
+            let object = source.as_object_mut().expect("object");
+            object.remove("observation");
+            object.remove("echo");
+        }
+        CompiledRecipe::compile(
+            &serde_json::to_vec(&source).expect("source"),
+            &serde_json::to_vec(&lock).expect("lock"),
+        )
+    }
+
+    fn precondition_fields() -> Value {
+        json!({
+            "expected": {"type": "enum", "variants": ["Approved", "Pending"]},
+            "record_uri": {"kind": "string", "minimum": 1, "maximum": 256},
+            "count": {"kind": "integer", "minimum": 0, "maximum": 10},
+            "signed": {"kind": "integer", "minimum": -1, "maximum": 10},
+            "flag": {"kind": "boolean"},
+            "long": {"kind": "string", "minimum": 1, "maximum": 257}
+        })
+    }
+
+    #[test]
+    fn preconditions_are_closed_reviewed_and_digest_bound() {
+        let extra = precondition_fields();
+        let all = json!({
+            "read_back_subject": "record_uri",
+            "verified": ["expected", "count", "signed", "flag", "long"]
+        });
+        assert_eq!(
+            with_preconditions(&extra, Some(all), false).err(),
+            Some(GatewayRecipeError::PreconditionConflict),
+            "signed integers, booleans, and over-bound strings have no fact form"
+        );
+        let unused = json!({"expected": extra["expected"], "record_uri": extra["record_uri"]});
+        let good = json!({"read_back_subject": "record_uri", "verified": ["expected"]});
+        let recipe = with_preconditions(&unused, Some(good.clone()), false).expect("compiles");
+        assert_ne!(recipe.digest(), compiled("airtable").digest());
+        let review = recipe.review();
+        let preconditions = review.preconditions().expect("reviewed");
+        assert_eq!(preconditions.read_back_subject(), Some("record_uri"));
+        assert_eq!(preconditions.verified(), ["expected"]);
+        assert!(
+            preconditions
+                .disclosure()
+                .contains("never sent to the provider")
+        );
+        assert!(compiled("airtable").review().preconditions().is_none());
+        assert_eq!(
+            with_preconditions(&unused, None, false).err(),
+            Some(GatewayRecipeError::UnsafeTemplate),
+            "an argument no request uses still needs an explicit declaration"
+        );
+        assert_eq!(
+            with_preconditions(&unused, Some(good), true).err(),
+            Some(GatewayRecipeError::PreconditionWithoutObservation)
+        );
+        for (hostile, code) in [
+            (json!({}), GatewayRecipeError::InvalidSource),
+            (
+                json!({"verified": ["expected"], "extra": 1}),
+                GatewayRecipeError::InvalidSource,
+            ),
+            (
+                json!({"read_back_subject": "record_uri", "verified": ["replacement", "expected"]}),
+                GatewayRecipeError::PreconditionConflict,
+            ),
+            (
+                json!({"read_back_subject": "record_uri", "verified": ["expected", "operation_id"]}),
+                GatewayRecipeError::PreconditionConflict,
+            ),
+            (
+                json!({"read_back_subject": "record_uri", "verified": ["expected", "expected"]}),
+                GatewayRecipeError::PreconditionConflict,
+            ),
+            (
+                json!({"read_back_subject": "expected", "verified": ["record_uri"]}),
+                GatewayRecipeError::PreconditionConflict,
+            ),
+            (
+                json!({"read_back_subject": "record_uri", "verified": ["expected", "record_uri"]}),
+                GatewayRecipeError::PreconditionConflict,
+            ),
+        ] {
+            assert_eq!(
+                with_preconditions(&unused, Some(hostile.clone()), false).err(),
+                Some(code),
+                "{hostile}"
+            );
+        }
+        let many: Value = (0..9)
+            .map(|index| {
+                (
+                    format!("v{index}"),
+                    json!({"type": "enum", "variants": ["a"]}),
+                )
+            })
+            .collect::<Map<_, _>>()
+            .into();
+        let names: Vec<String> = (0..9).map(|index| format!("v{index}")).collect();
+        assert_eq!(
+            with_preconditions(&many, Some(json!({"verified": names})), false).err(),
+            Some(GatewayRecipeError::PreconditionConflict)
+        );
+    }
+
+    #[test]
+    fn read_back_subject_must_name_exactly_the_observed_record() {
+        let extra = json!({
+            "expected": {"type": "enum", "variants": ["Approved", "Pending"]},
+            "record_uri": {"kind": "string", "minimum": 1, "maximum": 256}
+        });
+        let recipe = with_preconditions(
+            &extra,
+            Some(json!({"read_back_subject": "record_uri", "verified": ["expected"]})),
+            false,
+        )
+        .expect("recipe");
+        let subject = "https://api.airtable.com/v0/appTEST0000000001/tblTEST0000000001/recTEST0000000001#/fields/DemoStatus";
+        let request = |uri: &str| {
+            recipe.closed_request_from_arguments(
+                &arguments(
+                    &recipe,
+                    &json!({"operation_id": "run-1", "record_id": "recTEST0000000001",
+                        "replacement": "Approved", "expected": "Pending", "record_uri": uri}),
+                ),
+                [1; 32],
+            )
+        };
+        let closed = request(subject).expect("matching subject");
+        assert_eq!(
+            closed.observation().expect("observation").subject(),
+            subject
+        );
+        assert!(!String::from_utf8_lossy(closed.body()).contains("Pending"));
+        for hostile in [
+            subject.replace("0001#", "0002#"),
+            subject.replace("DemoStatus", "Other"),
+            subject.trim_end_matches("#/fields/DemoStatus").to_owned(),
+        ] {
+            assert_eq!(
+                request(&hostile).err(),
+                Some(GatewayRecipeError::PreconditionSubjectMismatch)
+            );
+        }
+    }
+
+    #[test]
+    fn read_back_target_takes_exactly_the_observation_path_fields() {
+        let recipe = compiled("airtable");
+        let target = |value: Value| recipe.read_back_target(value.as_object().expect("object"));
+        let closed = target(json!({"record_id": "recTEST0000000001"})).expect("target");
+        assert_eq!(
+            closed.url(),
+            "https://api.airtable.com/v0/appTEST0000000001/tblTEST0000000001/recTEST0000000001"
+        );
+        assert_eq!(closed.expected(), &Value::Null);
+        assert_eq!(
+            closed.observed_values(br#"{"fields":{"DemoStatus":"Pending","auths_echo":null}}"#),
+            Some((json!("Pending"), None))
+        );
+        assert_eq!(closed.observed_values(br#"{"fields":{}}"#), None);
+        for hostile in [
+            json!({}),
+            json!({"record_id": "short"}),
+            json!({"record_id": "recTEST0000000001", "replacement": "Approved"}),
+            json!({"url": "https://attacker.example"}),
+        ] {
+            assert_eq!(
+                target(hostile).err(),
+                Some(GatewayRecipeError::ActionMismatch)
+            );
+        }
+        assert!(
+            compiled("github").read_back_target(&Map::new()).is_err(),
+            "a recipe without an observation has no read-back"
+        );
     }
 
     #[test]

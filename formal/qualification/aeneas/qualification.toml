@@ -16,6 +16,7 @@ source_files = [
   "Cargo.lock",
   "core/crates/auths-model/Cargo.toml",
   "core/crates/auths-model/src/lib.rs",
+  "core/crates/auths-model/src/observation.rs",
   "core/crates/auths-algebra-kernel/Cargo.toml",
   "core/crates/auths-algebra-kernel/src/lib.rs",
   "core/crates/auths-algebra-kernel/src/generated.rs",
@@ -189,7 +190,7 @@ classification = "Pinned upstream meta proof hole; comments and diagnostic strin
 [[translations]]
 crate_name = "auths_model"
 translation_json = "formal/qualification/aeneas/generated/model/translation.json"
-local_functions = 67
+local_functions = 84
 external_functions = 4
 opaque_local_functions = 0
 required_symbols = [
@@ -216,6 +217,17 @@ required_symbols = [
   "auths_model::optional_grant_id_equal",
   "auths_model::profile_slice_contains",
   "auths_model::profile_ref_equal",
+  "auths_model::observation::observation_fresh",
+  "auths_model::observation::observation_subject_equal",
+  "auths_model::observation::fact_name_equal",
+  "auths_model::observation::fact_value_equal",
+  "auths_model::observation::uint_range_contains",
+  "auths_model::observation::member_values_contain",
+  "auths_model::observation::observation_fact",
+  "auths_model::observation::condition_value_holds",
+  "auths_model::observation::observation_condition_holds",
+  "auths_model::observation::observation_conditions_hold",
+  "auths_model::observation::requirement_verdict",
 ]
 allowed_external_symbols = [
   "core::array::{impl core::cmp::Ord for [T; N]}::cmp",

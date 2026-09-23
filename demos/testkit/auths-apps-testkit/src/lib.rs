@@ -16,10 +16,10 @@ use auths_model::{
     CanonicalAction, Challenge, ChannelBindingId, CompositionRequirement, ControlBinding,
     CriticalExtensions, EvidenceId, EvidenceObject, EvidenceTypeId, GrantStatusSnapshot, MediaType,
     ParticipantRole, Permission, PermissionSet, PrincipalMethodId, PrincipalStatusSnapshot,
-    ProfilePolicyId, ProofBundle, ProofRef, RegistryManifestId, ResourceMatcherId, SignatureBytes,
-    SignatureDescriptor, SignatureSuiteId, StatementRef, StatusPolicy, StatusSnapshotId, Timestamp,
-    TrustAnchor, TrustAnchorId, TrustedContext, ValidityWindow, VerificationMethod,
-    VerifierConfigurationId, VerifierLimits,
+    ProfilePolicyId, ProofBundle, ProofRef, ResourceMatcherId, SignatureBytes, SignatureDescriptor,
+    SignatureSuiteId, StatementRef, StatusPolicy, StatusSnapshotId, Timestamp, TrustAnchor,
+    TrustAnchorId, TrustedContext, ValidityWindow, VerificationMethod, VerifierConfigurationId,
+    VerifierLimits,
 };
 use auths_profile_api::ActionProfile;
 use auths_profile_mcp::{McpProfile, McpToolCall};
@@ -1006,7 +1006,7 @@ pub fn exact_action_fixture(
         .into_iter()
         .collect();
     let registries = AcceptedRegistries::new(
-        RegistryManifestId::new([0x33; 32]),
+        auths_registries::TARGET_V1_REGISTRY_MANIFEST,
         vec![PrincipalMethodId::parse(RAW_KEY_V1).unwrap()],
         vec![SignatureSuiteId::parse(ED25519_V1).unwrap()],
         vec![EvidenceTypeId::parse(RAW_KEY_V1).unwrap()],
@@ -1169,7 +1169,7 @@ fn build_fixture(challenge: ChallengeNonce, signed_permission: Option<Permission
     )
     .unwrap();
     let registries = AcceptedRegistries::new(
-        RegistryManifestId::new([0x33; 32]),
+        auths_registries::TARGET_V1_REGISTRY_MANIFEST,
         vec![PrincipalMethodId::parse(RAW_KEY_V1).unwrap()],
         vec![SignatureSuiteId::parse(ED25519_V1).unwrap()],
         vec![EvidenceTypeId::parse(RAW_KEY_V1).unwrap()],

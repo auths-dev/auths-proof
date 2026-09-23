@@ -52,6 +52,9 @@ verifier retains three diagnostic classes.
 | `unused-critical-attachment` | action | Signed descriptors and supplied detached inputs do not correspond |
 | `opaque-attachment-not-allowed` | action | Encrypted bytes were supplied where opaque verification was not signed as acceptable |
 | `local-policy-denied` | policy | Explicit local policy rejects established facts |
+| `observation-condition-false` | observation | A requirement has fresh, authentic, subject-matching observations and each falsifies some condition |
+| `observer-in-authority-chain` | observation | A requirement's observer is also the root, an issuer, a subject, or the actor of the branch |
+| `observation-requirement-dropped` | authority | A child grant drops or alters a parent's observation requirement |
 
 ## Indeterminate
 
@@ -75,6 +78,8 @@ verifier retains three diagnostic classes.
 | `historical-state-unavailable` | evidence | Historical control/existence cannot be established |
 | `assurance-requirement-not-met` | assurance | Required parameterized claim is absent |
 | `external-fact-unavailable` | evidence | Required bounded external fact was not supplied |
+| `observation-missing` | observation | A requirement has no fresh, authentic, subject-matching observation, or names an observer anchor the context lacks |
+| `observation-action-fact-unavailable` | observation | The profile policy does not define an action fact a requirement names |
 
 ## Outer runtime failures
 

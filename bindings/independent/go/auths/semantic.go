@@ -460,6 +460,7 @@ type verifierContext struct {
 	profilePolicy      string
 	channelPolicy      string
 	limits             [27]uint64
+	observerAnchors    []*observerAnchor
 }
 
 type canonicalAction struct {

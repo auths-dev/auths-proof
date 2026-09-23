@@ -1721,6 +1721,9 @@ pub(crate) fn spec_sync() -> Result<(), String> {
         D::UnusedCriticalAttachment,
         D::OpaqueAttachmentNotAllowed,
         D::LocalPolicyDenied,
+        D::ObservationConditionFalse,
+        D::ObserverInAuthorityChain,
+        D::ObservationRequirementDropped,
     ];
     let indeterminate = [
         R::UnsupportedProtocol,
@@ -1741,6 +1744,8 @@ pub(crate) fn spec_sync() -> Result<(), String> {
         R::HistoricalStateUnavailable,
         R::AssuranceRequirementNotMet,
         R::ExternalFactUnavailable,
+        R::ObservationMissing,
+        R::ObservationActionFactUnavailable,
     ];
     let errors = fs::read_to_string(root().join("core/spec/v1/error-codes.md"))
         .map_err(|error| format!("could not read error registry: {error}"))?;
@@ -1799,6 +1804,7 @@ pub(crate) fn spec_sync() -> Result<(), String> {
         auths_registries::EXACT_PROFILE_V1,
         auths_registries::NUMERIC_CEILING_V1,
         auths_registries::EXACT_MARKER_EXTENSION_V1,
+        auths_registries::OBSERVATION_REQUIREMENT_EXTENSION_V1,
     ] {
         if !registry.contains(&format!("`{identifier}`")) {
             return Err(format!(

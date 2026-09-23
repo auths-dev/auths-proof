@@ -10,9 +10,10 @@ description = "Immutable verifier registries for Auths Proof Protocol V1"
 
 [features]
 default = ["std"]
-std = ["auths-model/std", "auths-ports/std", "sha2/std"]
+std = ["auths-codec/std", "auths-model/std", "auths-ports/std", "sha2/std"]
 
 [dependencies]
+auths-codec.workspace = true
 auths-model.workspace = true
 auths-ports.workspace = true
 sha2.workspace = true

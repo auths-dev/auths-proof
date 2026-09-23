@@ -1,7 +1,11 @@
 # AP-SPEC-060: Evidence-conditioned authority
 
 - **Status:** Draft; written on owner direction before its epic starts
-  (board §4, 2026-09-22). Nothing in this document is implemented. This is a
+  (board §4, 2026-09-22). Steps 1–3 of §9 (formal model, fixtures, core)
+  are implemented. Step 4 (gateway observer) is implemented in
+  `product/runtime/auths-gateway` with repository-local tests; no hosted CI
+  result is cited yet. Step 5 is not done. §13 records the readings the
+  kernel's real structure forced; §14 records the gateway's. This is a
   **core protocol change**: new wire objects, a new critical extension, a
   trusted-context field, a port method, a verifier stage, and a new
   registry manifest.
@@ -347,3 +351,42 @@ provider entries.
 Hosted CI on the exact revision is the gate. This spec runs no checks. No
 document may describe grants as conditioned on observed state before step 4
 is green.
+
+## 13. Readings fixed during implementation
+
+Each reading below is the narrowest fail-closed design that keeps §1's claim.
+The executable contract is `core/spec/v1/` and the canonical corpus.
+
+| # | Spec text | Kernel fact | Reading fixed |
+|---|---|---|---|
+| 1 | §4.3: a child "MAY add more" requirements | The authority kernel's critical-extension dimension is equality: a child's complete extension set must equal its parent's (`critical_extensions_equal`, mechanically translated). Requirements live in one extension, so any change to the list changes its bytes. | Requirements are chosen by the first grant under a trust anchor and carried unchanged down the chain. Dropping or altering a parent requirement is denied before the kernel runs, with `observation-requirement-dropped`; a child that keeps every parent requirement and adds one is denied by the kernel with `delegation-expanded` (vector `observation-requirement-added`). Equality is a special case of the superset premise of `child_requirements_superset_attenuates`, so the attenuation claim holds. Allowing additions needs an extension-specific attenuation algebra in the kernel and a new manifest. |
+| 2 | §4.2: at most 32 requirements per chain | With reading 1, a chain carries at most one grant's eight distinct requirements. | The stage deduplicates requirements byte-exactly across the chain and still enforces 32; the bound is unreachable today, so it has no corpus vector. |
+| 3 | Codes `observation.condition-false`, `observation.missing`, `observation.action-fact-unavailable`, `observation.observer-in-authority-chain`, `authority.observation-requirement-dropped` | Stable V1 codes are flat kebab-case strings without a namespace. | `observation-condition-false`, `observation-missing`, `observation-action-fact-unavailable`, `observer-in-authority-chain`, and `observation-requirement-dropped`. |
+| 4 | §3.1: own domain separator `"auths.observation-statement/1"` | Every signed object uses the `AUTHS` preimage with a registered numeric object type. | Observations are signed under object type 9 with an empty profile ID and version zero; requirement content identifiers use identifier type 11. |
+| 5 | §3.1: a signed observation is the statement plus a signature | Every registered principal method needs control evidence to establish the verification key. | `signed-observation` also carries at most four evidence objects, the observer's own control evidence. The method verifies with purpose assertion and must consume exactly that evidence. |
+| 6 | §3.1: observations travel as detached attachments | Attachment descriptors carry no semantic type. | An attachment is an observation exactly when its signed descriptor carries the media type `application/vnd.auths.observation.v1+cbor`. The reported observation digest is that attachment's digest, already bound by the action signature. |
+| 7 | §4.1: the stage runs "after `VerifiedAuthority` and before `VerifiedAction`" | Authority is established per authorization-plan branch and combined by the plan. | The stage runs at the end of each branch's authority, after its assurance, so a denied or indeterminate observation stage composes through `AllOf`, `AnyOf`, and `KOfN` like any other branch failure. |
+| 8 | §4.1 step 1: an invalid signature makes the observation ignored; "the count is still reported" | — | Invalid signatures, unaccepted methods, and every other ineligibility make an observation ignored. Malformed observation bytes are `malformed-proof` and an over-bound observation is `resource-limit-exceeded`, because the actor signed those attachments. The ignored count is not in the portable result; the work total reflects the verification attempts. |
+| 9 | §3.3: the observer-in-chain rule | — | A requirement's resolved observer principal must not equal the trust anchor, an issuer or subject of a chain grant, or the actor. The check runs before any observation is evaluated. A requirement naming an observer anchor the context lacks is `observation-missing`. |
+| 10 | §3.2 value bounds | The critical-extension handler contract returns resource exhaustion or invalid input. | More than eight requirements, sixteen conditions, or sixteen membership values is `resource-limit-exceeded`. Any other invalid or non-canonical requirement bytes, including a maximum age outside `1..=86400` or `lo > hi`, is `local-policy-denied`, as for every handler. Fact bounds past 16 facts, 64 bytes, or 256 text bytes are `resource-limit-exceeded`. |
+| 11 | §3.4: `ProfilePolicy` gains `action_fact` | Every existing profile policy predates it. | `action_fact` is a default method returning `Ok(None)`: an existing policy defines no facts, so a requirement that needs one fails closed as `observation-action-fact-unavailable`. An action-fact subject must be a text value that parses as a resource. `exact-v1` defines no facts, so the corpus shows action-fact requirements only as indeterminate; equal and changed `expected` values are proved by native tests with a fact-defining test policy. |
+| 12 | §8: new manifest, trusted-context field, result reporting | — | The manifest is `34` repeated 32 times and the configuration commitment includes the new handler. The trusted context always carries key 14 (zero to 32 observer anchors, strictly ordered). The portable result is ABI 3 and always carries key 16, the sorted `(requirement ID, observation digest)` pairs. Thirty-three observer anchors are covered by a unit test, because every corpus context must decode. |
+| 13 | §3.2: requirements on grants | Critical-extension handlers do not see their carrier. | The handler validates `observation-requirement-v1` wherever it appears; the stage reads it only from grants, so on an action it has no effect. |
+| 14 | §7: predicates extractable and qualified | — | `observation_fresh`, `observation_subject_equal`, `fact_name_equal`, `fact_value_equal`, `uint_range_contains`, `member_values_contain`, `observation_fact`, `condition_value_holds`, `observation_condition_holds`, `observation_conditions_hold`, and `requirement_verdict` in `auths-model` are translated by the pinned Charon/Aeneas route and exercised by qualification cases. The Lean theorems are over the abstract model; a refinement proof linking them to the translated predicates is not yet written. |
+
+## 14. Gateway observer readings
+
+The gateway is the first observer. Where §5 left a choice open, the
+implementation fixed the narrowest reading below.
+
+| # | Question | Reading fixed |
+|---|---|---|
+| 1 | Observer key and principal | A `raw-key-v1` Ed25519 principal. The operator creates its 32-byte seed with `auths-gateway observer-init` in the gateway's private state directory (mode 0600, never overwritten, zeroized in memory); `observer-show` prints the anchor facts (principal, method, suite, both schemas, subject namespaces) and the verifier configuration to pin. The application socket never reaches the seed. Custody is software, not hardware. |
+| 2 | How the agent obtains observations | A separate closed application request, `auths.gateway-observe/1`, of kind `read-back` (exactly the recipe's observation path arguments) or `outcome` (a logical operation ID). The result carries the canonical signed observation and the attachment media type. The submit result is unchanged. Without a provisioned observer key every request is refused. |
+| 3 | Read-back subject and facts | Subject: the closed observation URL with the observed JSON pointer as fragment. Facts: `value` (a string of at most 256 bytes as text, a non-negative integer as uint; anything else is refused, not coerced) and `echo` when the recipe declares one and the record carries a string. `observed_at` is taken before the GET is sent. |
+| 4 | Outcome subject and facts | Subject: `auths-gateway://<namespace>/operations/<operation-id>`. Facts: `commitment` (lowercase hex text, so it compares with an MCP string argument) and `stage` (the stored stage in kebab-case, with an `attempting` record read as `unknown`, as the store reports it). No provider is contacted. |
+| 5 | Action facts | `mcp-arguments-v1` exposes top-level verified MCP arguments by name with the same typing as observed values, accepts only canonical `auths.mcp/2` actions, and is committed in the gateway's verifier configuration. The trusted context selects it as its profile policy. |
+| 6 | Binding an action-fact subject to the written record | The recipe gains an optional `preconditions` block: `read_back_subject` names the argument that must equal this request's read-back subject, and `verified` lists arguments no request renders, compared only by observation requirements. The gateway refuses a mismatched subject with `gateway.recipe.precondition-subject-mismatch` before any claim. Without it, an observation of one record could license a write to another. |
+| 7 | Evaluation time | The gateway verifies each submission at its own clock through `TrustedContext::for_request`, keeping the installed audience and challenge. Freshness against an install-time evaluation time would be meaningless. |
+| 8 | "Step N is indeterminate until step N−1 is provider-bound" | With no outcome observation attached, step N is `observation-missing` (indeterminate). With a signed outcome of another stage, it is `observation-condition-false` (denied), as §4.1 requires for an eligible observation that falsifies a condition. Either way step N's logical operation stays unclaimed, so a later action with a fresh observation can proceed. |
+

@@ -113,7 +113,7 @@ class Reader {
 
 export function decodeResult(bytes: Uint8Array): DecodedResult {
   const reader = new Reader(bytes);
-  if (reader.map() !== 16) throw new TypeError("invalid Auths result shape");
+  if (reader.map() !== 17) throw new TypeError("invalid Auths result shape");
   let decision = -1;
   let stage = -1;
   let code = "";
@@ -121,7 +121,7 @@ export function decodeResult(bytes: Uint8Array): DecodedResult {
   let requiredConfiguration: Uint8Array | undefined;
   let localConfiguration: Uint8Array | undefined;
   let abiVersion = -1n;
-  for (let index = 0; index < 16; index += 1) {
+  for (let index = 0; index < 17; index += 1) {
     const key = Number(reader.uint());
     if (key !== index) throw new TypeError("result map keys are not the exact canonical sequence");
     if (key === 0) decision = Number(reader.uint());
@@ -144,7 +144,7 @@ export function decodeResult(bytes: Uint8Array): DecodedResult {
     else reader.skip();
   }
   if (!reader.complete) throw new TypeError("trailing CBOR result bytes");
-  if (abiVersion !== 2n) throw new TypeError("unsupported Auths result ABI version");
+  if (abiVersion !== 3n) throw new TypeError("unsupported Auths result ABI version");
   if (!code || metrics.length !== 7 || localConfiguration === undefined) throw new TypeError("incomplete Auths result");
   const kinds: VerdictKind[] = ["authorized", "denied", "indeterminate"];
   const stages: VerificationStage[] = ["decode", "resolve", "principal-control", "authority", "complete"];

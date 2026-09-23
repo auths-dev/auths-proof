@@ -152,6 +152,63 @@ the recipe language has typed query segments. A crashed `attempting` record
 is not re-observed, because it cannot be told apart from an in-flight
 attempt.
 
+## Gateway-observed preconditions (AP-SPEC-060, repository-local only)
+
+The gateway can now hold an observer signing key and sign two kinds of
+observation for the application to attach to its next action:
+`auths.gateway-readback/1` (the value the gateway read from the recipe's
+observed field, and the echo field when present) and
+`auths.gateway-outcome/1` (the stored commitment and stage of one logical
+operation). A grant's observation requirement can then require, for example,
+that the record held the action's `expected` value, or that step N−1 is
+`observed-by-provider`, before the verifier authorizes step N. The gateway
+verifies at its own clock and exposes top-level verified MCP arguments as
+action facts through the `mcp-arguments-v1` profile policy, which the trusted
+context selects and whose configuration it pins.
+
+**Claim.** When the gateway authorizes an action under such a grant, an
+observer the operator trusted for that subject signed facts that satisfied
+every condition, at an `observed_at` no earlier than the gateway's evaluation
+time minus the requirement's maximum age. A requirement that is stale,
+unmet, or has no observation is refused before any durable claim, credential
+lease, or provider entry. For a read-back requirement whose subject is the
+recipe's declared read-back subject argument, the gateway also refuses an
+action whose written record is not the observed record.
+
+**Not a claim.**
+
+- The fact held when the provider applied the write. The record can change
+  between the observation and the write; a short maximum age narrows that
+  window and does not close it. Closing it needs a conditional provider write,
+  which the recipe language does not have.
+- The observer told the truth. The observer key is operator custody (a
+  software seed in the gateway's private state directory), so observer trust
+  is operator trust, exactly as for the credential. The key is not
+  hardware-protected.
+- A missing or differing observation means the fact is false. Missing
+  observations are indeterminate. A signed outcome of another stage denies
+  that action; the logical operation stays unclaimed.
+- Read-back confidentiality. The application can ask for a signed read-back of
+  any record the recipe's observation path admits, and so learns that field's
+  value. The operator opts in by provisioning the observer key.
+- Arguments a grant does not constrain. The recipe's verified-only arguments
+  are compared only by observation requirements; a grant without one leaves
+  them unchecked.
+
+Current evidence is repository-local unit tests with signed grants and actions,
+native verification, and a synthetic counting provider: a fresh matching
+read-back authorizes the write; stale by one second, a changed value, or a
+missing observation is refused with zero writes and no write-path lease; a
+read-back of another record cannot license the write; a record replaced after
+observation is still authorized (the non-claim above); step N is indeterminate
+with no outcome observation, denied while step N−1 is `unknown`, and
+authorized once step N−1 is `observed-by-provider`; an agent-signed or forged
+observation never satisfies; and an observer that is also in the authority
+chain is refused. **The live Airtable run has not been done**, no hosted CI
+result is cited here, and no document may yet describe gateway grants as
+conditioned on observed provider state. The Python and TypeScript gateway
+clients do not yet expose the observation request.
+
 ## Packaged clean-consumer exercise
 
 Exercised at auths-proof commit

@@ -21,7 +21,10 @@ use auths_ports::{
 use core::fmt;
 
 /// Pinned identifier for the complete target V1 executable registry.
-pub const TARGET_V1_REGISTRY_MANIFEST: RegistryManifestId = RegistryManifestId::new([0x33; 32]);
+///
+/// The set includes the `observation-requirement-v1` critical extension; a
+/// context pinned to the earlier manifest is denied, not dual-read.
+pub const TARGET_V1_REGISTRY_MANIFEST: RegistryManifestId = RegistryManifestId::new([0x34; 32]);
 /// Target V1 resource-matching algebra.
 pub const URI_NAMESPACE_V1: &str = "uri-namespace-v1";
 /// Target V1 profile policy used by the reference corpus.
@@ -31,6 +34,8 @@ pub const NUMERIC_CEILING_V1: &str = "numeric-ceiling-v1";
 /// Target V1 exact marker extension used to prove executable extension
 /// selection without changing authority.
 pub const EXACT_MARKER_EXTENSION_V1: &str = "exact-marker-v1";
+/// Grant critical extension carrying observation requirements.
+pub const OBSERVATION_REQUIREMENT_EXTENSION_V1: &str = "observation-requirement-v1";
 
 const CLAIMS: [&str; 13] = [
     "self-certifying-identifier",
@@ -172,6 +177,44 @@ impl CriticalExtensionHandler for ExactMarkerExtension {
             Ok(())
         } else {
             Err(RegistryOperationError::InvalidInput)
+        }
+    }
+}
+
+/// Validates the canonical requirement list carried by a grant. The
+/// requirements themselves are evaluated by the verifier's observation stage,
+/// which needs the action, the attachments, and the trusted context that a
+/// handler never sees.
+struct ObservationRequirementExtension {
+    id: ExtensionId,
+}
+
+impl CriticalExtensionHandler for ObservationRequirementExtension {
+    fn id(&self) -> &ExtensionId {
+        &self.id
+    }
+
+    fn configuration_id(&self) -> AdapterConfigurationId {
+        auths_ports::configuration_id(self.id.as_str().as_bytes(), core::iter::empty())
+    }
+
+    fn maximum_work_units(&self, extension: &auths_model::CriticalExtension) -> u64 {
+        u64::try_from(extension.bytes().len().saturating_add(1)).unwrap_or(u64::MAX)
+    }
+
+    fn evaluate(
+        &self,
+        extension: &auths_model::CriticalExtension,
+    ) -> Result<(), RegistryOperationError> {
+        if extension.id() != &self.id {
+            return Err(RegistryOperationError::InvalidInput);
+        }
+        match auths_codec::decode_observation_requirements(extension.bytes()) {
+            Ok(_) => Ok(()),
+            Err(auths_codec::CodecError::LimitExceeded) => {
+                Err(RegistryOperationError::ResourceLimitExceeded)
+            }
+            Err(_) => Err(RegistryOperationError::InvalidInput),
         }
     }
 }
@@ -468,6 +511,7 @@ struct CoreSemantics {
     profile: ExactProfilePolicy,
     budget: NumericBudgetAlgebra,
     extension: ExactMarkerExtension,
+    observation: ObservationRequirementExtension,
     status: Vec<ExactStatusMethod>,
     claims: Vec<ExactClaimRule>,
 }
@@ -489,6 +533,10 @@ impl CoreSemantics {
             },
             extension: ExactMarkerExtension {
                 id: ExtensionId::parse(EXACT_MARKER_EXTENSION_V1)
+                    .map_err(|_| RegistryError::InvalidBuiltin)?,
+            },
+            observation: ObservationRequirementExtension {
+                id: ExtensionId::parse(OBSERVATION_REQUIREMENT_EXTENSION_V1)
                     .map_err(|_| RegistryError::InvalidBuiltin)?,
             },
             status: ["auths-principal-status-v1", "auths-grant-status-v1"]
@@ -582,6 +630,11 @@ fn verifier_configuration_id(
         5,
         core.extension.id().as_str().into(),
         core.extension.configuration_id(),
+    ));
+    entries.push((
+        5,
+        core.observation.id().as_str().into(),
+        core.observation.configuration_id(),
     ));
     entries.extend(pure.status_methods.iter().map(|implementation| {
         (
@@ -703,7 +756,7 @@ impl<'a> ImmutableRegistries<'a> {
             || pure
                 .extension_handlers
                 .iter()
-                .any(|item| item.id() == core.extension.id())
+                .any(|item| item.id() == core.extension.id() || item.id() == core.observation.id())
             || pure
                 .status_methods
                 .iter()
@@ -841,6 +894,9 @@ impl<'a> ImmutableRegistries<'a> {
         }
         if self.core.extension.id() == id {
             return Some(&self.core.extension);
+        }
+        if self.core.observation.id() == id {
+            return Some(&self.core.observation);
         }
         self.pure
             .extension_handlers

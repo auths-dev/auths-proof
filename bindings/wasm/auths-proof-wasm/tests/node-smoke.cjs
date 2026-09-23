@@ -38,6 +38,23 @@ if (!(first instanceof Uint8Array) || !Buffer.from(first).equals(expected)) {
 if (!Buffer.from(first).equals(Buffer.from(second))) {
   throw new Error("WASM verification is not byte deterministic");
 }
+// Replay every corpus vector this distribution's registry supports, including
+// the evidence-conditioned authority vectors, through the WASM verifier.
+const scenarios = JSON.parse(
+  fs.readFileSync(path.join(packageDirectory, "scenarios.json"), "utf8"),
+);
+for (const { id } of scenarios) {
+  const read = (suffix) => new Uint8Array(
+    fs.readFileSync(path.join(packageDirectory, "scenarios", `${id}.${suffix}.cbor`)),
+  );
+  const replayed = wasm.verifyV1(read("proof"), read("action"), read("context"));
+  if (!Buffer.from(replayed).equals(Buffer.from(read("result")))) {
+    throw new Error(`WASM result for ${id} differs from native canonical result bytes`);
+  }
+}
+if (!scenarios.some(({ name }) => name.startsWith("observation-"))) {
+  throw new Error("WASM scenario replay omits the evidence-conditioned authority vectors");
+}
 if (wasm.configurationV1().length !== 32) {
   throw new Error("WASM configuration commitment must be 32 bytes");
 }
