@@ -1375,7 +1375,7 @@ fn validate_ci_workflow_gates(ci: &str) -> Result<(), String> {
     }
     let formal_job = workflow_job_source(ci, "formal-translation-run")?;
     if !formal_job.contains("compiler-cache: \"false\"")
-        || !formal_job.contains("needs.formal-proof-fast.result == 'success'")
+        || formal_job.contains("formal-proof-fast")
         || !formal_job.contains("AUTHS_FORMAL_UPDATE_MODE")
         || !formal_job.contains("formal-update-artifact create")
         || !formal_job.contains("Preserve the bounded translation update")
@@ -1384,7 +1384,7 @@ fn validate_ci_workflow_gates(ci: &str) -> Result<(), String> {
         || formal_job.contains("kani-verifier")
     {
         return Err(
-            "hosted translation must wait for fast Lean, disable compiler caching, package bounded generated drift, and exclude Lean/Kani"
+            "hosted translation must run beside fast Lean, disable compiler caching, package bounded generated drift, and exclude Lean/Kani"
                 .to_owned(),
         );
     }
@@ -1410,18 +1410,24 @@ fn validate_ci_workflow_gates(ci: &str) -> Result<(), String> {
         let job = workflow_job_source(ci, job_name)?;
         if !job.contains("repository-preflight")
             || !job.contains("needs.repository-preflight.result == 'success'")
-            || !job.contains("formal-proof-fast")
+            || job.contains("formal-proof-fast")
         {
             return Err(format!(
-                "hosted formal job `{job_name}` can start before fast proof and repository preflight succeed"
+                "hosted formal job `{job_name}` must wait for repository preflight and run beside fast proof"
             ));
         }
     }
+    // Translation and Kani run beside the fast Lean gate for wall-clock time;
+    // a fast-proof failure still blocks qualification here, because evidence
+    // requires authoritative Lean.
     let lean_job = workflow_job_source(ci, "formal-lean-authoritative-run")?;
     if !lean_job.contains("needs.formal-translation-run.result == 'success'")
+        || !lean_job.contains("needs.formal-proof-fast.result == 'success'")
         || !lean_job.contains("cargo xtask ci formal-lean-authoritative")
     {
-        return Err("authoritative Lean can start without qualified translation".to_owned());
+        return Err(
+            "authoritative Lean can start without qualified translation and fast proof".to_owned(),
+        );
     }
     let evidence_job = workflow_job_source(ci, "formal-evidence-run")?;
     for required in [
@@ -2223,9 +2229,8 @@ needs.repository-preflight.result == 'success'
 needs: [ci-plan, formal-update-gate]
 cargo xtask ci formal-proof-fast
   formal-translation-run:
-needs: [ci-plan, formal-update-gate, repository-preflight, formal-proof-fast]
+needs: [ci-plan, formal-update-gate, repository-preflight]
 needs.repository-preflight.result == 'success'
-needs.formal-proof-fast.result == 'success'
 compiler-cache: "false"
 AUTHS_FORMAL_UPDATE_MODE
 formal-update-artifact create
@@ -2234,12 +2239,12 @@ Stop qualification until generated translation is committed
 cargo xtask ci formal-translation-reproduce
 cargo xtask ci formal-translation-reuse
   formal-kani-run:
-needs: [ci-plan, formal-update-gate, repository-preflight, formal-proof-fast]
+needs: [ci-plan, formal-update-gate, repository-preflight]
 needs.repository-preflight.result == 'success'
-needs.formal-proof-fast.result == 'success'
 cargo xtask ci formal-kani
   formal-lean-authoritative-run:
 needs: [ci-plan, formal-update-gate, repository-preflight, formal-proof-fast, formal-translation-run]
+needs.formal-proof-fast.result == 'success'
 needs.formal-translation-run.result == 'success'
 cargo xtask ci formal-lean-authoritative
   formal-evidence-run:
@@ -2321,6 +2326,14 @@ needs: [ci-plan, formal-evidence-run]
         let error = validate_ci_workflow_gates(&bypass)
             .expect_err("an implementation job must not bypass the shared preflight");
         assert!(error.contains("can start before the repository preflight succeeds"));
+    }
+
+    #[test]
+    fn authoritative_lean_still_requires_the_fast_proof() {
+        let bypass = CI_GATES.replace("needs.formal-proof-fast.result == 'success'\n", "");
+        let error = validate_ci_workflow_gates(&bypass)
+            .expect_err("qualification must not proceed past a failed fast proof");
+        assert!(error.contains("without qualified translation and fast proof"));
     }
 
     #[test]
