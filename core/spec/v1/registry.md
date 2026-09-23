@@ -19,7 +19,7 @@ work cost that is reserved before invocation.
 | Profile policy | `exact-v1` | Effect-free acceptance of already validated canonical action facts |
 | Budget algebra | `numeric-ceiling-v1` | Exact-algebra attenuation and coverage using unsigned `<=` |
 | Critical extension | `exact-marker-v1` | Requires the exact byte string `h'01'` and otherwise changes no authority |
-| Critical extension | `observation-requirement-v1` | Grant-only; bytes are canonical `observation-requirements`; the verifier's observation stage evaluates them |
+| Critical extension | `observation-requirement-v1` | Bytes are canonical `observation-requirements`; the observation stage evaluates those carried by grants, and one on an action has no effect |
 | Principal status | `auths-principal-status-v1` | Trusted issuer, method, floor, freshness, and revoked-dominant latest selection |
 | Grant status | `auths-grant-status-v1` | Same selection rules as principal status |
 
