@@ -91,6 +91,13 @@ pub(crate) fn ci() -> Result<(), String> {
 /// long-running implementation and formal jobs.
 pub(crate) fn ci_preflight() -> Result<(), String> {
     cargo(&["fmt", "--all", "--check"])?;
+    // An unowned tracked path makes the planner fail closed and schedule
+    // every phase on every pull request, so it is a hard error here.
+    auths_ci_plan::run(auths_ci_plan::Command::parse([
+        "check".to_owned(),
+        "--root".to_owned(),
+        root().display().to_string(),
+    ])?)?;
     semantic_freeze(false)?;
     compliance_inventory()?;
     cargo(&[
