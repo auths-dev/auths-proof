@@ -1,0 +1,160 @@
+{
+  "schema": "auths.openapi-manual-rejection-corpus/1",
+  "reviewedOn": "2026-09-21",
+  "reverifiedOn": "2026-09-23",
+  "qualification": "manual mapping only; no derivation mapper, recipe compiler run, provider call, or effect observation was performed; candidate overrides are not accepted recipes",
+  "measurement": {
+    "method": "Parse the pinned document bytes as JSON, select the operation object, and follow every local $ref it reaches (including responses). distinctComponentRefs counts distinct targets; refResolutionsInlined counts resolutions when every $ref is inlined; inlinedOperationBytes is the compact UTF-8 JSON length of the fully inlined operation object.",
+    "operationSliceLimitBytes": 262144,
+    "refResolutionLimit": 256
+  },
+  "cases": [
+    {
+      "vendor": "GitHub",
+      "source": {
+        "url": "https://raw.githubusercontent.com/github/rest-api-description/814de7ac96e215adeeec999308f41f98f94a15db/descriptions/api.github.com/api.github.com.json",
+        "revision": "814de7ac96e215adeeec999308f41f98f94a15db",
+        "sha256": "4fbdc7d0102276803a07f9880d14ed543ba1afc10a4c9fd7bd3782408d9abaf7",
+        "bytes": 13012129,
+        "openapi": "3.0.3"
+      },
+      "operation": {
+        "operationId": "issues/create",
+        "method": "POST",
+        "path": "/repos/{owner}/{repo}/issues",
+        "server": "https://api.github.com",
+        "bodySchema": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema"
+      },
+      "measured": {
+        "distinctComponentRefs": 29,
+        "refResolutionsInlined": 45,
+        "inlinedOperationBytes": 70346,
+        "refCycle": false
+      },
+      "unmodifiedRejections": [
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/operationId", "rule": "3.1 operationId tool-name rule", "reason": "issues/create contains a slash, which the packaged profile tool-name grammar rejects", "overrides": ["--tool issues_create"] },
+        { "pointer": "#/security", "rule": "3.1 security", "reason": "neither the root nor the operation declares a security requirement, and components declare no securitySchemes", "overrides": ["--security-scheme bearer"] },
+        { "pointer": "#/components/parameters/owner/schema", "rule": "3.2 string without maxLength", "reason": "required path parameter owner is an unbounded string", "overrides": ["--max-bytes owner=64"] },
+        { "pointer": "#/components/parameters/repo/schema", "rule": "3.2 string without maxLength", "reason": "required path parameter repo is an unbounded string", "overrides": ["--max-bytes repo=128"] },
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema", "rule": "3.2 object with additionalProperties absent", "reason": "the inline body object omits additionalProperties", "overrides": ["--closed body"], "note": "root-object path spelling is provisional" },
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/title", "rule": "3.2 scalar oneOf", "reason": "required title is oneOf string or integer, and neither branch is bounded", "overrides": ["--pick title=string", "--max-bytes title=256"] },
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/body", "rule": "3.2 property not in required", "reason": "optional unbounded string", "overrides": ["--omit body"] },
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/assignee", "rule": "3.2 property not in required", "reason": "optional nullable unbounded string", "overrides": ["--omit assignee"] },
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/milestone", "rule": "3.2 property not in required", "reason": "optional nullable oneOf string or integer", "overrides": ["--omit milestone"] },
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/labels", "rule": "3.2 property not in required; other oneOf", "reason": "optional array with no maxItems whose items are oneOf string or object", "overrides": ["--omit labels"], "note": "retaining labels hits a mixed scalar/object union that has no override" },
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/assignees", "rule": "3.2 property not in required", "reason": "optional array with no maxItems of unbounded strings", "overrides": ["--omit assignees"] },
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/issue_field_values", "rule": "3.2 property not in required; other oneOf; number", "reason": "optional array whose item value is oneOf string, number, or array", "overrides": ["--omit issue_field_values"], "note": "retaining it hits a non-scalar union with a float branch that has no override" },
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/type", "rule": "3.2 property not in required", "reason": "optional nullable unbounded string", "overrides": ["--omit type"] },
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/parent_issue_id", "rule": "3.2 property not in required", "reason": "optional integer with no minimum or maximum", "overrides": ["--omit parent_issue_id"] }
+      ],
+      "candidateOverrides": [
+        "--tool issues_create", "--security-scheme bearer", "--max-bytes owner=64",
+        "--max-bytes repo=128", "--closed body", "--pick title=string",
+        "--max-bytes title=256", "--omit body", "--omit assignee",
+        "--omit milestone", "--omit labels", "--omit assignees",
+        "--omit issue_field_values", "--omit type", "--omit parent_issue_id"
+      ],
+      "candidateRequest": "POST origin https://api.github.com; path segments repos, <owner>, <repo>, issues with owner and repo as typed segments; fixed JSON body key title; gateway-held bearer; responses not mapped",
+      "limits": "The operation declares no query, header, or cookie parameters. The vendor document says some fields are silently dropped without push access; no effect semantics are derived. The shipped hand-authored GitHub gateway fixture fixes owner and repo as literal segments and also carries body, so its recipe digest is not expected to equal a derivation of this candidate."
+    },
+    {
+      "vendor": "Todoist",
+      "source": {
+        "url": "https://developer.todoist.com/openapi.json",
+        "revision": "unversioned URL; the digest below is the corpus input and a changed document is a new case",
+        "sha256": "ac5abcb1297d6be0709a8f5d7799d0384148dcf2ae7bf719f72f7ccd3e7e1d5f",
+        "bytes": 1205196,
+        "openapi": "3.1.0"
+      },
+      "operation": {
+        "operationId": "create_task_api_v1_tasks_post",
+        "method": "POST",
+        "path": "/api/v1/tasks",
+        "server": "https://api.todoist.com/",
+        "bodySchema": "#/components/schemas/Body_37565102"
+      },
+      "measured": {
+        "distinctComponentRefs": 2,
+        "refResolutionsInlined": 2,
+        "inlinedOperationBytes": 9455,
+        "refCycle": false
+      },
+      "unmodifiedRejections": [
+        { "pointer": "#/security", "rule": "3.1 security", "reason": "no root or operation security requirement and no securitySchemes", "overrides": ["--security-scheme bearer"] },
+        { "pointer": "#/components/schemas/Body_37565102", "rule": "3.2 object with additionalProperties absent", "reason": "the body object omits additionalProperties", "overrides": ["--closed body"], "note": "root-object path spelling is provisional" },
+        { "pointer": "#/components/schemas/Body_37565102/properties/content", "rule": "3.2 string without maxLength", "reason": "required content has minLength 1 and no maxLength", "overrides": ["--max-bytes content=256"] },
+        { "pointer": "#/components/schemas/Body_37565102/properties/description", "rule": "3.2 property not in required", "reason": "optional anyOf string or null; unbounded", "overrides": ["--omit description"] },
+        { "pointer": "#/components/schemas/Body_37565102/properties/project_id", "rule": "3.2 property not in required", "reason": "optional anyOf string or null; unbounded", "overrides": ["--omit project_id"] },
+        { "pointer": "#/components/schemas/Body_37565102/properties/section_id", "rule": "3.2 property not in required", "reason": "optional anyOf string or null; unbounded", "overrides": ["--omit section_id"] },
+        { "pointer": "#/components/schemas/Body_37565102/properties/parent_id", "rule": "3.2 property not in required", "reason": "optional anyOf string or null; unbounded", "overrides": ["--omit parent_id"] },
+        { "pointer": "#/components/schemas/Body_37565102/properties/order", "rule": "3.2 property not in required", "reason": "optional anyOf int32-bounded integer or null", "overrides": ["--omit order"] },
+        { "pointer": "#/components/schemas/Body_37565102/properties/labels", "rule": "3.2 property not in required", "reason": "optional anyOf array or null; no maxItems and unbounded string items", "overrides": ["--omit labels"] },
+        { "pointer": "#/components/schemas/Body_37565102/properties/priority", "rule": "3.2 property not in required", "reason": "optional anyOf integer 1..4 or null", "overrides": ["--omit priority"] },
+        { "pointer": "#/components/schemas/Body_37565102/properties/assignee_id", "rule": "3.2 property not in required", "reason": "optional anyOf unbounded integer or null", "overrides": ["--omit assignee_id"] },
+        { "pointer": "#/components/schemas/Body_37565102/properties/due_string", "rule": "3.2 property not in required", "reason": "optional anyOf string or null; unbounded", "overrides": ["--omit due_string"] },
+        { "pointer": "#/components/schemas/Body_37565102/properties/due_date", "rule": "3.2 property not in required", "reason": "optional anyOf string or null; unbounded", "overrides": ["--omit due_date"] },
+        { "pointer": "#/components/schemas/Body_37565102/properties/due_datetime", "rule": "3.2 property not in required", "reason": "optional anyOf string or null; unbounded", "overrides": ["--omit due_datetime"] },
+        { "pointer": "#/components/schemas/Body_37565102/properties/due_lang", "rule": "3.2 property not in required", "reason": "optional anyOf string or null; unbounded", "overrides": ["--omit due_lang"] },
+        { "pointer": "#/components/schemas/Body_37565102/properties/duration", "rule": "3.2 property not in required", "reason": "optional anyOf unbounded integer or null", "overrides": ["--omit duration"] },
+        { "pointer": "#/components/schemas/Body_37565102/properties/duration_unit", "rule": "3.2 property not in required", "reason": "optional anyOf string enum or null", "overrides": ["--omit duration_unit"] },
+        { "pointer": "#/components/schemas/Body_37565102/properties/deadline_date", "rule": "3.2 property not in required", "reason": "optional anyOf string or null; unbounded", "overrides": ["--omit deadline_date"] }
+      ],
+      "candidateOverrides": [
+        "--security-scheme bearer", "--closed body", "--max-bytes content=256",
+        "--omit description", "--omit project_id", "--omit section_id",
+        "--omit parent_id", "--omit order", "--omit labels", "--omit priority",
+        "--omit assignee_id", "--omit due_string", "--omit due_date",
+        "--omit due_datetime", "--omit due_lang", "--omit duration",
+        "--omit duration_unit", "--omit deadline_date"
+      ],
+      "candidateRequest": "POST origin https://api.todoist.com; path segments api, v1, tasks; fixed JSON body key content; gateway-held bearer; responses not mapped",
+      "limits": "Scheduling and relationship fields are omitted. The selected operation declares no parameters, so no provider idempotency key is derivable from it; the shipped hand-authored Todoist gateway fixture instead uses the sync endpoint with a per-operation uuid, so the two recipes are different requests and their digests are not expected to match. No task-creation effect is derived."
+    },
+    {
+      "vendor": "OpenAI",
+      "source": {
+        "url": "https://raw.githubusercontent.com/openai/openai-openapi/ddface9bd361f5fe37943291d23ee2ca72cbcc2b/openapi.json",
+        "revision": "ddface9bd361f5fe37943291d23ee2ca72cbcc2b",
+        "sha256": "9b3fe0902e71ad60004949c1b4bef39b79503c39506466c283a613f9fa65aea9",
+        "bytes": 4235459,
+        "openapi": "3.1.0"
+      },
+      "operation": {
+        "operationId": "createVectorStore",
+        "method": "POST",
+        "path": "/vector_stores",
+        "server": "https://api.openai.com/v1",
+        "bodySchema": "#/components/schemas/CreateVectorStoreRequest"
+      },
+      "measured": {
+        "distinctComponentRefs": 13,
+        "refResolutionsInlined": 15,
+        "inlinedOperationBytes": 8960,
+        "refCycle": false
+      },
+      "unmodifiedRejections": [
+        { "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/name", "rule": "3.2 property not in required; string without maxLength", "reason": "the body declares no required list, and name is an unbounded string", "overrides": ["--require name", "--max-bytes name=128"] },
+        { "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/file_ids", "rule": "3.2 property not in required", "reason": "optional array (maxItems 500) of unbounded strings", "overrides": ["--omit file_ids"] },
+        { "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/description", "rule": "3.2 property not in required", "reason": "optional unbounded string", "overrides": ["--omit description"] },
+        { "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/expires_after", "rule": "3.2 property not in required", "reason": "optional referenced object not selected for the narrowed request", "overrides": ["--omit expires_after"] },
+        { "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/chunking_strategy", "rule": "3.2 property not in required; other oneOf", "reason": "optional oneOf of two referenced objects", "overrides": ["--omit chunking_strategy"], "note": "retaining it hits an object union that has no override" },
+        { "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/metadata", "rule": "3.2 property not in required; free-form object", "reason": "optional referenced anyOf of a string-valued map or null", "overrides": ["--omit metadata"], "note": "retaining it hits a free-form map that has no override" }
+      ],
+      "candidateOverrides": [
+        "--require name", "--max-bytes name=128", "--omit file_ids",
+        "--omit description", "--omit expires_after", "--omit chunking_strategy",
+        "--omit metadata"
+      ],
+      "candidateRequest": "POST origin https://api.openai.com; path segments v1, vector_stores; fixed JSON body key name; gateway-held bearer; responses not mapped",
+      "limits": "The document declares one root requirement, ApiKeyAuth, as http bearer, so no security override is needed; the body already sets additionalProperties false, so no --closed override is needed. A request with only name is a restricted subset, not a vector-store effect guarantee."
+    }
+  ],
+  "findings": [
+    { "id": "closed-root-spelling", "status": "open", "text": "The CLI does not define how --closed names the root body object. body is used here as a provisional spelling; the mapper must reject an ambiguous alias rather than guess between it and an absolute JSON pointer." },
+    { "id": "min-length-characters", "status": "open", "text": "Mapping minLength (characters) to min_bytes (UTF-8 bytes) admits multibyte strings with fewer characters than the vendor minimum when minLength is greater than 1. No case here exercises it: Todoist content has minLength 1, which maps exactly." },
+    { "id": "nullable-anyof-null", "status": "open", "text": "OpenAPI 3.1 documents such as Todoist spell nullable as anyOf [T, {type: null}]. The mapping table recognizes nullable: true and type: [T, \"null\"], and reads other anyOf as rejected without override. Every such field in this corpus is optional and omitted, but requiring one would have no override path under a literal reading." },
+    { "id": "server-base-path", "status": "open", "text": "The recipe compiler on main accepts only an https origin whose path is exactly / and that does not end in a slash. OpenAI's server https://api.openai.com/v1 must become origin https://api.openai.com plus a fixed v1 path segment, and Todoist's https://api.todoist.com/ must drop its trailing slash. The request-mapping table says only that servers become the operator-pinned origin." },
+    { "id": "gateway-binding-fields", "status": "open", "text": "The recipe compiler on main requires the profile to carry operator_namespace (single-variant enum), operation_id (string with min_bytes at least 1 and max_bytes at most 128), and recipe_digest (string, exactly 64 bytes). The argument-mapping table maps only the JSON body and path parameters, so derivation must add these fields or recipe check will reject every candidate here." },
+    { "id": "recipe-check-not-run", "status": "open", "text": "No candidate was written as profile.toml and recipe.toml or run through the recipe compiler. Slice sizes and $ref counts above were measured; derivation, compilation, and provider behavior were not checked." }
+  ]
+}
