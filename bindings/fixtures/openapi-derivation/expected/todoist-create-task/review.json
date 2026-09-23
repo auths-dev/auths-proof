@@ -1,9 +1,9 @@
 {
   "schema": "auths.gateway-recipe-review/1",
-  "digest": "508aeabef14076608175f8ff5de62627584a130474e331192e68561bafa45590",
+  "digest": "985bb8743644b86513bfa1334fb026bd2c9a57e481c7bb3106be735bd5f3899e",
   "operator_namespace": "todoist-demo",
   "service": "todoist-gateway-demo",
-  "tool": "create_task_api_v1_tasks_post_v1",
+  "tool": "create_task_v1",
   "origin": "https://api.todoist.com",
   "method": "POST",
   "path": [

@@ -3,7 +3,7 @@
 name = "todoist-gateway-task-create"
 version = 2
 service = "todoist-gateway-demo"
-tool = "create_task_api_v1_tasks_post"
+tool = "create_task"
 
 [arguments]
 type = "object"

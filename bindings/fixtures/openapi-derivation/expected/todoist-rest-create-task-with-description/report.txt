@@ -4,7 +4,7 @@
   arguments:  5 fields (2 derived + 3 gateway binding), worst-case 3272 bytes canonical JSON
   recipe:     POST https://api.todoist.com/api/v1/tasks  body: application/json
   omitted:    priority (--omit)
-  overrides:  --max-bytes content=256 --max-bytes description=80 --require description --omit priority --closed . --pick description=string --security-scheme bearer
+  overrides:  --max-bytes content=256 --max-bytes description=80 --require description --omit priority --closed . --pick description=string --security-scheme bearer --tool create_task
   wrote:      profile.toml recipe.json derivation.json
   next:       auths-profile generate profile.toml && auths gateway recipe check --recipe recipe.json --profile-lock profile.lock.json
   claim:      derived shape only; provider effect unqualified

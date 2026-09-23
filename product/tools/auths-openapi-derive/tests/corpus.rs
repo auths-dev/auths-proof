@@ -143,6 +143,14 @@ fn derived_case(case: &Value, directory: &Path, derived: &auths_openapi_derive::
     };
     let lock_value: Value = serde_json::from_slice(&lock).unwrap();
     let recipe_value: Value = serde_json::from_str(derived.recipe_json()).unwrap();
+    if updating()
+        && (lock_value["schema_digest"] != recipe_value["profile_schema_digest"]
+            || lock_value["tool"] != recipe_value["tool"])
+    {
+        // A stale lock: the Python lock step rewrites it, then a second
+        // update run records the review.
+        return;
+    }
     assert_eq!(
         lock_value["schema_digest"], recipe_value["profile_schema_digest"],
         "{}: the packaged generator's schema digest must equal the derived recipe's",
@@ -343,6 +351,8 @@ fn derived_airtable_and_todoist_recipes_compare_with_the_hand_authored_fixtures(
     // The hand-authored recipe is a different request: the sync endpoint with
     // a form-encoded command carrying the logical ID as its uuid.
     assert_eq!(ours.review().origin(), hand.review().origin());
+    assert_eq!(ours.review().tool(), hand.review().tool());
+    assert_eq!(ours.namespace(), hand.namespace());
     assert_eq!(ours.review().path(), ["api", "v1", "tasks"]);
     assert_eq!(hand.review().path(), ["api", "v1", "sync"]);
     assert_ne!(ours.digest_hex(), hand.digest_hex());

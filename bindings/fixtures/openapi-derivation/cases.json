@@ -189,7 +189,9 @@
         "--omit",
         "duration_unit",
         "--omit",
-        "deadline_date"
+        "deadline_date",
+        "--tool",
+        "create_task"
       ]
     },
     {
@@ -217,7 +219,9 @@
         "--omit",
         "description",
         "--omit",
-        "priority"
+        "priority",
+        "--tool",
+        "create_task"
       ]
     },
     {
@@ -251,7 +255,9 @@
         "--max-bytes",
         "description=80",
         "--omit",
-        "priority"
+        "priority",
+        "--tool",
+        "create_task"
       ]
     },
     {
@@ -279,7 +285,9 @@
         "--omit",
         "description",
         "--require",
-        "priority"
+        "priority",
+        "--tool",
+        "create_task"
       ]
     },
     {

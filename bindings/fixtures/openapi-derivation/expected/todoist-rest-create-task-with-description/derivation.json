@@ -28,7 +28,7 @@
   "profile": {
     "name": "todoist-gateway-task-create",
     "service": "todoist-gateway-demo",
-    "tool": "create_task_api_v1_tasks_post",
+    "tool": "create_task",
     "version": 2,
     "operator_namespace": "todoist-demo"
   },
@@ -49,7 +49,8 @@
     "--omit priority",
     "--closed .",
     "--pick description=string",
-    "--security-scheme bearer"
+    "--security-scheme bearer",
+    "--tool create_task"
   ],
   "omitted": [
     {
@@ -61,7 +62,7 @@
   "unenforced": [],
   "generator_format": 2,
   "outputs": {
-    "profile.toml": "12e16824fb67748179dd4201f9a3449016dfabe87db496df604bb3d23b3afb15",
-    "recipe.json": "55d20ab4576a27636897cfae37a35630161beca393d74d67018196760937a501"
+    "profile.toml": "d347defc0dcba48c52ac6b6e54981d67169cbbbb8f0cc6f428ed5f5b829eb8fb",
+    "recipe.json": "acc7d3df0f347c21088b78f8244c40f7b3097d31c1642fe7fae3400d35ce106a"
   }
 }
