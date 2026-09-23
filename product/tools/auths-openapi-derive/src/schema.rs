@@ -1074,8 +1074,14 @@ mod tests {
 
     #[test]
     fn integer_bounds_round_inward_and_keep_the_tighter_bound() {
-        assert_eq!(bounds(r#"{"minimum":0.5,"maximum":10.5}"#).unwrap(), (Some(1), Some(10)));
-        assert_eq!(bounds(r#"{"minimum":-0.5,"maximum":-0.5}"#).unwrap(), (Some(0), Some(-1)));
+        assert_eq!(
+            bounds(r#"{"minimum":0.5,"maximum":10.5}"#).unwrap(),
+            (Some(1), Some(10))
+        );
+        assert_eq!(
+            bounds(r#"{"minimum":-0.5,"maximum":-0.5}"#).unwrap(),
+            (Some(0), Some(-1))
+        );
         assert_eq!(
             bounds(r#"{"minimum":10,"exclusiveMinimum":0.5,"maximum":20,"exclusiveMaximum":30}"#)
                 .unwrap(),
@@ -1091,7 +1097,10 @@ mod tests {
                 .unwrap(),
             (Some(2), Some(3))
         );
-        assert_eq!(bounds(r#"{"exclusiveMinimum":2.5}"#).unwrap(), (Some(3), None));
+        assert_eq!(
+            bounds(r#"{"exclusiveMinimum":2.5}"#).unwrap(),
+            (Some(3), None)
+        );
         assert!(bounds(r#"{"minimum":1e16}"#).is_err());
         assert!(bounds(r#"{"maximum":9007199254740992}"#).is_err());
         assert!(bounds(r#"{"minimum":"1"}"#).is_err());
