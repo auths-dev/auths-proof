@@ -53,6 +53,7 @@ digraph auths_architecture {
   "auths-multikey" [group="core"];
   "auths-node" [group="product"];
   "auths-oidc-workload" [group="core"];
+  "auths-openapi-derive" [group="product"];
   "auths-opentofu" [group="product"];
   "auths-opentofu-demo" [group="demos"];
   "auths-operations" [group="product"];
@@ -350,6 +351,7 @@ digraph auths_architecture {
   "auths-oidc-workload" -> "auths-ports" [label="normal"];
   "auths-oidc-workload" -> "auths-raw-key-core" [label="normal"];
   "auths-oidc-workload" -> "auths-signature" [label="dev"];
+  "auths-openapi-derive" -> "auths-gateway" [label="dev"];
   "auths-opentofu" -> "auths-bounded-policy" [label="normal"];
   "auths-opentofu" -> "auths-codec" [label="normal"];
   "auths-opentofu" -> "auths-connections" [label="normal"];
@@ -497,6 +499,7 @@ digraph auths_architecture {
   "auths-proof-python" -> "auths-identity-raw-key" [label="normal"];
   "auths-proof-python" -> "auths-lifecycle" [label="normal"];
   "auths-proof-python" -> "auths-model" [label="normal"];
+  "auths-proof-python" -> "auths-openapi-derive" [label="normal"];
   "auths-proof-python" -> "auths-ports" [label="normal"];
   "auths-proof-python" -> "auths-production-client" [label="normal"];
   "auths-proof-python" -> "auths-profile-api" [label="normal"];
@@ -518,6 +521,7 @@ digraph auths_architecture {
   "auths-proof-wasm" -> "auths-identity" [label="normal"];
   "auths-proof-wasm" -> "auths-identity-raw-key" [label="normal"];
   "auths-proof-wasm" -> "auths-model" [label="normal"];
+  "auths-proof-wasm" -> "auths-openapi-derive" [label="normal"];
   "auths-proof-wasm" -> "auths-ports" [label="normal"];
   "auths-proof-wasm" -> "auths-production-client" [label="normal"];
   "auths-proof-wasm" -> "auths-profile-api" [label="normal"];
