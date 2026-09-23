@@ -51,194 +51,426 @@ def CriticalExtensionsBounded
   intro x y
   simp [core.cmp.impls.PartialEqU8.ne]
 
-def CriticalExtensionPrefixEqual
-    (child parent : auths_model.CriticalExtensions)
-    (limit : Nat) : Prop :=
-  ∀ index,
-    (childInBounds : index < child.val.length) →
-    (parentInBounds : index < parent.val.length) →
-    index < limit →
-    criticalExtensionKey child.val[index] =
-      criticalExtensionKey parent.val[index]
+/-- The identifiers of a set are pairwise distinct, as
+`CriticalExtensions::new` enforces. -/
+def CriticalExtensionIdsDistinct
+    (extensions : auths_model.CriticalExtensions) : Prop :=
+  (extensions.val.map fun extension => stringBytes extension.id).Nodup
 
-@[step] theorem critical_extensions_equal_spec
+/-- A total law over identifier bytes and optional payload bytes, in the
+production carriers. -/
+abbrev ProductionExtensionLaw :=
+  List Std.U8 → Option (List Std.U8) → Option (List Std.U8) → Bool
+
+/-- The bytes of an optional translated payload. -/
+def payloadBytes : Option (Slice Std.U8) → Option (List Std.U8)
+  | none => none
+  | some payload => some payload.val
+
+@[simp] theorem payloadBytes_none : payloadBytes none = none := rfl
+
+@[simp] theorem payloadBytes_some (payload : Slice Std.U8) :
+    payloadBytes (some payload) = some payload.val := rfl
+
+/--
+The translated handler-law instance computes `law` and never fails.
+
+The handlers live in `auths-registries`, outside the translated kernel. The
+kernel reaches them only through this instance, so the refinement theorems
+take this as their one premise about the handlers rather than restating any
+law.
+-/
+def LawsRefine {L : Type}
+    (inst : auths_authority.auths_model.CriticalExtensionLaws L) (laws : L)
+    (law : ProductionExtensionLaw) : Prop :=
+  ∀ (id : String) (child parent : Option (Slice Std.U8)),
+    inst.attenuates laws id child parent =
+      ok (law (stringBytes id) (payloadBytes child) (payloadBytes parent))
+
+/-- A parent extension survives: the child carries its identifier and the
+law accepts the pair. -/
+def extensionKeyRetained (law : ProductionExtensionLaw)
+    (child : List (List Std.U8 × List Std.U8))
+    (parentKey : List Std.U8 × List Std.U8) : Prop :=
+  ∃ key ∈ child, key.1 = parentKey.1 ∧
+    law parentKey.1 (some key.2) (some parentKey.2) = true
+
+/-- A child extension is admissible: the parent carries its identifier, or its
+law accepts adding it. -/
+def extensionKeyAdmitted (law : ProductionExtensionLaw)
+    (parent : List (List Std.U8 × List Std.U8))
+    (childKey : List Std.U8 × List Std.U8) : Prop :=
+  (∃ key ∈ parent, key.1 = childKey.1) ∨
+    law childKey.1 (some childKey.2) none = true
+
+/-- Per-identifier attenuation of two translated extension sets. -/
+def CriticalExtensionsAttenuate (law : ProductionExtensionLaw)
+    (child parent : auths_model.CriticalExtensions) : Prop :=
+  (∀ key ∈ criticalExtensionsKey parent,
+      extensionKeyRetained law (criticalExtensionsKey child) key) ∧
+    ∀ key ∈ criticalExtensionsKey child,
+      extensionKeyAdmitted law (criticalExtensionsKey parent) key
+
+/-- Two members of a set whose identifiers are distinct and whose identifier
+bytes agree are the same member. -/
+theorem extension_unique_of_distinct
+    {extensions : auths_model.CriticalExtensions}
+    (distinct : CriticalExtensionIdsDistinct extensions)
+    {left right : auths_model.CriticalExtension}
+    (leftMember : left ∈ extensions.val) (rightMember : right ∈ extensions.val)
+    (sameId : stringBytes left.id = stringBytes right.id) : left = right :=
+  List.inj_on_of_nodup_map distinct leftMember rightMember sameId
+
+@[step] theorem critical_extension_find_spec
+    (extensions : auths_model.CriticalExtensions) (id : String)
+    (bounded : CriticalExtensionsBounded extensions)
+    (idBounded : StringBounded id) :
+    auths_model.critical_extension_find extensions id
+      ⦃ result =>
+        (∀ found, result = some found →
+          found ∈ extensions.val ∧ stringBytes found.id = stringBytes id) ∧
+        (result = none →
+          ∀ candidate ∈ extensions.val,
+            stringBytes candidate.id ≠ stringBytes id) ⦄ := by
+  unfold auths_model.critical_extension_find
+  unfold auths_model.critical_extension_find_loop
+  apply loop.spec_decr_nat
+    (measure := fun state => extensions.val.length - state.2.2.val)
+    (inv := fun state =>
+      state.1 = extensions ∧ state.2.1 = id ∧
+      state.2.2.val ≤ extensions.val.length ∧
+      ∀ index (inBounds : index < extensions.val.length), index < state.2.2.val →
+        stringBytes extensions.val[index].id ≠ stringBytes id)
+  · rintro ⟨currentExtensions, currentId, index⟩ ⟨rfl, rfl, indexBound, prefixMissing⟩
+    have indexBound' : index.val ≤ currentExtensions.val.length := by
+      simpa using indexBound
+    have prefixMissing' : ∀ position
+        (inBounds : position < currentExtensions.val.length), position < index.val →
+          stringBytes currentExtensions.val[position].id ≠ stringBytes currentId := by
+      simpa using prefixMissing
+    clear indexBound prefixMissing
+    unfold auths_model.critical_extension_find_loop.body
+    dsimp only
+    split <;> rename_i withinBounds
+    · have indexWithin : index.val < currentExtensions.val.length := by
+        simpa using withinBounds
+      step as ⟨current, currentEq⟩
+      have currentMember : current ∈ currentExtensions.val := by
+        rw [currentEq]
+        exact List.getElem_mem indexWithin
+      have currentBounded : StringBounded current.id :=
+        bounded current currentMember
+      step with string_as_bytes_spec as ⟨currentBytes, currentBytesEq⟩
+      step with string_as_bytes_spec as ⟨idBytes, idBytesEq⟩
+      step with byte_slices_equal_spec as ⟨same, sameIff⟩
+      split <;> rename_i sameCondition
+      · simp only [WP.spec, WP.theta, WP.wp_return]
+        refine ⟨?_, fun impossible => by simp at impossible⟩
+        intro found foundEq
+        simp only [Option.some.injEq] at foundEq
+        subst foundEq
+        refine ⟨currentMember, ?_⟩
+        rw [← currentBytesEq, ← idBytesEq]
+        exact congrArg Subtype.val (sameIff.mp sameCondition)
+      · step as ⟨nextIndex, nextIndexPost⟩
+        constructor
+        · scalar_tac
+        · constructor
+          · intro prior priorInBounds priorBound
+            by_cases priorAtCurrent : prior = index.val
+            · subst prior
+              rw [← currentEq]
+              intro bytesEqual
+              apply sameCondition
+              apply sameIff.mpr
+              apply Subtype.ext
+              rw [currentBytesEq, idBytesEq]
+              exact bytesEqual
+            · exact prefixMissing' prior priorInBounds (by scalar_tac)
+          · scalar_tac
+    · simp only [WP.spec, WP.theta, WP.wp_return]
+      refine ⟨fun found impossible => by simp at impossible, ?_⟩
+      intro _ candidate member
+      obtain ⟨candidateIndex, candidateIndexBound, candidateAtIndex⟩ :=
+        List.getElem_of_mem member
+      have notWithin : ¬index.val < currentExtensions.val.length := by
+        simpa using withinBounds
+      rw [← candidateAtIndex]
+      exact prefixMissing' candidateIndex candidateIndexBound (by omega)
+  · exact ⟨rfl, rfl, by simp, fun index inBounds impossible => by simp at impossible⟩
+
+@[step] theorem critical_extension_entries_spec
+    (extensions : auths_model.CriticalExtensions) :
+    auths_model.critical_extension_entries extensions
+      ⦃ entries => entries.val = extensions.val ⦄ := by
+  unfold auths_model.critical_extension_entries
+  simp [WP.spec, WP.theta, WP.wp_return, alloc.vec.Vec.deref]
+
+@[step] theorem critical_extension_id_spec
+    (extension : auths_model.CriticalExtension) :
+    auths_model.critical_extension_id extension
+      ⦃ id => id = extension.id ⦄ := by
+  unfold auths_model.critical_extension_id
+  simp [WP.spec, WP.theta, WP.wp_return]
+
+@[step] theorem critical_extension_payload_spec
+    (extension : auths_model.CriticalExtension) :
+    auths_model.critical_extension_payload extension
+      ⦃ payload => payload.val = extension.bytes.val ⦄ := by
+  unfold auths_model.critical_extension_payload
+  simp [WP.spec, WP.theta, WP.wp_return, alloc.vec.Vec.deref]
+
+@[step] theorem parent_extension_retained_spec
+    {L : Type} (inst : auths_authority.auths_model.CriticalExtensionLaws L)
+    (laws : L) (law : ProductionExtensionLaw)
+    (refines : LawsRefine inst laws law)
+    (child : auths_model.CriticalExtensions)
+    (parentExtension : auths_model.CriticalExtension)
+    (childBounded : CriticalExtensionsBounded child)
+    (childDistinct : CriticalExtensionIdsDistinct child)
+    (parentIdBounded : StringBounded parentExtension.id) :
+    auths_authority.parent_extension_retained inst laws child parentExtension
+      ⦃ result => result ↔
+        extensionKeyRetained law (criticalExtensionsKey child)
+          (criticalExtensionKey parentExtension) ⦄ := by
+  unfold auths_authority.parent_extension_retained
+  simp only [auths_model.critical_extension_id, bind_tc_ok]
+  step with critical_extension_find_spec as ⟨found, foundPresent, foundAbsent⟩
+  rcases found with _ | childExtension
+  · simp only [WP.spec, WP.theta, WP.wp_return, Bool.false_eq_true, false_iff]
+    rintro ⟨key, keyMember, keyId, _⟩
+    obtain ⟨candidate, candidateMember, rfl⟩ := List.mem_map.mp keyMember
+    exact foundAbsent rfl candidate candidateMember keyId
+  · obtain ⟨childMember, childId⟩ := foundPresent childExtension rfl
+    step with critical_extension_payload_spec as ⟨childPayload, childPayloadEq⟩
+    step with critical_extension_payload_spec as ⟨parentPayload, parentPayloadEq⟩
+    rw [refines]
+    simp only [WP.spec, WP.theta, WP.wp_return]
+    constructor
+    · intro accepted
+      exact ⟨criticalExtensionKey childExtension,
+        List.mem_map.mpr ⟨childExtension, childMember, rfl⟩, childId,
+        by simpa [criticalExtensionKey, childPayloadEq, parentPayloadEq] using accepted⟩
+    · rintro ⟨key, keyMember, keyId, accepted⟩
+      obtain ⟨candidate, candidateMember, rfl⟩ := List.mem_map.mp keyMember
+      have same : candidate = childExtension :=
+        extension_unique_of_distinct childDistinct candidateMember childMember
+          (keyId.trans childId.symm)
+      subst same
+      simpa [criticalExtensionKey, childPayloadEq, parentPayloadEq] using accepted
+
+@[step] theorem child_extension_admitted_spec
+    {L : Type} (inst : auths_authority.auths_model.CriticalExtensionLaws L)
+    (laws : L) (law : ProductionExtensionLaw)
+    (refines : LawsRefine inst laws law)
+    (childExtension : auths_model.CriticalExtension)
+    (parent : auths_model.CriticalExtensions)
+    (parentBounded : CriticalExtensionsBounded parent)
+    (childIdBounded : StringBounded childExtension.id) :
+    auths_authority.child_extension_admitted inst laws childExtension parent
+      ⦃ result => result ↔
+        extensionKeyAdmitted law (criticalExtensionsKey parent)
+          (criticalExtensionKey childExtension) ⦄ := by
+  unfold auths_authority.child_extension_admitted
+  simp only [auths_model.critical_extension_id, bind_tc_ok]
+  step with critical_extension_find_spec as ⟨found, foundPresent, foundAbsent⟩
+  rcases found with _ | parentExtension
+  · step with critical_extension_payload_spec as ⟨childPayload, childPayloadEq⟩
+    rw [refines]
+    simp only [WP.spec, WP.theta, WP.wp_return]
+    constructor
+    · intro accepted
+      exact Or.inr (by simpa [criticalExtensionKey, childPayloadEq] using accepted)
+    · rintro (⟨key, keyMember, keyId⟩ | accepted)
+      · obtain ⟨candidate, candidateMember, rfl⟩ := List.mem_map.mp keyMember
+        exact absurd keyId (foundAbsent rfl candidate candidateMember)
+      · simpa [criticalExtensionKey, childPayloadEq] using accepted
+  · obtain ⟨parentMember, parentId⟩ := foundPresent parentExtension rfl
+    simp only [WP.spec, WP.theta, WP.wp_return, true_iff]
+    exact Or.inl ⟨criticalExtensionKey parentExtension,
+      List.mem_map.mpr ⟨parentExtension, parentMember, rfl⟩, parentId⟩
+
+@[step] theorem parent_extensions_retained_spec
+    {L : Type} (inst : auths_authority.auths_model.CriticalExtensionLaws L)
+    (laws : L) (law : ProductionExtensionLaw)
+    (refines : LawsRefine inst laws law)
+    (child parent : auths_model.CriticalExtensions)
+    (childBounded : CriticalExtensionsBounded child)
+    (childDistinct : CriticalExtensionIdsDistinct child)
+    (parentBounded : CriticalExtensionsBounded parent) :
+    auths_authority.parent_extensions_retained inst laws child parent
+      ⦃ result => result ↔
+        ∀ key ∈ criticalExtensionsKey parent,
+          extensionKeyRetained law (criticalExtensionsKey child) key ⦄ := by
+  unfold auths_authority.parent_extensions_retained
+  step with critical_extension_entries_spec as ⟨entries, entriesEq⟩
+  unfold auths_authority.parent_extensions_retained_loop
+  apply loop.spec_decr_nat
+    (measure := fun index => entries.val.length - index.val)
+    (inv := fun index =>
+      index.val ≤ entries.val.length ∧
+      ∀ position (inBounds : position < entries.val.length), position < index.val →
+        extensionKeyRetained law (criticalExtensionsKey child)
+          (criticalExtensionKey entries.val[position]))
+  · rintro index ⟨indexBound, prefixRetained⟩
+    unfold auths_authority.parent_extensions_retained_loop.body
+    dsimp only
+    split <;> rename_i withinBounds
+    · have indexWithin : index.val < entries.val.length := by
+        simpa using withinBounds
+      step as ⟨current, currentEq⟩
+      have currentMember : current ∈ parent.val := by
+        rw [← entriesEq, currentEq]
+        exact List.getElem_mem indexWithin
+      have currentBounded : StringBounded current.id :=
+        parentBounded current currentMember
+      step with parent_extension_retained_spec inst laws law refines as
+        ⟨retained, retainedIff⟩
+      split <;> rename_i retainedCondition
+      · step as ⟨nextIndex, nextIndexPost⟩
+        refine ⟨by scalar_tac, ?_, by scalar_tac⟩
+        intro prior priorInBounds priorBound
+        by_cases priorAtCurrent : prior = index.val
+        · subst prior
+          rw [← currentEq]
+          exact retainedIff.mp retainedCondition
+        · exact prefixRetained prior priorInBounds (by scalar_tac)
+      · simp only [WP.spec, WP.theta, WP.wp_return, Bool.false_eq_true, false_iff]
+        intro allRetained
+        exact retainedCondition (retainedIff.mpr (allRetained _
+          (List.mem_map.mpr ⟨current, currentMember, rfl⟩)))
+    · simp only [WP.spec, WP.theta, WP.wp_return, true_iff]
+      intro key keyMember
+      obtain ⟨candidate, candidateMember, rfl⟩ := List.mem_map.mp keyMember
+      rw [← entriesEq] at candidateMember
+      obtain ⟨position, positionBound, candidateAt⟩ :=
+        List.getElem_of_mem candidateMember
+      have notWithin : ¬index.val < entries.val.length := by
+        simpa using withinBounds
+      rw [← candidateAt]
+      exact prefixRetained position positionBound (by omega)
+  · exact ⟨by simp, fun position inBounds impossible => by simp at impossible⟩
+
+@[step] theorem child_extensions_admitted_spec
+    {L : Type} (inst : auths_authority.auths_model.CriticalExtensionLaws L)
+    (laws : L) (law : ProductionExtensionLaw)
+    (refines : LawsRefine inst laws law)
     (child parent : auths_model.CriticalExtensions)
     (childBounded : CriticalExtensionsBounded child)
     (parentBounded : CriticalExtensionsBounded parent) :
-    auths_model.critical_extensions_equal child parent
+    auths_authority.child_extensions_admitted inst laws child parent
       ⦃ result => result ↔
-        criticalExtensionsKey child = criticalExtensionsKey parent ⦄ := by
-  unfold auths_model.critical_extensions_equal
-  dsimp only
-  split <;> rename_i lengthCondition
-  · simp only [WP.spec, WP.theta, WP.wp_return, Bool.false_eq_true,
-      false_iff]
-    intro keysEqual
-    have rawLengthEqual : child.val.length = parent.val.length := by
-      simpa [criticalExtensionsKey] using congrArg List.length keysEqual
-    have vectorLengthEqual :
-        alloc.vec.Vec.len child = alloc.vec.Vec.len parent := by
-      scalar_tac
-    simp_all
-  · have lengthEqual : child.val.length = parent.val.length := by
-      simpa using lengthCondition
-    unfold auths_model.critical_extensions_equal_loop
-    apply loop.spec_decr_nat
-      (measure := fun index => child.val.length - index.val)
-      (inv := fun index =>
-        index.val ≤ child.val.length ∧
-        CriticalExtensionPrefixEqual child parent index.val)
-    · intro index
-      rintro ⟨indexBound, prefixEqual⟩
-      unfold auths_model.critical_extensions_equal_loop.body
-      dsimp only
-      split <;> rename_i withinBounds
-      · have childInBounds : index.val < child.val.length := by
-          simpa using withinBounds
-        have parentInBounds : index.val < parent.val.length := by
-          simpa [← lengthEqual] using childInBounds
-        step as ⟨childExtension, childExtensionEq⟩
-        step as ⟨parentExtension, parentExtensionEq⟩
-        have childExtensionMember : childExtension ∈ child.val := by
-          rw [childExtensionEq]
-          exact List.getElem_mem childInBounds
-        have parentExtensionMember : parentExtension ∈ parent.val := by
-          rw [parentExtensionEq]
-          exact List.getElem_mem parentInBounds
-        have childIdBounded : StringBounded childExtension.id :=
-          childBounded childExtension childExtensionMember
-        have parentIdBounded : StringBounded parentExtension.id :=
-          parentBounded parentExtension parentExtensionMember
-        step with string_as_bytes_spec as
-          ⟨childId, childIdBytes⟩
-        step with string_as_bytes_spec as
-          ⟨parentId, parentIdBytes⟩
-        step with byte_slices_equal_spec as ⟨idsEqual, idsIff⟩
-        split <;> rename_i idCondition
-        · step with byte_slices_equal_spec as
-            ⟨payloadsEqual, payloadsIff⟩
-          split <;> rename_i payloadCondition
-          · step as ⟨nextIndex, nextIndexPost⟩
-            constructor
-            · scalar_tac
-            · constructor
-              · intro prior priorChildIn priorParentIn priorBound
-                by_cases priorAtCurrent : prior = index.val
-                · subst prior
-                  rw [← childExtensionEq, ← parentExtensionEq]
-                  apply Prod.ext
-                  · simp only [criticalExtensionKey]
-                    rw [← childIdBytes, ← parentIdBytes]
-                    exact congrArg (fun slice : Slice Std.U8 => slice.val)
-                      (idsIff.mp idCondition)
-                  · simp only [criticalExtensionKey]
-                    exact congrArg (fun slice : Slice Std.U8 => slice.val)
-                      (payloadsIff.mp payloadCondition)
-                · exact prefixEqual prior priorChildIn priorParentIn
-                    (by scalar_tac)
-              · scalar_tac
-          · simp only [WP.spec, WP.theta, WP.wp_return,
-              Bool.false_eq_true, false_iff]
-            intro keysEqual
-            have currentEqual := congrArg
-              (fun values => values[index.val]?) keysEqual
-            simp [criticalExtensionsKey, criticalExtensionKey,
-              childInBounds, parentInBounds] at currentEqual
-            rw [← childExtensionEq, ← parentExtensionEq] at currentEqual
-            exact payloadCondition
-              (payloadsIff.mpr (Subtype.ext currentEqual.2))
-        · simp only [WP.spec, WP.theta, WP.wp_return,
-            Bool.false_eq_true, false_iff]
-          intro keysEqual
-          have currentEqual := congrArg
-            (fun values => values[index.val]?) keysEqual
-          simp [criticalExtensionsKey, criticalExtensionKey,
-            childInBounds, parentInBounds] at currentEqual
-          rw [← childExtensionEq, ← parentExtensionEq] at currentEqual
-          apply idCondition
-          apply idsIff.mpr
-          apply Subtype.ext
-          rw [childIdBytes, parentIdBytes]
-          exact currentEqual.1
-      · simp only [WP.spec, WP.theta, WP.wp_return]
-        have atEnd : index.val = child.val.length := by
-          have notWithin : ¬index.val < child.val.length := by
-            simpa using withinBounds
-          omega
-        constructor
-        · intro _
-          apply List.ext_get
-          · simpa [criticalExtensionsKey] using lengthEqual
-          · intro position childPosition parentPosition
-            have childRawPosition : position < child.val.length := by
-              simpa [criticalExtensionsKey] using childPosition
-            have parentRawPosition : position < parent.val.length := by
-              simpa [criticalExtensionsKey] using parentPosition
-            simpa [criticalExtensionsKey] using
-              prefixEqual position childRawPosition parentRawPosition
-                (by omega)
-        · intro
-          trivial
-    · constructor
-      · simp
-      · intro index childIn parentIn impossible
-        simp at impossible
+        ∀ key ∈ criticalExtensionsKey child,
+          extensionKeyAdmitted law (criticalExtensionsKey parent) key ⦄ := by
+  unfold auths_authority.child_extensions_admitted
+  step with critical_extension_entries_spec as ⟨entries, entriesEq⟩
+  unfold auths_authority.child_extensions_admitted_loop
+  apply loop.spec_decr_nat
+    (measure := fun index => entries.val.length - index.val)
+    (inv := fun index =>
+      index.val ≤ entries.val.length ∧
+      ∀ position (inBounds : position < entries.val.length), position < index.val →
+        extensionKeyAdmitted law (criticalExtensionsKey parent)
+          (criticalExtensionKey entries.val[position]))
+  · rintro index ⟨indexBound, prefixAdmitted⟩
+    unfold auths_authority.child_extensions_admitted_loop.body
+    dsimp only
+    split <;> rename_i withinBounds
+    · have indexWithin : index.val < entries.val.length := by
+        simpa using withinBounds
+      step as ⟨current, currentEq⟩
+      have currentMember : current ∈ child.val := by
+        rw [← entriesEq, currentEq]
+        exact List.getElem_mem indexWithin
+      have currentBounded : StringBounded current.id :=
+        childBounded current currentMember
+      step with child_extension_admitted_spec inst laws law refines as
+        ⟨admitted, admittedIff⟩
+      split <;> rename_i admittedCondition
+      · step as ⟨nextIndex, nextIndexPost⟩
+        refine ⟨by scalar_tac, ?_, by scalar_tac⟩
+        intro prior priorInBounds priorBound
+        by_cases priorAtCurrent : prior = index.val
+        · subst prior
+          rw [← currentEq]
+          exact admittedIff.mp admittedCondition
+        · exact prefixAdmitted prior priorInBounds (by scalar_tac)
+      · simp only [WP.spec, WP.theta, WP.wp_return, Bool.false_eq_true, false_iff]
+        intro allAdmitted
+        exact admittedCondition (admittedIff.mpr (allAdmitted _
+          (List.mem_map.mpr ⟨current, currentMember, rfl⟩)))
+    · simp only [WP.spec, WP.theta, WP.wp_return, true_iff]
+      intro key keyMember
+      obtain ⟨candidate, candidateMember, rfl⟩ := List.mem_map.mp keyMember
+      rw [← entriesEq] at candidateMember
+      obtain ⟨position, positionBound, candidateAt⟩ :=
+        List.getElem_of_mem candidateMember
+      have notWithin : ¬index.val < entries.val.length := by
+        simpa using withinBounds
+      rw [← candidateAt]
+      exact prefixAdmitted position positionBound (by omega)
+  · exact ⟨by simp, fun position inBounds impossible => by simp at impossible⟩
 
-def OptionalCriticalExtensionsAttenuate
+@[step] theorem critical_extensions_attenuate_spec
+    {L : Type} (inst : auths_authority.auths_model.CriticalExtensionLaws L)
+    (laws : L) (law : ProductionExtensionLaw)
+    (refines : LawsRefine inst laws law)
+    (child parent : auths_model.CriticalExtensions)
+    (childBounded : CriticalExtensionsBounded child)
+    (childDistinct : CriticalExtensionIdsDistinct child)
+    (parentBounded : CriticalExtensionsBounded parent) :
+    auths_authority.critical_extensions_attenuate inst laws child parent
+      ⦃ result => result ↔ CriticalExtensionsAttenuate law child parent ⦄ := by
+  unfold auths_authority.critical_extensions_attenuate
+  step with parent_extensions_retained_spec inst laws law refines as
+    ⟨retained, retainedIff⟩
+  split <;> rename_i retainedCondition
+  · step with child_extensions_admitted_spec inst laws law refines as
+      ⟨admitted, admittedIff⟩
+    rw [admittedIff]
+    exact ⟨fun admitted => ⟨retainedIff.mp retainedCondition, admitted⟩,
+      fun both => both.2⟩
+  · simp only [WP.spec, WP.theta, WP.wp_return, Bool.false_eq_true, false_iff]
+    exact fun both => retainedCondition (retainedIff.mpr both.1)
+
+def OptionalCriticalExtensionsAttenuate (law : ProductionExtensionLaw)
     (child : auths_model.CriticalExtensions)
     (parent : Option auths_model.CriticalExtensions) : Prop :=
   match parent with
   | none => True
-  | some parent =>
-      criticalExtensionsKey child = criticalExtensionsKey parent
-
-instance (child : auths_model.CriticalExtensions)
-    (parent : Option auths_model.CriticalExtensions) :
-    Decidable (OptionalCriticalExtensionsAttenuate child parent) := by
-  unfold OptionalCriticalExtensionsAttenuate
-  cases parent <;> simp <;> infer_instance
-
-@[step] theorem optional_critical_extensions_attenuate_spec
-    (child : auths_model.CriticalExtensions)
-    (parent : Option auths_model.CriticalExtensions)
-    (childBounded : CriticalExtensionsBounded child)
-    (parentBounded : ∀ extensions ∈ parent,
-      CriticalExtensionsBounded extensions) :
-    (match parent with
-     | none => ok true
-     | some parent => auths_model.critical_extensions_equal child parent)
-      ⦃ result => result ↔
-        OptionalCriticalExtensionsAttenuate child parent ⦄ := by
-  cases parentCase : parent with
-  | none =>
-      simp [OptionalCriticalExtensionsAttenuate,
-        WP.spec, WP.theta, WP.wp_return]
-  | some parentExtensions =>
-      apply spec_mono
-        (critical_extensions_equal_spec child parentExtensions childBounded
-          (parentBounded parentExtensions (by simp [parentCase])))
-      intro result resultIff
-      simpa [parentCase, OptionalCriticalExtensionsAttenuate] using resultIff
+  | some parent => CriticalExtensionsAttenuate law child parent
 
 /--
 The extensions dimension through its named helper.
 
 `auths_authority::extensions_attenuate` is the function the inline `match` in
 `evaluate_grant_view` became; aeneas cannot translate a branching expression in
-struct-field position. The semantics are unchanged, so this delegates to
-[`optional_critical_extensions_attenuate_spec`].
+struct-field position.
 -/
 @[step] theorem extensions_attenuate_spec
+    {L : Type} (inst : auths_authority.auths_model.CriticalExtensionLaws L)
+    (laws : L) (law : ProductionExtensionLaw)
+    (refines : LawsRefine inst laws law)
     (parent : Option auths_model.CriticalExtensions)
     (child : auths_model.CriticalExtensions)
     (childBounded : CriticalExtensionsBounded child)
+    (childDistinct : CriticalExtensionIdsDistinct child)
     (parentBounded : ∀ extensions ∈ parent,
       CriticalExtensionsBounded extensions) :
-    auths_authority.extensions_attenuate parent child
+    auths_authority.extensions_attenuate inst laws parent child
       ⦃ result => result ↔
-        OptionalCriticalExtensionsAttenuate child parent ⦄ := by
+        OptionalCriticalExtensionsAttenuate law child parent ⦄ := by
   unfold auths_authority.extensions_attenuate
-  exact optional_critical_extensions_attenuate_spec child parent childBounded parentBounded
+  cases parentCase : parent with
+  | none =>
+      simp [OptionalCriticalExtensionsAttenuate, WP.spec, WP.theta, WP.wp_return]
+  | some parentExtensions =>
+      apply spec_mono
+        (critical_extensions_attenuate_spec inst laws law refines child
+          parentExtensions childBounded childDistinct
+          (parentBounded parentExtensions (by simp [parentCase])))
+      intro result resultIff
+      simpa [OptionalCriticalExtensionsAttenuate] using resultIff
 
 theorem slice_eq_iff_val_eq {α : Type} (left right : Slice α) :
     left = right ↔ left.val = right.val :=
@@ -1354,15 +1586,39 @@ def richOptionalCriticalExtensions
     richOptionalCriticalExtensions (some value) canonical =
       some (richCriticalExtensions value (canonical value rfl)) := rfl
 
+/-- The production law the registered handlers declare, in rich form. -/
+abbrev productionLaw [Auths.Rich.ExtensionLaws ProductionVocabulary] :
+    ProductionExtensionLaw :=
+  Auths.Rich.ExtensionLaws.law (v := ProductionVocabulary)
+
+/-- Per-identifier attenuation of two translated sets is exactly the rich
+relation over their images. -/
+theorem extensions_attenuate_rich_iff
+    [Auths.Rich.ExtensionLaws ProductionVocabulary]
+    (child parent : auths_model.CriticalExtensions)
+    (childCanonical : CriticalExtensionsCanonical child)
+    (parentCanonical : CriticalExtensionsCanonical parent) :
+    Auths.Rich.extensionsAttenuate
+        (richCriticalExtensions child childCanonical)
+        (richCriticalExtensions parent parentCanonical) ↔
+      CriticalExtensionsAttenuate productionLaw child parent := by
+  simp only [Auths.Rich.extensionsAttenuate, Auths.Rich.extensionRetained,
+    Auths.Rich.extensionAdmitted, Auths.Rich.extensionLawAccepts,
+    CriticalExtensionsAttenuate, extensionKeyRetained, extensionKeyAdmitted,
+    richCriticalExtensions, richCriticalExtension, richCriticalExtensionOfKey,
+    criticalExtensionsKey, criticalExtensionKey, List.forall_mem_map,
+    List.mem_map, exists_exists_and_eq_and, forall_exists_index, and_imp,
+    forall_apply_eq_imp_iff₂, Auths.Rich.ExtensionId.mk.injEq, productionLaw,
+    Option.map_some, Option.map_none]
+
 /--
 The shipping kernel's optional extension gate is exactly the rich relation.
 
-This is what lets `Auths.Rich.evaluateGrant` own dimension 11 outright.  Before
-the rich model had an `extensions` field the delegation refinement had to wrap
-the rich decision in `extensionAwareDelegationDecision`, because the eleventh
-dimension lived only on the Rust side of the bridge.
+This is what lets `Auths.Rich.evaluateGrant` own dimension 11 outright: the
+kernel applies each identifier's law exactly as the rich model does.
 -/
 theorem extensions_le_rich_iff
+    [Auths.Rich.ExtensionLaws ProductionVocabulary]
     (child : auths_model.CriticalExtensions)
     (parent : Option auths_model.CriticalExtensions)
     (childCanonical : CriticalExtensionsCanonical child)
@@ -1370,12 +1626,14 @@ theorem extensions_le_rich_iff
     Auths.Rich.extensionsLe
         (some (richCriticalExtensions child childCanonical))
         (richOptionalCriticalExtensions parent parentCanonical) ↔
-      OptionalCriticalExtensionsAttenuate child parent := by
+      OptionalCriticalExtensionsAttenuate productionLaw child parent := by
   cases parent with
   | none =>
       simp [OptionalCriticalExtensionsAttenuate, Auths.Rich.extensionsLe]
   | some parentExtensions =>
-      simp [OptionalCriticalExtensionsAttenuate, Auths.Rich.extensionsLe]
+      simp only [richOptionalCriticalExtensions_some, Auths.Rich.extensionsLe,
+        OptionalCriticalExtensionsAttenuate]
+      exact extensions_attenuate_rich_iff child parentExtensions childCanonical _
 
 def richDigest (digest : auths_model.Digest) :
     Auths.Rich.Digest ProductionVocabulary :=
@@ -2279,6 +2537,7 @@ identity that terminal coverage requires.
   split <;> simp_all [WP.wp_return]
 
 def richAuthorScopeDecision
+    [Auths.Rich.ExtensionLaws ProductionVocabulary]
     (parent child : auths_model.ScopeAuthorityView)
     (parentValid : ScopeAuthorityViewValid parent)
     (childValid : ScopeAuthorityViewValid child) :
@@ -2324,14 +2583,19 @@ def richAuthorScopeDecision
 /--
 The mechanically translated shipping author-scope evaluator returns exactly
 the decision selected by the rich authority relations, including the first
-failing dimension.  Its only premises are validated Rust representation
-invariants; it assumes no semantic behavior from a Rust leaf predicate.
+failing dimension, for every registered set of critical-extension laws.  Its
+premises are validated Rust representation invariants and that the handler-law
+instance computes the laws the rich model is given; it assumes no semantic
+behavior from a Rust leaf predicate.
 -/
 theorem translated_rust_refines_rich_spec
+    {L : Type} (inst : auths_authority.auths_model.CriticalExtensionLaws L)
+    (laws : L) [Auths.Rich.ExtensionLaws ProductionVocabulary]
+    (refines : LawsRefine inst laws productionLaw)
     (parent child : auths_model.ScopeAuthorityView)
     (parentValid : ScopeAuthorityViewValid parent)
     (childValid : ScopeAuthorityViewValid child) :
-    auths_authority.evaluate_author_scope_view parent child
+    auths_authority.evaluate_author_scope_view inst parent child laws
       ⦃ result =>
         result = richAuthorScopeDecision
           parent child parentValid childValid ⦄ := by
@@ -2407,27 +2671,33 @@ theorem translated_rust_refines_rich_spec
                           richAssurance child.assurance_floor =
                             richAssurance parent.assurance_floor := by
                         simpa using assuranceIff.mp assuranceCondition
-                      step with critical_extensions_equal_spec as
+                      have childDistinct :
+                          CriticalExtensionIdsDistinct child.extensions :=
+                        childExtensionsCanonical.distinctIds
+                      step with critical_extensions_attenuate_spec inst laws
+                          productionLaw refines as
                         ⟨extensionsAccepted, extensionsIff⟩
-                      have extensionsRich :
-                          Auths.Rich.extensionsLe
-                            (some (richCriticalExtensions child.extensions
-                              childExtensionsCanonical))
-                            (some (richCriticalExtensions parent.extensions
-                              parentExtensionsCanonical)) ↔
-                            criticalExtensionsKey child.extensions =
-                              criticalExtensionsKey parent.extensions := by
-                        simp [Auths.Rich.extensionsLe]
+                      have extensionsRich :=
+                        extensions_attenuate_rich_iff child.extensions
+                          parent.extensions childExtensionsCanonical
+                          parentExtensionsCanonical
                       split <;> rename_i extensionsCondition
                       · have extensionsSemantic :
-                            criticalExtensionsKey child.extensions =
-                              criticalExtensionsKey parent.extensions :=
-                          extensionsIff.mp extensionsCondition
+                            Auths.Rich.extensionsLe
+                              (some (richCriticalExtensions child.extensions
+                                childExtensionsCanonical))
+                              (some (richCriticalExtensions parent.extensions
+                                parentExtensionsCanonical)) :=
+                          extensionsRich.mpr (extensionsIff.mp extensionsCondition)
                         simp_all
                       · have extensionsSemantic :
-                            criticalExtensionsKey child.extensions ≠
-                              criticalExtensionsKey parent.extensions :=
-                          extensionsIff.not.mp extensionsCondition
+                            ¬Auths.Rich.extensionsLe
+                              (some (richCriticalExtensions child.extensions
+                                childExtensionsCanonical))
+                              (some (richCriticalExtensions parent.extensions
+                                parentExtensionsCanonical)) := fun semantic =>
+                          extensionsCondition
+                            (extensionsIff.mpr (extensionsRich.mp semantic))
                         simp_all
                     · have assuranceSemantic :
                           richAssurance child.assurance_floor ≠
@@ -2684,13 +2954,16 @@ literal `true`.  Removing the wrapper is what makes this a refinement of eleven
 dimensions rather than of ten plus a patch.
 -/
 theorem translated_delegation_refines_rich_spec
+    {L : Type} (inst : auths_authority.auths_model.CriticalExtensionLaws L)
+    (laws : L) [Auths.Rich.ExtensionLaws ProductionVocabulary]
+    (refines : LawsRefine inst laws productionLaw)
     (parent : auths_authority.AuthorityStateView)
     (grantId : auths_model.GrantId)
     (grant : auths_model.GrantAuthorityView)
     (parentValid : AuthorityStateViewValid parent)
     (grantValid : GrantAuthorityViewValid grant)
  :
-    auths_authority.evaluate_grant_view parent grantId grant
+    auths_authority.evaluate_grant_view inst parent grantId grant laws
       ⦃ result =>
         result.outcome = productionDelegationOutcome
           (Auths.Rich.evaluateGrant
@@ -2707,6 +2980,8 @@ theorem translated_delegation_refines_rich_spec
     ⟨grantIssuer, grantSubject, grantProfile, grantPermissions,
       grantWindow, grantAudiences, grantBudget, grantStatus,
       grantAssurance, grantExtensions, grantExtensionsCanonical⟩
+  have grantDistinct : CriticalExtensionIdsDistinct grant.extensions :=
+    grantExtensionsCanonical.distinctIds
   -- The regenerated evaluator opens on the trust-root dimension and then the
   -- depth dimension, both as calls rather than inline expressions, so the
   -- binds are stepped through before the first branch.
@@ -2732,7 +3007,7 @@ theorem translated_delegation_refines_rich_spec
       ⟨statusAccepted, statusIff⟩
     step with assurance_policy_id_equal_rich_spec as
       ⟨assuranceAccepted, assuranceIff⟩
-    step with extensions_attenuate_spec as
+    step with extensions_attenuate_spec inst laws productionLaw refines as
       ⟨extensionsAccepted, extensionsIff⟩
     -- The first branch is the trust-root dimension. The issuer/subject identity
     -- used to be a separate `principal_id_equal` branch; `root_preserved`
@@ -2780,7 +3055,7 @@ theorem translated_delegation_refines_rich_spec
                 (richStatus parent.status_policy parentStatus) ∧
               stringBytes grant.assurance_floor =
                 stringBytes parent.assurance_policy ∧
-              OptionalCriticalExtensionsAttenuate
+              OptionalCriticalExtensionsAttenuate productionLaw
                 grant.extensions parent.extensions) := by
           rintro ⟨depth, profile, permissions, validityStart,
             validityEnd, audiences, constraint, budget, status,

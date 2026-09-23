@@ -6,9 +6,9 @@ or contradictory identifier appears. No parser, adapter, or algorithm
 fallback is permitted.
 
 The complete executable target-V1 set is bound by the pinned manifest
-`34` repeated 32 times. The set grew by the `observation-requirement-v1`
-critical extension; a context carrying the earlier `33` manifest, or any other
-manifest, is denied before pluggable verification. Every implementation declares a conservative maximum
+`35` repeated 32 times. The set gained per-extension attenuation laws; a
+context carrying the earlier `34` manifest, or any other manifest, is denied
+before pluggable verification. Every implementation declares a conservative maximum
 work cost that is reserved before invocation.
 
 ## Pure semantic registries
@@ -18,8 +18,8 @@ work cost that is reserved before invocation.
 | Resource matcher | `uri-namespace-v1` | Exact URI namespace boundary matching |
 | Profile policy | `exact-v1` | Effect-free acceptance of already validated canonical action facts |
 | Budget algebra | `numeric-ceiling-v1` | Exact-algebra attenuation and coverage using unsigned `<=` |
-| Critical extension | `exact-marker-v1` | Requires the exact byte string `h'01'` and otherwise changes no authority |
-| Critical extension | `observation-requirement-v1` | Bytes are canonical `observation-requirements`; the observation stage evaluates those carried by grants, and one on an action has no effect |
+| Critical extension | `exact-marker-v1` | Requires the exact byte string `h'01'` and otherwise changes no authority. Attenuation law: byte equality; adding it is refused |
+| Critical extension | `observation-requirement-v1` | Bytes are canonical `observation-requirements`; the observation stage evaluates those carried by grants, and one on an action has no effect. Attenuation law: every parent requirement kept byte-identical or strictly narrowed; the child may add requirements, and adding the extension is accepted |
 | Principal status | `auths-principal-status-v1` | Trusted issuer, method, floor, freshness, and revoked-dominant latest selection |
 | Grant status | `auths-grant-status-v1` | Same selection rules as principal status |
 
@@ -124,6 +124,23 @@ signed-byte validation, work reservation, and portable interoperability.
 Unknown critical extensions are denied. New attenuation or composition
 semantics require a protocol review, an executable model, and a new manifest.
 
+### Attenuation laws
+
+Every handler declares an attenuation law over an optional child payload and
+an optional parent payload. When a grant delegates from a parent grant, the
+authority kernel requires:
+
+1. every parent identifier to be present in the child, with a payload its law
+   accepts against the parent's;
+2. every identifier only the child carries to be accepted by its law with an
+   absent parent payload;
+3. an identifier without an accepted handler to be refused.
+
+Any failure is `delegation-expanded`. The first grant under a trust anchor
+selects its extensions freely. Work is reserved before evaluation as the sum
+of each present payload's handler bound. Each law must be a preorder that
+narrows; the assurance manifest records the proof for each registered law.
+
 ### Observation requirements
 
 `observation-requirement-v1` is carried by grants. Its bytes are the
@@ -153,10 +170,16 @@ as for every critical-extension handler. Evaluation needs the action, the
 attachments, and the trusted context that a handler never sees, so it runs
 in the verifier's observation stage.
 
-A child grant must keep every parent requirement byte-identical. The
-authority kernel also requires a child's complete critical-extension set to
-equal its parent's, so requirements are chosen by the first grant under a
-trust anchor and carried unchanged down the chain.
+A child grant keeps every parent requirement byte-identical or strictly
+narrowed, and may add requirements. A requirement is narrowed when it has the
+same observer anchor, schema, and subject, a maximum age no larger, and a
+superset of the parent's condition atoms (compared by canonical encoding),
+with the age or the atom set strictly narrower. A parent requirement that no
+child requirement addresses with the same schema and subject is
+`observation-requirement-dropped`; one that is addressed but not kept or
+narrowed is `delegation-expanded`. Adding the extension to a grant whose
+parent has none is accepted. The stage evaluates the distinct requirements of
+every grant in the chain, at most 32.
 
 Signed observations travel as detached attachments whose descriptors carry
 the media type `application/vnd.auths.observation.v1+cbor`. Each is at most

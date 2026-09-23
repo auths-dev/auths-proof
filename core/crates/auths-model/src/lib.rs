@@ -1096,30 +1096,55 @@ impl CriticalExtensions {
     }
 }
 
-/// Exact target-V1 critical-extension delegation relation.
+/// Attenuation laws declared by the registered critical-extension handlers.
 ///
-/// Until an extension-specific attenuation algebra is defined, a child grant
-/// must preserve the parent's complete canonical extension set byte for byte.
+/// `attenuates(id, child, parent)` reports whether the child's payload for
+/// `id` is no wider than the parent's. `None` means the extension is absent
+/// on that side. An identifier without a registered handler has no law, so
+/// its answer must be `false`. Every law must be a preorder that narrows:
+/// reflexive, transitive, and accepting a pair only when every action the
+/// child's payload admits is also admitted by the parent's.
+pub trait CriticalExtensionLaws {
+    /// Applies the law of `id` to one child/parent payload pair.
+    fn attenuates(&self, id: &ExtensionId, child: Option<&[u8]>, parent: Option<&[u8]>) -> bool;
+}
+
+/// The extension carrying `id`, if the canonical set has one.
 #[doc(hidden)]
 #[must_use]
-pub fn critical_extensions_equal(child: &CriticalExtensions, parent: &CriticalExtensions) -> bool {
-    if child.0.len() != parent.0.len() {
-        return false;
-    }
+pub fn critical_extension_find<'a>(
+    extensions: &'a CriticalExtensions,
+    id: &ExtensionId,
+) -> Option<&'a CriticalExtension> {
     let mut index = 0;
-    while index < child.0.len() {
-        let child_extension = &child.0[index];
-        let parent_extension = &parent.0[index];
-        if !byte_slices_equal(
-            child_extension.id.0.as_bytes(),
-            parent_extension.id.0.as_bytes(),
-        ) || !byte_slices_equal(&child_extension.bytes, &parent_extension.bytes)
-        {
-            return false;
+    while index < extensions.0.len() {
+        if byte_slices_equal(extensions.0[index].id.0.as_bytes(), id.0.as_bytes()) {
+            return Some(&extensions.0[index]);
         }
         index += 1;
     }
-    true
+    None
+}
+
+/// The canonical entries of a critical-extension set, in identifier order.
+#[doc(hidden)]
+#[must_use]
+pub fn critical_extension_entries(extensions: &CriticalExtensions) -> &[CriticalExtension] {
+    &extensions.0
+}
+
+/// Identifier of one critical extension.
+#[doc(hidden)]
+#[must_use]
+pub fn critical_extension_id(extension: &CriticalExtension) -> &ExtensionId {
+    &extension.id
+}
+
+/// Payload bytes of one critical extension.
+#[doc(hidden)]
+#[must_use]
+pub fn critical_extension_payload(extension: &CriticalExtension) -> &[u8] {
+    &extension.bytes
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -4971,26 +4996,36 @@ mod tests {
         }
     }
 
-    fn extensions(bytes: &[u8]) -> CriticalExtensions {
-        CriticalExtensions::new(vec![
+    #[test]
+    fn critical_extension_lookup_is_exact_by_identifier() {
+        let set = CriticalExtensions::new(vec![
             CriticalExtension::new(
-                ExtensionId::parse("exact-marker-v1").expect("extension id"),
-                bytes.to_vec(),
+                ExtensionId::parse("b-extension-v1").expect("extension id"),
+                vec![2],
+            )
+            .expect("extension"),
+            CriticalExtension::new(
+                ExtensionId::parse("a-extension-v1").expect("extension id"),
+                vec![1],
             )
             .expect("extension"),
         ])
-        .expect("extensions")
-    }
-
-    #[test]
-    fn critical_extension_attenuation_is_exact_canonical_equality() {
-        let parent = extensions(&[1]);
-        assert!(critical_extensions_equal(&extensions(&[1]), &parent));
-        assert!(!critical_extensions_equal(&extensions(&[2]), &parent));
-        assert!(!critical_extensions_equal(
-            &CriticalExtensions::empty(),
-            &parent
-        ));
+        .expect("extensions");
+        let found = critical_extension_find(
+            &set,
+            &ExtensionId::parse("b-extension-v1").expect("extension id"),
+        )
+        .expect("present identifier");
+        assert_eq!(critical_extension_payload(found), [2]);
+        assert_eq!(critical_extension_id(found).as_str(), "b-extension-v1");
+        assert!(
+            critical_extension_find(
+                &set,
+                &ExtensionId::parse("c-extension-v1").expect("extension id")
+            )
+            .is_none()
+        );
+        assert_eq!(critical_extension_entries(&set).len(), 2);
     }
 
     #[test]

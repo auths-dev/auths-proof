@@ -58,6 +58,16 @@ open Auths.Rich
   extensionBodyLinearOrder := inferInstance
   extensionBodySize := fun _ => 0
 
+/-- Byte equality for every identifier, refused when added; no payload
+constrains the world. -/
+instance : ExtensionLaws natVocabulary where
+  World := Unit
+  law _ child parent :=
+    match child, parent with
+    | some child, some parent => decide (child = parent)
+    | _, _ => false
+  admits _ _ _ := True
+
 abbrev V := natVocabulary
 
 private def window (start finish : Nat) (h : start ≤ finish := by decide) :
@@ -313,7 +323,9 @@ theorem grant_linkage_equality :
 
 /-! ## Critical extensions -/
 
-theorem critical_extension_equality :
+/-- `critical-extension-law`: accepting a child payload without applying its
+identifier's law lets a delegate change a pinned constraint. -/
+theorem critical_extension_law :
     evaluateAuthorScope
       { baseScope with extensions := some (singletonExtension 0 0) }
       { baseScope with extensions := some (singletonExtension 0 1) }

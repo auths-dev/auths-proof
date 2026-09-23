@@ -17,5 +17,8 @@ auths-authority.workspace = true
 auths-codec.workspace = true
 auths-model.workspace = true
 
+[dev-dependencies]
+auths-registries.workspace = true
+
 [lints]
 workspace = true

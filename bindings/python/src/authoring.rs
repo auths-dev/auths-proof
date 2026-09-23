@@ -334,8 +334,12 @@ fn plan_child(
         return Err(PyTypeError::new_err("parent must be a signed grant"));
     };
     Ok(PyGrantPlan {
-        inner: plan_child_grant(parent.statement(), request.scope.request())
-            .map_err(value_error)?,
+        inner: plan_child_grant(
+            parent.statement(),
+            request.scope.request(),
+            &core_extension_laws()?,
+        )
+        .map_err(value_error)?,
     })
 }
 
@@ -348,7 +352,8 @@ fn plan_child_statement(
         return Err(PyTypeError::new_err("parent must be an unsigned grant"));
     };
     Ok(PyGrantPlan {
-        inner: plan_child_grant(parent, request.scope.request()).map_err(value_error)?,
+        inner: plan_child_grant(parent, request.scope.request(), &core_extension_laws()?)
+            .map_err(value_error)?,
     })
 }
 
@@ -1554,6 +1559,14 @@ fn array32(value: &[u8], label: &str) -> PyResult<[u8; 32]> {
     value
         .try_into()
         .map_err(|_| crate::errors::malformed_input(format!("{label} must contain 32 bytes")))
+}
+
+/// Attenuation laws of the target V1 core critical-extension handlers, which
+/// the native verifier this binding ships runs.
+pub(crate) fn core_extension_laws() -> PyResult<auths_registries::CoreExtensionLaws> {
+    auths_registries::CoreExtensionLaws::target_v1().map_err(|error| {
+        crate::errors::boundary_error(crate::errors::Boundary::RuntimeUnavailable, error)
+    })
 }
 
 pub(crate) fn value_error(error: impl std::fmt::Display) -> PyErr {

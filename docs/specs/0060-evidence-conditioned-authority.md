@@ -4,9 +4,12 @@
   #133, and the gateway observer. The client observation requests are in
   #134. Step 5 (live) is open. §15 (SDK attachment and the Rust–Lean link)
   is implemented in draft PR #144, with the readings in §15.4; its
-  hosted gate is that PR's CI. §16 and §17 (the observer quorum and
-  per-extension attenuation) are specified and not implemented; both are
-  wire changes.
+  hosted gate is that PR's CI. §17 (per-extension attenuation) is
+  implemented (AP-SPEC-057 Epic 5, step 1, PR #141) for the
+  `exact-marker-v1` and `observation-requirement-v1` laws, with the
+  readings in §18; the `bounded-policy-commitment-v1` law lands with
+  AP-SPEC-025 §24. §16 (the observer quorum) is specified and not
+  implemented; it is a wire change.
 - **Depends on:** [AP-SPEC-011](0011-rich-authority-refinement-and-bounded-authorization.md)
   (rich authority model and Rust–Lean link),
   [AP-SPEC-059](0059-commitment-bound-provider-evidence.md) (the outcomes the
@@ -357,8 +360,8 @@ The executable contract is `core/spec/v1/` and the canonical corpus.
 
 | # | Spec text | Kernel fact | Reading fixed |
 |---|---|---|---|
-| 1 | §4.3: a child "MAY add more" requirements | The authority kernel's critical-extension dimension is equality: a child's complete extension set must equal its parent's (`critical_extensions_equal`, mechanically translated). Requirements live in one extension, so any change to the list changes its bytes. | Requirements are chosen by the first grant under a trust anchor and carried unchanged down the chain. Dropping or altering a parent requirement is denied before the kernel runs, with `observation-requirement-dropped`; a child that keeps every parent requirement and adds one is denied by the kernel with `delegation-expanded` (vector `observation-requirement-added`). Equality is a special case of the superset premise of `child_requirements_superset_attenuates`, so the attenuation claim holds. Allowing additions needs an extension-specific attenuation algebra in the kernel and a new manifest. |
-| 2 | §4.2: at most 32 requirements per chain | With reading 1, a chain carries at most one grant's eight distinct requirements. | The stage deduplicates requirements byte-exactly across the chain and still enforces 32; the bound is unreachable today, so it has no corpus vector. |
+| 1 | §4.3: a child "MAY add more" requirements | *Superseded by §17.* The kernel's extension dimension was equality, so requirements were carried unchanged and an added requirement was `delegation-expanded`. | **Superseded by §17 and §18.** The kernel now judges each extension identifier by its handler's law: a child keeps every parent requirement byte-identical or strictly narrowed and may add requirements (vector `observation-requirement-added`). |
+| 2 | §4.2: at most 32 requirements per chain | Since §17, each delegate may add up to eight requirements, so a chain of five grants can exceed 32. | The stage deduplicates requirements byte-exactly across the chain and enforces 32 with `resource-limit-exceeded`. A native test pins 32 accepted and 33 denied over five grants; the corpus shapes carry at most two grants, so the bound has no corpus vector. |
 | 3 | Codes `observation.condition-false`, `observation.missing`, `observation.action-fact-unavailable`, `observation.observer-in-authority-chain`, `authority.observation-requirement-dropped` | Stable V1 codes are flat kebab-case strings without a namespace. | `observation-condition-false`, `observation-missing`, `observation-action-fact-unavailable`, `observer-in-authority-chain`, and `observation-requirement-dropped`. |
 | 4 | §3.1: own domain separator `"auths.observation-statement/1"` | Every signed object uses the `AUTHS` preimage with a registered numeric object type. | Observations are signed under object type 9 with an empty profile ID and version zero; requirement content identifiers use identifier type 11. |
 | 5 | §3.1: a signed observation is the statement plus a signature | Every registered principal method needs control evidence to establish the verification key. | `signed-observation` also carries at most four evidence objects, the observer's own control evidence. The method verifies with purpose assertion and must consume exactly that evidence. |
@@ -655,4 +658,21 @@ semantics change. Fixtures cover:
 **Acceptance:** Rust, Go, and TypeScript agree on every vector; the formal
 gate passes with the revised dimension; and §13 reading 1 is superseded. A
 delegate can now add observation requirements.
+
+## 18. Readings fixed while implementing §17
+
+Each reading is the narrowest fail-closed choice that keeps §17's claim.
+
+| # | Spec text | Reading fixed |
+|---|---|---|
+| 1 | §17.1: `attenuates(child_bytes: Option, parent_bytes)` | The kernel port is `auths_model::CriticalExtensionLaws::attenuates(id, child: Option<&[u8]>, parent: Option<&[u8]>) -> bool`, and every handler declares `CriticalExtensionHandler::attenuates(child, parent) -> Result<bool, _>`. The kernel checks parent-identifier presence itself and consults a law only for a payload the child carries: with the parent's payload, or with `None` when only the child carries the identifier. A handler failure (malformed or over-limit bytes) is a refusal. |
+| 2 | §17.1: "an identifier without a registered handler is denied" | The verifier's laws are those of the handlers the trusted context accepts; an identifier without an accepted handler has no law and the edge is `delegation-expanded`. Pre-signing planning (`plan_child_grant`) takes the laws as an argument; the bindings pass the target-V1 core laws. |
+| 3 | §17.2: marker "byte equality; adding it is refused" | `exact-marker-v1` accepts `(Some c, Some p)` exactly when `c == p`, and refuses `(Some, None)`. |
+| 4 | §17.2: requirement "byte-identical or narrowed", "at least one strictly narrower" | Covering is byte identity, or: the same observer anchor, schema, and subject; a maximum age no larger; a superset of the parent's condition atoms, where an atom is compared by its canonical encoding; and a strictly smaller age or a strict superset. A reordered condition list is neither, so it is refused (vector `observation-requirement-conditions-reordered`). |
+| 5 | §17.2: "quorum greater than or equal; observers a subset" | §16 is not implemented, so a requirement names one observer anchor and has an implicit quorum of one. "Observers a subset" is anchor equality and "quorum no smaller" holds trivially. When §16 lands, its `observers` and `quorum` fields join the law under §17's text. |
+| 6 | §17.4: widening is `delegation-expanded`; §4.3 already names `observation-requirement-dropped` | A parent requirement is *dropped* when no child requirement addresses it with the same schema and subject; the verifier denies that before the kernel with `observation-requirement-dropped`. A child requirement that addresses it without covering it (a larger age, a missing or changed atom, another observer) reaches the kernel, whose law denies the edge as `delegation-expanded`. |
+| 7 | §17.4: "the registry manifest changes" | The manifest is `35` repeated 32 times. Each core handler's configuration commitment also names its attenuation law, so the verifier configuration identifier changes with it. |
+| 8 | §17.3: "a per-identifier preorder … given each law is a preorder that narrows" | The rich Lean model takes the registered laws as a class `ExtensionLaws v` (law, and the worlds a payload admits) and the premise `ExtensionLawsNarrow v`. `delegate_never_widens_authority` and `chain_never_widens_authority` prove that no accepted edge or chain admits an authorization fact, including every extension payload, that its start refuses. The refinement theorems hold for every law the translated handler-law instance computes (premise `LawsRefine`). |
+| 9 | §17.3: discharge for the marker and observation requirements | `exact_marker_law_lawful` and `observation_requirement_law_lawful` prove each law a narrowing preorder over decoded payloads. The observation discharge uses `requirements_monotone`'s argument extended with `fresh_monotone_max_age`, not §16.4's theorems, which do not exist yet. That the byte-level handler agrees with the decoded law rests on the canonical codec, recorded as a residual assumption. |
+| 10 | §17.3: "re-qualified with Aeneas" | The kernel predicates (`critical_extensions_attenuate`, the retained and admitted loops, and `extensions_attenuate`) are in `auths-authority`, generic over the laws, and translated by the pinned Charon/Aeneas route; their model leaves (`critical_extension_find`, `_entries`, `_id`, `_payload`) and the observation law predicates are translated in `auths-model`. The requirement-law predicates are qualified and exercised natively; their Lean link to the abstract law is §15.2's work. |
 

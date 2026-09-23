@@ -16,9 +16,9 @@ mod refinement {
         VerifierLimits, action_constraint_allows, action_constraint_attenuates,
         assurance_policy_id_equal, audience_set_contains, audience_set_is_subset,
         body_digest_set_contains, body_digest_set_is_subset, budget_ceiling_attenuates,
-        critical_extensions_equal, inclusive_window_contains, optional_budget_attenuates,
-        optional_budget_covers, optional_grant_id_equal, permission_set_contains,
-        permission_set_is_subset, principal_id_equal, profile_ref_equal, status_policy_attenuates,
+        inclusive_window_contains, optional_budget_attenuates, optional_budget_covers,
+        optional_grant_id_equal, permission_set_contains, permission_set_is_subset,
+        principal_id_equal, profile_ref_equal, status_policy_attenuates,
     };
     use serde::Deserialize;
     use std::collections::{BTreeMap, BTreeSet};
@@ -456,20 +456,6 @@ mod refinement {
                 let mutant = true;
                 Some(!canonical && mutant)
             }
-            "critical-extension-equality" => {
-                let extension_id = ExtensionId::parse("exact-marker-v1").expect("extension id");
-                let child = CriticalExtensions::new(vec![
-                    CriticalExtension::new(extension_id.clone(), vec![1]).expect("child extension"),
-                ])
-                .expect("child extensions");
-                let parent = CriticalExtensions::new(vec![
-                    CriticalExtension::new(extension_id, vec![2]).expect("parent extension"),
-                ])
-                .expect("parent extensions");
-                let canonical = critical_extensions_equal(&child, &parent);
-                let mutant = true;
-                Some(!canonical && mutant)
-            }
             "delegation-depth-strictness" => {
                 let profile = profile("profile-v1", 1);
                 let permissions =
@@ -497,7 +483,8 @@ mod refinement {
                     remaining_depth: 2,
                     ..parent
                 };
-                let canonical = evaluate_author_scope_view(parent, child);
+                let laws = auths_registries::CoreExtensionLaws::target_v1().expect("core laws");
+                let canonical = evaluate_author_scope_view(parent, child, &laws);
                 let mutant = AuthorScopeDecision::Accepted;
                 Some(
                     canonical == AuthorScopeDecision::Denied(AuthorityDimension::DelegationDepth)
@@ -522,10 +509,67 @@ mod refinement {
         }
     }
 
+    fn critical_extension_mutation_is_killed(id: &str) -> Option<bool> {
+        match id {
+            "critical-extension-law" => {
+                let laws = auths_registries::CoreExtensionLaws::target_v1().expect("core laws");
+                let extensions = |id: &str, byte: u8| {
+                    CriticalExtensions::new(vec![
+                        CriticalExtension::new(
+                            ExtensionId::parse(id).expect("extension id"),
+                            vec![byte],
+                        )
+                        .expect("extension"),
+                    ])
+                    .expect("extensions")
+                };
+                let profile = profile("profile-v1", 1);
+                let permissions =
+                    PermissionSet::new(vec![permission("read")]).expect("permissions");
+                let validity =
+                    ValidityWindow::new(Timestamp::new(0), Timestamp::new(100)).expect("validity");
+                let audiences = AudienceSet::new(vec![audience("one")]).expect("audiences");
+                let constraint = ActionConstraint::AnyBody;
+                let status = StatusPolicy::ExpiryOnly;
+                let assurance = AssurancePolicyId::parse("assurance-v1").expect("assurance");
+                let marked = extensions("exact-marker-v1", 2);
+                let parent = ScopeAuthorityView {
+                    profile: &profile,
+                    permissions: &permissions,
+                    validity,
+                    audiences: &audiences,
+                    action_constraint: &constraint,
+                    budget_ceiling: None,
+                    remaining_depth: 2,
+                    status_policy: &status,
+                    assurance_floor: &assurance,
+                    extensions: &marked,
+                };
+                let changed = extensions("exact-marker-v1", 1);
+                let dropped = CriticalExtensions::empty();
+                let refused = [&changed, &dropped].into_iter().all(|extensions| {
+                    evaluate_author_scope_view(
+                        parent,
+                        ScopeAuthorityView {
+                            remaining_depth: 1,
+                            extensions,
+                            ..parent
+                        },
+                        &laws,
+                    ) == AuthorScopeDecision::Denied(AuthorityDimension::Extensions)
+                });
+                let mutant = true;
+                Some(refused && mutant)
+            }
+            _ => None,
+        }
+    }
+
     fn required_mutation_is_killed(id: &str) -> bool {
         containment_mutation_is_killed(id)
             .or_else(|| constraint_mutation_is_killed(id))
             .or_else(|| policy_and_linkage_mutation_is_killed(id))
+            .or_else(|| critical_extension_mutation_is_killed(id))
             .unwrap_or(false)
     }
 

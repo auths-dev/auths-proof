@@ -81,6 +81,16 @@ def natVocabulary : Rich.Vocabulary where
   extensionBodyLinearOrder := inferInstance
   extensionBodySize := fun _ => 0
 
+/-- Byte equality for every identifier, refused when added; no payload
+constrains the world. -/
+instance : Rich.ExtensionLaws natVocabulary where
+  World := Unit
+  law _ child parent :=
+    match child, parent with
+    | some child, some parent => @decide (child = parent) (Nat.decEq child parent)
+    | _, _ => false
+  admits _ _ _ := True
+
 def natArrayCode (values : List Nat) : String :=
   "[" ++ String.intercalate "," (values.map toString) ++ "]"
 
