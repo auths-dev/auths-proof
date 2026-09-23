@@ -484,8 +484,11 @@ func chainRequirements(chain []*signedGrant) ([]observationRequirement, error) {
 	return requirements, nil
 }
 
-// requireParentRequirements denies a child grant that drops or alters any of
-// its parent's observation requirements.
+// requireParentRequirements denies a child grant that drops a parent's
+// observation requirement: no child requirement addresses it with the same
+// schema and subject. A child requirement that addresses it without keeping
+// or narrowing it is left to the delegation relation, which denies it as
+// expanded.
 func requireParentRequirements(parent, child *signedGrant) error {
 	parentRequirements, err := chainRequirements([]*signedGrant{parent})
 	if err != nil {
@@ -493,15 +496,87 @@ func requireParentRequirements(parent, child *signedGrant) error {
 	}
 	childRequirements, _ := chainRequirements([]*signedGrant{child})
 	for _, requirement := range parentRequirements {
-		kept := false
+		addressed := false
 		for _, candidate := range childRequirements {
-			kept = kept || bytes.Equal(candidate.raw, requirement.raw)
+			addressed = addressed || (candidate.schema == requirement.schema &&
+				candidate.subjectKind == requirement.subjectKind &&
+				candidate.subject == requirement.subject)
 		}
-		if !kept {
+		if !addressed {
 			return denied("observation-requirement-dropped")
 		}
 	}
 	return nil
+}
+
+func conditionEqual(left, right observationCondition) bool {
+	if left.name != right.name || left.tag != right.tag {
+		return false
+	}
+	switch left.tag {
+	case conditionEqLiteral:
+		return left.literal.equal(right.literal)
+	case conditionEqAction:
+		return left.action == right.action
+	case conditionUintRange:
+		return left.lo == right.lo && left.hi == right.hi
+	default:
+		if len(left.members) != len(right.members) {
+			return false
+		}
+		for index := range left.members {
+			if !left.members[index].equal(right.members[index]) {
+				return false
+			}
+		}
+		return true
+	}
+}
+
+// conditionsInclude reports whether every atom of wider occurs in narrower.
+func conditionsInclude(narrower, wider []observationCondition) bool {
+	for _, condition := range wider {
+		found := false
+		for _, candidate := range narrower {
+			found = found || conditionEqual(candidate, condition)
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+// requirementCovers reports whether child keeps parent byte-identical or
+// strictly narrows it: the same observer, schema, and subject; a maximum age
+// no larger; a superset of condition atoms; and the age or the atom set
+// strictly narrower.
+func requirementCovers(child, parent observationRequirement) bool {
+	if bytes.Equal(child.raw, parent.raw) {
+		return true
+	}
+	if child.anchor != parent.anchor || child.schema != parent.schema ||
+		child.subjectKind != parent.subjectKind || child.subject != parent.subject ||
+		child.maxAge > parent.maxAge || !conditionsInclude(child.conditions, parent.conditions) {
+		return false
+	}
+	return child.maxAge < parent.maxAge || !conditionsInclude(parent.conditions, child.conditions)
+}
+
+// requirementsAttenuate is the observation-requirement-v1 law when both
+// grants carry the extension: every parent requirement is covered by some
+// child requirement.
+func requirementsAttenuate(child, parent []observationRequirement) bool {
+	for _, requirement := range parent {
+		covered := false
+		for _, candidate := range child {
+			covered = covered || requirementCovers(candidate, requirement)
+		}
+		if !covered {
+			return false
+		}
+	}
+	return true
 }
 
 type observationStage struct {

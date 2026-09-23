@@ -83,6 +83,7 @@ fn write_authoring_vectors(
     let plan = auths_author::plan_child_grant(
         &parent,
         auths_author::GrantRequest::from_proposed_statement(proposed),
+        &auths_registries::CoreExtensionLaws::target_v1()?,
     )?;
     let signed_action = bundle
         .actions()
@@ -366,6 +367,7 @@ fn write_mcp_workflow_vectors(output: &std::path::Path) -> Result<(), Box<dyn st
             auths_model::AssurancePolicyId::parse("raw-key-baseline")?,
             auths_model::CriticalExtensions::empty(),
         ),
+        &auths_registries::CoreExtensionLaws::target_v1()?,
     )?;
     let child_diff = child_plan.diff().clone();
     let child_signing = auths_author::prepare_grant(child_plan.into_statement(), actor_signature)?;
