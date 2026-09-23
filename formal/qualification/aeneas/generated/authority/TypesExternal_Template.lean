@@ -27,6 +27,13 @@ axiom auths_model.AssurancePolicyId : Type
 @[rust_type "auths_model::Audience"]
 axiom auths_model.Audience : Type
 
+/-- [auths_model::ExtensionId]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 122:8-122:33
+    Name pattern: [auths_model::ExtensionId]
+    Visibility: public -/
+@[rust_type "auths_model::ExtensionId"]
+axiom auths_model.ExtensionId : Type
+
 /-- [auths_model::PrincipalId]
     Source: 'core/crates/auths-model/src/lib.rs', lines 153:0-153:22
     Name pattern: [auths_model::PrincipalId]
@@ -110,6 +117,13 @@ axiom auths_model.ProfileBudgetExpression : Type
     Visibility: public -/
 @[rust_type "auths_model::StatusPolicy"]
 axiom auths_model.StatusPolicy : Type
+
+/-- [auths_model::CriticalExtension]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1033:0-1033:28
+    Name pattern: [auths_model::CriticalExtension]
+    Visibility: public -/
+@[rust_type "auths_model::CriticalExtension"]
+axiom auths_model.CriticalExtension : Type
 
 /-- [auths_model::CriticalExtensions]
     Source: 'core/crates/auths-model/src/lib.rs', lines 1064:0-1064:29

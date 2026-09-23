@@ -116,10 +116,10 @@
       "lean_declaration": "Auths.Rich.Mutations.assurance_equality"
     },
     {
-      "id": "critical-extension-equality",
-      "operator": "Ignore changes to a critical extension payload.",
-      "witness": "Target V1 requires the complete canonical critical-extension set to remain exactly equal.",
-      "lean_declaration": "Auths.Rich.Mutations.critical_extension_equality"
+      "id": "critical-extension-law",
+      "operator": "Accept a child critical extension without applying its identifier's attenuation law.",
+      "witness": "Target V1 refuses a changed exact-marker payload, a dropped parent extension, and an added extension whose law refuses addition.",
+      "lean_declaration": "Auths.Rich.Mutations.critical_extension_law"
     },
     {
       "id": "delegation-depth-strictness",

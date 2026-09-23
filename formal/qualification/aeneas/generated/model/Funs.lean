@@ -854,66 +854,74 @@ def status_policy_attenuates
       then ok (child_age <= parent_age)
       else ok false
 
-/-- [auths_model::critical_extensions_equal]: loop body 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1110:4-1123:1
+/-- [auths_model::critical_extension_find]: loop body 0:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1120:4-1127:1
     Visibility: public -/
 @[rust_loop_body]
-def critical_extensions_equal_loop.body
-  (v : alloc.vec.Vec CriticalExtension) (v1 : alloc.vec.Vec CriticalExtension)
-  (index : Std.Usize) :
-  Result (ControlFlow Std.Usize Bool)
+def critical_extension_find_loop.body
+  (extensions : CriticalExtensions) (id : ExtensionId) (index : Std.Usize) :
+  Result (ControlFlow (CriticalExtensions × ExtensionId × Std.Usize) (Option
+    CriticalExtension))
   := do
-  let i := alloc.vec.Vec.len v
+  let i := alloc.vec.Vec.len extensions
   if index < i
   then
-    let child_extension ←
+    let ce ←
       alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        CriticalExtension) v index
-    let parent_extension ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        CriticalExtension) v1 index
-    let s := child_extension.id
+        CriticalExtension) extensions index
+    let s := ce.id
     let s1 ← alloc.string.String.as_bytes s
-    let s2 := parent_extension.id
-    let s3 ← alloc.string.String.as_bytes s2
-    let b ← byte_slices_equal s1 s3
+    let s2 ← alloc.string.String.as_bytes id
+    let b ← byte_slices_equal s1 s2
     if b
-    then
-      let s4 := alloc.vec.Vec.deref child_extension.bytes
-      let s5 := alloc.vec.Vec.deref parent_extension.bytes
-      let b1 ← byte_slices_equal s4 s5
-      if b1
-      then let index1 ← index + 1#usize
-           ok (cont index1)
-      else ok (done false)
-    else ok (done false)
-  else ok (done true)
+    then ok (done (some ce))
+    else let index1 ← index + 1#usize
+         ok (cont (extensions, id, index1))
+  else ok (done none)
 
-/-- [auths_model::critical_extensions_equal]: loop 0:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1110:4-1123:1
+/-- [auths_model::critical_extension_find]: loop 0:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1120:4-1127:1
     Visibility: public -/
 @[rust_loop]
-def critical_extensions_equal_loop
-  (v : alloc.vec.Vec CriticalExtension) (v1 : alloc.vec.Vec CriticalExtension)
-  (index : Std.Usize) :
-  Result Bool
+def critical_extension_find_loop
+  (extensions : CriticalExtensions) (id : ExtensionId) (index : Std.Usize) :
+  Result (Option CriticalExtension)
   := do
   loop
-    (fun index1 => critical_extensions_equal_loop.body v v1 index1)
-    index
+    (fun (extensions1, id1, index1) => critical_extension_find_loop.body
+      extensions1 id1 index1)
+    (extensions, id, index)
 
-/-- [auths_model::critical_extensions_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1105:0-1123:1
+/-- [auths_model::critical_extension_find]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1115:0-1127:1
     Visibility: public -/
-def critical_extensions_equal
-  (child : CriticalExtensions) (parent : CriticalExtensions) :
-  Result Bool
+@[reducible]
+def critical_extension_find
+  (extensions : CriticalExtensions) (id : ExtensionId) :
+  Result (Option CriticalExtension)
   := do
-  let i := alloc.vec.Vec.len child
-  let i1 := alloc.vec.Vec.len parent
-  if i != i1
-  then ok false
-  else critical_extensions_equal_loop child parent 0#usize
+  critical_extension_find_loop extensions id 0#usize
+
+/-- [auths_model::critical_extension_entries]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1132:0-1134:1
+    Visibility: public -/
+def critical_extension_entries
+  (extensions : CriticalExtensions) : Result (Slice CriticalExtension) := do
+  ok (alloc.vec.Vec.deref extensions)
+
+/-- [auths_model::critical_extension_id]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1139:0-1141:1
+    Visibility: public -/
+def critical_extension_id
+  (extension : CriticalExtension) : Result ExtensionId := do
+  ok extension.id
+
+/-- [auths_model::critical_extension_payload]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1146:0-1148:1
+    Visibility: public -/
+def critical_extension_payload
+  (extension : CriticalExtension) : Result (Slice Std.U8) := do
+  ok (alloc.vec.Vec.deref extension.bytes)
 
 /-- [auths_model::observation::fact_name_equal]:
     Source: 'core/crates/auths-model/src/observation.rs', lines 57:0-59:1
@@ -1197,5 +1205,467 @@ def observation.requirement_verdict
     if any_eligible
     then ok observation.RequirementVerdict.ConditionFalse
     else ok observation.RequirementVerdict.Missing
+
+/-- [auths_model::observation::observer_anchor_id_equal]:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 763:0-765:1
+    Visibility: public -/
+def observation.observer_anchor_id_equal
+  (left : observation.ObserverAnchorId) (right : observation.ObserverAnchorId)
+  :
+  Result Bool
+  := do
+  let s ← alloc.string.String.as_bytes left
+  let s1 ← alloc.string.String.as_bytes right
+  byte_slices_equal s s1
+
+/-- [auths_model::observation::observation_schema_equal]:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 770:0-772:1
+    Visibility: public -/
+def observation.observation_schema_equal
+  (left : observation.ObservationSchemaId)
+  (right : observation.ObservationSchemaId) :
+  Result Bool
+  := do
+  let s ← alloc.string.String.as_bytes left
+  let s1 ← alloc.string.String.as_bytes right
+  byte_slices_equal s s1
+
+/-- [auths_model::observation::requirement_subject_equal]:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 778:0-789:1
+    Visibility: public -/
+def observation.requirement_subject_equal
+  (left : observation.ObservationSubject)
+  (right : observation.ObservationSubject) :
+  Result Bool
+  := do
+  match left with
+  | observation.ObservationSubject.Resource left1 =>
+    match right with
+    | observation.ObservationSubject.Resource right1 =>
+      observation.observation_subject_equal left1 right1
+    | observation.ObservationSubject.ActionFact _ => ok false
+  | observation.ObservationSubject.ActionFact left1 =>
+    match right with
+    | observation.ObservationSubject.Resource _ => ok false
+    | observation.ObservationSubject.ActionFact right1 =>
+      observation.fact_name_equal left1 right1
+
+/-- [auths_model::observation::member_values_equal]: loop body 0:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 800:4-807:1
+    Visibility: public -/
+@[rust_loop_body]
+def observation.member_values_equal_loop.body
+  (v : alloc.vec.Vec observation.FactValue)
+  (v1 : alloc.vec.Vec observation.FactValue) (index : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i := alloc.vec.Vec.len v
+  if index < i
+  then
+    let fv ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        observation.FactValue) v index
+    let fv1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        observation.FactValue) v1 index
+    let b ← observation.fact_value_equal fv fv1
+    if b
+    then let index1 ← index + 1#usize
+         ok (cont index1)
+    else ok (done false)
+  else ok (done true)
+
+/-- [auths_model::observation::member_values_equal]: loop 0:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 800:4-807:1
+    Visibility: public -/
+@[rust_loop]
+def observation.member_values_equal_loop
+  (v : alloc.vec.Vec observation.FactValue)
+  (v1 : alloc.vec.Vec observation.FactValue) (index : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun index1 => observation.member_values_equal_loop.body v v1 index1)
+    index
+
+/-- [auths_model::observation::member_values_equal]:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 795:0-807:1
+    Visibility: public -/
+def observation.member_values_equal
+  (left : observation.MemberValues) (right : observation.MemberValues) :
+  Result Bool
+  := do
+  let i := alloc.vec.Vec.len left
+  let i1 := alloc.vec.Vec.len right
+  if i != i1
+  then ok false
+  else observation.member_values_equal_loop left right 0#usize
+
+/-- [auths_model::observation::condition_test_equal]:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 812:0-831:1
+    Visibility: public -/
+def observation.condition_test_equal
+  (left : observation.ConditionTest) (right : observation.ConditionTest) :
+  Result Bool
+  := do
+  match left with
+  | observation.ConditionTest.EqLiteral left1 =>
+    match right with
+    | observation.ConditionTest.EqLiteral right1 =>
+      observation.fact_value_equal left1 right1
+    | observation.ConditionTest.EqAction _ => ok false
+    | observation.ConditionTest.UintRange _ => ok false
+    | observation.ConditionTest.Member _ => ok false
+  | observation.ConditionTest.EqAction left1 =>
+    match right with
+    | observation.ConditionTest.EqLiteral _ => ok false
+    | observation.ConditionTest.EqAction right1 =>
+      observation.fact_name_equal left1 right1
+    | observation.ConditionTest.UintRange _ => ok false
+    | observation.ConditionTest.Member _ => ok false
+  | observation.ConditionTest.UintRange left1 =>
+    match right with
+    | observation.ConditionTest.EqLiteral _ => ok false
+    | observation.ConditionTest.EqAction _ => ok false
+    | observation.ConditionTest.UintRange right1 =>
+      if left1.lo = right1.lo
+      then ok (left1.hi = right1.hi)
+      else ok false
+    | observation.ConditionTest.Member _ => ok false
+  | observation.ConditionTest.Member left1 =>
+    match right with
+    | observation.ConditionTest.EqLiteral _ => ok false
+    | observation.ConditionTest.EqAction _ => ok false
+    | observation.ConditionTest.UintRange _ => ok false
+    | observation.ConditionTest.Member right1 =>
+      observation.member_values_equal left1 right1
+
+/-- [auths_model::observation::observation_condition_equal]:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 836:0-844:1
+    Visibility: public -/
+def observation.observation_condition_equal
+  (left : observation.ObservationCondition)
+  (right : observation.ObservationCondition) :
+  Result Bool
+  := do
+  let b ← observation.fact_name_equal left.«name» right.«name»
+  if b
+  then observation.condition_test_equal left.test right.test
+  else ok false
+
+/-- [auths_model::observation::observation_conditions_contain]: loop body 0:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 854:4-861:1
+    Visibility: public -/
+@[rust_loop_body]
+def observation.observation_conditions_contain_loop.body
+  (conditions : Slice observation.ObservationCondition)
+  (condition : observation.ObservationCondition) (index : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i := Slice.len conditions
+  if index < i
+  then
+    let oc ← Slice.index_usize conditions index
+    let b ← observation.observation_condition_equal oc condition
+    if b
+    then ok (done true)
+    else let index1 ← index + 1#usize
+         ok (cont index1)
+  else ok (done false)
+
+/-- [auths_model::observation::observation_conditions_contain]: loop 0:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 854:4-861:1
+    Visibility: public -/
+@[rust_loop]
+def observation.observation_conditions_contain_loop
+  (conditions : Slice observation.ObservationCondition)
+  (condition : observation.ObservationCondition) (index : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun index1 => observation.observation_conditions_contain_loop.body
+      conditions condition index1)
+    index
+
+/-- [auths_model::observation::observation_conditions_contain]:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 849:0-861:1
+    Visibility: public -/
+@[reducible]
+def observation.observation_conditions_contain
+  (conditions : Slice observation.ObservationCondition)
+  (condition : observation.ObservationCondition) :
+  Result Bool
+  := do
+  observation.observation_conditions_contain_loop conditions condition 0#usize
+
+/-- [auths_model::observation::observation_conditions_include]: loop body 0:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 872:4-879:1
+    Visibility: public -/
+@[rust_loop_body]
+def observation.observation_conditions_include_loop.body
+  (narrower : Slice observation.ObservationCondition)
+  (wider : Slice observation.ObservationCondition) (index : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i := Slice.len wider
+  if index < i
+  then
+    let oc ← Slice.index_usize wider index
+    let b ← observation.observation_conditions_contain narrower oc
+    if b
+    then let index1 ← index + 1#usize
+         ok (cont index1)
+    else ok (done false)
+  else ok (done true)
+
+/-- [auths_model::observation::observation_conditions_include]: loop 0:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 872:4-879:1
+    Visibility: public -/
+@[rust_loop]
+def observation.observation_conditions_include_loop
+  (narrower : Slice observation.ObservationCondition)
+  (wider : Slice observation.ObservationCondition) (index : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun index1 => observation.observation_conditions_include_loop.body
+      narrower wider index1)
+    index
+
+/-- [auths_model::observation::observation_conditions_include]:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 867:0-879:1
+    Visibility: public -/
+@[reducible]
+def observation.observation_conditions_include
+  (narrower : Slice observation.ObservationCondition)
+  (wider : Slice observation.ObservationCondition) :
+  Result Bool
+  := do
+  observation.observation_conditions_include_loop narrower wider 0#usize
+
+/-- [auths_model::observation::observation_conditions_equal]: loop body 0:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 893:4-900:1
+    Visibility: public -/
+@[rust_loop_body]
+def observation.observation_conditions_equal_loop.body
+  (left : Slice observation.ObservationCondition)
+  (right : Slice observation.ObservationCondition) (index : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i := Slice.len left
+  if index < i
+  then
+    let oc ← Slice.index_usize left index
+    let oc1 ← Slice.index_usize right index
+    let b ← observation.observation_condition_equal oc oc1
+    if b
+    then let index1 ← index + 1#usize
+         ok (cont index1)
+    else ok (done false)
+  else ok (done true)
+
+/-- [auths_model::observation::observation_conditions_equal]: loop 0:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 893:4-900:1
+    Visibility: public -/
+@[rust_loop]
+def observation.observation_conditions_equal_loop
+  (left : Slice observation.ObservationCondition)
+  (right : Slice observation.ObservationCondition) (index : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun index1 => observation.observation_conditions_equal_loop.body left
+      right index1)
+    index
+
+/-- [auths_model::observation::observation_conditions_equal]:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 885:0-900:1
+    Visibility: public -/
+def observation.observation_conditions_equal
+  (left : Slice observation.ObservationCondition)
+  (right : Slice observation.ObservationCondition) :
+  Result Bool
+  := do
+  let i := Slice.len left
+  let i1 := Slice.len right
+  if i != i1
+  then ok false
+  else observation.observation_conditions_equal_loop left right 0#usize
+
+/-- [auths_model::observation::observation_requirement_same_target]:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 905:0-916:1
+    Visibility: public -/
+def observation.observation_requirement_same_target
+  (child : observation.ObservationRequirement)
+  (parent : observation.ObservationRequirement) :
+  Result Bool
+  := do
+  let b ←
+    observation.observer_anchor_id_equal child.observer_anchor
+      parent.observer_anchor
+  if b
+  then
+    let b1 ← observation.observation_schema_equal child.schema parent.schema
+    if b1
+    then observation.requirement_subject_equal child.subject parent.subject
+    else ok false
+  else ok false
+
+/-- [auths_model::observation::observation_requirement_equal]:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 921:0-932:1
+    Visibility: public -/
+def observation.observation_requirement_equal
+  (child : observation.ObservationRequirement)
+  (parent : observation.ObservationRequirement) :
+  Result Bool
+  := do
+  let b ← observation.observation_requirement_same_target child parent
+  if b
+  then
+    if child.max_age_seconds != parent.max_age_seconds
+    then ok false
+    else
+      let s := alloc.vec.Vec.deref child.conditions
+      let s1 := alloc.vec.Vec.deref parent.conditions
+      observation.observation_conditions_equal s s1
+  else ok false
+
+/-- [auths_model::observation::observation_requirement_narrows]:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 939:0-956:1
+    Visibility: public -/
+def observation.observation_requirement_narrows
+  (child : observation.ObservationRequirement)
+  (parent : observation.ObservationRequirement) :
+  Result Bool
+  := do
+  let b ← observation.observation_requirement_same_target child parent
+  if b
+  then
+    if child.max_age_seconds > parent.max_age_seconds
+    then ok false
+    else
+      let s := alloc.vec.Vec.deref child.conditions
+      let s1 := alloc.vec.Vec.deref parent.conditions
+      let b1 ← observation.observation_conditions_include s s1
+      if b1
+      then
+        if child.max_age_seconds < parent.max_age_seconds
+        then ok true
+        else
+          let s2 := alloc.vec.Vec.deref parent.conditions
+          let s3 := alloc.vec.Vec.deref child.conditions
+          let b2 ← observation.observation_conditions_include s2 s3
+          ok (¬ b2)
+      else ok false
+  else ok false
+
+/-- [auths_model::observation::observation_requirement_covers]:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 962:0-970:1
+    Visibility: public -/
+def observation.observation_requirement_covers
+  (child : observation.ObservationRequirement)
+  (parent : observation.ObservationRequirement) :
+  Result Bool
+  := do
+  let b ← observation.observation_requirement_equal child parent
+  if b
+  then ok true
+  else observation.observation_requirement_narrows child parent
+
+/-- [auths_model::observation::observation_requirement_retained]: loop body 0:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 980:4-987:1
+    Visibility: public -/
+@[rust_loop_body]
+def observation.observation_requirement_retained_loop.body
+  (parent : observation.ObservationRequirement)
+  (child : observation.ObservationRequirements) (index : Std.Usize) :
+  Result (ControlFlow (observation.ObservationRequirements × Std.Usize) Bool)
+  := do
+  let i := alloc.vec.Vec.len child
+  if index < i
+  then
+    let or ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        observation.ObservationRequirement) child index
+    let b ← observation.observation_requirement_covers or parent
+    if b
+    then ok (done true)
+    else let index1 ← index + 1#usize
+         ok (cont (child, index1))
+  else ok (done false)
+
+/-- [auths_model::observation::observation_requirement_retained]: loop 0:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 980:4-987:1
+    Visibility: public -/
+@[rust_loop]
+def observation.observation_requirement_retained_loop
+  (child : observation.ObservationRequirements)
+  (parent : observation.ObservationRequirement) (index : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun (child1, index1) =>
+      observation.observation_requirement_retained_loop.body parent child1
+      index1)
+    (child, index)
+
+/-- [auths_model::observation::observation_requirement_retained]:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 975:0-987:1
+    Visibility: public -/
+@[reducible]
+def observation.observation_requirement_retained
+  (child : observation.ObservationRequirements)
+  (parent : observation.ObservationRequirement) :
+  Result Bool
+  := do
+  observation.observation_requirement_retained_loop child parent 0#usize
+
+/-- [auths_model::observation::observation_requirements_attenuate]: loop body 0:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 999:4-1006:1
+    Visibility: public -/
+@[rust_loop_body]
+def observation.observation_requirements_attenuate_loop.body
+  (child : observation.ObservationRequirements)
+  (parent : observation.ObservationRequirements) (index : Std.Usize) :
+  Result (ControlFlow (observation.ObservationRequirements × Std.Usize) Bool)
+  := do
+  let i := alloc.vec.Vec.len parent
+  if index < i
+  then
+    let or ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        observation.ObservationRequirement) parent index
+    let b ← observation.observation_requirement_retained child or
+    if b
+    then let index1 ← index + 1#usize
+         ok (cont (parent, index1))
+    else ok (done false)
+  else ok (done true)
+
+/-- [auths_model::observation::observation_requirements_attenuate]: loop 0:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 999:4-1006:1
+    Visibility: public -/
+@[rust_loop]
+def observation.observation_requirements_attenuate_loop
+  (child : observation.ObservationRequirements)
+  (parent : observation.ObservationRequirements) (index : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun (parent1, index1) =>
+      observation.observation_requirements_attenuate_loop.body child parent1
+      index1)
+    (parent, index)
+
+/-- [auths_model::observation::observation_requirements_attenuate]:
+    Source: 'core/crates/auths-model/src/observation.rs', lines 994:0-1006:1
+    Visibility: public -/
+@[reducible]
+def observation.observation_requirements_attenuate
+  (child : observation.ObservationRequirements)
+  (parent : observation.ObservationRequirements) :
+  Result Bool
+  := do
+  observation.observation_requirements_attenuate_loop child parent 0#usize
 
 end auths_model

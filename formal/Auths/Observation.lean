@@ -1,4 +1,5 @@
 import Mathlib.Tactic
+import Auths.ExtensionLaw
 
 /-!
 # Evidence-conditioned authority
@@ -313,5 +314,167 @@ theorem decision_denied_has_falsifying_observation
         · rfl
         · simp [isEligible, holds] at this
       · cases decided
+
+/-!
+## The `observation-requirement-v1` attenuation law
+
+A child requirement covers a parent requirement when it is identical or
+strictly narrows it: the same observer anchor, schema, and subject; a maximum
+age no larger; a superset of the parent's condition atoms; and at least one of
+the age or the atom set strictly narrower. A child list attenuates a parent
+list when every parent requirement is covered, so the child may add
+requirements. The theorems below discharge, for this law, the premise under
+which per-identifier attenuation never widens authority.
+
+The requirement carries one observer anchor and an implicit quorum of one,
+so "observers a subset" is anchor equality and "quorum no smaller" holds
+trivially.
+-/
+
+/-- The fields a narrowing must keep. -/
+def sameTarget (child parent : Requirement) : Prop :=
+  child.observerAnchor = parent.observerAnchor ∧ child.schema = parent.schema ∧
+    child.subject = parent.subject
+
+/-- A strict narrowing of one requirement. -/
+def narrows (child parent : Requirement) : Prop :=
+  sameTarget child parent ∧ child.maxAge ≤ parent.maxAge ∧
+    (∀ condition ∈ parent.conditions, condition ∈ child.conditions) ∧
+    (child.maxAge < parent.maxAge ∨
+      ¬ ∀ condition ∈ child.conditions, condition ∈ parent.conditions)
+
+/-- The child requirement is identical to, or strictly narrows, the parent. -/
+def covers (child parent : Requirement) : Prop :=
+  child = parent ∨ narrows child parent
+
+/-- Every parent requirement is covered by some child requirement. -/
+def requirementsAttenuate (child parent : List Requirement) : Prop :=
+  ∀ requirement ∈ parent, ∃ candidate ∈ child, covers candidate requirement
+
+theorem fresh_monotone_max_age
+    {now shorter longer notBefore expiresAt observedAt : Nat}
+    (order : shorter ≤ longer)
+    (isFresh : fresh now shorter notBefore expiresAt observedAt = true) :
+    fresh now longer notBefore expiresAt observedAt = true := by
+  simp only [fresh, Bool.and_eq_true, decide_eq_true_eq] at isFresh ⊢
+  omega
+
+theorem narrows_monotone
+    {env : Environment} {observations : List ObservationRecord}
+    {child parent : Requirement}
+    (narrowed : narrows child parent)
+    (childSatisfied : satisfied env observations child = true) :
+    satisfied env observations parent = true := by
+  obtain ⟨⟨sameAnchor, sameSchema, sameSubject⟩, ageOrder, superset, _⟩ := narrowed
+  simp only [satisfied, List.any_eq_true, Bool.and_eq_true, conditionsHold,
+    List.all_eq_true] at childSatisfied ⊢
+  obtain ⟨observation, member, isEligible, holds⟩ := childSatisfied
+  refine ⟨observation, member, ?_, fun condition inParent =>
+    holds condition (superset condition inParent)⟩
+  unfold eligible at isEligible ⊢
+  rw [← sameAnchor]
+  split at isEligible
+  · simp at isEligible
+  · simp only [Bool.and_eq_true, decide_eq_true_eq] at isEligible ⊢
+    obtain ⟨⟨⟨⟨⟨observer, schema⟩, schemaAnchored⟩, subject⟩, allowed⟩, isFresh⟩ :=
+      isEligible
+    refine ⟨⟨⟨⟨⟨observer, sameSchema ▸ schema⟩, sameSchema ▸ schemaAnchored⟩,
+      sameSubject ▸ subject⟩, allowed⟩, ?_⟩
+    exact fresh_monotone_max_age ageOrder isFresh
+
+theorem covers_monotone
+    {env : Environment} {observations : List ObservationRecord}
+    {child parent : Requirement}
+    (covered : covers child parent)
+    (childSatisfied : satisfied env observations child = true) :
+    satisfied env observations parent = true := by
+  rcases covered with rfl | narrowed
+  · exact childSatisfied
+  · exact narrows_monotone narrowed childSatisfied
+
+theorem covers_refl (requirement : Requirement) : covers requirement requirement :=
+  Or.inl rfl
+
+theorem covers_trans {child middle parent : Requirement}
+    (childMiddle : covers child middle) (middleParent : covers middle parent) :
+    covers child parent := by
+  rcases childMiddle with rfl | childNarrows
+  · exact middleParent
+  rcases middleParent with rfl | middleNarrows
+  · exact Or.inr childNarrows
+  right
+  obtain ⟨⟨anchorCM, schemaCM, subjectCM⟩, ageCM, supersetCM, strictCM⟩ := childNarrows
+  obtain ⟨⟨anchorMP, schemaMP, subjectMP⟩, ageMP, supersetMP, strictMP⟩ := middleNarrows
+  refine ⟨⟨anchorCM.trans anchorMP, schemaCM.trans schemaMP,
+    subjectCM.trans subjectMP⟩, ageCM.trans ageMP,
+    fun condition inParent => supersetCM condition (supersetMP condition inParent), ?_⟩
+  by_cases shorter : child.maxAge < parent.maxAge
+  · exact Or.inl shorter
+  · right
+    intro childWithinParent
+    have childAge : child.maxAge = middle.maxAge := by omega
+    have middleAge : middle.maxAge = parent.maxAge := by omega
+    rcases strictCM with ageStrict | notChildWithinMiddle
+    · omega
+    · exact notChildWithinMiddle fun condition inChild =>
+        supersetMP condition (childWithinParent condition inChild)
+
+theorem requirements_attenuate_refl (requirements : List Requirement) :
+    requirementsAttenuate requirements requirements :=
+  fun requirement member => ⟨requirement, member, covers_refl requirement⟩
+
+theorem requirements_attenuate_trans {child middle parent : List Requirement}
+    (childMiddle : requirementsAttenuate child middle)
+    (middleParent : requirementsAttenuate middle parent) :
+    requirementsAttenuate child parent := by
+  intro requirement member
+  obtain ⟨middleRequirement, middleMember, middleCovers⟩ :=
+    middleParent requirement member
+  obtain ⟨childRequirement, childMember, childCovers⟩ :=
+    childMiddle middleRequirement middleMember
+  exact ⟨childRequirement, childMember, covers_trans childCovers middleCovers⟩
+
+/-- A child list that attenuates its parent's authorizes a subset: every
+observation set and environment that meets the child meets the parent. -/
+theorem requirements_attenuate_monotone
+    {env : Environment} {observations : List ObservationRecord}
+    {child parent : List Requirement}
+    (attenuates : requirementsAttenuate child parent)
+    (childAuthorized : authorized env observations child = true) :
+    authorized env observations parent = true := by
+  simp only [authorized, List.all_eq_true] at childAuthorized ⊢
+  intro requirement member
+  obtain ⟨candidate, candidateMember, covered⟩ := attenuates requirement member
+  exact covers_monotone covered (childAuthorized candidate candidateMember)
+
+/-- The `observation-requirement-v1` law over decoded requirement lists: the
+child attenuates the parent when both carry the extension, adding the
+extension is accepted, and a missing child payload is refused. A payload
+admits the environments and observation sets that meet all its
+requirements. -/
+def observationRequirementLaw :
+    NarrowingLaw (List Requirement) (Environment × List ObservationRecord) where
+  attenuates child parent :=
+    match child, parent with
+    | some child, some parent => requirementsAttenuate child parent
+    | some _, none => True
+    | none, _ => False
+  admits requirements world := authorized world.1 world.2 requirements = true
+
+/-- The observation-requirement law is a preorder that narrows. -/
+theorem observation_requirement_law_lawful : observationRequirementLaw.Lawful where
+  refl requirements := requirements_attenuate_refl requirements
+  trans child middle parent childMiddle middleParent := by
+    cases parent with
+    | none => trivial
+    | some parent => exact requirements_attenuate_trans childMiddle middleParent
+  narrows _ _ attenuates world admitted :=
+    requirements_attenuate_monotone attenuates admitted
+
+/-- Adding the extension where the parent has none is accepted. -/
+theorem observation_requirement_law_accepts_addition (requirements : List Requirement) :
+    observationRequirementLaw.attenuates (some requirements) none :=
+  trivial
+
 
 end Auths.Observation

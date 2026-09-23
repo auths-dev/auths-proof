@@ -1,4 +1,5 @@
 import Auths.Rich.Types
+import Auths.ExtensionLaw
 
 namespace Auths.Rich
 
@@ -117,14 +118,68 @@ theorem budgetCoversAction_declared {v : Vocabulary}
   cases expression <;> rfl
 
 /--
-The critical-extension delegation relation.
+The law of one critical-extension identifier applied to optional child and
+parent payloads, as `auths_model::CriticalExtensionLaws::attenuates` computes.
+-/
+def extensionLawAccepts {v : Vocabulary} [ExtensionLaws v] (id : ExtensionId v)
+    (child parent : Option (ExtensionBody v)) : Prop :=
+  ExtensionLaws.law (v := v) id.value (child.map ExtensionBody.value)
+    (parent.map ExtensionBody.value) = true
 
-This is the one dimension where delegation must **preserve**, not narrow.  A
-critical extension is a constraint an unaware verifier is forbidden to ignore
-(the X.509 / JWT sense).  If a delegate could drop one, the mechanism would be
-worthless: attach a constraint at the root and the first delegation strips it.
-Equality is the point, and it is what
-`auths_model::critical_extensions_equal` computes.
+instance {v : Vocabulary} [ExtensionLaws v] (id : ExtensionId v)
+    (child parent : Option (ExtensionBody v)) :
+    Decidable (extensionLawAccepts id child parent) := by
+  unfold extensionLawAccepts
+  infer_instance
+
+/-- A parent extension survives the edge: the child carries its identifier
+and the identifier's law accepts the pair. -/
+def extensionRetained {v : Vocabulary} [ExtensionLaws v]
+    (child : CriticalExtensions v) (parentEntry : CriticalExtension v) : Prop :=
+  ∃ entry ∈ child.entries, entry.id = parentEntry.id ∧
+    extensionLawAccepts parentEntry.id (some entry.body) (some parentEntry.body)
+
+instance {v : Vocabulary} [ExtensionLaws v] (child : CriticalExtensions v)
+    (parentEntry : CriticalExtension v) :
+    Decidable (extensionRetained child parentEntry) := by
+  unfold extensionRetained
+  infer_instance
+
+/-- A child extension is admissible: the parent carries its identifier, which
+`extensionRetained` judges, or its law accepts adding it. -/
+def extensionAdmitted {v : Vocabulary} [ExtensionLaws v]
+    (parent : CriticalExtensions v) (childEntry : CriticalExtension v) : Prop :=
+  (∃ entry ∈ parent.entries, entry.id = childEntry.id) ∨
+    extensionLawAccepts childEntry.id (some childEntry.body) none
+
+instance {v : Vocabulary} [ExtensionLaws v] (parent : CriticalExtensions v)
+    (childEntry : CriticalExtension v) :
+    Decidable (extensionAdmitted parent childEntry) := by
+  unfold extensionAdmitted
+  infer_instance
+
+/--
+Per-identifier attenuation of two pinned critical-extension sets.
+
+A critical extension is a constraint an unaware verifier is forbidden to
+ignore, so a delegate may never strip one: every parent identifier must be
+present in the child. What the child may do with it is fixed by the
+identifier's law, and an identifier only the child carries is accepted only
+when its law accepts adding it. An identifier without a law answers `false`
+and is refused either way.
+-/
+def extensionsAttenuate {v : Vocabulary} [ExtensionLaws v]
+    (child parent : CriticalExtensions v) : Prop :=
+  (∀ entry ∈ parent.entries, extensionRetained child entry) ∧
+    ∀ entry ∈ child.entries, extensionAdmitted parent entry
+
+instance {v : Vocabulary} [ExtensionLaws v] (child parent : CriticalExtensions v) :
+    Decidable (extensionsAttenuate child parent) := by
+  unfold extensionsAttenuate
+  infer_instance
+
+/--
+The critical-extension delegation relation.
 
 A parent that has not pinned a set yet (`none`, the state of
 `EffectiveAuthority::from_anchor`) admits any set, matching
@@ -133,21 +188,63 @@ A parent that has not pinned a set yet (`none`, the state of
 under a parent that has pinned one is rejected — that is precisely the
 strip-the-constraint move.
 -/
-def extensionsLe {v : Vocabulary}
+def extensionsLe {v : Vocabulary} [ExtensionLaws v]
     (child parent : Option (CriticalExtensions v)) : Prop :=
   match child, parent with
   | _, none => True
   | none, some _ => False
-  | some child, some parent => child = parent
+  | some child, some parent => extensionsAttenuate child parent
 
-instance {v : Vocabulary}
+instance {v : Vocabulary} [ExtensionLaws v]
     (child parent : Option (CriticalExtensions v)) :
     Decidable (extensionsLe child parent) :=
   match child, parent with
   | _, none => isTrue trivial
   | none, some _ => isFalse fun absurdity => absurdity
   | some child, some parent =>
-      if equality : child = parent then isTrue equality else isFalse equality
+      inferInstanceAs (Decidable (extensionsAttenuate child parent))
+
+/-- The worlds a pinned extension set admits: every payload's handler admits
+it. An unpinned set constrains nothing. -/
+def extensionsAdmit {v : Vocabulary} [ExtensionLaws v]
+    (extensions : Option (CriticalExtensions v))
+    (world : ExtensionLaws.World (v := v)) : Prop :=
+  match extensions with
+  | none => True
+  | some extensions =>
+      ∀ entry ∈ extensions.entries,
+        ExtensionLaws.admits (v := v) entry.id.value entry.body.value world
+
+/--
+Every handler law is a preorder that narrows: reflexive, transitive, and
+accepting a child payload only when it admits no world its parent payload
+refuses. This is the premise under which per-identifier attenuation never
+widens authority; each registered handler discharges it for its own law.
+-/
+structure ExtensionLawsNarrow (v : Vocabulary) [ExtensionLaws v] : Prop where
+  refl : ∀ id body, ExtensionLaws.law (v := v) id (some body) (some body) = true
+  trans : ∀ id child middle (parent : Option v.ExtensionBodyCarrier),
+    ExtensionLaws.law (v := v) id (some child) (some middle) = true →
+    ExtensionLaws.law (v := v) id (some middle) parent = true →
+    ExtensionLaws.law (v := v) id (some child) parent = true
+  narrows : ∀ id child parent,
+    ExtensionLaws.law (v := v) id (some child) (some parent) = true →
+    ∀ world, ExtensionLaws.admits (v := v) id child world →
+      ExtensionLaws.admits (v := v) id parent world
+
+/-- The law registered for one identifier, as a `NarrowingLaw`. -/
+def extensionLawAt (v : Vocabulary) [ExtensionLaws v] (id : v.ExtensionIdCarrier) :
+    NarrowingLaw v.ExtensionBodyCarrier (ExtensionLaws.World (v := v)) where
+  attenuates child parent := ExtensionLaws.law (v := v) id child parent = true
+  admits := ExtensionLaws.admits (v := v) id
+
+/-- The premise holds exactly when every identifier's law is lawful, so each
+handler discharges it for its own identifier. -/
+theorem ExtensionLawsNarrow.of_lawful {v : Vocabulary} [ExtensionLaws v]
+    (lawful : ∀ id, (extensionLawAt v id).Lawful) : ExtensionLawsNarrow v where
+  refl id := (lawful id).refl
+  trans id := (lawful id).trans
+  narrows id := (lawful id).narrows
 
 def statusLe {v : Vocabulary}
     (child parent : StatusPolicy v) : Prop :=
@@ -227,7 +324,7 @@ instance {v : Vocabulary} (scope : ProfileScope v) (profile : Profile v) :
   rcases scope with ⟨root, selected, allowed⟩
   cases selected <;> simp [profileAllows] <;> infer_instance
 
-def structuralScopeLe {v : Vocabulary}
+def structuralScopeLe {v : Vocabulary} [ExtensionLaws v]
     (child parent : AuthorityScope v) : Prop :=
   profileLe child.profileScope parent.profileScope ∧
   child.permissions ⊆ parent.permissions ∧
@@ -239,7 +336,7 @@ def structuralScopeLe {v : Vocabulary}
   child.assurance = parent.assurance ∧
   extensionsLe child.extensions parent.extensions
 
-instance {v : Vocabulary} (child parent : AuthorityScope v) :
+instance {v : Vocabulary} [ExtensionLaws v] (child parent : AuthorityScope v) :
     Decidable (structuralScopeLe child parent) := by
   unfold structuralScopeLe
   infer_instance
@@ -269,13 +366,14 @@ def evidenceRequirementsSatisfied {v : Vocabulary}
     (scope : AuthorityScope v) (facts : EvidenceFacts v) : Prop :=
   statusSatisfied scope.status facts ∧ facts.assurance = scope.assurance
 
-def admits {v : Vocabulary}
+def admits {v : Vocabulary} [ExtensionLaws v]
     (scope : AuthorityScope v) (facts : AuthorizationFacts v) : Prop :=
   actionCovers scope facts.action facts.budgetExpression ∧
-  evidenceRequirementsSatisfied scope facts.evidence
+  evidenceRequirementsSatisfied scope facts.evidence ∧
+  extensionsAdmit scope.extensions facts.extensionWorld
 
 /-- Extensional semantic containment of complete authorization facts. -/
-def semanticAttenuates {v : Vocabulary}
+def semanticAttenuates {v : Vocabulary} [ExtensionLaws v]
     (child parent : AuthorityScope v) : Prop :=
   ∀ facts, admits child facts → admits parent facts
 
@@ -337,7 +435,7 @@ reported as `extensionsAttenuate := true` and nobody noticed, because nothing
 in the shape of the definition required it to be addressed. A structure
 requires it.
 -/
-structure GrantScopeChecks {v : Vocabulary}
+structure GrantScopeChecks {v : Vocabulary} [ExtensionLaws v]
     (parent : AuthorityScope v) (grant : Grant v) : Prop where
   profile : profileAllows parent.profileScope grant.profile
   permissions : grant.permissions ⊆ parent.permissions
@@ -351,7 +449,7 @@ structure GrantScopeChecks {v : Vocabulary}
   extensions : extensionsLe (some grant.extensions) parent.extensions
 
 /-- The named structure spelled as the conjunction, for rewriting. -/
-theorem GrantScopeChecks.iff_conjunction {v : Vocabulary}
+theorem GrantScopeChecks.iff_conjunction {v : Vocabulary} [ExtensionLaws v]
     (parent : AuthorityScope v) (grant : Grant v) :
     GrantScopeChecks parent grant ↔
       (profileAllows parent.profileScope grant.profile ∧
@@ -374,22 +472,22 @@ theorem GrantScopeChecks.iff_conjunction {v : Vocabulary}
       budget, status, assurance, extensions⟩
 
 /-- The named structure, as the predicate the rest of the development uses. -/
-def grantScopeChecks {v : Vocabulary}
+def grantScopeChecks {v : Vocabulary} [ExtensionLaws v]
     (parent : AuthorityScope v) (grant : Grant v) : Prop :=
   GrantScopeChecks parent grant
 
-instance {v : Vocabulary} (parent : AuthorityScope v) (grant : Grant v) :
+instance {v : Vocabulary} [ExtensionLaws v] (parent : AuthorityScope v) (grant : Grant v) :
     Decidable (grantScopeChecks parent grant) := by
   unfold grantScopeChecks
   exact decidable_of_iff _ (GrantScopeChecks.iff_conjunction parent grant).symm
 
-def scopeDepthChecks {v : Vocabulary}
+def scopeDepthChecks {v : Vocabulary} [ExtensionLaws v]
     (parent : ChainState v) (grant : Grant v) : Prop :=
   0 < parent.remainingDepth ∧
   grant.remainingDepth < parent.remainingDepth ∧
   grantScopeChecks parent.scope grant
 
-instance {v : Vocabulary} (parent : ChainState v) (grant : Grant v) :
+instance {v : Vocabulary} [ExtensionLaws v] (parent : ChainState v) (grant : Grant v) :
     Decidable (scopeDepthChecks parent grant) := by
   unfold scopeDepthChecks
   infer_instance
@@ -407,7 +505,7 @@ def profileAllowedMember {v : Vocabulary}
       rw [profileEquality]
       exact scope.selectedAllowed selectedProfile selected
 
-def acceptedScope {v : Vocabulary}
+def acceptedScope {v : Vocabulary} [ExtensionLaws v]
     (parent : AuthorityScope v) (grant : Grant v)
     (checks : grantScopeChecks parent grant) :
     AuthorityScope v where
@@ -431,7 +529,7 @@ def acceptedScope {v : Vocabulary}
   assurance := grant.assurance
   extensions := some grant.extensions
 
-def acceptedNextState {v : Vocabulary}
+def acceptedNextState {v : Vocabulary} [ExtensionLaws v]
     (parent : ChainState v) (grantId : GrantId v) (grant : Grant v)
     (checks : scopeDepthChecks parent grant) :
     ChainState v where
@@ -458,7 +556,7 @@ by an edge the scope and depth dimensions accept.
 Nothing decides it -- ancestry is history, not a property of the current record
 -- so it appears as a hypothesis rather than a check.
 -/
-inductive ReachableFromRoot {v : Vocabulary} : ChainState v → Prop where
+inductive ReachableFromRoot {v : Vocabulary} [ExtensionLaws v] : ChainState v → Prop where
   | origin (state : ChainState v)
       (anchored : state.root = state.subject)
       (undelegated : state.lastGrant = none) :
@@ -470,13 +568,13 @@ inductive ReachableFromRoot {v : Vocabulary} : ChainState v → Prop where
       ReachableFromRoot (acceptedNextState parent grantId grant checks)
 
 /-- An origin state is rooted, so the approximation holds where it starts. -/
-theorem rooted_of_origin {v : Vocabulary} (state : ChainState v)
+theorem rooted_of_origin {v : Vocabulary} [ExtensionLaws v] (state : ChainState v)
     (anchored : state.root = state.subject) (undelegated : state.lastGrant = none) :
     rooted state := by
   exact Or.inr anchored
 
 /-- Accepting a delegation preserves reachability, by construction. -/
-theorem reachable_accepted {v : Vocabulary}
+theorem reachable_accepted {v : Vocabulary} [ExtensionLaws v]
     {parent : ChainState v} (grantId : GrantId v) (grant : Grant v)
     (reachable : ReachableFromRoot parent)
     (issued : grant.issuer = parent.subject)
@@ -492,20 +590,20 @@ chain passes it, so the kernel never rejects a real chain, while a state that
 merely carries a present marker can pass it without being reachable. That gap
 is closed by construction -- sealing the raw views -- not by the predicate.
 -/
-theorem rooted_of_reachable {v : Vocabulary} {state : ChainState v}
+theorem rooted_of_reachable {v : Vocabulary} [ExtensionLaws v] {state : ChainState v}
     (reachable : ReachableFromRoot state) : rooted state := by
   induction reachable with
   | origin state anchored _ => exact Or.inr anchored
   | delegated _ _ _ _ _ _ => exact Or.inl rfl
 
-def delegates {v : Vocabulary}
+def delegates {v : Vocabulary} [ExtensionLaws v]
     (parent : ChainState v) (grantId : GrantId v) (grant : Grant v)
     (child : ChainState v) : Prop :=
   linked parent grant ∧
   ∃ checks : scopeDepthChecks parent grant,
     child = acceptedNextState parent grantId grant checks
 
-inductive DelegationChain {v : Vocabulary} :
+inductive DelegationChain {v : Vocabulary} [ExtensionLaws v] :
     ChainState v → List (ChainState v) → Prop
   | nil (start : ChainState v) : DelegationChain start []
   | cons
@@ -518,7 +616,7 @@ inductive DelegationChain {v : Vocabulary} :
       DelegationChain parent (child :: rest)
 
 /-- A delegation history rooted in an identity selected by explicit context. -/
-structure AnchoredChain {v : Vocabulary}
+structure AnchoredChain {v : Vocabulary} [ExtensionLaws v]
     (trusted : FiniteSet (Principal v))
     (start : ChainState v) (rest : List (ChainState v)) : Prop where
   rootTrusted : start.root ∈ trusted
@@ -535,7 +633,7 @@ inductive DelegationDecision (v : Vocabulary) where
   | accepted (next : ChainState v)
   | denied (reason : DelegationDiagnostic)
 
-def evaluateGrant {v : Vocabulary}
+def evaluateGrant {v : Vocabulary} [ExtensionLaws v]
     (parent : ChainState v) (grantId : GrantId v) (grant : Grant v) :
     DelegationDecision v :=
   if linked parent grant then
@@ -565,7 +663,7 @@ inductive AuthorDecision where
   deriving DecidableEq, Repr
 
 /-- First-failure order used before authoring or custody can be invoked. -/
-def evaluateAuthorScope {v : Vocabulary}
+def evaluateAuthorScope {v : Vocabulary} [ExtensionLaws v]
     (parent child : AuthorityScope v)
     (parentDepth childDepth : Nat) : AuthorDecision :=
   if ¬ profileLe child.profileScope parent.profileScope then
@@ -677,7 +775,7 @@ cannot be supplied without a proof that the literal equals the semantic answer
 Adding a twelfth dimension adds a twelfth obligation here, which no existing
 constructor satisfies, so the compiler demands it be addressed.
 -/
-structure CertifiedProjection {v : Vocabulary}
+structure CertifiedProjection {v : Vocabulary} [ExtensionLaws v]
     (parent : ChainState v) (grant : Grant v) where
   value : Auths.Generated.AttenuationProjection
   rootExact : value.rootPreserved = decide (rootPreserved parent grant)
@@ -714,7 +812,7 @@ structure CertifiedProjection {v : Vocabulary}
     value.extensionsAttenuate =
       decide (extensionsLe (some grant.extensions) parent.scope.extensions)
 
-private def rawDelegationProjection {v : Vocabulary}
+private def rawDelegationProjection {v : Vocabulary} [ExtensionLaws v]
     (parent : ChainState v) (grant : Grant v) :
     Auths.Generated.AttenuationProjection where
   rootPreserved := decide (rootPreserved parent grant)
@@ -747,7 +845,7 @@ field mutation fails here at the certificate constructor before it can reach
 any rich acceptance theorem. Raw generated/vector APIs remain explicitly
 outside this semantic boundary.
 -/
-def delegationProjection {v : Vocabulary}
+def delegationProjection {v : Vocabulary} [ExtensionLaws v]
     (parent : ChainState v) (grant : Grant v) :
     CertifiedProjection parent grant where
   value := rawDelegationProjection parent grant
@@ -764,7 +862,7 @@ def delegationProjection {v : Vocabulary}
   extensionsExact := rfl
 
 /-- Rich acceptance consumes only a projection certified for these inputs. -/
-def certifiedAccepts {v : Vocabulary} {parent : ChainState v} {grant : Grant v}
+def certifiedAccepts {v : Vocabulary} [ExtensionLaws v] {parent : ChainState v} {grant : Grant v}
     (projection : CertifiedProjection parent grant) : Bool :=
   Auths.Generated.attenuationAccepts projection.value
 
@@ -775,7 +873,7 @@ No certified projection can report a dimension the semantics deny.
 This is what the type buys. `extensionsAttenuate := true` beneath a parent that
 denies it is not merely detected, it cannot be constructed.
 -/
-theorem CertifiedProjection.extensions_not_forgeable {v : Vocabulary}
+theorem CertifiedProjection.extensions_not_forgeable {v : Vocabulary} [ExtensionLaws v]
     {parent : ChainState v} {grant : Grant v}
     (certified : CertifiedProjection parent grant)
     (denied : ¬ extensionsLe (some grant.extensions) parent.scope.extensions) :
@@ -784,7 +882,7 @@ theorem CertifiedProjection.extensions_not_forgeable {v : Vocabulary}
   exact decide_eq_false denied
 
 /-- The same for the trust root, the dimension no other can rescue. -/
-theorem CertifiedProjection.root_not_forgeable {v : Vocabulary}
+theorem CertifiedProjection.root_not_forgeable {v : Vocabulary} [ExtensionLaws v]
     {parent : ChainState v} {grant : Grant v}
     (certified : CertifiedProjection parent grant)
     (denied : ¬ rootPreserved parent grant) :
