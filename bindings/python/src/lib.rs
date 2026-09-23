@@ -95,10 +95,26 @@ fn encode_qualification_client_result_frame_v1<'py>(
     Ok(PyBytes::new(py, &frame))
 }
 
+/// Derives one `OpenAPI` operation into profile, recipe, and provenance bytes.
+///
+/// Pure: reads nothing but the arguments and never raises for a rejected
+/// document; the JSON result carries `ok`, the files, or the diagnostics.
+#[pyfunction]
+// pyo3 extracts a Python list only into an owned vector.
+#[allow(clippy::needless_pass_by_value)]
+fn derive_openapi_operation_v1(
+    document: &[u8],
+    document_name: &str,
+    arguments: Vec<String>,
+) -> String {
+    auths_openapi_derive::derive_to_json(document, document_name, &arguments)
+}
+
 /// Installs the private native extension consumed by `auths`.
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(generate_challenge_v1, module)?)?;
+    module.add_function(wrap_pyfunction!(derive_openapi_operation_v1, module)?)?;
     module.add_function(wrap_pyfunction!(
         qualification_client_cancellation_result_v1,
         module

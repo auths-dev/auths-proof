@@ -63,6 +63,7 @@
     "decode_identity_descriptor_v1",
     "decode_identity_v1",
     "decode_portable_receipt_v1",
+    "derive_openapi_operation_v1",
     "diagnostic_input_limits_v1",
     "encode_identity_descriptor_v1",
     "encode_public_identity_v1",

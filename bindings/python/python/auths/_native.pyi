@@ -4,6 +4,9 @@ Permission = Tuple[str, str]
 Budget = Tuple[str, int]
 
 def generate_challenge_v1() -> bytes: ...
+def derive_openapi_operation_v1(
+    document: bytes, document_name: str, arguments: List[str],
+) -> str: ...
 def qualification_client_cancellation_result_v1(request_id: bytes) -> bytes: ...
 def encode_qualification_client_result_frame_v1(
     mode: int, request_id: bytes, result: bytes,
