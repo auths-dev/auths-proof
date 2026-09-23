@@ -219,12 +219,10 @@ A canonical critical-extension set.
 constructor obligations, so a value of this type is exactly a value the Rust
 constructor would have accepted.
 
-The entries are an ordered sequence rather than a `FiniteSet` deliberately.
-`critical_extensions_equal` compares the two canonical vectors **positionally**;
-a set-valued model would identify `[a, b]` with `[b, a]` and therefore report
-attenuation on a pair the shipping kernel denies, which is the model being
-weaker than the code. Duplicate-freedom by identifier makes the sequence a
-faithful map from identifier to payload. `sorted` additionally records the
+The entries are an ordered sequence, the canonical vector the shipping kernel
+walks. Duplicate-freedom by identifier makes the sequence a faithful map from
+identifier to payload, which is what lets the kernel look each identifier up
+once. `sorted` additionally records the
 exact order Rust establishes, so this type excludes non-constructor-reachable
 permutations rather than merely assuming canonicality in prose.
 -/
@@ -381,9 +379,27 @@ inductive BudgetExpression where
   | inexpressible
   deriving DecidableEq, Repr
 
-structure AuthorizationFacts (v : Vocabulary) where
+/--
+The critical-extension handlers registered for a vocabulary: each identifier's
+attenuation law and the worlds each payload admits.
+
+The law mirrors `auths_model::CriticalExtensionLaws::attenuates` over an
+identifier and the optional child and parent payloads (`none` is absent). An
+identifier without a registered handler has no law and answers `false`. The
+kernel never inspects a world; a payload's handler does, such as the
+observation stage over fresh signed observations.
+-/
+class ExtensionLaws (v : Vocabulary.{u}) where
+  World : Type u
+  law : v.ExtensionIdCarrier → Option v.ExtensionBodyCarrier →
+    Option v.ExtensionBodyCarrier → Bool
+  admits : v.ExtensionIdCarrier → v.ExtensionBodyCarrier → World → Prop
+
+structure AuthorizationFacts (v : Vocabulary) [ExtensionLaws v] where
   action : Action v
   budgetExpression : BudgetExpression
   evidence : EvidenceFacts v
+  /-- The world the critical-extension handlers observe for this action. -/
+  extensionWorld : ExtensionLaws.World v
 
 end Auths.Rich

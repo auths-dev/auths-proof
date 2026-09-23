@@ -1301,7 +1301,7 @@ function resolveAndVerifyControl(
   contextValue: Context,
   adapters: any,
 ): VerifiedControl[] {
-  if (!equal(contextValue.registryManifest, new Uint8Array(32).fill(0x34))) {
+  if (!equal(contextValue.registryManifest, new Uint8Array(32).fill(0x35))) {
     throw denied("registry-manifest-mismatch");
   }
   const localConfiguration = typeof adapters.configuration === "string"
@@ -1537,14 +1537,39 @@ type Authority = {
   extensions?: Extension[];
 };
 
-function sameExtensions(left: Extension[], right: Extension[]): boolean {
-  return left.length === right.length && left.every((value, index) => {
-    const other = right[index]!;
-    return value.id === other.id && equal(value.bytes, other.bytes);
-  });
+/**
+ * The attenuation law of one critical-extension identifier; `undefined` is an
+ * absent extension. An identifier the context does not accept, or without a
+ * handler, has no law.
+ */
+function extensionLaw(
+  id: string, child: Extension | undefined, parent: Extension | undefined, accepted: string[],
+): boolean {
+  if (child === undefined || !contains(accepted, id)) return false;
+  if (id === "exact-marker-v1") return parent !== undefined && equal(child.bytes, parent.bytes);
+  if (id !== OBSERVATION_EXTENSION) return false;
+  try {
+    const childRequirements = observationRequirements(child.bytes);
+    if (parent === undefined) return true;
+    return requirementsAttenuate(childRequirements, observationRequirements(parent.bytes));
+  } catch {
+    return false;
+  }
 }
 
-function delegate(authority: Authority, grantValue: Grant): void {
+/**
+ * Every parent identifier is present in the child and its law accepts the
+ * pair; an identifier only the child carries is accepted only when its law
+ * accepts adding it.
+ */
+function extensionsAttenuate(child: Extension[], parent: Extension[], accepted: string[]): boolean {
+  const find = (values: Extension[], id: string) => values.find((value) => value.id === id);
+  return parent.every((value) => extensionLaw(value.id, find(child, value.id), value, accepted)) &&
+    child.every((value) =>
+      find(parent, value.id) !== undefined || extensionLaw(value.id, value, undefined, accepted));
+}
+
+function delegate(authority: Authority, grantValue: Grant, accepted: string[]): void {
   const profileAllowed = authority.selectedProfile === undefined
     ? profileContains(authority.allowedProfiles, grantValue.profile)
     : sameProfile(authority.selectedProfile, grantValue.profile);
@@ -1563,7 +1588,7 @@ function delegate(authority: Authority, grantValue: Grant): void {
     !statusAttenuates(grantValue.status, authority.status) ||
     grantValue.assurance !== authority.assurance ||
     (authority.extensions !== undefined &&
-      !sameExtensions(grantValue.extensions, authority.extensions))
+      !extensionsAttenuate(grantValue.extensions, authority.extensions, accepted))
   ) throw denied("delegation-expanded");
   authority.subject = grantValue.subject;
   authority.selectedProfile = grantValue.profile;
@@ -1754,7 +1779,7 @@ function verifyFromAnchor(
       if (!statusControl) throw indeterminate("missing-principal-evidence");
       if (statusControl.error) throw statusControl.error;
     }
-    delegate(authority, grantValue);
+    delegate(authority, grantValue, contextValue.extensions);
     const verified = controls.get(refKey({ kind: 0n, id: grantValue.id }));
     if (!verified) throw indeterminate("missing-principal-evidence");
     if (verified.error) throw verified.error;
@@ -2420,6 +2445,12 @@ function chainRequirements(chain: Grant[]): ObservationRequirement[] {
   return requirements;
 }
 
+/**
+ * Denies a child grant that drops a parent's observation requirement: no
+ * child requirement addresses it with the same schema and subject. A child
+ * requirement that addresses it without keeping or narrowing it is left to the
+ * delegation relation, which denies it as expanded.
+ */
 function requireParentRequirements(parent: Grant, child: Grant): void {
   const parentRequirements = chainRequirements([parent]);
   let childRequirements: ObservationRequirement[] = [];
@@ -2429,10 +2460,51 @@ function requireParentRequirements(parent: Grant, child: Grant): void {
     childRequirements = [];
   }
   for (const requirement of parentRequirements) {
-    if (!childRequirements.some((candidate) => equal(candidate.raw, requirement.raw))) {
+    if (!childRequirements.some((candidate) =>
+      candidate.schema === requirement.schema &&
+      candidate.subjectKind === requirement.subjectKind &&
+      candidate.subject === requirement.subject)) {
       throw denied("observation-requirement-dropped");
     }
   }
+}
+
+function sameCondition(left: ObservationCondition, right: ObservationCondition): boolean {
+  if (left.name !== right.name || left.tag !== right.tag) return false;
+  if (left.tag === 0n) return sameFact(left.literal!, right.literal!);
+  if (left.tag === 1n) return left.action === right.action;
+  if (left.tag === 2n) return left.lo === right.lo && left.hi === right.hi;
+  return left.members!.length === right.members!.length &&
+    left.members!.every((member, index) => sameFact(member, right.members![index]!));
+}
+
+/** Every atom of `wider` occurs in `narrower`. */
+function conditionsInclude(narrower: ObservationCondition[], wider: ObservationCondition[]): boolean {
+  return wider.every((condition) =>
+    narrower.some((candidate) => sameCondition(candidate, condition)));
+}
+
+/**
+ * The child keeps the parent byte-identical or strictly narrows it: the same
+ * observer, schema, and subject; a maximum age no larger; a superset of
+ * condition atoms; and the age or the atom set strictly narrower.
+ */
+function requirementCovers(child: ObservationRequirement, parent: ObservationRequirement): boolean {
+  if (equal(child.raw, parent.raw)) return true;
+  if (child.anchor !== parent.anchor || child.schema !== parent.schema ||
+      child.subjectKind !== parent.subjectKind || child.subject !== parent.subject ||
+      child.maxAge > parent.maxAge || !conditionsInclude(child.conditions, parent.conditions)) {
+    return false;
+  }
+  return child.maxAge < parent.maxAge || !conditionsInclude(parent.conditions, child.conditions);
+}
+
+/** Every parent requirement is covered by some child requirement. */
+function requirementsAttenuate(
+  child: ObservationRequirement[], parent: ObservationRequirement[],
+): boolean {
+  return parent.every((requirement) =>
+    child.some((candidate) => requirementCovers(candidate, requirement)));
 }
 
 function namespaceMatches(namespace: string, resource: string): boolean {

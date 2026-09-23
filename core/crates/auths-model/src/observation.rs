@@ -756,3 +756,251 @@ pub const fn requirement_verdict(any_eligible: bool, any_satisfying: bool) -> Re
     }
     RequirementVerdict::Missing
 }
+
+/// Exact observer-anchor identifier equality.
+#[doc(hidden)]
+#[must_use]
+pub fn observer_anchor_id_equal(left: &ObserverAnchorId, right: &ObserverAnchorId) -> bool {
+    byte_slices_equal(left.0.as_bytes(), right.0.as_bytes())
+}
+
+/// Exact observation-schema identifier equality.
+#[doc(hidden)]
+#[must_use]
+pub fn observation_schema_equal(left: &ObservationSchemaId, right: &ObservationSchemaId) -> bool {
+    byte_slices_equal(left.0.as_bytes(), right.0.as_bytes())
+}
+
+/// Exact requirement-subject equality: the same literal resource, or the
+/// same named action fact.
+#[doc(hidden)]
+#[must_use]
+pub fn requirement_subject_equal(left: &ObservationSubject, right: &ObservationSubject) -> bool {
+    match left {
+        ObservationSubject::Resource(left) => match right {
+            ObservationSubject::Resource(right) => observation_subject_equal(left, right),
+            ObservationSubject::ActionFact(_) => false,
+        },
+        ObservationSubject::ActionFact(left) => match right {
+            ObservationSubject::ActionFact(right) => fact_name_equal(left, right),
+            ObservationSubject::Resource(_) => false,
+        },
+    }
+}
+
+/// Positional equality of two membership lists, which is their canonical
+/// encoding equality.
+#[doc(hidden)]
+#[must_use]
+pub fn member_values_equal(left: &MemberValues, right: &MemberValues) -> bool {
+    if left.0.len() != right.0.len() {
+        return false;
+    }
+    let mut index = 0;
+    while index < left.0.len() {
+        if !fact_value_equal(&left.0[index], &right.0[index]) {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+/// Exact condition-atom equality.
+#[doc(hidden)]
+#[must_use]
+pub fn condition_test_equal(left: &ConditionTest, right: &ConditionTest) -> bool {
+    match left {
+        ConditionTest::EqLiteral(left) => match right {
+            ConditionTest::EqLiteral(right) => fact_value_equal(left, right),
+            _ => false,
+        },
+        ConditionTest::EqAction(left) => match right {
+            ConditionTest::EqAction(right) => fact_name_equal(left, right),
+            _ => false,
+        },
+        ConditionTest::UintRange(left) => match right {
+            ConditionTest::UintRange(right) => left.lo == right.lo && left.hi == right.hi,
+            _ => false,
+        },
+        ConditionTest::Member(left) => match right {
+            ConditionTest::Member(right) => member_values_equal(left, right),
+            _ => false,
+        },
+    }
+}
+
+/// Exact equality of one condition: the same fact name and the same atom.
+#[doc(hidden)]
+#[must_use]
+pub fn observation_condition_equal(
+    left: &ObservationCondition,
+    right: &ObservationCondition,
+) -> bool {
+    if !fact_name_equal(&left.name, &right.name) {
+        return false;
+    }
+    condition_test_equal(&left.test, &right.test)
+}
+
+/// Whether `conditions` contains an atom equal to `condition`.
+#[doc(hidden)]
+#[must_use]
+pub fn observation_conditions_contain(
+    conditions: &[ObservationCondition],
+    condition: &ObservationCondition,
+) -> bool {
+    let mut index = 0;
+    while index < conditions.len() {
+        if observation_condition_equal(&conditions[index], condition) {
+            return true;
+        }
+        index += 1;
+    }
+    false
+}
+
+/// Whether `wider` is a subset of `narrower`, comparing conditions as a set
+/// of canonical atoms: every atom of `wider` occurs in `narrower`.
+#[doc(hidden)]
+#[must_use]
+pub fn observation_conditions_include(
+    narrower: &[ObservationCondition],
+    wider: &[ObservationCondition],
+) -> bool {
+    let mut index = 0;
+    while index < wider.len() {
+        if !observation_conditions_contain(narrower, &wider[index]) {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+/// Positional equality of two condition lists, which is their canonical
+/// encoding equality.
+#[doc(hidden)]
+#[must_use]
+pub fn observation_conditions_equal(
+    left: &[ObservationCondition],
+    right: &[ObservationCondition],
+) -> bool {
+    if left.len() != right.len() {
+        return false;
+    }
+    let mut index = 0;
+    while index < left.len() {
+        if !observation_condition_equal(&left[index], &right[index]) {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+/// The fields a narrowing must keep: observer, schema, and subject.
+#[doc(hidden)]
+#[must_use]
+pub fn observation_requirement_same_target(
+    child: &ObservationRequirement,
+    parent: &ObservationRequirement,
+) -> bool {
+    if !observer_anchor_id_equal(&child.observer_anchor, &parent.observer_anchor) {
+        return false;
+    }
+    if !observation_schema_equal(&child.schema, &parent.schema) {
+        return false;
+    }
+    requirement_subject_equal(&child.subject, &parent.subject)
+}
+
+/// Byte identity of two canonical requirements.
+#[doc(hidden)]
+#[must_use]
+pub fn observation_requirement_equal(
+    child: &ObservationRequirement,
+    parent: &ObservationRequirement,
+) -> bool {
+    if !observation_requirement_same_target(child, parent) {
+        return false;
+    }
+    if child.max_age_seconds != parent.max_age_seconds {
+        return false;
+    }
+    observation_conditions_equal(&child.conditions, &parent.conditions)
+}
+
+/// A strict narrowing of one requirement: the same observer, schema, and
+/// subject; a maximum age no larger; a superset of the parent's condition
+/// atoms; and at least one of the age or the atom set strictly narrower.
+#[doc(hidden)]
+#[must_use]
+pub fn observation_requirement_narrows(
+    child: &ObservationRequirement,
+    parent: &ObservationRequirement,
+) -> bool {
+    if !observation_requirement_same_target(child, parent) {
+        return false;
+    }
+    if child.max_age_seconds > parent.max_age_seconds {
+        return false;
+    }
+    if !observation_conditions_include(&child.conditions, &parent.conditions) {
+        return false;
+    }
+    if child.max_age_seconds < parent.max_age_seconds {
+        return true;
+    }
+    !observation_conditions_include(&parent.conditions, &child.conditions)
+}
+
+/// A child requirement covers a parent requirement when it is byte-identical
+/// to it or strictly narrows it.
+#[doc(hidden)]
+#[must_use]
+pub fn observation_requirement_covers(
+    child: &ObservationRequirement,
+    parent: &ObservationRequirement,
+) -> bool {
+    if observation_requirement_equal(child, parent) {
+        return true;
+    }
+    observation_requirement_narrows(child, parent)
+}
+
+/// Some child requirement covers the parent requirement.
+#[doc(hidden)]
+#[must_use]
+pub fn observation_requirement_retained(
+    child: &ObservationRequirements,
+    parent: &ObservationRequirement,
+) -> bool {
+    let mut index = 0;
+    while index < child.0.len() {
+        if observation_requirement_covers(&child.0[index], parent) {
+            return true;
+        }
+        index += 1;
+    }
+    false
+}
+
+/// The `observation-requirement-v1` attenuation law for a child and parent
+/// that both carry the extension: every parent requirement is covered by
+/// some child requirement. The child may add requirements.
+#[doc(hidden)]
+#[must_use]
+pub fn observation_requirements_attenuate(
+    child: &ObservationRequirements,
+    parent: &ObservationRequirements,
+) -> bool {
+    let mut index = 0;
+    while index < parent.0.len() {
+        if !observation_requirement_retained(child, &parent.0[index]) {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}

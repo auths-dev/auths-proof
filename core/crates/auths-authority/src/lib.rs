@@ -11,14 +11,16 @@ use auths_algebra_kernel::{
 };
 use auths_model::{
     AcceptedRegistries, ActionAuthorityView, ActionConstraint, ActionEnvelope, AssurancePolicyId,
-    AudienceSet, BudgetCeiling, CriticalExtensions, DenialReason, GrantAuthorityView, GrantId,
-    GrantStatement, PermissionSet, PrincipalId, ProfileBudgetExpression, ProfileRef,
-    ScopeAuthorityView, StatusPolicy, TrustAnchor, ValidityWindow, action_authority_view,
-    action_constraint_allows, action_constraint_attenuates, assurance_policy_id_equal,
-    audience_set_contains, audience_set_is_subset, budget_ceiling_covers_action,
-    critical_extensions_equal, grant_authority_view, optional_budget_attenuates,
-    optional_grant_id_equal, permission_set_contains, permission_set_is_subset, principal_id_equal,
-    profile_ref_equal, profile_slice_contains, status_policy_attenuates, validity_window_contains,
+    AudienceSet, BudgetCeiling, CriticalExtension, CriticalExtensionLaws, CriticalExtensions,
+    DenialReason, GrantAuthorityView, GrantId, GrantStatement, PermissionSet, PrincipalId,
+    ProfileBudgetExpression, ProfileRef, ScopeAuthorityView, StatusPolicy, TrustAnchor,
+    ValidityWindow, action_authority_view, action_constraint_allows, action_constraint_attenuates,
+    assurance_policy_id_equal, audience_set_contains, audience_set_is_subset,
+    budget_ceiling_covers_action, critical_extension_entries, critical_extension_find,
+    critical_extension_id, critical_extension_payload, grant_authority_view,
+    optional_budget_attenuates, optional_grant_id_equal, permission_set_contains,
+    permission_set_is_subset, principal_id_equal, profile_ref_equal, profile_slice_contains,
+    status_policy_attenuates, validity_window_contains,
 };
 
 /// Authority accumulated while walking one root-to-terminal grant chain.
@@ -148,21 +150,105 @@ impl PartialEq for CanonicalPrincipal<'_> {
     }
 }
 
+/// A parent extension survives the edge: the child carries the same
+/// identifier and the identifier's law accepts the pair.
+fn parent_extension_retained<L: CriticalExtensionLaws>(
+    laws: &L,
+    child: &CriticalExtensions,
+    parent_extension: &CriticalExtension,
+) -> bool {
+    let id = critical_extension_id(parent_extension);
+    match critical_extension_find(child, id) {
+        Some(child_extension) => laws.attenuates(
+            id,
+            Some(critical_extension_payload(child_extension)),
+            Some(critical_extension_payload(parent_extension)),
+        ),
+        None => false,
+    }
+}
+
+/// A child extension is admissible: either the parent carries the same
+/// identifier, which the retained-parent check judges, or the identifier's
+/// law accepts adding it where the parent has none.
+fn child_extension_admitted<L: CriticalExtensionLaws>(
+    laws: &L,
+    child_extension: &CriticalExtension,
+    parent: &CriticalExtensions,
+) -> bool {
+    let id = critical_extension_id(child_extension);
+    match critical_extension_find(parent, id) {
+        Some(_) => true,
+        None => laws.attenuates(id, Some(critical_extension_payload(child_extension)), None),
+    }
+}
+
+/// Every parent extension is retained by the child.
+fn parent_extensions_retained<L: CriticalExtensionLaws>(
+    laws: &L,
+    child: &CriticalExtensions,
+    parent: &CriticalExtensions,
+) -> bool {
+    let entries = critical_extension_entries(parent);
+    let mut index = 0;
+    while index < entries.len() {
+        if !parent_extension_retained(laws, child, &entries[index]) {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+/// Every child extension is admissible under the parent.
+fn child_extensions_admitted<L: CriticalExtensionLaws>(
+    laws: &L,
+    child: &CriticalExtensions,
+    parent: &CriticalExtensions,
+) -> bool {
+    let entries = critical_extension_entries(child);
+    let mut index = 0;
+    while index < entries.len() {
+        if !child_extension_admitted(laws, &entries[index], parent) {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+/// The critical-extension delegation relation.
+///
+/// Every parent identifier must be present in the child with a payload its
+/// law accepts; an identifier only the child carries is accepted only when its
+/// law accepts adding it; an identifier without a law is refused. Work is at
+/// most one law application per identifier of the two bounded sets.
+fn critical_extensions_attenuate<L: CriticalExtensionLaws>(
+    laws: &L,
+    child: &CriticalExtensions,
+    parent: &CriticalExtensions,
+) -> bool {
+    if !parent_extensions_retained(laws, child, parent) {
+        return false;
+    }
+    child_extensions_admitted(laws, child, parent)
+}
+
 /// Whether a grant's critical extensions attenuate its parent's.
 ///
 /// A parent declaring no extension scope constrains nothing, so any grant
-/// attenuates it. Otherwise the sets must match exactly: the eleventh
-/// dimension is equality, not containment.
+/// attenuates it. Otherwise each identifier is judged by its handler's law.
 ///
 /// Named for the same reason as [`depth_decreases`]: aeneas cannot translate a
 /// branching expression sitting in struct-field position, and this `match` was
 /// the second one in `evaluate_grant_view`.
-fn extensions_attenuate(
+fn extensions_attenuate<L: CriticalExtensionLaws>(
+    laws: &L,
     parent_extensions: Option<&CriticalExtensions>,
     grant_extensions: &CriticalExtensions,
 ) -> bool {
     match parent_extensions {
-        Some(parent) => critical_extensions_equal(grant_extensions, parent),
+        Some(parent) => critical_extensions_attenuate(laws, grant_extensions, parent),
         None => true,
     }
 }
@@ -212,9 +298,10 @@ fn selected_profile_attenuates(
 /// child grant can be signed.
 #[doc(hidden)]
 #[must_use]
-pub fn evaluate_author_scope_view(
+pub fn evaluate_author_scope_view<L: CriticalExtensionLaws>(
     parent: ScopeAuthorityView<'_>,
     child: ScopeAuthorityView<'_>,
+    laws: &L,
 ) -> AuthorScopeDecision {
     if !profile_ref_equal(child.profile, parent.profile) {
         return AuthorScopeDecision::Denied(AuthorityDimension::Profile);
@@ -243,7 +330,7 @@ pub fn evaluate_author_scope_view(
     if !assurance_policy_id_equal(child.assurance_floor, parent.assurance_floor) {
         return AuthorScopeDecision::Denied(AuthorityDimension::Assurance);
     }
-    if !critical_extensions_equal(child.extensions, parent.extensions) {
+    if !critical_extensions_attenuate(laws, child.extensions, parent.extensions) {
         return AuthorScopeDecision::Denied(AuthorityDimension::Extensions);
     }
     AuthorScopeDecision::Accepted
@@ -253,25 +340,28 @@ pub fn evaluate_author_scope_view(
 /// the unique accepted state change used by [`EffectiveAuthority::delegate`].
 #[doc(hidden)]
 #[must_use]
-pub fn evaluate_grant<'grant>(
+pub fn evaluate_grant<'grant, L: CriticalExtensionLaws>(
     parent: &EffectiveAuthority,
     grant_id: GrantId,
     grant: &'grant GrantStatement,
+    laws: &L,
 ) -> DelegationEvaluation<'grant> {
     evaluate_grant_view(
         authority_state_view(parent),
         grant_id,
         grant_authority_view(grant),
+        laws,
     )
 }
 
 /// Pure authority-kernel evaluation over lossless validated-model views.
 #[doc(hidden)]
 #[must_use]
-pub(crate) fn evaluate_grant_view<'grant>(
+pub(crate) fn evaluate_grant_view<'grant, L: CriticalExtensionLaws>(
     parent: AuthorityStateView<'_>,
     grant_id: GrantId,
     grant: GrantAuthorityView<'grant>,
+    laws: &L,
 ) -> DelegationEvaluation<'grant> {
     // Bound to a local rather than borrowed inline. `root_preserved` takes a
     // reference, and a reference to a temporary in argument position is what
@@ -299,7 +389,7 @@ pub(crate) fn evaluate_grant_view<'grant>(
             grant.assurance_floor,
             parent.assurance_policy,
         ),
-        extensions_attenuate: extensions_attenuate(parent.extensions, grant.extensions),
+        extensions_attenuate: extensions_attenuate(laws, parent.extensions, grant.extensions),
     };
     // `root_preserved` subsumes the issuer/subject linkage and additionally
     // rejects a parent state that never descended from the root it claims, so
@@ -442,16 +532,20 @@ impl EffectiveAuthority {
 
     /// Applies one grant edge.
     ///
+    /// `laws` are the attenuation laws of the critical-extension handlers the
+    /// caller accepts; an extension identifier without a law is refused.
+    ///
     /// # Errors
     ///
     /// Returns a stable denial reason when linkage is broken or any authority
     /// dimension widens.
-    pub fn delegate(
+    pub fn delegate<L: CriticalExtensionLaws>(
         &mut self,
         grant_id: GrantId,
         grant: &GrantStatement,
+        laws: &L,
     ) -> Result<(), DenialReason> {
-        let transition = match evaluate_grant(self, grant_id, grant).outcome {
+        let transition = match evaluate_grant(self, grant_id, grant, laws).outcome {
             DelegationOutcome::Accepted(transition) => transition,
             DelegationOutcome::Denied(reason) => return Err(reason),
         };
@@ -596,6 +690,41 @@ mod tests {
         )
     }
 
+    /// Byte equality for `exact-marker-v1`, refused when added; accepted when
+    /// added for `additive-v1`; no law for anything else.
+    struct TestLaws;
+
+    impl CriticalExtensionLaws for TestLaws {
+        fn attenuates(
+            &self,
+            id: &ExtensionId,
+            child: Option<&[u8]>,
+            parent: Option<&[u8]>,
+        ) -> bool {
+            match (id.as_str(), child, parent) {
+                ("exact-marker-v1" | "additive-v1", Some(child), Some(parent)) => child == parent,
+                ("additive-v1", Some(_), None) => true,
+                _ => false,
+            }
+        }
+    }
+
+    fn extension_set(entries: &[(&str, &[u8])]) -> CriticalExtensions {
+        CriticalExtensions::new(
+            entries
+                .iter()
+                .map(|(id, bytes)| {
+                    CriticalExtension::new(
+                        ExtensionId::parse(id).expect("extension id"),
+                        bytes.to_vec(),
+                    )
+                    .expect("extension")
+                })
+                .collect(),
+        )
+        .expect("extensions")
+    }
+
     fn extensions(bytes: &[u8]) -> CriticalExtensions {
         CriticalExtensions::new(vec![
             CriticalExtension::new(
@@ -614,6 +743,7 @@ mod tests {
             authority.delegate(
                 GrantId::new([9; 32]),
                 &grant("did:key:other-root", "did:key:agent", "profile-a", 1, None),
+                &TestLaws,
             ),
             Err(DenialReason::BrokenGrantChain)
         );
@@ -654,6 +784,7 @@ mod tests {
             unrooted,
             GrantId::new([7; 32]),
             grant_authority_view(&statement),
+            &TestLaws,
         );
         let preserved = evaluation.checks.root_preserved;
         assert!(
@@ -758,8 +889,13 @@ mod tests {
             Some(marker),
         );
         assert!(matches!(
-            evaluate_grant_view(raw, GrantId::new([5; 32]), grant_authority_view(&statement))
-                .outcome,
+            evaluate_grant_view(
+                raw,
+                GrantId::new([5; 32]),
+                grant_authority_view(&statement),
+                &TestLaws
+            )
+            .outcome,
             DelegationOutcome::Accepted(_)
         ));
     }
@@ -997,11 +1133,13 @@ mod tests {
         let first_id = GrantId::new([1; 32]);
         let first = grant("did:key:root", "did:key:agent", "profile-b", 1, None);
         assert!(
-            evaluate_grant(&authority, first_id, &first)
+            evaluate_grant(&authority, first_id, &first, &TestLaws)
                 .checks
                 .root_preserved
         );
-        authority.delegate(first_id, &first).expect("first edge");
+        authority
+            .delegate(first_id, &first, &TestLaws)
+            .expect("first edge");
         let second = grant(
             "did:key:agent",
             "did:key:child",
@@ -1010,7 +1148,7 @@ mod tests {
             Some(first_id),
         );
         assert!(
-            evaluate_grant(&authority, GrantId::new([2; 32]), &second)
+            evaluate_grant(&authority, GrantId::new([2; 32]), &second, &TestLaws)
                 .checks
                 .root_preserved
         );
@@ -1021,7 +1159,7 @@ mod tests {
     fn a_broken_root_is_reported_on_the_dimension_not_only_in_the_reason() {
         let authority = EffectiveAuthority::from_anchor(&anchor());
         let statement = grant("did:key:other-root", "did:key:agent", "profile-a", 1, None);
-        let evaluation = evaluate_grant(&authority, GrantId::new([9; 32]), &statement);
+        let evaluation = evaluate_grant(&authority, GrantId::new([9; 32]), &statement, &TestLaws);
         assert!(!evaluation.checks.root_preserved);
         assert!(!attenuation_checks_accept(&evaluation.checks));
     }
@@ -1033,7 +1171,8 @@ mod tests {
         assert_eq!(
             authority.delegate(
                 first_id,
-                &grant("did:key:root", "did:key:agent", "profile-b", 2, None)
+                &grant("did:key:root", "did:key:agent", "profile-b", 2, None),
+                &TestLaws
             ),
             Err(DenialReason::DelegationExpanded)
         );
@@ -1041,6 +1180,7 @@ mod tests {
             .delegate(
                 first_id,
                 &grant("did:key:root", "did:key:agent", "profile-b", 1, None),
+                &TestLaws,
             )
             .expect("allowed profile and strict depth");
         assert_eq!(authority.subject().as_str(), "did:key:agent");
@@ -1054,7 +1194,8 @@ mod tests {
                     "profile-a",
                     0,
                     Some(first_id)
-                )
+                ),
+                &TestLaws
             ),
             Err(DenialReason::DelegationExpanded)
         );
@@ -1068,6 +1209,7 @@ mod tests {
                     0,
                     Some(first_id),
                 ),
+                &TestLaws,
             )
             .expect("selected profile remains exact");
     }
@@ -1080,6 +1222,7 @@ mod tests {
             .delegate(
                 first_id,
                 &grant("did:key:root", "did:key:agent", "profile-a", 0, None),
+                &TestLaws,
             )
             .expect("first edge may consume all depth");
         assert_eq!(
@@ -1091,14 +1234,15 @@ mod tests {
                     "profile-a",
                     0,
                     Some(first_id)
-                )
+                ),
+                &TestLaws
             ),
             Err(DenialReason::DelegationExpanded)
         );
     }
 
     #[test]
-    fn child_grant_must_preserve_the_selected_extension_set_exactly() {
+    fn child_grant_extensions_are_judged_by_each_identifier_law() {
         let first_id = GrantId::new([1; 32]);
         let mut authority = EffectiveAuthority::from_anchor(&anchor());
         authority
@@ -1112,38 +1256,75 @@ mod tests {
                     None,
                     extensions(&[1]),
                 ),
+                &TestLaws,
             )
             .expect("first grant selects the extension set");
 
-        for child_extensions in [CriticalExtensions::empty(), extensions(&[2])] {
+        let child = |extensions: CriticalExtensions| {
+            grant_with_extensions(
+                "did:key:agent",
+                "did:key:child",
+                "profile-a",
+                0,
+                Some(first_id),
+                extensions,
+            )
+        };
+        for (child_extensions, reason) in [
+            (CriticalExtensions::empty(), "a dropped marker"),
+            (extensions(&[2]), "a changed marker"),
+            (
+                extension_set(&[("exact-marker-v1", &[1]), ("unknown-v1", &[1])]),
+                "an identifier without a law",
+            ),
+        ] {
             assert_eq!(
-                authority.delegate(
+                authority.clone().delegate(
                     GrantId::new([2; 32]),
-                    &grant_with_extensions(
-                        "did:key:agent",
-                        "did:key:child",
-                        "profile-a",
-                        0,
-                        Some(first_id),
-                        child_extensions,
-                    ),
+                    &child(child_extensions),
+                    &TestLaws
                 ),
-                Err(DenialReason::DelegationExpanded)
+                Err(DenialReason::DelegationExpanded),
+                "{reason}"
             );
         }
+        for child_extensions in [
+            extensions(&[1]),
+            extension_set(&[("exact-marker-v1", &[1]), ("additive-v1", &[1])]),
+        ] {
+            authority
+                .clone()
+                .delegate(GrantId::new([3; 32]), &child(child_extensions), &TestLaws)
+                .expect("a retained marker, with or without an admissible addition");
+        }
+    }
 
-        authority
-            .delegate(
-                GrantId::new([3; 32]),
-                &grant_with_extensions(
-                    "did:key:agent",
-                    "did:key:child",
-                    "profile-a",
-                    0,
-                    Some(first_id),
-                    extensions(&[1]),
-                ),
-            )
-            .expect("an exactly preserved extension set attenuates");
+    #[test]
+    fn author_scope_uses_the_same_extension_laws() {
+        let parent_extensions = extensions(&[1]);
+        let parent_statement = grant_with_extensions(
+            "did:key:root",
+            "did:key:agent",
+            "profile-a",
+            1,
+            None,
+            parent_extensions,
+        );
+        let parent = auths_model::scope_authority_view(grant_authority_view(&parent_statement));
+        let widened = CriticalExtensions::empty();
+        let narrowed = extension_set(&[("exact-marker-v1", &[1]), ("additive-v1", &[1])]);
+        let view = |extensions| ScopeAuthorityView {
+            remaining_depth: 0,
+            extensions,
+            ..parent
+        };
+        assert_eq!(
+            evaluate_author_scope_view(parent, view(&widened), &TestLaws),
+            AuthorScopeDecision::Denied(AuthorityDimension::Extensions)
+        );
+        assert_eq!(
+            evaluate_author_scope_view(parent, view(&narrowed), &TestLaws),
+            AuthorScopeDecision::Accepted
+        );
     }
 }

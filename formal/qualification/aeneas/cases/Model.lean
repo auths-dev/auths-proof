@@ -195,3 +195,36 @@ example :
     observation.requirement_verdict false false =
       ok observation.RequirementVerdict.Missing := by
   rfl
+
+-- Per-extension attenuation leaves. Condition atoms compare exactly: a changed
+-- range bound is a different atom, and atoms of different kinds never match.
+example :
+    observation.condition_test_equal
+      (observation.ConditionTest.UintRange { lo := 1#u64, hi := 5#u64 })
+      (observation.ConditionTest.UintRange { lo := 1#u64, hi := 5#u64 }) =
+      ok true := by
+  rfl
+
+example :
+    observation.condition_test_equal
+      (observation.ConditionTest.UintRange { lo := 1#u64, hi := 5#u64 })
+      (observation.ConditionTest.UintRange { lo := 1#u64, hi := 6#u64 }) =
+      ok false := by
+  rfl
+
+example :
+    observation.condition_test_equal
+      (observation.ConditionTest.EqLiteral (observation.FactValue.Uint 1#u64))
+      (observation.ConditionTest.UintRange { lo := 1#u64, hi := 1#u64 }) =
+      ok false := by
+  rfl
+
+-- The loop-bearing requirement and extension laws compile in this closure and
+-- are exercised by the native corpus through the handler laws.
+#check observation.observation_requirements_attenuate
+#check observation.observation_requirement_covers
+#check observation.observation_requirement_narrows
+#check critical_extension_find
+#check critical_extension_id
+#check critical_extension_payload
+#check critical_extension_entries

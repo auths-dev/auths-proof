@@ -16,10 +16,10 @@ abstract: |
   The authority scope is a heterogeneous product of profile state, finite
   permission and audience sets, inclusive time intervals, an action-constraint
   preorder, optional budget ceilings, freshness policies, exact assurance
-  identities, and pinned critical extensions. Lean proves component order
+  identities, and critical extensions judged per identifier. Lean proves component order
   laws, semantic monotonicity, canonical antisymmetry, downward closure of
-  action coverage and evidence requirements, preservation of trust roots and
-  critical extensions, strict decrease of delegation depth, finiteness of
+  action coverage and evidence requirements, preservation of trust roots,
+  retention of critical extensions under per-identifier narrowing laws, strict decrease of delegation depth, finiteness of
   chains, unique accepted transitions, and sound and complete decision
   procedures. A separate three-valued algebra treats denial, uncertainty, and
   authorization as an ordered chain and proves threshold-classification
@@ -123,7 +123,8 @@ critical extensions become exactly pinned after their first declaration.
 attenuation: admission is downward closed for both actions and evidence.
 
 **A well-founded delegation semantics.** Accepted edges preserve one trust
-root, preserve pinned critical extensions, link exact grant identifiers,
+root, retain every pinned critical-extension identifier under its handler's
+narrowing law, link exact grant identifiers,
 strictly reduce remaining depth, and determine a unique child state.
 
 **A three-valued composition algebra.** Denial, indeterminacy, and
@@ -664,15 +665,21 @@ X_c\atten X_p \iff
 \begin{cases}
 \mathsf{true}, & X_p=\mathsf{none},\\
 \mathsf{false}, & X_c=\mathsf{none},\ X_p=\mathsf{some}(E),\\
-E_c=E_p, & X_c=\mathsf{some}(E_c),\ X_p=\mathsf{some}(E_p).
+E_c \sqsubseteq_L E_p, & X_c=\mathsf{some}(E_c),\ X_p=\mathsf{some}(E_p).
 \end{cases}
 \tag{13}
 $$
 
-The first accepted edge may declare a critical-extension sequence. Every later
-edge must preserve it exactly. Unlike permissions and audiences, extensions
-are represented by an ordered list because the shipping predicate compares
-canonical vectors positionally. Distinct identifiers and the cardinality
+Here $E_c \sqsubseteq_L E_p$ holds when every identifier of $E_p$ occurs in
+$E_c$ with a payload its law $L_{\mathit{id}}$ accepts against the parent's,
+and every identifier only $E_c$ carries is accepted by $L_{\mathit{id}}$ with
+an absent parent payload; an identifier without a registered law is refused.
+Each handler declares its law. The first accepted edge may declare a
+critical-extension sequence; every later edge may only narrow it. When every
+law is a preorder that narrows the worlds its payload admits, an accepted
+edge admits no authorization fact, including every extension payload, that
+its parent refuses. The laws are preorders, not partial orders, so this
+dimension has no antisymmetry law. Distinct identifiers and the cardinality
 bound are stored as constructor obligations.
 
 # Denotational authorization semantics
@@ -920,7 +927,7 @@ q_2.scope\atten q_0.scope.
 $$
 
 More generally, every reachable state remains under the starting root, is
-rooted, and preserves any critical-extension sequence pinned at the start.
+rooted, and carries every critical-extension identifier pinned at the start.
 
 \begin{figure}[H]
 \centering
@@ -1797,8 +1804,8 @@ The mutation manifest contains 23 security-relevant operators, including
 reversing interval and subset directions, negating membership, accepting a
 different exact digest, ignoring algebra or method identity, treating an
 absent budget request as covered, accepting equal delegation depth, weakening
-principal or grant-id equality, and ignoring critical-extension payload
-changes.
+principal or grant-id equality, and accepting a child critical extension
+without applying its identifier's law.
 
 The vectors are not substitutes for unbounded theorems. Their role is
 cross-language conformance and mutation sensitivity: a binding or optimized
@@ -1959,7 +1966,8 @@ semantic inclusion.
 
 The product is not a homogeneous lattice. Some coordinates are ordinary
 orders, some are preorders, some use exact equality, and critical extensions
-have an initially unpinned top followed by exact lock-in. The system therefore
+have an initially unpinned top followed by a per-identifier preorder that each
+handler declares. The system therefore
 uses a product of relations justified component by component rather than
 forcing every concern into one numeric lattice.
 
@@ -2025,7 +2033,8 @@ Many of the strongest results state that a dangerous shortcut is impossible:
 
 - an unrooted authority authorizes nothing;
 - a foreign issuer falsifies the root dimension;
-- a changed critical extension falsifies the extension dimension;
+- a stripped critical extension, or one its law refuses, falsifies the
+  extension dimension;
 - a narrowed scope cannot admit a parent-rejected fact;
 - a start attempt cannot succeed without credential authorization;
 - a commit cannot succeed without provider entry and effect proof;

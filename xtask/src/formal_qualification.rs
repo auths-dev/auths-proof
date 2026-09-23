@@ -13,7 +13,7 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "241d87a50c26af79e25002a6cf5b52cff081f46a1811e4ea7353ebfed94734e7";
+    "9e98797f088f2939a32edc9fe0a663875689fc5a5860fd72c109e8fdecbddc4c";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
     (
@@ -1728,7 +1728,10 @@ fn reproduce(
         "auths_model::optional_budget_covers",
         "auths_model::budget_ceiling_covers_action",
         "auths_model::status_policy_attenuates",
-        "auths_model::critical_extensions_equal",
+        "auths_model::critical_extension_entries",
+        "auths_model::critical_extension_id",
+        "auths_model::critical_extension_payload",
+        "auths_model::critical_extension_find",
         "auths_model::assurance_policy_id_equal",
         "auths_model::principal_id_equal",
         "auths_model::grant_id_equal",
@@ -1746,6 +1749,7 @@ fn reproduce(
         "auths_model::observation::observation_condition_holds",
         "auths_model::observation::observation_conditions_hold",
         "auths_model::observation::requirement_verdict",
+        "auths_model::observation::observation_requirements_attenuate",
     ]
     .join(",");
     run_checked(

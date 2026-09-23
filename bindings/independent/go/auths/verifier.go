@@ -259,7 +259,7 @@ func resolveAndVerifyControl(
 	context *verifierContext,
 	adapters adapterContext,
 ) ([]verifiedControl, error) {
-	if !bytes.Equal(context.registryManifest, bytes.Repeat([]byte{0x34}, 32)) {
+	if !bytes.Equal(context.registryManifest, bytes.Repeat([]byte{0x35}, 32)) {
 		return nil, denied("registry-manifest-mismatch")
 	}
 	localConfiguration, err := hex.DecodeString(adapters.Configuration)
@@ -863,6 +863,63 @@ func extensionSliceEqual(left, right []criticalExtension) bool {
 	return true
 }
 
+func findExtension(extensions []criticalExtension, id string) *criticalExtension {
+	for index := range extensions {
+		if extensions[index].id == id {
+			return &extensions[index]
+		}
+	}
+	return nil
+}
+
+// extensionsAttenuate is the critical-extension delegation relation: every
+// parent identifier is present in the child and its law accepts the pair; an
+// identifier only the child carries is accepted only when its law accepts
+// adding it.
+func extensionsAttenuate(child, parent []criticalExtension, accepted []string) bool {
+	for index := range parent {
+		retained := findExtension(child, parent[index].id)
+		if retained == nil || !extensionLaw(parent[index].id, retained, &parent[index], accepted) {
+			return false
+		}
+	}
+	for index := range child {
+		if findExtension(parent, child[index].id) == nil &&
+			!extensionLaw(child[index].id, &child[index], nil, accepted) {
+			return false
+		}
+	}
+	return true
+}
+
+// extensionLaw applies the attenuation law of one identifier; nil is an
+// absent extension. An identifier the context does not accept, or without a
+// handler, has no law.
+func extensionLaw(id string, child, parent *criticalExtension, accepted []string) bool {
+	if child == nil || !containsText(accepted, id) {
+		return false
+	}
+	switch id {
+	case "exact-marker-v1":
+		return parent != nil && bytes.Equal(child.bytes, parent.bytes)
+	case observationExtension:
+		childRequirements, err := decodeRequirements(child.bytes)
+		if err != nil {
+			return false
+		}
+		if parent == nil {
+			return true
+		}
+		parentRequirements, err := decodeRequirements(parent.bytes)
+		if err != nil {
+			return false
+		}
+		return requirementsAttenuate(childRequirements, parentRequirements)
+	default:
+		return false
+	}
+}
+
 func evaluateCriticalExtensions(extensions []criticalExtension, accepted []string) error {
 	for _, extension := range extensions {
 		if !containsText(accepted, extension.id) {
@@ -1046,7 +1103,7 @@ func verifyFromAnchor(
 				return nil, control.err
 			}
 		}
-		if err := authority.delegate(grant); err != nil {
+		if err := authority.delegate(grant, context.extensions); err != nil {
 			return nil, err
 		}
 		control, ok := controls[statementReference{kind: 0, id: grant.id}.key()]
@@ -1132,7 +1189,9 @@ type effectiveAuthority struct {
 	extensionsSet   bool
 }
 
-func (authority *effectiveAuthority) delegate(grant *signedGrant) error {
+// delegate applies one grant edge. accepted lists the critical-extension
+// identifiers the verifier context accepts; only those have a law.
+func (authority *effectiveAuthority) delegate(grant *signedGrant, accepted []string) error {
 	if grant.issuer != authority.subject || !bytes.Equal(grant.parent, authority.lastGrant) {
 		return denied("broken-grant-chain")
 	}
@@ -1149,7 +1208,8 @@ func (authority *effectiveAuthority) delegate(grant *signedGrant) error {
 		!budgetAttenuates(grant.budget, authority.budget) ||
 		!statusAttenuates(grant.status, authority.status) ||
 		grant.assurance != authority.assurance ||
-		(authority.extensionsSet && !extensionSliceEqual(grant.extensions, authority.extensions)) {
+		(authority.extensionsSet &&
+			!extensionsAttenuate(grant.extensions, authority.extensions, accepted)) {
 		return denied("delegation-expanded")
 	}
 	authority.subject = grant.subject

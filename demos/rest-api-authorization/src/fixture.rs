@@ -110,6 +110,7 @@ pub fn authorization_fixture<P: ActionProfile>(
             assurance_id.clone(),
             CriticalExtensions::empty(),
         ),
+        &auths_registries::CoreExtensionLaws::target_v1().unwrap(),
     )
     .unwrap();
     let child_request = prepare_grant(child_plan.into_statement(), workflow.descriptor()).unwrap();

@@ -74,6 +74,18 @@ def ProfileId := String
 @[reducible]
 def observation.FactName := String
 
+/-- [auths_model::observation::ObserverAnchorId]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 122:8-122:33
+    Visibility: public -/
+@[reducible]
+def observation.ObserverAnchorId := String
+
+/-- [auths_model::observation::ObservationSchemaId]
+    Source: 'core/crates/auths-model/src/lib.rs', lines 122:8-122:33
+    Visibility: public -/
+@[reducible]
+def observation.ObservationSchemaId := String
+
 /-- [auths_model::PrincipalId]
     Source: 'core/crates/auths-model/src/lib.rs', lines 153:0-153:31
     Visibility: public -/
@@ -222,6 +234,14 @@ structure observation.ObservationFact where
 @[reducible]
 def observation.ObservationFacts := alloc.vec.Vec observation.ObservationFact
 
+/-- [auths_model::observation::ObservationSubject]
+    Source: 'core/crates/auths-model/src/observation.rs', lines 278:0-281:1
+    Visibility: public -/
+@[discriminant isize]
+inductive observation.ObservationSubject where
+| Resource : ResourceId → observation.ObservationSubject
+| ActionFact : observation.FactName → observation.ObservationSubject
+
 /-- [auths_model::observation::UintRange]
     Source: 'core/crates/auths-model/src/observation.rs', lines 285:0-288:1
     Visibility: public -/
@@ -251,6 +271,23 @@ inductive observation.ConditionTest where
 structure observation.ObservationCondition where
   «name» : observation.FactName
   test : observation.ConditionTest
+
+/-- [auths_model::observation::ObservationRequirement]
+    Source: 'core/crates/auths-model/src/observation.rs', lines 386:0-392:1
+    Visibility: public -/
+structure observation.ObservationRequirement where
+  observer_anchor : observation.ObserverAnchorId
+  schema : observation.ObservationSchemaId
+  subject : observation.ObservationSubject
+  max_age_seconds : Std.U32
+  conditions : alloc.vec.Vec observation.ObservationCondition
+
+/-- [auths_model::observation::ObservationRequirements]
+    Source: 'core/crates/auths-model/src/observation.rs', lines 449:0-449:64
+    Visibility: public -/
+@[reducible]
+def observation.ObservationRequirements :=
+  alloc.vec.Vec observation.ObservationRequirement
 
 /-- [auths_model::observation::RequirementVerdict]
     Source: 'core/crates/auths-model/src/observation.rs', lines 590:0-597:1

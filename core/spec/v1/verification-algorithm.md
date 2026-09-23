@@ -87,8 +87,11 @@ For each plan leaf:
 7. resolve and execute exact budget, status, extension, assurance-claim, and
    implication handlers, reserving their work before invocation;
 8. before applying each child grant, deny with
-   `observation-requirement-dropped` when it lacks or alters any
-   observation requirement of its parent grant;
+   `observation-requirement-dropped` when some observation requirement of
+   its parent grant has no child requirement with the same schema and
+   subject; the authority kernel then applies every critical-extension
+   attenuation law (registry.md) and denies a widened requirement, a changed
+   marker, or an identifier without a law with `delegation-expanded`;
 9. run the observation stage below.
 
 Produce one `VerifiedAuthority` per valid branch.

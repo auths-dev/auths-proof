@@ -14,6 +14,7 @@ auths-algebra-kernel.workspace = true
 auths-authority = { workspace = true, features = ["std"] }
 auths-composition = { workspace = true, features = ["std"] }
 auths-model = { workspace = true, features = ["std"] }
+auths-registries = { workspace = true, features = ["std"] }
 serde = { workspace = true, features = ["std"] }
 serde_json = { workspace = true, features = ["std"] }
 

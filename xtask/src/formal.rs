@@ -77,7 +77,9 @@ pub(crate) fn dimension_description(name: &str) -> &'static str {
         "budget_attenuates" => "the budget ceiling does not widen",
         "status_attenuates" => "status requirements do not weaken",
         "assurance_attenuates" => "assurance requirements do not weaken",
-        "extensions_attenuate" => "critical extensions remain exactly equal",
+        "extensions_attenuate" => {
+            "every critical extension satisfies its identifier's attenuation law"
+        }
         _ => "the declared authority dimension attenuates",
     }
 }
@@ -911,7 +913,7 @@ const MUTATION_CASE_IDS: [&str; 23] = [
     "status-method-equality",
     "profile-version-equality",
     "assurance-equality",
-    "critical-extension-equality",
+    "critical-extension-law",
     "delegation-depth-strictness",
     "principal-linkage-equality",
     "grant-linkage-equality",
@@ -2042,6 +2044,7 @@ fn validate_production_evidence(
 
 fn production_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
     const COMMON: &str = "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the reviewed transparent external bridges, the listed foundational axioms, and the theorem's explicit representation-validity premises are trusted.";
+    const LAWS: &str = "The critical-extension handler laws live in auths-registries, outside the translated kernel. The theorem holds for every law the translated handler-law instance computes without failing (premise LawsRefine); that each registered law is a narrowing preorder is proved separately over decoded payloads, and the byte-level handlers' agreement with those decoded laws rests on the canonical codec.";
     match declaration {
         "Auths.Refinement.translated_rust_refines_rich_spec" => {
             Some(ProductionRefinementMetadata {
@@ -2056,12 +2059,21 @@ fn production_refinement_metadata(declaration: &str) -> Option<ProductionRefinem
                     "auths_model::optional_budget_attenuates",
                     "auths_model::status_policy_attenuates",
                     "auths_model::assurance_policy_id_equal",
-                    "auths_model::critical_extensions_equal",
+                    "auths_authority::critical_extensions_attenuate",
+                    "auths_authority::parent_extensions_retained",
+                    "auths_authority::child_extensions_admitted",
+                    "auths_authority::parent_extension_retained",
+                    "auths_authority::child_extension_admitted",
+                    "auths_model::critical_extension_entries",
+                    "auths_model::critical_extension_find",
+                    "auths_model::critical_extension_id",
+                    "auths_model::critical_extension_payload",
                 ],
-                scope: "The exact translated pre-signing scope evaluator over validated bounded views, including all ten scope/depth dimensions and ordered diagnostics.",
+                scope: "The exact translated pre-signing scope evaluator over validated bounded views, including all ten scope/depth dimensions and ordered diagnostics, for every set of critical-extension laws.",
                 residual_assumptions: &[
                     COMMON,
                     "Canonical decoding and cryptographic authenticity precede this pure evaluator and are outside this theorem.",
+                    LAWS,
                 ],
                 translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
             })
@@ -2115,11 +2127,20 @@ fn production_refinement_metadata(declaration: &str) -> Option<ProductionRefinem
                     "auths_model::optional_budget_attenuates",
                     "auths_model::status_policy_attenuates",
                     "auths_model::assurance_policy_id_equal",
-                    "auths_model::critical_extensions_equal",
+                    "auths_authority::critical_extensions_attenuate",
+                    "auths_authority::parent_extensions_retained",
+                    "auths_authority::child_extensions_admitted",
+                    "auths_authority::parent_extension_retained",
+                    "auths_authority::child_extension_admitted",
+                    "auths_model::critical_extension_entries",
+                    "auths_model::critical_extension_find",
+                    "auths_model::critical_extension_id",
+                    "auths_model::critical_extension_payload",
                 ],
-                scope: "The crate-private raw evaluator over validated parent/grant views, including root linkage, strict depth, every attenuation dimension, and the unique accepted transition.",
+                scope: "The crate-private raw evaluator over validated parent/grant views, including root linkage, strict depth, every attenuation dimension, and the unique accepted transition, for every set of critical-extension laws.",
                 residual_assumptions: &[
                     COMMON,
+                    LAWS,
                     "A present last-grant marker is representation data, not ancestry proof. Shipping Rust seals raw views; historical provenance is stated separately by Lean's AnchoredChain theorem from a fresh anchor through accepted transitions.",
                 ],
                 translation_evidence_kind: FormalEvidenceKind::TranslatedRust,
@@ -2395,7 +2416,7 @@ mod phase_ordering {
         for required in [
             "auths_authority::depth_decreases",
             "auths_authority::extensions_attenuate",
-            "auths_model::critical_extensions_equal",
+            "auths_authority::critical_extensions_attenuate",
         ] {
             assert!(delegation.rust_symbols.contains(&required));
         }

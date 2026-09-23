@@ -20,7 +20,7 @@ namespace Auths.Authority
 open Auths.Rich
 
 /-- Every accepted edge leaves the child under the parent's trust root. -/
-theorem delegation_preserves_trust_root {v : Vocabulary}
+theorem delegation_preserves_trust_root {v : Vocabulary} [ExtensionLaws v]
     {parent child : ChainState v} {grantId : GrantId v} {grant : Grant v}
     (edge : delegates parent grantId grant child) :
     child.root = parent.root :=
@@ -31,14 +31,14 @@ Every accepted edge starts from an authority that itself descends from that
 root, and leaves the child in the same condition.  This is the inductive
 content that `delegation_preserves_trust_root` alone does not carry.
 -/
-theorem delegation_requires_and_preserves_rootedness {v : Vocabulary}
+theorem delegation_requires_and_preserves_rootedness {v : Vocabulary} [ExtensionLaws v]
     {parent child : ChainState v} {grantId : GrantId v} {grant : Grant v}
     (edge : delegates parent grantId grant child) :
     rooted parent ∧ rooted child :=
   ⟨delegate_requires_rooted_parent edge, delegate_preserves_rootedness edge⟩
 
 /-- The first edge of a chain is issued by the root principal itself. -/
-theorem first_delegation_comes_from_the_root {v : Vocabulary}
+theorem first_delegation_comes_from_the_root {v : Vocabulary} [ExtensionLaws v]
     {parent child : ChainState v} {grantId : GrantId v} {grant : Grant v}
     (fresh : parent.lastGrant = none)
     (edge : delegates parent grantId grant child) :
@@ -51,7 +51,7 @@ trusted context descends from that same root. Delegation can narrow authority;
 it can never re-anchor it. Both the context membership and freshness premises
 are essential: a present `lastGrant` marker alone is not ancestry evidence.
 -/
-theorem chain_descends_from_one_root {v : Vocabulary}
+theorem chain_descends_from_one_root {v : Vocabulary} [ExtensionLaws v]
     {trusted : FiniteSet (Principal v)}
     {start : ChainState v} {rest : List (ChainState v)}
     (chain : AnchoredChain trusted start rest) :
@@ -60,14 +60,14 @@ theorem chain_descends_from_one_root {v : Vocabulary}
   anchored_chain_preserves_provenance chain
 
 /-- An authority that descends from no root delegates nothing. -/
-theorem unrooted_authority_delegates_nothing {v : Vocabulary}
+theorem unrooted_authority_delegates_nothing {v : Vocabulary} [ExtensionLaws v]
     (parent : ChainState v) (grantId : GrantId v) (grant : Grant v)
     (unrooted : ¬ rooted parent) :
     evaluateGrant parent grantId grant = .denied .brokenGrantChain :=
   unrooted_parent_delegates_nothing parent grantId grant unrooted
 
 /-- An authority that descends from no root authorizes nothing. -/
-theorem unrooted_authority_authorizes_nothing {v : Vocabulary}
+theorem unrooted_authority_authorizes_nothing {v : Vocabulary} [ExtensionLaws v]
     (authority : ChainState v) (action : Action v)
     (expression : BudgetExpression)
     (unrooted : ¬ rooted authority) :

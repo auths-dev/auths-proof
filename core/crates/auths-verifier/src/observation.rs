@@ -18,7 +18,8 @@ use auths_model::{
     ObservationRequirement, ObservationSatisfaction, ObservationSubject, ObserverAnchor,
     PrincipalId, Requirement, RequirementVerdict, ResourceId, SignedAction, SignedGrant,
     SignedObservation, TrustedContext, observation_conditions_hold, observation_fresh,
-    observation_subject_equal, principal_id_equal, requirement_verdict,
+    observation_schema_equal, observation_subject_equal, principal_id_equal,
+    requirement_subject_equal, requirement_verdict,
 };
 use auths_ports::{
     ControlPurpose, PrincipalControlInput, ProfilePolicy, ResourceMatcher, SignatureInput,
@@ -102,9 +103,11 @@ pub(crate) fn chain_requirements(
     Ok(requirements)
 }
 
-/// Denies a child grant that drops or alters a parent's observation
-/// requirement. A child that keeps every parent requirement falls through to
-/// the authority kernel's exact extension rule.
+/// Denies a child grant that drops a parent's observation requirement: no
+/// child requirement addresses it with the same schema and subject. A child
+/// requirement that addresses it without keeping or narrowing it falls
+/// through to the authority kernel, whose extension law denies the edge as
+/// expanded.
 pub(crate) fn require_parent_requirements(
     parent: &SignedGrant,
     child: &SignedGrant,
@@ -114,10 +117,12 @@ pub(crate) fn require_parent_requirements(
         return Ok(());
     }
     let child_requirements = chain_requirements(&[child]).unwrap_or_default();
-    if parent_requirements
-        .iter()
-        .all(|requirement| child_requirements.contains(requirement))
-    {
+    if parent_requirements.iter().all(|parent| {
+        child_requirements.iter().any(|child| {
+            observation_schema_equal(child.schema(), parent.schema())
+                && requirement_subject_equal(child.subject(), parent.subject())
+        })
+    }) {
         Ok(())
     } else {
         Err(VerificationFailure::Denied(
@@ -450,5 +455,98 @@ impl Stage<'_, '_> {
                 signature: observation.signature().signature().as_slice(),
             })
             .is_ok())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+    use auths_model::{
+        ConditionTest, CriticalExtension, CriticalExtensions, ExtensionId, FactName,
+        GrantStatement, ObservationCondition, ObservationRequirements, ObservationSchemaId,
+        ObserverAnchorId, UintRange, VerifierLimits,
+    };
+
+    /// A grant carrying `count` distinct requirements, each a narrowing of
+    /// the same base requirement by one extra range atom.
+    fn grant_with_requirements(template: &SignedGrant, first: u64, count: u64) -> SignedGrant {
+        let requirements = (first..first + count)
+            .map(|hi| {
+                ObservationRequirement::new(
+                    ObserverAnchorId::parse("observer").expect("anchor"),
+                    ObservationSchemaId::parse("auths.test/1").expect("schema"),
+                    auths_model::ObservationSubject::Resource(
+                        ResourceId::parse("mcp://record").expect("subject"),
+                    ),
+                    60,
+                    vec![ObservationCondition::new(
+                        FactName::parse("count").expect("fact"),
+                        ConditionTest::UintRange(UintRange::new(0, hi).expect("range")),
+                    )],
+                )
+                .expect("requirement")
+            })
+            .collect();
+        let bytes = auths_codec::encode_observation_requirements(
+            &ObservationRequirements::new(requirements).expect("requirements"),
+        )
+        .expect("canonical requirements");
+        let statement = template.statement();
+        SignedGrant::new(
+            GrantStatement::new(
+                statement.issuer().clone(),
+                statement.subject().clone(),
+                statement.profile().clone(),
+                statement.permissions().clone(),
+                statement.validity(),
+                statement.audiences().clone(),
+                statement.action_constraint().clone(),
+                statement.budget_ceiling().cloned(),
+                statement.remaining_depth(),
+                statement.parent(),
+                statement.status_policy().clone(),
+                statement.assurance_floor().clone(),
+                CriticalExtensions::new(vec![
+                    CriticalExtension::new(
+                        ExtensionId::parse(OBSERVATION_REQUIREMENT_EXTENSION_V1)
+                            .expect("extension id"),
+                        bytes,
+                    )
+                    .expect("extension"),
+                ])
+                .expect("extensions"),
+            ),
+            template.signature().clone(),
+        )
+    }
+
+    /// Delegates may add requirements, so a chain of five grants can carry
+    /// more distinct requirements than the chain bound: 32 is accepted and
+    /// 33 is a resource-limit denial.
+    #[test]
+    fn chain_requirement_bound_is_exact() {
+        let fixture = auths_testkit::corpus()
+            .into_iter()
+            .find(|fixture| fixture.name() == "observation-requirement-preserved")
+            .expect("corpus fixture");
+        let bundle = auths_codec::decode_bundle(fixture.proof_bytes(), &VerifierLimits::default())
+            .expect("fixture proof");
+        let template = &bundle.grants()[0];
+        let at_limit: Vec<SignedGrant> = (0..4)
+            .map(|grant| grant_with_requirements(template, grant * 8, 8))
+            .collect();
+        let references: Vec<&SignedGrant> = at_limit.iter().collect();
+        assert_eq!(chain_requirements(&references).map(|all| all.len()), Ok(32));
+
+        let mut over = at_limit;
+        over.push(grant_with_requirements(template, 32, 1));
+        let references: Vec<&SignedGrant> = over.iter().collect();
+        assert_eq!(
+            chain_requirements(&references).map(|all| all.len()),
+            Err(VerificationFailure::Denied(
+                DenialReason::ResourceLimitExceeded
+            ))
+        );
     }
 }

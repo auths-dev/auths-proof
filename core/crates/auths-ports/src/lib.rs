@@ -407,6 +407,25 @@ pub trait CriticalExtensionHandler {
     ///
     /// Returns a typed failure for invalid or over-limit bytes.
     fn evaluate(&self, extension: &CriticalExtension) -> Result<(), RegistryOperationError>;
+    /// The extension's attenuation law over one child/parent payload pair.
+    ///
+    /// `None` means the extension is absent on that side. The authority
+    /// kernel consults the law only for a payload the child carries: with
+    /// the parent's payload when both carry the extension, and with `None`
+    /// when only the child does. The law must be a preorder that narrows: it
+    /// accepts a pair only when every action the child's payload admits is
+    /// also admitted by the parent's. Work is bounded by
+    /// [`Self::maximum_work_units`] of each present payload.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed failure for invalid or over-limit payload bytes; the
+    /// kernel treats a failure as a refusal.
+    fn attenuates(
+        &self,
+        child: Option<&[u8]>,
+        parent: Option<&[u8]>,
+    ) -> Result<bool, RegistryOperationError>;
 }
 
 /// Status-method decision after trusted issuer, method, sequence, and freshness evaluation.
