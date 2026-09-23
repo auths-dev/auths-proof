@@ -57,6 +57,8 @@ use rcgen::{
 use rustls_pki_types::PrivatePkcs8KeyDer;
 use sha2::{Digest as _, Sha256};
 
+mod observation;
+
 const BODY: &[u8] = &[
     0xa2, 0x00, 0x64, b'r', b'e', b'a', b'd', 0x01, 0x6f, b'/', b'r', b'e', b'p', b'o', b'r', b't',
     b's', b'/', b'q', b'3', b'.', b'p', b'd', b'f',
@@ -697,7 +699,7 @@ fn registries_with_status(
     evidence_types.sort();
     evidence_types.dedup();
     AcceptedRegistries::new(
-        RegistryManifestId::new([0x33; 32]),
+        auths_registries::TARGET_V1_REGISTRY_MANIFEST,
         methods,
         suites,
         evidence_types,
@@ -4362,7 +4364,7 @@ fn unsupported_budget_algebra() -> CorpusFixture {
     )
     .unwrap();
     let accepted = AcceptedRegistries::new(
-        RegistryManifestId::new([0x33; 32]),
+        auths_registries::TARGET_V1_REGISTRY_MANIFEST,
         vec![PrincipalMethodId::parse(RAW_KEY_V1).unwrap()],
         vec![SignatureSuiteId::parse(ED25519_V1).unwrap()],
         vec![EvidenceTypeId::parse(RAW_KEY_V1).unwrap()],
@@ -4711,7 +4713,7 @@ fn attachment_fixture(
 #[must_use]
 #[allow(clippy::too_many_lines)]
 pub fn corpus() -> Vec<CorpusFixture> {
-    vec![
+    let mut corpus = vec![
         raw_key_chain(),
         did_key_root_raw_key_actor(),
         raw_key_root_did_key_actor(),
@@ -4874,7 +4876,9 @@ pub fn corpus() -> Vec<CorpusFixture> {
             AttachmentVariation::OpaqueDenied,
             Expected::Denied(DenialReason::OpaqueAttachmentNotAllowed),
         ),
-    ]
+    ];
+    corpus.extend(observation::observation_corpus());
+    corpus
 }
 
 /// Returns exact mandatory suite IDs exercised by the corpus.
