@@ -8,9 +8,11 @@ description = "Closed developer-authored request recipes for the Auths gateway"
 publish = false
 
 [dependencies]
+auths-author.workspace = true
 auths-connections.workspace = true
 auths-codec.workspace = true
 auths-did-keri.workspace = true
+auths-custody.workspace = true
 auths-did-key.workspace = true
 auths-lifecycle.workspace = true
 auths-model.workspace = true
@@ -40,6 +42,10 @@ url.workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]
+auths-custody = { workspace = true, features = ["conformance"] }
+auths-custody-aws-kms.workspace = true
+auths-custody-pkcs11.workspace = true
+p256.workspace = true
 postgres.workspace = true
 rustls.workspace = true
 rustls-pki-types = { workspace = true, features = ["std"] }

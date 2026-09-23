@@ -15,14 +15,15 @@
 use crate::action::{ActionError, GitSignatureAction, RepositoryId};
 use crate::envelope::{EnvelopeError, GitSignatureEnvelope};
 use crate::object::UnsignedPayload;
-use auths_author::prepare_action;
+use auths_author::{ExternalSigningRequest, prepare_action};
 use auths_codec::{
     action_id, body_digest, encode_bundle, encode_canonical_action, grant_id, plan_id,
 };
 use auths_model::{
     ActionEnvelope, Audience, AuthorizationPlan, BundleHeader, Challenge, ChannelBindingId,
-    ControlBinding, CriticalExtensions, EvidenceObject, PrincipalId, ProofBundle, ProofRef,
-    SignatureBytes, SignatureDescriptor, SignedGrant, StatementRef, Timestamp, ValidityWindow,
+    ControlBinding, CriticalExtensions, EvidenceObject, GrantStatement, PrincipalId, ProofBundle,
+    ProofRef, SignatureBytes, SignatureDescriptor, SignedAction, SignedGrant, StatementRef,
+    Timestamp, ValidityWindow,
 };
 use thiserror::Error;
 
@@ -32,6 +33,10 @@ pub const MAX_DELEGATION_DEPTH: usize = 4;
 pub const CHANNEL_BINDING: &str = "none-v1";
 
 /// A principal that can sign Auths statements, under any principal method.
+///
+/// Signing takes the exact prepared request, never bare bytes, so a
+/// custody-held key signs through the same transaction-bound request and
+/// response check as every other custody signature.
 pub trait GitProofSigner {
     /// The signing principal.
     fn principal(&self) -> PrincipalId;
@@ -40,16 +45,50 @@ pub trait GitProofSigner {
     /// Evidence that lets a verifier establish control of the principal.
     /// Some methods need more than one object, such as a token and a key
     /// descriptor, or a certificate chain and a transparency-log entry. It
-    /// is requested after [`GitProofSigner::sign`], so a method may produce
-    /// evidence that depends on the signature.
+    /// is requested after signing, so a method may produce evidence that
+    /// depends on the signature.
     fn control_evidence(&self) -> Vec<EvidenceObject>;
-    /// Signs exactly `preimage`.
+    /// Where the private key is held: `software`, `workload`, or a custody
+    /// kind such as `kms` or `pkcs11`.
+    fn custody(&self) -> &'static str;
+    /// Signs one prepared grant.
     ///
     /// # Errors
     ///
     /// Returns [`SignError::Signer`] when the method cannot produce a
     /// signature.
-    fn sign(&self, preimage: &[u8]) -> Result<SignatureBytes, SignError>;
+    fn sign_grant(
+        &self,
+        request: ExternalSigningRequest<GrantStatement>,
+    ) -> Result<SignedGrant, SignError>;
+    /// Signs one prepared action.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SignError::Signer`] when the method cannot produce a
+    /// signature.
+    fn sign_action(
+        &self,
+        request: ExternalSigningRequest<ActionEnvelope>,
+    ) -> Result<SignedAction, SignError>;
+}
+
+/// Completes a grant with a signature made in this process.
+pub(crate) fn local_grant(
+    request: ExternalSigningRequest<GrantStatement>,
+    sign: impl FnOnce(&[u8]) -> Result<SignatureBytes, SignError>,
+) -> Result<SignedGrant, SignError> {
+    let signature = sign(request.signing_preimage())?;
+    Ok(request.complete(signature))
+}
+
+/// Completes an action with a signature made in this process.
+pub(crate) fn local_action(
+    request: ExternalSigningRequest<ActionEnvelope>,
+    sign: impl FnOnce(&[u8]) -> Result<SignatureBytes, SignError>,
+) -> Result<SignedAction, SignError> {
+    let signature = sign(request.signing_preimage())?;
+    Ok(request.complete(signature))
 }
 
 /// One grant in a delegation chain, with its issuer's control evidence.
@@ -147,6 +186,10 @@ pub enum SignError {
     /// The principal method could not sign.
     #[error("the principal method could not sign")]
     Signer,
+    /// The custody boundary refused to sign, or its response did not bind
+    /// to the exact request.
+    #[error("custody refused to sign: {0}")]
+    Custody(auths_custody::CustodyError),
     /// The proof or action exceeds the envelope limits.
     #[error("git signature envelope: {0}")]
     Envelope(#[from] EnvelopeError),
@@ -238,8 +281,7 @@ pub fn sign_payload(
         CriticalExtensions::empty(),
     );
     let request = prepare_action(envelope, signer.descriptor()).map_err(|_| SignError::Assembly)?;
-    let signature = signer.sign(request.signing_preimage())?;
-    let action_statement = request.complete(signature);
+    let action_statement = signer.sign_action(request)?;
 
     let mut evidence: Vec<EvidenceObject> = Vec::new();
     let mut bindings = Vec::with_capacity(delegation.links.len() + 1);

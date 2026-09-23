@@ -19,8 +19,9 @@ mod unix {
     use auths_gateway::{
         CompiledRecipe, FileGatewayAttemptStore, GatewayAttempts, GatewayConnectionDescriptor,
         GatewayEngine, GatewayObserveRequest, GatewayObserveResult, GatewayObserver,
-        GatewayObserverError, GatewaySubmitResult, OperatorNamespace, PostgresGatewayAttemptStore,
-        PrincipalSeparationError, check_principal_separation, gateway_verifier_configuration,
+        GatewayObserverError, GatewaySubmitResult, ObserverCustody, OperatorNamespace,
+        PostgresGatewayAttemptStore, PrincipalSeparationError, check_principal_separation,
+        gateway_verifier_configuration,
     };
     use auths_model::PrincipalId;
     use auths_stores::{PersistentConnectionStore, PostgresLifecycleStore, PostgresStoreConfig};
@@ -486,7 +487,11 @@ mod unix {
         )
         .map_err(|_| "gateway.serve.profile")?;
         let observer = load_observer(state_dir)?;
-        if manifest.deployment == Deployment::Production && observer.is_some() {
+        if manifest.deployment == Deployment::Production
+            && observer
+                .as_ref()
+                .is_some_and(|observer| observer.custody() == ObserverCustody::Software)
+        {
             return Err("gateway.production.observer-software-custody");
         }
         let engine = GatewayEngine::new(
@@ -554,6 +559,7 @@ mod unix {
         let configuration = gateway_verifier_configuration()?;
         let output = serde_json::json!({
             "observer_anchor": observer.anchor_template(recipe.review().origin(), namespace),
+            "observer_custody": observer.custody().label(),
             "verifier_configuration": hex::encode(configuration.as_bytes()),
             "profile_policy": auths_gateway::MCP_ARGUMENTS_V1,
         });

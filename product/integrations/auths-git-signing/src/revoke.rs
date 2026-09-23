@@ -153,8 +153,7 @@ pub fn sign_revocation(
     );
     let request =
         prepare_action(envelope, revoker.descriptor()).map_err(|_| SignError::Assembly)?;
-    let signature = revoker.sign(request.signing_preimage())?;
-    let statement = request.complete(signature);
+    let statement = revoker.sign_action(request)?;
     let evidence = revoker.control_evidence();
     let binding = ControlBinding::new(
         StatementRef::Action(action_id(statement.envelope()).map_err(|_| SignError::Assembly)?),

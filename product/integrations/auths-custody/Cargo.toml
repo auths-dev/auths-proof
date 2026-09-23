@@ -8,10 +8,16 @@ repository.workspace = true
 homepage.workspace = true
 description = "External WebAuthn, workload, KMS, HSM, and PKCS#11 signing boundary"
 
+[features]
+conformance = []
+
 [dependencies]
 auths-author.workspace = true
+auths-did-key.workspace = true
 auths-model.workspace = true
+auths-multikey.workspace = true
 auths-operations.workspace = true
+auths-raw-key.workspace = true
 p256.workspace = true
 subtle.workspace = true
 
