@@ -4,25 +4,33 @@
 // distinct public stage; `let...else` would obscure those boundary decisions.
 #![allow(clippy::manual_let_else)]
 
+use crate::action_facts::McpArgumentsPolicy;
+use crate::observer::{
+    GatewayObserver, GatewaySignedObservation, OUTCOME_SCHEMA, READ_BACK_SCHEMA, operation_subject,
+    outcome_facts, read_back_facts,
+};
 use crate::recipe::ReadBack;
 use crate::transport::{
     GatewayHttpTransport, LeasedTransport, ProviderPort, WriteTransportOutcome,
 };
 use crate::{
-    ClaimedGatewayAttempt, ClosedProviderRequest, CompiledRecipe, FileGatewayAttemptStore,
-    GatewayAttemptError, GatewayConnectionDescriptor, GatewayEvidenceChannel,
-    GatewayProviderEvidence, ObservableGatewayAttempt,
+    ClaimedGatewayAttempt, ClosedObservationRequest, ClosedProviderRequest, CompiledRecipe,
+    FileGatewayAttemptStore, GatewayAttemptError, GatewayConnectionDescriptor,
+    GatewayEvidenceChannel, GatewayProviderEvidence, ObservableGatewayAttempt,
 };
 use auths_connections::{
     ConnectionAlias, ConnectionBinding, ConnectionCredentialStore, ConnectionProfile,
     ConnectionState, PersistentCredentialStore, ProviderKind, SecretBytes, StoredSecretLease,
 };
-use auths_model::VerificationDecision;
-use auths_ports::{PrincipalMethod, SignatureSuite};
+use auths_model::{Timestamp, TrustedContext, VerificationDecision, VerifierConfigurationId};
+use auths_ports::{PrincipalMethod, ProfilePolicy, SignatureSuite};
 use auths_profile_api::ActionProfile;
 use auths_profile_mcp::McpProfile;
+use auths_registries::{ImmutableRegistries, PureRegistrySet};
 use auths_stores::PersistentConnectionStore;
+use base64ct::{Base64UrlUnpadded, Encoding as _};
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 use tokio::sync::RwLock;
@@ -95,11 +103,62 @@ impl From<&GatewayProviderEvidence> for GatewayEvidenceSummary {
     }
 }
 
+/// Closed, read-only application request for one gateway-signed observation.
+/// It carries no URL, method, header, body, schema, subject, or time: the
+/// gateway derives each from its installation and its own clock.
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+pub enum GatewayObserveRequest {
+    /// Read the recipe's observed field now and sign what was read.
+    /// `arguments` names exactly the observation path's fields.
+    ReadBack { arguments: Map<String, Value> },
+    /// Sign the stored stage and commitment of one logical operation in this
+    /// installation's namespace. No provider is contacted.
+    Outcome { operation_id: String },
+}
+
+/// Closed application result of an observation request. A signed
+/// observation asserts only what the gateway saw at `observed_at`.
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(tag = "outcome", rename_all = "kebab-case", deny_unknown_fields)]
+pub enum GatewayObserveResult {
+    /// A canonical signed observation to attach to the next action with
+    /// `media_type` as its attachment media type.
+    Signed {
+        schema: String,
+        subject: String,
+        observed_at: u64,
+        media_type: String,
+        observation_b64: String,
+    },
+    /// Nothing was signed.
+    Refused { code: String },
+}
+
+impl From<GatewaySignedObservation> for GatewayObserveResult {
+    fn from(signed: GatewaySignedObservation) -> Self {
+        Self::Signed {
+            schema: signed.schema().to_owned(),
+            subject: signed.subject().to_owned(),
+            observed_at: signed.observed_at(),
+            media_type: crate::observer::OBSERVATION_MEDIA_TYPE.to_owned(),
+            observation_b64: Base64UrlUnpadded::encode_string(signed.bytes()),
+        }
+    }
+}
+
+fn refused(code: &'static str) -> GatewayObserveResult {
+    GatewayObserveResult::Refused {
+        code: code.to_owned(),
+    }
+}
+
 /// One immutable installed operation and independently provisioned trust.
 /// Connection state and generation are rechecked on every submission.
 pub struct GatewayEngine {
     recipe: CompiledRecipe,
-    trusted_context_cbor: Vec<u8>,
+    trusted_context: TrustedContext,
+    observer: Option<GatewayObserver>,
     provider: ProviderKind,
     alias: ConnectionAlias,
     workload_id: String,
@@ -120,7 +179,7 @@ impl GatewayEngine {
     pub fn new(
         recipe: CompiledRecipe,
         approved_digest: [u8; 32],
-        trusted_context_cbor: Vec<u8>,
+        trusted_context_cbor: &[u8],
         provider: ProviderKind,
         alias: ConnectionAlias,
         workload_id: String,
@@ -129,18 +188,18 @@ impl GatewayEngine {
         credentials: PersistentCredentialStore,
         attempts: FileGatewayAttemptStore,
     ) -> Result<Self, GatewayEngineConfigurationError> {
-        if trusted_context_cbor.is_empty()
-            || trusted_context_cbor.len() > MAX_CONTEXT_BYTES
-            || auths_codec::decode_verifier_context(&trusted_context_cbor).is_err()
-        {
+        if trusted_context_cbor.is_empty() || trusted_context_cbor.len() > MAX_CONTEXT_BYTES {
             return Err(GatewayEngineConfigurationError::InvalidTrust);
         }
+        let trusted_context = auths_codec::decode_verifier_context(trusted_context_cbor)
+            .map_err(|_| GatewayEngineConfigurationError::InvalidTrust)?;
         if *recipe.digest() != approved_digest {
             return Err(GatewayEngineConfigurationError::UnapprovedRecipe);
         }
         Ok(Self {
             recipe,
-            trusted_context_cbor,
+            trusted_context,
+            observer: None,
             provider,
             alias,
             workload_id,
@@ -150,6 +209,14 @@ impl GatewayEngine {
             attempts,
             administrative_gate: RwLock::new(()),
         })
+    }
+
+    /// Installs the operator-provisioned observer key. Without one, every
+    /// observation request is refused.
+    #[must_use]
+    pub fn with_observer(mut self, observer: GatewayObserver) -> Self {
+        self.observer = Some(observer);
+        self
     }
 
     /// Disables new submissions after all already-entered submissions finish.
@@ -290,7 +357,18 @@ impl GatewayEngine {
     /// come from the operator's installation. A replay never writes again; for
     /// an echo recipe it may perform one more read-only observation.
     pub async fn submit(&self, proof_cbor: &[u8], action_cbor: &[u8]) -> GatewaySubmitResult {
-        let request = match self.verify_and_close(proof_cbor, action_cbor) {
+        let Some(now) = wall_clock_seconds() else {
+            return GatewaySubmitResult::Indeterminate {
+                code: "gateway.verify.clock-unavailable".to_owned(),
+            };
+        };
+        let request = match verify_command(
+            &self.recipe,
+            &self.trusted_context,
+            now,
+            proof_cbor,
+            action_cbor,
+        ) {
             Ok(value) => value,
             Err(result) => return result,
         };
@@ -379,85 +457,150 @@ impl GatewayEngine {
         reobserve(attempt, request, &port).await
     }
 
-    fn verify_and_close(
-        &self,
-        proof_cbor: &[u8],
-        action_cbor: &[u8],
-    ) -> Result<ClosedProviderRequest, GatewaySubmitResult> {
-        if proof_cbor.is_empty()
-            || proof_cbor.len() > MAX_PROOF_BYTES
-            || action_cbor.is_empty()
-            || action_cbor.len() > MAX_ACTION_BYTES
-        {
-            return Err(GatewaySubmitResult::Indeterminate {
-                code: "gateway.submit.invalid-size".to_owned(),
-            });
-        }
-        let raw_key = match auths_raw_key::RawKeyMethod::new() {
-            Ok(value) => value,
-            Err(_) => return Err(indeterminate_registry()),
+    /// Signs one observation for the application. A read-back uses the
+    /// installed connection and credential for exactly one bounded read-only
+    /// GET built from the approved recipe; an outcome reads only the local
+    /// attempt store. Nothing here writes to a provider or to the store.
+    pub async fn observe(&self, request: &GatewayObserveRequest) -> GatewayObserveResult {
+        let Some(observer) = &self.observer else {
+            return refused("gateway.observer.not-provisioned");
         };
-        let did_key = match auths_did_key::DidKeyMethod::new() {
-            Ok(value) => value,
-            Err(_) => return Err(indeterminate_registry()),
-        };
-        let did_keri = match auths_did_keri::DidKeriMethod::new() {
-            Ok(value) => value,
-            Err(_) => return Err(indeterminate_registry()),
-        };
-        let ed25519 = match auths_signature::Ed25519Suite::new() {
-            Ok(value) => value,
-            Err(_) => return Err(indeterminate_registry()),
-        };
-        let p256 = match auths_signature::P256Sha256Suite::new() {
-            Ok(value) => value,
-            Err(_) => return Err(indeterminate_registry()),
-        };
-        let methods: [&dyn PrincipalMethod; 3] = [&raw_key, &did_key, &did_keri];
-        let suites: [&dyn SignatureSuite; 2] = [&ed25519, &p256];
-        let registries = match auths_registries::ImmutableRegistries::new(&methods, &suites) {
-            Ok(value) => value,
-            Err(_) => return Err(indeterminate_registry()),
-        };
-        let sealed = match auths_verifier::verify_v1_sealed(
-            proof_cbor,
-            action_cbor,
-            &self.trusted_context_cbor,
-            &registries,
-        ) {
-            Ok(value) => value,
-            Err(_) => {
-                return Err(GatewaySubmitResult::Indeterminate {
-                    code: "gateway.verify.invalid-input".to_owned(),
-                });
+        match request {
+            GatewayObserveRequest::Outcome { operation_id } => {
+                let Some(now) = wall_clock_seconds() else {
+                    return refused("gateway.observer.clock-unavailable");
+                };
+                observe_outcome(
+                    &self.attempts,
+                    self.recipe.namespace(),
+                    observer,
+                    operation_id,
+                    now,
+                )
             }
-        };
-        let Some(action) = sealed.action() else {
-            let code = sealed.portable().code().code().to_owned();
-            return Err(match sealed.portable().decision() {
-                VerificationDecision::Denied => GatewaySubmitResult::Denied { code },
-                VerificationDecision::Authorized | VerificationDecision::Indeterminate => {
-                    GatewaySubmitResult::Indeterminate { code }
-                }
-            });
-        };
-        let command = match McpProfile.decode_verified(action) {
-            Ok(value) => value,
-            Err(_) => return Err(not_entered("gateway.action.projection")),
-        };
-        let canonical = match auths_codec::encode_canonical_action(action.canonical_action()) {
-            Ok(value) => value,
-            Err(_) => return Err(not_entered("gateway.action.commitment")),
-        };
-        let action_commitment =
-            match auths_codec::domain_commitment("auths.canonical-action.v1", &canonical) {
-                Ok(value) => *value.as_bytes(),
-                Err(_) => return Err(not_entered("gateway.action.commitment")),
-            };
-        self.recipe
-            .closed_request(&command, action_commitment)
-            .map_err(|error| not_entered(error.code()))
+            GatewayObserveRequest::ReadBack { arguments } => {
+                let Ok(target) = self.recipe.read_back_target(arguments) else {
+                    return refused("gateway.observer.invalid-read-back");
+                };
+                let _guard = self.administrative_gate.read().await;
+                let Ok((binding, transport)) = self.prepare_entry() else {
+                    return refused("gateway.observer.connection-unavailable");
+                };
+                let Ok(lease) = self.lease(&binding).await else {
+                    return refused("gateway.observer.credential-unavailable");
+                };
+                let port = LeasedTransport {
+                    transport: &transport,
+                    lease: &lease,
+                };
+                observe_read_back(&target, observer, &port, wall_clock_seconds).await
+            }
+        }
     }
+}
+
+/// Builds the gateway's immutable verifier registries: the principal methods
+/// and suites it accepts plus the `mcp-arguments-v1` action-fact policy, all
+/// committed in the verifier configuration a trusted context must pin.
+fn with_gateway_registries<T>(check: impl FnOnce(&ImmutableRegistries<'_>) -> T) -> Option<T> {
+    let raw_key = auths_raw_key::RawKeyMethod::new().ok()?;
+    let did_key = auths_did_key::DidKeyMethod::new().ok()?;
+    let did_keri = auths_did_keri::DidKeriMethod::new().ok()?;
+    let ed25519 = auths_signature::Ed25519Suite::new().ok()?;
+    let p256 = auths_signature::P256Sha256Suite::new().ok()?;
+    let policy = McpArgumentsPolicy::new().ok()?;
+    let methods: [&dyn PrincipalMethod; 3] = [&raw_key, &did_key, &did_keri];
+    let suites: [&dyn SignatureSuite; 2] = [&ed25519, &p256];
+    let policies: [&dyn ProfilePolicy; 1] = [&policy];
+    let registries = ImmutableRegistries::with_pure(
+        &methods,
+        &suites,
+        PureRegistrySet {
+            resource_matchers: &[],
+            profile_policies: &policies,
+            budget_algebras: &[],
+            extension_handlers: &[],
+            status_methods: &[],
+            assurance_claims: &[],
+            assurance_implications: &[],
+        },
+    )
+    .ok()?;
+    Some(check(&registries))
+}
+
+/// Returns the verifier configuration a gateway trusted context must pin.
+///
+/// # Errors
+/// Returns `gateway.verify.registry-unavailable` only if a compiled registry
+/// constant is invalid.
+#[allow(
+    clippy::redundant_closure_for_method_calls,
+    reason = "the method path is not general over the registries' borrow lifetime"
+)]
+pub fn gateway_verifier_configuration() -> Result<VerifierConfigurationId, &'static str> {
+    with_gateway_registries(|registries| registries.configuration_id())
+        .ok_or("gateway.verify.registry-unavailable")
+}
+
+/// Verifies proof and action natively at the gateway clock `now` and closes
+/// the approved request from the verified command. Trust, registries, and the
+/// installed challenge and audience come from the operator; only the
+/// evaluation time is the gateway's own, so observation freshness and grant
+/// validity are judged when the request arrives, not when trust was installed.
+pub(crate) fn verify_command(
+    recipe: &CompiledRecipe,
+    context: &TrustedContext,
+    now: u64,
+    proof_cbor: &[u8],
+    action_cbor: &[u8],
+) -> Result<ClosedProviderRequest, GatewaySubmitResult> {
+    if proof_cbor.is_empty()
+        || proof_cbor.len() > MAX_PROOF_BYTES
+        || action_cbor.is_empty()
+        || action_cbor.len() > MAX_ACTION_BYTES
+    {
+        return Err(GatewaySubmitResult::Indeterminate {
+            code: "gateway.submit.invalid-size".to_owned(),
+        });
+    }
+    let request_context = context
+        .for_request(
+            context.expected_audience().clone(),
+            context.expected_challenge(),
+            Timestamp::new(now),
+        )
+        .ok()
+        .and_then(|value| auths_codec::encode_verifier_context(&value).ok())
+        .ok_or_else(|| GatewaySubmitResult::Indeterminate {
+            code: "gateway.verify.invalid-trust".to_owned(),
+        })?;
+    let sealed = with_gateway_registries(|registries| {
+        auths_verifier::verify_v1_sealed(proof_cbor, action_cbor, &request_context, registries)
+    })
+    .ok_or_else(indeterminate_registry)?
+    .map_err(|_| GatewaySubmitResult::Indeterminate {
+        code: "gateway.verify.invalid-input".to_owned(),
+    })?;
+    let Some(action) = sealed.action() else {
+        let code = sealed.portable().code().code().to_owned();
+        return Err(match sealed.portable().decision() {
+            VerificationDecision::Denied => GatewaySubmitResult::Denied { code },
+            VerificationDecision::Authorized | VerificationDecision::Indeterminate => {
+                GatewaySubmitResult::Indeterminate { code }
+            }
+        });
+    };
+    let command = McpProfile
+        .decode_verified(action)
+        .map_err(|_| not_entered("gateway.action.projection"))?;
+    let canonical = auths_codec::encode_canonical_action(action.canonical_action())
+        .map_err(|_| not_entered("gateway.action.commitment"))?;
+    let action_commitment = auths_codec::domain_commitment("auths.canonical-action.v1", &canonical)
+        .map_err(|_| not_entered("gateway.action.commitment"))?;
+    recipe
+        .closed_request(&command, *action_commitment.as_bytes())
+        .map_err(|error| not_entered(error.code()))
 }
 
 fn indeterminate_registry() -> GatewaySubmitResult {
@@ -466,13 +609,13 @@ fn indeterminate_registry() -> GatewaySubmitResult {
     }
 }
 
-fn not_entered(code: &'static str) -> GatewaySubmitResult {
+pub(crate) fn not_entered(code: &'static str) -> GatewaySubmitResult {
     GatewaySubmitResult::NotEntered {
         code: code.to_owned(),
     }
 }
 
-fn replay_refused() -> GatewaySubmitResult {
+pub(crate) fn replay_refused() -> GatewaySubmitResult {
     not_entered("gateway.attempt.replay")
 }
 
@@ -492,7 +635,7 @@ fn wall_clock_seconds() -> Option<u64> {
 
 /// Enters the provider once for a freshly claimed attempt, records the
 /// response class, then performs at most one read-only observation.
-async fn execute_claimed(
+pub(crate) async fn execute_claimed(
     claim: ClaimedGatewayAttempt,
     request: &ClosedProviderRequest,
     port: &impl ProviderPort,
@@ -520,7 +663,7 @@ async fn execute_claimed(
 
 /// Performs one more read-only observation of a resumed attempt. Anything
 /// short of a recorded transition is reported as the replay refusal it is.
-async fn reobserve(
+pub(crate) async fn reobserve(
     attempt: ObservableGatewayAttempt,
     request: &ClosedProviderRequest,
     port: &impl ProviderPort,
@@ -567,6 +710,57 @@ async fn record_read_back(
             })
         }
     }
+}
+
+/// Signs the stored stage and commitment of one logical operation.
+pub(crate) fn observe_outcome(
+    attempts: &FileGatewayAttemptStore,
+    namespace: &crate::OperatorNamespace,
+    observer: &GatewayObserver,
+    operation_id: &str,
+    now: u64,
+) -> GatewayObserveResult {
+    let Ok(operation) = crate::LogicalOperationId::parse(operation_id) else {
+        return refused("gateway.observer.invalid-operation");
+    };
+    let snapshot = match attempts.read(namespace, &operation) {
+        Ok(Some(value)) => value,
+        Ok(None) => return refused("gateway.observer.operation-unknown"),
+        Err(_) => return refused("gateway.observer.store-unavailable"),
+    };
+    outcome_facts(&snapshot)
+        .and_then(|facts| {
+            observer.sign(
+                OUTCOME_SCHEMA,
+                &operation_subject(namespace, &operation),
+                now,
+                facts,
+            )
+        })
+        .map_or_else(|error| refused(error.code()), GatewayObserveResult::from)
+}
+
+/// Performs one read-only observation and signs what it read. The observation
+/// time is taken before the request is sent, so the signed time is never later
+/// than the provider state the response reflects.
+pub(crate) async fn observe_read_back(
+    target: &ClosedObservationRequest,
+    observer: &GatewayObserver,
+    port: &impl ProviderPort,
+    clock: impl Fn() -> Option<u64>,
+) -> GatewayObserveResult {
+    let Some(observed_at) = clock() else {
+        return refused("gateway.observer.clock-unavailable");
+    };
+    let Some(bytes) = port.read_back(target).await else {
+        return refused("gateway.observer.read-unavailable");
+    };
+    let Some((value, echo)) = target.observed_values(&bytes) else {
+        return refused("gateway.observer.value-unavailable");
+    };
+    read_back_facts(&value, echo.as_ref())
+        .and_then(|facts| observer.sign(READ_BACK_SCHEMA, &target.subject(), observed_at, facts))
+        .map_or_else(|error| refused(error.code()), GatewayObserveResult::from)
 }
 
 #[cfg(test)]

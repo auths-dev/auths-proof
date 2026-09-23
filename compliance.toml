@@ -1569,15 +1569,15 @@ kind = "cargo"
 layer = "product"
 path = "product/runtime/auths-gateway"
 core_apis = ["auths-codec", "auths-did-keri", "auths-did-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-verifier"]
-protocol_versions = ["auths.gateway-recipe-source/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/2", "auths.gateway-echo/1", "auths.self-hosted-profile-lock/1"]
-wire_objects = ["CompiledRecipe", "ClosedProviderRequest", "GatewayAttemptSnapshot", "GatewayConnectionDescriptor", "GatewayEvidenceSummary", "GatewayProviderEvidence", "GatewaySubmitResult"]
+protocol_versions = ["auths.gateway-recipe-source/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/2", "auths.gateway-echo/1", "auths.gateway-observe/1", "auths.gateway-outcome/1", "auths.gateway-readback/1", "auths.self-hosted-profile-lock/1", "mcp-arguments-v1"]
+wire_objects = ["CompiledRecipe", "ClosedProviderRequest", "GatewayAttemptSnapshot", "GatewayConnectionDescriptor", "GatewayEvidenceSummary", "GatewayObserveRequest", "GatewayObserveResult", "GatewayProviderEvidence", "GatewaySubmitResult", "SignedObservation"]
 fixture_suites = ["bindings/fixtures/gateway"]
-principal_families = []
-signature_families = []
+principal_families = ["raw-key-v1"]
+signature_families = ["ed25519-v1"]
 profiles = ["auths.mcp/2"]
 transports = ["bounded-https"]
-configuration_inputs = ["operator-approved-recipe", "profile-lock", "independently-provisioned-trust", "connection-binding"]
-security_state = ["recipe-digest", "single-host-logical-operation-claims", "credential-reference-generation", "echo-bound-provider-evidence"]
+configuration_inputs = ["operator-approved-recipe", "profile-lock", "independently-provisioned-trust", "connection-binding", "observer-anchor", "observer-signing-key"]
+security_state = ["recipe-digest", "single-host-logical-operation-claims", "credential-reference-generation", "echo-bound-provider-evidence", "observer-signing-seed"]
 
 [packages.auths-gateway.claims]
 configuration-compiler = [
@@ -1586,6 +1586,22 @@ configuration-compiler = [
   "product/runtime/auths-gateway/src/recipe.rs#github_recipe_change_invalidates_old_authorized_arguments",
   "product/runtime/auths-gateway/src/recipe.rs#echo_changes_the_digest_and_is_shown_in_review",
   "product/runtime/auths-gateway/src/recipe.rs#echo_token_is_domain_separated_and_bound_to_every_input",
+  "product/runtime/auths-gateway/src/recipe.rs#preconditions_are_closed_reviewed_and_digest_bound",
+  "product/runtime/auths-gateway/src/recipe.rs#read_back_subject_must_name_exactly_the_observed_record",
+  "product/runtime/auths-gateway/src/action_facts.rs#configuration_commitment_names_the_policy_and_its_rules",
+]
+principal-evidence-integration = [
+  "product/runtime/auths-gateway/src/observer.rs#observer_seed_is_owner_only_never_overwritten_and_never_printed",
+  "product/runtime/auths-gateway/src/observer.rs#signed_read_back_decodes_with_exact_schema_subject_and_facts",
+  "product/runtime/auths-gateway/src/observed_tests.rs#self_signed_or_forged_observations_never_satisfy",
+  "product/runtime/auths-gateway/src/observed_tests.rs#observer_in_the_authority_chain_is_refused",
+]
+runtime-enforcement-boundary = [
+  "product/runtime/auths-gateway/src/observed_tests.rs#fresh_matching_read_back_authorizes_the_replacement_write",
+  "product/runtime/auths-gateway/src/observed_tests.rs#stale_changed_or_missing_expected_is_refused_before_credential_access",
+  "product/runtime/auths-gateway/src/observed_tests.rs#read_back_of_another_record_cannot_license_this_write",
+  "product/runtime/auths-gateway/src/observed_tests.rs#chained_step_is_refused_until_the_previous_step_is_provider_bound",
+  "product/runtime/auths-gateway/src/observed_tests.rs#action_fact_policy_is_bound_into_the_pinned_configuration",
 ]
 stateful-replay-budget-component = [
   "product/runtime/auths-gateway/src/recipe.rs#durable_claim_is_one_use_across_races_and_restart",
