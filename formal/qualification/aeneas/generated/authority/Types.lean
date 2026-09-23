@@ -45,7 +45,7 @@ structure auths_algebra_kernel.RootLinkage (Identity : Type) where
   grant_issuer : Identity
 
 /-- [auths_model::GrantAuthorityView]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1325:0-1325:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1330:0-1330:33
     Name pattern: [auths_model::GrantAuthorityView]
     Visibility: public -/
 @[rust_type "auths_model::GrantAuthorityView"]
@@ -65,7 +65,7 @@ structure auths_model.GrantAuthorityView where
   extensions : auths_model.CriticalExtensions
 
 /-- [auths_model::ScopeAuthorityView]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1345:0-1345:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1350:0-1350:33
     Name pattern: [auths_model::ScopeAuthorityView]
     Visibility: public -/
 @[rust_type "auths_model::ScopeAuthorityView"]
@@ -82,7 +82,7 @@ structure auths_model.ScopeAuthorityView where
   extensions : auths_model.CriticalExtensions
 
 /-- [auths_model::ActionAuthorityView]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1553:0-1553:34
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1558:0-1558:34
     Name pattern: [auths_model::ActionAuthorityView]
     Visibility: public -/
 @[rust_type "auths_model::ActionAuthorityView"]
@@ -97,7 +97,7 @@ structure auths_model.ActionAuthorityView where
   terminal_grant : Option auths_model.GrantId
 
 /-- [auths_model::DenialReason]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4456:0-4456:21
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4525:0-4525:21
     Name pattern: [auths_model::DenialReason]
     Visibility: public -/
 @[discriminant isize, rust_type "auths_model::DenialReason"]
@@ -144,6 +144,9 @@ inductive auths_model.DenialReason where
 | UnusedCriticalAttachment : auths_model.DenialReason
 | OpaqueAttachmentNotAllowed : auths_model.DenialReason
 | LocalPolicyDenied : auths_model.DenialReason
+| ObservationConditionFalse : auths_model.DenialReason
+| ObserverInAuthorityChain : auths_model.DenialReason
+| ObservationRequirementDropped : auths_model.DenialReason
 
 /-- [auths_authority::AcceptedTransition]
     Source: 'core/crates/auths-authority/src/lib.rs', lines 52:0-64:1

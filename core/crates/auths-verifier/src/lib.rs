@@ -6,6 +6,7 @@
 extern crate alloc;
 
 pub mod causal;
+mod observation;
 pub mod trace;
 
 use alloc::{boxed::Box, collections::BTreeSet, vec::Vec};
@@ -23,11 +24,12 @@ use auths_composition::{
 };
 use auths_model::{
     ActionId, AssuranceSatisfaction, CanonicalAction, ContextDigest, DenialReason, Digest,
-    EvidenceObject, GrantId, GrantStatusId, ParticipantAssurance, ParticipantRole, PlanId,
-    PortableVerificationResult, PrincipalId, PrincipalStatusId, ProfileBudgetExpression,
-    ProofBundle, ProofRef, Requirement, SignatureEnvelope, SignedAction, SignedGrant, StatementRef,
-    StatusPolicy, Timestamp, TrustAnchor, TrustedContext, VerificationCode, VerificationDecision,
-    VerificationResources, VerificationStage, VerifierConfigurationId,
+    EvidenceObject, GrantId, GrantStatusId, ObservationSatisfaction, ParticipantAssurance,
+    ParticipantRole, PlanId, PortableVerificationResult, PrincipalId, PrincipalStatusId,
+    ProfileBudgetExpression, ProofBundle, ProofRef, Requirement, SignatureEnvelope, SignedAction,
+    SignedGrant, StatementRef, StatusPolicy, Timestamp, TrustAnchor, TrustedContext,
+    VerificationCode, VerificationDecision, VerificationResources, VerificationStage,
+    VerifierConfigurationId,
 };
 use auths_ports::{
     ControlEvidence, ControlPurpose, PrincipalControlError, PrincipalControlInput, ProfileDecision,
@@ -272,6 +274,7 @@ pub struct VerifiedAuthority {
     authorized_branches: Vec<ProofRef>,
     assurance: Vec<ParticipantAssurance>,
     assurance_satisfactions: Vec<AssuranceSatisfaction>,
+    observation_satisfactions: Vec<ObservationSatisfaction>,
     work_units: u64,
 }
 
@@ -289,6 +292,7 @@ pub struct VerifiedAction {
     authorized_branches: Vec<ProofRef>,
     assurance: Vec<ParticipantAssurance>,
     assurance_satisfactions: Vec<AssuranceSatisfaction>,
+    observation_satisfactions: Vec<ObservationSatisfaction>,
     work_units: u64,
 }
 
@@ -381,6 +385,13 @@ impl VerifiedAction {
         &self.assurance_satisfactions
     }
 
+    /// Returns, for each observation requirement in the satisfied branches,
+    /// the signed observation attachment that satisfied it.
+    #[must_use]
+    pub fn observation_satisfactions(&self) -> &[ObservationSatisfaction] {
+        &self.observation_satisfactions
+    }
+
     /// Returns deterministic proof-kernel work charged.
     #[must_use]
     pub const fn work_units(&self) -> u64 {
@@ -452,7 +463,9 @@ fn failure_fact_kind(failure: VerificationFailure) -> FactKind {
             | DenialReason::SignatureSuiteMismatch => FactKind::PrincipalControl,
             DenialReason::UntrustedRoot => FactKind::TrustAnchorAcceptedMethod,
             DenialReason::BrokenGrantChain => FactKind::GrantLinkage,
-            DenialReason::DelegationExpanded => FactKind::GrantPermissionAttenuation,
+            DenialReason::DelegationExpanded | DenialReason::ObservationRequirementDropped => {
+                FactKind::GrantPermissionAttenuation
+            }
             DenialReason::PermissionNotGranted => FactKind::ActionPermission,
             DenialReason::ActionConstraintMismatch | DenialReason::ActionBodyMismatch => {
                 FactKind::ActionBodyDigest
@@ -481,6 +494,9 @@ fn failure_fact_kind(failure: VerificationFailure) -> FactKind {
             | DenialReason::UnusedCriticalAttachment
             | DenialReason::OpaqueAttachmentNotAllowed => FactKind::Attachment,
             DenialReason::LocalPolicyDenied => FactKind::ProfilePolicy,
+            DenialReason::ObservationConditionFalse | DenialReason::ObserverInAuthorityChain => {
+                FactKind::CriticalExtension
+            }
             DenialReason::MalformedProof
             | DenialReason::NonCanonicalProof
             | DenialReason::DigestMismatch
@@ -504,7 +520,9 @@ fn failure_fact_kind(failure: VerificationFailure) -> FactKind {
             Requirement::UnsupportedProfilePolicy => FactKind::ProfilePolicy,
             Requirement::UnsupportedResourceMatcher => FactKind::ResourceNamespace,
             Requirement::UnsupportedBudgetAlgebra => FactKind::ActionBudget,
-            Requirement::UnsupportedCriticalExtension => FactKind::CriticalExtension,
+            Requirement::UnsupportedCriticalExtension
+            | Requirement::ObservationMissing
+            | Requirement::ObservationActionFactUnavailable => FactKind::CriticalExtension,
             Requirement::UnsupportedAssuranceClaim | Requirement::AssuranceRequirementNotMet => {
                 FactKind::AssuranceRequirement
             }
@@ -1116,22 +1134,25 @@ fn verify_portable_sealed(
                 resources.plan_depth(),
                 authority.work_units,
             );
-            let portable = finalize_portable(PortableVerificationResult::new(
-                VerificationDecision::Authorized,
-                VerificationStage::Complete,
-                VerificationCode::Authorized,
-                proof_input_digest,
-                action_digest,
-                public_context_digest,
-                Some(authority.plan_id),
-                authority.authorized_branches.clone(),
-                authority.assurance.clone(),
-                authority.assurance_satisfactions.clone(),
-                resources,
-                context.accepted_registries().manifest_id(),
-                Some(context.configuration()),
-                local_configuration,
-            ));
+            let portable = finalize_portable(
+                PortableVerificationResult::new(
+                    VerificationDecision::Authorized,
+                    VerificationStage::Complete,
+                    VerificationCode::Authorized,
+                    proof_input_digest,
+                    action_digest,
+                    public_context_digest,
+                    Some(authority.plan_id),
+                    authority.authorized_branches.clone(),
+                    authority.assurance.clone(),
+                    authority.assurance_satisfactions.clone(),
+                    resources,
+                    context.accepted_registries().manifest_id(),
+                    Some(context.configuration()),
+                    local_configuration,
+                )
+                .with_observation_satisfactions(authority.observation_satisfactions.clone()),
+            );
             (portable, Some(Box::new(bind_verified_action(authority))))
         }
         Err(failure) => {
@@ -1564,18 +1585,27 @@ fn verify_authority_measured(
     let mut authorized_branches = Vec::new();
     let mut assurance = Vec::new();
     let mut assurance_satisfactions = Vec::new();
+    let mut observation_satisfactions = Vec::new();
     let mut action_ids = Vec::new();
     let bundle = controlled.resolved.decoded.bundle();
 
     let outcome = evaluate_plan_observed(
         bundle.plan(),
         context.limits(),
-        &mut |reference| match verify_branch(&controlled, reference, context, registries, meter) {
-            Ok((action_id, reports, satisfactions)) => {
+        &mut |reference| match verify_branch(
+            &controlled,
+            reference,
+            canonical_action,
+            context,
+            registries,
+            meter,
+        ) {
+            Ok(branch) => {
                 authorized_branches.push(reference);
-                action_ids.push(action_id);
-                assurance.extend(reports);
-                assurance_satisfactions.extend(satisfactions);
+                action_ids.push(branch.action_id);
+                assurance.extend(branch.assurance);
+                assurance_satisfactions.extend(branch.assurance_satisfactions);
+                observation_satisfactions.extend(branch.observation_satisfactions);
                 BranchOutcome::Authorized
             }
             Err(VerificationFailure::Denied(reason)) => BranchOutcome::Denied(reason),
@@ -1633,6 +1663,8 @@ fn verify_authority_measured(
     authorized_branches.dedup();
     assurance_satisfactions.sort();
     assurance_satisfactions.dedup();
+    observation_satisfactions.sort();
+    observation_satisfactions.dedup();
     let ControlVerifiedProof { resolved, .. } = controlled;
     Ok(VerifiedAuthority {
         canonical_action: canonical_action.clone(),
@@ -1643,6 +1675,7 @@ fn verify_authority_measured(
         authorized_branches,
         assurance,
         assurance_satisfactions,
+        observation_satisfactions,
         work_units: meter.used,
     })
 }
@@ -1659,6 +1692,7 @@ pub fn bind_verified_action(authority: VerifiedAuthority) -> VerifiedAction {
         authorized_branches: authority.authorized_branches,
         assurance: authority.assurance,
         assurance_satisfactions: authority.assurance_satisfactions,
+        observation_satisfactions: authority.observation_satisfactions,
         work_units: authority.work_units,
     }
 }
@@ -2012,6 +2046,7 @@ fn validate_action_binding(
             ));
         }
         evaluate_extensions(action.extensions(), context, registries, meter)?;
+        observation::validate_observation_attachments(signed)?;
     }
     validate_attachments(bundle, canonical, context)?;
     let profile_policy = registries
@@ -2135,20 +2170,22 @@ fn same_shared_action(
         && left.extensions() == right.extensions()
 }
 
+/// Authority established for one satisfied authorization-plan branch.
+struct BranchAuthority {
+    action_id: ActionId,
+    assurance: Vec<ParticipantAssurance>,
+    assurance_satisfactions: Vec<AssuranceSatisfaction>,
+    observation_satisfactions: Vec<ObservationSatisfaction>,
+}
+
 fn verify_branch(
     controlled: &ControlVerifiedProof,
     proof_ref: ProofRef,
+    canonical: &CanonicalAction,
     context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
     meter: &mut WorkMeter,
-) -> Result<
-    (
-        ActionId,
-        Vec<ParticipantAssurance>,
-        Vec<AssuranceSatisfaction>,
-    ),
-    VerificationFailure,
-> {
+) -> Result<BranchAuthority, VerificationFailure> {
     let bundle = controlled.resolved.decoded.bundle();
     let action = bundle
         .actions()
@@ -2172,38 +2209,51 @@ fn verify_branch(
         .iter()
         .filter(|anchor| anchor.principal() == root_principal)
     {
-        match verify_branch_from_anchor(
+        let branch = BranchInput {
             controlled,
             action,
             action_id,
-            &chain,
+            chain: &chain,
             root_control,
-            anchor,
+            canonical,
             context,
             registries,
-            meter,
-        ) {
-            Ok((reports, satisfactions)) => {
-                return Ok((action_id, reports, satisfactions));
-            }
+        };
+        match verify_branch_from_anchor(&branch, anchor, meter) {
+            Ok(authority) => return Ok(authority),
             Err(failure) => first_failure.get_or_insert(failure),
         };
     }
     Err(first_failure.unwrap_or(VerificationFailure::Denied(DenialReason::UntrustedRoot)))
 }
 
-#[allow(clippy::too_many_arguments)]
-fn verify_branch_from_anchor(
-    controlled: &ControlVerifiedProof,
-    action: &SignedAction,
+/// Anchor-independent inputs of one branch evaluation.
+struct BranchInput<'a, 'r> {
+    controlled: &'a ControlVerifiedProof,
+    action: &'a SignedAction,
     action_id: ActionId,
-    chain: &[&SignedGrant],
-    root_control: (&PrincipalId, &ControlEvidence),
+    chain: &'a [&'a SignedGrant],
+    root_control: (&'a PrincipalId, &'a ControlEvidence),
+    canonical: &'a CanonicalAction,
+    context: &'a TrustedContext,
+    registries: &'a ImmutableRegistries<'r>,
+}
+
+fn verify_branch_from_anchor(
+    branch: &BranchInput<'_, '_>,
     anchor: &TrustAnchor,
-    context: &TrustedContext,
-    registries: &ImmutableRegistries<'_>,
     meter: &mut WorkMeter,
-) -> Result<(Vec<ParticipantAssurance>, Vec<AssuranceSatisfaction>), VerificationFailure> {
+) -> Result<BranchAuthority, VerificationFailure> {
+    let BranchInput {
+        controlled,
+        action,
+        action_id,
+        chain,
+        root_control,
+        canonical,
+        context,
+        registries,
+    } = *branch;
     if !anchor
         .accepted_methods()
         .contains(action_or_first_method(action, chain))
@@ -2232,7 +2282,6 @@ fn verify_branch_from_anchor(
     }
     validate_resource_constraints(anchor, chain, action, context, registries, meter)?;
     validate_budget_constraints(anchor, chain, action, context, registries, meter)?;
-    let mut authority = EffectiveAuthority::from_anchor(anchor);
     let mut reports = Vec::new();
     if chain.is_empty() {
         reports.push(participant_report(
@@ -2241,36 +2290,83 @@ fn verify_branch_from_anchor(
             ParticipantRole::Root,
         )?);
     }
-    for (index, grant) in chain.iter().enumerate() {
-        let id = grant_id(grant.statement()).map_err(codec_failure)?;
-        authority
-            .delegate(id, grant.statement())
-            .map_err(VerificationFailure::Denied)?;
-        let control = control_for(controlled, StatementRef::Grant(id))?;
-        reports.push(participant_report(
-            control.0,
-            control.1,
-            grant_issuer_role(index),
-        )?);
-        evaluate_extensions(grant.statement().extensions(), context, registries, meter)?;
-    }
-    authority
-        .authorizes(action.envelope(), context.accepted_registries())
-        .map_err(VerificationFailure::Denied)?;
+    delegate_chain(branch, anchor, &mut reports, meter)?;
     let action_control = control_for(controlled, StatementRef::Action(action_id))?;
     reports.push(participant_report(
         action_control.0,
         action_control.1,
         ParticipantRole::Actor,
     )?);
-    validate_assurance_claims(&reports, context, registries, meter)?;
+    let assurance_satisfactions = evaluate_branch_assurance(&reports, context, registries, meter)?;
+    let observation_satisfactions = observation::Stage {
+        chain,
+        root: anchor.principal(),
+        action,
+        canonical,
+        context,
+        registries,
+    }
+    .evaluate(meter)?;
+    Ok(BranchAuthority {
+        action_id,
+        assurance: reports,
+        assurance_satisfactions,
+        observation_satisfactions,
+    })
+}
+
+/// Walks the grant chain root to terminal, applying every delegation edge,
+/// and then checks the action against the terminal authority.
+fn delegate_chain(
+    branch: &BranchInput<'_, '_>,
+    anchor: &TrustAnchor,
+    reports: &mut Vec<ParticipantAssurance>,
+    meter: &mut WorkMeter,
+) -> Result<(), VerificationFailure> {
+    let mut authority = EffectiveAuthority::from_anchor(anchor);
+    for (index, grant) in branch.chain.iter().enumerate() {
+        if let Some(parent) = index.checked_sub(1).map(|parent| branch.chain[parent]) {
+            observation::require_parent_requirements(parent, grant)?;
+        }
+        let id = grant_id(grant.statement()).map_err(codec_failure)?;
+        authority
+            .delegate(id, grant.statement())
+            .map_err(VerificationFailure::Denied)?;
+        let control = control_for(branch.controlled, StatementRef::Grant(id))?;
+        reports.push(participant_report(
+            control.0,
+            control.1,
+            grant_issuer_role(index),
+        )?);
+        evaluate_extensions(
+            grant.statement().extensions(),
+            branch.context,
+            branch.registries,
+            meter,
+        )?;
+    }
+    authority
+        .authorizes(
+            branch.action.envelope(),
+            branch.context.accepted_registries(),
+        )
+        .map_err(VerificationFailure::Denied)
+}
+
+fn evaluate_branch_assurance(
+    reports: &[ParticipantAssurance],
+    context: &TrustedContext,
+    registries: &ImmutableRegistries<'_>,
+    meter: &mut WorkMeter,
+) -> Result<Vec<AssuranceSatisfaction>, VerificationFailure> {
+    validate_assurance_claims(reports, context, registries, meter)?;
     let implications = registries.assurance_implications(context.accepted_registries());
     for implication in &implications {
         meter.reserve(implication.maximum_work_units())?;
     }
-    let satisfactions = evaluate_with_implications(
+    evaluate_with_implications(
         context.assurance_policy(),
-        &reports,
+        reports,
         context.evaluation_time(),
         |claim, target| {
             implications.iter().any(|implication| {
@@ -2280,8 +2376,7 @@ fn verify_branch_from_anchor(
             })
         },
     )
-    .map_err(VerificationFailure::Indeterminate)?;
-    Ok((reports, satisfactions))
+    .map_err(VerificationFailure::Indeterminate)
 }
 
 fn action_or_first_method<'a>(
@@ -2624,9 +2719,9 @@ mod tests {
         CompositionRequirement, ControlBinding, CriticalExtensions, EvidenceId, EvidenceTypeId,
         GrantStatusSnapshot, MediaType, ParticipantRole, Permission, PermissionSet,
         PrincipalMethodId, PrincipalStatusSnapshot, ProfileId, ProfilePolicyId, ProfileRef,
-        RegistryManifestId, ResourceId, SignatureBytes, SignatureDescriptor, SignatureSuiteId,
-        SignedAction, StatusSnapshotId, Timestamp, TrustAnchorId, ValidityWindow,
-        VerificationMethod, VerifierLimits,
+        ResourceId, SignatureBytes, SignatureDescriptor, SignatureSuiteId, SignedAction,
+        StatusSnapshotId, Timestamp, TrustAnchorId, ValidityWindow, VerificationMethod,
+        VerifierLimits,
     };
     use auths_raw_key::{
         RAW_KEY_MEDIA_TYPE, RAW_KEY_V1, RawKeyDescriptor, RawKeyMethod, RawKeyType,
@@ -2802,7 +2897,7 @@ mod tests {
         )
         .unwrap();
         let accepted = AcceptedRegistries::new(
-            RegistryManifestId::new([0x33; 32]),
+            auths_registries::TARGET_V1_REGISTRY_MANIFEST,
             vec![PrincipalMethodId::parse(RAW_KEY_V1).unwrap()],
             vec![SignatureSuiteId::parse(ED25519_V1).unwrap()],
             vec![EvidenceTypeId::parse(RAW_KEY_V1).unwrap()],

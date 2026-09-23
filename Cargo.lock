@@ -1706,6 +1706,7 @@ dependencies = [
 name = "auths-registries"
 version = "1.0.0-rc.1"
 dependencies = [
+ "auths-codec",
  "auths-model",
  "auths-ports",
  "sha2 0.10.9",

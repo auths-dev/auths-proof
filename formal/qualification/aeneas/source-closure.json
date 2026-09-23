@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "b8b68a727aeb48a23e2abc88e13d3c5dc1f0acf9a64d7a5ef27ac75bef468f34",
+  "digest": "86de039b391b8c5e3082e40263e9caf3e2edbbc22d1354fac19a99a39d4cec1c",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -8,7 +8,7 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "51fdbc455e353b23bbf11bb6f7d975623580a2cba927e6cb1ba0703f72a1f094",
+      "sha256": "0343fb2774c6840af3748c2f9a94a59752a49e5ac24a0ee0062827ac1a094ac6",
       "normalization": "translated-cargo-closure-v1"
     },
     {
@@ -45,7 +45,11 @@
     },
     {
       "path": "core/crates/auths-model/src/lib.rs",
-      "sha256": "e75ced325aa563549a2153e22cec5a06ddc8d5b9f083618a2b7ea77fac91be5b"
+      "sha256": "c95cf85343d25c526c8d6063c31eb1aaeb223ea2ed4034e53fa03899c2e9148c"
+    },
+    {
+      "path": "core/crates/auths-model/src/observation.rs",
+      "sha256": "630d9a94379e9c538d565ce50eb469021976d4600c1b4f567f765dad2f0806d1"
     },
     {
       "path": "formal/algebra-contract-v1.toml",
@@ -69,11 +73,11 @@
     },
     {
       "path": "formal/qualification/aeneas/cases/Model.lean",
-      "sha256": "61654570f7bce38f6a702d1287524afec5c817c0920047eaee00978940631296"
+      "sha256": "5b2d722affb3335aa301ac253ceadd01e115e7a0ee08bc167fd9120e79f09cbd"
     },
     {
       "path": "formal/qualification/aeneas/qualification.toml",
-      "sha256": "2c9f9272696f5ee2c6d93e6a8daf675cf04f737aa2ac7dd5095fee11c96f8cfb"
+      "sha256": "dd70021e6379dd03933213c80f085707d5a73794801d974e290d57b54ff31d6f"
     },
     {
       "path": "formal/translation-toolchain.lock",
@@ -253,7 +257,7 @@
     },
     {
       "path": "xtask/src/formal_qualification.rs",
-      "sha256": "0bc926e856e9e9be9c8a48ad8574c968f02251cd20dc5e6e119dfbfff1348729"
+      "sha256": "df77ed9ad884313d445636b9a679fe39543b194e1f0abdc42e1aa8f7960e498a"
     },
     {
       "path": "xtask/src/fuzz.rs",

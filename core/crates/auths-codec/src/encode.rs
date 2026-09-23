@@ -19,13 +19,16 @@ use auths_model::{
 };
 use minicbor::Encoder;
 
-type V1Encoder = Encoder<Vec<u8>>;
+pub(crate) type V1Encoder = Encoder<Vec<u8>>;
 
-fn encode_error<T>(_error: minicbor::encode::Error<T>) -> CodecError {
+/// Shape version of the canonical portable verification result.
+pub const PORTABLE_RESULT_ABI_VERSION: u16 = 3;
+
+pub(crate) fn encode_error<T>(_error: minicbor::encode::Error<T>) -> CodecError {
     CodecError::Malformed
 }
 
-fn length(value: usize) -> Result<u64, CodecError> {
+pub(crate) fn length(value: usize) -> Result<u64, CodecError> {
     u64::try_from(value).map_err(|_| CodecError::LimitExceeded)
 }
 
@@ -37,27 +40,27 @@ pub(crate) fn finish(
     Ok(encoder.into_writer())
 }
 
-fn map(encoder: &mut V1Encoder, entries: u64) -> Result<(), CodecError> {
+pub(crate) fn map(encoder: &mut V1Encoder, entries: u64) -> Result<(), CodecError> {
     encoder.map(entries).map_err(encode_error)?;
     Ok(())
 }
 
-fn array(encoder: &mut V1Encoder, entries: usize) -> Result<(), CodecError> {
+pub(crate) fn array(encoder: &mut V1Encoder, entries: usize) -> Result<(), CodecError> {
     encoder.array(length(entries)?).map_err(encode_error)?;
     Ok(())
 }
 
-fn key(encoder: &mut V1Encoder, value: u8) -> Result<(), CodecError> {
+pub(crate) fn key(encoder: &mut V1Encoder, value: u8) -> Result<(), CodecError> {
     encoder.u8(value).map_err(encode_error)?;
     Ok(())
 }
 
-fn text(encoder: &mut V1Encoder, value: &str) -> Result<(), CodecError> {
+pub(crate) fn text(encoder: &mut V1Encoder, value: &str) -> Result<(), CodecError> {
     encoder.str(value).map_err(encode_error)?;
     Ok(())
 }
 
-fn bytes(encoder: &mut V1Encoder, value: &[u8]) -> Result<(), CodecError> {
+pub(crate) fn bytes(encoder: &mut V1Encoder, value: &[u8]) -> Result<(), CodecError> {
     encoder.bytes(value).map_err(encode_error)?;
     Ok(())
 }
@@ -186,7 +189,7 @@ fn encode_extensions(
     Ok(())
 }
 
-fn encode_signature_descriptor(
+pub(crate) fn encode_signature_descriptor(
     encoder: &mut V1Encoder,
     descriptor: &SignatureDescriptor,
 ) -> Result<(), CodecError> {
@@ -200,7 +203,7 @@ fn encode_signature_descriptor(
     Ok(())
 }
 
-fn encode_signature(
+pub(crate) fn encode_signature(
     encoder: &mut V1Encoder,
     signature: &SignatureEnvelope,
 ) -> Result<(), CodecError> {
@@ -514,7 +517,7 @@ fn encode_verification_result_to(
     result: &PortableVerificationResult,
     include_result_digest: bool,
 ) -> Result<(), CodecError> {
-    map(encoder, 16)?;
+    map(encoder, 17)?;
     key(encoder, 0)?;
     encoder
         .u8(match result.decision() {
@@ -590,7 +593,14 @@ fn encode_verification_result_to(
     key(encoder, 14)?;
     bytes(encoder, result.local_configuration().as_bytes())?;
     key(encoder, 15)?;
-    encoder.u16(2).map_err(encode_error)?;
+    encoder
+        .u16(PORTABLE_RESULT_ABI_VERSION)
+        .map_err(encode_error)?;
+    key(encoder, 16)?;
+    crate::observation::encode_observation_satisfactions(
+        encoder,
+        result.observation_satisfactions(),
+    )?;
     Ok(())
 }
 
@@ -694,7 +704,10 @@ pub fn encode_authorization_plan(plan: &AuthorizationPlan) -> Result<Vec<u8>, Co
     finish(|encoder| encode_authorization_plan_to(encoder, plan))
 }
 
-fn encode_evidence(encoder: &mut V1Encoder, evidence: &EvidenceObject) -> Result<(), CodecError> {
+pub(crate) fn encode_evidence(
+    encoder: &mut V1Encoder,
+    evidence: &EvidenceObject,
+) -> Result<(), CodecError> {
     map(encoder, 4)?;
     key(encoder, 0)?;
     bytes(encoder, evidence.id().as_bytes())?;
@@ -1483,7 +1496,7 @@ fn encode_verifier_context_to(
     encoder: &mut V1Encoder,
     context: &TrustedContext,
 ) -> Result<(), CodecError> {
-    map(encoder, 14)?;
+    map(encoder, 15)?;
     key(encoder, 0)?;
     encode_limits(encoder, context.limits())?;
     key(encoder, 1)?;
@@ -1517,6 +1530,8 @@ fn encode_verifier_context_to(
     text(encoder, context.profile_policy().as_str())?;
     key(encoder, 13)?;
     text(encoder, context.channel_policy().as_str())?;
+    key(encoder, 14)?;
+    crate::observation::encode_observer_anchors(encoder, context.observer_anchors())?;
     Ok(())
 }
 

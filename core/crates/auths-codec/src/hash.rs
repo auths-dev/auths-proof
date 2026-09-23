@@ -12,7 +12,8 @@ use crate::{
 use alloc::vec::Vec;
 use auths_model::{
     ActionEnvelope, ActionId, AttachmentDigest, ContextDigest, Digest, EvidenceId, EvidenceObject,
-    GrantId, GrantStatement, GrantStatusId, GrantStatusStatement, PROTOCOL_V1, PlanId,
+    GrantId, GrantStatement, GrantStatusId, GrantStatusStatement, ObservationRequirement,
+    ObservationRequirementId, ObservationStatement, PROTOCOL_V1, PlanId,
     PortableVerificationResult, PrincipalStatusId, PrincipalStatusStatement, ProofBundle,
     SignatureDescriptor, TrustedContext, VerificationResultDigest,
 };
@@ -29,6 +30,7 @@ enum ObjectType {
     Action = 2,
     PrincipalStatus = 3,
     GrantStatus = 4,
+    Observation = 9,
 }
 
 #[derive(Clone, Copy)]
@@ -40,6 +42,7 @@ enum IdentifierType {
     PrincipalStatus = 5,
     GrantStatus = 6,
     Context = 9,
+    ObservationRequirement = 11,
 }
 
 fn raw_sha256(value: &[u8]) -> Digest {
@@ -310,4 +313,38 @@ pub fn grant_status_signing_preimage(
         0,
         &crate::encode_grant_status_signing_input(statement, descriptor)?,
     )
+}
+
+/// Constructs the exact domain-separated observation signing preimage.
+///
+/// Observations are profile-independent: the preimage uses the registered
+/// observation object type, an empty profile identifier, and version zero.
+///
+/// # Errors
+///
+/// Returns [`CodecError`] if deterministic encoding or bounded framing fails.
+pub fn observation_signing_preimage(
+    statement: &ObservationStatement,
+    descriptor: &SignatureDescriptor,
+) -> Result<Vec<u8>, CodecError> {
+    signing_preimage(
+        ObjectType::Observation,
+        "",
+        0,
+        &crate::encode_observation_signing_input(statement, descriptor)?,
+    )
+}
+
+/// Derives the content identifier of one observation requirement.
+///
+/// # Errors
+///
+/// Returns [`CodecError`] if deterministic encoding of the requirement fails.
+pub fn observation_requirement_id(
+    requirement: &ObservationRequirement,
+) -> Result<ObservationRequirementId, CodecError> {
+    Ok(ObservationRequirementId::from_digest(domain_hash(
+        IdentifierType::ObservationRequirement,
+        &crate::encode_observation_requirement(requirement)?,
+    )?))
 }

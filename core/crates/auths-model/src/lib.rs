@@ -228,6 +228,10 @@ bounded_string!(DispositionId, 128, ModelError::InvalidRegistryId);
 bounded_string!(TrustAnchorId, 128, ModelError::InvalidRegistryId);
 bounded_string!(ExtensionId, 128, ModelError::InvalidExtensionId);
 
+mod observation;
+
+pub use observation::*;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Digest([u8; 32]);
 
@@ -301,6 +305,7 @@ digest_identifier!(RegistryManifestId);
 digest_identifier!(AdapterConfigurationId);
 digest_identifier!(VerifierConfigurationId);
 digest_identifier!(VerificationResultDigest);
+digest_identifier!(ObservationRequirementId);
 
 /// Unpredictable 32-byte verifier challenge compared in constant time.
 #[derive(Clone, Copy, Debug)]
@@ -3957,6 +3962,7 @@ pub struct TrustedContext {
     profile_policy: ProfilePolicyId,
     channel_policy: ChannelBindingId,
     limits: VerifierLimits,
+    observer_anchors: Vec<ObserverAnchor>,
 }
 
 impl TrustedContext {
@@ -4041,7 +4047,41 @@ impl TrustedContext {
             profile_policy,
             channel_policy,
             limits,
+            observer_anchors: Vec::new(),
         })
+    }
+
+    /// Replaces the verifier-trusted observer anchors.
+    ///
+    /// Observer anchors are separate from trust anchors: an observer can make
+    /// signed facts count toward an observation requirement, but it can never
+    /// authorize an action, issue a grant, or appear in an authority chain.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelError::InvalidVerifierContext`] for more than
+    /// [`MAX_OBSERVER_ANCHORS`] anchors, a repeated anchor identifier, or an
+    /// anchor accepting a principal method the context does not accept.
+    pub fn with_observer_anchors(
+        mut self,
+        mut observer_anchors: Vec<ObserverAnchor>,
+    ) -> Result<Self, ModelError> {
+        observer_anchors.sort_by(|left, right| left.id().cmp(right.id()));
+        if observer_anchors.len() > MAX_OBSERVER_ANCHORS
+            || observer_anchors
+                .windows(2)
+                .any(|window| window[0].id() == window[1].id())
+            || observer_anchors.iter().any(|anchor| {
+                anchor
+                    .accepted_methods()
+                    .iter()
+                    .any(|method| !self.accepted_registries.accepts_principal_method(method))
+            })
+        {
+            return Err(ModelError::InvalidVerifierContext);
+        }
+        self.observer_anchors = observer_anchors;
+        Ok(self)
     }
 
     /// Derives a per-request context without changing trust, registries,
@@ -4072,7 +4112,8 @@ impl TrustedContext {
             self.profile_policy.clone(),
             self.channel_policy.clone(),
             self.limits.clone(),
-        )
+        )?
+        .with_observer_anchors(self.observer_anchors.clone())
     }
 
     /// Replaces only the verifier-trusted composition requirement.
@@ -4100,7 +4141,8 @@ impl TrustedContext {
             self.profile_policy.clone(),
             self.channel_policy.clone(),
             self.limits.clone(),
-        )
+        )?
+        .with_observer_anchors(self.observer_anchors.clone())
     }
 
     /// Replaces only the exact executable verifier configuration commitment.
@@ -4127,7 +4169,8 @@ impl TrustedContext {
             self.profile_policy.clone(),
             self.channel_policy.clone(),
             self.limits.clone(),
-        )
+        )?
+        .with_observer_anchors(self.observer_anchors.clone())
     }
 
     /// Replaces deployment limits and revalidates the complete context.
@@ -4152,7 +4195,8 @@ impl TrustedContext {
             self.profile_policy.clone(),
             self.channel_policy.clone(),
             limits,
-        )
+        )?
+        .with_observer_anchors(self.observer_anchors.clone())
     }
 
     /// Returns the exact verifier configuration commitment.
@@ -4212,6 +4256,11 @@ impl TrustedContext {
     #[must_use]
     pub const fn limits(&self) -> &VerifierLimits {
         &self.limits
+    }
+    /// Returns the verifier-trusted observer anchors in identifier order.
+    #[must_use]
+    pub fn observer_anchors(&self) -> &[ObserverAnchor] {
+        &self.observer_anchors
     }
 }
 
@@ -4337,6 +4386,7 @@ pub struct PortableVerificationResult {
     registry_manifest: RegistryManifestId,
     required_configuration: Option<VerifierConfigurationId>,
     local_configuration: VerifierConfigurationId,
+    observation_satisfactions: Vec<ObservationSatisfaction>,
 }
 
 impl PortableVerificationResult {
@@ -4376,7 +4426,21 @@ impl PortableVerificationResult {
             registry_manifest,
             required_configuration,
             local_configuration,
+            observation_satisfactions: Vec::new(),
         }
+    }
+
+    /// Reports the observation that satisfied each observation requirement,
+    /// in canonical order. Set before the result digest is bound.
+    #[must_use]
+    pub fn with_observation_satisfactions(
+        mut self,
+        mut satisfactions: Vec<ObservationSatisfaction>,
+    ) -> Self {
+        satisfactions.sort();
+        satisfactions.dedup();
+        self.observation_satisfactions = satisfactions;
+        self
     }
 
     /// Binds the digest of the canonical result projection.
@@ -4450,6 +4514,11 @@ impl PortableVerificationResult {
     pub const fn local_configuration(&self) -> VerifierConfigurationId {
         self.local_configuration
     }
+    /// Returns the observation that satisfied each observation requirement.
+    #[must_use]
+    pub fn observation_satisfactions(&self) -> &[ObservationSatisfaction] {
+        &self.observation_satisfactions
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -4496,6 +4565,9 @@ pub enum DenialReason {
     UnusedCriticalAttachment,
     OpaqueAttachmentNotAllowed,
     LocalPolicyDenied,
+    ObservationConditionFalse,
+    ObserverInAuthorityChain,
+    ObservationRequirementDropped,
 }
 
 impl DenialReason {
@@ -4545,6 +4617,9 @@ impl DenialReason {
             Self::UnusedCriticalAttachment => "unused-critical-attachment",
             Self::OpaqueAttachmentNotAllowed => "opaque-attachment-not-allowed",
             Self::LocalPolicyDenied => "local-policy-denied",
+            Self::ObservationConditionFalse => "observation-condition-false",
+            Self::ObserverInAuthorityChain => "observer-in-authority-chain",
+            Self::ObservationRequirementDropped => "observation-requirement-dropped",
         }
     }
 
@@ -4594,6 +4669,9 @@ impl DenialReason {
             Self::UnusedCriticalAttachment,
             Self::OpaqueAttachmentNotAllowed,
             Self::LocalPolicyDenied,
+            Self::ObservationConditionFalse,
+            Self::ObserverInAuthorityChain,
+            Self::ObservationRequirementDropped,
         ]
         .into_iter()
         .find(|reason| reason.code() == code)
@@ -4620,6 +4698,8 @@ pub enum Requirement {
     HistoricalStateUnavailable,
     AssuranceRequirementNotMet,
     ExternalFactUnavailable,
+    ObservationMissing,
+    ObservationActionFactUnavailable,
 }
 
 impl Requirement {
@@ -4645,6 +4725,8 @@ impl Requirement {
             Self::HistoricalStateUnavailable => "historical-state-unavailable",
             Self::AssuranceRequirementNotMet => "assurance-requirement-not-met",
             Self::ExternalFactUnavailable => "external-fact-unavailable",
+            Self::ObservationMissing => "observation-missing",
+            Self::ObservationActionFactUnavailable => "observation-action-fact-unavailable",
         }
     }
 
@@ -4670,6 +4752,8 @@ impl Requirement {
             Self::HistoricalStateUnavailable,
             Self::AssuranceRequirementNotMet,
             Self::ExternalFactUnavailable,
+            Self::ObservationMissing,
+            Self::ObservationActionFactUnavailable,
         ]
         .into_iter()
         .find(|requirement| requirement.code() == code)
@@ -4713,6 +4797,9 @@ pub enum ModelError {
     InvalidVerifierContext,
     DuplicateObject,
     CollectionLimitExceeded,
+    InvalidObservation,
+    InvalidObservationRequirement,
+    InvalidObserverAnchor,
 }
 
 impl fmt::Display for ModelError {
@@ -4753,6 +4840,9 @@ impl fmt::Display for ModelError {
             Self::InvalidVerifierContext => "invalid verifier context",
             Self::DuplicateObject => "duplicate object",
             Self::CollectionLimitExceeded => "collection limit exceeded",
+            Self::InvalidObservation => "invalid observation",
+            Self::InvalidObservationRequirement => "invalid observation requirement",
+            Self::InvalidObserverAnchor => "invalid observer anchor",
         })
     }
 }

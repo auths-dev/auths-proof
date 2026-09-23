@@ -22,7 +22,7 @@ use alloc::vec::Vec;
 use auths_model::{
     AdapterConfigurationId, AdapterId, AssuranceClaim, AssuranceClaimId, AssuranceImplicationId,
     BudgetAlgebraId, BudgetCeiling, CanonicalAction, CriticalExtension, EvidenceId, EvidenceObject,
-    ExtensionId, GrantId, GrantStatusSnapshot, PrincipalId, PrincipalMethodId,
+    ExtensionId, FactName, FactValue, GrantId, GrantStatusSnapshot, PrincipalId, PrincipalMethodId,
     PrincipalStatusSnapshot, ProfilePolicyId, ResourceId, ResourceMatcherId, SignatureSuiteId,
     StatusMethodId, StatusPolicy, Timestamp, VerificationMethod,
 };
@@ -337,6 +337,30 @@ pub trait ProfilePolicy {
     /// Returns a typed failure for invalid or over-limit input.
     fn evaluate(&self, action: &CanonicalAction)
     -> Result<ProfileDecision, RegistryOperationError>;
+    /// Returns one named fact derived from the canonical action body.
+    ///
+    /// Observation requirements compare observed facts against action facts
+    /// and may name their subject by an action fact. The kernel treats bodies
+    /// as opaque, so only the profile can derive these values. The method must
+    /// be pure and bounded by [`Self::maximum_work_units`], and its behavior is
+    /// covered by the policy's existing configuration commitment.
+    ///
+    /// A name the profile does not define returns `Ok(None)`, which makes any
+    /// requirement that needs it indeterminate. The default defines no facts,
+    /// so a policy that predates observation requirements fails closed rather
+    /// than guessing at body structure.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed failure for invalid or over-limit input.
+    fn action_fact(
+        &self,
+        action: &CanonicalAction,
+        name: &FactName,
+    ) -> Result<Option<FactValue>, RegistryOperationError> {
+        let _ = (action, name);
+        Ok(None)
+    }
 }
 
 /// Pure stateful-budget attenuation algebra.

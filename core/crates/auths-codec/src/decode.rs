@@ -35,9 +35,9 @@ use auths_model::{
 };
 use minicbor::{Decoder, data::Type};
 
-type V1Decoder<'a> = Decoder<'a>;
+pub(crate) type V1Decoder<'a> = Decoder<'a>;
 
-fn map(decoder: &mut V1Decoder<'_>, expected: u64) -> Result<(), CodecError> {
+pub(crate) fn map(decoder: &mut V1Decoder<'_>, expected: u64) -> Result<(), CodecError> {
     if decoder.map().unwrap_or(None) == Some(expected) {
         Ok(())
     } else {
@@ -45,7 +45,7 @@ fn map(decoder: &mut V1Decoder<'_>, expected: u64) -> Result<(), CodecError> {
     }
 }
 
-fn array(decoder: &mut V1Decoder<'_>, maximum: usize) -> Result<usize, CodecError> {
+pub(crate) fn array(decoder: &mut V1Decoder<'_>, maximum: usize) -> Result<usize, CodecError> {
     let length = decoder.array().map_err(|_| CodecError::Malformed)?;
     let length = length.ok_or(CodecError::Malformed)?;
     let length = usize::try_from(length).map_err(|_| CodecError::LimitExceeded)?;
@@ -63,7 +63,7 @@ fn array_exact(decoder: &mut V1Decoder<'_>, expected: u64) -> Result<(), CodecEr
     }
 }
 
-fn key(decoder: &mut V1Decoder<'_>, expected: u8) -> Result<(), CodecError> {
+pub(crate) fn key(decoder: &mut V1Decoder<'_>, expected: u8) -> Result<(), CodecError> {
     if decoder.u8().map_err(|_| CodecError::Malformed)? == expected {
         Ok(())
     } else {
@@ -71,11 +71,11 @@ fn key(decoder: &mut V1Decoder<'_>, expected: u8) -> Result<(), CodecError> {
     }
 }
 
-fn text<'a>(decoder: &mut V1Decoder<'a>) -> Result<&'a str, CodecError> {
+pub(crate) fn text<'a>(decoder: &mut V1Decoder<'a>) -> Result<&'a str, CodecError> {
     decoder.str().map_err(|_| CodecError::Malformed)
 }
 
-fn bounded_bytes(
+pub(crate) fn bounded_bytes(
     decoder: &mut V1Decoder<'_>,
     maximum: usize,
     non_empty: bool,
@@ -87,7 +87,7 @@ fn bounded_bytes(
     Ok(bytes.to_vec())
 }
 
-fn digest_bytes(decoder: &mut V1Decoder<'_>) -> Result<[u8; 32], CodecError> {
+pub(crate) fn digest_bytes(decoder: &mut V1Decoder<'_>) -> Result<[u8; 32], CodecError> {
     decoder
         .bytes()
         .map_err(|_| CodecError::Malformed)?
@@ -95,11 +95,11 @@ fn digest_bytes(decoder: &mut V1Decoder<'_>) -> Result<[u8; 32], CodecError> {
         .map_err(|_| CodecError::Malformed)
 }
 
-fn is_null(decoder: &V1Decoder<'_>) -> Result<bool, CodecError> {
+pub(crate) fn is_null(decoder: &V1Decoder<'_>) -> Result<bool, CodecError> {
     Ok(decoder.datatype().map_err(|_| CodecError::Malformed)? == Type::Null)
 }
 
-fn null(decoder: &mut V1Decoder<'_>) -> Result<(), CodecError> {
+pub(crate) fn null(decoder: &mut V1Decoder<'_>) -> Result<(), CodecError> {
     decoder.null().map_err(|_| CodecError::Malformed)
 }
 
@@ -245,7 +245,9 @@ fn extensions(
     CriticalExtensions::new(values).map_err(CodecError::from)
 }
 
-fn signature_descriptor(decoder: &mut V1Decoder<'_>) -> Result<SignatureDescriptor, CodecError> {
+pub(crate) fn signature_descriptor(
+    decoder: &mut V1Decoder<'_>,
+) -> Result<SignatureDescriptor, CodecError> {
     map(decoder, 3)?;
     key(decoder, 0)?;
     let principal_method = parse_text!(decoder, PrincipalMethodId)?;
@@ -260,7 +262,7 @@ fn signature_descriptor(decoder: &mut V1Decoder<'_>) -> Result<SignatureDescript
     ))
 }
 
-fn signature(
+pub(crate) fn signature(
     decoder: &mut V1Decoder<'_>,
     limits: &VerifierLimits,
 ) -> Result<SignatureEnvelope, CodecError> {
@@ -484,7 +486,7 @@ fn authorization_plan(
     }
 }
 
-fn evidence(
+pub(crate) fn evidence(
     decoder: &mut V1Decoder<'_>,
     limits: &VerifierLimits,
 ) -> Result<EvidenceObject, CodecError> {
@@ -888,7 +890,7 @@ fn profile_refs(
     Ok(values)
 }
 
-fn parsed_texts<T>(
+pub(crate) fn parsed_texts<T>(
     decoder: &mut V1Decoder<'_>,
     maximum: usize,
     parse: impl Fn(&str) -> Result<T, auths_model::ModelError>,
@@ -1144,7 +1146,7 @@ fn verifier_limits(decoder: &mut V1Decoder<'_>) -> Result<VerifierLimits, CodecE
 }
 
 fn context_from(decoder: &mut V1Decoder<'_>) -> Result<TrustedContext, CodecError> {
-    map(decoder, 14)?;
+    map(decoder, 15)?;
     key(decoder, 0)?;
     let limits = verifier_limits(decoder)?;
     key(decoder, 1)?;
@@ -1196,6 +1198,8 @@ fn context_from(decoder: &mut V1Decoder<'_>) -> Result<TrustedContext, CodecErro
     let profile_policy = parse_text!(decoder, ProfilePolicyId)?;
     key(decoder, 13)?;
     let channel_policy = parse_text!(decoder, ChannelBindingId)?;
+    key(decoder, 14)?;
+    let observer_anchors = crate::observation::observer_anchors(decoder, &limits)?;
     TrustedContext::new(
         configuration,
         composition,
@@ -1211,11 +1215,12 @@ fn context_from(decoder: &mut V1Decoder<'_>) -> Result<TrustedContext, CodecErro
         profile_policy,
         channel_policy,
         limits,
-    )
+    )?
+    .with_observer_anchors(observer_anchors)
     .map_err(CodecError::from)
 }
 
-fn ensure_complete(decoder: &V1Decoder<'_>, input: &[u8]) -> Result<(), CodecError> {
+pub(crate) fn ensure_complete(decoder: &V1Decoder<'_>, input: &[u8]) -> Result<(), CodecError> {
     if decoder.position() == input.len() {
         Ok(())
     } else {
@@ -1648,7 +1653,7 @@ pub fn decode_verification_result(input: &[u8]) -> Result<PortableVerificationRe
         return Err(CodecError::LimitExceeded);
     }
     let mut decoder = Decoder::new(input);
-    map(&mut decoder, 16)?;
+    map(&mut decoder, 17)?;
     key(&mut decoder, 0)?;
     let decision = match decoder.u8().map_err(|_| CodecError::Malformed)? {
         0 => VerificationDecision::Authorized,
@@ -1741,9 +1746,13 @@ pub fn decode_verification_result(input: &[u8]) -> Result<PortableVerificationRe
     key(&mut decoder, 14)?;
     let local_configuration = digest_id!(&mut decoder, VerifierConfigurationId)?;
     key(&mut decoder, 15)?;
-    if decoder.u16().map_err(|_| CodecError::Malformed)? != 2 {
+    if decoder.u16().map_err(|_| CodecError::Malformed)?
+        != crate::encode::PORTABLE_RESULT_ABI_VERSION
+    {
         return Err(CodecError::Malformed);
     }
+    key(&mut decoder, 16)?;
+    let observation_satisfactions = crate::observation::observation_satisfactions(&mut decoder)?;
     let result = PortableVerificationResult::new(
         decision,
         stage,
@@ -1760,6 +1769,7 @@ pub fn decode_verification_result(input: &[u8]) -> Result<PortableVerificationRe
         required_configuration,
         local_configuration,
     )
+    .with_observation_satisfactions(observation_satisfactions)
     .with_result_digest(result_digest);
     ensure_complete(&decoder, input)?;
     if crate::encode::encode_verification_result(&result)?.as_slice() != input

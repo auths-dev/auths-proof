@@ -10,6 +10,7 @@ mod decode;
 mod encode;
 mod error;
 mod hash;
+mod observation;
 
 pub use decode::{
     decode_action_envelope, decode_bundle, decode_canonical_action, decode_grant_statement,
@@ -31,6 +32,12 @@ pub use error::CodecError;
 pub use hash::{
     action_id, action_signing_preimage, attachment_digest, body_digest, context_digest,
     domain_commitment, evidence_id, grant_id, grant_signing_preimage, grant_status_id,
-    grant_status_signing_preimage, plan_id, principal_status_id, principal_status_signing_preimage,
-    proof_digest, transaction_binding, verification_result_digest,
+    grant_status_signing_preimage, observation_requirement_id, observation_signing_preimage,
+    plan_id, principal_status_id, principal_status_signing_preimage, proof_digest,
+    transaction_binding, verification_result_digest,
+};
+pub use observation::{
+    decode_observation_requirements, decode_signed_observation, encode_observation_requirement,
+    encode_observation_requirements, encode_observation_signing_input,
+    encode_observation_statement, encode_signed_observation,
 };

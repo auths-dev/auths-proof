@@ -1006,7 +1006,7 @@ pub fn exact_action_fixture(
         .into_iter()
         .collect();
     let registries = AcceptedRegistries::new(
-        RegistryManifestId::new([0x33; 32]),
+        auths_registries::TARGET_V1_REGISTRY_MANIFEST,
         vec![PrincipalMethodId::parse(RAW_KEY_V1).unwrap()],
         vec![SignatureSuiteId::parse(ED25519_V1).unwrap()],
         vec![EvidenceTypeId::parse(RAW_KEY_V1).unwrap()],
@@ -1169,7 +1169,7 @@ fn build_fixture(challenge: ChallengeNonce, signed_permission: Option<Permission
     )
     .unwrap();
     let registries = AcceptedRegistries::new(
-        RegistryManifestId::new([0x33; 32]),
+        auths_registries::TARGET_V1_REGISTRY_MANIFEST,
         vec![PrincipalMethodId::parse(RAW_KEY_V1).unwrap()],
         vec![SignatureSuiteId::parse(ED25519_V1).unwrap()],
         vec![EvidenceTypeId::parse(RAW_KEY_V1).unwrap()],
