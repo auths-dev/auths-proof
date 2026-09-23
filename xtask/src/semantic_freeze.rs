@@ -158,6 +158,15 @@ struct BoundedDomain {
 }
 
 pub(crate) fn semantic_freeze(update: bool) -> Result<(), String> {
+    // The inventory binds the formal source closure's bytes, so a stale
+    // closure would freeze bytes the hosted updater is about to replace.
+    if update {
+        crate::formal_qualification::refresh_source_closure(&root())?;
+    } else {
+        crate::formal_qualification::validate_source_closure(&root()).map_err(|error| {
+            format!("{error}; `cargo xtask semantic-freeze --update` refreshes it first")
+        })?;
+    }
     let generated = generate_inventory()?;
     validate_inventory(&generated)?;
     let mut bytes = serde_json::to_vec_pretty(&generated)
