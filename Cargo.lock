@@ -281,6 +281,7 @@ dependencies = [
  "auths-authority",
  "auths-codec",
  "auths-model",
+ "auths-registries",
 ]
 
 [[package]]
@@ -586,6 +587,7 @@ dependencies = [
  "auths-authority",
  "auths-composition",
  "auths-model",
+ "auths-registries",
  "serde",
  "serde_json",
 ]

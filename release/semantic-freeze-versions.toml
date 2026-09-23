@@ -1,4 +1,4 @@
-freeze_version = 292
+freeze_version = 293
 
 # Semantic identity counters live outside the xtask source tree deliberately.
 # The formal source closure binds xtask's executable code, while the semantic
@@ -6,20 +6,20 @@ freeze_version = 292
 # made the two generated artifacts hash each other and therefore unable to
 # converge. This file is a reviewed release input, never an automatic output.
 [entries]
-"auths.core.protocol" = 22
-"auths.frozen-bytes/architecture/dependency-graph.json" = 51
+"auths.core.protocol" = 23
+"auths.frozen-bytes/architecture/dependency-graph.json" = 52
 "auths.frozen-bytes/bindings/wasm/auths-proof-wasm/identity-abi-v1.json" = 4
 "auths.frozen-bytes/bounded-domains.toml" = 2
 "auths.frozen-bytes/core/conformance/v1/manifest.json" = 1
 "auths.frozen-bytes/core/explanations/v1/fact-inventory.json" = 1
 "auths.frozen-bytes/core/fixtures/identity/v1/vectors.json" = 1
-"auths.frozen-bytes/core/fixtures/v1/manifest.json" = 7
+"auths.frozen-bytes/core/fixtures/v1/manifest.json" = 8
 "auths.frozen-bytes/core/formal-vectors/v1/manifest.json" = 1
 "auths.frozen-bytes/demos/benchmarks/profiles/release.toml" = 1
-"auths.frozen-bytes/formal/assurance-manifest-v1.toml" = 28
-"auths.frozen-bytes/formal/qualification/aeneas/generated" = 10
-"auths.frozen-bytes/formal/qualification/aeneas/qualification.toml" = 7
-"auths.frozen-bytes/formal/qualification/aeneas/source-closure.json" = 60
+"auths.frozen-bytes/formal/assurance-manifest-v1.toml" = 30
+"auths.frozen-bytes/formal/qualification/aeneas/generated" = 11
+"auths.frozen-bytes/formal/qualification/aeneas/qualification.toml" = 8
+"auths.frozen-bytes/formal/qualification/aeneas/source-closure.json" = 61
 "auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json" = 1
 "auths.frozen-bytes/product/conformance/v1/simplified-product-waist.json" = 3
 "auths.frozen-bytes/product/fixtures/v1/bounded-policy/manifest.json" = 2
@@ -57,15 +57,15 @@ freeze_version = 292
 "auths.product.facade" = 25
 "auths.product.github-issue-address-v2" = 3
 "auths.product.lifecycle" = 13
-"auths.product.mcp-closed-execution" = 23
+"auths.product.mcp-closed-execution" = 24
 "auths.product.mechanism-profile-conformance" = 10
 "auths.product.operations" = 5
 "auths.product.profile-qualification-launch" = 16
 "auths.product.public-sdk-contract" = 78
 "auths.product.receipts" = 12
 "auths.product.release-assurance" = 5
-"auths.product.simplified-waist" = 14
+"auths.product.simplified-waist" = 16
 "auths.product.vocabulary" = 18
 "auths.release.benchmark-contract" = 1
 "auths.release.evolution-contract" = 66
-"auths.release.public-surface" = 292
+"auths.release.public-surface" = 293

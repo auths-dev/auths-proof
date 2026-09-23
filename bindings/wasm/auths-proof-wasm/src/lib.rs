@@ -4734,7 +4734,11 @@ fn plan_child_grant_native(
     let limits = VerifierLimits::default_deployment();
     let parent = auths_codec::decode_grant_statement(parent_grant_cbor, &limits)?;
     let proposed = auths_codec::decode_grant_statement(proposed_child_cbor, &limits)?;
-    let plan = plan_child_grant(&parent, GrantRequest::from_proposed_statement(&proposed))?;
+    let plan = plan_child_grant(
+        &parent,
+        GrantRequest::from_proposed_statement(&proposed),
+        &auths_registries::CoreExtensionLaws::target_v1()?,
+    )?;
     grant_plan_output(&plan)
 }
 
@@ -4886,7 +4890,11 @@ fn plan_child_grant_fields_native(
         assurance_floor,
         parent.extensions().clone(),
     );
-    grant_plan_output(&plan_child_grant(&parent, request)?)
+    grant_plan_output(&plan_child_grant(
+        &parent,
+        request,
+        &auths_registries::CoreExtensionLaws::target_v1()?,
+    )?)
 }
 
 fn grant_plan_output(plan: &GrantPlan) -> Result<GrantPlanV1, EngineError> {
@@ -5645,8 +5653,12 @@ mod tests {
         let proposed_cbor = auths_codec::encode_grant_statement(proposed).unwrap();
 
         let wasm_plan = plan_child_grant_native(&parent_cbor, &proposed_cbor).unwrap();
-        let native_plan =
-            plan_child_grant(&parent, GrantRequest::from_proposed_statement(proposed)).unwrap();
+        let native_plan = plan_child_grant(
+            &parent,
+            GrantRequest::from_proposed_statement(proposed),
+            &auths_registries::CoreExtensionLaws::target_v1().unwrap(),
+        )
+        .unwrap();
 
         assert_eq!(
             wasm_plan.statement_cbor,
@@ -5793,8 +5805,8 @@ mod tests {
         let proposed = bundle.grants()[0].statement();
         let extensions = auths_model::CriticalExtensions::new(vec![
             auths_model::CriticalExtension::new(
-                auths_model::ExtensionId::parse("extension.test-v1").unwrap(),
-                vec![1, 2, 3],
+                auths_model::ExtensionId::parse("exact-marker-v1").unwrap(),
+                vec![1],
             )
             .unwrap(),
         ])

@@ -20,23 +20,180 @@ noncomputable section
 namespace auths_authority
 
 /-- [auths_authority::{impl core::cmp::PartialEq<auths_authority::CanonicalPrincipal<'_0>> for auths_authority::CanonicalPrincipal<'_0>}::eq]:
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 146:4-148:5
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 148:4-150:5
     Visibility: public -/
 def CanonicalPrincipal.Insts.CoreCmpPartialEqCanonicalPrincipal.eq
   (self : CanonicalPrincipal) (other : CanonicalPrincipal) : Result Bool := do
   auths_model.principal_id_equal self other
 
 /-- Trait implementation: [auths_authority::{impl core::cmp::PartialEq<auths_authority::CanonicalPrincipal<'_0>> for auths_authority::CanonicalPrincipal<'_0>}]
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 145:0-149:1 -/
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 147:0-151:1 -/
 @[reducible]
 def CanonicalPrincipal.Insts.CoreCmpPartialEqCanonicalPrincipal :
   core.cmp.PartialEq CanonicalPrincipal CanonicalPrincipal := {
   eq := CanonicalPrincipal.Insts.CoreCmpPartialEqCanonicalPrincipal.eq
 }
 
+/-- [auths_authority::parent_extension_retained]:
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 155:0-169:1 -/
+def parent_extension_retained
+  {L : Type} (auths_modelCriticalExtensionLawsInst :
+  auths_model.CriticalExtensionLaws L) (laws : L)
+  (child : auths_model.CriticalExtensions)
+  (parent_extension : auths_model.CriticalExtension) :
+  Result Bool
+  := do
+  let id ← auths_model.critical_extension_id parent_extension
+  let o ← auths_model.critical_extension_find child id
+  match o with
+  | none => ok false
+  | some child_extension =>
+    let s ← auths_model.critical_extension_payload child_extension
+    let s1 ← auths_model.critical_extension_payload parent_extension
+    auths_modelCriticalExtensionLawsInst.attenuates laws id (some s) (some s1)
+
+/-- [auths_authority::child_extension_admitted]:
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 174:0-184:1 -/
+def child_extension_admitted
+  {L : Type} (auths_modelCriticalExtensionLawsInst :
+  auths_model.CriticalExtensionLaws L) (laws : L)
+  (child_extension : auths_model.CriticalExtension)
+  (parent : auths_model.CriticalExtensions) :
+  Result Bool
+  := do
+  let id ← auths_model.critical_extension_id child_extension
+  let o ← auths_model.critical_extension_find parent id
+  match o with
+  | none =>
+    let s ← auths_model.critical_extension_payload child_extension
+    auths_modelCriticalExtensionLawsInst.attenuates laws id (some s) none
+  | some _ => ok true
+
+/-- [auths_authority::parent_extensions_retained]: loop body 0:
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 194:4-201:1 -/
+@[rust_loop_body]
+def parent_extensions_retained_loop.body
+  {L : Type} (auths_modelCriticalExtensionLawsInst :
+  auths_model.CriticalExtensionLaws L) (laws : L)
+  (child : auths_model.CriticalExtensions)
+  (entries : Slice auths_model.CriticalExtension) (index : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i := Slice.len entries
+  if index < i
+  then
+    let ce ← Slice.index_usize entries index
+    let b ←
+      parent_extension_retained auths_modelCriticalExtensionLawsInst laws child
+        ce
+    if b
+    then let index1 ← index + 1#usize
+         ok (cont index1)
+    else ok (done false)
+  else ok (done true)
+
+/-- [auths_authority::parent_extensions_retained]: loop 0:
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 194:4-201:1 -/
+@[rust_loop]
+def parent_extensions_retained_loop
+  {L : Type} (auths_modelCriticalExtensionLawsInst :
+  auths_model.CriticalExtensionLaws L) (laws : L)
+  (child : auths_model.CriticalExtensions)
+  (entries : Slice auths_model.CriticalExtension) (index : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun index1 => parent_extensions_retained_loop.body
+      auths_modelCriticalExtensionLawsInst laws child entries index1)
+    index
+
+/-- [auths_authority::parent_extensions_retained]:
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 187:0-201:1 -/
+def parent_extensions_retained
+  {L : Type} (auths_modelCriticalExtensionLawsInst :
+  auths_model.CriticalExtensionLaws L) (laws : L)
+  (child : auths_model.CriticalExtensions)
+  (parent : auths_model.CriticalExtensions) :
+  Result Bool
+  := do
+  let entries ← auths_model.critical_extension_entries parent
+  parent_extensions_retained_loop auths_modelCriticalExtensionLawsInst laws
+    child entries 0#usize
+
+/-- [auths_authority::child_extensions_admitted]: loop body 0:
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 211:4-218:1 -/
+@[rust_loop_body]
+def child_extensions_admitted_loop.body
+  {L : Type} (auths_modelCriticalExtensionLawsInst :
+  auths_model.CriticalExtensionLaws L) (laws : L)
+  (parent : auths_model.CriticalExtensions)
+  (entries : Slice auths_model.CriticalExtension) (index : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i := Slice.len entries
+  if index < i
+  then
+    let ce ← Slice.index_usize entries index
+    let b ←
+      child_extension_admitted auths_modelCriticalExtensionLawsInst laws ce
+        parent
+    if b
+    then let index1 ← index + 1#usize
+         ok (cont index1)
+    else ok (done false)
+  else ok (done true)
+
+/-- [auths_authority::child_extensions_admitted]: loop 0:
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 211:4-218:1 -/
+@[rust_loop]
+def child_extensions_admitted_loop
+  {L : Type} (auths_modelCriticalExtensionLawsInst :
+  auths_model.CriticalExtensionLaws L) (laws : L)
+  (parent : auths_model.CriticalExtensions)
+  (entries : Slice auths_model.CriticalExtension) (index : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun index1 => child_extensions_admitted_loop.body
+      auths_modelCriticalExtensionLawsInst laws parent entries index1)
+    index
+
+/-- [auths_authority::child_extensions_admitted]:
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 204:0-218:1 -/
+def child_extensions_admitted
+  {L : Type} (auths_modelCriticalExtensionLawsInst :
+  auths_model.CriticalExtensionLaws L) (laws : L)
+  (child : auths_model.CriticalExtensions)
+  (parent : auths_model.CriticalExtensions) :
+  Result Bool
+  := do
+  let entries ← auths_model.critical_extension_entries child
+  child_extensions_admitted_loop auths_modelCriticalExtensionLawsInst laws
+    parent entries 0#usize
+
+/-- [auths_authority::critical_extensions_attenuate]:
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 226:0-235:1 -/
+def critical_extensions_attenuate
+  {L : Type} (auths_modelCriticalExtensionLawsInst :
+  auths_model.CriticalExtensionLaws L) (laws : L)
+  (child : auths_model.CriticalExtensions)
+  (parent : auths_model.CriticalExtensions) :
+  Result Bool
+  := do
+  let b ←
+    parent_extensions_retained auths_modelCriticalExtensionLawsInst laws child
+      parent
+  if b
+  then
+    child_extensions_admitted auths_modelCriticalExtensionLawsInst laws child
+      parent
+  else ok false
+
 /-- [auths_authority::extensions_attenuate]:
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 160:0-168:1 -/
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 245:0-254:1 -/
 def extensions_attenuate
+  {L : Type} (auths_modelCriticalExtensionLawsInst :
+  auths_model.CriticalExtensionLaws L) (laws : L)
   (parent_extensions : Option auths_model.CriticalExtensions)
   (grant_extensions : auths_model.CriticalExtensions) :
   Result Bool
@@ -44,10 +201,11 @@ def extensions_attenuate
   match parent_extensions with
   | none => ok true
   | some parent =>
-    auths_model.critical_extensions_equal grant_extensions parent
+    critical_extensions_attenuate auths_modelCriticalExtensionLawsInst laws
+      grant_extensions parent
 
 /-- [auths_authority::depth_decreases]:
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 180:0-185:1 -/
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 266:0-271:1 -/
 def depth_decreases
   (parent_remaining : Std.U16) (grant_remaining : Std.U16) : Result Bool := do
   if parent_remaining = 0#u16
@@ -55,7 +213,7 @@ def depth_decreases
   else ok (grant_remaining < parent_remaining)
 
 /-- [auths_authority::root_linkage]:
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 188:0-198:1 -/
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 274:0-284:1 -/
 def root_linkage
   (parent : AuthorityStateView) (issuer : auths_model.PrincipalId) :
   Result (auths_algebra_kernel.RootLinkage CanonicalPrincipal)
@@ -70,7 +228,7 @@ def root_linkage
     }
 
 /-- [auths_authority::selected_profile_attenuates]:
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 200:0-209:1 -/
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 286:0-295:1 -/
 def selected_profile_attenuates
   (selected : Option auths_model.ProfileRef)
   (allowed_profiles : Slice auths_model.ProfileRef)
@@ -82,11 +240,13 @@ def selected_profile_attenuates
   | some parent => auths_model.profile_ref_equal parent child
 
 /-- [auths_authority::evaluate_author_scope_view]:
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 215:0-250:1
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 301:0-337:1
     Visibility: public -/
 def evaluate_author_scope_view
+  {L : Type} (auths_modelCriticalExtensionLawsInst :
+  auths_model.CriticalExtensionLaws L)
   (parent : auths_model.ScopeAuthorityView)
-  (child : auths_model.ScopeAuthorityView) :
+  (child : auths_model.ScopeAuthorityView) (laws : L) :
   Result AuthorScopeDecision
   := do
   let b ← auths_model.profile_ref_equal child.profile parent.profile
@@ -135,8 +295,9 @@ def evaluate_author_scope_view
                     if b7
                     then
                       let b8 ←
-                        auths_model.critical_extensions_equal child.extensions
-                          parent.extensions
+                        critical_extensions_attenuate
+                          auths_modelCriticalExtensionLawsInst laws
+                          child.extensions parent.extensions
                       if b8
                       then ok AuthorScopeDecision.Accepted
                       else
@@ -156,10 +317,12 @@ def evaluate_author_scope_view
   else ok (AuthorScopeDecision.Denied AuthorityDimension.Profile)
 
 /-- [auths_authority::evaluate_grant_view]:
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 271:0-335:1 -/
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 360:0-425:1 -/
 def evaluate_grant_view
-  (parent : AuthorityStateView) (grant_id : auths_model.GrantId)
-  (grant : auths_model.GrantAuthorityView) :
+  {L : Type} (auths_modelCriticalExtensionLawsInst :
+  auths_model.CriticalExtensionLaws L) (parent : AuthorityStateView)
+  (grant_id : auths_model.GrantId) (grant : auths_model.GrantAuthorityView)
+  (laws : L) :
   Result DelegationEvaluation
   := do
   let linkage ← root_linkage parent grant.issuer
@@ -188,7 +351,9 @@ def evaluate_grant_view
   let b9 ←
     auths_model.assurance_policy_id_equal grant.assurance_floor
       parent.assurance_policy
-  let b10 ← extensions_attenuate parent.extensions grant.extensions
+  let b10 ←
+    extensions_attenuate auths_modelCriticalExtensionLawsInst laws
+      parent.extensions grant.extensions
   if b
   then
     let b11 ←
@@ -308,7 +473,7 @@ def evaluate_grant_view
       }
 
 /-- [auths_authority::evaluate_action_coverage_view]:
-    Source: 'core/crates/auths-authority/src/lib.rs', lines 356:0-397:1 -/
+    Source: 'core/crates/auths-authority/src/lib.rs', lines 446:0-487:1 -/
 def evaluate_action_coverage_view
   (authority : AuthorityStateView) (action : auths_model.ActionAuthorityView)
   (expression : auths_model.ProfileBudgetExpression) :

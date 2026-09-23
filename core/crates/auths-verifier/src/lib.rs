@@ -2324,13 +2324,20 @@ fn delegate_chain(
     meter: &mut WorkMeter,
 ) -> Result<(), VerificationFailure> {
     let mut authority = EffectiveAuthority::from_anchor(anchor);
+    let laws = branch
+        .registries
+        .extension_laws(branch.context.accepted_registries());
     for (index, grant) in branch.chain.iter().enumerate() {
         if let Some(parent) = index.checked_sub(1).map(|parent| branch.chain[parent]) {
             observation::require_parent_requirements(parent, grant)?;
+            meter.reserve(laws.maximum_work_units(
+                grant.statement().extensions(),
+                parent.statement().extensions(),
+            ))?;
         }
         let id = grant_id(grant.statement()).map_err(codec_failure)?;
         authority
-            .delegate(id, grant.statement())
+            .delegate(id, grant.statement(), &laws)
             .map_err(VerificationFailure::Denied)?;
         let control = control_for(branch.controlled, StatementRef::Grant(id))?;
         reports.push(participant_report(
