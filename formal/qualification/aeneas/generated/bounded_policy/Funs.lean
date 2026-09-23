@@ -64,4 +64,42 @@ def kernel.checked_div_u64
   (left : Std.U64) (right : Std.U64) : Result (Option Std.U64) := do
   ok (U64.checked_div left right)
 
+/-- [auths_bounded_policy::kernel::ceiling_count_code]:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 86:0-99:1
+    Visibility: public -/
+def kernel.ceiling_count_code
+  (value : Std.U64) (ceiling : Std.U64) (count : Std.U64) (max_count : Std.U64)
+  :
+  Result kernel.CeilingCountCode
+  := do
+  if value > ceiling
+  then ok kernel.CeilingCountCode.AboveCeiling
+  else
+    if count >= max_count
+    then ok kernel.CeilingCountCode.WindowExhausted
+    else ok kernel.CeilingCountCode.Eligible
+
+/-- [auths_bounded_policy::kernel::ceiling_count_tightens]:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 104:0-119:1
+    Visibility: public -/
+def kernel.ceiling_count_tightens
+  (child_ceiling : Std.U64) (child_max_count : Std.U64)
+  (child_window : Std.U64) (parent_ceiling : Std.U64)
+  (parent_max_count : Std.U64) (parent_window : Std.U64) :
+  Result Bool
+  := do
+  if child_window != parent_window
+  then ok false
+  else
+    if child_ceiling > parent_ceiling
+    then ok false
+    else ok (child_max_count <= parent_max_count)
+
+/-- [auths_bounded_policy::kernel::window_index]:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 124:0-126:1
+    Visibility: public -/
+def kernel.window_index
+  (now : Std.U64) (window_seconds : Std.U64) : Result (Option Std.U64) := do
+  ok (U64.checked_div now window_seconds)
+
 end auths_bounded_policy
