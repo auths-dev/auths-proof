@@ -609,6 +609,7 @@ digraph auths_architecture {
   "auths-records-demo" -> "auths-sdk" [label="normal"];
   "auths-records-demo" -> "auths-signature" [label="normal"];
   "auths-records-demo" -> "auths-stores" [label="normal"];
+  "auths-registries" -> "auths-codec" [label="normal"];
   "auths-registries" -> "auths-model" [label="normal"];
   "auths-registries" -> "auths-ports" [label="normal"];
   "auths-resolver-did-web" -> "auths-codec" [label="normal"];

@@ -12885,6 +12885,18 @@
     {
       "source": "auths-registries",
       "source_layer": "core",
+      "target": "auths-codec",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-registries",
+      "source_layer": "core",
       "target": "auths-model",
       "target_layer": "core",
       "scope": "internal",
