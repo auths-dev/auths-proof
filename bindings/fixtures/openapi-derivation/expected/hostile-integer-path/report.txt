@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.compiler-limit  #/paths/~1items~1{item_id}/post/parameters/0/schema
+    path parameter "item_id" is not a string; the gateway compiler percent-encodes string segments only; pass --literal item_id=<value>
+nothing written

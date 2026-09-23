@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.invalid-request
+    unknown derive argument "--guess"
+nothing written

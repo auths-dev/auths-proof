@@ -1,0 +1,21 @@
+{
+  "schema": "auths.gateway-recipe-review/1",
+  "digest": "f1c5c36e049cfe8d02ce825c96f596e0453e5c9e8a63f4177bdcfcf099d30bb2",
+  "operator_namespace": "notes-demo",
+  "service": "notes",
+  "tool": "setNoteLabel_v1",
+  "origin": "https://labels-eu.notes.example",
+  "method": "PUT",
+  "path": [
+    "v2",
+    "notes",
+    "<note_id>",
+    "label"
+  ],
+  "credential": {
+    "kind": "header-api-key",
+    "header": "X-Notes-Key"
+  },
+  "operator_credential_header": "X-Notes-Key",
+  "has_observation": false
+}

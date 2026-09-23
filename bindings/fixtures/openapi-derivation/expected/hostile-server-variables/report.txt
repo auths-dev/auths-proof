@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.unsafe-server  #/paths/~1variable-server/post/servers/0
+    server variables are not derived; no override exists
+nothing written

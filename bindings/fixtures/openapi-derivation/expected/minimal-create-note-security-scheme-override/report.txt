@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.invalid-override  #/security
+    --security-scheme cannot replace a security requirement the document declares; no override exists
+nothing written

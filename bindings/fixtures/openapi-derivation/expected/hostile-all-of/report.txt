@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.unsupported-construct  #/paths/~1all-of/post/requestBody/content/application~1json/schema/allOf
+    allOf has no restricted-schema form; no override exists
+nothing written

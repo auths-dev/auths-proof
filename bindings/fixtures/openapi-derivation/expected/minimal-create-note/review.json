@@ -1,0 +1,21 @@
+{
+  "schema": "auths.gateway-recipe-review/1",
+  "digest": "616d2e2c352d318ee60650b6881887be7587ace2d72c8214098220edf15af05b",
+  "operator_namespace": "notes-demo",
+  "service": "notes",
+  "tool": "createNote_v1",
+  "origin": "https://api.notes.example",
+  "method": "POST",
+  "path": [
+    "api",
+    "notebooks",
+    "<notebook_id>",
+    "notes"
+  ],
+  "credential": {
+    "kind": "header-api-key",
+    "header": "X-Notes-Key"
+  },
+  "operator_credential_header": "X-Notes-Key",
+  "has_observation": false
+}

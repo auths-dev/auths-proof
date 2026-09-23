@@ -1,0 +1,8 @@
+REJECTED  contract
+  contract.derive.invalid-request
+    --service "Notes" must be a 1-64 byte lowercase identifier
+  contract.derive.invalid-request
+    --name "create note" must be a 1-64 byte lowercase identifier
+  contract.derive.invalid-request
+    --operator-namespace "-ns" must be a 1-64 byte [A-Za-z0-9._-] token starting with a letter or digit
+nothing written

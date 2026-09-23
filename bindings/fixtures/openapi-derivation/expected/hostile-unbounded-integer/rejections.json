@@ -1,0 +1,9 @@
+[
+  {
+    "code": "contract.derive.unbounded-integer",
+    "pointer": "#/paths/~1unbounded-integer/post/requestBody/content/application~1json/schema/properties/count",
+    "overrides": [
+      "--range count=<min>:<max>"
+    ]
+  }
+]

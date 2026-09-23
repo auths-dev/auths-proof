@@ -1,0 +1,18 @@
+{
+  "schema": "auths.gateway-recipe-review/1",
+  "digest": "177f96164092417eb3711b5aa9d86db50a134cb3d3faf4f9721c45886245ea3d",
+  "operator_namespace": "hostile",
+  "service": "hostile",
+  "tool": "hIntegerPath_v1",
+  "origin": "https://api.hostile.example",
+  "method": "POST",
+  "path": [
+    "items",
+    "7"
+  ],
+  "credential": {
+    "kind": "bearer"
+  },
+  "operator_credential_header": "Authorization",
+  "has_observation": false
+}

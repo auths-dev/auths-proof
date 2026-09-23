@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.field-limit  #/paths/~1too-many/post/requestBody/content/application~1json/schema/properties/f00
+    33 fields including the three gateway binding fields exceed 32; no override exists
+nothing written

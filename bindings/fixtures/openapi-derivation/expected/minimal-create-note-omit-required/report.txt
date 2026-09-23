@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.invalid-override  #/components/schemas/Note/properties/title
+    --omit title removes a required property; no override exists
+nothing written

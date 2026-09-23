@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.credential-scheme-out-of-scope",
+    "pointer": "#/paths/~1both-schemes/post/security/0",
+    "overrides": []
+  }
+]

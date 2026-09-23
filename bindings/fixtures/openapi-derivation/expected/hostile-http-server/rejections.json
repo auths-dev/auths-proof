@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.unsafe-server",
+    "pointer": "#/paths/~1http-server/post/servers/0",
+    "overrides": []
+  }
+]

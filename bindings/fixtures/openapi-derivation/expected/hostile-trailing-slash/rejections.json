@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.unsupported-construct",
+    "pointer": "#/paths/~1items~1",
+    "overrides": []
+  }
+]

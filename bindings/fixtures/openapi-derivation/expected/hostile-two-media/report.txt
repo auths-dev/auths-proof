@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.unsupported-body  #/paths/~1media/post/requestBody/content
+    the request body must declare exactly one media type; no override exists
+nothing written

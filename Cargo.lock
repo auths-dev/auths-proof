@@ -977,6 +977,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-openapi-derive"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-gateway",
+ "hex",
+ "serde",
+ "serde_json",
+ "serde_json_canonicalizer",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "auths-opentofu"
 version = "1.0.0-rc.1"
 dependencies = [

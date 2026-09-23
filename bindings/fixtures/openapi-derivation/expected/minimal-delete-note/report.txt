@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.compiler-limit  #/paths/~1notes~1{note_id}/delete/requestBody
+    the operation has no request body; the gateway recipe compiler needs a non-empty body; no override exists
+nothing written

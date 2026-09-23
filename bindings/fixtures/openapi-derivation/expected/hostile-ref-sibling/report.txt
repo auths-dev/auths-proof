@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.unsupported-construct  #/paths/~1ref-sibling/post/requestBody/content/application~1json/schema/properties/name/maxLength
+    keyword "maxLength" beside $ref is not read; no override exists
+nothing written

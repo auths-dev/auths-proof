@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.credential-scheme-out-of-scope  #/components/securitySchemes/Basic
+    security scheme "Basic" is http/basic; only bearer and one non-reserved API-key header are in scope; no override exists
+nothing written

@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.operation-not-found  #/paths
+    no operation has operationId "archiveNote"; no override exists
+nothing written

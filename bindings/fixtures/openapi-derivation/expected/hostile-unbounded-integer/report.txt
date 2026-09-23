@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.unbounded-integer  #/paths/~1unbounded-integer/post/requestBody/content/application~1json/schema/properties/count
+    count is an integer without an inclusive safe minimum and maximum; pass --range count=<min>:<max>
+nothing written

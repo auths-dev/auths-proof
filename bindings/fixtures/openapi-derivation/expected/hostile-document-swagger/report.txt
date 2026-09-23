@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.unsupported-version  #/openapi
+    Swagger 2.0 documents are not read; no override exists
+nothing written

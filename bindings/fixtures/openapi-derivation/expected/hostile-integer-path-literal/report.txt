@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.invalid-override  #/paths/~1items~1{item_id}/post/parameters/0/schema
+    --literal for item_id does not satisfy the document schema; no override exists
+nothing written

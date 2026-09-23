@@ -1,0 +1,144 @@
+[
+  {
+    "code": "contract.derive.missing-security",
+    "pointer": "#/security",
+    "overrides": [
+      "--security-scheme bearer",
+      "--security-scheme apikey:<Header-Name>"
+    ]
+  },
+  {
+    "code": "contract.derive.open-object",
+    "pointer": "#/components/schemas/Body_37565102",
+    "overrides": [
+      "--closed ."
+    ]
+  },
+  {
+    "code": "contract.derive.unbounded-string",
+    "pointer": "#/components/schemas/Body_37565102/properties/content",
+    "overrides": [
+      "--max-bytes content=<N>"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/Body_37565102/properties/description",
+    "overrides": [
+      "--omit description",
+      "--require description"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/Body_37565102/properties/project_id",
+    "overrides": [
+      "--omit project_id",
+      "--require project_id"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/Body_37565102/properties/section_id",
+    "overrides": [
+      "--omit section_id",
+      "--require section_id"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/Body_37565102/properties/parent_id",
+    "overrides": [
+      "--omit parent_id",
+      "--require parent_id"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/Body_37565102/properties/order",
+    "overrides": [
+      "--omit order",
+      "--require order"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/Body_37565102/properties/labels",
+    "overrides": [
+      "--omit labels",
+      "--require labels"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/Body_37565102/properties/priority",
+    "overrides": [
+      "--omit priority",
+      "--require priority"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/Body_37565102/properties/assignee_id",
+    "overrides": [
+      "--omit assignee_id",
+      "--require assignee_id"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/Body_37565102/properties/due_string",
+    "overrides": [
+      "--omit due_string",
+      "--require due_string"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/Body_37565102/properties/due_date",
+    "overrides": [
+      "--omit due_date",
+      "--require due_date"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/Body_37565102/properties/due_datetime",
+    "overrides": [
+      "--omit due_datetime",
+      "--require due_datetime"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/Body_37565102/properties/due_lang",
+    "overrides": [
+      "--omit due_lang",
+      "--require due_lang"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/Body_37565102/properties/duration",
+    "overrides": [
+      "--omit duration",
+      "--require duration"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/Body_37565102/properties/duration_unit",
+    "overrides": [
+      "--omit duration_unit",
+      "--require duration_unit"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/Body_37565102/properties/deadline_date",
+    "overrides": [
+      "--omit deadline_date",
+      "--require deadline_date"
+    ]
+  }
+]

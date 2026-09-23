@@ -1,0 +1,10 @@
+[
+  {
+    "code": "contract.derive.ambiguous-server",
+    "pointer": "#/paths/~1notes~1{note_id}~1label/put/servers",
+    "overrides": [
+      "--server https://labels.notes.example",
+      "--server https://labels-eu.notes.example/v2"
+    ]
+  }
+]

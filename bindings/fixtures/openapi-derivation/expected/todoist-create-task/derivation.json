@@ -1,0 +1,144 @@
+{
+  "schema": "auths.openapi-derivation/1",
+  "document": {
+    "sha256": "ac5abcb1297d6be0709a8f5d7799d0384148dcf2ae7bf719f72f7ccd3e7e1d5f",
+    "bytes": 1205196,
+    "openapi": "3.1.0"
+  },
+  "operation": {
+    "operation_id": "create_task_api_v1_tasks_post",
+    "method": "POST",
+    "path": "/api/v1/tasks",
+    "pointer": "#/paths/~1api~1v1~1tasks/post"
+  },
+  "server": {
+    "listed": "https://api.todoist.com/",
+    "origin": "https://api.todoist.com",
+    "base_path": []
+  },
+  "security": {
+    "scheme": null,
+    "type": "http/bearer",
+    "source": "--security-scheme",
+    "acquisition": "static-credential",
+    "credential": {
+      "kind": "bearer"
+    }
+  },
+  "profile": {
+    "name": "todoist-gateway-task-create",
+    "service": "todoist-gateway-demo",
+    "tool": "create_task_api_v1_tasks_post",
+    "version": 1,
+    "operator_namespace": "todoist-demo"
+  },
+  "arguments": [
+    {
+      "name": "content",
+      "pointer": "#/components/schemas/Body_37565102/properties/content"
+    }
+  ],
+  "overrides": [
+    "--max-bytes content=256",
+    "--omit assignee_id",
+    "--omit deadline_date",
+    "--omit description",
+    "--omit due_date",
+    "--omit due_datetime",
+    "--omit due_lang",
+    "--omit due_string",
+    "--omit duration",
+    "--omit duration_unit",
+    "--omit labels",
+    "--omit order",
+    "--omit parent_id",
+    "--omit priority",
+    "--omit project_id",
+    "--omit section_id",
+    "--closed .",
+    "--security-scheme bearer"
+  ],
+  "omitted": [
+    {
+      "pointer": "#/components/schemas/Body_37565102/properties/description",
+      "path": "description",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/components/schemas/Body_37565102/properties/project_id",
+      "path": "project_id",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/components/schemas/Body_37565102/properties/section_id",
+      "path": "section_id",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/components/schemas/Body_37565102/properties/parent_id",
+      "path": "parent_id",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/components/schemas/Body_37565102/properties/order",
+      "path": "order",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/components/schemas/Body_37565102/properties/labels",
+      "path": "labels",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/components/schemas/Body_37565102/properties/priority",
+      "path": "priority",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/components/schemas/Body_37565102/properties/assignee_id",
+      "path": "assignee_id",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/components/schemas/Body_37565102/properties/due_string",
+      "path": "due_string",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/components/schemas/Body_37565102/properties/due_date",
+      "path": "due_date",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/components/schemas/Body_37565102/properties/due_datetime",
+      "path": "due_datetime",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/components/schemas/Body_37565102/properties/due_lang",
+      "path": "due_lang",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/components/schemas/Body_37565102/properties/duration",
+      "path": "duration",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/components/schemas/Body_37565102/properties/duration_unit",
+      "path": "duration_unit",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/components/schemas/Body_37565102/properties/deadline_date",
+      "path": "deadline_date",
+      "reason": "--omit"
+    }
+  ],
+  "unenforced": [],
+  "generator_format": 2,
+  "outputs": {
+    "profile.toml": "22e42686df57ac263e0caaf08071770ec909e14dd12c111306076bee14d9f8b8",
+    "recipe.json": "596a499212a81172f028da5256fbfd993f19aef9a58cc1b872447929c6fe4be1"
+  }
+}

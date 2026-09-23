@@ -1,0 +1,10 @@
+  document:   sha256:03c7d11a545e67141ae6d79436a2006207435a879bb5a175a3a1357e6d50c465  (minimal.json, 4316 bytes, OpenAPI 3.1.0)
+  operation:  PATCH /notes/{note_id}  (renameNote)
+  security:   bearer (http/bearer "NotesBearer")
+  arguments:  6 fields (3 derived + 3 gateway binding), worst-case 2223 bytes canonical JSON
+  recipe:     PATCH https://api.notes.example/api/notes/<note_id>  body: application/x-www-form-urlencoded
+  omitted:    none
+  overrides:  --security NotesBearer
+  wrote:      profile.toml recipe.json derivation.json
+  next:       auths-profile generate profile.toml && auths gateway recipe check --recipe recipe.json --profile-lock profile.lock.json
+  claim:      derived shape only; provider effect unqualified

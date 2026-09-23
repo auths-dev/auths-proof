@@ -1,0 +1,40 @@
+{
+  "schema": "auths.gateway-recipe-source/1",
+  "profile_schema_digest": "327329aec5e0b979139ed7fe33f217aadea056f475a7c2a8474e270e616703c8",
+  "service": "todoist-gateway-demo",
+  "tool": "create_task_api_v1_tasks_post_v1",
+  "operator_namespace": "todoist-demo",
+  "credential": {
+    "kind": "bearer"
+  },
+  "origin": "https://api.todoist.com",
+  "write": {
+    "method": "POST",
+    "path": [
+      {
+        "kind": "fixed",
+        "value": "api"
+      },
+      {
+        "kind": "fixed",
+        "value": "v1"
+      },
+      {
+        "kind": "fixed",
+        "value": "tasks"
+      }
+    ],
+    "body": {
+      "kind": "json",
+      "value": {
+        "kind": "object",
+        "fields": {
+          "content": {
+            "kind": "field",
+            "name": "content"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.invalid-override  #/components/schemas/Title/maxLength
+    --max-bytes title=481 exceeds min(4 x maxLength 120, 4096); no override exists
+nothing written

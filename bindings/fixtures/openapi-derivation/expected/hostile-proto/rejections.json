@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.invalid-name",
+    "pointer": "#/paths/~1proto/post/requestBody/content/application~1json/schema/properties/constructor",
+    "overrides": []
+  }
+]

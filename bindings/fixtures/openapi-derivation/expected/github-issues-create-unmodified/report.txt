@@ -1,0 +1,30 @@
+REJECTED  contract
+  contract.derive.tool-name  #/paths/~1repos~1{owner}~1{repo}~1issues/post/operationId
+    operationId "issues/create" is not a valid tool name; pass --tool issues_create
+  contract.derive.missing-security  #/security
+    the document declares no security requirement for this operation; pass --security-scheme bearer or --security-scheme apikey:<Header-Name>
+  contract.derive.unbounded-string  #/components/parameters/owner/schema
+    owner is a string without maxLength; pass --max-bytes owner=<N>
+  contract.derive.unbounded-string  #/components/parameters/repo/schema
+    repo is a string without maxLength; pass --max-bytes repo=<N>
+  contract.derive.open-object  #/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema
+    object request body does not declare additionalProperties: false; pass --closed .
+  contract.derive.scalar-union  #/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/title
+    title is a union of scalar types; one alternative must be selected; pass --pick title=string or --pick title=integer
+  contract.derive.optional-property  #/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/body
+    body is optional; a fixed-shape request has no encoding for absence; pass --omit body or --require body
+  contract.derive.optional-property  #/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/assignee
+    assignee is optional; a fixed-shape request has no encoding for absence; pass --omit assignee or --require assignee
+  contract.derive.optional-property  #/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/milestone
+    milestone is optional; a fixed-shape request has no encoding for absence; pass --omit milestone or --require milestone
+  contract.derive.optional-property  #/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/labels
+    labels is optional; a fixed-shape request has no encoding for absence; pass --omit labels or --require labels
+  contract.derive.optional-property  #/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/assignees
+    assignees is optional; a fixed-shape request has no encoding for absence; pass --omit assignees or --require assignees
+  contract.derive.optional-property  #/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/issue_field_values
+    issue_field_values is optional; a fixed-shape request has no encoding for absence; pass --omit issue_field_values or --require issue_field_values
+  contract.derive.optional-property  #/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/type
+    type is optional; a fixed-shape request has no encoding for absence; pass --omit type or --require type
+  contract.derive.optional-property  #/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/parent_issue_id
+    parent_issue_id is optional; a fixed-shape request has no encoding for absence; pass --omit parent_issue_id or --require parent_issue_id
+nothing written

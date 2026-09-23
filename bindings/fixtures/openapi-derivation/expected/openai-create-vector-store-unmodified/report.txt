@@ -1,0 +1,14 @@
+REJECTED  contract
+  contract.derive.optional-property  #/components/schemas/CreateVectorStoreRequest/properties/file_ids
+    file_ids is optional; a fixed-shape request has no encoding for absence; pass --omit file_ids or --require file_ids
+  contract.derive.optional-property  #/components/schemas/CreateVectorStoreRequest/properties/name
+    name is optional; a fixed-shape request has no encoding for absence; pass --omit name or --require name
+  contract.derive.optional-property  #/components/schemas/CreateVectorStoreRequest/properties/description
+    description is optional; a fixed-shape request has no encoding for absence; pass --omit description or --require description
+  contract.derive.optional-property  #/components/schemas/CreateVectorStoreRequest/properties/expires_after
+    expires_after is optional; a fixed-shape request has no encoding for absence; pass --omit expires_after or --require expires_after
+  contract.derive.optional-property  #/components/schemas/CreateVectorStoreRequest/properties/chunking_strategy
+    chunking_strategy is optional; a fixed-shape request has no encoding for absence; pass --omit chunking_strategy or --require chunking_strategy
+  contract.derive.optional-property  #/components/schemas/CreateVectorStoreRequest/properties/metadata
+    metadata is optional; a fixed-shape request has no encoding for absence; pass --omit metadata or --require metadata
+nothing written

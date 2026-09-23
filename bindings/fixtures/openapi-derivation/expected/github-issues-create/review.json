@@ -1,0 +1,20 @@
+{
+  "schema": "auths.gateway-recipe-review/1",
+  "digest": "dd4842ddbb8320ceb2b0b74580180244f627965762ab004ac8db2fb01082212e",
+  "operator_namespace": "github-demo",
+  "service": "github-gateway-demo",
+  "tool": "issues_create_v1",
+  "origin": "https://api.github.com",
+  "method": "POST",
+  "path": [
+    "repos",
+    "<owner>",
+    "<repo>",
+    "issues"
+  ],
+  "credential": {
+    "kind": "bearer"
+  },
+  "operator_credential_header": "Authorization",
+  "has_observation": false
+}

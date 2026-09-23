@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.credential-scheme-out-of-scope  #/paths/~1both-schemes/post/security/0
+    a requirement combining several schemes needs more than one static header credential; no override exists
+nothing written

@@ -1,0 +1,114 @@
+{
+  "schema": "auths.openapi-derivation/1",
+  "document": {
+    "sha256": "4fbdc7d0102276803a07f9880d14ed543ba1afc10a4c9fd7bd3782408d9abaf7",
+    "bytes": 13012129,
+    "openapi": "3.0.3"
+  },
+  "operation": {
+    "operation_id": "issues/create",
+    "method": "POST",
+    "path": "/repos/{owner}/{repo}/issues",
+    "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post"
+  },
+  "server": {
+    "listed": "https://api.github.com",
+    "origin": "https://api.github.com",
+    "base_path": []
+  },
+  "security": {
+    "scheme": null,
+    "type": "http/bearer",
+    "source": "--security-scheme",
+    "acquisition": "static-credential",
+    "credential": {
+      "kind": "bearer"
+    }
+  },
+  "profile": {
+    "name": "github-gateway-issue-create",
+    "service": "github-gateway-demo",
+    "tool": "issues_create",
+    "version": 1,
+    "operator_namespace": "github-demo"
+  },
+  "arguments": [
+    {
+      "name": "owner",
+      "pointer": "#/components/parameters/owner/schema"
+    },
+    {
+      "name": "repo",
+      "pointer": "#/components/parameters/repo/schema"
+    },
+    {
+      "name": "title",
+      "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/title"
+    }
+  ],
+  "overrides": [
+    "--max-bytes owner=64",
+    "--max-bytes repo=128",
+    "--max-bytes title=256",
+    "--omit assignee",
+    "--omit assignees",
+    "--omit body",
+    "--omit issue_field_values",
+    "--omit labels",
+    "--omit milestone",
+    "--omit parent_issue_id",
+    "--omit type",
+    "--closed .",
+    "--pick title=string",
+    "--security-scheme bearer",
+    "--tool issues_create"
+  ],
+  "omitted": [
+    {
+      "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/body",
+      "path": "body",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/assignee",
+      "path": "assignee",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/milestone",
+      "path": "milestone",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/labels",
+      "path": "labels",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/assignees",
+      "path": "assignees",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/issue_field_values",
+      "path": "issue_field_values",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/type",
+      "path": "type",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/parent_issue_id",
+      "path": "parent_issue_id",
+      "reason": "--omit"
+    }
+  ],
+  "unenforced": [],
+  "generator_format": 2,
+  "outputs": {
+    "profile.toml": "f0955d64edc6486d5c9590223c4bbc1c8174095c634cbfb489d7a3d9f58b6a80",
+    "recipe.json": "50475631a57648dc52c729f5c86292b0d6a50418f2d8da8d4f91a70aaa5c031c"
+  }
+}

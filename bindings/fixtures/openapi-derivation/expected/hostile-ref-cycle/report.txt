@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.ref-cycle  #/components/schemas/Loop/properties/next/$ref
+    reference "#/components/schemas/Loop" is reached from itself; no override exists
+nothing written

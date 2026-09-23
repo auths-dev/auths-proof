@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.compiler-limit",
+    "pointer": "#/paths/~1array/post/requestBody/content/application~1json/schema/properties/tags",
+    "overrides": []
+  }
+]

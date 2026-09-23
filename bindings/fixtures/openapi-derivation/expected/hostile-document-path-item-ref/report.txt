@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.unsupported-construct  #/paths/~1shared/$ref
+    a referenced path item hides its operations; inline it; no override exists
+nothing written

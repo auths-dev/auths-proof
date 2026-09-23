@@ -92,6 +92,7 @@ members = [
     "product/qualification/auths-qualification-supervisor",
     "product/qualification/auths-qualification-evidence-source",
     "product/tools/auths-explain",
+    "product/tools/auths-openapi-derive",
     "product/tools/auths-sigstore-bundle-import",
     "demos/testkit/auths-apps-testkit",
     "demos/live-lab",
@@ -202,6 +203,7 @@ auths-sdk = { version = "1.0.0-rc.1", path = "product/sdk/auths-sdk" }
 auths-profile-kit = { version = "1.0.0-rc.1", path = "product/sdk/auths-profile-kit" }
 auths-errors = { version = "1.0.0-rc.1", path = "product/errors/auths-errors", default-features = false }
 auths-sigstore-bundle-import = { version = "1.0.0-rc.1", path = "product/tools/auths-sigstore-bundle-import" }
+auths-openapi-derive = { version = "1.0.0-rc.1", path = "product/tools/auths-openapi-derive" }
 auths-bounded-policy = { version = "1.0.0-rc.1", path = "product/policy/auths-bounded-policy", default-features = false }
 auths-enforcement = { version = "1.0.0-rc.1", path = "product/integrations/auths-enforcement" }
 auths-resolver-did-web = { version = "1.0.0-rc.1", path = "product/integrations/auths-resolver-did-web" }

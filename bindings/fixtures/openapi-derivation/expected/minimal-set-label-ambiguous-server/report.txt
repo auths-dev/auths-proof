@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.ambiguous-server  #/paths/~1notes~1{note_id}~1label/put/servers
+    2 servers apply; one must be selected; pass --server https://labels.notes.example or --server https://labels-eu.notes.example/v2
+nothing written

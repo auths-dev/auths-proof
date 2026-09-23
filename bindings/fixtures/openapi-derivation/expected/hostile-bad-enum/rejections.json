@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.enum-variant",
+    "pointer": "#/paths/~1bad-enum/post/requestBody/content/application~1json/schema/properties/mode/enum",
+    "overrides": []
+  }
+]

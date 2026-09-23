@@ -1,0 +1,9 @@
+[
+  {
+    "code": "contract.derive.compiler-limit",
+    "pointer": "#/paths/~1items~1{item_id}/post/parameters/0/schema",
+    "overrides": [
+      "--literal item_id=<value>"
+    ]
+  }
+]

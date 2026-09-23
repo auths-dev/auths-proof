@@ -309,6 +309,31 @@ security_state = ["offline-certificate-chain", "offline-rekor-entry"]
 [packages.auths-sigstore-bundle-import.claims]
 core-api-consumer = ["product/tools/auths-sigstore-bundle-import/src/lib.rs#rejects_wrong_media_type_and_tlog_cardinality"]
 
+[packages.auths-openapi-derive]
+kind = "cargo"
+layer = "product"
+path = "product/tools/auths-openapi-derive"
+core_apis = []
+protocol_versions = ["auths.gateway-recipe-source/1", "auths.openapi-derivation/1", "auths.openapi-derive-result/1", "auths.self-hosted-profile-lock/1"]
+wire_objects = []
+fixture_suites = ["bindings/fixtures/openapi-corpus", "bindings/fixtures/openapi-derivation"]
+principal_families = []
+signature_families = []
+profiles = []
+transports = []
+configuration_inputs = ["derive-overrides", "openapi-3.0-or-3.1-json-document", "operation-id"]
+security_state = []
+
+[packages.auths-openapi-derive.claims]
+configuration-compiler = [
+  "product/tools/auths-openapi-derive/tests/corpus.rs#every_corpus_case_produces_its_exact_output",
+  "product/tools/auths-openapi-derive/tests/corpus.rs#vendor_rejection_walls_match_the_published_corpus",
+  "product/tools/auths-openapi-derive/tests/corpus.rs#derived_github_request_equals_the_hand_authored_request_up_to_profile_bounds",
+  "product/tools/auths-openapi-derive/tests/corpus.rs#derived_airtable_and_todoist_recipes_compare_with_the_hand_authored_fixtures",
+  "product/tools/auths-openapi-derive/tests/corpus.rs#a_changed_document_or_override_changes_the_provenance",
+  "product/tools/auths-openapi-derive/src/document.rs#references_are_local_escaped_and_acyclic",
+]
+
 [packages.auths-lab-matrix]
 kind = "cargo"
 layer = "demos"

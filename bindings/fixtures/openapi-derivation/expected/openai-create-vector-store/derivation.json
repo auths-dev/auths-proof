@@ -1,0 +1,85 @@
+{
+  "schema": "auths.openapi-derivation/1",
+  "document": {
+    "sha256": "9b3fe0902e71ad60004949c1b4bef39b79503c39506466c283a613f9fa65aea9",
+    "bytes": 4235459,
+    "openapi": "3.1.0"
+  },
+  "operation": {
+    "operation_id": "createVectorStore",
+    "method": "POST",
+    "path": "/vector_stores",
+    "pointer": "#/paths/~1vector_stores/post"
+  },
+  "server": {
+    "listed": "https://api.openai.com/v1",
+    "origin": "https://api.openai.com",
+    "base_path": [
+      "v1"
+    ]
+  },
+  "security": {
+    "scheme": "ApiKeyAuth",
+    "type": "http/bearer",
+    "source": "document",
+    "acquisition": "static-credential",
+    "credential": {
+      "kind": "bearer"
+    }
+  },
+  "profile": {
+    "name": "openai-vector-store-create",
+    "service": "openai-vector-stores",
+    "tool": "createVectorStore",
+    "version": 1,
+    "operator_namespace": "openai-demo"
+  },
+  "arguments": [
+    {
+      "name": "name",
+      "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/name"
+    }
+  ],
+  "overrides": [
+    "--max-bytes name=128",
+    "--require name",
+    "--omit chunking_strategy",
+    "--omit description",
+    "--omit expires_after",
+    "--omit file_ids",
+    "--omit metadata"
+  ],
+  "omitted": [
+    {
+      "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/file_ids",
+      "path": "file_ids",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/description",
+      "path": "description",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/expires_after",
+      "path": "expires_after",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/chunking_strategy",
+      "path": "chunking_strategy",
+      "reason": "--omit"
+    },
+    {
+      "pointer": "#/components/schemas/CreateVectorStoreRequest/properties/metadata",
+      "path": "metadata",
+      "reason": "--omit"
+    }
+  ],
+  "unenforced": [],
+  "generator_format": 2,
+  "outputs": {
+    "profile.toml": "9d12dc30655f639754f2158313fa6a4a585999275dc399a13477bb13b2e752a6",
+    "recipe.json": "bc92388a995a23863761b1278fc02900af09b3d14944f019d0beb99451f57c62"
+  }
+}

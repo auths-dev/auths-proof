@@ -1,0 +1,41 @@
+[
+  {
+    "code": "contract.derive.query-parameter",
+    "pointer": "#/paths/~1notebooks~1{notebook_id}~1notes/post/parameters/0",
+    "overrides": [
+      "--omit dry_run"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/Note/properties/pinned",
+    "overrides": [
+      "--omit pinned",
+      "--require pinned"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/Note/properties/priority",
+    "overrides": [
+      "--omit priority",
+      "--require priority"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/Note/properties/meta/properties/weight",
+    "overrides": [
+      "--omit meta.weight",
+      "--require meta.weight"
+    ]
+  },
+  {
+    "code": "contract.derive.optional-property",
+    "pointer": "#/components/schemas/Note/properties/body",
+    "overrides": [
+      "--omit body",
+      "--require body"
+    ]
+  }
+]

@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.unsupported-parameter",
+    "pointer": "#/paths/~1header/post/parameters/0",
+    "overrides": []
+  }
+]

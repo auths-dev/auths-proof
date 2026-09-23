@@ -1,0 +1,3366 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Hostile derivation corpus document",
+    "version": "1"
+  },
+  "servers": [
+    {
+      "url": "https://api.hostile.example"
+    }
+  ],
+  "security": [
+    {
+      "Bearer": []
+    }
+  ],
+  "paths": {
+    "/remote-ref": {
+      "post": {
+        "operationId": "hRemoteRef",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "https://schemas.evil.example/body.json"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/ref-cycle": {
+      "post": {
+        "operationId": "hRefCycle",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Loop"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/ref-chain": {
+      "post": {
+        "operationId": "hRefChain",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChainA"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/ref-sibling": {
+      "post": {
+        "operationId": "hRefSibling",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "$ref": "#/components/schemas/Name",
+                    "maxLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/all-of": {
+      "post": {
+        "operationId": "hAllOf",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "a"
+                    ],
+                    "properties": {
+                      "a": {
+                        "type": "string",
+                        "maxLength": 8
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "b"
+                    ],
+                    "properties": {
+                      "b": {
+                        "type": "string",
+                        "maxLength": 8
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/free-form": {
+      "post": {
+        "operationId": "hFreeForm",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {
+                  "a": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                },
+                "required": [
+                  "a"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/float": {
+      "post": {
+        "operationId": "hFloat",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "amount"
+                ],
+                "properties": {
+                  "amount": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 10
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/binary": {
+      "post": {
+        "operationId": "hBinary",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "blob"
+                ],
+                "properties": {
+                  "blob": {
+                    "type": "string",
+                    "format": "binary",
+                    "maxLength": 64
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/object-union": {
+      "post": {
+        "operationId": "hObjectUnion",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "target"
+                ],
+                "properties": {
+                  "target": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "a"
+                        ],
+                        "properties": {
+                          "a": {
+                            "type": "string",
+                            "maxLength": 8
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "b"
+                        ],
+                        "properties": {
+                          "b": {
+                            "type": "string",
+                            "maxLength": 8
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/array": {
+      "post": {
+        "operationId": "hArray",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "tags"
+                ],
+                "properties": {
+                  "tags": {
+                    "type": "array",
+                    "maxItems": 4,
+                    "items": {
+                      "type": "string",
+                      "maxLength": 8
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/nullable": {
+      "post": {
+        "operationId": "hNullable",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "note"
+                ],
+                "properties": {
+                  "note": {
+                    "type": "string",
+                    "maxLength": 8,
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/unbounded-integer": {
+      "post": {
+        "operationId": "hUnboundedInteger",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "count"
+                ],
+                "properties": {
+                  "count": {
+                    "type": "integer",
+                    "format": "int32"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/bad-enum": {
+      "post": {
+        "operationId": "hBadEnum",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "mode"
+                ],
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "fast",
+                      "very slow"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/proto": {
+      "post": {
+        "operationId": "hProto",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "constructor"
+                ],
+                "properties": {
+                  "constructor": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/collision": {
+      "post": {
+        "operationId": "hCollision",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "operation_id"
+                ],
+                "properties": {
+                  "operation_id": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/deep": {
+      "post": {
+        "operationId": "hDeep",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "l4"
+                ],
+                "properties": {
+                  "l4": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "l3"
+                    ],
+                    "properties": {
+                      "l3": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "l2"
+                        ],
+                        "properties": {
+                          "l2": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "l1"
+                            ],
+                            "properties": {
+                              "l1": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "l0"
+                                ],
+                                "properties": {
+                                  "l0": {
+                                    "type": "string",
+                                    "maxLength": 8
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/too-many": {
+      "post": {
+        "operationId": "hTooMany",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "f00",
+                  "f01",
+                  "f02",
+                  "f03",
+                  "f04",
+                  "f05",
+                  "f06",
+                  "f07",
+                  "f08",
+                  "f09",
+                  "f10",
+                  "f11",
+                  "f12",
+                  "f13",
+                  "f14",
+                  "f15",
+                  "f16",
+                  "f17",
+                  "f18",
+                  "f19",
+                  "f20",
+                  "f21",
+                  "f22",
+                  "f23",
+                  "f24",
+                  "f25",
+                  "f26",
+                  "f27",
+                  "f28",
+                  "f29"
+                ],
+                "properties": {
+                  "f00": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f01": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f02": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f03": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f04": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f05": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f06": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f07": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f08": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f09": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f10": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f11": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f12": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f13": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f14": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f15": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f16": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f17": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f18": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f19": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f20": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f21": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f22": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f23": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f24": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f25": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f26": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f27": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f28": {
+                    "type": "string",
+                    "maxLength": 1
+                  },
+                  "f29": {
+                    "type": "string",
+                    "maxLength": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/worst-case": {
+      "post": {
+        "operationId": "hWorstCase",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "a",
+                  "b"
+                ],
+                "properties": {
+                  "a": {
+                    "type": "string",
+                    "maxLength": 4096
+                  },
+                  "b": {
+                    "type": "string",
+                    "maxLength": 4096
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/many-refs": {
+      "post": {
+        "operationId": "hManyRefs",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "p000",
+                  "p001",
+                  "p002",
+                  "p003",
+                  "p004",
+                  "p005",
+                  "p006",
+                  "p007",
+                  "p008",
+                  "p009",
+                  "p010",
+                  "p011",
+                  "p012",
+                  "p013",
+                  "p014",
+                  "p015",
+                  "p016",
+                  "p017",
+                  "p018",
+                  "p019",
+                  "p020",
+                  "p021",
+                  "p022",
+                  "p023",
+                  "p024",
+                  "p025",
+                  "p026",
+                  "p027",
+                  "p028",
+                  "p029",
+                  "p030",
+                  "p031",
+                  "p032",
+                  "p033",
+                  "p034",
+                  "p035",
+                  "p036",
+                  "p037",
+                  "p038",
+                  "p039",
+                  "p040",
+                  "p041",
+                  "p042",
+                  "p043",
+                  "p044",
+                  "p045",
+                  "p046",
+                  "p047",
+                  "p048",
+                  "p049",
+                  "p050",
+                  "p051",
+                  "p052",
+                  "p053",
+                  "p054",
+                  "p055",
+                  "p056",
+                  "p057",
+                  "p058",
+                  "p059",
+                  "p060",
+                  "p061",
+                  "p062",
+                  "p063",
+                  "p064",
+                  "p065",
+                  "p066",
+                  "p067",
+                  "p068",
+                  "p069",
+                  "p070",
+                  "p071",
+                  "p072",
+                  "p073",
+                  "p074",
+                  "p075",
+                  "p076",
+                  "p077",
+                  "p078",
+                  "p079",
+                  "p080",
+                  "p081",
+                  "p082",
+                  "p083",
+                  "p084",
+                  "p085",
+                  "p086",
+                  "p087",
+                  "p088",
+                  "p089",
+                  "p090",
+                  "p091",
+                  "p092",
+                  "p093",
+                  "p094",
+                  "p095",
+                  "p096",
+                  "p097",
+                  "p098",
+                  "p099",
+                  "p100",
+                  "p101",
+                  "p102",
+                  "p103",
+                  "p104",
+                  "p105",
+                  "p106",
+                  "p107",
+                  "p108",
+                  "p109",
+                  "p110",
+                  "p111",
+                  "p112",
+                  "p113",
+                  "p114",
+                  "p115",
+                  "p116",
+                  "p117",
+                  "p118",
+                  "p119",
+                  "p120",
+                  "p121",
+                  "p122",
+                  "p123",
+                  "p124",
+                  "p125",
+                  "p126",
+                  "p127",
+                  "p128",
+                  "p129",
+                  "p130",
+                  "p131",
+                  "p132",
+                  "p133",
+                  "p134",
+                  "p135",
+                  "p136",
+                  "p137",
+                  "p138",
+                  "p139",
+                  "p140",
+                  "p141",
+                  "p142",
+                  "p143",
+                  "p144",
+                  "p145",
+                  "p146",
+                  "p147",
+                  "p148",
+                  "p149",
+                  "p150",
+                  "p151",
+                  "p152",
+                  "p153",
+                  "p154",
+                  "p155",
+                  "p156",
+                  "p157",
+                  "p158",
+                  "p159",
+                  "p160",
+                  "p161",
+                  "p162",
+                  "p163",
+                  "p164",
+                  "p165",
+                  "p166",
+                  "p167",
+                  "p168",
+                  "p169",
+                  "p170",
+                  "p171",
+                  "p172",
+                  "p173",
+                  "p174",
+                  "p175",
+                  "p176",
+                  "p177",
+                  "p178",
+                  "p179",
+                  "p180",
+                  "p181",
+                  "p182",
+                  "p183",
+                  "p184",
+                  "p185",
+                  "p186",
+                  "p187",
+                  "p188",
+                  "p189",
+                  "p190",
+                  "p191",
+                  "p192",
+                  "p193",
+                  "p194",
+                  "p195",
+                  "p196",
+                  "p197",
+                  "p198",
+                  "p199",
+                  "p200",
+                  "p201",
+                  "p202",
+                  "p203",
+                  "p204",
+                  "p205",
+                  "p206",
+                  "p207",
+                  "p208",
+                  "p209",
+                  "p210",
+                  "p211",
+                  "p212",
+                  "p213",
+                  "p214",
+                  "p215",
+                  "p216",
+                  "p217",
+                  "p218",
+                  "p219",
+                  "p220",
+                  "p221",
+                  "p222",
+                  "p223",
+                  "p224",
+                  "p225",
+                  "p226",
+                  "p227",
+                  "p228",
+                  "p229",
+                  "p230",
+                  "p231",
+                  "p232",
+                  "p233",
+                  "p234",
+                  "p235",
+                  "p236",
+                  "p237",
+                  "p238",
+                  "p239",
+                  "p240",
+                  "p241",
+                  "p242",
+                  "p243",
+                  "p244",
+                  "p245",
+                  "p246",
+                  "p247",
+                  "p248",
+                  "p249",
+                  "p250",
+                  "p251",
+                  "p252",
+                  "p253",
+                  "p254",
+                  "p255",
+                  "p256",
+                  "p257",
+                  "p258",
+                  "p259"
+                ],
+                "properties": {
+                  "p000": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p001": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p002": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p003": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p004": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p005": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p006": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p007": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p008": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p009": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p010": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p011": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p012": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p013": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p014": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p015": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p016": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p017": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p018": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p019": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p020": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p021": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p022": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p023": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p024": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p025": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p026": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p027": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p028": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p029": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p030": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p031": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p032": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p033": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p034": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p035": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p036": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p037": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p038": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p039": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p040": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p041": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p042": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p043": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p044": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p045": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p046": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p047": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p048": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p049": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p050": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p051": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p052": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p053": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p054": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p055": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p056": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p057": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p058": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p059": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p060": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p061": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p062": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p063": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p064": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p065": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p066": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p067": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p068": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p069": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p070": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p071": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p072": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p073": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p074": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p075": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p076": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p077": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p078": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p079": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p080": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p081": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p082": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p083": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p084": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p085": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p086": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p087": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p088": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p089": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p090": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p091": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p092": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p093": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p094": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p095": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p096": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p097": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p098": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p099": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p100": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p101": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p102": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p103": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p104": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p105": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p106": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p107": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p108": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p109": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p110": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p111": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p112": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p113": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p114": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p115": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p116": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p117": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p118": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p119": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p120": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p121": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p122": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p123": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p124": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p125": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p126": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p127": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p128": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p129": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p130": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p131": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p132": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p133": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p134": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p135": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p136": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p137": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p138": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p139": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p140": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p141": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p142": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p143": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p144": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p145": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p146": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p147": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p148": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p149": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p150": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p151": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p152": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p153": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p154": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p155": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p156": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p157": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p158": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p159": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p160": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p161": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p162": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p163": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p164": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p165": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p166": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p167": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p168": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p169": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p170": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p171": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p172": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p173": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p174": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p175": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p176": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p177": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p178": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p179": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p180": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p181": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p182": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p183": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p184": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p185": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p186": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p187": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p188": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p189": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p190": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p191": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p192": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p193": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p194": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p195": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p196": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p197": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p198": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p199": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p200": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p201": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p202": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p203": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p204": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p205": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p206": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p207": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p208": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p209": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p210": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p211": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p212": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p213": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p214": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p215": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p216": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p217": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p218": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p219": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p220": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p221": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p222": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p223": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p224": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p225": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p226": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p227": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p228": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p229": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p230": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p231": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p232": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p233": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p234": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p235": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p236": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p237": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p238": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p239": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p240": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p241": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p242": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p243": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p244": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p245": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p246": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p247": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p248": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p249": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p250": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p251": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p252": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p253": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p254": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p255": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p256": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p257": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p258": {
+                    "$ref": "#/components/schemas/Name"
+                  },
+                  "p259": {
+                    "$ref": "#/components/schemas/Name"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/slice": {
+      "post": {
+        "operationId": "hSlice",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "a"
+                ],
+                "properties": {
+                  "a": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "callbacks": {
+          "big": {
+            "{$request.body#/n0}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n1}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n2}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n3}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n4}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n5}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n6}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n7}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n8}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n9}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n10}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n11}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n12}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n13}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n14}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n15}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n16}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n17}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n18}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n19}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n20}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n21}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n22}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n23}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n24}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n25}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n26}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n27}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n28}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n29}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n30}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n31}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n32}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n33}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n34}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n35}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n36}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n37}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n38}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n39}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n40}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n41}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n42}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n43}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n44}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n45}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n46}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n47}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n48}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n49}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n50}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n51}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n52}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n53}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n54}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n55}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n56}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n57}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n58}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n59}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n60}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n61}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n62}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n63}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n64}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n65}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n66}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n67}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n68}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n69}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n70}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n71}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n72}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n73}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n74}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n75}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n76}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n77}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n78}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n79}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n80}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n81}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n82}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n83}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n84}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n85}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n86}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n87}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n88}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n89}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n90}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n91}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n92}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n93}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n94}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n95}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n96}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n97}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n98}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n99}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n100}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n101}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n102}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n103}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n104}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n105}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n106}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n107}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n108}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n109}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n110}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n111}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n112}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n113}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n114}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n115}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n116}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n117}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n118}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n119}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n120}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n121}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n122}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n123}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n124}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n125}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n126}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n127}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n128}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n129}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n130}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n131}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n132}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n133}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n134}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n135}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n136}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n137}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n138}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n139}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n140}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n141}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n142}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n143}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n144}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n145}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n146}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n147}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n148}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n149}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n150}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n151}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n152}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n153}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n154}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n155}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n156}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n157}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n158}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n159}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n160}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n161}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n162}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n163}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n164}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n165}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n166}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n167}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n168}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n169}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n170}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n171}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n172}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n173}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n174}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n175}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n176}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n177}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n178}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n179}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n180}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n181}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n182}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n183}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n184}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n185}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n186}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n187}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n188}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n189}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n190}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n191}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n192}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n193}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n194}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n195}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n196}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n197}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n198}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n199}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n200}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n201}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n202}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n203}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n204}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n205}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n206}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n207}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n208}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n209}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n210}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n211}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n212}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n213}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n214}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n215}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n216}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n217}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n218}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n219}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n220}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n221}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n222}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n223}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n224}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n225}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n226}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n227}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n228}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n229}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n230}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n231}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n232}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n233}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n234}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n235}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n236}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n237}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n238}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n239}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n240}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n241}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n242}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n243}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n244}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n245}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n246}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n247}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n248}": {
+              "$ref": "#/components/pathItems/Big"
+            },
+            "{$request.body#/n249}": {
+              "$ref": "#/components/pathItems/Big"
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/files/{file_id}.json": {
+      "post": {
+        "operationId": "hMixedSegment",
+        "parameters": [
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 8
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "a"
+                ],
+                "properties": {
+                  "a": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/items/": {
+      "post": {
+        "operationId": "hTrailingSlash",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "a"
+                ],
+                "properties": {
+                  "a": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/items/{item_id}": {
+      "post": {
+        "operationId": "hIntegerPath",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 99
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "a"
+                ],
+                "properties": {
+                  "a": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/media": {
+      "post": {
+        "operationId": "hTwoMedia",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "a"
+                ],
+                "properties": {
+                  "a": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                }
+              }
+            },
+            "application/xml": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "a"
+                ],
+                "properties": {
+                  "a": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/text": {
+      "post": {
+        "operationId": "hTextMedia",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "a"
+                ],
+                "properties": {
+                  "a": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/optional-body": {
+      "post": {
+        "operationId": "hOptionalBody",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "a"
+                ],
+                "properties": {
+                  "a": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/required-query": {
+      "post": {
+        "operationId": "hRequiredQuery",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 8
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "a"
+                ],
+                "properties": {
+                  "a": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/header": {
+      "post": {
+        "operationId": "hHeaderParameter",
+        "parameters": [
+          {
+            "name": "X-Trace",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 8
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "a"
+                ],
+                "properties": {
+                  "a": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/basic": {
+      "post": {
+        "operationId": "hBasicAuth",
+        "security": [
+          {
+            "Basic": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "a"
+                ],
+                "properties": {
+                  "a": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/query-key": {
+      "post": {
+        "operationId": "hQueryKey",
+        "security": [
+          {
+            "QueryKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "a"
+                ],
+                "properties": {
+                  "a": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/authorization-key": {
+      "post": {
+        "operationId": "hAuthorizationHeaderKey",
+        "security": [
+          {
+            "AuthorizationKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "a"
+                ],
+                "properties": {
+                  "a": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/both-schemes": {
+      "post": {
+        "operationId": "hCombinedSchemes",
+        "security": [
+          {
+            "Bearer": [],
+            "HeaderKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "a"
+                ],
+                "properties": {
+                  "a": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/http-server": {
+      "post": {
+        "operationId": "hHttpServer",
+        "servers": [
+          {
+            "url": "http://api.hostile.example"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "a"
+                ],
+                "properties": {
+                  "a": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/variable-server": {
+      "post": {
+        "operationId": "hServerVariables",
+        "servers": [
+          {
+            "url": "https://{region}.hostile.example",
+            "variables": {
+              "region": {
+                "default": "eu"
+              }
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "a"
+                ],
+                "properties": {
+                  "a": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/localhost": {
+      "post": {
+        "operationId": "hLocalhost",
+        "servers": [
+          {
+            "url": "https://localhost/api"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "a"
+                ],
+                "properties": {
+                  "a": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/ip": {
+      "post": {
+        "operationId": "hIpServer",
+        "servers": [
+          {
+            "url": "https://192.168.10.1"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "a"
+                ],
+                "properties": {
+                  "a": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/dup-a": {
+      "post": {
+        "operationId": "hDuplicate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "a"
+                ],
+                "properties": {
+                  "a": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/dup-b": {
+      "post": {
+        "operationId": "hDuplicate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "a"
+                ],
+                "properties": {
+                  "a": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/bad-tool": {
+      "post": {
+        "operationId": "9 bad tool",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "a"
+                ],
+                "properties": {
+                  "a": {
+                    "type": "string",
+                    "maxLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/read": {
+      "get": {
+        "operationId": "hGet",
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "Basic": {
+        "type": "http",
+        "scheme": "basic"
+      },
+      "QueryKey": {
+        "type": "apiKey",
+        "in": "query",
+        "name": "key"
+      },
+      "AuthorizationKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization"
+      },
+      "HeaderKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Key"
+      }
+    },
+    "schemas": {
+      "Name": {
+        "type": "string",
+        "maxLength": 16
+      },
+      "Loop": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "next"
+        ],
+        "properties": {
+          "next": {
+            "$ref": "#/components/schemas/Loop"
+          }
+        }
+      },
+      "ChainA": {
+        "$ref": "#/components/schemas/ChainB"
+      },
+      "ChainB": {
+        "$ref": "#/components/schemas/ChainA"
+      }
+    },
+    "pathItems": {
+      "Big": {
+        "post": {
+          "description": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "responses": {
+            "200": {
+              "description": "ok"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Hand-written description of one Airtable table update used by the gateway demo",
+    "version": "1",
+    "description": "Airtable publishes no machine-readable OpenAPI document; this one describes only the disposable demo base and table that the hand-authored gateway fixture targets."
+  },
+  "servers": [{ "url": "https://api.airtable.com/v0" }],
+  "security": [{ "PersonalAccessToken": [] }],
+  "components": {
+    "securitySchemes": { "PersonalAccessToken": { "type": "http", "scheme": "bearer" } }
+  },
+  "paths": {
+    "/appTEST0000000001/tblTEST0000000001/{record_id}": {
+      "patch": {
+        "operationId": "set_demo_status",
+        "parameters": [
+          {
+            "name": "record_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "minLength": 17, "maxLength": 43 }
+          },
+          {
+            "name": "returnFieldsByFieldId",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "boolean" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["fields"],
+                "properties": {
+                  "fields": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["DemoStatus"],
+                    "properties": {
+                      "DemoStatus": { "type": "string", "enum": ["Approved", "Pending"] }
+                    }
+                  },
+                  "typecast": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "the updated record" } }
+      }
+    }
+  }
+}

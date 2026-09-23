@@ -1,0 +1,18 @@
+{
+  "schema": "auths.gateway-recipe-review/1",
+  "digest": "2dc56b8969c5312a9dbeaafa33bb53e883d914c8d686ac2bdfac68fa4bcb9fea",
+  "operator_namespace": "openai-demo",
+  "service": "openai-vector-stores",
+  "tool": "createVectorStore_v1",
+  "origin": "https://api.openai.com",
+  "method": "POST",
+  "path": [
+    "v1",
+    "vector_stores"
+  ],
+  "credential": {
+    "kind": "bearer"
+  },
+  "operator_credential_header": "Authorization",
+  "has_observation": false
+}

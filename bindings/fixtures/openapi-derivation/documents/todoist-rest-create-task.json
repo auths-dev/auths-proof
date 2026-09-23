@@ -1,0 +1,45 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Hand-written excerpt of the Todoist REST task-creation operation",
+    "version": "1",
+    "description": "Mirrors create_task_api_v1_tasks_post in the digest-pinned vendor document (bindings/fixtures/openapi-corpus) for the fields used here, so CI can derive it without the 1.2 MB upstream bytes."
+  },
+  "servers": [{ "url": "https://api.todoist.com/" }],
+  "paths": {
+    "/api/v1/tasks": {
+      "post": {
+        "operationId": "create_task_api_v1_tasks_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/Body_37565102" }
+            }
+          }
+        },
+        "responses": { "200": { "description": "the created task" } }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Body_37565102": {
+        "properties": {
+          "content": { "type": "string", "minLength": 1, "title": "Content" },
+          "description": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Description"
+          },
+          "priority": {
+            "anyOf": [{ "type": "integer", "maximum": 4.0, "minimum": 1.0 }, { "type": "null" }],
+            "title": "Priority"
+          }
+        },
+        "type": "object",
+        "required": ["content"],
+        "title": "Body"
+      }
+    }
+  }
+}

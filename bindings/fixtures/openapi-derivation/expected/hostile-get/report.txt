@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.unsupported-method  #/paths/~1read/get
+    GET is not a single write; only POST, PUT, PATCH, and DELETE are derived; no override exists
+nothing written

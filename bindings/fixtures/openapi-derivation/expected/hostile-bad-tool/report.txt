@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.tool-name  #/paths/~1bad-tool/post/operationId
+    operationId "9 bad tool" is not a valid tool name; pass --tool op_9_bad_tool
+nothing written

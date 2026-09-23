@@ -1,0 +1,4 @@
+REJECTED  contract
+  contract.derive.unsupported-construct  #/paths/~1binary/post/requestBody/content/application~1json/schema/properties/blob/format
+    blob has format binary; encoded binary bodies are not derived; no override exists
+nothing written

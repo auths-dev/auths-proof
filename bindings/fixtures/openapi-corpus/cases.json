@@ -36,7 +36,7 @@
         { "pointer": "#/security", "rule": "3.1 security", "reason": "neither the root nor the operation declares a security requirement, and components declare no securitySchemes", "overrides": ["--security-scheme bearer"] },
         { "pointer": "#/components/parameters/owner/schema", "rule": "3.2 string without maxLength", "reason": "required path parameter owner is an unbounded string", "overrides": ["--max-bytes owner=64"] },
         { "pointer": "#/components/parameters/repo/schema", "rule": "3.2 string without maxLength", "reason": "required path parameter repo is an unbounded string", "overrides": ["--max-bytes repo=128"] },
-        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema", "rule": "3.2 object with additionalProperties absent", "reason": "the inline body object omits additionalProperties", "overrides": ["--closed body"], "note": "root-object path spelling is provisional" },
+        { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema", "rule": "3.2 object with additionalProperties absent", "reason": "the inline body object omits additionalProperties", "overrides": ["--closed ."], "note": "root-object path spelling is provisional" },
         { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/title", "rule": "3.2 scalar oneOf", "reason": "required title is oneOf string or integer, and neither branch is bounded", "overrides": ["--pick title=string", "--max-bytes title=256"] },
         { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/body", "rule": "3.2 property not in required", "reason": "optional unbounded string", "overrides": ["--omit body"] },
         { "pointer": "#/paths/~1repos~1{owner}~1{repo}~1issues/post/requestBody/content/application~1json/schema/properties/assignee", "rule": "3.2 property not in required", "reason": "optional nullable unbounded string", "overrides": ["--omit assignee"] },
@@ -49,7 +49,7 @@
       ],
       "candidateOverrides": [
         "--tool issues_create", "--security-scheme bearer", "--max-bytes owner=64",
-        "--max-bytes repo=128", "--closed body", "--pick title=string",
+        "--max-bytes repo=128", "--closed .", "--pick title=string",
         "--max-bytes title=256", "--omit body", "--omit assignee",
         "--omit milestone", "--omit labels", "--omit assignees",
         "--omit issue_field_values", "--omit type", "--omit parent_issue_id"
@@ -81,7 +81,7 @@
       },
       "unmodifiedRejections": [
         { "pointer": "#/security", "rule": "3.1 security", "reason": "no root or operation security requirement and no securitySchemes", "overrides": ["--security-scheme bearer"] },
-        { "pointer": "#/components/schemas/Body_37565102", "rule": "3.2 object with additionalProperties absent", "reason": "the body object omits additionalProperties", "overrides": ["--closed body"], "note": "root-object path spelling is provisional" },
+        { "pointer": "#/components/schemas/Body_37565102", "rule": "3.2 object with additionalProperties absent", "reason": "the body object omits additionalProperties", "overrides": ["--closed ."], "note": "root-object path spelling is provisional" },
         { "pointer": "#/components/schemas/Body_37565102/properties/content", "rule": "3.2 string without maxLength", "reason": "required content has minLength 1 and no maxLength", "overrides": ["--max-bytes content=256"] },
         { "pointer": "#/components/schemas/Body_37565102/properties/description", "rule": "3.2 property not in required", "reason": "optional anyOf string or null; unbounded", "overrides": ["--omit description"] },
         { "pointer": "#/components/schemas/Body_37565102/properties/project_id", "rule": "3.2 property not in required", "reason": "optional anyOf string or null; unbounded", "overrides": ["--omit project_id"] },
@@ -100,7 +100,7 @@
         { "pointer": "#/components/schemas/Body_37565102/properties/deadline_date", "rule": "3.2 property not in required", "reason": "optional anyOf string or null; unbounded", "overrides": ["--omit deadline_date"] }
       ],
       "candidateOverrides": [
-        "--security-scheme bearer", "--closed body", "--max-bytes content=256",
+        "--security-scheme bearer", "--closed .", "--max-bytes content=256",
         "--omit description", "--omit project_id", "--omit section_id",
         "--omit parent_id", "--omit order", "--omit labels", "--omit priority",
         "--omit assignee_id", "--omit due_string", "--omit due_date",

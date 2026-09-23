@@ -1,0 +1,12 @@
+REJECTED  contract
+  contract.derive.query-parameter  #/paths/~1notebooks~1{notebook_id}~1notes/post/parameters/0
+    query parameter "dry_run" has no form in the recipe language; pass --omit dry_run
+  contract.derive.optional-property  #/components/schemas/Note/properties/pinned
+    pinned is optional; a fixed-shape request has no encoding for absence; pass --omit pinned or --require pinned
+  contract.derive.optional-property  #/components/schemas/Note/properties/priority
+    priority is optional; a fixed-shape request has no encoding for absence; pass --omit priority or --require priority
+  contract.derive.optional-property  #/components/schemas/Note/properties/meta/properties/weight
+    meta.weight is optional; a fixed-shape request has no encoding for absence; pass --omit meta.weight or --require meta.weight
+  contract.derive.optional-property  #/components/schemas/Note/properties/body
+    body is optional; a fixed-shape request has no encoding for absence; pass --omit body or --require body
+nothing written

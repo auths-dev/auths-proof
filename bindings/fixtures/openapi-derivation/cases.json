@@ -1,0 +1,1602 @@
+{
+  "schema": "auths.openapi-derivation-corpus/1",
+  "vendorManifest": "bindings/fixtures/openapi-corpus/cases.json",
+  "vendorDirectoryVariable": "AUTHS_OPENAPI_CORPUS_DIR",
+  "expectedDirectory": "expected",
+  "cases": [
+    {
+      "id": "github-issues-create-unmodified",
+      "document": {
+        "vendor": "GitHub"
+      },
+      "outcome": "rejected",
+      "note": "The measured rejection wall: the pinned GitHub document with no overrides.",
+      "arguments": [
+        "--operation",
+        "issues/create",
+        "--service",
+        "github-gateway-demo",
+        "--name",
+        "github-gateway-issue-create",
+        "--operator-namespace",
+        "github-demo"
+      ]
+    },
+    {
+      "id": "github-issues-create",
+      "document": {
+        "vendor": "GitHub"
+      },
+      "outcome": "derived",
+      "note": "The published candidate override set, with the root body spelled as a dot.",
+      "arguments": [
+        "--operation",
+        "issues/create",
+        "--service",
+        "github-gateway-demo",
+        "--name",
+        "github-gateway-issue-create",
+        "--operator-namespace",
+        "github-demo",
+        "--tool",
+        "issues_create",
+        "--security-scheme",
+        "bearer",
+        "--max-bytes",
+        "owner=64",
+        "--max-bytes",
+        "repo=128",
+        "--closed",
+        ".",
+        "--pick",
+        "title=string",
+        "--max-bytes",
+        "title=256",
+        "--omit",
+        "body",
+        "--omit",
+        "assignee",
+        "--omit",
+        "milestone",
+        "--omit",
+        "labels",
+        "--omit",
+        "assignees",
+        "--omit",
+        "issue_field_values",
+        "--omit",
+        "type",
+        "--omit",
+        "parent_issue_id"
+      ]
+    },
+    {
+      "id": "github-issues-create-fixed-repository",
+      "document": {
+        "vendor": "GitHub"
+      },
+      "outcome": "derived",
+      "note": "Fixes owner and repo as literal segments and keeps body, the request the hand-authored GitHub gateway fixture expresses.",
+      "arguments": [
+        "--operation",
+        "issues/create",
+        "--service",
+        "github-gateway-demo",
+        "--name",
+        "github-gateway-issue-create",
+        "--operator-namespace",
+        "github-demo",
+        "--tool",
+        "create_issue",
+        "--security-scheme",
+        "bearer",
+        "--literal",
+        "owner=\"auths-dev\"",
+        "--literal",
+        "repo=\"gateway-fixture-repo\"",
+        "--closed",
+        ".",
+        "--pick",
+        "title=string",
+        "--max-bytes",
+        "title=128",
+        "--require",
+        "body",
+        "--max-bytes",
+        "body=256",
+        "--omit",
+        "assignee",
+        "--omit",
+        "milestone",
+        "--omit",
+        "labels",
+        "--omit",
+        "assignees",
+        "--omit",
+        "issue_field_values",
+        "--omit",
+        "type",
+        "--omit",
+        "parent_issue_id"
+      ]
+    },
+    {
+      "id": "todoist-create-task-unmodified",
+      "document": {
+        "vendor": "Todoist"
+      },
+      "outcome": "rejected",
+      "note": "The measured rejection wall: the pinned Todoist document with no overrides.",
+      "arguments": [
+        "--operation",
+        "create_task_api_v1_tasks_post",
+        "--service",
+        "todoist-gateway-demo",
+        "--name",
+        "todoist-gateway-task-create",
+        "--operator-namespace",
+        "todoist-demo"
+      ]
+    },
+    {
+      "id": "todoist-create-task",
+      "document": {
+        "vendor": "Todoist"
+      },
+      "outcome": "derived",
+      "note": "The published candidate override set; profile.toml and recipe.json must equal todoist-rest-create-task.",
+      "arguments": [
+        "--operation",
+        "create_task_api_v1_tasks_post",
+        "--service",
+        "todoist-gateway-demo",
+        "--name",
+        "todoist-gateway-task-create",
+        "--operator-namespace",
+        "todoist-demo",
+        "--security-scheme",
+        "bearer",
+        "--closed",
+        ".",
+        "--max-bytes",
+        "content=256",
+        "--omit",
+        "description",
+        "--omit",
+        "project_id",
+        "--omit",
+        "section_id",
+        "--omit",
+        "parent_id",
+        "--omit",
+        "order",
+        "--omit",
+        "labels",
+        "--omit",
+        "priority",
+        "--omit",
+        "assignee_id",
+        "--omit",
+        "due_string",
+        "--omit",
+        "due_date",
+        "--omit",
+        "due_datetime",
+        "--omit",
+        "due_lang",
+        "--omit",
+        "duration",
+        "--omit",
+        "duration_unit",
+        "--omit",
+        "deadline_date"
+      ]
+    },
+    {
+      "id": "todoist-rest-create-task",
+      "document": {
+        "file": "documents/todoist-rest-create-task.json"
+      },
+      "outcome": "derived",
+      "note": "The CI-reproducible excerpt of the Todoist operation.",
+      "arguments": [
+        "--operation",
+        "create_task_api_v1_tasks_post",
+        "--service",
+        "todoist-gateway-demo",
+        "--name",
+        "todoist-gateway-task-create",
+        "--operator-namespace",
+        "todoist-demo",
+        "--security-scheme",
+        "bearer",
+        "--closed",
+        ".",
+        "--max-bytes",
+        "content=256",
+        "--omit",
+        "description",
+        "--omit",
+        "priority"
+      ]
+    },
+    {
+      "id": "todoist-rest-create-task-with-description",
+      "document": {
+        "file": "documents/todoist-rest-create-task.json"
+      },
+      "outcome": "derived",
+      "note": "Keeps description as a non-null string, closest to the hand-authored Todoist fields.",
+      "arguments": [
+        "--operation",
+        "create_task_api_v1_tasks_post",
+        "--service",
+        "todoist-gateway-demo",
+        "--name",
+        "todoist-gateway-task-create",
+        "--operator-namespace",
+        "todoist-demo",
+        "--version",
+        "2",
+        "--security-scheme",
+        "bearer",
+        "--closed",
+        ".",
+        "--max-bytes",
+        "content=256",
+        "--require",
+        "description",
+        "--pick",
+        "description=string",
+        "--max-bytes",
+        "description=80",
+        "--omit",
+        "priority"
+      ]
+    },
+    {
+      "id": "todoist-rest-create-task-nullable-priority",
+      "document": {
+        "file": "documents/todoist-rest-create-task.json"
+      },
+      "outcome": "rejected",
+      "note": "A required anyOf [integer, null] is recognized as nullable and needs --pick.",
+      "arguments": [
+        "--operation",
+        "create_task_api_v1_tasks_post",
+        "--service",
+        "todoist-gateway-demo",
+        "--name",
+        "todoist-gateway-task-create",
+        "--operator-namespace",
+        "todoist-demo",
+        "--security-scheme",
+        "bearer",
+        "--closed",
+        ".",
+        "--max-bytes",
+        "content=256",
+        "--omit",
+        "description",
+        "--require",
+        "priority"
+      ]
+    },
+    {
+      "id": "openai-create-vector-store-unmodified",
+      "document": {
+        "vendor": "OpenAI"
+      },
+      "outcome": "rejected",
+      "note": "The measured rejection wall: the pinned OpenAI document with no overrides.",
+      "arguments": [
+        "--operation",
+        "createVectorStore",
+        "--service",
+        "openai-vector-stores",
+        "--name",
+        "openai-vector-store-create",
+        "--operator-namespace",
+        "openai-demo"
+      ]
+    },
+    {
+      "id": "openai-create-vector-store",
+      "document": {
+        "vendor": "OpenAI"
+      },
+      "outcome": "derived",
+      "note": "The published candidate override set; the server base path v1 becomes a fixed segment.",
+      "arguments": [
+        "--operation",
+        "createVectorStore",
+        "--service",
+        "openai-vector-stores",
+        "--name",
+        "openai-vector-store-create",
+        "--operator-namespace",
+        "openai-demo",
+        "--require",
+        "name",
+        "--max-bytes",
+        "name=128",
+        "--omit",
+        "file_ids",
+        "--omit",
+        "description",
+        "--omit",
+        "expires_after",
+        "--omit",
+        "chunking_strategy",
+        "--omit",
+        "metadata"
+      ]
+    },
+    {
+      "id": "airtable-set-demo-status",
+      "document": {
+        "file": "documents/airtable-record-update.json"
+      },
+      "outcome": "derived",
+      "note": "The Airtable demo field update from a hand-written document.",
+      "arguments": [
+        "--operation",
+        "set_demo_status",
+        "--service",
+        "airtable-gateway-demo",
+        "--name",
+        "airtable-gateway-record-update",
+        "--operator-namespace",
+        "airtable-demo",
+        "--omit",
+        "returnFieldsByFieldId",
+        "--omit",
+        "typecast"
+      ]
+    },
+    {
+      "id": "minimal-create-note-unmodified",
+      "document": {
+        "file": "documents/minimal.json"
+      },
+      "outcome": "rejected",
+      "note": "Optional query parameter, optional properties, and a nullable union.",
+      "arguments": [
+        "--operation",
+        "createNote",
+        "--service",
+        "notes",
+        "--name",
+        "create-note",
+        "--operator-namespace",
+        "notes-demo"
+      ]
+    },
+    {
+      "id": "minimal-create-note",
+      "document": {
+        "file": "documents/minimal.json"
+      },
+      "outcome": "derived",
+      "note": "API-key header, base path with trailing slash, nested object flattening, literal, pick, and a widened byte bound.",
+      "arguments": [
+        "--operation",
+        "createNote",
+        "--service",
+        "notes",
+        "--name",
+        "create-note",
+        "--operator-namespace",
+        "notes-demo",
+        "--omit",
+        "dry_run",
+        "--require",
+        "pinned",
+        "--require",
+        "priority",
+        "--pick",
+        "priority=integer",
+        "--omit",
+        "meta.weight",
+        "--literal",
+        "body=\"Created through the Auths gateway\"",
+        "--max-bytes",
+        "title=240"
+      ]
+    },
+    {
+      "id": "minimal-create-note-unused-override",
+      "document": {
+        "file": "documents/minimal.json"
+      },
+      "outcome": "rejected",
+      "note": "An override that applies to nothing fails closed.",
+      "arguments": [
+        "--operation",
+        "createNote",
+        "--service",
+        "notes",
+        "--name",
+        "create-note",
+        "--operator-namespace",
+        "notes-demo",
+        "--omit",
+        "dry_run",
+        "--require",
+        "pinned",
+        "--require",
+        "priority",
+        "--pick",
+        "priority=integer",
+        "--omit",
+        "meta.weight",
+        "--literal",
+        "body=\"Created through the Auths gateway\"",
+        "--max-bytes",
+        "title=240",
+        "--omit",
+        "archived"
+      ]
+    },
+    {
+      "id": "minimal-create-note-omit-required",
+      "document": {
+        "file": "documents/minimal.json"
+      },
+      "outcome": "rejected",
+      "note": "A required property cannot be omitted.",
+      "arguments": [
+        "--operation",
+        "createNote",
+        "--service",
+        "notes",
+        "--name",
+        "create-note",
+        "--operator-namespace",
+        "notes-demo",
+        "--omit",
+        "dry_run",
+        "--require",
+        "pinned",
+        "--require",
+        "priority",
+        "--pick",
+        "priority=integer",
+        "--omit",
+        "meta.weight",
+        "--literal",
+        "body=\"Created through the Auths gateway\"",
+        "--max-bytes",
+        "title=240",
+        "--omit",
+        "title"
+      ]
+    },
+    {
+      "id": "minimal-create-note-security-scheme-override",
+      "document": {
+        "file": "documents/minimal.json"
+      },
+      "outcome": "rejected",
+      "note": "--security-scheme cannot replace a declared requirement.",
+      "arguments": [
+        "--operation",
+        "createNote",
+        "--service",
+        "notes",
+        "--name",
+        "create-note",
+        "--operator-namespace",
+        "notes-demo",
+        "--omit",
+        "dry_run",
+        "--require",
+        "pinned",
+        "--require",
+        "priority",
+        "--pick",
+        "priority=integer",
+        "--omit",
+        "meta.weight",
+        "--literal",
+        "body=\"Created through the Auths gateway\"",
+        "--max-bytes",
+        "title=240",
+        "--security-scheme",
+        "bearer"
+      ]
+    },
+    {
+      "id": "minimal-create-note-overwide-bytes",
+      "document": {
+        "file": "documents/minimal.json"
+      },
+      "outcome": "rejected",
+      "note": "--max-bytes may widen only to four times maxLength.",
+      "arguments": [
+        "--operation",
+        "createNote",
+        "--service",
+        "notes",
+        "--name",
+        "create-note",
+        "--operator-namespace",
+        "notes-demo",
+        "--omit",
+        "dry_run",
+        "--omit",
+        "pinned",
+        "--omit",
+        "priority",
+        "--omit",
+        "meta.weight",
+        "--omit",
+        "body",
+        "--max-bytes",
+        "title=481"
+      ]
+    },
+    {
+      "id": "minimal-create-note-bad-literal",
+      "document": {
+        "file": "documents/minimal.json"
+      },
+      "outcome": "rejected",
+      "note": "A literal must satisfy the schema it replaces.",
+      "arguments": [
+        "--operation",
+        "createNote",
+        "--service",
+        "notes",
+        "--name",
+        "create-note",
+        "--operator-namespace",
+        "notes-demo",
+        "--omit",
+        "dry_run",
+        "--require",
+        "pinned",
+        "--require",
+        "priority",
+        "--pick",
+        "priority=integer",
+        "--omit",
+        "meta.weight",
+        "--literal",
+        "body=\"Created through the Auths gateway\"",
+        "--literal",
+        "meta.color=\"green\""
+      ]
+    },
+    {
+      "id": "minimal-rename-note-ambiguous-security",
+      "document": {
+        "file": "documents/minimal.json"
+      },
+      "outcome": "rejected",
+      "note": "Two security alternatives need --security.",
+      "arguments": [
+        "--operation",
+        "renameNote",
+        "--service",
+        "notes",
+        "--name",
+        "rename-note",
+        "--operator-namespace",
+        "notes-demo"
+      ]
+    },
+    {
+      "id": "minimal-rename-note-form",
+      "document": {
+        "file": "documents/minimal.json"
+      },
+      "outcome": "derived",
+      "note": "Form body with an integer field and an exclusive maximum.",
+      "arguments": [
+        "--operation",
+        "renameNote",
+        "--service",
+        "notes",
+        "--name",
+        "rename-note",
+        "--operator-namespace",
+        "notes-demo",
+        "--security",
+        "NotesBearer"
+      ]
+    },
+    {
+      "id": "minimal-set-label-ambiguous-server",
+      "document": {
+        "file": "documents/minimal.json"
+      },
+      "outcome": "rejected",
+      "note": "Two operation-level servers need --server.",
+      "arguments": [
+        "--operation",
+        "setNoteLabel",
+        "--service",
+        "notes",
+        "--name",
+        "set-label",
+        "--operator-namespace",
+        "notes-demo",
+        "--closed",
+        "."
+      ]
+    },
+    {
+      "id": "minimal-set-label",
+      "document": {
+        "file": "documents/minimal.json"
+      },
+      "outcome": "derived",
+      "note": "Operation-level server selection with a base path and a literal body field.",
+      "arguments": [
+        "--operation",
+        "setNoteLabel",
+        "--service",
+        "notes",
+        "--name",
+        "set-label",
+        "--operator-namespace",
+        "notes-demo",
+        "--closed",
+        ".",
+        "--server",
+        "https://labels-eu.notes.example/v2",
+        "--literal",
+        "source=\"auths\""
+      ]
+    },
+    {
+      "id": "minimal-set-label-unlisted-server",
+      "document": {
+        "file": "documents/minimal.json"
+      },
+      "outcome": "rejected",
+      "note": "--server must match a listed entry byte for byte.",
+      "arguments": [
+        "--operation",
+        "setNoteLabel",
+        "--service",
+        "notes",
+        "--name",
+        "set-label",
+        "--operator-namespace",
+        "notes-demo",
+        "--closed",
+        ".",
+        "--server",
+        "https://labels.notes.example/"
+      ]
+    },
+    {
+      "id": "minimal-delete-note",
+      "document": {
+        "file": "documents/minimal.json"
+      },
+      "outcome": "rejected",
+      "note": "No request body.",
+      "arguments": [
+        "--operation",
+        "deleteNote",
+        "--service",
+        "notes",
+        "--name",
+        "delete-note",
+        "--operator-namespace",
+        "notes-demo"
+      ]
+    },
+    {
+      "id": "minimal-list-notes",
+      "document": {
+        "file": "documents/minimal.json"
+      },
+      "outcome": "rejected",
+      "note": "GET is not a write.",
+      "arguments": [
+        "--operation",
+        "listNotes",
+        "--service",
+        "notes",
+        "--name",
+        "list-notes",
+        "--operator-namespace",
+        "notes-demo"
+      ]
+    },
+    {
+      "id": "minimal-missing-operation",
+      "document": {
+        "file": "documents/minimal.json"
+      },
+      "outcome": "rejected",
+      "note": "No such operationId.",
+      "arguments": [
+        "--operation",
+        "archiveNote",
+        "--service",
+        "notes",
+        "--name",
+        "archive-note",
+        "--operator-namespace",
+        "notes-demo"
+      ]
+    },
+    {
+      "id": "minimal-bad-identity",
+      "document": {
+        "file": "documents/minimal.json"
+      },
+      "outcome": "rejected",
+      "note": "Identity flags are validated before the document is read.",
+      "arguments": [
+        "--operation",
+        "createNote",
+        "--service",
+        "Notes",
+        "--name",
+        "create note",
+        "--operator-namespace",
+        "-ns"
+      ]
+    },
+    {
+      "id": "minimal-unknown-flag",
+      "document": {
+        "file": "documents/minimal.json"
+      },
+      "outcome": "rejected",
+      "note": "Unknown flags fail closed.",
+      "arguments": [
+        "--operation",
+        "createNote",
+        "--service",
+        "notes",
+        "--name",
+        "create-note",
+        "--operator-namespace",
+        "notes-demo",
+        "--guess",
+        "everything"
+      ]
+    },
+    {
+      "id": "hostile-remote-ref",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "A remote reference.",
+      "arguments": [
+        "--operation",
+        "hRemoteRef",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-ref-cycle",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "A self-referencing schema.",
+      "arguments": [
+        "--operation",
+        "hRefCycle",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-ref-chain",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "A reference chain that returns to itself.",
+      "arguments": [
+        "--operation",
+        "hRefChain",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-ref-sibling",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "A constraining keyword beside $ref.",
+      "arguments": [
+        "--operation",
+        "hRefSibling",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-all-of",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "allOf has no override.",
+      "arguments": [
+        "--operation",
+        "hAllOf",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-free-form",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "additionalProperties true is a free-form map.",
+      "arguments": [
+        "--operation",
+        "hFreeForm",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-float",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "number has no override.",
+      "arguments": [
+        "--operation",
+        "hFloat",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-binary",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "format binary.",
+      "arguments": [
+        "--operation",
+        "hBinary",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-object-union",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "A union of objects has no override.",
+      "arguments": [
+        "--operation",
+        "hObjectUnion",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-array",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "Arrays are outside the gateway compiler.",
+      "arguments": [
+        "--operation",
+        "hArray",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile",
+        "--max-items",
+        "tags=4"
+      ]
+    },
+    {
+      "id": "hostile-nullable",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "OpenAPI 3.0 nullable needs --pick.",
+      "arguments": [
+        "--operation",
+        "hNullable",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-unbounded-integer",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "int32 format is not a bound.",
+      "arguments": [
+        "--operation",
+        "hUnboundedInteger",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-bad-enum",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "An enum variant with a space.",
+      "arguments": [
+        "--operation",
+        "hBadEnum",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-proto",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "A property named constructor.",
+      "arguments": [
+        "--operation",
+        "hProto",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-collision",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "A property that collides with a gateway binding field.",
+      "arguments": [
+        "--operation",
+        "hCollision",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-deep",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "Objects nested five deep.",
+      "arguments": [
+        "--operation",
+        "hDeep",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-too-many",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "Thirty body fields plus three binding fields.",
+      "arguments": [
+        "--operation",
+        "hTooMany",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-worst-case",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "Worst-case arguments above 4 KiB.",
+      "arguments": [
+        "--operation",
+        "hWorstCase",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-many-refs",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "More than 256 reference resolutions.",
+      "arguments": [
+        "--operation",
+        "hManyRefs",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-slice",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "An operation slice above 256 KiB.",
+      "arguments": [
+        "--operation",
+        "hSlice",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-mixed-segment",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "A path segment mixing a literal and a variable.",
+      "arguments": [
+        "--operation",
+        "hMixedSegment",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-trailing-slash",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "A path with a trailing slash.",
+      "arguments": [
+        "--operation",
+        "hTrailingSlash",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-integer-path",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "An integer path parameter.",
+      "arguments": [
+        "--operation",
+        "hIntegerPath",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-two-media",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "Two request media types.",
+      "arguments": [
+        "--operation",
+        "hTwoMedia",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-text-media",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "A text/plain body.",
+      "arguments": [
+        "--operation",
+        "hTextMedia",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-optional-body",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "A body that is not required.",
+      "arguments": [
+        "--operation",
+        "hOptionalBody",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-required-query",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "A required query parameter has no override.",
+      "arguments": [
+        "--operation",
+        "hRequiredQuery",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-header-parameter",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "A required header parameter has no override.",
+      "arguments": [
+        "--operation",
+        "hHeaderParameter",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-basic-auth",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "HTTP basic authentication.",
+      "arguments": [
+        "--operation",
+        "hBasicAuth",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-query-key",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "An API key in the query string.",
+      "arguments": [
+        "--operation",
+        "hQueryKey",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-authorization-header-key",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "An API key in the reserved Authorization header.",
+      "arguments": [
+        "--operation",
+        "hAuthorizationHeaderKey",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-combined-schemes",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "One requirement combining two schemes.",
+      "arguments": [
+        "--operation",
+        "hCombinedSchemes",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-http-server",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "A plain-http server.",
+      "arguments": [
+        "--operation",
+        "hHttpServer",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-server-variables",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "Server variables.",
+      "arguments": [
+        "--operation",
+        "hServerVariables",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-localhost",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "A localhost server.",
+      "arguments": [
+        "--operation",
+        "hLocalhost",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-ip-server",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "An IP-literal server.",
+      "arguments": [
+        "--operation",
+        "hIpServer",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-duplicate",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "A duplicated operationId.",
+      "arguments": [
+        "--operation",
+        "hDuplicate",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-get",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "A GET operation.",
+      "arguments": [
+        "--operation",
+        "hGet",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-bad-tool",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "An operationId that is not a tool name.",
+      "arguments": [
+        "--operation",
+        "9 bad tool",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-integer-path-literal",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "rejected",
+      "note": "A string literal cannot stand in for an integer path parameter.",
+      "arguments": [
+        "--operation",
+        "hIntegerPath",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile",
+        "--literal",
+        "item_id=\"7\""
+      ]
+    },
+    {
+      "id": "hostile-integer-path-fixed",
+      "document": {
+        "file": "documents/hostile.json"
+      },
+      "outcome": "derived",
+      "note": "An integer literal fixes an integer path parameter as a checked segment.",
+      "arguments": [
+        "--operation",
+        "hIntegerPath",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile",
+        "--literal",
+        "item_id=7"
+      ]
+    },
+    {
+      "id": "hostile-document-yaml",
+      "document": {
+        "file": "documents/hostile-yaml.yaml"
+      },
+      "outcome": "rejected",
+      "note": "YAML is not read.",
+      "arguments": [
+        "--operation",
+        "hidden",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-document-duplicate-key",
+      "document": {
+        "file": "documents/hostile-duplicate-key.json"
+      },
+      "outcome": "rejected",
+      "note": "A duplicated object key.",
+      "arguments": [
+        "--operation",
+        "hidden",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-document-deep",
+      "document": {
+        "file": "documents/hostile-deep.json"
+      },
+      "outcome": "rejected",
+      "note": "Nesting deeper than 32 levels.",
+      "arguments": [
+        "--operation",
+        "hidden",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-document-swagger",
+      "document": {
+        "file": "documents/hostile-swagger.json"
+      },
+      "outcome": "rejected",
+      "note": "Swagger 2.0.",
+      "arguments": [
+        "--operation",
+        "hidden",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    },
+    {
+      "id": "hostile-document-path-item-ref",
+      "document": {
+        "file": "documents/hostile-path-item-ref.json"
+      },
+      "outcome": "rejected",
+      "note": "A referenced path item hides its operations.",
+      "arguments": [
+        "--operation",
+        "hidden",
+        "--service",
+        "hostile",
+        "--name",
+        "hostile",
+        "--operator-namespace",
+        "hostile"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+[
+  {
+    "code": "contract.derive.field-limit",
+    "pointer": "#/paths/~1too-many/post/requestBody/content/application~1json/schema/properties/f00",
+    "overrides": []
+  }
+]

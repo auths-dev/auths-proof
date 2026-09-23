@@ -1,0 +1,10 @@
+  document:   sha256:8fd651d74f0c52ea37f672ee5d75420af799044f29868504f7d9fe27476d5df3  (hostile.json, 99093 bytes, OpenAPI 3.0.3)
+  operation:  POST /items/{item_id}  (hIntegerPath)
+  security:   bearer (http/bearer "Bearer")
+  arguments:  4 fields (1 derived + 3 gateway binding), worst-case 1276 bytes canonical JSON
+  recipe:     POST https://api.hostile.example/items/7  body: application/json
+  omitted:    none
+  overrides:  --literal item_id=7
+  wrote:      profile.toml recipe.json derivation.json
+  next:       auths-profile generate profile.toml && auths gateway recipe check --recipe recipe.json --profile-lock profile.lock.json
+  claim:      derived shape only; provider effect unqualified
