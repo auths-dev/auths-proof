@@ -119,3 +119,24 @@ const fn bounded(record: &[u8]) -> Result<(), StoreError> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gateway_attempt_records_are_bounded_before_any_database_call() {
+        assert_eq!(bounded(&[]), Err(StoreError::LimitExceeded));
+        assert_eq!(bounded(&[0; 1]), Ok(()));
+        assert_eq!(bounded(&vec![0; MAX_GATEWAY_ATTEMPT_BYTES]), Ok(()));
+        assert_eq!(
+            bounded(&vec![0; MAX_GATEWAY_ATTEMPT_BYTES + 1]),
+            Err(StoreError::LimitExceeded)
+        );
+        assert!(
+            include_str!("../migrations/postgres_lifecycle_v4.sql")
+                .contains("octet_length(record_bytes) BETWEEN 1 AND 131072"),
+            "the schema bound and the Rust bound are the same"
+        );
+    }
+}

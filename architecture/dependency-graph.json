@@ -2061,7 +2061,31 @@
     {
       "source": "auths-custody",
       "source_layer": "product",
+      "target": "auths-did-key",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-custody",
+      "source_layer": "product",
       "target": "auths-model",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-custody",
+      "source_layer": "product",
+      "target": "auths-multikey",
       "target_layer": "core",
       "scope": "internal",
       "kind": "normal",
@@ -2080,6 +2104,18 @@
       "target_condition": null,
       "optional": false,
       "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-custody",
+      "source_layer": "product",
+      "target": "auths-raw-key",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
       "features": []
     },
     {
@@ -2121,32 +2157,6 @@
       "optional": false,
       "default_features": true,
       "features": []
-    },
-    {
-      "source": "auths-custody-aws-kms",
-      "source_layer": "product",
-      "target": "auths-model",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-custody-aws-kms",
-      "source_layer": "product",
-      "target": "base64ct",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": [
-        "alloc"
-      ]
     },
     {
       "source": "auths-custody-aws-kms",
@@ -2215,32 +2225,6 @@
       "optional": false,
       "default_features": true,
       "features": []
-    },
-    {
-      "source": "auths-custody-pkcs11",
-      "source_layer": "product",
-      "target": "auths-model",
-      "target_layer": "core",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-custody-pkcs11",
-      "source_layer": "product",
-      "target": "base64ct",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": [
-        "alloc"
-      ]
     },
     {
       "source": "auths-custody-pkcs11",
@@ -3029,6 +3013,18 @@
     {
       "source": "auths-gateway",
       "source_layer": "product",
+      "target": "auths-author",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
       "target": "auths-codec",
       "target_layer": "core",
       "scope": "internal",
@@ -3053,6 +3049,56 @@
     {
       "source": "auths-gateway",
       "source_layer": "product",
+      "target": "auths-custody",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "conformance"
+      ]
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "auths-custody",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "auths-custody-aws-kms",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "auths-custody-pkcs11",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
       "target": "auths-did-keri",
       "target_layer": "core",
       "scope": "internal",
@@ -3067,6 +3113,18 @@
       "source_layer": "product",
       "target": "auths-did-key",
       "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "auths-lifecycle",
+      "target_layer": "product",
       "scope": "internal",
       "kind": "normal",
       "target_condition": null,
@@ -3252,6 +3310,34 @@
     {
       "source": "auths-gateway",
       "source_layer": "product",
+      "target": "p256",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "ecdsa",
+        "pkcs8"
+      ]
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "postgres",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
       "target": "reqwest",
       "target_layer": null,
       "scope": "external",
@@ -3280,6 +3366,37 @@
         "fs",
         "net",
         "process"
+      ]
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "rustls",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "ring",
+        "std",
+        "tls12"
+      ]
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "rustls-pki-types",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "std"
       ]
     },
     {
@@ -3384,6 +3501,20 @@
     {
       "source": "auths-gateway",
       "source_layer": "product",
+      "target": "tokio-postgres-rustls",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "ring"
+      ]
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
       "target": "url",
       "target_layer": null,
       "scope": "external",
@@ -3429,6 +3560,44 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
+      "target": "auths-custody",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": [
+        "conformance"
+      ]
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
+      "target": "auths-custody",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-git-signing",
+      "source_layer": "product",
+      "target": "auths-custody-pkcs11",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
       "features": []
     },
     {
