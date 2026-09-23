@@ -691,16 +691,16 @@ async fn action_fact_policy_is_bound_into_the_pinned_configuration() {
 }
 
 /// Authors exactly as the SDKs do: `prepare_profile_action` at `evaluated`
-/// with `validity_seconds`, observations attached before signing, and the
-/// proof assembled by the shared builder.
+/// with `validity_seconds` (the native default when `None`), observations
+/// attached before signing, and the proof assembled by the shared builder.
 fn sdk_submission(
     harness: &Harness,
+    grant: SignedGrant,
     arguments: &Map<String, Value>,
     observations: &[Vec<u8>],
     evaluated: u64,
-    validity_seconds: u64,
+    validity_seconds: Option<u64>,
 ) -> Submission {
-    let grant = grant(&harness.root, &harness.agent, Some(read_back_requirement()));
     let canonical = McpProfile
         .canonicalize(&call(arguments).canonical_bytes().expect("canonical call"))
         .expect("canonical action");
@@ -742,17 +742,29 @@ fn sdk_submission(
     }
 }
 
+fn requirement_grant(harness: &Harness, from: u64, until: u64) -> SignedGrant {
+    h::grant_within(
+        &harness.root,
+        &harness.agent.principal,
+        Some(read_back_requirement()),
+        window(from, until),
+    )
+    .expect("grant")
+}
+
 #[tokio::test]
 async fn sdk_action_window_admits_a_later_gateway_clock_and_replay_stays_refused() {
     let harness = Harness::open(update_recipe());
+    let long = || requirement_grant(&harness, NOW - 3_600, NOW + 86_400);
     let observation = harness.read_back(RECORD, NOW).await;
     let arguments = harness.arguments("window-30", RECORD, &update_extra(RECORD, "Pending"));
     let within = sdk_submission(
         &harness,
+        long(),
         &arguments,
         std::slice::from_ref(&observation),
         NOW,
-        30,
+        None,
     );
     assert!(
         matches!(
@@ -762,28 +774,47 @@ async fn sdk_action_window_admits_a_later_gateway_clock_and_replay_stays_refused
                 ..
             }
         ),
-        "a 30 s window covers a gateway clock 5 s later"
+        "the default window covers a gateway clock 5 s later"
     );
     assert_eq!(harness.provider.counts().0, 1);
     assert_eq!(
         harness.submit(&within, NOW + 10).await,
         crate::engine::replay_refused(),
-        "the window never licenses a second entry"
+        "the durable claim refuses the same action again inside its window"
+    );
+    let later = NOW + 3_600;
+    let reauthored = sdk_submission(
+        &harness,
+        long(),
+        &harness.arguments("window-30", RECORD, &update_extra(RECORD, "Approved")),
+        &[harness.read_back(RECORD, later).await],
+        later,
+        None,
+    );
+    assert_eq!(
+        harness.submit(&reauthored, later + 5).await,
+        crate::engine::replay_refused(),
+        "and a fresh action for the same logical operation after the window"
     );
     assert_eq!(harness.provider.counts().0, 1);
 
+    let other = harness.read_back(OTHER_RECORD, NOW).await;
     let arguments = harness.arguments(
         "window-1",
         OTHER_RECORD,
         &update_extra(OTHER_RECORD, "Pending"),
     );
-    let other = harness.read_back(OTHER_RECORD, NOW).await;
     let leases = harness.provider.counts().2;
-    let narrow = sdk_submission(&harness, &arguments, &[other], NOW, 1);
+    let narrow = sdk_submission(&harness, long(), &arguments, &[other], NOW, Some(1));
     assert_eq!(
         harness.submit(&narrow, NOW + 5).await,
         denied("action-outside-validity"),
         "a 1 s window has closed 5 s later"
+    );
+    assert_eq!(
+        harness.submit(&narrow, NOW - 1).await,
+        denied("action-outside-validity"),
+        "an action is never valid before its evaluation time"
     );
     assert_eq!(harness.provider.counts().0, 1);
     assert_eq!(
@@ -791,4 +822,65 @@ async fn sdk_action_window_admits_a_later_gateway_clock_and_replay_stays_refused
         leases,
         "denied before any lease"
     );
+}
+
+#[tokio::test]
+async fn sdk_action_window_is_cut_to_the_grant_expiry() {
+    let harness = Harness::open(update_recipe());
+    let observation = harness.read_back(RECORD, NOW).await;
+    let arguments = harness.arguments("near-expiry", RECORD, &update_extra(RECORD, "Pending"));
+    let near = sdk_submission(
+        &harness,
+        requirement_grant(&harness, NOW - 3_600, NOW + 10),
+        &arguments,
+        std::slice::from_ref(&observation),
+        NOW,
+        None,
+    );
+    assert!(
+        matches!(
+            harness.submit(&near, NOW + 5).await,
+            GatewaySubmitResult::ObservedByProvider { .. }
+        ),
+        "a grant expiring 10 s later still authorizes the cut [t, t+10] window"
+    );
+    let arguments = harness.arguments("expired", RECORD, &update_extra(RECORD, "Approved"));
+    let expired = sdk_submission(
+        &harness,
+        requirement_grant(&harness, NOW - 3_600, NOW - 1),
+        &arguments,
+        &[harness.read_back(RECORD, NOW).await],
+        NOW,
+        None,
+    );
+    let writes = harness.provider.counts().0;
+    assert!(
+        matches!(
+            harness.submit(&expired, NOW).await,
+            GatewaySubmitResult::Denied { .. }
+        ),
+        "an expired grant keeps the instant window and is denied"
+    );
+    assert_eq!(harness.provider.counts().0, writes);
+}
+
+#[tokio::test]
+async fn a_longer_action_window_never_extends_observation_freshness() {
+    let harness = Harness::open(update_recipe());
+    let observation = harness.read_back(RECORD, NOW).await;
+    let arguments = harness.arguments("long-window", RECORD, &update_extra(RECORD, "Pending"));
+    let long = sdk_submission(
+        &harness,
+        requirement_grant(&harness, NOW - 3_600, NOW + 86_400),
+        &arguments,
+        &[observation],
+        NOW + 50,
+        Some(300),
+    );
+    assert_eq!(
+        harness.submit(&long, NOW + 61).await,
+        indeterminate("observation-missing"),
+        "max_age is judged at the gateway's evaluation time"
+    );
+    assert_eq!(harness.provider.counts(), (0, 1, 1));
 }

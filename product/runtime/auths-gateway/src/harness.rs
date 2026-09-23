@@ -404,6 +404,21 @@ pub(crate) fn grant(
     requirement: Option<ObservationRequirement>,
     now: u64,
 ) -> Result<SignedGrant, HarnessError> {
+    grant_within(
+        root,
+        subject,
+        requirement,
+        window(now - 3_600, now + 86_400)?,
+    )
+}
+
+/// A root grant to `subject` valid over `validity`.
+pub(crate) fn grant_within(
+    root: &Signer,
+    subject: &PrincipalId,
+    requirement: Option<ObservationRequirement>,
+    validity: ValidityWindow,
+) -> Result<SignedGrant, HarnessError> {
     let extensions = match requirement {
         None => CriticalExtensions::empty(),
         Some(requirement) => {
@@ -438,7 +453,7 @@ pub(crate) fn grant(
             PermissionSet::new(vec![fixture(unbound.permission(), "permission")?]),
             "permissions",
         )?,
-        window(now - 3_600, now + 86_400)?,
+        validity,
         fixture(AudienceSet::new(vec![audience()?]), "audiences")?,
         ActionConstraint::AnyBody,
         None,

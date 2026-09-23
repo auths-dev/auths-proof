@@ -217,13 +217,17 @@ mod tests {
     }
 
     fn grant() -> SignedGrant {
+        grant_until(200_000)
+    }
+
+    fn grant_until(expires_at: u64) -> SignedGrant {
         SignedGrant::new(
             GrantStatement::new(
                 PrincipalId::parse("did:key:root").unwrap(),
                 PrincipalId::parse("did:key:agent").unwrap(),
                 ProfileRef::new(ProfileId::parse("auths.records").unwrap(), 1).unwrap(),
                 PermissionSet::new(vec![permission()]).unwrap(),
-                ValidityWindow::new(Timestamp::new(10), Timestamp::new(200_000)).unwrap(),
+                ValidityWindow::new(Timestamp::new(10), Timestamp::new(expires_at)).unwrap(),
                 AudienceSet::new(vec![Audience::parse("records://service").unwrap()]).unwrap(),
                 ActionConstraint::AnyBody,
                 None,
@@ -261,45 +265,54 @@ mod tests {
             &grant,
             [7; 32],
             42,
-            30,
+            None,
         )
         .unwrap()
     }
 
     #[test]
-    fn action_validity_is_bounded_and_inclusive() {
-        let grant = grant();
+    fn action_validity_is_bounded_defaulted_and_cut_to_the_grant() {
         let canonical = prepared().canonical().clone();
-        let prepare = |validity| {
+        let window = |grant: &SignedGrant, validity| {
             crate::prepare_profile_action(
                 canonical.clone(),
                 Audience::parse("records://service").unwrap(),
                 grant.statement().subject().clone(),
-                &grant,
+                grant,
                 [7; 32],
                 42,
                 validity,
             )
+            .map(|prepared| {
+                let window = prepared.envelope().validity();
+                (window.not_before().get(), window.expires_at().get())
+            })
         };
+        let long = grant();
         for refused in [0, crate::MAX_ACTION_VALIDITY_SECONDS + 1] {
-            assert_eq!(prepare(refused), Err(WorkflowAssemblyError::ActionValidity));
-        }
-        for accepted in [1, crate::MAX_ACTION_VALIDITY_SECONDS] {
-            let window = prepare(accepted).unwrap().envelope().validity();
-            assert_eq!(window.not_before(), Timestamp::new(42));
-            assert_eq!(window.expires_at(), Timestamp::new(42 + accepted));
+            assert_eq!(
+                window(&long, Some(refused)),
+                Err(WorkflowAssemblyError::ActionValidity)
+            );
         }
         assert_eq!(
-            crate::prepare_profile_action(
-                canonical.clone(),
-                Audience::parse("records://service").unwrap(),
-                grant.statement().subject().clone(),
-                &grant,
-                [7; 32],
-                u64::MAX,
-                1,
-            ),
-            Err(WorkflowAssemblyError::ActionValidity)
+            window(&long, None),
+            Ok((42, 42 + crate::DEFAULT_ACTION_VALIDITY_SECONDS))
+        );
+        assert_eq!(window(&long, Some(1)), Ok((42, 43)));
+        assert_eq!(
+            window(&long, Some(crate::MAX_ACTION_VALIDITY_SECONDS)),
+            Ok((42, 42 + crate::MAX_ACTION_VALIDITY_SECONDS))
+        );
+        assert_eq!(
+            window(&grant_until(52), None),
+            Ok((42, 52)),
+            "cut to the grant"
+        );
+        assert_eq!(
+            window(&grant_until(40), None),
+            Ok((42, 42)),
+            "an expired grant keeps the instant, and the verifier denies it"
         );
     }
 

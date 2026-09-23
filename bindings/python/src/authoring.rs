@@ -686,6 +686,7 @@ impl PyMcpAction {
 }
 
 #[pyfunction]
+#[pyo3(signature = (service, name, arguments_json, actor, terminal_grant, challenge, evaluation_time, validity_seconds = None))]
 #[allow(clippy::too_many_arguments)]
 fn prepare_mcp_action(
     service: &str,
@@ -695,7 +696,7 @@ fn prepare_mcp_action(
     terminal_grant: PyRef<'_, PySignedObject>,
     challenge: &[u8],
     evaluation_time: u64,
-    validity_seconds: u64,
+    validity_seconds: Option<u64>,
 ) -> PyResult<PyMcpAction> {
     let Value::Object(arguments) =
         serde_json::from_slice::<Value>(arguments_json).map_err(value_error)?

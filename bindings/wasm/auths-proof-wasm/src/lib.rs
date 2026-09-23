@@ -2586,8 +2586,8 @@ fn attach_observations_native(
 }
 
 /// Canonicalizes one closed MCP call and prepares its exact action envelope,
-/// valid from `evaluation_time` through `evaluation_time + validity_seconds`
-/// (1 to 300 seconds).
+/// valid from `evaluation_time` for `validity_seconds` (the native default
+/// when omitted, at most the native maximum), cut to the terminal grant.
 ///
 /// # Errors
 ///
@@ -2603,7 +2603,7 @@ pub fn prepare_mcp_action_v1(
     terminal_grant_cbor: &[u8],
     challenge: &[u8],
     evaluation_time: u64,
-    validity_seconds: u32,
+    validity_seconds: Option<u32>,
 ) -> Result<McpActionPreparationV1, JsValue> {
     let arguments = mcp_arguments_from_js(arguments).map_err(js_error)?;
     prepare_mcp_action_native(
@@ -2614,7 +2614,7 @@ pub fn prepare_mcp_action_v1(
         terminal_grant_cbor,
         challenge,
         evaluation_time,
-        u64::from(validity_seconds),
+        validity_seconds.map(u64::from),
     )
     .map_err(js_error)
 }
@@ -4362,8 +4362,9 @@ fn receipt_array32(value: &[u8], label: &'static str) -> Result<[u8; 32], JsValu
 }
 
 /// Prepares one action whose semantics were canonicalized by an
-/// application-owned closed profile, valid from `evaluation_time` through
-/// `evaluation_time + validity_seconds` (1 to 300 seconds).
+/// application-owned closed profile, valid from `evaluation_time` for
+/// `validity_seconds` (the native default when omitted, at most the native
+/// maximum), cut to the terminal grant.
 ///
 /// This boundary constructs protocol objects only. It does not interpret an
 /// operation tag, select an executor, or turn an authorized result into an
@@ -4390,7 +4391,7 @@ pub fn prepare_profile_action_v1(
     terminal_grant_cbor: &[u8],
     challenge: &[u8],
     evaluation_time: u64,
-    validity_seconds: u32,
+    validity_seconds: Option<u32>,
 ) -> Result<ProfileActionPreparationV1, JsValue> {
     prepare_profile_action_native(
         profile_id,
@@ -4407,7 +4408,7 @@ pub fn prepare_profile_action_v1(
         terminal_grant_cbor,
         challenge,
         evaluation_time,
-        u64::from(validity_seconds),
+        validity_seconds.map(u64::from),
     )
     .map_err(js_error)
 }
@@ -4428,7 +4429,7 @@ fn prepare_profile_action_native(
     terminal_grant_cbor: &[u8],
     challenge: &[u8],
     evaluation_time: u64,
-    validity_seconds: u64,
+    validity_seconds: Option<u64>,
 ) -> Result<ProfileActionPreparationV1, EngineError> {
     let canonical = canonical_profile_action_native(
         profile_id,
@@ -4476,7 +4477,7 @@ fn prepare_mcp_action_native(
     terminal_grant_cbor: &[u8],
     challenge: &[u8],
     evaluation_time: u64,
-    validity_seconds: u64,
+    validity_seconds: Option<u64>,
 ) -> Result<McpActionPreparationV1, EngineError> {
     let call = McpToolCall::new(service, name, arguments)?;
     let untrusted = call.canonical_bytes()?;
@@ -5720,7 +5721,7 @@ mod tests {
             &terminal,
             &[0x22; 32],
             50,
-            30,
+            None,
         )
         .unwrap();
         let call = McpToolCall::new(

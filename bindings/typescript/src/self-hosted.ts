@@ -194,9 +194,11 @@ export class ExactMcpTool<Fields extends FieldMap> {
   }
 
   /**
-   * Prepares the unsigned exact action, valid from `evaluationTime` through
-   * `evaluationTime + validitySeconds` (1 to 300 seconds, default 30), so a verifier
-   * with its own later clock, such as a gateway, accepts it inside that window.
+   * Prepares the unsigned exact action, valid from `evaluationTime` for `validitySeconds`
+   * (the native default when omitted, bounded natively) and cut to the terminal grant's
+   * expiry, so a verifier with its own later clock, such as a gateway, accepts it inside
+   * that window. The window is not a replay defence, and it never extends an observation's
+   * maximum age, which is judged at the verifier's evaluation time.
    */
   async prepare(command: CommandOf<Fields>, options: Readonly<{
     actor: string;

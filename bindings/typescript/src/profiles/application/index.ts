@@ -6,7 +6,6 @@ import {
   type VerifiedPlanCommand,
 } from "../../plans.js";
 import { loadPackagedWorkflowEngine } from "../../verifier/wasm.js";
-import { DEFAULT_ACTION_VALIDITY_SECONDS } from "../../internal/action-validity.js";
 import {
   AuthsWorkflowError,
   ProviderOperationError,
@@ -624,7 +623,7 @@ async function authorizeApplication(
       resources.signedGrant.slice(),
       challenge,
       evaluationTime,
-      DEFAULT_ACTION_VALIDITY_SECONDS,
+      undefined,
     );
   } catch {
     throw new AuthsWorkflowError(

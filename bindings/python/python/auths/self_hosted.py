@@ -17,6 +17,7 @@ from dataclasses import fields as dataclass_fields
 from typing import (
     Generic,
     Literal,
+    Optional,
     Protocol,
     TypeVar,
     Union,
@@ -31,16 +32,11 @@ from .verify import VerificationResult, _project
 
 CommandT = TypeVar("CommandT")
 
-DEFAULT_ACTION_VALIDITY_SECONDS = 30
-MAX_ACTION_VALIDITY_SECONDS = 300
 
-
-def _checked_validity(validity_seconds: int) -> int:
-    if (
-        type(validity_seconds) is not int
-        or not 1 <= validity_seconds <= MAX_ACTION_VALIDITY_SECONDS
-    ):
-        raise ValueError("action validity must be 1 to 300 seconds")
+def _checked_validity(validity_seconds: Optional[int]) -> Optional[int]:
+    """Type check only; the default and bounds are native."""
+    if validity_seconds is not None and type(validity_seconds) is not int:
+        raise TypeError("action validity must be an integer number of seconds")
     return validity_seconds
 
 
@@ -445,12 +441,13 @@ class ExactMcpTool(Generic[CommandT]):
         terminal_grant: _native.SignedObject,
         challenge: bytes,
         evaluation_time: int,
-        validity_seconds: int = DEFAULT_ACTION_VALIDITY_SECONDS,
+        validity_seconds: Optional[int] = None,
     ) -> PreparedMcpAction[CommandT]:
         """Prepare the unsigned exact action, valid from ``evaluation_time``
-        through ``evaluation_time + validity_seconds`` (1 to 300 seconds), so
-        a verifier with its own later clock, such as a gateway, accepts it
-        inside that window."""
+        for ``validity_seconds`` (the native default when ``None``, bounded
+        natively) and cut to the terminal grant's expiry, so a verifier with
+        its own later clock, such as a gateway, accepts it inside that
+        window."""
         if type(command) is not self.command_type:
             raise TypeError("command does not belong to this exact tool")
         arguments = self.encode(command)

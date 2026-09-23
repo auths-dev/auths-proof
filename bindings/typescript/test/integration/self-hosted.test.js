@@ -404,7 +404,7 @@ test("attachment refuses a foreign media type, a bad size, too many, or a repeat
     TypeError);
 });
 
-test("prepared actions carry a bounded validity window, 30 s by default", async () => {
+test("prepared actions carry a natively bounded validity window with a native default", async () => {
   const contract = exactMcpTool({
     service: "reports", name: "update_demo_record",
     fields: { value: stringField({ minBytes: 1, maxBytes: 32 }) },
@@ -416,8 +416,10 @@ test("prepared actions carry a bounded validity window, 30 s by default", async 
   const shorter = await contract.prepare({ value: "reviewed" }, { ...options, validitySeconds: 1 });
   assert.deepEqual(byDefault.actionEnvelope, explicit.actionEnvelope);
   assert.notDeepEqual(byDefault.actionEnvelope, shorter.actionEnvelope);
-  for (const validitySeconds of [0, 301, 1.5]) {
+  await assert.rejects(contract.prepare({ value: "reviewed" }, { ...options, validitySeconds: 1.5 }),
+    RangeError);
+  for (const validitySeconds of [0, 301]) {
     await assert.rejects(contract.prepare({ value: "reviewed" }, { ...options, validitySeconds }),
-      RangeError);
+      /action validity is outside bounds/);
   }
 });

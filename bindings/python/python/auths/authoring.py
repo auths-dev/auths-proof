@@ -7,7 +7,7 @@ context, and custody signer. This module never creates production trust.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Generic, Literal, Sequence, TypeVar
+from typing import Generic, Literal, Optional, Sequence, TypeVar
 
 from . import _native
 from .adapters.custody import (
@@ -23,7 +23,6 @@ from .adapters.custody import (
     SigningRequest,
 )
 from .self_hosted import (
-    DEFAULT_ACTION_VALIDITY_SECONDS,
     ExactMcpTool,
     SignedObservationAttachment,
     attach_observations,
@@ -101,7 +100,7 @@ async def author_production_mcp_proof(
     command: CommandT,
     inputs: ProductionAuthoringInputs,
     observations: Sequence[SignedObservationAttachment] = (),
-    validity_seconds: int = DEFAULT_ACTION_VALIDITY_SECONDS,
+    validity_seconds: Optional[int] = None,
 ) -> AuthoredMcpProof[CommandT]:
     """Author with explicit durable custody and separately supplied trust.
 
@@ -156,7 +155,7 @@ async def author_mcp_proof(
     challenge: bytes,
     evaluation_time: int,
     observations: Sequence[SignedObservationAttachment] = (),
-    validity_seconds: int = DEFAULT_ACTION_VALIDITY_SECONDS,
+    validity_seconds: Optional[int] = None,
 ) -> AuthoredMcpProof[CommandT]:
     """Sign and assemble one exact action with externally supplied authority.
 
@@ -169,11 +168,13 @@ async def author_mcp_proof(
     covers; a grant's observation requirements are then judged by the final
     verification against the trusted context.
 
-    The action is valid from ``evaluation_time`` through ``evaluation_time +
-    validity_seconds`` (1 to 300 seconds, default 30), so a gateway verifying
-    at its own clock accepts it inside that window; every grant in the chain
-    must contain the whole window. The challenge and the executor's
-    exactly-once claim, not the window, prevent replay.
+    The action is valid from ``evaluation_time`` for ``validity_seconds``
+    (the native default when ``None``, bounded natively), cut to the terminal
+    grant's expiry, so a gateway verifying at its own clock accepts it inside
+    that window. The window is not a replay defence: the executor's durable
+    exactly-once claim is, inside and after the window. Observation freshness
+    is judged at the verifier's evaluation time, so the window never extends
+    an observation's maximum age.
     """
     if not 1 <= len(grants) <= 16:
         raise ValueError("grant chain count is outside bounds")

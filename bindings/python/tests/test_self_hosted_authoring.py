@@ -320,7 +320,7 @@ async def test_attachment_is_signed_and_judged_only_by_the_verifier() -> None:
     assert authored.action_commitment != stripped.action_commitment
 
 
-def test_prepared_action_validity_is_bounded_with_a_30_second_default() -> None:
+def test_prepared_action_validity_is_natively_bounded_and_defaulted() -> None:
     now = int(time.time())
     key, grant, _ = _authority(now)
     arguments = {
@@ -335,6 +335,8 @@ def test_prepared_action_validity_is_bounded_with_a_30_second_default() -> None:
         for extra in ({}, {"validity_seconds": 30}, {"validity_seconds": 1})
     ]
     assert unsigned[0] == unsigned[1] != unsigned[2]
-    for validity in (0, 301, True):
-        with pytest.raises(ValueError):
+    for validity in (0, 301):
+        with pytest.raises(ValueError, match="action validity is outside bounds"):
             TOOL.prepare(Change("approved"), validity_seconds=validity, **arguments)
+    with pytest.raises(TypeError):
+        TOOL.prepare(Change("approved"), validity_seconds=True, **arguments)
