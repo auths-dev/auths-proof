@@ -16,10 +16,10 @@ use auths_model::{
     CanonicalAction, Challenge, ChannelBindingId, CompositionRequirement, ControlBinding,
     CriticalExtensions, EvidenceId, EvidenceObject, EvidenceTypeId, GrantStatusSnapshot, MediaType,
     ParticipantRole, Permission, PermissionSet, PrincipalMethodId, PrincipalStatusSnapshot,
-    ProfilePolicyId, ProofBundle, ProofRef, RegistryManifestId, ResourceMatcherId, SignatureBytes,
-    SignatureDescriptor, SignatureSuiteId, StatementRef, StatusPolicy, StatusSnapshotId, Timestamp,
-    TrustAnchor, TrustAnchorId, TrustedContext, ValidityWindow, VerificationMethod,
-    VerifierConfigurationId, VerifierLimits,
+    ProfilePolicyId, ProofBundle, ProofRef, ResourceMatcherId, SignatureBytes, SignatureDescriptor,
+    SignatureSuiteId, StatementRef, StatusPolicy, StatusSnapshotId, Timestamp, TrustAnchor,
+    TrustAnchorId, TrustedContext, ValidityWindow, VerificationMethod, VerifierConfigurationId,
+    VerifierLimits,
 };
 use auths_profile_api::ActionProfile;
 use auths_profile_mcp::{McpProfile, McpToolCall};

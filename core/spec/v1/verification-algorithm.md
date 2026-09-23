@@ -17,6 +17,7 @@
   - principal and grant status policy;
   - exact resource-matching algebra;
   - profile policy;
+  - observer anchors, separate from trust anchors;
   - resource and work limits.
 
 The proof cannot add a trust anchor or weaken context.
@@ -84,9 +85,56 @@ For each plan leaf:
 5. require actor equals terminal subject;
 6. require exact permission, audience, body constraint, and time coverage;
 7. resolve and execute exact budget, status, extension, assurance-claim, and
-   implication handlers, reserving their work before invocation.
+   implication handlers, reserving their work before invocation;
+8. before applying each child grant, deny with
+   `observation-requirement-dropped` when it lacks or alters any
+   observation requirement of its parent grant;
+9. run the observation stage below.
 
 Produce one `VerifiedAuthority` per valid branch.
+
+### 4a. Observation stage
+
+Runs for each branch after its authority is established and before the
+branch counts as authorized. Collect the distinct requirements carried by the
+`observation-requirement-v1` extensions of every grant in the chain; more
+than 32 is `resource-limit-exceeded`. With none, the stage passes.
+
+1. Resolve each requirement's observer anchor by exact ID in the trusted
+   context. If any resolved anchor's principal equals the trust anchor, an
+   issuer or subject of a chain grant, or the actor, deny with
+   `observer-in-authority-chain`.
+2. Decode every attachment whose signed descriptor carries the observation
+   media type. Malformed bytes are `malformed-proof`; an over-limit value is
+   `resource-limit-exceeded`.
+3. For each requirement, in first-appearance order:
+   - an unknown observer anchor is `observation-missing`;
+   - resolve the subject (a literal, or a text action fact that parses as a
+     resource) and every `eq-action` value through the profile policy's
+     `action_fact`, reserving the policy's work per call; an undefined fact
+     is `observation-action-fact-unavailable`;
+   - reserve `conditions × observations + 1` work units;
+   - in attachment-digest order, an observation is eligible when its
+     observer equals the anchor principal, its schema equals the
+     requirement's and the anchor lists it, its subject equals the resolved
+     subject exactly and lies inside one of the anchor's subject namespaces
+     under the context's resource matcher, `observed_at <= evaluation_time`,
+     `evaluation_time − observed_at <= max_age`, the anchor's validity
+     contains `observed_at`, the anchor accepts its principal method, and its
+     signature verifies. Signature verification uses the registered
+     principal method with purpose assertion and the observation's own
+     control evidence, which must equal the evidence the method consumes;
+     its method and suite work is reserved first. Any verification failure
+     other than resource exhaustion makes that observation ignored, not the
+     proof denied;
+   - the first eligible observation that makes every condition true
+     satisfies the requirement. If eligible observations exist and none
+     does, the requirement is `observation-condition-false`; with no
+     eligible observation it is `observation-missing`.
+4. Any denied requirement denies the branch; otherwise the first
+   indeterminate requirement makes it indeterminate. Denial dominates.
+5. Record, for each requirement, its content identifier and the attachment
+   digest of the observation that satisfied it.
 
 ### 5. Plan evaluation
 
@@ -112,12 +160,15 @@ Produce one `VerifiedAuthority` per valid branch.
 3. Compare body media type and digest.
 4. Compare capability, resource, requested budget, audience, challenge,
    validity, actor, terminal grant, plan, and channel-binding requirement.
-5. Verify the signed attachment descriptor set exactly matches the proof set;
+5. Deny with `resource-limit-exceeded` an action binding more than 32
+   attachments with the observation media type, or one declaring more than
+   4096 bytes;
+6. Verify the signed attachment descriptor set exactly matches the proof set;
    check required availability, identifier, SHA-256 digest, byte length,
    signed media/disposition/encryption flags, opaque-content permission,
    duplicates, unused detached bytes, and byte limits.
-6. Resolve and execute the verifier-local profile policy.
-7. Construct `VerifiedAction` through a private constructor.
+7. Resolve and execute the verifier-local profile policy.
+8. Construct `VerifiedAction` through a private constructor.
 
 The portable entry point is:
 
@@ -129,7 +180,8 @@ verify_v1(proof_cbor, canonical_action_cbor, trusted_context_cbor)
 The result contains the three-way verdict, final stage and stable code, proof,
 action, context, plan, self-binding result, and verifier-configuration
 digests, authorized branches, assurance reports and exact requirement
-satisfactions, resource/work totals, registry manifest, and ABI version. The
+satisfactions, resource/work totals, registry manifest, ABI version 3, and
+the observation that satisfied each observation requirement. The
 native convenience API projects that result to `Authorized(VerifiedAction)`,
 `Denied(DenialReason)`, or `Indeterminate(Requirement)`.
 
@@ -160,6 +212,7 @@ implementation produces identical:
 - primary reason code;
 - assurance report;
 - assurance satisfaction report;
+- observation satisfaction report;
 - action and context digests;
 - resource/work totals;
 - canonical portable result bytes and result digest.

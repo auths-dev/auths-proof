@@ -260,6 +260,12 @@ const fn denial_message(reason: auths_model::DenialReason) -> &'static str {
         | D::ResourceNamespaceMismatch
         | D::CriticalExtensionUnknown
         | D::LocalPolicyDenied => "align the request with the service's explicit local policy",
+        D::ObservationConditionFalse => {
+            "the trusted observation does not satisfy the grant's observation requirement"
+        }
+        D::ObserverInAuthorityChain => {
+            "use an observer that is not a root, issuer, subject, or actor of this proof"
+        }
         _ => "the proof and action failed a stable fail-closed authorization check",
     }
 }
@@ -275,6 +281,12 @@ const fn requirement_message(requirement: Requirement) -> &'static str {
         }
         R::AssuranceRequirementNotMet => {
             "supply evidence satisfying the configured assurance requirement"
+        }
+        R::ObservationMissing => {
+            "attach a fresh observation signed by the requirement's trusted observer"
+        }
+        R::ObservationActionFactUnavailable => {
+            "use a profile policy that defines the action facts the requirement names"
         }
         _ => "install and explicitly accept support for the required V1 identifier",
     }

@@ -200,6 +200,7 @@ struct Case {
     attachments: Vec<Vec<u8>>,
     anchors: Vec<ObserverAnchor>,
     limits: VerifierLimits,
+    profile_policy: Option<ProfilePolicyId>,
 }
 
 fn case(name: &'static str, class: &'static str, expected: Expected) -> Case {
@@ -212,6 +213,7 @@ fn case(name: &'static str, class: &'static str, expected: Expected) -> Case {
         attachments: vec![observation(FRESH, facts(STAGE, 3))],
         anchors: vec![observer_anchor(ANCHOR, &observer().principal, 0)],
         limits: VerifierLimits::default(),
+        profile_policy: None,
     }
 }
 
@@ -329,19 +331,22 @@ fn attachment_inputs(case: &Case) -> (Vec<AttachmentDescriptor>, Vec<DetachedAtt
 
 fn build_context(case: Case, identities: &[Identity], depth: u16) -> TrustedContext {
     let base = context(identities, vec![anchor(&identities[0], depth)]);
+    let profile_policy = case
+        .profile_policy
+        .unwrap_or_else(|| base.profile_policy().clone());
     let accepted = accepted_from(
         base.accepted_registries(),
         base.accepted_registries().manifest_id(),
         base.accepted_registries().resource_matchers().to_vec(),
         vec![ExtensionId::parse(OBSERVATION_REQUIREMENT_EXTENSION_V1).expect("extension ID")],
-        base.accepted_registries().profile_policies().to_vec(),
+        vec![profile_policy.clone()],
     );
     context_replacement(
         &base,
         base.trust_anchors().to_vec(),
         accepted,
         base.resource_matcher().clone(),
-        base.profile_policy().clone(),
+        profile_policy,
     )
     .with_limits(case.limits)
     .expect("fixture limits")
@@ -1017,6 +1022,51 @@ fn observation_limit_vectors() -> Vec<CorpusFixture> {
         }),
         at_anchor_limit,
     ]
+}
+
+/// An observation-conditioned grant whose subject and condition use action
+/// facts, verified under `profile_policy`.
+///
+/// The requirement's subject is the action fact `record_uri` and its single
+/// condition is `eq-action("stage", "expected")`. The attached observation,
+/// signed by the anchored observer at a fresh time, reports `stage` as
+/// `observed_stage` about `mcp://reports/read`. The core registry defines no
+/// action facts, so callers verify this fixture with an additional profile
+/// policy that defines both facts and must rebind the context's
+/// configuration commitment to their registry. The expected result assumes a
+/// policy mapping `record_uri` to `mcp://reports/read` and `expected` to
+/// `observed-by-provider`.
+///
+/// # Panics
+///
+/// Panics only if repository-owned fixture constants violate model invariants.
+#[must_use]
+pub fn observation_action_fact_fixture(
+    profile_policy: &ProfilePolicyId,
+    observed_stage: &str,
+) -> CorpusFixture {
+    build(Case {
+        extension: single(&requirement(
+            SCHEMA,
+            ObservationSubject::ActionFact(fact_name("record_uri")),
+            MAX_AGE,
+            vec![ObservationCondition::new(
+                fact_name("stage"),
+                ConditionTest::EqAction(fact_name("expected")),
+            )],
+        )),
+        attachments: vec![observation(FRESH, facts(observed_stage, 3))],
+        profile_policy: Some(profile_policy.clone()),
+        ..case(
+            "observation-action-fact",
+            "valid",
+            if observed_stage == STAGE {
+                Expected::Authorized
+            } else {
+                Expected::Denied(DenialReason::ObservationConditionFalse)
+            },
+        )
+    })
 }
 
 /// Evidence-conditioned authority vectors, in corpus order.

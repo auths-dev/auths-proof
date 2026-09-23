@@ -1754,6 +1754,9 @@ pub(crate) fn platform_artifact(output: &Path) -> Result<(), String> {
         D::UnusedCriticalAttachment,
         D::OpaqueAttachmentNotAllowed,
         D::LocalPolicyDenied,
+        D::ObservationConditionFalse,
+        D::ObserverInAuthorityChain,
+        D::ObservationRequirementDropped,
     ];
     let requirements = [
         R::UnsupportedProtocol,
@@ -1774,6 +1777,8 @@ pub(crate) fn platform_artifact(output: &Path) -> Result<(), String> {
         R::HistoricalStateUnavailable,
         R::AssuranceRequirementNotMet,
         R::ExternalFactUnavailable,
+        R::ObservationMissing,
+        R::ObservationActionFactUnavailable,
     ];
     let code_record = |variant: String, code: &str, decision: &str| {
         json!({

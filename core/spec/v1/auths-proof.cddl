@@ -15,6 +15,9 @@
 ;   one evidence       2 MiB
 ;   signatures         1024
 ;   extensions/object  32
+;   observation requirements  8 per grant, 32 distinct per chain
+;   observation attachments   32 per action, 4 KiB each
+;   observer anchors          32
 ; Deployments use lower limits by default.
 
 protocol-version = 1
@@ -427,6 +430,7 @@ verifier-context = {
   11: bounded-id,           ; resource matcher ID
   12: bounded-id,           ; profile policy ID
   13: bounded-id,           ; channel policy ID
+  14: [*32 observer-anchor], ; strictly ascending by anchor ID
 }
 
 detached-attachment = {
@@ -469,7 +473,8 @@ verification-result = {
   12: digest32,             ; registry manifest
   13: digest32 / null,      ; configuration required by the trusted context
   14: digest32,             ; verifier-local executable configuration
-  15: 2,                    ; portable ABI version
+  15: 3,                    ; portable ABI version
+  16: [*1024 observation-satisfaction], ; ascending, without duplicates
 }
 
 grant-signing-input = {
@@ -514,4 +519,114 @@ execution-receipt = {
   4: uint,                  ; execution outcome
   5: digest32 / null,       ; result digest
   6: timestamp,
+}
+
+; ---------------------------------------------------------------------------
+; Evidence-conditioned authority
+;
+; A grant may carry the critical extension `observation-requirement-v1`,
+; whose bytes are the canonical `observation-requirements` below. The actor
+; attaches `signed-observation` bytes as detached attachments whose
+; descriptors use the media type
+; "application/vnd.auths.observation.v1+cbor"; the action signature binds
+; their digests.
+
+fact-name = text .size (1..128)       ; no whitespace or control characters
+fact-value = uint / bytes .size (0..64) / text .size (0..256)
+
+observation-fact = {
+  0: fact-name,
+  1: fact-value,
+}
+
+observation-statement = {
+  0: protocol-version,
+  1: principal-id,          ; observer
+  2: bounded-id,            ; observation schema ID
+  3: resource,              ; observed subject
+  4: timestamp,             ; observed_at
+  5: [1*16 observation-fact], ; strictly ascending by fact name
+}
+
+; Signed under object type 9 with an empty profile ID and version zero.
+observation-signing-input = {
+  0: observation-statement,
+  1: signature-descriptor,
+}
+
+; At most 4096 bytes. Evidence is the observer's control evidence, strictly
+; ascending by EvidenceId, and must equal the evidence the principal method
+; consumes.
+signed-observation = {
+  0: observation-statement,
+  1: signature-envelope,
+  2: [*4 evidence-object],
+}
+
+observation-subject-resource = {
+  0: 0,
+  1: resource,
+}
+
+observation-subject-action-fact = {
+  0: 1,
+  1: fact-name,             ; resolved by the profile policy's action facts
+}
+
+eq-literal-condition = {
+  0: 0,
+  1: fact-name,
+  2: fact-value,
+}
+
+eq-action-condition = {
+  0: 1,
+  1: fact-name,
+  2: fact-name,             ; profile action fact
+}
+
+uint-range-condition = {
+  0: 2,
+  1: fact-name,
+  2: uint,                  ; lo
+  3: uint,                  ; hi, with lo <= hi
+}
+
+member-condition = {
+  0: 3,
+  1: fact-name,
+  2: [1*16 fact-value],     ; distinct, in signed order
+}
+
+observation-condition =
+  eq-literal-condition /
+  eq-action-condition /
+  uint-range-condition /
+  member-condition
+
+observation-requirement = {
+  0: bounded-id,            ; observer anchor ID
+  1: bounded-id,            ; observation schema ID
+  2: observation-subject-resource / observation-subject-action-fact,
+  3: uint .ge 1 .le 86400,  ; maximum age in seconds
+  4: [1*16 observation-condition], ; conjunction, in signed order
+}
+
+; The exact bytes of the `observation-requirement-v1` critical extension.
+; Requirements are distinct and kept in signed order.
+observation-requirements = [1*8 observation-requirement]
+
+observer-anchor = {
+  0: bounded-id,            ; observer anchor ID
+  1: principal-id,
+  2: [1*1024 bounded-id],   ; accepted principal methods
+  3: [1*1024 bounded-id],   ; observation schema IDs
+  4: [1*1024 resource],     ; subject namespaces
+  5: timestamp,             ; not_before
+  6: timestamp,             ; expires_at
+}
+
+observation-satisfaction = {
+  0: digest32,              ; observation requirement ID (identifier type 11)
+  1: digest32,              ; attachment digest of the satisfying observation
 }

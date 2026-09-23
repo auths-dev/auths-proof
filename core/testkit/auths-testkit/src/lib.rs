@@ -59,6 +59,8 @@ use sha2::{Digest as _, Sha256};
 
 mod observation;
 
+pub use observation::observation_action_fact_fixture;
+
 const BODY: &[u8] = &[
     0xa2, 0x00, 0x64, b'r', b'e', b'a', b'd', 0x01, 0x6f, b'/', b'r', b'e', b'p', b'o', b'r', b't',
     b's', b'/', b'q', b'3', b'.', b'p', b'd', b'f',

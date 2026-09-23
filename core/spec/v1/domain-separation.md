@@ -31,6 +31,7 @@ Object type identifiers are registered:
 | 6 | execution receipt |
 | 7 | registry manifest |
 | 8 | bridge grant |
+| 9 | observation statement |
 
 Profile-independent objects use an empty profile ID and version zero.
 
@@ -62,6 +63,7 @@ Identifier type identifiers are fixed:
 | 8 | execution receipt |
 | 9 | public verifier-context projection |
 | 10 | registry manifest |
+| 11 | observation requirement |
 
 Identifiers:
 
@@ -72,6 +74,9 @@ Identifiers:
 - status statement IDs: canonical unsigned status statement;
 - attachment digest: raw SHA-256 of exact attachment bytes;
 - decision/execution receipt IDs: canonical unsigned receipt;
+- observation requirement ID: canonical `observation-requirement`;
+- observation digest: the attachment digest of the exact signed-observation
+  bytes, already bound by the action signature;
 - context digest: canonical public verifier-context projection;
 - canonical body digest: raw SHA-256 of exact profile-canonical body bytes;
 - portable canonical action digest: raw SHA-256 of the complete deterministic

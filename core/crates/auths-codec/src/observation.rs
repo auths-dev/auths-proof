@@ -535,6 +535,21 @@ pub(crate) fn observation_satisfactions(
 mod tests {
     use super::*;
     use alloc::vec;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn arbitrary_bytes_never_panic_and_accepted_bytes_are_canonical(
+            input in proptest::collection::vec(any::<u8>(), 0..512)
+        ) {
+            if let Ok(requirements) = decode_observation_requirements(&input) {
+                prop_assert_eq!(encode_observation_requirements(&requirements).unwrap(), input.clone());
+            }
+            if let Ok(observation) = decode_signed_observation(&input, &VerifierLimits::default()) {
+                prop_assert_eq!(encode_signed_observation(&observation).unwrap(), input);
+            }
+        }
+    }
 
     fn name(value: &str) -> FactName {
         FactName::parse(value).unwrap()
