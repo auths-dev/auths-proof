@@ -1930,8 +1930,49 @@ pub fn assurance_policy_change() -> CorpusFixture {
 ///
 /// Panics only if repository-owned fixture constants violate model invariants.
 #[must_use]
-#[allow(clippy::too_many_lines)]
 pub fn critical_extension_attenuation() -> CorpusFixture {
+    marker_delegation(
+        "critical-extension-attenuation",
+        Some(1),
+        None,
+        Expected::Denied(DenialReason::DelegationExpanded),
+    )
+}
+
+/// The `exact-marker-v1` attenuation law across one delegation edge: the
+/// marker is kept, added, or changed.
+fn marker_delegation_vectors() -> Vec<CorpusFixture> {
+    vec![
+        marker_delegation(
+            "critical-extension-marker-preserved",
+            Some(1),
+            Some(1),
+            Expected::Authorized,
+        ),
+        marker_delegation(
+            "critical-extension-marker-added",
+            None,
+            Some(1),
+            Expected::Denied(DenialReason::DelegationExpanded),
+        ),
+        marker_delegation(
+            "critical-extension-marker-changed",
+            Some(1),
+            Some(2),
+            Expected::Denied(DenialReason::DelegationExpanded),
+        ),
+    ]
+}
+
+/// A root-to-intermediary grant and an intermediary-to-actor grant that
+/// carry the `exact-marker-v1` payloads `parent` and `child`, if any.
+#[allow(clippy::too_many_lines)]
+fn marker_delegation(
+    name: &'static str,
+    parent: Option<u8>,
+    child: Option<u8>,
+    expected: Expected,
+) -> CorpusFixture {
     let identities = [
         Identity::ed25519(193),
         Identity::ed25519(194),
@@ -1942,10 +1983,18 @@ pub fn critical_extension_attenuation() -> CorpusFixture {
     let plan = AuthorizationPlan::proof(proof_ref);
     let plan_identifier = plan_id(&plan).expect("plan ID");
     let extension_id = ExtensionId::parse("exact-marker-v1").expect("extension ID");
-    let extension = CriticalExtensions::new(vec![
-        CriticalExtension::new(extension_id.clone(), vec![1]).expect("extension"),
-    ])
-    .expect("extension set");
+    let marker = |payload: Option<u8>| match payload {
+        None => CriticalExtensions::empty(),
+        Some(byte) => CriticalExtensions::new(vec![
+            CriticalExtension::new(extension_id.clone(), vec![byte]).expect("extension"),
+        ])
+        .expect("extension set"),
+    };
+    let class = match expected {
+        Expected::Authorized => "valid",
+        Expected::Denied(_) => "denied",
+        Expected::Indeterminate(_) => "indeterminate",
+    };
     let grant_scope = |issuer: &Identity,
                        subject: &Identity,
                        remaining_depth: u16,
@@ -1972,7 +2021,7 @@ pub fn critical_extension_attenuation() -> CorpusFixture {
     };
     let parent_grant = signed_grant(
         &identities[0],
-        grant_scope(&identities[0], &identities[1], 1, None, extension),
+        grant_scope(&identities[0], &identities[1], 1, None, marker(parent)),
     );
     let parent_id = grant_id(parent_grant.statement()).expect("parent grant ID");
     let child_grant = signed_grant(
@@ -1982,7 +2031,7 @@ pub fn critical_extension_attenuation() -> CorpusFixture {
             &identities[2],
             0,
             Some(parent_id),
-            CriticalExtensions::empty(),
+            marker(child),
         ),
     );
     let child_id = grant_id(child_grant.statement()).expect("child grant ID");
@@ -2048,14 +2097,7 @@ pub fn critical_extension_attenuation() -> CorpusFixture {
         Some(canonical.body().to_vec()),
     )
     .expect("proof bundle");
-    fixture(
-        "critical-extension-attenuation",
-        "denied",
-        &bundle,
-        &verifier_context,
-        canonical,
-        Expected::Denied(DenialReason::DelegationExpanded),
-    )
+    fixture(name, class, &bundle, &verifier_context, canonical, expected)
 }
 
 #[derive(Clone, Copy)]
@@ -4888,6 +4930,7 @@ fn build_corpus() -> Vec<CorpusFixture> {
             Expected::Denied(DenialReason::OpaqueAttachmentNotAllowed),
         ),
     ];
+    corpus.extend(marker_delegation_vectors());
     corpus.extend(observation::observation_corpus());
     corpus
 }

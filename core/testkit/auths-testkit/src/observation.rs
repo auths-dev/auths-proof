@@ -78,8 +78,18 @@ fn requirement(
     max_age: u32,
     conditions: Vec<ObservationCondition>,
 ) -> ObservationRequirement {
+    anchored_requirement(ANCHOR, schema, subject, max_age, conditions)
+}
+
+fn anchored_requirement(
+    anchor: &str,
+    schema: &str,
+    subject: ObservationSubject,
+    max_age: u32,
+    conditions: Vec<ObservationCondition>,
+) -> ObservationRequirement {
     ObservationRequirement::new(
-        ObserverAnchorId::parse(ANCHOR).expect("anchor ID"),
+        ObserverAnchorId::parse(anchor).expect("anchor ID"),
         ObservationSchemaId::parse(schema).expect("schema"),
         subject,
         max_age,
@@ -145,8 +155,12 @@ fn sign_observation(signer: &Identity, statement: ObservationStatement) -> Signe
 }
 
 fn observation(observed_at: u64, facts: Vec<ObservationFact>) -> Vec<u8> {
+    schema_observation(SCHEMA, observed_at, facts)
+}
+
+fn schema_observation(schema: &str, observed_at: u64, facts: Vec<ObservationFact>) -> Vec<u8> {
     let observer = observer();
-    let statement = statement(&observer.principal, SCHEMA, SUBJECT, observed_at, facts);
+    let statement = statement(&observer.principal, schema, SUBJECT, observed_at, facts);
     encode_signed_observation(&sign_observation(&observer, statement)).expect("observation")
 }
 
@@ -196,6 +210,9 @@ struct Case {
     class: &'static str,
     expected: Expected,
     extension: Vec<u8>,
+    /// The first grant of a three-party chain carries no requirements; the
+    /// child's are then the chain's only ones.
+    unconditioned_parent: bool,
     child: Child,
     attachments: Vec<Vec<u8>>,
     anchors: Vec<ObserverAnchor>,
@@ -209,6 +226,7 @@ fn case(name: &'static str, class: &'static str, expected: Expected) -> Case {
         class,
         expected,
         extension: requirement_bytes(vec![default_requirement()]),
+        unconditioned_parent: false,
         child: Child::None,
         attachments: vec![observation(FRESH, facts(STAGE, 3))],
         anchors: vec![observer_anchor(ANCHOR, &observer().principal, 0)],
@@ -287,15 +305,14 @@ fn grant_chain(case: &Case) -> (Vec<SignedGrant>, Vec<Identity>) {
         return (vec![grant], vec![root]);
     }
     let middle = intermediary();
+    let parent_extensions = if case.unconditioned_parent {
+        extensions(None)
+    } else {
+        extensions(Some(case.extension.clone()))
+    };
     let parent = signed_grant(
         &root,
-        grant_statement(
-            &root,
-            &middle,
-            1,
-            None,
-            extensions(Some(case.extension.clone())),
-        ),
+        grant_statement(&root, &middle, 1, None, parent_extensions),
     );
     let parent_id = grant_id(parent.statement()).expect("parent grant ID");
     let child_extensions = match &case.child {
@@ -845,12 +862,6 @@ fn chain_vectors() -> Vec<CorpusFixture> {
         encode_signed_observation(&sign_observation(&actor, statement)).expect("observation")
     };
     let parent = default_requirement();
-    let altered = requirement(
-        SCHEMA,
-        subject(SUBJECT),
-        MAX_AGE + 1,
-        vec![stage_condition(), count_condition(5)],
-    );
     vec![
         build(Case {
             anchors: vec![observer_anchor(ANCHOR, &actor.principal, 0)],
@@ -872,27 +883,145 @@ fn chain_vectors() -> Vec<CorpusFixture> {
             )
         }),
         build(Case {
-            child: Child::With(single(&altered)),
+            child: Child::With(single(&requirement(
+                SCHEMA,
+                subject("mcp://reports/other"),
+                MAX_AGE,
+                vec![stage_condition(), count_condition(5)],
+            ))),
             ..denied(
-                "observation-requirement-altered",
+                "observation-requirement-subject-changed",
                 DenialReason::ObservationRequirementDropped,
             )
         }),
+    ]
+}
+
+/// The `observation-requirement-v1` attenuation law across one delegation
+/// edge: a child may add requirements and narrow the maximum age or the
+/// condition atoms of a parent's.
+fn narrowing_vectors() -> Vec<CorpusFixture> {
+    let parent = default_requirement();
+    let narrowed = |max_age: u32, conditions: Vec<ObservationCondition>| {
+        Child::With(single(&requirement(
+            SCHEMA,
+            subject(SUBJECT),
+            max_age,
+            conditions,
+        )))
+    };
+    let added = requirement(
+        OTHER_SCHEMA,
+        subject(SUBJECT),
+        MAX_AGE,
+        vec![stage_condition()],
+    );
+    vec![
         build(Case {
-            child: Child::With(requirement_bytes(vec![
-                parent,
-                requirement(
-                    OTHER_SCHEMA,
-                    subject(SUBJECT),
-                    MAX_AGE,
-                    vec![stage_condition()],
-                ),
-            ])),
-            ..denied(
-                "observation-requirement-added",
-                DenialReason::DelegationExpanded,
+            child: Child::With(requirement_bytes(vec![parent.clone(), added.clone()])),
+            attachments: vec![
+                observation(FRESH, facts(STAGE, 3)),
+                schema_observation(OTHER_SCHEMA, FRESH, facts(STAGE, 3)),
+            ],
+            ..authorized("observation-requirement-added")
+        }),
+        build(Case {
+            child: Child::With(requirement_bytes(vec![parent.clone(), added])),
+            ..indeterminate(
+                "observation-requirement-added-unmet",
+                Requirement::ObservationMissing,
             )
         }),
+        build(Case {
+            unconditioned_parent: true,
+            child: Child::With(single(&parent)),
+            ..authorized("observation-requirement-added-to-unconditioned-parent")
+        }),
+        build(Case {
+            child: narrowed(
+                u32::try_from(EVALUATION_TIME - FRESH).expect("small age"),
+                vec![stage_condition(), count_condition(5)],
+            ),
+            ..authorized("observation-requirement-max-age-narrowed")
+        }),
+        build(Case {
+            child: narrowed(
+                u32::try_from(EVALUATION_TIME - FRESH - 1).expect("small age"),
+                vec![stage_condition(), count_condition(5)],
+            ),
+            ..indeterminate(
+                "observation-requirement-max-age-narrowed-stale",
+                Requirement::ObservationMissing,
+            )
+        }),
+        build(Case {
+            child: narrowed(
+                MAX_AGE,
+                vec![stage_condition(), count_condition(5), count_condition(4)],
+            ),
+            ..authorized("observation-requirement-conditions-narrowed")
+        }),
+        build(Case {
+            child: narrowed(
+                MAX_AGE,
+                vec![stage_condition(), count_condition(5), count_condition(2)],
+            ),
+            ..denied(
+                "observation-requirement-conditions-narrowed-false",
+                DenialReason::ObservationConditionFalse,
+            )
+        }),
+    ]
+}
+
+/// A child requirement that addresses a parent's without keeping or
+/// narrowing it widens authority.
+fn widening_vectors() -> Vec<CorpusFixture> {
+    let narrowed = |max_age: u32, conditions: Vec<ObservationCondition>| {
+        Child::With(single(&requirement(
+            SCHEMA,
+            subject(SUBJECT),
+            max_age,
+            conditions,
+        )))
+    };
+    let expanded = |name: &'static str, child: Child| {
+        build(Case {
+            child,
+            ..denied(name, DenialReason::DelegationExpanded)
+        })
+    };
+    vec![
+        expanded(
+            "observation-requirement-max-age-widened",
+            narrowed(MAX_AGE + 1, vec![stage_condition(), count_condition(5)]),
+        ),
+        expanded(
+            "observation-requirement-condition-dropped",
+            narrowed(MAX_AGE, vec![stage_condition()]),
+        ),
+        expanded(
+            "observation-requirement-condition-widened",
+            narrowed(MAX_AGE, vec![stage_condition(), count_condition(6)]),
+        ),
+        expanded(
+            "observation-requirement-narrowed-and-widened",
+            narrowed(MAX_AGE - 1, vec![stage_condition()]),
+        ),
+        expanded(
+            "observation-requirement-observer-changed",
+            Child::With(single(&anchored_requirement(
+                "other-observer",
+                SCHEMA,
+                subject(SUBJECT),
+                MAX_AGE,
+                vec![stage_condition(), count_condition(5)],
+            ))),
+        ),
+        expanded(
+            "observation-requirement-conditions-reordered",
+            narrowed(MAX_AGE, vec![count_condition(5), stage_condition()]),
+        ),
     ]
 }
 
@@ -1073,6 +1202,8 @@ pub fn observation_action_fact_fixture(
 pub(crate) fn observation_corpus() -> Vec<CorpusFixture> {
     let mut vectors = verdict_vectors();
     vectors.extend(chain_vectors());
+    vectors.extend(narrowing_vectors());
+    vectors.extend(widening_vectors());
     vectors.extend(requirement_limit_vectors());
     vectors.extend(observation_limit_vectors());
     vectors
