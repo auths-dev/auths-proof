@@ -1,12 +1,13 @@
 # AP-SPEC-056: OpenAPI-derived exact operation contracts and recipes
 
-- **Status:** Draft; implementation has not started. AP-SPEC-053's recipe
-  prerequisite has landed, and the manual real-vendor rejection wall
-  (GitHub, Todoist, OpenAI) is published in
-  `bindings/fixtures/openapi-corpus/` with open mapper findings. The Epic 1
-  derivation corpus with expected outputs, the mappers, and packaged
-  `derive` commands remain open; this specifies generation-time tooling, not
-  a runtime or authorization change
+- **Status:** Epics 1 and 2 implemented on branch `epic-6-openapi-derivation`
+  with repository-local tests; no hosted CI result is cited yet. Epic 3
+  (observation derivation, a MAY) is not started; §8.3 says why. One native
+  mapper, `product/tools/auths-openapi-derive`, produces every derived byte
+  and both packaged CLIs call it. The derivation corpus is in
+  `bindings/fixtures/openapi-derivation/`. §8 records every reading and
+  deviation. This is generation-time tooling only; it changes no runtime or
+  authorization behavior
 - **Depends on:** [AP-SPEC-053](0053-declarative-credential-isolated-gateway.md)
   (recipe AST and `recipe check`), [AP-SPEC-054 §5](0054-self-hosted-adapter-developer-experience.md)
   (restricted schema, lock, vectors), and
@@ -289,3 +290,87 @@ revision and AP-SPEC-053's `recipe check` accepts every derived recipe in it.
 Derivation changes nothing in the claim ledger: the contract and recipe it
 writes are reviewed source, the gateway's guarantees are AP-SPEC-053's, and
 provider effect remains unqualified.
+
+## 8. Readings fixed during implementation
+
+### 8.1 Readings
+
+| Question | Reading |
+| --- | --- |
+| Where the mapper lives | One Rust crate in the product layer, `product/tools/auths-openapi-derive`. Python calls it as `auths._native.derive_openapi_operation_v1`; TypeScript calls the WASM export `deriveOpenapiOperationV1` from `tools/profile-cli.mjs`. Both return the same JSON result, so outputs match by construction. The mapper also parses the derive flags, so flag grammar cannot differ by language. Each CLI owns only `--openapi`, `--directory`, and `--json`, plus file reading and writing. |
+| Recipe file name | `recipe.json`, not `recipe.toml`. The compiler, the fixtures, and `auths gateway recipe check` all read the `auths.gateway-recipe-source/1` JSON source. The §2 example's `recipe.toml` is read as the recipe file. |
+| YAML | Not read. A document whose first non-space byte is not `{` fails with `contract.derive.document-format` and the advice to convert with a safe loader. No YAML dependency was added. JSON is parsed into a bounded tree: at most 32 MiB and 32 levels of nesting, with duplicate keys rejected at every depth. |
+| Gateway binding fields | Derivation writes the three fields the compiler requires ahead of the derived fields. `operator_namespace` is a one-variant enum taken from the new required flag `--operator-namespace`. The tool never guesses a namespace. `operation_id` is a 1–128-byte string, the compiler's full bound. `recipe_digest` is exactly 64 bytes. A document property or parameter with one of these names fails with `contract.derive.name-collision`. The other identity flags are `--operation`, `--service`, and `--name` (required) and `--version` (default 1). |
+| Server base paths | A server URL becomes the origin (`https://host`) plus fixed leading path segments. `https://api.openai.com/v1` becomes the origin and `v1`. One trailing slash is dropped, so `https://api.todoist.com/` becomes the bare origin. `contract.derive.unsafe-server` rejects the rest, with no override: `http`, server variables, ports, user information, a query or fragment, an IP-literal or uppercase host, `localhost`, `.local`, `.internal`, empty inner segments, and segments outside the compiler's fixed-segment characters. Operation servers override path-item servers, which override root servers. `--server` must match a listed URL byte for byte. |
+| Root spelling for `--closed` | The root request-body object is spelled `.`. Every other override path is a dotted property path (`fields.DemoStatus`), and parameters are named directly. `body` is an ordinary property path. GitHub's `issues/create` has a `body` property, which is exactly the ambiguity the finding named. The published corpus now uses `--closed .`. |
+| `minLength` counts characters | `min_bytes = minLength`, as in §3.2. When `minLength` exceeds 1, the contract admits a multibyte value with fewer characters than the minimum, and the provider must reject it. `derivation.json` lists this under `unenforced`, and the report prints it. `pattern` and non-binary `format` are recorded the same way. The contract never claims to enforce them. |
+| Nullable spellings | `oneOf`/`anyOf` alternatives, 3.1 `type` arrays, and 3.0 `nullable: true` are normalized into one list of alternatives, so `anyOf [T, {type: null}]` is recognized as a nullable `T`. The gateway compiler has no nullable field. A required nullable property therefore fails with `contract.derive.compiler-limit`, and `--pick path=T` resolves it: the derived request always sends a `T`. An optional one still takes `--omit` or `--require` first. |
+| Compiler limits win | The compiler accepts only root-level string, enum, integer, and boolean fields. Nested closed objects are flattened into root arguments, named by joining the property path with `_`: `fields.DemoStatus` becomes `fields_DemoStatus`. The recipe body keeps the nesting. Arrays, nullable fields, objects in form bodies, and integer or boolean path parameters fail with `contract.derive.compiler-limit`. `--max-items` is parsed and consumed, but no current recipe can carry an array. Also enforced: at most 32 fields including the three binding fields, 64 template nodes, 16 form fields, and 16 path segments. An operation without a request body is rejected, because the compiler needs a non-empty body. |
+| Path parameters | A string path parameter gets `min_bytes` of at least 1, because the gateway refuses an empty segment at request time. `--literal name=<value>` fixes a path parameter as a checked fixed segment, including an integer. Mixed segments such as `{id}.json` and a trailing slash have no recipe form. |
+| Form bodies | Scalar properties only. Integer and boolean fields are rendered as compiler-serialized JSON form values. |
+| Query, header, and cookie parameters | `--omit name` means an optional one is never sent, and it is recorded as omitted. A required one is rejected with no override. Header and cookie parameters use `contract.derive.unsupported-parameter`. |
+| Overrides | Every override must apply to a construct, or it fails with `contract.derive.unused-override`. That code is reported only when nothing else is rejected. `--omit` on a required property is `contract.derive.invalid-override`. `--max-bytes` may narrow or widen up to `min(4 × maxLength, 4096)`. `--range` may only narrow a bound the document states. `--literal` takes `true`, `false`, a safe integer, or a JSON string of at most 1024 bytes, and the value must satisfy the schema it replaces. `--pick` selects exactly one scalar alternative. |
+| Security | `oauth2` maps to bearer, reported as "acquisition is application-owned". `openIdConnect`, `mutualTLS`, `http` schemes other than bearer, `apiKey` in a query or cookie or in a reserved header such as `Authorization`, and a requirement combining schemes are rejected with `contract.derive.credential-scheme-out-of-scope`. A missing, empty, or `[{}]` requirement list counts as declaring none. It fails with `contract.derive.missing-security` and needs `--security-scheme`. `--security` selects a single-scheme requirement by scheme name. |
+| Tool name | `--tool`, or the `operationId` when it satisfies the tool grammar. Otherwise `contract.derive.tool-name` suggests a sanitized name, such as `--tool issues_create`. |
+| Document constructs | Only local `#/` references are followed, and a reference containing `%` is rejected. A referenced path item is rejected, because it hides operations from selection. A keyword other than `description` or `summary` beside `$ref` is rejected. Keywords outside the annotation and mapped sets are rejected with their pointer. The slice measurement reproduces the published corpus figures exactly: 45, 2, and 15 resolutions, and 70 346, 9 455, and 8 960 bytes. |
+| What derivation does not emit | `echo`, `observation`, and `preconditions` blocks. A derived recipe is a single write. |
+| Provenance | `derivation.json` records the fields in §3.4 and `generator_format: 2`. It also lists the derived arguments with their pointers and the `unenforced` constraints. Overrides are recorded in one normalized order, so flag order cannot change the bytes. The document's file name appears only in the printed report. |
+| Re-derivation and `check` | `derive` writes only into an empty directory or one that already holds `derivation.json`. It refuses `profile.toml` or `recipe.json` without `derivation.json` (`contract.derive.directory-not-derived`). It refuses a changed derivation unless `--version` exceeds the recorded version (`contract.derive.version-required`). An unchanged re-derivation is a no-op. `profile check` reports `<file>: derived file edited by hand` when a digest differs; its JSON code is `profile.contract.derived-edited`. `profile diff` prints the same line for each edited file and returns `derived_edits`. Deleting `derivation.json` makes the files hand-owned. |
+| CLI-only codes | `contract.derive.document-unreadable` covers a symlink, a non-regular file, and the size bound. `contract.derive.directory-not-derived` and `contract.derive.version-required` are the directory and version rules above. The mapper's codes are `invalid-request`, `document-invalid`, `document-format`, `unsupported-version`, `operation-not-found`, `duplicate-operation`, `unsupported-method`, `tool-name`, `remote-ref`, `ref-cycle`, `ref-limit`, `slice-limit`, `ambiguous-server`, `unsafe-server`, `ambiguous-security`, `missing-security`, `credential-scheme-out-of-scope`, `query-parameter`, `unsupported-parameter`, `unsupported-body`, `unbounded-string`, `unbounded-integer`, `unsupported-construct`, `scalar-union`, `optional-property`, `open-object`, `compiler-limit`, `enum-variant`, `invalid-name`, `name-collision`, `field-limit`, `invalid-override`, and `unused-override`, each under `contract.derive.`. |
+
+### 8.2 Corpus and comparison results
+
+The corpus has 74 cases. Derived cases have exact bytes for `profile.toml`,
+`recipe.json`, `derivation.json`, the generator's `profile.lock.json`, and
+the report. Rejected cases have exact codes, pointers, and resolving
+overrides. Every derived recipe compiles under the gateway compiler, passes
+the operator credential-header binding, and records its digest in
+`review.json`.
+
+- **GitHub `issues/create`.** Unmodified, the pinned document yields the
+  published 14-pointer rejection wall exactly. The published candidate
+  override set derives, with the root spelled `.`. A second case fixes
+  `owner` and `repo` as literals and keeps `body`, which is the request the
+  hand-authored fixture expresses. Its digest differs from the fixture's
+  only because the profiles differ: the document states no title minimum,
+  so the derived title is 0–128 bytes, not 1–128, and the derived logical
+  ID allows 128 bytes, not 64. With the fixture's profile digest
+  substituted, the derived recipe compiles to exactly the fixture's digest.
+- **Todoist task creation.** The vendor document and a committed excerpt
+  derive identical `profile.toml` and `recipe.json`. Service, tool, and
+  operator namespace equal the hand-authored fixture. The request does not:
+  the derivation is `POST /api/v1/tasks` with a JSON `content` body, while
+  the fixture uses the sync endpoint with a form-encoded `item_add` command
+  that carries the logical ID as its `uuid`. The digests differ for that
+  reason, as the published corpus predicted. Derivation has no flag that
+  maps a body property to a binding field.
+- **Airtable field update.** Airtable publishes no OpenAPI document, so the
+  corpus uses a hand-written one for the demo base and table. Origin,
+  method, path, credential, service, tool, and namespace equal the
+  hand-authored fixture. The digest differs for two reasons. The body field
+  keeps its structural name `fields_DemoStatus`, where the fixture uses
+  `replacement`, and there is no rename flag. The fixture also declares a
+  read-back observation and an echo field, which derivation does not
+  produce.
+- **OpenAI `createVectorStore`.** The published wall and candidate override
+  set reproduce, and the `v1` base path becomes a fixed segment.
+
+### 8.3 Not done
+
+- **Epic 3.** Not started. The compiler's observation needs a
+  response-byte cap, and this spec names no flag for one, so the tool would
+  have to guess a bound. The Todoist fixture that the acceptance names has
+  no read-back to match. The Airtable fixture has one, but its argument
+  names differ from a derivation.
+- **Vendor cases in hosted CI.** The three vendor documents are pinned by
+  digest and not committed. Their corpus cases, and the checks that compare
+  them with the published wall, run only when `AUTHS_OPENAPI_CORPUS_DIR`
+  holds the documents. Hosted CI does not fetch them, so CI verifies the
+  committed documents only. That covers the Todoist excerpt, the Airtable
+  document, the minimal document, and the hostile documents.
+- **Packaged consumers.** The installed-wheel consumer
+  (`bindings/python/external/openapi_derive_consumer.py`) and the packed npm
+  test derive, generate, and check one operation from committed fixtures.
+  Neither runs the Rust recipe compiler, which is not part of either
+  package. That compilation is proved by the Rust corpus test on the same
+  bytes.
