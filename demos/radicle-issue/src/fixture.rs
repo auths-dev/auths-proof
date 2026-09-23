@@ -125,6 +125,7 @@ pub(crate) fn authorization_fixture_with_seeds(
             assurance_id.clone(),
             CriticalExtensions::empty(),
         ),
+        &auths_registries::CoreExtensionLaws::target_v1().unwrap(),
     )
     .unwrap();
     let child_grant_request =
