@@ -2,6 +2,7 @@ digraph auths_architecture {
   rankdir=LR;
   "auths" [group="core"];
   "auths-algebra-kernel" [group="core"];
+  "auths-approval-quorum" [group="product"];
   "auths-apps-testkit" [group="demos"];
   "auths-assurance" [group="core"];
   "auths-author" [group="core"];
@@ -126,6 +127,13 @@ digraph auths_architecture {
   "auths-webauthn" [group="core"];
   "xtask" [group="tooling"];
   "auths" -> "auths-proof" [label="normal"];
+  "auths-approval-quorum" -> "auths-author" [label="normal"];
+  "auths-approval-quorum" -> "auths-codec" [label="normal"];
+  "auths-approval-quorum" -> "auths-model" [label="normal"];
+  "auths-approval-quorum" -> "auths-profile-api" [label="dev"];
+  "auths-approval-quorum" -> "auths-profile-mcp" [label="dev"];
+  "auths-approval-quorum" -> "auths-raw-key" [label="dev"];
+  "auths-approval-quorum" -> "auths-signature" [label="dev"];
   "auths-apps-testkit" -> "auths-author" [label="normal"];
   "auths-apps-testkit" -> "auths-codec" [label="normal"];
   "auths-apps-testkit" -> "auths-did-keri" [label="normal"];
@@ -225,6 +233,7 @@ digraph auths_architecture {
   "auths-formal-refinement" -> "auths-authority" [label="normal"];
   "auths-formal-refinement" -> "auths-composition" [label="normal"];
   "auths-formal-refinement" -> "auths-model" [label="normal"];
+  "auths-gateway" -> "auths-approval-quorum" [label="dev"];
   "auths-gateway" -> "auths-codec" [label="normal"];
   "auths-gateway" -> "auths-connections" [label="normal"];
   "auths-gateway" -> "auths-did-keri" [label="normal"];
@@ -235,6 +244,7 @@ digraph auths_architecture {
   "auths-gateway" -> "auths-profile-mcp" [label="normal"];
   "auths-gateway" -> "auths-raw-key" [label="normal"];
   "auths-gateway" -> "auths-registries" [label="normal"];
+  "auths-gateway" -> "auths-sdk" [label="dev"];
   "auths-gateway" -> "auths-signature" [label="normal"];
   "auths-gateway" -> "auths-stores" [label="normal"];
   "auths-gateway" -> "auths-verifier" [label="normal"];
@@ -491,6 +501,7 @@ digraph auths_architecture {
   "auths-proof-offline-example" -> "auths-raw-key" [label="normal"];
   "auths-proof-offline-example" -> "auths-registries" [label="normal"];
   "auths-proof-offline-example" -> "auths-signature" [label="normal"];
+  "auths-proof-python" -> "auths-approval-quorum" [label="normal"];
   "auths-proof-python" -> "auths-author" [label="normal"];
   "auths-proof-python" -> "auths-codec" [label="normal"];
   "auths-proof-python" -> "auths-custody" [label="normal"];
@@ -515,6 +526,7 @@ digraph auths_architecture {
   "auths-proof-python" -> "auths-signature-core" [label="normal"];
   "auths-proof-python" -> "auths-signature-ed25519" [label="normal"];
   "auths-proof-python" -> "auths-verifier" [label="normal"];
+  "auths-proof-wasm" -> "auths-approval-quorum" [label="normal"];
   "auths-proof-wasm" -> "auths-author" [label="normal"];
   "auths-proof-wasm" -> "auths-codec" [label="normal"];
   "auths-proof-wasm" -> "auths-did-keri" [label="normal"];

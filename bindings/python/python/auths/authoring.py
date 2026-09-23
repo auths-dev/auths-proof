@@ -6,8 +6,9 @@ context, and custody signer. This module never creates production trust.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
-from typing import Generic, Literal, Sequence, TypeVar
+from typing import Generic, Literal, Sequence, TypeVar, Union
 
 from . import _native
 from .adapters.custody import (
@@ -21,8 +22,9 @@ from .adapters.custody import (
     ReviewField,
     SigningObjectKind,
     SigningRequest,
+    SigningResponse,
 )
-from .self_hosted import ExactMcpTool
+from .self_hosted import ExactMcpTool, _canonical_arguments
 
 CommandT = TypeVar("CommandT")
 
@@ -236,15 +238,230 @@ async def author_mcp_proof(
     )
 
 
+@dataclass(frozen=True)
+class QuorumApprover:
+    """One member asked to approve, with the custody signer that holds its key.
+
+    ``grants`` is the member's grant chain, root first; leave it empty when the
+    member is itself a trust anchor of the operator's installation.
+    """
+
+    signer: CustodySigner
+    grants: tuple[GrantEvidence, ...] = ()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "grants", tuple(self.grants))
+        if len(self.grants) > 16:
+            raise ValueError("approver grant chain count is outside bounds")
+        if not all(isinstance(grant, GrantEvidence) for grant in self.grants):
+            raise TypeError("approver grants must be GrantEvidence values")
+
+
+@dataclass(frozen=True)
+class QuorumPlan:
+    """Projection of the native threshold plan every approval signed.
+
+    ``approvers`` and ``proof_references`` are in approver order; the plan
+    itself is canonical and independent of that order.
+    """
+
+    required: int
+    approvers: tuple[str, ...]
+    plan_id: bytes
+    canonical_plan: bytes
+    proof_references: tuple[bytes, ...]
+
+
+@dataclass(frozen=True)
+class AuthoredMcpQuorumProof(Generic[CommandT]):
+    command: CommandT
+    proof: bytes
+    action: bytes
+    trusted_context: bytes
+    action_commitment: bytes
+    review_fields: tuple[tuple[str, str], ...]
+    plan: QuorumPlan
+
+
+async def author_mcp_quorum_proof(
+    *,
+    contract: ExactMcpTool[CommandT],
+    command: CommandT,
+    required: int,
+    approvers: Sequence[QuorumApprover],
+    trusted_context_template: bytes,
+    challenge: bytes,
+    evaluation_time: int,
+    expires_at: int,
+) -> AuthoredMcpQuorumProof[CommandT]:
+    """Collect one signature per approver over one exact action and assemble
+    a ``required``-of-N threshold proof.
+
+    Each signature commits to the whole approver set, so every listed approver
+    must sign; list only the approvers being asked. The threshold the verifier
+    enforces comes from the operator's trusted context (branches and distinct
+    actors), never from the proof. Approvals are valid from ``evaluation_time``
+    through ``expires_at``. Signers are asked concurrently and are not closed.
+    """
+    if type(required) is not int or not 1 <= required <= len(approvers) <= 16:
+        raise ValueError("quorum threshold or approver count is outside bounds")
+    if not all(isinstance(approver, QuorumApprover) for approver in approvers):
+        raise TypeError("approvers must be QuorumApprover values")
+    if len(challenge) != 32:
+        raise ValueError("challenge must contain 32 bytes")
+    if (
+        type(evaluation_time) is not int
+        or type(expires_at) is not int
+        or not 0 <= evaluation_time <= expires_at < 2**64
+        or expires_at - evaluation_time > 86_400
+    ):
+        raise ValueError("quorum validity window is outside bounds")
+    descriptors = [approver.signer.descriptor for approver in approvers]
+    if any(descriptor.contract != "signer-custody/2" for descriptor in descriptors):
+        raise ValueError("signer does not implement the custody contract")
+    if type(command) is not contract.command_type:
+        raise TypeError("command does not belong to this exact tool")
+    arguments = contract.encode(command)
+    checked = contract.validate_arguments(arguments)
+    chains = [
+        [_native.parse_signed("grant", grant.signed_grant) for grant in approver.grants]
+        for approver in approvers
+    ]
+    quorum = _native.prepare_mcp_quorum(
+        contract.service,
+        contract.name,
+        _canonical_arguments(arguments),
+        [
+            (_native.Principal(descriptor.principal), chain[-1] if chain else None)
+            for descriptor, chain in zip(descriptors, chains)
+        ],
+        required,
+        bytes(challenge),
+        evaluation_time,
+        expires_at,
+    )
+    template = _native.parse_trusted_context(bytes(trusted_context_template))
+    context = template.bind_request(quorum.audience, bytes(challenge), evaluation_time)
+    review = tuple(quorum.review_fields) + (
+        ("Approval quorum", f"{required} of {len(approvers)}"),
+        ("Quorum plan", bytes(quorum.plan_id).hex()),
+    )
+    requests = [
+        _native.prepare_signing(
+            quorum.unsigned(index),
+            descriptor.signature.principal_method,
+            descriptor.signature.verification_method,
+            descriptor.signature.suite,
+        )
+        for index, descriptor in enumerate(descriptors)
+    ]
+    custody_requests = [
+        SigningRequest(
+            request.request_id,
+            SigningObjectKind.ACTION,
+            bytes(request.object_id),
+            descriptor,
+            bytes(request.transaction_digest),
+            bytes(request.signing_preimage),
+            expires_at,
+            tuple(ReviewField(label, value) for label, value in review),
+        )
+        for request, descriptor in zip(requests, descriptors)
+    ]
+    outcomes = await asyncio.gather(
+        *(
+            approver.signer.sign(custody_request)
+            for approver, custody_request in zip(approvers, custody_requests)
+        )
+    )
+    approvals: list[
+        tuple[
+            _native.SignedObject,
+            list[_native.SignedObject],
+            list[list[tuple[str, str, bytes]]],
+            list[tuple[str, str, bytes]],
+        ]
+    ] = []
+    for approver, chain, request, custody_request, outcome in zip(
+        approvers, chains, requests, custody_requests, outcomes
+    ):
+        response = _signed_response(outcome, custody_request)
+        approvals.append(
+            (
+                request.complete(bytes(response.signature)),
+                chain,
+                [
+                    [_evidence_tuple(item) for item in grant.evidence]
+                    for grant in approver.grants
+                ],
+                [_evidence_tuple(item) for item in response.evidence],
+            )
+        )
+    proof = bytes(_native.assemble_mcp_quorum_proof(quorum, approvals))
+    action = bytes(quorum.canonical_action)
+    trusted_context = bytes(_native.inspect_trusted_context(context))
+    verdict = _native.verify_v1(proof, action, trusted_context)
+    if verdict.kind != "authorized":
+        kind: Literal["rejected", "indeterminate"] = (
+            "rejected" if verdict.kind == "denied" else "indeterminate"
+        )
+        raise AuthoringUnsuccessful(kind=kind, code=verdict.code)
+    return AuthoredMcpQuorumProof(
+        checked,
+        proof,
+        action,
+        trusted_context,
+        bytes(_native.commit_canonical_v1("auths.canonical-action.v1", action)),
+        tuple(quorum.review_fields),
+        QuorumPlan(
+            quorum.required,
+            tuple(quorum.approvers),
+            bytes(quorum.plan_id),
+            bytes(quorum.canonical_plan),
+            tuple(bytes(reference) for reference in quorum.proof_references),
+        ),
+    )
+
+
+def _signed_response(
+    outcome: Union[CustodySigned, CustodyRejected, CustodyIndeterminate],
+    request: SigningRequest,
+) -> SigningResponse:
+    if isinstance(outcome, (CustodyRejected, CustodyIndeterminate)):
+        kind: Literal["rejected", "indeterminate"] = (
+            "rejected" if isinstance(outcome, CustodyRejected) else "indeterminate"
+        )
+        raise AuthoringUnsuccessful(kind=kind, code=str(outcome.failure))
+    if not isinstance(outcome, CustodySigned):
+        raise TypeError("custody signer returned an invalid result")
+    response = outcome.response
+    descriptor = request.descriptor
+    if (
+        response.request_id != request.request_id
+        or response.object_id != request.object_id
+        or response.principal != descriptor.principal
+        or response.descriptor != descriptor.signature
+        or response.provider_key_version != descriptor.key_version
+        or response.transaction_digest != request.transaction_digest
+        or not 1 <= len(response.evidence) <= 32
+    ):
+        raise ValueError("custody response does not bind the exact signing request")
+    return response
+
+
 def _evidence_tuple(value: PublicControlEvidence) -> tuple[str, str, bytes]:
     return value.evidence_type, value.media_type, bytes(value.bytes)
 
 
 __all__ = [
     "AuthoredMcpProof",
+    "AuthoredMcpQuorumProof",
     "AuthoringUnsuccessful",
     "GrantEvidence",
     "ProductionAuthoringInputs",
+    "QuorumApprover",
+    "QuorumPlan",
     "author_mcp_proof",
+    "author_mcp_quorum_proof",
     "author_production_mcp_proof",
 ]

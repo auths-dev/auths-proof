@@ -22,6 +22,7 @@
     "McpExecutionSession",
     "McpGatewayCall",
     "McpPlanCommand",
+    "McpQuorum",
     "McpSessionStep",
     "McpSessionTerminal",
     "NativeAuthsError",
@@ -44,6 +45,7 @@
   "operations": [
     "approval_policy_reference",
     "assemble_mcp_proof",
+    "assemble_mcp_quorum_proof",
     "attest_decision_receipt_v1",
     "attest_execution_receipt_v1",
     "authorize_mcp",
@@ -81,6 +83,7 @@
     "plan_child_statement",
     "prepare_mcp_action",
     "prepare_mcp_call_action",
+    "prepare_mcp_quorum",
     "prepare_mcp_command_decision_receipt_v1",
     "prepare_mcp_plan_decision_receipts_v1",
     "prepare_receipt_disclosure_v1",

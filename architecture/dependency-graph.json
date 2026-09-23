@@ -12,6 +12,11 @@
       "path": "core/crates/auths-algebra-kernel"
     },
     {
+      "name": "auths-approval-quorum",
+      "layer": "product",
+      "path": "product/sdk/auths-approval-quorum"
+    },
+    {
       "name": "auths-apps-testkit",
       "layer": "demos",
       "path": "demos/testkit/auths-apps-testkit"
@@ -634,6 +639,136 @@
       "target": "auths-proof",
       "target_layer": "core",
       "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-approval-quorum",
+      "source_layer": "product",
+      "target": "auths-author",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-approval-quorum",
+      "source_layer": "product",
+      "target": "auths-codec",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-approval-quorum",
+      "source_layer": "product",
+      "target": "auths-model",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-approval-quorum",
+      "source_layer": "product",
+      "target": "auths-profile-api",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-approval-quorum",
+      "source_layer": "product",
+      "target": "auths-profile-mcp",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-approval-quorum",
+      "source_layer": "product",
+      "target": "auths-raw-key",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-approval-quorum",
+      "source_layer": "product",
+      "target": "auths-signature",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "std"
+      ]
+    },
+    {
+      "source": "auths-approval-quorum",
+      "source_layer": "product",
+      "target": "ed25519-dalek",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "zeroize"
+      ]
+    },
+    {
+      "source": "auths-approval-quorum",
+      "source_layer": "product",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order"
+      ]
+    },
+    {
+      "source": "auths-approval-quorum",
+      "source_layer": "product",
+      "target": "thiserror",
+      "target_layer": null,
+      "scope": "external",
       "kind": "normal",
       "target_condition": null,
       "optional": false,
@@ -3029,6 +3164,18 @@
     {
       "source": "auths-gateway",
       "source_layer": "product",
+      "target": "auths-approval-quorum",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
       "target": "auths-codec",
       "target_layer": "core",
       "scope": "internal",
@@ -3144,6 +3291,18 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "auths-sdk",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
       "features": []
     },
     {
@@ -10120,6 +10279,18 @@
     {
       "source": "auths-proof-python",
       "source_layer": "bindings",
+      "target": "auths-approval-quorum",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-proof-python",
+      "source_layer": "bindings",
       "target": "auths-author",
       "target_layer": "core",
       "scope": "internal",
@@ -10531,6 +10702,18 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-proof-wasm",
+      "source_layer": "bindings",
+      "target": "auths-approval-quorum",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
       "features": []
     },
     {

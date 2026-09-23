@@ -1147,7 +1147,7 @@ fn consume_mcp_plan_command(
         .collect()
 }
 
-fn evidence_object(
+pub(crate) fn evidence_object(
     evidence_type: &str,
     media_type: &str,
     bytes: Vec<u8>,

@@ -16,6 +16,8 @@ mod transport;
 
 #[cfg(test)]
 mod observed_tests;
+#[cfg(test)]
+mod quorum_tests;
 
 pub use action_facts::{MCP_ARGUMENTS_V1, McpArgumentsPolicy};
 pub use binding::{GatewayConnectionDescriptor, GatewayConnectionError};

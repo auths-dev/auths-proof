@@ -12,6 +12,7 @@ name = "_native"
 crate-type = ["cdylib"]
 
 [dependencies]
+auths-approval-quorum.workspace = true
 auths-author = { workspace = true, features = ["std"] }
 auths-codec = { workspace = true, features = ["std"] }
 auths-custody.workspace = true

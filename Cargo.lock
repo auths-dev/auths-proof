@@ -223,6 +223,22 @@ name = "auths-algebra-kernel"
 version = "1.0.0-rc.1"
 
 [[package]]
+name = "auths-approval-quorum"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-author",
+ "auths-codec",
+ "auths-model",
+ "auths-profile-api",
+ "auths-profile-mcp",
+ "auths-raw-key",
+ "auths-signature",
+ "ed25519-dalek 2.2.0",
+ "serde_json",
+ "thiserror 2.0.19",
+]
+
+[[package]]
 name = "auths-apps-testkit"
 version = "1.0.0-rc.1"
 dependencies = [
@@ -578,6 +594,7 @@ dependencies = [
 name = "auths-gateway"
 version = "1.0.0-rc.1"
 dependencies = [
+ "auths-approval-quorum",
  "auths-codec",
  "auths-connections",
  "auths-did-keri",
@@ -588,6 +605,7 @@ dependencies = [
  "auths-profile-mcp",
  "auths-raw-key",
  "auths-registries",
+ "auths-sdk",
  "auths-signature",
  "auths-stores",
  "auths-verifier",
@@ -1436,6 +1454,7 @@ dependencies = [
 name = "auths-proof-python"
 version = "1.0.0-rc.1"
 dependencies = [
+ "auths-approval-quorum",
  "auths-author",
  "auths-codec",
  "auths-custody",
@@ -1474,6 +1493,7 @@ dependencies = [
 name = "auths-proof-wasm"
 version = "1.0.0-rc.1"
 dependencies = [
+ "auths-approval-quorum",
  "auths-author",
  "auths-codec",
  "auths-did-keri",

@@ -38,5 +38,9 @@ tokio.workspace = true
 url.workspace = true
 zeroize.workspace = true
 
+[dev-dependencies]
+auths-approval-quorum.workspace = true
+auths-sdk.workspace = true
+
 [lints]
 workspace = true
