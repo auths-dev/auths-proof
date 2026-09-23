@@ -20,6 +20,7 @@ path = "src/bin/auths-gateway-harness.rs"
 required-features = ["testkit-harness"]
 
 [dependencies]
+auths-bounded-policy.workspace = true
 auths-connections.workspace = true
 auths-codec.workspace = true
 auths-did-keri.workspace = true
@@ -37,6 +38,7 @@ base64ct.workspace = true
 clap.workspace = true
 ed25519-dalek.workspace = true
 hex.workspace = true
+minicbor.workspace = true
 getrandom.workspace = true
 rustix.workspace = true
 reqwest.workspace = true

@@ -11,7 +11,7 @@
 use crate::engine::{
     GatewayObserveRequest, GatewayObserveResult, GatewaySubmitResult, execute_claimed,
     gateway_verifier_configuration, not_entered, observe_outcome, observe_read_back, reobserve,
-    replay_refused, verify_command,
+    replay_refused, reserve_bound, verify_command,
 };
 use crate::observer::{OUTCOME_SCHEMA, READ_BACK_SCHEMA};
 use crate::transport::{GatewayTransportError, ProviderPort, WriteTransportOutcome};
@@ -76,58 +76,51 @@ pub(crate) struct Signer {
     pub(crate) principal: PrincipalId,
 }
 
+// INVARIANT: every value below is derived from a fixed 32-byte seed and
+// compiled identifiers, so construction cannot fail; the expectations name
+// the constant that would have to be wrong.
+#[allow(clippy::expect_used)]
 impl Signer {
-    pub(crate) fn from_seed(seed: u8) -> Result<Self, HarnessError> {
+    pub(crate) fn new(seed: u8) -> Self {
         let key = SigningKey::from_bytes(&[seed; 32]);
-        let raw = fixture(
-            RawKeyDescriptor::new(RawKeyType::Ed25519, key.verifying_key().to_bytes().to_vec()),
-            "raw key",
-        )?;
-        let principal = fixture(raw.principal(), "principal")?;
-        Ok(Self {
+        let raw =
+            RawKeyDescriptor::new(RawKeyType::Ed25519, key.verifying_key().to_bytes().to_vec())
+                .expect("a 32-byte Ed25519 key is a raw-key descriptor");
+        let principal = raw
+            .principal()
+            .expect("a raw-key descriptor has a principal");
+        Self {
             key,
             raw,
             principal,
-        })
+        }
     }
 
-    pub(crate) fn descriptor(&self) -> Result<SignatureDescriptor, HarnessError> {
-        Ok(SignatureDescriptor::new(
-            fixture(PrincipalMethodId::parse(RAW_KEY_V1), "method")?,
-            fixture(
-                VerificationMethod::parse(self.principal.as_str()),
-                "verification method",
-            )?,
-            fixture(
-                SignatureSuiteId::parse(auths_signature::ED25519_V1),
-                "suite",
-            )?,
-        ))
-    }
-
-    pub(crate) fn evidence(&self) -> Result<EvidenceObject, HarnessError> {
-        let object = |id| {
-            fixture(
-                EvidenceObject::new(
-                    id,
-                    fixture(EvidenceTypeId::parse(RAW_KEY_V1), "evidence type")?,
-                    fixture(MediaType::parse(RAW_KEY_MEDIA_TYPE), "media type")?,
-                    self.raw.encode(),
-                ),
-                "evidence",
-            )
-        };
-        object(fixture(
-            evidence_id(&object(EvidenceId::new([0; 32]))?),
-            "evidence ID",
-        )?)
-    }
-
-    pub(crate) fn sign(&self, preimage: &[u8]) -> Result<SignatureBytes, HarnessError> {
-        fixture(
-            SignatureBytes::new(self.key.sign(preimage).to_bytes().to_vec()),
-            "signature",
+    pub(crate) fn descriptor(&self) -> SignatureDescriptor {
+        SignatureDescriptor::new(
+            PrincipalMethodId::parse(RAW_KEY_V1).expect("raw-key method identifier"),
+            VerificationMethod::parse(self.principal.as_str())
+                .expect("a principal is a verification method"),
+            SignatureSuiteId::parse(auths_signature::ED25519_V1).expect("Ed25519 suite identifier"),
         )
+    }
+
+    pub(crate) fn evidence(&self) -> EvidenceObject {
+        let object = |id| {
+            EvidenceObject::new(
+                id,
+                EvidenceTypeId::parse(RAW_KEY_V1).expect("raw-key evidence type"),
+                MediaType::parse(RAW_KEY_MEDIA_TYPE).expect("raw-key media type"),
+                self.raw.encode(),
+            )
+            .expect("raw-key evidence")
+        };
+        object(evidence_id(&object(EvidenceId::new([0; 32]))).expect("evidence identifier"))
+    }
+
+    pub(crate) fn sign(&self, preimage: &[u8]) -> SignatureBytes {
+        SignatureBytes::new(self.key.sign(preimage).to_bytes().to_vec())
+            .expect("an Ed25519 signature is 64 bytes")
     }
 }
 
@@ -285,10 +278,16 @@ pub(crate) fn accepted_registries() -> Result<AcceptedRegistries, HarnessError> 
                 "matcher",
             )?],
             Vec::new(),
-            vec![fixture(
-                ExtensionId::parse(OBSERVATION_REQUIREMENT_EXTENSION_V1),
-                "extension",
-            )?],
+            vec![
+                fixture(
+                    ExtensionId::parse(auths_registries::BOUNDED_POLICY_COMMITMENT_EXTENSION_V1),
+                    "extension",
+                )?,
+                fixture(
+                    ExtensionId::parse(OBSERVATION_REQUIREMENT_EXTENSION_V1),
+                    "extension",
+                )?,
+            ],
             vec![fixture(call(&Map::new())?.profile_ref(), "profile")?],
             vec![fixture(ProfilePolicyId::parse(MCP_ARGUMENTS_V1), "policy")?],
         ),
@@ -303,6 +302,17 @@ pub(crate) fn context(
     observer: &PrincipalId,
     configuration: Option<[u8; 32]>,
     now: u64,
+) -> Result<TrustedContext, HarnessError> {
+    context_with_depth(root, observer, configuration, now, 1)
+}
+
+/// Trust as in [`context`] that permits `depth` delegation edges.
+pub(crate) fn context_with_depth(
+    root: &Signer,
+    observer: &PrincipalId,
+    configuration: Option<[u8; 32]>,
+    now: u64,
+    depth: u16,
 ) -> Result<TrustedContext, HarnessError> {
     let configuration = match configuration {
         Some(value) => auths_model::VerifierConfigurationId::new(value),
@@ -327,7 +337,7 @@ pub(crate) fn context(
             fixture(AudienceSet::new(vec![audience()?]), "audiences")?,
             window(now - 86_400, now + 86_400)?,
             None,
-            1,
+            depth,
             assurance.clone(),
             StatusPolicy::ExpiryOnly,
         ),
@@ -463,11 +473,11 @@ pub(crate) fn grant_within(
         fixture(AssurancePolicyId::parse(ASSURANCE), "assurance")?,
         extensions,
     );
-    let descriptor = root.descriptor()?;
+    let descriptor = root.descriptor();
     let signature = root.sign(&fixture(
         grant_signing_preimage(&statement, &descriptor),
         "preimage",
-    )?)?;
+    )?);
     Ok(SignedGrant::new(
         statement,
         SignatureEnvelope::new(descriptor, signature),
@@ -617,20 +627,26 @@ impl Harness {
         })
     }
 
-    /// Mirrors the engine: verify at `now`, claim, lease, then enter the
-    /// provider. A replay never writes again.
+    /// Mirrors the engine: verify at `now`, claim, reserve any bounded-policy
+    /// window slot, lease, then enter the provider. A replay never writes
+    /// again.
     pub(crate) async fn submit(
         &self,
         proof: &[u8],
         action: &[u8],
         now: u64,
     ) -> GatewaySubmitResult {
-        let request = match verify_command(&self.recipe, &self.context, now, proof, action) {
+        let (request, bound) = match verify_command(&self.recipe, &self.context, now, proof, action)
+        {
             Ok(value) => value,
             Err(result) => return result,
         };
         match self.store.claim(&request, *self.recipe.digest()) {
             Ok(claim) => {
+                let claim = match reserve_bound(&self.store, bound.as_ref(), &request, claim) {
+                    Ok(value) => value,
+                    Err(result) => return result,
+                };
                 self.provider.leases.fetch_add(1, Ordering::SeqCst);
                 execute_claimed(claim, &request, &self.provider).await
             }
@@ -853,7 +869,7 @@ mod process {
         }
         let state = std::fs::canonicalize(state).map_err(|_| HarnessError::Store)?;
         let state = state.as_path();
-        let root = Signer::from_seed(ROOT_SEED)?;
+        let root = Signer::new(ROOT_SEED);
         let observer = GatewayObserver::from_test_seed(OBSERVER_SEED);
         let context = context(&root, observer.principal(), None, now)?;
         let context_bytes = auths_codec::encode_verifier_context(&context)
@@ -861,7 +877,7 @@ mod process {
         let signed = grant(&root, &agent, Some(read_back_requirement()?), now)?;
         let grant_bytes = auths_codec::encode_signed_grant(&signed)
             .map_err(|_| HarnessError::Fixture("grant bytes"))?;
-        let evidence = root.evidence()?;
+        let evidence = root.evidence();
         let recipe = update_recipe()?;
         let setup = HarnessSetup {
             schema: "auths.gateway-harness/1",

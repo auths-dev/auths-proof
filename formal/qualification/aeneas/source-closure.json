@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "78673cabc9ddcf5157a59aa75a014ff23adc35fb48340b6efd6e72fb0bd15dfb",
+  "digest": "09d6abc22b8ac68f1272aae03e0b9613bfac148130743b4530021ae7e3926c3a",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -44,8 +44,12 @@
       "sha256": "f90496abc0a06c028b4d850af6ddab7d850bfafeaa3d042f1b1246a41d8bbbc9"
     },
     {
+      "path": "core/crates/auths-model/src/bounded_policy.rs",
+      "sha256": "306a8f049cc7cfc7635fe0e4de47eb7813eed63d3c14c3be2b51586aa4eea450"
+    },
+    {
       "path": "core/crates/auths-model/src/lib.rs",
-      "sha256": "c8eb0391fd965a25e3628567fbcfa5a2a11d1885548d55b053e49cee96829537"
+      "sha256": "abdf4a5fc1ff039cc953572932d03d619a0d97e1e241aab04ef788858bf2edb1"
     },
     {
       "path": "core/crates/auths-model/src/observation.rs",
@@ -65,7 +69,7 @@
     },
     {
       "path": "formal/qualification/aeneas/cases/BoundedPolicy.lean",
-      "sha256": "588b5f70fb2ddab50a931b644c7789baa0aa1398f37d831862de0079b5ff1c54"
+      "sha256": "fcbb4a6081b3e8fc7153d15b0cefa7701db5c74aa8ed7654eb733cb4dd3c3311"
     },
     {
       "path": "formal/qualification/aeneas/cases/Lifecycle.lean",
@@ -73,11 +77,11 @@
     },
     {
       "path": "formal/qualification/aeneas/cases/Model.lean",
-      "sha256": "dc269ccddf041432959c6184d59337812d834f9b7a697da71a647c570f362d04"
+      "sha256": "b27e252238449bcee87a3d4d4deeca5537e8af380e2559ca24ea04fa88265793"
     },
     {
       "path": "formal/qualification/aeneas/qualification.toml",
-      "sha256": "df3717fe46026c04d914cbc7d55196bd45a503c4daef7a15da1f2f862513a7a9"
+      "sha256": "809dbfa75d9eda512dd0eb58c12ee6ca8f73d92384c0db22012d06499c4415d3"
     },
     {
       "path": "formal/translation-toolchain.lock",
@@ -121,7 +125,7 @@
     },
     {
       "path": "product/policy/auths-bounded-policy/src/kernel.rs",
-      "sha256": "472bd4b23121644ca3a51dc272df72176c3787e9c8eae7f34b41bceb15b52bb3"
+      "sha256": "eebcfe4172dc27683067575c17b50e13f57d7a0d1a1579bf5400007075d93e5a"
     },
     {
       "path": "product/policy/auths-bounded-policy/src/lib.rs",
@@ -257,7 +261,7 @@
     },
     {
       "path": "xtask/src/formal_qualification.rs",
-      "sha256": "b2e8b08dd183e278636e065ec590eb5c03337b54c499201dedf1ec6abae4bc26"
+      "sha256": "c124f1199b95bf3264161227dcfcb5d02861990633ccc885499c7af52efdc944"
     },
     {
       "path": "xtask/src/fuzz.rs",

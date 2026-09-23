@@ -228,8 +228,10 @@ bounded_string!(DispositionId, 128, ModelError::InvalidRegistryId);
 bounded_string!(TrustAnchorId, 128, ModelError::InvalidRegistryId);
 bounded_string!(ExtensionId, 128, ModelError::InvalidExtensionId);
 
+mod bounded_policy;
 mod observation;
 
+pub use bounded_policy::*;
 pub use observation::*;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -4825,6 +4827,7 @@ pub enum ModelError {
     InvalidObservation,
     InvalidObservationRequirement,
     InvalidObserverAnchor,
+    InvalidBoundedPolicy,
 }
 
 impl fmt::Display for ModelError {
@@ -4868,6 +4871,7 @@ impl fmt::Display for ModelError {
             Self::InvalidObservation => "invalid observation",
             Self::InvalidObservationRequirement => "invalid observation requirement",
             Self::InvalidObserverAnchor => "invalid observer anchor",
+            Self::InvalidBoundedPolicy => "invalid bounded-policy commitment",
         })
     }
 }

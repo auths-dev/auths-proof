@@ -1628,15 +1628,15 @@ kind = "cargo"
 layer = "product"
 path = "product/runtime/auths-gateway"
 core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-verifier"]
-protocol_versions = ["auths.gateway-recipe-source/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/2", "auths.gateway-echo/1", "auths.gateway-observe/1", "auths.gateway-outcome/1", "auths.gateway-readback/1", "auths.self-hosted-profile-lock/1", "mcp-arguments-v1"]
-wire_objects = ["CompiledRecipe", "ClosedProviderRequest", "GatewayAttemptSnapshot", "GatewayConnectionDescriptor", "GatewayEvidenceSummary", "GatewayObserveRequest", "GatewayObserveResult", "GatewayProviderEvidence", "GatewaySubmitResult", "SignedObservation"]
+protocol_versions = ["auths.gateway-recipe-source/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/2", "auths.gateway-echo/1", "auths.gateway-observe/1", "auths.gateway-outcome/1", "auths.gateway-readback/1", "auths.gateway-bounded-count/1", "auths.gateway.argument-ceiling-window-count/1", "auths.self-hosted-profile-lock/1", "bounded-policy-commitment-v1", "mcp-arguments-v1"]
+wire_objects = ["ArgumentCeilingPolicy", "BoundedPolicyCommitment", "CompiledRecipe", "ClosedProviderRequest", "GatewayAttemptSnapshot", "GatewayConnectionDescriptor", "GatewayEvidenceSummary", "GatewayObserveRequest", "GatewayObserveResult", "GatewayProviderEvidence", "GatewaySubmitResult", "SignedObservation"]
 fixture_suites = ["bindings/fixtures/gateway"]
 principal_families = ["raw-key-v1"]
 signature_families = ["ed25519-v1"]
 profiles = ["auths.mcp/2"]
 transports = ["bounded-https"]
 configuration_inputs = ["operator-approved-recipe", "profile-lock", "independently-provisioned-trust", "connection-binding", "observer-anchor", "observer-signing-key"]
-security_state = ["recipe-digest", "single-host-logical-operation-claims", "credential-reference-generation", "echo-bound-provider-evidence", "observer-signing-seed"]
+security_state = ["recipe-digest", "single-host-logical-operation-claims", "credential-reference-generation", "echo-bound-provider-evidence", "observer-signing-seed", "per-principal-window-count-slots"]
 
 [packages.auths-gateway.claims]
 configuration-compiler = [
@@ -1664,6 +1664,9 @@ runtime-enforcement-boundary = [
   "product/runtime/auths-gateway/src/observed_tests.rs#sdk_action_window_admits_a_later_gateway_clock_and_replay_stays_refused",
   "product/runtime/auths-gateway/src/observed_tests.rs#sdk_action_window_is_cut_to_the_grant_expiry",
   "product/runtime/auths-gateway/src/observed_tests.rs#a_longer_action_window_never_extends_observation_freshness",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#per_principal_bounds_admit_only_actions_inside_the_signer_bound",
+  "product/runtime/auths-gateway/src/bounds.rs#registry_refuses_unregistered_and_mismatched_evaluators",
+  "product/runtime/auths-gateway/src/bounds.rs#decider_accepts_only_a_tighter_bound_on_the_same_argument_and_window",
 ]
 stateful-replay-budget-component = [
   "product/runtime/auths-gateway/src/recipe.rs#durable_claim_is_one_use_across_races_and_restart",
@@ -1674,6 +1677,7 @@ stateful-replay-budget-component = [
   "product/runtime/auths-gateway/src/engine.rs#timeout_after_delivery_resolves_on_next_observation_without_second_write",
   "product/runtime/auths-gateway/src/engine.rs#provider_side_overwrite_records_echo_mismatch",
   "product/runtime/auths-gateway/src/engine.rs#replay_or_fresh_challenge_makes_no_second_provider_entry",
+  "product/runtime/auths-gateway/src/bounds.rs#window_reservation_takes_exactly_the_maximum",
 ]
 
 [packages.auths-node]

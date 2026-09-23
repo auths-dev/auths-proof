@@ -228,6 +228,7 @@ digraph auths_architecture {
   "auths-formal-refinement" -> "auths-model" [label="normal"];
   "auths-formal-refinement" -> "auths-registries" [label="normal"];
   "auths-gateway" -> "auths-author" [label="dev"];
+  "auths-gateway" -> "auths-bounded-policy" [label="normal"];
   "auths-gateway" -> "auths-codec" [label="normal"];
   "auths-gateway" -> "auths-connections" [label="normal"];
   "auths-gateway" -> "auths-did-keri" [label="normal"];

@@ -13,24 +13,27 @@ use crate::engine::{
     gateway_verifier_configuration, not_entered, observe_outcome,
 };
 use crate::harness::{
-    self as h, ANCHOR, Delivery, NAMESPACE, OTHER_RECORD, RECORD, Signer, read_back_subject,
+    self as h, ANCHOR, ASSURANCE, Delivery, NAMESPACE, OTHER_RECORD, RECORD, Signer,
+    read_back_subject,
 };
 use crate::observer::{OUTCOME_SCHEMA, READ_BACK_SCHEMA, operation_subject};
 use crate::{CompiledRecipe, GatewayObserver, LogicalOperationId, OperatorNamespace};
 use auths_codec::{
     action_id, action_signing_preimage, attachment_digest, body_digest, domain_commitment,
     encode_bundle, encode_canonical_action, encode_signed_observation, grant_id,
-    observation_signing_preimage, plan_id,
+    grant_signing_preimage, observation_signing_preimage, plan_id,
 };
 use auths_model::{
-    ActionEnvelope, AttachmentDescriptor, Audience, AuthorizationPlan, BundleHeader,
-    CanonicalAction, Challenge, ChannelBindingId, ConditionTest, Confidentiality, ControlBinding,
-    CriticalExtensions, DetachedAttachment, DispositionId, EvidenceObject, FactName, FactValue,
-    MediaType, MemberValues, OBSERVATION_MEDIA_TYPE, ObservationCondition, ObservationFact,
-    ObservationFacts, ObservationRequirement, ObservationSchemaId, ObservationStatement,
-    ObservationSubject, ObserverAnchorId, Opacity, Presence, PrincipalId, ProofBundle, ProofRef,
-    ResourceId, SignatureEnvelope, SignedAction, SignedGrant, SignedObservation, StatementRef,
-    Timestamp, TrustedContext, ValidityWindow, VerifierLimits,
+    ActionConstraint, ActionEnvelope, AssurancePolicyId, AttachmentDescriptor, Audience,
+    AudienceSet, AuthorizationPlan, BundleHeader, CanonicalAction, Challenge, ChannelBindingId,
+    ConditionTest, Confidentiality, ControlBinding, CriticalExtension, CriticalExtensions,
+    DetachedAttachment, DispositionId, EvidenceObject, ExtensionId, FactName, FactValue,
+    GrantStatement, MediaType, MemberValues, OBSERVATION_MEDIA_TYPE, ObservationCondition,
+    ObservationFact, ObservationFacts, ObservationRequirement, ObservationSchemaId,
+    ObservationStatement, ObservationSubject, ObserverAnchorId, Opacity, PermissionSet, Presence,
+    PrincipalId, ProofBundle, ProofRef, ResourceId, SignatureEnvelope, SignedAction, SignedGrant,
+    SignedObservation, StatementRef, StatusPolicy, Timestamp, TrustedContext, ValidityWindow,
+    VerifierLimits,
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_profile_api::ActionProfile as _;
@@ -39,6 +42,9 @@ use auths_registries::ImmutableRegistries;
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 use serde_json::{Map, Value, json};
 use std::ops::Deref;
+
+#[path = "bounds_tests.rs"]
+mod bounds_tests;
 
 const NOW: u64 = 1_790_000_000;
 
@@ -67,7 +73,7 @@ fn namespace() -> OperatorNamespace {
 }
 
 fn signer(seed: u8) -> Signer {
-    Signer::from_seed(seed).expect("signer")
+    Signer::new(seed)
 }
 
 fn recipe(extra: &Value, preconditions: &Value) -> CompiledRecipe {
@@ -113,6 +119,15 @@ fn chained_recipe() -> CompiledRecipe {
         }),
         &json!({"verified": ["depends_on", "depends_on_commitment"]}),
     )
+}
+
+fn context_with_depth(
+    root: &Signer,
+    observer: &PrincipalId,
+    configuration: Option<[u8; 32]>,
+    depth: u16,
+) -> TrustedContext {
+    h::context_with_depth(root, observer, configuration, NOW, depth).expect("context")
 }
 
 fn outcome_requirement() -> ObservationRequirement {
@@ -165,10 +180,8 @@ fn attachments(observations: &[Vec<u8>]) -> (Vec<AttachmentDescriptor>, Vec<Deta
 }
 
 fn sign_action(agent: &Signer, envelope: ActionEnvelope) -> SignedAction {
-    let descriptor = agent.descriptor().expect("descriptor");
-    let signature = agent
-        .sign(&action_signing_preimage(&envelope, &descriptor).expect("preimage"))
-        .expect("signature");
+    let descriptor = agent.descriptor();
+    let signature = agent.sign(&action_signing_preimage(&envelope, &descriptor).expect("preimage"));
     SignedAction::new(envelope, SignatureEnvelope::new(descriptor, signature))
 }
 
@@ -229,19 +242,16 @@ fn submission(
     let bindings = vec![
         ControlBinding::new(
             StatementRef::Grant(grant_id(grant.statement()).expect("grant ID")),
-            vec![root.evidence().expect("evidence").id()],
+            vec![root.evidence().id()],
         )
         .expect("grant binding"),
         ControlBinding::new(
             StatementRef::Action(action_id(action.envelope()).expect("action ID")),
-            vec![agent.evidence().expect("evidence").id()],
+            vec![agent.evidence().id()],
         )
         .expect("action binding"),
     ];
-    let mut evidence = vec![
-        root.evidence().expect("evidence"),
-        agent.evidence().expect("evidence"),
-    ];
+    let mut evidence = vec![root.evidence(), agent.evidence()];
     evidence.sort_by_key(EvidenceObject::id);
     let bundle = ProofBundle::new(
         BundleHeader::v1(),
@@ -278,15 +288,14 @@ fn forged_read_back(signer: &Signer, claimed: &PrincipalId, record: &str, value:
         ObservationFacts::new(vec![ObservationFact::new(name("value"), text(value))])
             .expect("facts"),
     );
-    let descriptor = signer.descriptor().expect("descriptor");
-    let signature = signer
-        .sign(&observation_signing_preimage(&statement, &descriptor).expect("preimage"))
-        .expect("signature");
+    let descriptor = signer.descriptor();
+    let signature =
+        signer.sign(&observation_signing_preimage(&statement, &descriptor).expect("preimage"));
     encode_signed_observation(
         &SignedObservation::new(
             statement,
             SignatureEnvelope::new(descriptor, signature),
-            vec![signer.evidence().expect("evidence")],
+            vec![signer.evidence()],
         )
         .expect("observation"),
     )
@@ -723,10 +732,10 @@ fn sdk_submission(
     let mut builder = auths_author::WorkflowProofBuilder::new();
     let index = builder.push_grant(grant).expect("grant");
     builder
-        .bind_grant_evidence(index, harness.root.evidence().expect("evidence"))
+        .bind_grant_evidence(index, harness.root.evidence())
         .expect("grant evidence");
     builder
-        .bind_action_evidence(harness.agent.evidence().expect("evidence"))
+        .bind_action_evidence(harness.agent.evidence())
         .expect("action evidence");
     let proof = builder
         .finish(&action, prepared.canonical(), &harness.context)
