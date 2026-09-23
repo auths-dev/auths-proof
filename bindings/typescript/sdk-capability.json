@@ -24,7 +24,7 @@
       "generated error-registry digest without root-load registry hashing",
       "effect-free identity and verification utilities",
       "self-hosted exact MCP authorization with application-owned provider credentials and unqualified effects",
-      "proof/action-only local gateway client with distinct refusal, unknown, response, observation, and echo-bound observed-by-provider outcomes; deployment isolation is operator-owned",
+      "proof/action-only local gateway client with distinct refusal, unknown, response, observation, and echo-bound observed-by-provider outcomes, plus read-only requests for gateway-signed read-back and outcome observations returned as attachable bytes; deployment isolation is operator-owned",
       "closed bounded enumeration fields in self-hosted exact MCP argument contracts"
     ],
     "excluded": [

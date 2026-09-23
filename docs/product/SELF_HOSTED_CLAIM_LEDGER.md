@@ -193,7 +193,11 @@ observation never satisfies; and an observer that is also in the authority
 chain is refused. **The live Airtable run has not been done**, no hosted CI
 result is cited here, and no document may yet describe gateway grants as
 conditioned on observed provider state. The Python and TypeScript gateway
-clients do not yet expose the observation request.
+clients expose the observation request (`observe_read_back`/`observe_outcome`,
+`observeReadBack`/`observeOutcome`) and return the exact signed bytes and
+media type, parsed as a closed result and exercised only against fake sockets.
+Neither SDK has an action-authoring helper that attaches detached
+attachments, so attaching a returned observation is not yet an SDK workflow.
 
 ## Packaged clean-consumer exercise
 

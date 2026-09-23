@@ -87,12 +87,15 @@ GatewayDenied
 GatewayEndpoint
 GatewayIndeterminate
 GatewayNotEntered
+GatewayObservationRefused
+GatewayObserveResult
 GatewayObserved
 GatewayObservedByProvider
 GatewayProtocolError
 GatewayProviderEvidence
 GatewayResponseRecorded
 GatewayResult
+GatewaySignedObservation
 GatewayUnknown
 
 [auths.self_hosted]
