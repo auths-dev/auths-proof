@@ -304,6 +304,12 @@ unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }
 all = "deny"
 pedantic = "deny"
 
+# Tests exercise real Ed25519, P-256 and SHA-2 on every fixture. Unoptimized,
+# that arithmetic dominates test time; optimizing third-party code keeps
+# workspace crates debuggable with their debug assertions intact.
+[profile.dev.package."*"]
+opt-level = 2
+
 [profile.release]
 lto = "thin"
 codegen-units = 1

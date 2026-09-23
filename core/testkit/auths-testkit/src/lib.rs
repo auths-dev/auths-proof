@@ -4712,9 +4712,18 @@ fn attachment_fixture(
 }
 
 /// Returns the initial target V1 normative corpus.
+///
+/// Authoring the corpus signs every vector, so it is built once per process
+/// and cloned. Every vector is deterministic, so the cached bytes are the
+/// bytes a fresh build would produce.
 #[must_use]
-#[allow(clippy::too_many_lines)]
 pub fn corpus() -> Vec<CorpusFixture> {
+    static CORPUS: std::sync::OnceLock<Vec<CorpusFixture>> = std::sync::OnceLock::new();
+    CORPUS.get_or_init(build_corpus).clone()
+}
+
+#[allow(clippy::too_many_lines)]
+fn build_corpus() -> Vec<CorpusFixture> {
     let mut corpus = vec![
         raw_key_chain(),
         did_key_root_raw_key_actor(),

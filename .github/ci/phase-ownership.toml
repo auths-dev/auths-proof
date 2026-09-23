@@ -311,6 +311,14 @@ kind = "exact"
 value = ".gitignore"
 phases = ["authoritative", "secrets"]
 
+# Line-ending attributes change the bytes of checked-in fixtures that the
+# authoritative suite and the packaged SDK consumers read.
+[[rules]]
+id = "repository-attributes"
+kind = "exact"
+value = ".gitattributes"
+phases = ["authoritative", "compliance", "secrets"]
+
 [[rules]]
 id = "repository-contract"
 kind = "exact"
