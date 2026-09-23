@@ -16,12 +16,12 @@ import re
 import struct
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Mapping, Optional, Union, cast
+from typing import Final, Literal, Mapping, Optional, Union, cast
 
 _REQUEST_SCHEMA = "auths.gateway-submit/1"
 _OBSERVE_SCHEMA = "auths.gateway-observe/1"
-_READ_BACK_SCHEMA = "auths.gateway-readback/1"
-_OUTCOME_SCHEMA = "auths.gateway-outcome/1"
+_READ_BACK_SCHEMA: Final = "auths.gateway-readback/1"
+_OUTCOME_SCHEMA: Final = "auths.gateway-outcome/1"
 _OBSERVATION_MEDIA_TYPE = "application/vnd.auths.observation.v1+cbor"
 _MAX_OBSERVATION_BYTES = 4_096
 _MAX_SUBJECT_BYTES = 1_024
