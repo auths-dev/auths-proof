@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 291,
+  "freezeVersion": 292,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -960,7 +960,7 @@
     },
     {
       "id": "auths.product.simplified-waist",
-      "version": 15,
+      "version": 16,
       "classification": "frozen-meaning",
       "categories": [
         "product-waist-invariants",
@@ -976,7 +976,7 @@
         "product/conformance/v1/simplified-product-waist.json",
         "xtask/src/product_waist.rs"
       ],
-      "sha256": "d954e556d38fe0f9bbd882fb9fc1fd7f8ae61b2e97b5dcc3436625d58574ed48"
+      "sha256": "e6c2961fbf9dab54c491a74ea8150319e6d31d525a7c5bf11a65f0223c205c72"
     },
     {
       "id": "auths.product.vocabulary",
@@ -1044,7 +1044,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 291,
+      "version": 292,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1136,7 +1136,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "c3207d199643507bd56b284cdc61626e0fff4cd564b90fdcdf50e376791c20a2"
+      "sha256": "1227d3137866639f3b8f877aaf485c8e20a87f6f6eb574203944e1224270add4"
     }
   ]
 }

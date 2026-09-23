@@ -198,7 +198,7 @@ test("delegate plans reviews approves and signs one attenuated child", async () 
     method: "status.test-v1",
     maxAge: 30n,
   });
-  assert.deepEqual(child.authority.criticalExtensions, ["extension.test-v1"]);
+  assert.deepEqual(child.authority.criticalExtensions, ["exact-marker-v1"]);
   assert.equal(
     child.authority.explanation.code,
     "delegated-authority-structurally-bound",

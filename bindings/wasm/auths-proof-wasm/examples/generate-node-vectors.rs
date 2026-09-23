@@ -688,7 +688,7 @@ fn delegation_root(
         },
         proposed.assurance_floor().clone(),
         auths_model::CriticalExtensions::new(vec![auths_model::CriticalExtension::new(
-            auths_model::ExtensionId::parse("extension.test-v1")?,
+            auths_model::ExtensionId::parse("exact-marker-v1")?,
             vec![1, 2, 3],
         )?])?,
     );
