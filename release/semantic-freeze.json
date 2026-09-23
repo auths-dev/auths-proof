@@ -94,7 +94,7 @@
     },
     {
       "id": "auths.frozen-bytes/architecture/dependency-graph.json",
-      "version": 51,
+      "version": 50,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -238,7 +238,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/source-closure.json",
-      "version": 59,
+      "version": 58,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -573,7 +573,7 @@
         "core/fixtures/identity/v1/vectors.json",
         "core/spec/identity/v1"
       ],
-      "sha256": "c666f578753019cb4dd0d73ec4b68f51e3533e7ae5da853767ad4c4e3b2dfb7b"
+      "sha256": "fbe384a452c30069b792396a350ef820bce879bad9f9b7201621f78cd77da8bc"
     },
     {
       "id": "auths.modular-components",
@@ -631,7 +631,7 @@
         "core/crates/auths-model/src/lib.rs",
         "core/spec/v1/auths-proof.cddl"
       ],
-      "sha256": "e5b52fd72b4f15994a8bef57f902051c83b9cb8607b332fed8af22c9c229f667"
+      "sha256": "809d29625c33e6eb7c9678fa775365f4b4462193b31306829df7f6e984af6fd7"
     },
     {
       "id": "auths.product.bounded-domains",
@@ -815,7 +815,7 @@
     },
     {
       "id": "auths.product.mcp-closed-execution",
-      "version": 24,
+      "version": 22,
       "classification": "frozen-meaning",
       "categories": [
         "profile-session",
@@ -904,7 +904,7 @@
     },
     {
       "id": "auths.product.public-sdk-contract",
-      "version": 78,
+      "version": 77,
       "classification": "frozen-meaning",
       "categories": [
         "rust-sdk-contract",
@@ -1019,7 +1019,7 @@
     },
     {
       "id": "auths.release.evolution-contract",
-      "version": 63,
+      "version": 64,
       "classification": "frozen-meaning",
       "categories": [
         "version-axes",
@@ -1040,7 +1040,7 @@
         "release/fixtures/evolution",
         "xtask/src/evolution_policy.rs"
       ],
-      "sha256": "3c9e1472baae454c26c4c06d18815a21ddfb50ecada8c212b9970926d0e9aca5"
+      "sha256": "65f7dedf7ebadf0ac0389b2b818329b9f5dd0c38b801889f6ad400bc46bf8232"
     },
     {
       "id": "auths.release.public-surface",
@@ -1136,7 +1136,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "14a8a6e0c6e2b243acd93eddd2b319f83662a49744a5660e0f15c6ee6227d8bf"
+      "sha256": "41a6b23592c5aec81557a8381c06f248df48d59b77a17faa9087f24bc2b00485"
     }
   ]
 }

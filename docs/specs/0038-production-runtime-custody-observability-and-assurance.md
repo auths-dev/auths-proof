@@ -217,3 +217,77 @@ No general production claim is permitted until:
 
 Anything less is a development build, release candidate, restricted preview,
 sandbox integration, or design-partner pilot according to its actual evidence.
+
+## 9. Amendment (2026-09-23): gateway, provider evidence, observers, and Git signing
+
+The gateway, provider-bound evidence, gateway observations, and Git signing
+(AP-SPEC-053, 059, 060, 058) were built after this specification. Each runs
+on development-grade trust today:
+
+- The gateway's attempt store is a single-host file store
+  (`FileGatewayAttemptStore`).
+- The gateway observer key and Git-signing root keys are software seed files.
+- A single operator provisions the trust, runs the gateway, and runs the
+  observer.
+
+This amendment brings them into the production substrate. It is not a
+second production specification, and no general production claim covers
+them until the requirements below are satisfied in the completion gate.
+
+### 9.1 Scope added to existing epics
+
+| Epic | Added requirement |
+| --- | --- |
+| 2 — PostgreSQL lifecycle store | The gateway's logical-operation claims, provider-bound evidence records, and outcome stages run on the qualified multi-host store. The single-host file store stays the development default. The multi-host fault matrix includes the gateway's replay, fresh-challenge, crash-after-entry, and concurrent re-observation cases. |
+| 4 — External custody | The gateway observer key and Git-signing root keys are held behind `auths-custody` (KMS or PKCS#11), with the same transaction binding and lifecycle conformance as other custody. Each signer reports its custody kind. A trusted context MAY require a custody kind for roots and observers, and a verifier with that requirement MUST refuse any other kind. |
+| 5 — Operations | The operator runbook covers observer key rotation, observer-anchor updates in trust, and Git-signing revocation records. |
+| 9 — Qualification | The candidate's evidence includes a hostile run of observation-conditioned grants and provider-bound evidence against the multi-host deployment. |
+
+### 9.2 Trust that does not reduce to one operator
+
+A production deployment separates these principals, and the verifier
+refuses any overlap:
+
+- **Root.** It issues grants. Production roots are provisioned in a
+  reviewed ceremony, recorded with who held which key share, and MAY be
+  M-of-N through the kernel's `KOfN` composition.
+- **Operator.** It runs the gateway and holds provider credentials.
+- **Observer.** It signs observations. The kernel already refuses an
+  observer that appears in an authority chain.
+
+**Observer quorum.** A grant MAY require a K-of-N quorum of observers from
+distinct operator domains (AP-SPEC-060 §16), for example the gateway plus a
+read-only observer run by a different party.
+
+- Each observer anchor declares its operator domain.
+- Observers are counted per domain, so one operator cannot meet a quorum
+  alone.
+- The production deployment names the observer operators and their domains
+  in the candidate evidence.
+
+### 9.3 Claim and gate additions
+
+The bounded claim in §7 extends to the gateway, provider evidence, and
+observation-conditioned grants only when the deployment:
+
+- runs them on the qualified store;
+- holds the observer and root keys in qualified custody;
+- separates root, operator, and observer principals.
+
+The completion gate in §8 adds three items:
+
+- the separation and custody requirements are exercised by a second
+  operator;
+- a 2-of-3 observer quorum across three distinct operator domains is
+  demonstrated, including one refuting observer that leaves the quorum
+  reachable and two that deny it;
+- the root ceremony record is part of the candidate evidence.
+
+### 9.4 Not in scope
+
+- **Certification.** FIPS 140-3 validated modules, accreditation regimes,
+  and similar programs are commercial and customer-driven. Nothing in this
+  amendment claims them.
+- **Hardware custody for local developer agents** (for example the Secure
+  Enclave). It is deferred until someone adopts Git signing.
+

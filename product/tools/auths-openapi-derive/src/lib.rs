@@ -273,7 +273,7 @@ pub fn derive(
     })
 }
 
-/// Runs [`derive`] and encodes the outcome as the JSON both bindings decode.
+/// Runs [`derive()`] and encodes the outcome as the JSON both bindings decode.
 /// This never fails: every problem is an in-band `ok: false` result.
 #[must_use]
 pub fn derive_to_json(document: &[u8], document_name: &str, arguments: &[String]) -> String {

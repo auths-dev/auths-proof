@@ -1,14 +1,10 @@
 # AP-SPEC-060: Evidence-conditioned authority
 
-- **Status:** Draft; written on owner direction before its epic starts
-  (board §4, 2026-09-22). Steps 1–3 of §9 (formal model, fixtures, core)
-  are implemented. Step 4 (gateway observer) is implemented in
-  `product/runtime/auths-gateway` with repository-local tests; no hosted CI
-  result is cited yet. Step 5 is not done. §13 records the readings the
-  kernel's real structure forced; §14 records the gateway's. This is a
-  **core protocol change**: new wire objects, a new critical extension, a
-  trusted-context field, a port method, a verifier stage, and a new
-  registry manifest.
+- **Status:** Epic steps 1–4 implemented: kernel, fixtures, and bindings in
+  #133, and the gateway observer. The client observation requests are in
+  #134. Step 5 (live) is open. §15–§17 (SDK attachment, the Rust–Lean
+  link, the observer quorum, and per-extension attenuation) are specified
+  and not implemented. §16 and §17 are wire changes.
 - **Depends on:** [AP-SPEC-011](0011-rich-authority-refinement-and-bounded-authorization.md)
   (rich authority model and Rust–Lean link),
   [AP-SPEC-059](0059-commitment-bound-provider-evidence.md) (the outcomes the
@@ -389,4 +385,257 @@ implementation fixed the narrowest reading below.
 | 6 | Binding an action-fact subject to the written record | The recipe gains an optional `preconditions` block: `read_back_subject` names the argument that must equal this request's read-back subject, and `verified` lists arguments no request renders, compared only by observation requirements. The gateway refuses a mismatched subject with `gateway.recipe.precondition-subject-mismatch` before any claim. Without it, an observation of one record could license a write to another. |
 | 7 | Evaluation time | The gateway verifies each submission at its own clock through `TrustedContext::for_request`, keeping the installed audience and challenge. Freshness against an install-time evaluation time would be meaningless. |
 | 8 | "Step N is indeterminate until step N−1 is provider-bound" | With no outcome observation attached, step N is `observation-missing` (indeterminate). With a signed outcome of another stage, it is `observation-condition-false` (denied), as §4.1 requires for an eligible observation that falsifies a condition. Either way step N's logical operation stays unclaimed, so a later action with a fresh observation can proceed. |
+
+## 15. Amendment (2026-09-23): SDK attachment and the Rust–Lean link
+
+Two gaps remain after the kernel, gateway observer, and client requests.
+
+### 15.1 Attaching an observation to the next action
+
+The Python and TypeScript clients can request a gateway-signed observation,
+but neither SDK can attach one to an action. There is no authoring surface
+for detached attachments in either SDK.
+
+1. The native authoring path gains one operation. It takes a canonical
+   action and zero or more signed observations, and returns the action with
+   each observation carried as a detached attachment. The attachment
+   descriptors are bound by the action statement before signing.
+   - The operation validates each observation's media type and size. It
+     does not verify the observation; the verifier does.
+2. Python and TypeScript expose that operation as a thin projection. It is
+   not a second implementation.
+3. **Acceptance:** a packed Python consumer and a packed npm consumer each
+   run the expected-before-replacement journey against the gateway's test
+   harness:
+   - request a read-back observation;
+   - attach it to the replacement action;
+   - submit, and the write is authorized;
+   - change the record, and the stale observation is denied before any
+     credential lease.
+
+### 15.2 Linking the theorems to the shipping predicates
+
+The Lean theorems (§13, reading 14) are proved over the abstract model. The
+eleven Aeneas-translated Rust predicates are qualified, but no proof yet
+connects them to the model.
+
+1. Add a refinement module that states and proves, for each translated
+   predicate, equality with its model counterpart. It follows the pattern of
+   `formal/Auths/Refinement/Production.lean` for the authority predicates.
+2. Register the refinement claims in the assurance manifest with their
+   axiom sets.
+3. **Acceptance:** `cargo xtask formal` passes with the new claims in the
+   inventory. The monotonicity and attenuation theorems then cover the
+   translated Rust, subject to the published translation assumptions of
+   AP-SPEC-011 §13.
+
+### 15.3 Related amendments
+
+Observer quorum (§16) and extension attenuation (§17) are wire changes
+specified below. They are part of this specification's scope, not future
+work.
+
+## 16. Amendment (2026-09-23): observer quorum
+
+A requirement names one observer anchor today. Several requirements naming
+different observers give an N-of-N quorum, because requirements combine by
+conjunction. No construction gives K-of-N with K < N. A quorum is only
+meaningful if its members are independent, and two keys run by one operator
+are not.
+
+This section replaces the single observer with a quorum over independent
+operator domains. It is a clean cutover under the prelaunch rule: the
+single-observer form is removed, not kept as an alias.
+
+### 16.1 Wire
+
+```text
+ObserverAnchor = {
+  id:                 ObserverAnchorId,
+  principal:          PrincipalId,
+  operator_domain:    OperatorDomain,        ; 1..128 bytes, canonical token
+  accepted_methods:   [ PrincipalMethodId ],
+  schemas:            [ ObservationSchemaId ],
+  subject_namespaces: [ ResourceId ],
+  validity:           ValidityWindow,
+}
+
+ObservationRequirement = {
+  observers:       [ 1*8 ObserverAnchorId ],   ; distinct, sorted
+  quorum:          1..8,                        ; K; quorum <= len(observers)
+  schema:          ObservationSchemaId,
+  subject:         ResourceId / ActionFactRef,
+  max_age_seconds: 1..86400,
+  conditions:      [ 1*16 Condition ],
+}
+```
+
+- **Operator domains.** `operator_domain` names who operates the observer.
+  It is asserted by whoever provisions the trusted context, the same party
+  that decides which observers to trust.
+- **Invalid contexts.** A trusted context is invalid, and rejected at
+  decode, if two anchors share a principal or if one anchor appears twice.
+- **Invalid requirements.** A requirement whose `quorum` exceeds the number
+  of its distinct observers, or whose observers repeat, is invalid and
+  denied with the existing extension-validation code.
+
+### 16.2 Semantics
+
+For each requirement:
+
+1. **Qualifying observations.** For each named observer anchor present in
+   the context, collect the attached observations that:
+   - are signed by that anchor's principal, verified by its accepted
+     methods;
+   - match the requirement's schema and subject;
+   - lie inside the anchor's `subject_namespaces`;
+   - are fresh under the §4.1 rules.
+
+   Observations that fail these checks are ignored, as in §4.1.
+2. **Classifying operator domains.** For each operator domain among the
+   named anchors:
+   - **Satisfying:** at least one qualifying observation from an anchor in
+     that domain makes every condition true.
+   - **Refuting:** the domain is not satisfying, and every anchor in it with
+     a qualifying observation has only observations that falsify some
+     condition.
+   - **Absent:** otherwise.
+
+   Observations are counted per operator domain, never per anchor or per
+   observation, so one operator cannot meet a quorum alone.
+3. **Result.** Let `D` be the number of distinct operator domains among the
+   named anchors present in the context, and `K` the quorum.
+   - **Satisfied** when at least `K` domains are satisfying.
+   - **Denied**, with `observation-quorum-refuted`, when the refuting
+     domains are more than `D − K`. The quorum can then no longer be met by
+     any additional observation.
+   - **Indeterminate**, with `observation-quorum-unmet`, otherwise.
+
+   A requirement whose named anchors span fewer than `K` distinct operator
+   domains in the context is indeterminate with `observation-quorum-unmet`.
+   It can never be satisfied under that context, and the verifier reports it
+   rather than guessing.
+4. **Combination.** Across requirements, `denied` dominates `indeterminate`,
+   as in §4.1. The single-observer codes `observation-condition-false` and
+   `observation-missing` are removed, replaced by the two quorum codes.
+   `observer-in-authority-chain` is unchanged and applies to every named
+   observer.
+5. **Reporting.** For each requirement, the result reports the satisfying
+   operator domains and one observation digest per satisfying domain.
+
+### 16.3 Limits
+
+- At most 8 observers per requirement, and a quorum of at most 8.
+- At most 32 observer anchors per context.
+- At most 32 observation attachments.
+
+Work is reserved per requirement as observers × attachments × conditions,
+before evaluation.
+
+### 16.4 Formal obligations
+
+The Lean model gains observers, operator domains, and quorum. The following
+theorems are added to the assurance manifest:
+
+- `quorum_monotone`: raising `K` never enlarges the authorized set.
+- `observer_subset_monotone`: removing observers from a requirement, with
+  `K` fixed, never enlarges the authorized set.
+- `domain_counting_sound`: two anchors in one operator domain never count
+  toward more than one member of the quorum.
+- `quorum_decision_partition`: for every observation set, exactly one of
+  satisfied, refuted, or unmet holds.
+
+The quorum predicate is written as a pure, bounded, extractable function and
+Aeneas-qualified, with the refinement link of §15.2.
+
+### 16.5 Wire-change obligations and acceptance
+
+This follows §8: CDDL, codec, registry manifest (a new identifier),
+`registry.md`, `error-codes.md`, canonical fixtures generated through
+`cargo xtask wire --update`, native tests, WASM, and the independent Go and
+TypeScript implementations.
+
+The fixtures cover, at minimum:
+
+- K = N and K < N;
+- a quorum met exactly, and missing by one;
+- two anchors of one operator domain counted once;
+- refutation reaching `D − K + 1`;
+- a quorum larger than the distinct domains;
+- duplicate observers or principals rejected at decode;
+- the observer limits at the boundary and one past it.
+
+**Acceptance:** Rust, Go, and TypeScript agree on every new vector; the four
+theorems are registered and pass `cargo xtask formal`; and the gateway
+hostile suite shows a 2-of-3 quorum. In that suite, the gateway observer
+plus one independent read-only observer authorizes the write. Two observers
+of one operator domain do not. One refuting observer out of three leaves the
+quorum reachable, and two refuting observers deny it.
+
+## 17. Amendment (2026-09-23): per-extension attenuation
+
+The kernel treats critical extensions as the eleventh authority dimension
+and requires a child grant's extensions to equal its parent's byte for byte
+(`extensions_attenuate` and `evaluate_author_scope_view` in
+`core/crates/auths-authority/src/lib.rs`). That is sound but too strict:
+
+- a delegate cannot add an observation requirement (§13, reading 1);
+- a delegate cannot narrow a bounded-policy commitment (AP-SPEC-025 §24).
+
+Both are narrowings, which delegation must allow.
+
+### 17.1 Rule
+
+1. Every critical-extension handler declares an attenuation law:
+   `attenuates(child_bytes: Option, parent_bytes) -> bool`.
+2. **Child extensions attenuate the parent's** when, for every extension
+   identifier the parent carries:
+   - the child carries the same identifier; and
+   - the handler's law accepts the pair.
+3. **Extensions the child adds** that the parent lacks are accepted only if
+   their handler declares `attenuates(child_bytes, absent) = true`. That
+   means adding the extension can only narrow authority.
+4. A parent with no extension scope still constrains nothing.
+5. An identifier without a registered handler is denied, as today.
+
+### 17.2 Laws of the registered handlers
+
+| Extension | Law |
+| --- | --- |
+| `exact-marker-v1` | Byte equality; adding it is refused. This is today's behavior, so the marker still changes no authority. |
+| `observation-requirement-v1` | Every parent requirement is present in the child, either byte-identical or narrowed. A requirement is narrowed when all of the following hold, and at least one is strictly narrower: <ul><li>quorum greater than or equal;</li><li>observers a subset;</li><li>`max_age` less than or equal;</li><li>conditions a superset, compared as a set of canonical atoms;</li><li>schema and subject equal.</li></ul> The child MAY add requirements, and adding the extension where the parent has none is accepted. |
+| `bounded-policy-commitment-v1` (AP-SPEC-025 §24) | The child's body carries its own policy commitment plus the digest of the parent's commitment. The kernel accepts the pair only when that digest equals the parent's commitment. Whether the child's policy is actually tighter is a product-layer question: the registered evaluator's tightening decider (AP-SPEC-025 §15) answers it before eligibility. An unregistered decider, or one that cannot decide, is indeterminate. Adding the extension where the parent has none is accepted, because any bound narrows an unbounded grant. |
+
+### 17.3 Formal obligations
+
+1. The rich authority model in Lean (AP-SPEC-011) replaces its
+   extension-equality dimension with a per-identifier preorder.
+2. The model proves the kernel's rule preserves the existing theorem that
+   delegation never widens authority, **given** that each handler's law is a
+   preorder that narrows. That hypothesis is discharged per handler:
+   - `exact-marker-v1`: trivially.
+   - `observation-requirement-v1`: from §16.4's monotonicity theorems.
+   - `bounded-policy-commitment-v1`: the kernel only checks the parent
+     link. Narrowing is discharged by the registered evaluator's tightening
+     law (AP-SPEC-025 §15). That boundary is recorded in the assurance
+     manifest as a product-layer premise, not claimed as a kernel theorem.
+3. `extensions_attenuate` and the author-scope check are rewritten as pure
+   extractable predicates over the handler laws. They are re-qualified with
+   Aeneas, and the refinement to the rich model is re-proved.
+
+### 17.4 Wire and acceptance
+
+The registry manifest changes (a new identifier), because attenuation
+semantics change. Fixtures cover:
+
+- a child adding a requirement;
+- a child narrowing quorum, observers, max age, or conditions;
+- a child widening each of those, which is denied as delegation-expanded;
+- a child dropping a parent requirement;
+- the marker added or changed, which is denied;
+- the bounded-policy parent link correct and wrong.
+
+**Acceptance:** Rust, Go, and TypeScript agree on every vector; the formal
+gate passes with the revised dimension; and §13 reading 1 is superseded. A
+delegate can now add observation requirements.
 
