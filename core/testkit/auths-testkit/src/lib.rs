@@ -57,6 +57,7 @@ use rcgen::{
 use rustls_pki_types::PrivatePkcs8KeyDer;
 use sha2::{Digest as _, Sha256};
 
+mod bounded_policy;
 mod observation;
 
 pub use observation::observation_action_fact_fixture;
@@ -1966,11 +1967,30 @@ fn marker_delegation_vectors() -> Vec<CorpusFixture> {
 
 /// A root-to-intermediary grant and an intermediary-to-actor grant that
 /// carry the `exact-marker-v1` payloads `parent` and `child`, if any.
-#[allow(clippy::too_many_lines)]
 fn marker_delegation(
     name: &'static str,
     parent: Option<u8>,
     child: Option<u8>,
+    expected: Expected,
+) -> CorpusFixture {
+    extension_delegation(
+        name,
+        "exact-marker-v1",
+        parent.map(|byte| vec![byte]),
+        child.map(|byte| vec![byte]),
+        expected,
+    )
+}
+
+/// A root-to-intermediary grant and an intermediary-to-actor grant that
+/// carry the `extension` payloads `parent` and `child`, if any, under a
+/// context that accepts `extension`.
+#[allow(clippy::too_many_lines)]
+pub(crate) fn extension_delegation(
+    name: &'static str,
+    extension: &str,
+    parent: Option<Vec<u8>>,
+    child: Option<Vec<u8>>,
     expected: Expected,
 ) -> CorpusFixture {
     let identities = [
@@ -1982,11 +2002,11 @@ fn marker_delegation(
     let proof_ref = ProofRef::new([0xce; 32]);
     let plan = AuthorizationPlan::proof(proof_ref);
     let plan_identifier = plan_id(&plan).expect("plan ID");
-    let extension_id = ExtensionId::parse("exact-marker-v1").expect("extension ID");
-    let marker = |payload: Option<u8>| match payload {
+    let extension_id = ExtensionId::parse(extension).expect("extension ID");
+    let marker = |payload: Option<Vec<u8>>| match payload {
         None => CriticalExtensions::empty(),
-        Some(byte) => CriticalExtensions::new(vec![
-            CriticalExtension::new(extension_id.clone(), vec![byte]).expect("extension"),
+        Some(bytes) => CriticalExtensions::new(vec![
+            CriticalExtension::new(extension_id.clone(), bytes).expect("extension"),
         ])
         .expect("extension set"),
     };
@@ -4931,6 +4951,7 @@ fn build_corpus() -> Vec<CorpusFixture> {
         ),
     ];
     corpus.extend(marker_delegation_vectors());
+    corpus.extend(bounded_policy::bounded_policy_vectors());
     corpus.extend(observation::observation_corpus());
     corpus
 }
