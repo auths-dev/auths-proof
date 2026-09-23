@@ -81,6 +81,7 @@ fn cargo_auths_node_profiles(
 }
 
 pub(crate) fn ci() -> Result<(), String> {
+    ci_preflight()?;
     ci_authoritative()?;
     formal(false, false)?;
     ci_compliance()
@@ -110,6 +111,9 @@ pub(crate) fn ci_preflight() -> Result<(), String> {
     )
 }
 
+/// Runs the long implementation gates. Workspace check and clippy over every
+/// target and `auths-node` profile run once, in [`ci_preflight`], which hosted
+/// CI requires before this phase and [`ci`] runs first.
 pub(crate) fn ci_authoritative() -> Result<(), String> {
     format_all()?;
     arch(false)?;
@@ -127,15 +131,6 @@ pub(crate) fn ci_authoritative() -> Result<(), String> {
     release_contract()?;
     repository_hygiene()?;
     cargo(&[
-        "check",
-        "--workspace",
-        "--exclude",
-        "auths-node",
-        "--all-targets",
-        "--all-features",
-    ])?;
-    cargo_auths_node_profiles("check", &AUTHS_NODE_CHECK_PROFILES, &[])?;
-    cargo(&[
         "test",
         "--workspace",
         "--exclude",
@@ -144,22 +139,6 @@ pub(crate) fn ci_authoritative() -> Result<(), String> {
     ])?;
     cargo_auths_node_profiles("test", &AUTHS_NODE_TEST_PROFILES, &[])?;
     release_preflight()?;
-    cargo(&[
-        "clippy",
-        "--workspace",
-        "--exclude",
-        "auths-node",
-        "--all-targets",
-        "--all-features",
-        "--",
-        "-D",
-        "warnings",
-    ])?;
-    cargo_auths_node_profiles(
-        "clippy",
-        &AUTHS_NODE_CHECK_PROFILES,
-        &["--", "-D", "warnings"],
-    )?;
     release_documentation()?;
     core_boundary()?;
     workspace_msrv()?;

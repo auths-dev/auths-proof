@@ -287,6 +287,15 @@ pub(crate) fn validate(root: &Path, attenuation_dimensions: &[String]) -> Result
     Ok(closure_digest)
 }
 
+/// Rewrites only the lightweight source closure. The closure hashes sources,
+/// not translations, so it is reproducible without Aeneas; refreshing it
+/// before a push leaves the hosted formal updater nothing to commit.
+pub(crate) fn refresh_source_closure(root: &Path) -> Result<String, String> {
+    let qualification = load_qualification(root)?;
+    validate_manifest(root, &qualification)?;
+    synchronize_source_closure(root, &qualification, true)
+}
+
 pub(crate) fn validate_source_closure(root: &Path) -> Result<String, String> {
     let qualification = load_qualification(root)?;
     validate_manifest(root, &qualification)?;
