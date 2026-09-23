@@ -3,8 +3,8 @@
 - **Status:** Epic steps 1–4 implemented: kernel, fixtures, and bindings in
   #133, and the gateway observer. The client observation requests are in
   #134. Step 5 (live) is open. §15 (SDK attachment and the Rust–Lean link)
-  is implemented on branch `060-sdk-attach`, with the readings in §15.4;
-  its hosted gate is that branch's CI. §16 and §17 (the observer quorum and
+  is implemented in draft PR #144, with the readings in §15.4; its
+  hosted gate is that PR's CI. §16 and §17 (the observer quorum and
   per-extension attenuation) are specified and not implemented; both are
   wire changes.
 - **Depends on:** [AP-SPEC-011](0011-rich-authority-refinement-and-bounded-authorization.md)
