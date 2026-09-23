@@ -324,13 +324,12 @@ jobs:
 
   formal-translation-run:
     name: formal translation
-    needs: [ci-plan, formal-update-gate, repository-preflight, formal-proof-fast]
+    needs: [ci-plan, formal-update-gate, repository-preflight]
     if: >-
       !cancelled() &&
       needs.ci-plan.result == 'success' &&
       needs.formal-update-gate.result == 'success' &&
       needs.repository-preflight.result == 'success' &&
-      needs.formal-proof-fast.result == 'success' &&
       needs.ci-plan.outputs.formal_translation_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 100
@@ -515,13 +514,12 @@ jobs:
 
   formal-kani-run:
     name: formal Kani
-    needs: [ci-plan, formal-update-gate, repository-preflight, formal-proof-fast]
+    needs: [ci-plan, formal-update-gate, repository-preflight]
     if: >-
       !cancelled() &&
       needs.ci-plan.result == 'success' &&
       needs.formal-update-gate.result == 'success' &&
       needs.repository-preflight.result == 'success' &&
-      needs.formal-proof-fast.result == 'success' &&
       needs.ci-plan.outputs.formal_kani_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
