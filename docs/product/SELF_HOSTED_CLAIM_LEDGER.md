@@ -13,14 +13,28 @@ Airtable and Todoist field-lab demos. It is not a provider qualification.
 Here, **authorized** means a valid proof for the exact canonical action under
 the supplied trust. Grant-level restriction of a closed-enumeration variant is
 AP-SPEC-025 scope and is not wired into this self-hosted path today; the
-proposed gateway must not assume that policy check already exists.
+gateway must not assume that policy check already exists.
 
 The field-lab demos use an ephemeral self-trusting testkit signer/context and
 app-held API tokens. Their successful live read-backs show that the plumbing
 works against those providers; they do not demonstrate production authority
 provisioning, non-bypassable enforcement, or qualified provider behavior.
 Applications that hold their own token can bypass the SDK gate. A separate
-credential-owning gateway is needed for a stronger enforcement claim.
+credential-owning gateway is needed for a stronger enforcement claim; its
+narrower, deployment-conditioned claim is in the gateway section below.
+
+The self-hosted guarantee is therefore **enforced ordering within a
+voluntarily called SDK**. Both the self-hosted SDK and the gateway govern
+writes. The records API (AP-SPEC-024 §10) governs exact reads. An application
+that holds an independent read credential is not constrained by either write
+gate, and neither path claims general read authorization or confidentiality.
+
+Formal assurance covers a verifier whose authority, attenuation, lifecycle,
+and bounded-policy predicates are translated to Lean and refined under stated
+assumptions (the scoped claims are in `formal/assurance-manifest-v1.toml`).
+Canonical decoding, cryptography, storage, and the rest of the path from
+verifier to provider are outside that surface. It is not a formally verified
+end-to-end verifier.
 
 ## Developer gateway claim boundary (AP-SPEC-053, in progress)
 
