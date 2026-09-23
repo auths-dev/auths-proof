@@ -115,6 +115,21 @@ pub fn encode_qualification_client_result_frame_v1(
         .map_err(|_| js_error(EngineError::Abi("invalid qualification result frame")))
 }
 
+/// Derives one `OpenAPI` operation into profile, recipe, and provenance bytes
+/// for the packaged profile CLI. Pure: it reads only its arguments, and a
+/// rejected document is an `ok: false` JSON result, never an exception.
+#[must_use]
+#[wasm_bindgen(js_name = deriveOpenapiOperationV1)]
+// wasm-bindgen passes a JavaScript string array only as an owned vector.
+#[allow(clippy::needless_pass_by_value)]
+pub fn derive_openapi_operation_v1(
+    document: &[u8],
+    document_name: &str,
+    arguments: Vec<String>,
+) -> String {
+    auths_openapi_derive::derive_to_json(document, document_name, &arguments)
+}
+
 const MAX_VERIFICATION_BATCH_ITEMS: usize = 256;
 const MAX_VERIFICATION_BATCH_BYTES: usize = 16 * 1024 * 1024;
 

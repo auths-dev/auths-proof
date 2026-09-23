@@ -5,7 +5,7 @@
 import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import { realpathSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const identity = /^[a-z][a-z0-9._-]{0,63}$/;
@@ -304,6 +304,7 @@ function schemaAt(schema, path) {
 
 export async function profileDiff(path) {
   const contract = parseContract(await sourceAt(path));
+  const derived_edits = await derivedEdits(dirname(path));
   const target = join(dirname(path), "profile.lock.json");
   const current = JSON.parse(renderLock(contract));
   let old;
@@ -312,7 +313,7 @@ export async function profileDiff(path) {
     if (!metadata.isFile() || metadata.isSymbolicLink()) throw new Error("profile lock is invalid");
     old = JSON.parse(await readFile(target, "utf8"));
   } catch (error) {
-    if (error.code === "ENOENT") return { status: "new", stage: "contract", code: "profile.contract.new",
+    if (error.code === "ENOENT") return { derived_edits, status: "new", stage: "contract", code: "profile.contract.new",
       changed_fields: [], changes: [], action_identity_changed: true, next_action: "Run profile generate." };
     throw error;
   }
@@ -323,7 +324,7 @@ export async function profileDiff(path) {
   const identityChanged = ["service", "tool", "version"].some(name => old[name] !== current[name]);
   const different = stableJson(old) !== stableJson(current);
   const status = different && old.version === current.version ? "version-required" : different ? "changed" : "current";
-  return { status, stage: "contract", code: `profile.contract.${status}`,
+  return { derived_edits, status, stage: "contract", code: `profile.contract.${status}`,
     old_version: old.version, new_version: current.version, changed_fields: changed, changes,
     action_identity_changed: identityChanged || changed.length > 0,
     next_action: status === "version-required" ? "Increase profile.version before generation."
@@ -437,10 +438,161 @@ async function writeProfile(directory, contract, options = {}) {
   }
 }
 
+const derivationSchema = "auths.openapi-derivation/1";
+const deriveResultSchema = "auths.openapi-derive-result/1";
+const derivedFiles = ["profile.toml", "recipe.json", "derivation.json"];
+const maxDocumentBytes = 32 * 1024 * 1024;
+const maxDerivationBytes = 262_144;
+const editedByHand = "derived file edited by hand; re-derive, or delete derivation.json to declare the files hand-owned";
+
+async function readDerivation(record) {
+  const metadata = await lstat(record);
+  if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size > maxDerivationBytes) {
+    throw new Error("derivation.json must be a bounded regular file");
+  }
+  let value;
+  try { value = JSON.parse(await readFile(record, "utf8")); } catch { throw new Error("derivation.json is invalid"); }
+  if (!value || typeof value !== "object" || value.schema !== derivationSchema) throw new Error("derivation.json is invalid");
+  return value;
+}
+
+async function exists(path) {
+  try { await lstat(path); return true; } catch (error) {
+    if (error.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+/** Names each derived file whose bytes no longer match derivation.json. */
+export async function derivedEdits(directory) {
+  const record = join(directory, "derivation.json");
+  if (!(await exists(record))) return [];
+  const outputs = (await readDerivation(record)).outputs;
+  if (!outputs || typeof outputs !== "object") throw new Error("derivation.json is invalid");
+  const edited = [];
+  for (const name of ["profile.toml", "recipe.json"]) {
+    const expected = outputs[name];
+    if (typeof expected !== "string" || !/^[0-9a-f]{64}$/.test(expected)) throw new Error("derivation.json is invalid");
+    let actual;
+    try {
+      const metadata = await lstat(join(directory, name));
+      if (metadata.isFile() && !metadata.isSymbolicLink()) {
+        actual = createHash("sha256").update(await readFile(join(directory, name))).digest("hex");
+      }
+    } catch (error) { if (error.code !== "ENOENT") throw error; }
+    if (actual !== expected) edited.push(name);
+  }
+  return edited;
+}
+
+let nativeDerive;
+
+/** Loads the packaged WASM mapper; every derived byte comes from it. */
+async function loadDerive() {
+  if (nativeDerive) return nativeDerive;
+  const loaded = await import(new URL("../wasm/auths_proof_wasm.js", import.meta.url).href);
+  if (typeof loaded.default === "function") {
+    await loaded.default({ module_or_path: await readFile(new URL("../wasm/auths_proof_wasm_bg.wasm", import.meta.url)) });
+  }
+  if (typeof loaded.deriveOpenapiOperationV1 !== "function") {
+    throw new Error("the packaged WASM module does not export deriveOpenapiOperationV1");
+  }
+  nativeDerive = loaded.deriveOpenapiOperationV1;
+  return nativeDerive;
+}
+
+/** Runs the shared mapper; the result carries files or diagnostics. */
+export async function deriveOperation(document, documentName, args) {
+  const derive = await loadDerive();
+  const result = JSON.parse(derive(document, documentName, [...args]));
+  if (!result || result.schema !== deriveResultSchema || !Array.isArray(result.lines)) {
+    throw new Error("native derivation result is invalid");
+  }
+  return result;
+}
+
+async function readDocument(path) {
+  const metadata = await lstat(path);
+  if (!metadata.isFile() || metadata.isSymbolicLink()) {
+    throw new Error("contract.derive.document-unreadable: --openapi must name a local regular file, not a symlink");
+  }
+  if (metadata.size < 1 || metadata.size > maxDocumentBytes) {
+    throw new Error("contract.derive.document-unreadable: the document must be 1 byte to 32 MiB");
+  }
+  const document = await readFile(path);
+  if (document.length < 1 || document.length > maxDocumentBytes) {
+    throw new Error("contract.derive.document-unreadable: the document changed size while it was read");
+  }
+  return new Uint8Array(document.buffer, document.byteOffset, document.length);
+}
+
+async function checkDeriveTarget(directory, derivation, version) {
+  if (!(await exists(directory))) return;
+  if ((await lstat(directory)).isSymbolicLink()) {
+    throw new Error("contract.derive.directory-not-derived: the output directory cannot be a symlink");
+  }
+  for (const name of derivedFiles) {
+    if ((await exists(join(directory, name))) && (await lstat(join(directory, name))).isSymbolicLink()) {
+      throw new Error(`contract.derive.directory-not-derived: ${name} cannot be a symlink`);
+    }
+  }
+  const record = join(directory, "derivation.json");
+  if (!(await exists(record))) {
+    if ((await exists(join(directory, "profile.toml"))) || (await exists(join(directory, "recipe.json")))) {
+      throw new Error("contract.derive.directory-not-derived: profile.toml or recipe.json exists without " +
+        "derivation.json; derive into an empty directory or remove the hand-owned files");
+    }
+    return;
+  }
+  if (Buffer.from(await readFile(record)).equals(Buffer.from(derivation, "utf8"))) return;
+  const oldVersion = (await readDerivation(record)).profile?.version;
+  if (!Number.isSafeInteger(oldVersion)) throw new Error("derivation.json is invalid");
+  if (version <= oldVersion) {
+    throw new Error(`contract.derive.version-required: the derivation changed under profile version ${oldVersion}; ` +
+      `pass --version ${oldVersion + 1}`);
+  }
+}
+
+async function deriveMain(args) {
+  const rest = [];
+  let openapi;
+  let directory = ".";
+  for (let index = 0; index < args.length;) {
+    const flag = args[index];
+    const value = args[index + 1];
+    if (flag === "--openapi" || flag === "--directory") {
+      if (value === undefined || value.startsWith("--")) throw new Error(`contract.derive.invalid-request: ${flag} needs a value`);
+      if (flag === "--openapi") {
+        if (openapi !== undefined) throw new Error("contract.derive.invalid-request: --openapi is given twice");
+        openapi = value;
+      } else directory = value;
+      index += 2;
+      continue;
+    }
+    rest.push(flag);
+    index += 1;
+  }
+  if (openapi === undefined) throw new Error("contract.derive.invalid-request: --openapi is required");
+  const result = await deriveOperation(await readDocument(openapi), basename(openapi), rest);
+  if (result.ok !== true) {
+    process.stderr.write(`${result.lines.join("\n")}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  const files = result.files;
+  if (!files || !Number.isSafeInteger(result.version) || derivedFiles.some(name => typeof files[name] !== "string")) {
+    throw new Error("native derivation result is invalid");
+  }
+  await checkDeriveTarget(directory, files["derivation.json"], result.version);
+  await mkdir(directory, { recursive: true });
+  for (const name of derivedFiles) await writeFile(join(directory, name), files[name], "utf8");
+  process.stdout.write(`${result.lines.join("\n")}\n`);
+}
+
 async function checkProfile(path) {
+  const problems = (await derivedEdits(dirname(path))).map(name => `${name}: ${editedByHand}`);
   const contract = parseContract(await sourceAt(path));
   const directory = dirname(path);
-  const problems = [];
   for (const [name, expected] of [
     ["generated.ts", renderGenerated(contract)],
     ["vectors.json", renderVectors(contract)],
@@ -455,6 +607,7 @@ async function checkProfile(path) {
 
 async function mainText(args) {
   const action = args[0];
+  if (action === "derive") return deriveMain(args.slice(1));
   if (action === "init") {
     const languageAt = args.indexOf("--language");
     const nameAt = args.indexOf("--name");
@@ -491,6 +644,7 @@ async function mainText(args) {
   } else if (action === "diff") {
     const result = await profileDiff(path);
     process.stdout.write(`${result.code}\n`);
+    for (const name of result.derived_edits) process.stdout.write(`${name}: ${editedByHand}\n`);
     for (const change of result.changes) {
       process.stdout.write(`${change.path}: ${stableJson(change.before)} -> ${stableJson(change.after)}\n`);
     }
@@ -544,12 +698,16 @@ async function mainText(args) {
       process.stdout.write("production input files: present, bounded, and distinct; grant/trust bytes not parsed; signer connectivity and trust provenance not checked\n");
     } else process.stdout.write("local testkit authority is development-only\n");
     process.stdout.write("profile doctor does not verify provider credentials or qualify adapter behavior\n");
-  } else throw new Error("usage: auths-profile init|generate|check|diff|doctor|test");
+  } else throw new Error("usage: auths-profile init|derive|generate|check|diff|doctor|test");
 }
 
 function diagnostic(action, status, message) {
   if (status === 0) return [action === "check" ? "profile.generated.current" : "profile.operation.ok",
     action === "check" ? "generated" : "contract", "No action required."];
+  const deriveCode = /\bcontract\.derive\.[a-z-]+/.exec(message);
+  if (deriveCode) return [deriveCode[0], "contract", "Apply a named override or narrow the operation, then rerun derive."];
+  if (/edited by hand/.test(message)) return ["profile.contract.derived-edited", "contract",
+    "Re-derive, or delete derivation.json to declare the files hand-owned."];
   if (/without a version bump|version cannot move backward/.test(message)) return [
     "profile.contract.version-required", "contract", "Increase profile.version, then review profile diff."];
   if (/has drifted/.test(message)) return ["profile.generated.stale", "generated",
@@ -572,10 +730,13 @@ async function main(args) {
   const filtered = args.filter(value => value !== "--json");
   const action = filtered[0] ?? "unknown";
   const original = process.stdout.write;
+  const originalError = process.stderr.write;
   let captured = "";
+  let capturedError = "";
   let status = 0;
   let diff = null;
   process.stdout.write = function (chunk) { captured += String(chunk).slice(0, 4096); return true; };
+  process.stderr.write = function (chunk) { capturedError += String(chunk).slice(0, 4096); return true; };
   try {
     await mainText(filtered);
     if (process.exitCode && process.exitCode !== 0) status = 1;
@@ -585,8 +746,9 @@ async function main(args) {
     captured = error instanceof Error ? error.message : "unknown failure";
   } finally {
     process.stdout.write = original;
+    process.stderr.write = originalError;
   }
-  const message = captured.trim().slice(0, 2048);
+  const message = (capturedError.trim() || captured.trim()).slice(0, 2048);
   let [code, stage, nextAction] = diagnostic(action, status, message);
   if (diff) ({ code, stage, next_action: nextAction } = diff);
   original.call(process.stdout, stableJson({ schema: "auths.profile-diagnostic/1", ok: status === 0,

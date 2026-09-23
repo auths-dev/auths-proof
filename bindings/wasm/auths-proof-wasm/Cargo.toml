@@ -21,6 +21,7 @@ auths-errors = { workspace = true, features = ["std"] }
 auths-identity.workspace = true
 auths-identity-raw-key.workspace = true
 auths-model.workspace = true
+auths-openapi-derive.workspace = true
 auths-ports.workspace = true
 auths-profile-api.workspace = true
 auths-profile-domains.workspace = true

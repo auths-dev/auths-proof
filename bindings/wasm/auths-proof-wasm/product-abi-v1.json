@@ -25,6 +25,7 @@
     "validateReceiptAnchorV1",
     "profileReceiptPayloadCommitmentV2",
     "decodePortableReceiptV1",
+    "deriveOpenapiOperationV1",
     "verifyPinnedReceiptV1"
   ],
   "types": [

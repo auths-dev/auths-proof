@@ -1431,9 +1431,9 @@ kind = "cargo"
 layer = "bindings"
 path = "bindings/python"
 core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-identity", "auths-identity-raw-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-signature-core", "auths-signature-ed25519", "auths-verifier"]
-protocol_versions = ["auths-proof/v1", "auths.portable-receipt/1", "auths.profile-client-runtime/1"]
+protocol_versions = ["auths-proof/v1", "auths.openapi-derive-result/1", "auths.portable-receipt/1", "auths.profile-client-runtime/1"]
 wire_objects = ["ActionEnvelope", "AuthorizationPlan", "CanonicalAction", "GrantStatement", "GrantStatusSnapshot", "GrantStatusStatement", "PortableReceiptV1", "PortableVerificationResult", "PrincipalStatusSnapshot", "PrincipalStatusStatement", "ProofBundle", "RecoveryHandle", "SignedAction", "SignedGrant", "SignedGrantStatus", "SignedPrincipalStatus", "VerifierContext"]
-fixture_suites = ["bindings/python/differential-fixtures-v1.json", "core/fixtures/v1"]
+fixture_suites = ["bindings/fixtures/openapi-derivation", "bindings/python/differential-fixtures-v1.json", "core/fixtures/v1"]
 principal_families = ["self-contained-v1"]
 signature_families = ["ed25519-v1", "p256-sha256-v1"]
 profiles = ["auths.opentofu.saved-plan-apply/1", "auths.postgresql.bounded-update/1", "auths.stripe.refund/1", "core-corpus"]
@@ -1443,7 +1443,7 @@ security_state = ["opaque-recovery-handle", "portable-linked-receipts", "profile
 
 [packages.auths-proof-python.claims]
 core-wire-consumer = ["bindings/python/tests/test_native_boundary_contract.py#test_every_registry_code_classifies_through_the_native_layer", "bindings/python/tests/test_portable_receipt_v1.py#test_portable_receipt_v1_projection_is_self_contained", "bindings/python/tests/test_native_authoring.py#test_child_planning_matches_the_shared_rust_typescript_fixture", "bindings/python/tests/test_workflow.py#test_attach_and_delegate_use_native_authority_without_protocol_bytes"]
-language-binding = ["bindings/python/tests/test_public_api_v2.py#test_exact_public_inventory", "bindings/python/tests/test_profile_runtime_v1.py#test_generated_profile_shape_uses_alias_and_returns_typed_success", "bindings/python/tests/test_profile_runtime_v1.py#test_ambiguous_execute_uses_issued_recovery_handle_without_reentry", "bindings/python/tests/test_portable_receipt_v1.py#test_portable_receipt_v1_rejects_contradictory_projection"]
+language-binding = ["bindings/python/tests/test_openapi_derivation.py#test_native_route_reproduces_the_corpus", "bindings/python/tests/test_openapi_derivation.py#test_derive_generate_check_and_hand_edit", "bindings/python/tests/test_public_api_v2.py#test_exact_public_inventory", "bindings/python/tests/test_profile_runtime_v1.py#test_generated_profile_shape_uses_alias_and_returns_typed_success", "bindings/python/tests/test_profile_runtime_v1.py#test_ambiguous_execute_uses_issued_recovery_handle_without_reentry", "bindings/python/tests/test_portable_receipt_v1.py#test_portable_receipt_v1_rejects_contradictory_projection"]
 runtime-enforcement-boundary = ["bindings/python/tests/test_public_api_v2.py#test_receipts_reject_direct_construction", "bindings/python/tests/test_profile_runtime_v1.py#test_operation_errors_are_not_caller_constructible", "bindings/python/tests/test_profile_runtime_v1.py#test_outcomes_and_error_envelopes_are_closed", "bindings/python/tests/test_native_boundary_contract.py#test_a_python_caller_cannot_mint_a_canonical_action_for_its_own_profile", "bindings/python/tests/test_native_boundary_contract.py#test_no_native_symbol_is_exported_without_being_declared"]
 
 [packages.auths-proof-wasm]
@@ -1451,9 +1451,9 @@ kind = "cargo"
 layer = "bindings"
 path = "bindings/wasm/auths-proof-wasm"
 core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-identity", "auths-identity-raw-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-signature-core", "auths-signature-ed25519", "auths-testkit", "auths-verifier"]
-protocol_versions = ["auths-identity/v1", "auths-proof/v1"]
+protocol_versions = ["auths-identity/v1", "auths-proof/v1", "auths.openapi-derive-result/1"]
 wire_objects = ["ActionEnvelope", "CanonicalAction", "ControlBinding", "EvidenceObject", "GrantStatement", "GrantStatusStatement", "IdentityPacket/PublicIdentityV2", "IdentityPacket/SignedMessageV2", "PortableVerificationResult", "PrincipalStatusStatement", "ProofBundle", "SignedAction", "SignedGrant", "VerifierContext"]
-fixture_suites = ["core/fixtures/identity/v1", "core/fixtures/v1"]
+fixture_suites = ["bindings/fixtures/openapi-derivation", "core/fixtures/identity/v1", "core/fixtures/v1"]
 principal_families = ["did-keri-v1", "did-key-v1", "raw-key-v1", "raw-key-v2"]
 signature_families = ["ed25519-v1", "p256-sha256-v1"]
 profiles = ["auths.mcp/1", "core-corpus"]
@@ -1463,7 +1463,7 @@ security_state = []
 
 [packages.auths-proof-wasm.claims]
 core-wire-consumer = ["bindings/wasm/auths-proof-wasm/src/lib.rs#authoring_abi_planning_matches_the_native_owner", "bindings/wasm/auths-proof-wasm/src/lib.rs#native_mcp_authorization_assembly_matches_profile_and_core_owners", "bindings/wasm/auths-proof-wasm/src/lib.rs#native_wasm_boundary_matches_the_portable_contract"]
-language-binding = ["bindings/typescript/test/unit/portable-receipt-v1.test.js#packaged WASM exposes the canonical portable receipt decoder", "bindings/typescript/test/unit/public-api-v2.test.js#clean-cut modules expose the intended domain-neutral surface"]
+language-binding = ["bindings/typescript/test/unit/openapi-derive.test.js#the WASM route reproduces every derivation corpus case", "bindings/typescript/test/unit/openapi-derive.test.js#derive, generate, check, and a hand edit through the packaged command", "bindings/typescript/test/unit/portable-receipt-v1.test.js#packaged WASM exposes the canonical portable receipt decoder", "bindings/typescript/test/unit/public-api-v2.test.js#clean-cut modules expose the intended domain-neutral surface"]
 
 [packages.auths-kernel-runtime]
 kind = "cargo"
