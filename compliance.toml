@@ -1661,6 +1661,7 @@ runtime-enforcement-boundary = [
   "product/runtime/auths-gateway/src/observed_tests.rs#read_back_of_another_record_cannot_license_this_write",
   "product/runtime/auths-gateway/src/observed_tests.rs#chained_step_is_refused_until_the_previous_step_is_provider_bound",
   "product/runtime/auths-gateway/src/observed_tests.rs#action_fact_policy_is_bound_into_the_pinned_configuration",
+  "product/runtime/auths-gateway/src/observed_tests.rs#sdk_action_window_admits_a_later_gateway_clock_and_replay_stays_refused",
 ]
 stateful-replay-budget-component = [
   "product/runtime/auths-gateway/src/recipe.rs#durable_claim_is_one_use_across_races_and_restart",

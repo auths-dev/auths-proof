@@ -782,6 +782,7 @@ def prepare_mcp_action(
     terminal_grant: SignedObject,
     challenge: bytes,
     evaluation_time: int,
+    validity_seconds: int,
 ) -> McpAction: ...
 def attach_mcp_observations(
     action: McpAction, observations: List[Tuple[str, bytes]]
@@ -797,6 +798,7 @@ def prepare_mcp_call_action(
     terminal_grant: SignedObject,
     challenge: bytes,
     evaluation_time: int,
+    validity_seconds: int,
 ) -> McpAction: ...
 def authorize_mcp(
     prepared: McpAction,

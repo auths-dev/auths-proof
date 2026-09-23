@@ -50,5 +50,8 @@ tokio.workspace = true
 url.workspace = true
 zeroize.workspace = true
 
+[dev-dependencies]
+auths-author.workspace = true
+
 [lints]
 workspace = true

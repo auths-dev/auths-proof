@@ -379,6 +379,7 @@ export interface WorkflowWasmEngine {
     terminalGrant: Uint8Array,
     challenge: Uint8Array,
     evaluationTime: bigint,
+    validitySeconds: number,
   ): WorkflowMcpActionPreparation;
   attachObservationsV1(
     canonicalAction: Uint8Array,
@@ -443,6 +444,7 @@ export interface WorkflowWasmEngine {
     terminalGrant: Uint8Array,
     challenge: Uint8Array,
     evaluationTime: bigint,
+    validitySeconds: number,
   ): WorkflowProfileActionPreparation;
   profileReceiptBindingsV1(
     proofCbor: Uint8Array,

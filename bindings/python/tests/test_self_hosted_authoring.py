@@ -318,3 +318,23 @@ async def test_attachment_is_signed_and_judged_only_by_the_verifier() -> None:
     assert isinstance(result, AuthorizedCommand), "no requirement reads it"
     stripped = _prepared(now)
     assert authored.action_commitment != stripped.action_commitment
+
+
+def test_prepared_action_validity_is_bounded_with_a_30_second_default() -> None:
+    now = int(time.time())
+    key, grant, _ = _authority(now)
+    arguments = {
+        "actor": _native.Principal(key.principal),
+        "terminal_grant": _native.parse_signed("grant", grant.signed_grant),
+        "challenge": bytes([0x22]) * 32,
+        "evaluation_time": now,
+    }
+    unsigned = [
+        _native.inspect_unsigned(TOOL.prepare(Change("approved"), **arguments, **extra).action.unsigned
+        )
+        for extra in ({}, {"validity_seconds": 30}, {"validity_seconds": 1})
+    ]
+    assert unsigned[0] == unsigned[1] != unsigned[2]
+    for validity in (0, 301, True):
+        with pytest.raises(ValueError):
+            TOOL.prepare(Change("approved"), validity_seconds=validity, **arguments)

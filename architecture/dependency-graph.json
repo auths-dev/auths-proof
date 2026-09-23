@@ -3029,6 +3029,18 @@
     {
       "source": "auths-gateway",
       "source_layer": "product",
+      "target": "auths-author",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
       "target": "auths-codec",
       "target_layer": "core",
       "scope": "internal",

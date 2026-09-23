@@ -261,8 +261,46 @@ mod tests {
             &grant,
             [7; 32],
             42,
+            30,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn action_validity_is_bounded_and_inclusive() {
+        let grant = grant();
+        let canonical = prepared().canonical().clone();
+        let prepare = |validity| {
+            crate::prepare_profile_action(
+                canonical.clone(),
+                Audience::parse("records://service").unwrap(),
+                grant.statement().subject().clone(),
+                &grant,
+                [7; 32],
+                42,
+                validity,
+            )
+        };
+        for refused in [0, crate::MAX_ACTION_VALIDITY_SECONDS + 1] {
+            assert_eq!(prepare(refused), Err(WorkflowAssemblyError::ActionValidity));
+        }
+        for accepted in [1, crate::MAX_ACTION_VALIDITY_SECONDS] {
+            let window = prepare(accepted).unwrap().envelope().validity();
+            assert_eq!(window.not_before(), Timestamp::new(42));
+            assert_eq!(window.expires_at(), Timestamp::new(42 + accepted));
+        }
+        assert_eq!(
+            crate::prepare_profile_action(
+                canonical.clone(),
+                Audience::parse("records://service").unwrap(),
+                grant.statement().subject().clone(),
+                &grant,
+                [7; 32],
+                u64::MAX,
+                1,
+            ),
+            Err(WorkflowAssemblyError::ActionValidity)
+        );
     }
 
     #[test]

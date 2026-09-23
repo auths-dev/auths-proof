@@ -31,6 +31,18 @@ from .verify import VerificationResult, _project
 
 CommandT = TypeVar("CommandT")
 
+DEFAULT_ACTION_VALIDITY_SECONDS = 30
+MAX_ACTION_VALIDITY_SECONDS = 300
+
+
+def _checked_validity(validity_seconds: int) -> int:
+    if (
+        type(validity_seconds) is not int
+        or not 1 <= validity_seconds <= MAX_ACTION_VALIDITY_SECONDS
+    ):
+        raise ValueError("action validity must be 1 to 300 seconds")
+    return validity_seconds
+
 
 class _UnknownEnumVariant(ValueError):
     code = "self-hosted.enum-variant-undeclared"
@@ -433,7 +445,12 @@ class ExactMcpTool(Generic[CommandT]):
         terminal_grant: _native.SignedObject,
         challenge: bytes,
         evaluation_time: int,
+        validity_seconds: int = DEFAULT_ACTION_VALIDITY_SECONDS,
     ) -> PreparedMcpAction[CommandT]:
+        """Prepare the unsigned exact action, valid from ``evaluation_time``
+        through ``evaluation_time + validity_seconds`` (1 to 300 seconds), so
+        a verifier with its own later clock, such as a gateway, accepts it
+        inside that window."""
         if type(command) is not self.command_type:
             raise TypeError("command does not belong to this exact tool")
         arguments = self.encode(command)
@@ -447,6 +464,7 @@ class ExactMcpTool(Generic[CommandT]):
             terminal_grant,
             bytes(challenge),
             evaluation_time,
+            _checked_validity(validity_seconds),
         )
         canonical_action, _ = _native.inspect_mcp_action(native)
         return PreparedMcpAction(

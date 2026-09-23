@@ -703,6 +703,7 @@ fn prepare_mcp_call_action(
     terminal_grant: PyRef<'_, PySignedObject>,
     challenge: &[u8],
     evaluation_time: u64,
+    validity_seconds: u64,
 ) -> PyResult<PyMcpAction> {
     let SignedObject::Grant(terminal_grant) = &terminal_grant.inner else {
         return Err(PyTypeError::new_err(
@@ -724,6 +725,7 @@ fn prepare_mcp_call_action(
         terminal_grant,
         challenge,
         evaluation_time,
+        validity_seconds,
     )
     .map_err(value_error)?;
     let (canonical, envelope) = prepared.into_parts();

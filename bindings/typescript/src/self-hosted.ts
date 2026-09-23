@@ -2,6 +2,7 @@
 
 import { createVerifier, type VerificationResult } from "./verify.js";
 import { loadPackagedWorkflowEngine } from "./verifier/wasm.js";
+import { checkedValidity } from "./internal/action-validity.js";
 import type { CustodySigner, PublicControlEvidence } from "./adapters.js";
 
 export interface StringField {
@@ -192,17 +193,24 @@ export class ExactMcpTool<Fields extends FieldMap> {
     return projectObject(this.#fields, command, false) as Readonly<Record<string, unknown>>;
   }
 
+  /**
+   * Prepares the unsigned exact action, valid from `evaluationTime` through
+   * `evaluationTime + validitySeconds` (1 to 300 seconds, default 30), so a verifier
+   * with its own later clock, such as a gateway, accepts it inside that window.
+   */
   async prepare(command: CommandOf<Fields>, options: Readonly<{
     actor: string;
     terminalGrant: Uint8Array;
     challenge: Uint8Array;
     evaluationTime: bigint;
+    validitySeconds?: number;
   }>): Promise<PreparedMcpAction<CommandOf<Fields>>> {
     const encoded = this.encode(command);
+    const validitySeconds = checkedValidity(options.validitySeconds);
     const engine = await loadPackagedWorkflowEngine();
     const prepared = engine.prepareMcpActionV1(
       this.service, this.name, encoded, options.actor, options.terminalGrant,
-      options.challenge, options.evaluationTime,
+      options.challenge, options.evaluationTime, validitySeconds,
     );
     try {
       if (prepared.argumentsJson.length > 4096) {
@@ -496,6 +504,7 @@ export async function authorProductionMcpProof<Fields extends FieldMap>(input: R
   command: CommandOf<Fields>;
   inputs: ProductionAuthoringInputs;
   observations?: readonly SignedObservationAttachment[];
+  validitySeconds?: number;
 }>): Promise<AuthoredMcpProof<CommandOf<Fields>>> {
   const production = input.inputs;
   if (production.signer.descriptor.contract !== "signer-custody/2" ||
@@ -517,6 +526,7 @@ export async function authorProductionMcpProof<Fields extends FieldMap>(input: R
     evaluationTime: production.evaluationTime,
     ...(production.signal === undefined ? {} : { signal: production.signal }),
     ...(input.observations === undefined ? {} : { observations: input.observations }),
+    ...(input.validitySeconds === undefined ? {} : { validitySeconds: input.validitySeconds }),
   });
 }
 
@@ -551,6 +561,7 @@ export async function authorMcpProof<Fields extends FieldMap>(input: Readonly<{
   evaluationTime: bigint;
   signal?: AbortSignal;
   observations?: readonly SignedObservationAttachment[];
+  validitySeconds?: number;
 }>): Promise<AuthoredMcpProof<CommandOf<Fields>>> {
   if (input.grants.length < 1 || input.grants.length > 16) {
     throw new RangeError("grant chain count is outside bounds");
@@ -575,6 +586,7 @@ export async function authorMcpProof<Fields extends FieldMap>(input: Readonly<{
     terminalGrant: input.grants[input.grants.length - 1]!.signedGrant,
     challenge: input.challenge,
     evaluationTime: input.evaluationTime,
+    ...(input.validitySeconds === undefined ? {} : { validitySeconds: input.validitySeconds }),
   });
   const prepared = input.observations === undefined || input.observations.length === 0
     ? unattached

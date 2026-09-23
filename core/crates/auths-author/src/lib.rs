@@ -61,11 +61,24 @@ impl PreparedAction {
     }
 }
 
+/// Longest validity, in seconds, an authored action may carry.
+pub const MAX_ACTION_VALIDITY_SECONDS: u64 = 300;
+
 /// Constructs the shared target V1 envelope for a profile-owned action.
+///
+/// The action is valid from `evaluation_time` through
+/// `evaluation_time + validity_seconds` inclusive, so a verifier that
+/// evaluates at its own later clock, such as a gateway, still accepts it
+/// inside that window. The window never widens authority: every grant in the
+/// chain must contain it, the challenge binds the action to one verifier
+/// request, and exactly-once execution is the enforcement boundary's claim.
 ///
 /// # Errors
 ///
-/// Returns a typed error if any deterministic identifier cannot be derived.
+/// Returns [`WorkflowAssemblyError::ActionValidity`] unless
+/// `validity_seconds` is in `1..=MAX_ACTION_VALIDITY_SECONDS` and the window
+/// end fits in a timestamp, and a typed error if any deterministic
+/// identifier cannot be derived.
 pub fn prepare_profile_action(
     canonical: CanonicalAction,
     audience: Audience,
@@ -73,7 +86,14 @@ pub fn prepare_profile_action(
     terminal_grant: &SignedGrant,
     challenge: [u8; 32],
     evaluation_time: u64,
+    validity_seconds: u64,
 ) -> Result<PreparedAction, WorkflowAssemblyError> {
+    if !(1..=MAX_ACTION_VALIDITY_SECONDS).contains(&validity_seconds) {
+        return Err(WorkflowAssemblyError::ActionValidity);
+    }
+    let expires_at = evaluation_time
+        .checked_add(validity_seconds)
+        .ok_or(WorkflowAssemblyError::ActionValidity)?;
     let proof_ref = ProofRef::new(challenge);
     let plan = AuthorizationPlan::proof(proof_ref);
     let envelope = ActionEnvelope::new(
@@ -84,10 +104,7 @@ pub fn prepare_profile_action(
         canonical.requested_budget().cloned(),
         audience,
         Challenge::new(challenge),
-        ValidityWindow::new(
-            Timestamp::new(evaluation_time),
-            Timestamp::new(evaluation_time),
-        )?,
+        ValidityWindow::new(Timestamp::new(evaluation_time), Timestamp::new(expires_at))?,
         actor,
         Some(grant_id(terminal_grant.statement())?),
         plan_id(&plan)?,
@@ -318,6 +335,8 @@ pub enum WorkflowAssemblyError {
     InvalidGrantIndex,
     /// The signed action did not bind the derived authorization plan.
     ActionPlanMismatch,
+    /// The requested action validity is outside `1..=MAX_ACTION_VALIDITY_SECONDS`.
+    ActionValidity,
 }
 
 impl From<ModelError> for WorkflowAssemblyError {
@@ -342,6 +361,7 @@ impl fmt::Display for WorkflowAssemblyError {
             Self::ActionPlanMismatch => {
                 formatter.write_str("signed action does not bind its authorization plan")
             }
+            Self::ActionValidity => formatter.write_str("action validity is outside bounds"),
         }
     }
 }
@@ -1307,6 +1327,7 @@ mod tests {
             &grant,
             [7; 32],
             42,
+            30,
         )
         .unwrap();
         assert_eq!(prepared.canonical(), &canonical);
@@ -1318,6 +1339,10 @@ mod tests {
         assert_eq!(
             prepared.envelope().validity().not_before(),
             Timestamp::new(42)
+        );
+        assert_eq!(
+            prepared.envelope().validity().expires_at(),
+            Timestamp::new(72)
         );
     }
 

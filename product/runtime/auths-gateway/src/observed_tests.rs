@@ -689,3 +689,106 @@ async fn action_fact_policy_is_bound_into_the_pinned_configuration() {
     );
     assert_eq!(harness.provider.counts().0, 0);
 }
+
+/// Authors exactly as the SDKs do: `prepare_profile_action` at `evaluated`
+/// with `validity_seconds`, observations attached before signing, and the
+/// proof assembled by the shared builder.
+fn sdk_submission(
+    harness: &Harness,
+    arguments: &Map<String, Value>,
+    observations: &[Vec<u8>],
+    evaluated: u64,
+    validity_seconds: u64,
+) -> Submission {
+    let grant = grant(&harness.root, &harness.agent, Some(read_back_requirement()));
+    let canonical = McpProfile
+        .canonicalize(&call(arguments).canonical_bytes().expect("canonical call"))
+        .expect("canonical action");
+    let prepared = auths_author::prepare_profile_action(
+        canonical,
+        audience(),
+        harness.agent.principal.clone(),
+        &grant,
+        [0; 32],
+        evaluated,
+        validity_seconds,
+    )
+    .expect("prepared");
+    let offered: Vec<(&str, &[u8])> = observations
+        .iter()
+        .map(|bytes| (OBSERVATION_MEDIA_TYPE, bytes.as_slice()))
+        .collect();
+    let prepared = auths_author::attach_observations(prepared, &offered).expect("attached");
+    let action = sign_action(&harness.agent, prepared.envelope().clone());
+    let mut builder = auths_author::WorkflowProofBuilder::new();
+    let index = builder.push_grant(grant).expect("grant");
+    builder
+        .bind_grant_evidence(index, harness.root.evidence().expect("evidence"))
+        .expect("grant evidence");
+    builder
+        .bind_action_evidence(harness.agent.evidence().expect("evidence"))
+        .expect("action evidence");
+    let proof = builder
+        .finish(&action, prepared.canonical(), &harness.context)
+        .expect("proof");
+    let action = encode_canonical_action(prepared.canonical()).expect("action bytes");
+    let commitment = *domain_commitment("auths.canonical-action.v1", &action)
+        .expect("commitment")
+        .as_bytes();
+    Submission {
+        proof: encode_bundle(proof.proof()).expect("proof bytes"),
+        action,
+        commitment,
+    }
+}
+
+#[tokio::test]
+async fn sdk_action_window_admits_a_later_gateway_clock_and_replay_stays_refused() {
+    let harness = Harness::open(update_recipe());
+    let observation = harness.read_back(RECORD, NOW).await;
+    let arguments = harness.arguments("window-30", RECORD, &update_extra(RECORD, "Pending"));
+    let within = sdk_submission(
+        &harness,
+        &arguments,
+        std::slice::from_ref(&observation),
+        NOW,
+        30,
+    );
+    assert!(
+        matches!(
+            harness.submit(&within, NOW + 5).await,
+            GatewaySubmitResult::ObservedByProvider {
+                status: Some(200),
+                ..
+            }
+        ),
+        "a 30 s window covers a gateway clock 5 s later"
+    );
+    assert_eq!(harness.provider.counts().0, 1);
+    assert_eq!(
+        harness.submit(&within, NOW + 10).await,
+        crate::engine::replay_refused(),
+        "the window never licenses a second entry"
+    );
+    assert_eq!(harness.provider.counts().0, 1);
+
+    let arguments = harness.arguments(
+        "window-1",
+        OTHER_RECORD,
+        &update_extra(OTHER_RECORD, "Pending"),
+    );
+    let other = harness.read_back(OTHER_RECORD, NOW).await;
+    let leases = harness.provider.counts().2;
+    let narrow = sdk_submission(&harness, &arguments, &[other], NOW, 1);
+    assert_eq!(
+        harness.submit(&narrow, NOW + 5).await,
+        denied("action-outside-validity"),
+        "a 1 s window has closed 5 s later"
+    );
+    assert_eq!(harness.provider.counts().0, 1);
+    assert_eq!(
+        harness.provider.counts().2,
+        leases,
+        "denied before any lease"
+    );
+}

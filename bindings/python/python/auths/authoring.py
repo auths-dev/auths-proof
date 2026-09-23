@@ -22,7 +22,12 @@ from .adapters.custody import (
     SigningObjectKind,
     SigningRequest,
 )
-from .self_hosted import ExactMcpTool, SignedObservationAttachment, attach_observations
+from .self_hosted import (
+    DEFAULT_ACTION_VALIDITY_SECONDS,
+    ExactMcpTool,
+    SignedObservationAttachment,
+    attach_observations,
+)
 
 CommandT = TypeVar("CommandT")
 
@@ -96,12 +101,13 @@ async def author_production_mcp_proof(
     command: CommandT,
     inputs: ProductionAuthoringInputs,
     observations: Sequence[SignedObservationAttachment] = (),
+    validity_seconds: int = DEFAULT_ACTION_VALIDITY_SECONDS,
 ) -> AuthoredMcpProof[CommandT]:
     """Author with explicit durable custody and separately supplied trust.
 
     The verifier decides authorization; structural readiness is not a grant,
     proof of independent trust provisioning, or provider qualification.
-    ``observations`` are attached as in :func:`author_mcp_proof`.
+    ``observations`` and ``validity_seconds`` are as in :func:`author_mcp_proof`.
     """
     return await author_mcp_proof(
         contract=contract,
@@ -112,6 +118,7 @@ async def author_production_mcp_proof(
         challenge=inputs.challenge,
         evaluation_time=inputs.evaluation_time,
         observations=observations,
+        validity_seconds=validity_seconds,
     )
 
 
@@ -149,6 +156,7 @@ async def author_mcp_proof(
     challenge: bytes,
     evaluation_time: int,
     observations: Sequence[SignedObservationAttachment] = (),
+    validity_seconds: int = DEFAULT_ACTION_VALIDITY_SECONDS,
 ) -> AuthoredMcpProof[CommandT]:
     """Sign and assemble one exact action with externally supplied authority.
 
@@ -160,6 +168,12 @@ async def author_mcp_proof(
     read-back) is carried as a detached attachment that the action signature
     covers; a grant's observation requirements are then judged by the final
     verification against the trusted context.
+
+    The action is valid from ``evaluation_time`` through ``evaluation_time +
+    validity_seconds`` (1 to 300 seconds, default 30), so a gateway verifying
+    at its own clock accepts it inside that window; every grant in the chain
+    must contain the whole window. The challenge and the executor's
+    exactly-once claim, not the window, prevent replay.
     """
     if not 1 <= len(grants) <= 16:
         raise ValueError("grant chain count is outside bounds")
@@ -180,6 +194,7 @@ async def author_mcp_proof(
         terminal_grant=signed_grants[-1],
         challenge=challenge,
         evaluation_time=evaluation_time,
+        validity_seconds=validity_seconds,
     )
     if observations:
         prepared = attach_observations(prepared, observations)

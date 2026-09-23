@@ -15,7 +15,7 @@ use auths_identity::{
 };
 use auths_identity_raw_key::RawKeyIdentityMethod;
 use auths_model::{
-    AcceptedRegistries, ActionConstraint, ActionEnvelope, AssuranceClaimId, AssuranceImplicationId,
+    AcceptedRegistries, ActionConstraint, AssuranceClaimId, AssuranceImplicationId,
     AssurancePolicy, AssurancePolicyId, AssuranceQuantifier, AssuranceRequirement, Audience,
     AudienceSet, AuthorizationPlan, BodyDigestSet, BudgetAlgebraId, BudgetCeiling, CapabilityId,
     Challenge, ChannelBindingId, CompositionRequirement, CriticalExtension, CriticalExtensions,
@@ -2585,12 +2585,15 @@ fn attach_observations_native(
     })
 }
 
-/// Canonicalizes one closed MCP call and prepares its exact action envelope.
+/// Canonicalizes one closed MCP call and prepares its exact action envelope,
+/// valid from `evaluation_time` through `evaluation_time + validity_seconds`
+/// (1 to 300 seconds).
 ///
 /// # Errors
 ///
 /// Returns a JavaScript error for malformed arguments, invalid profile
 /// identifiers, an invalid actor/challenge, or a malformed terminal grant.
+#[allow(clippy::too_many_arguments)]
 #[wasm_bindgen(js_name = prepareMcpActionV1)]
 pub fn prepare_mcp_action_v1(
     service: &str,
@@ -2600,6 +2603,7 @@ pub fn prepare_mcp_action_v1(
     terminal_grant_cbor: &[u8],
     challenge: &[u8],
     evaluation_time: u64,
+    validity_seconds: u32,
 ) -> Result<McpActionPreparationV1, JsValue> {
     let arguments = mcp_arguments_from_js(arguments).map_err(js_error)?;
     prepare_mcp_action_native(
@@ -2610,6 +2614,7 @@ pub fn prepare_mcp_action_v1(
         terminal_grant_cbor,
         challenge,
         evaluation_time,
+        u64::from(validity_seconds),
     )
     .map_err(js_error)
 }
@@ -4357,7 +4362,8 @@ fn receipt_array32(value: &[u8], label: &'static str) -> Result<[u8; 32], JsValu
 }
 
 /// Prepares one action whose semantics were canonicalized by an
-/// application-owned closed profile.
+/// application-owned closed profile, valid from `evaluation_time` through
+/// `evaluation_time + validity_seconds` (1 to 300 seconds).
 ///
 /// This boundary constructs protocol objects only. It does not interpret an
 /// operation tag, select an executor, or turn an authorized result into an
@@ -4384,6 +4390,7 @@ pub fn prepare_profile_action_v1(
     terminal_grant_cbor: &[u8],
     challenge: &[u8],
     evaluation_time: u64,
+    validity_seconds: u32,
 ) -> Result<ProfileActionPreparationV1, JsValue> {
     prepare_profile_action_native(
         profile_id,
@@ -4400,6 +4407,7 @@ pub fn prepare_profile_action_v1(
         terminal_grant_cbor,
         challenge,
         evaluation_time,
+        u64::from(validity_seconds),
     )
     .map_err(js_error)
 }
@@ -4420,6 +4428,7 @@ fn prepare_profile_action_native(
     terminal_grant_cbor: &[u8],
     challenge: &[u8],
     evaluation_time: u64,
+    validity_seconds: u64,
 ) -> Result<ProfileActionPreparationV1, EngineError> {
     let canonical = canonical_profile_action_native(
         profile_id,
@@ -4432,9 +4441,6 @@ fn prepare_profile_action_native(
         budget_algebra,
         budget_value,
     )?;
-    let profile = canonical.profile().clone();
-    let permission = canonical.permission().clone();
-    let requested_budget = canonical.requested_budget().cloned();
     let terminal_grant = auths_codec::decode_signed_grant(
         terminal_grant_cbor,
         &VerifierLimits::default_deployment(),
@@ -4442,37 +4448,26 @@ fn prepare_profile_action_native(
     let challenge: [u8; 32] = challenge
         .try_into()
         .map_err(|_| EngineError::Abi("challenge must contain exactly 32 bytes"))?;
-    let proof_ref = ProofRef::new(challenge);
-    let plan = AuthorizationPlan::proof(proof_ref);
     let audience = Audience::parse(audience)?;
-    let envelope = ActionEnvelope::new(
-        profile,
-        MediaType::parse(media_type)?,
-        auths_codec::body_digest(body),
-        permission,
-        requested_budget,
+    let resource = canonical.permission().resource().to_string();
+    let prepared = prepare_profile_action(
+        canonical,
         audience.clone(),
-        Challenge::new(challenge),
-        ValidityWindow::new(
-            Timestamp::new(evaluation_time),
-            Timestamp::new(evaluation_time),
-        )?,
         PrincipalId::parse(actor)?,
-        Some(auths_codec::grant_id(terminal_grant.statement())?),
-        auths_codec::plan_id(&plan)?,
-        ChannelBindingId::parse("none-v1")?,
-        proof_ref,
-        Vec::new(),
-        CriticalExtensions::empty(),
-    );
+        &terminal_grant,
+        challenge,
+        evaluation_time,
+        validity_seconds,
+    )?;
     Ok(ProfileActionPreparationV1 {
-        canonical_action_cbor: auths_codec::encode_canonical_action(&canonical)?,
-        action_envelope_cbor: auths_codec::encode_action_envelope(&envelope)?,
+        canonical_action_cbor: auths_codec::encode_canonical_action(prepared.canonical())?,
+        action_envelope_cbor: auths_codec::encode_action_envelope(prepared.envelope())?,
         audience: audience.to_string(),
-        resource: canonical.permission().resource().to_string(),
+        resource,
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn prepare_mcp_action_native(
     service: &str,
     name: &str,
@@ -4481,6 +4476,7 @@ fn prepare_mcp_action_native(
     terminal_grant_cbor: &[u8],
     challenge: &[u8],
     evaluation_time: u64,
+    validity_seconds: u64,
 ) -> Result<McpActionPreparationV1, EngineError> {
     let call = McpToolCall::new(service, name, arguments)?;
     let untrusted = call.canonical_bytes()?;
@@ -4500,6 +4496,7 @@ fn prepare_mcp_action_native(
         &terminal_grant,
         challenge,
         evaluation_time,
+        validity_seconds,
     )?;
     Ok(McpActionPreparationV1 {
         canonical_action_cbor: auths_codec::encode_canonical_action(prepared.canonical())?,
@@ -5715,6 +5712,7 @@ mod tests {
             &terminal,
             &[0x22; 32],
             50,
+            30,
         )
         .unwrap();
         let call = McpToolCall::new(

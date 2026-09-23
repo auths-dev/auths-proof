@@ -690,6 +690,7 @@ fn prepare_mcp_action(
     terminal_grant: PyRef<'_, PySignedObject>,
     challenge: &[u8],
     evaluation_time: u64,
+    validity_seconds: u64,
 ) -> PyResult<PyMcpAction> {
     let Value::Object(arguments) =
         serde_json::from_slice::<Value>(arguments_json).map_err(value_error)?
@@ -722,6 +723,7 @@ fn prepare_mcp_action(
         terminal_grant,
         array32(challenge, "challenge")?,
         evaluation_time,
+        validity_seconds,
     )
     .map_err(value_error)?;
     let (canonical, envelope) = prepared.into_parts();

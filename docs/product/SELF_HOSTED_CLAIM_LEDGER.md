@@ -216,7 +216,8 @@ the action signature, and the SDK's final verification reaches the gateway's
 verdict (0060 §15.4). A packed-wheel consumer and a packed-npm consumer run
 the expected-before-replacement journey against `auths-gateway-harness`,
 which is the gateway's application socket over the counting provider, with
-test trust and an explicit clock:
+test trust and an explicit clock. SDK actions are valid for 30 seconds by
+default (at most 300), so they verify at a later gateway clock:
 
 - the write is authorized;
 - after the record changes, a stale `expected` is denied and an over-age
