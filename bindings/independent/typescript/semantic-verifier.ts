@@ -1301,7 +1301,7 @@ function resolveAndVerifyControl(
   contextValue: Context,
   adapters: any,
 ): VerifiedControl[] {
-  if (!equal(contextValue.registryManifest, new Uint8Array(32).fill(0x35))) {
+  if (!equal(contextValue.registryManifest, new Uint8Array(32).fill(0x36))) {
     throw denied("registry-manifest-mismatch");
   }
   const localConfiguration = typeof adapters.configuration === "string"
@@ -1547,6 +1547,7 @@ function extensionLaw(
 ): boolean {
   if (child === undefined || !contains(accepted, id)) return false;
   if (id === "exact-marker-v1") return parent !== undefined && equal(child.bytes, parent.bytes);
+  if (id === BOUNDED_POLICY_EXTENSION) return boundedPolicyLaw(child, parent);
   if (id !== OBSERVATION_EXTENSION) return false;
   try {
     const childRequirements = observationRequirements(child.bytes);
@@ -1932,6 +1933,10 @@ function evaluateCriticalExtensions(values: Extension[], accepted: string[]): vo
     if (!contains(accepted, value.id)) throw denied("critical-extension-unknown");
     if (value.id === OBSERVATION_EXTENSION) {
       evaluateObservationExtension(value);
+      continue;
+    }
+    if (value.id === BOUNDED_POLICY_EXTENSION) {
+      evaluateBoundedPolicyExtension(value);
       continue;
     }
     if (value.id !== "exact-marker-v1") throw indeterminate("unsupported-critical-extension");
@@ -2652,4 +2657,79 @@ function evaluateObservations(
     unavailable ??= failure;
   });
   if (unavailable !== undefined) throw unavailable;
+}
+
+// Bounded-policy commitments: the core shape of the
+// bounded-policy-commitment-v1 grant critical extension and its link law.
+
+const BOUNDED_POLICY_EXTENSION = "bounded-policy-commitment-v1";
+
+class BoundedPolicyLimit extends Error {}
+
+/** SHA-256 over the commitment prefix, protocol, framed domain, and framed payload. */
+function domainCommitment(domain: string, payload: Uint8Array): Uint8Array {
+  const domainBytes = Buffer.from(domain);
+  const head = Buffer.alloc(4);
+  head.writeUInt16BE(1, 0);
+  head.writeUInt16BE(domainBytes.length, 2);
+  const length = Buffer.alloc(8);
+  length.writeBigUInt64BE(BigInt(payload.length));
+  return createHash("sha256").update("AUTHS-COMMITMENT").update(head).update(domainBytes)
+    .update(length).update(payload).digest();
+}
+
+function policyIdentifier(value: V, maximum: number): void {
+  const result = text(value);
+  if (result.length === 0 || Buffer.byteLength(result) > maximum || !/^[A-Za-z0-9./:_-]+$/.test(result)) {
+    throw new Error("invalid policy identifier");
+  }
+}
+
+/** Returns the parent link, or throws `BoundedPolicyLimit` for a size bound. */
+function boundedPolicy(data: Uint8Array): { parent?: Uint8Array } {
+  if (data.length > 65536) throw new BoundedPolicyLimit();
+  const root = new Decoder(data).complete();
+  exactMap(root, 3);
+  const commitment = mapAt(root, 0);
+  exactMap(commitment, 5);
+  policyIdentifier(mapAt(commitment, 0), 128);
+  const version = uint(mapAt(commitment, 1));
+  if (version === 0n || version > 0xffffn) throw new Error("invalid policy version");
+  policyIdentifier(mapAt(commitment, 2), 64);
+  const digest = bytes(mapAt(commitment, 3), 32);
+  policyIdentifier(mapAt(commitment, 4), 128);
+  const policy = bytes(mapAt(root, 1));
+  if (policy.length > 4096) throw new BoundedPolicyLimit();
+  if (policy.length === 0) throw new Error("empty policy");
+  const parent = optionalBytes(mapAt(root, 2));
+  if (!equal(domainCommitment("auths.bounded-policy.v1", policy), digest)) {
+    throw new Error("policy bytes do not open the commitment");
+  }
+  return { parent };
+}
+
+function evaluateBoundedPolicyExtension(value: Extension): void {
+  try {
+    boundedPolicy(value.bytes);
+  } catch (error) {
+    throw error instanceof BoundedPolicyLimit
+      ? denied("resource-limit-exceeded")
+      : denied("local-policy-denied");
+  }
+}
+
+/**
+ * A child keeps a bound only by linking the digest of the parent's exact
+ * extension bytes, and adds one to an unbounded parent only without a link.
+ */
+function boundedPolicyLaw(child: Extension, parent: Extension | undefined): boolean {
+  try {
+    const decoded = boundedPolicy(child.bytes);
+    if (parent === undefined) return decoded.parent === undefined;
+    boundedPolicy(parent.bytes);
+    return decoded.parent !== undefined &&
+      equal(decoded.parent, domainCommitment("auths.bounded-policy-commitment.v1", parent.bytes));
+  } catch {
+    return false;
+  }
 }
