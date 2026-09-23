@@ -17,6 +17,7 @@ source_files = [
   "core/crates/auths-model/Cargo.toml",
   "core/crates/auths-model/src/lib.rs",
   "core/crates/auths-model/src/observation.rs",
+  "core/crates/auths-model/src/bounded_policy.rs",
   "core/crates/auths-algebra-kernel/Cargo.toml",
   "core/crates/auths-algebra-kernel/src/lib.rs",
   "core/crates/auths-algebra-kernel/src/generated.rs",
@@ -193,7 +194,7 @@ classification = "Pinned upstream meta proof hole; comments and diagnostic strin
 [[translations]]
 crate_name = "auths_model"
 translation_json = "formal/qualification/aeneas/generated/model/translation.json"
-local_functions = 114
+local_functions = 116
 external_functions = 4
 opaque_local_functions = 0
 required_symbols = [
@@ -235,6 +236,7 @@ required_symbols = [
   "auths_model::observation::observation_conditions_hold",
   "auths_model::observation::requirement_verdict",
   "auths_model::observation::observation_requirements_attenuate",
+  "auths_model::bounded_policy::bounded_policy_link_accepts",
 ]
 allowed_external_symbols = [
   "core::array::{impl core::cmp::Ord for [T; N]}::cmp",
@@ -323,7 +325,7 @@ allowed_external_symbols = [
 [[translations]]
 crate_name = "auths_bounded_policy"
 translation_json = "formal/qualification/aeneas/generated/bounded_policy/translation.json"
-local_functions = 5
+local_functions = 8
 external_functions = 0
 opaque_local_functions = 0
 required_symbols = [
@@ -332,6 +334,9 @@ required_symbols = [
   "auths_bounded_policy::kernel::checked_sub_u64",
   "auths_bounded_policy::kernel::checked_mul_u64",
   "auths_bounded_policy::kernel::checked_div_u64",
+  "auths_bounded_policy::kernel::ceiling_count_code",
+  "auths_bounded_policy::kernel::ceiling_count_tightens",
+  "auths_bounded_policy::kernel::window_index",
 ]
 allowed_external_symbols = []
 

@@ -25,4 +25,13 @@ inductive kernel.ConfigurationMatchCode where
 | DigestMismatch : kernel.ConfigurationMatchCode
 | ImplementationMismatch : kernel.ConfigurationMatchCode
 
+/-- [auths_bounded_policy::kernel::CeilingCountCode]
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 73:0-80:1
+    Visibility: public -/
+@[discriminant isize]
+inductive kernel.CeilingCountCode where
+| Eligible : kernel.CeilingCountCode
+| AboveCeiling : kernel.CeilingCountCode
+| WindowExhausted : kernel.CeilingCountCode
+
 end auths_bounded_policy
