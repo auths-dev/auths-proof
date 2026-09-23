@@ -68,4 +68,4 @@ reason = "Domain packages, demos, benchmarks, testkits, fuzz crates, internal to
 
 [[excluded]]
 id = "proof-build-crates"
-reason = "auths-proof-wasm and auths-proof-python are private build boundaries owned by the npm and PyPI subjects, not additional public package roots."
+reason = "auths-proof-wasm, auths-openapi-derive-wasm, and auths-proof-python are private build boundaries owned by the npm and PyPI subjects, not additional public package roots."

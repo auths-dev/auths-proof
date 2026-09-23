@@ -272,6 +272,11 @@
       "path": "product/tools/auths-openapi-derive"
     },
     {
+      "name": "auths-openapi-derive-wasm",
+      "layer": "bindings",
+      "path": "bindings/wasm/auths-openapi-derive-wasm"
+    },
+    {
       "name": "auths-opentofu",
       "layer": "product",
       "path": "product/integrations/auths-opentofu"
@@ -6648,6 +6653,46 @@
       "features": []
     },
     {
+      "source": "auths-openapi-derive-wasm",
+      "source_layer": "bindings",
+      "target": "auths-openapi-derive",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-openapi-derive-wasm",
+      "source_layer": "bindings",
+      "target": "serde_json",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "preserve_order",
+        "std"
+      ]
+    },
+    {
+      "source": "auths-openapi-derive-wasm",
+      "source_layer": "bindings",
+      "target": "wasm-bindgen",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
       "source": "auths-opentofu",
       "source_layer": "product",
       "target": "async-trait",
@@ -10586,18 +10631,6 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-proof-wasm",
-      "source_layer": "bindings",
-      "target": "auths-openapi-derive",
-      "target_layer": "product",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
       "features": []
     },
     {

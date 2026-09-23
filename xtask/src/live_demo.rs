@@ -6,6 +6,7 @@ pub(crate) fn wasm() -> Result<(), String> {
     for package in [
         "auths-proof",
         "auths-proof-wasm",
+        "auths-openapi-derive-wasm",
         "auths-model",
         "auths-codec",
         "auths-ports",

@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "demos/offline-verification",
     "bindings/wasm/auths-proof-wasm",
+    "bindings/wasm/auths-openapi-derive-wasm",
     "bindings/python",
     "core/crates/auths",
     "core/crates/auths-proof",
@@ -157,6 +158,7 @@ auths-multikey = { version = "1.0.0-rc.1", path = "core/crates/auths-multikey", 
 auths-testkit = { version = "1.0.0-rc.1", path = "core/testkit/auths-testkit" }
 auths-proof = { version = "1.0.0-rc.1", path = "core/crates/auths-proof", default-features = false }
 auths-proof-wasm = { version = "1.0.0-rc.1", path = "bindings/wasm/auths-proof-wasm" }
+auths-openapi-derive-wasm = { version = "1.0.0-rc.1", path = "bindings/wasm/auths-openapi-derive-wasm" }
 auths-raw-key = { version = "1.0.0-rc.1", path = "core/adapters/auths-raw-key", default-features = false }
 auths-did-key = { version = "1.0.0-rc.1", path = "core/adapters/auths-did-key", default-features = false }
 auths-did-keri = { version = "1.0.0-rc.1", path = "core/adapters/auths-did-keri", default-features = false }
