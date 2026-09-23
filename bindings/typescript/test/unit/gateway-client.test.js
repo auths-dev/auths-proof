@@ -107,3 +107,132 @@ test("gateway client exposes observed-by-provider without evidence bytes", { ski
     await assert.rejects(replyOnce(hostile), GatewayProtocolError);
   }
 });
+
+const MEDIA_TYPE = "application/vnd.auths.observation.v1+cbor";
+const OBSERVATION = new Uint8Array(512).map((_, index) => index % 256);
+const SUBJECT = "https://api.airtable.com/v0/app/tbl/rec#/fields/DemoStatus";
+
+function signed(overrides = {}) {
+  return JSON.stringify({
+    outcome: "signed",
+    schema: "auths.gateway-readback/1",
+    subject: SUBJECT,
+    observed_at: 1790000000,
+    media_type: MEDIA_TYPE,
+    observation_b64: Buffer.from(OBSERVATION).toString("base64url"),
+    ...overrides,
+  });
+}
+
+async function observeOnce(reply, request) {
+  const directory = await mkdtemp(join(tmpdir(), "auths-gateway-"));
+  const path = join(directory, "app.sock");
+  const seen = [];
+  const server = createServer((socket) => {
+    let bytes = Buffer.alloc(0);
+    socket.on("data", (chunk) => {
+      bytes = Buffer.concat([bytes, chunk]);
+      if (bytes.length < 4 || bytes.length < bytes.readUInt32BE(0) + 4) return;
+      seen.push(JSON.parse(bytes.subarray(4, bytes.readUInt32BE(0) + 4).toString("utf8")));
+      const body = Buffer.from(reply);
+      const frame = Buffer.alloc(4 + body.length);
+      frame.writeUInt32BE(body.length, 0);
+      body.copy(frame, 4);
+      socket.end(frame);
+    });
+  });
+  try {
+    await new Promise((resolve) => server.listen(path, resolve));
+    const result = await request(new GatewayClient(new GatewayEndpoint(path)));
+    return { result, seen };
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
+const readBack = (client) => client.observeReadBack({ record_id: "recTEST0000000001" });
+const outcome = (client) => client.observeOutcome("step-1");
+
+test("gateway client requests a read-back and returns the signed observation bytes", { skip: process.platform === "win32" }, async () => {
+  const { result, seen } = await observeOnce(signed(), readBack);
+  assert.deepEqual(result, {
+    outcome: "signed",
+    schema: "auths.gateway-readback/1",
+    subject: SUBJECT,
+    observedAt: 1790000000,
+    mediaType: MEDIA_TYPE,
+    observation: OBSERVATION,
+  });
+  assert.deepEqual(seen, [{
+    schema: "auths.gateway-observe/1",
+    request: { kind: "read-back", arguments: { record_id: "recTEST0000000001" } },
+  }]);
+});
+
+test("gateway client requests an outcome and surfaces a refusal as a result", { skip: process.platform === "win32" }, async () => {
+  const subject = "auths-gateway://ns/operations/step-1";
+  const signedOutcome = await observeOnce(signed({ schema: "auths.gateway-outcome/1", subject }), outcome);
+  assert.equal(signedOutcome.result.outcome, "signed");
+  assert.equal(signedOutcome.result.schema, "auths.gateway-outcome/1");
+  assert.equal(signedOutcome.result.subject, subject);
+  assert.deepEqual(signedOutcome.result.observation, OBSERVATION);
+  assert.deepEqual(signedOutcome.seen, [{
+    schema: "auths.gateway-observe/1",
+    request: { kind: "outcome", operation_id: "step-1" },
+  }]);
+  const refused = await observeOnce('{"outcome":"refused","code":"gateway.observer.not-provisioned"}', outcome);
+  assert.deepEqual(refused.result, { outcome: "refused", code: "gateway.observer.not-provisioned" });
+});
+
+test("gateway client rejects malformed observation frames", { skip: process.platform === "win32" }, async () => {
+  // A signed read-back is not accepted as the answer to an outcome request.
+  await assert.rejects(observeOnce(signed(), outcome), GatewayProtocolError);
+  for (const hostile of [
+    signed({ schema: "auths.gateway-outcome/1" }),
+    signed({ media_type: "application/cbor" }),
+    signed({ subject: "" }),
+    signed({ subject: "s".repeat(1025) }),
+    signed({ observed_at: -1 }),
+    signed({ observed_at: 1.5 }),
+    signed({ observed_at: "1790000000" }),
+    signed({ observation_b64: "" }),
+    signed({ observation_b64: `${Buffer.from(OBSERVATION).toString("base64url")}=` }),
+    signed({ observation_b64: "+/8=" }),
+    signed({ observation_b64: "AB" }),
+    signed({ observation_b64: "A" }),
+    signed({ observation_b64: "QUJD RA" }),
+    signed({ observation_b64: Buffer.alloc(4097, 1).toString("base64url") }),
+    signed({ confirmed: true }),
+    signed({ observation: "AAAA" }),
+    '{"outcome":"refused"}',
+    '{"outcome":"refused","code":""}',
+    '{"outcome":"refused","code":"x","reason":"y"}',
+    '{"outcome":"observed","status":200,"matched":true}',
+    '{"outcome":"signed"}',
+    "[]",
+    "not json",
+  ]) {
+    await assert.rejects(observeOnce(hostile, readBack), GatewayProtocolError, hostile.slice(0, 80));
+  }
+});
+
+test("gateway client refuses unbounded observation requests before connecting", async () => {
+  const client = new GatewayClient(new GatewayEndpoint("/tmp/auths-test.sock"));
+  for (const argumentsMap of [
+    {},
+    [],
+    null,
+    { record_id: "" },
+    { record_id: "x".repeat(129) },
+    { record_id: "a\0b" },
+    { record_id: 7 },
+    { "-record": "rec1" },
+    Object.fromEntries(Array.from({ length: 17 }, (_, index) => [`field${index}`, "v"])),
+  ]) {
+    await assert.rejects(client.observeReadBack(argumentsMap), TypeError);
+  }
+  for (const operation of ["", "-step", "step 1", "s".repeat(129), "stép", 7]) {
+    await assert.rejects(client.observeOutcome(operation), TypeError);
+  }
+});
