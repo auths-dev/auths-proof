@@ -22,7 +22,7 @@ from .adapters.custody import (
     SigningObjectKind,
     SigningRequest,
 )
-from .self_hosted import ExactMcpTool
+from .self_hosted import ExactMcpTool, SignedObservationAttachment, attach_observations
 
 CommandT = TypeVar("CommandT")
 
@@ -95,11 +95,13 @@ async def author_production_mcp_proof(
     contract: ExactMcpTool[CommandT],
     command: CommandT,
     inputs: ProductionAuthoringInputs,
+    observations: Sequence[SignedObservationAttachment] = (),
 ) -> AuthoredMcpProof[CommandT]:
     """Author with explicit durable custody and separately supplied trust.
 
     The verifier decides authorization; structural readiness is not a grant,
     proof of independent trust provisioning, or provider qualification.
+    ``observations`` are attached as in :func:`author_mcp_proof`.
     """
     return await author_mcp_proof(
         contract=contract,
@@ -109,6 +111,7 @@ async def author_production_mcp_proof(
         signer=inputs.signer,
         challenge=inputs.challenge,
         evaluation_time=inputs.evaluation_time,
+        observations=observations,
     )
 
 
@@ -145,12 +148,18 @@ async def author_mcp_proof(
     signer: CustodySigner,
     challenge: bytes,
     evaluation_time: int,
+    observations: Sequence[SignedObservationAttachment] = (),
 ) -> AuthoredMcpProof[CommandT]:
     """Sign and assemble one exact action with externally supplied authority.
 
     The signed grant, signer identity, and trusted context remain distinct
     inputs. Native Rust owns canonical action, bundle, and verifier semantics.
     The caller retains custody of the signer and must close it separately.
+
+    Each signed observation in ``observations`` (for example a gateway
+    read-back) is carried as a detached attachment that the action signature
+    covers; a grant's observation requirements are then judged by the final
+    verification against the trusted context.
     """
     if not 1 <= len(grants) <= 16:
         raise ValueError("grant chain count is outside bounds")
@@ -172,6 +181,8 @@ async def author_mcp_proof(
         challenge=challenge,
         evaluation_time=evaluation_time,
     )
+    if observations:
+        prepared = attach_observations(prepared, observations)
     template = _native.parse_trusted_context(bytes(trusted_context_template))
     context = template.bind_request(prepared.audience, bytes(challenge), evaluation_time)
     signature = descriptor.signature

@@ -380,6 +380,11 @@ export interface WorkflowWasmEngine {
     challenge: Uint8Array,
     evaluationTime: bigint,
   ): WorkflowMcpActionPreparation;
+  attachObservationsV1(
+    canonicalAction: Uint8Array,
+    actionEnvelope: Uint8Array,
+    observations: readonly Readonly<{ mediaType: string; observation: Uint8Array }>[],
+  ): WorkflowObservationAttachment;
   verifyExactMcpArgumentsV1(
     proof: Uint8Array,
     action: Uint8Array,
@@ -718,6 +723,12 @@ export interface WorkflowMcpActionPreparation {
   readonly audience: string;
   readonly resource: string;
   readonly displayDigestHex: string;
+  free?(): void;
+}
+
+export interface WorkflowObservationAttachment {
+  readonly canonicalActionCbor: Uint8Array;
+  readonly actionEnvelopeCbor: Uint8Array;
   free?(): void;
 }
 

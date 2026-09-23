@@ -209,9 +209,24 @@ result is cited here, and no document may yet describe gateway grants as
 conditioned on observed provider state. The Python and TypeScript gateway
 clients expose the observation request (`observe_read_back`/`observe_outcome`,
 `observeReadBack`/`observeOutcome`) and return the exact signed bytes and
-media type, parsed as a closed result and exercised only against fake sockets.
-Neither SDK has an action-authoring helper that attaches detached
-attachments, so attaching a returned observation is not yet an SDK workflow.
+media type, parsed as a closed result. Both SDKs can now attach a returned
+observation to the next action (`attach_observations`/`attachObservations`,
+or `observations` on the authoring functions). The descriptors are bound by
+the action signature, and the SDK's final verification reaches the gateway's
+verdict (0060 §15.4). A packed-wheel consumer and a packed-npm consumer run
+the expected-before-replacement journey against `auths-gateway-harness`,
+which is the gateway's application socket over the counting provider, with
+test trust and an explicit clock:
+
+- the write is authorized;
+- after the record changes, a stale `expected` is denied and an over-age
+  observation is indeterminate;
+- both are refused by the SDK, and by the gateway for an agent that skips
+  that check, with no write and no lease.
+
+This evidence is local and in the harness only. Hosted results are recorded
+on the pull request when they exist, and the live Airtable limit above still
+applies.
 
 ## Packaged clean-consumer exercise
 

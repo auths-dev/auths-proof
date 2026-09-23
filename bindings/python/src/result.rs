@@ -214,12 +214,27 @@ pub(crate) fn verify_sealed(
     let suites: [&dyn SignatureSuite; 2] = [&ed25519, &p256];
     let registries =
         auths_registries::ImmutableRegistries::new(&methods, &suites).map_err(runtime_error)?;
-    auths_verifier::verify_v1_sealed(
-        proof_cbor,
-        canonical_action_cbor,
-        trusted_context_cbor,
-        &registries,
-    )
+    // The SDK packages two verifier configurations over the same methods and
+    // suites: its own, and the `mcp-arguments-v1` configuration a gateway
+    // context pins. The context's pinned configuration selects one; any
+    // other pin is reported as a configuration mismatch by the verifier.
+    let pinned = auths_codec::decode_verifier_context(trusted_context_cbor)
+        .ok()
+        .map(|context| context.configuration());
+    auths_profile_mcp::with_mcp_arguments_registries(&methods, &suites, |arguments| {
+        let selected = if pinned == Some(arguments.configuration_id()) {
+            arguments
+        } else {
+            &registries
+        };
+        auths_verifier::verify_v1_sealed(
+            proof_cbor,
+            canonical_action_cbor,
+            trusted_context_cbor,
+            selected,
+        )
+    })
+    .map_err(runtime_error)?
     .map_err(runtime_error)
 }
 

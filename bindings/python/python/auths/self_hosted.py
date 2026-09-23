@@ -11,12 +11,13 @@ import json
 import re
 import time
 import types
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, is_dataclass
 from dataclasses import fields as dataclass_fields
 from typing import (
     Generic,
     Literal,
+    Protocol,
     TypeVar,
     Union,
     cast,
@@ -321,6 +322,60 @@ class PreparedMcpAction(Generic[CommandT]):
     review_fields: tuple[tuple[str, str], ...]
 
 
+class SignedObservationAttachment(Protocol):
+    """One signed observation to carry with an action.
+
+    :class:`auths.gateway.GatewaySignedObservation` satisfies this shape.
+    ``observation`` is the exact signed bytes and ``media_type`` their
+    declared media type.
+    """
+
+    @property
+    def media_type(self) -> str: ...
+
+    @property
+    def observation(self) -> bytes: ...
+
+
+def attach_observations(
+    prepared: PreparedMcpAction[CommandT],
+    observations: Sequence[SignedObservationAttachment],
+) -> PreparedMcpAction[CommandT]:
+    """Return ``prepared`` carrying each observation as a detached attachment.
+
+    The attachment descriptors are bound into the unsigned action statement,
+    so sign the returned action, not the original. Native code checks only
+    the media type, size, count, and distinctness; whether an observation is
+    authentic, fresh, about the right subject, and satisfies a grant's
+    conditions is decided by the verifier. Attach at most once.
+
+    Raises ``TypeError`` for a value that is not a prepared action or an
+    observation shape, and the native malformed-input error for a rejected
+    attachment set.
+    """
+    if not isinstance(prepared, PreparedMcpAction):
+        raise TypeError("prepared must be a PreparedMcpAction")
+    offered: list[tuple[str, bytes]] = []
+    for item in observations:
+        media_type = getattr(item, "media_type", None)
+        observation = getattr(item, "observation", None)
+        if not isinstance(media_type, str) or not isinstance(observation, bytes):
+            raise TypeError("each observation needs a media type and signed bytes")
+        offered.append((media_type, bytes(observation)))
+    native = _native.attach_mcp_observations(prepared.action, offered)
+    canonical_action, _ = _native.inspect_mcp_action(native)
+    return PreparedMcpAction(
+        prepared.command,
+        native,
+        bytes(canonical_action),
+        bytes(_native.commit_canonical_v1("auths.canonical-action.v1", canonical_action)),
+        prepared.arguments_json,
+        prepared.audience,
+        prepared.resource,
+        prepared.review_fields,
+    )
+
+
 class ExactMcpTool(Generic[CommandT]):
     """One fixed MCP service/tool with a closed, bounded command shape."""
 
@@ -512,6 +567,8 @@ __all__ = [
     "OptionalField",
     "PreparedMcpAction",
     "RejectedCommand",
+    "SignedObservationAttachment",
     "StringField",
+    "attach_observations",
     "verify_command",
 ]

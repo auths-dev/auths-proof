@@ -3,199 +3,105 @@
 //! Each test signs a real grant and MCP action, verifies it natively with the
 //! gateway's own registries and `mcp-arguments-v1` policy at an explicit
 //! gateway clock, and then follows the engine's post-verification dispatch
-//! against a counting provider. The provider counts write entries, read-only
-//! observations, and credential leases; a lease is taken only after
-//! verification and a durable claim, exactly as in the engine.
+//! against the counting provider of [`crate::harness`]. The provider counts
+//! write entries, read-only observations, and credential leases; a lease is
+//! taken only after verification and a durable claim, exactly as in the
+//! engine.
 
 use crate::engine::{
-    GatewayObserveResult, GatewaySubmitResult, execute_claimed, gateway_verifier_configuration,
-    not_entered, observe_outcome, observe_read_back, reobserve, replay_refused, verify_command,
+    GatewayObserveRequest, GatewayObserveResult, GatewaySubmitResult,
+    gateway_verifier_configuration, not_entered, observe_outcome,
+};
+use crate::harness::{
+    self as h, ANCHOR, Delivery, NAMESPACE, OTHER_RECORD, RECORD, Signer, read_back_subject,
 };
 use crate::observer::{OUTCOME_SCHEMA, READ_BACK_SCHEMA, operation_subject};
-use crate::transport::{GatewayTransportError, ProviderPort, WriteTransportOutcome};
-use crate::{
-    ClosedObservationRequest, ClosedProviderRequest, CompiledRecipe, FileGatewayAttemptStore,
-    GatewayAttemptError, GatewayObserver, LogicalOperationId, OperatorNamespace,
-};
+use crate::{CompiledRecipe, GatewayObserver, LogicalOperationId, OperatorNamespace};
 use auths_codec::{
     action_id, action_signing_preimage, attachment_digest, body_digest, domain_commitment,
-    encode_bundle, encode_canonical_action, encode_observation_requirements,
-    encode_signed_observation, evidence_id, grant_id, grant_signing_preimage,
+    encode_bundle, encode_canonical_action, encode_signed_observation, grant_id,
     observation_signing_preimage, plan_id,
 };
 use auths_model::{
-    AcceptedRegistries, ActionConstraint, ActionEnvelope, AssuranceClaimId, AssurancePolicy,
-    AssurancePolicyId, AttachmentDescriptor, Audience, AudienceSet, AuthorizationPlan,
-    BundleHeader, CanonicalAction, Challenge, ChannelBindingId, CompositionRequirement,
-    ConditionTest, Confidentiality, ControlBinding, CriticalExtension, CriticalExtensions,
-    DetachedAttachment, DispositionId, EvidenceId, EvidenceObject, EvidenceTypeId, ExtensionId,
-    FactName, FactText, FactValue, GrantStatement, GrantStatusSnapshot, MediaType, MemberValues,
-    OBSERVATION_MEDIA_TYPE, ObservationCondition, ObservationFact, ObservationFacts,
-    ObservationRequirement, ObservationRequirements, ObservationSchemaId, ObservationStatement,
-    ObservationSubject, ObserverAnchor, ObserverAnchorId, Opacity, PermissionSet, Presence,
-    PrincipalId, PrincipalMethodId, PrincipalStatusSnapshot, ProfilePolicyId, ProofBundle,
-    ProofRef, ResourceId, ResourceMatcherId, SignatureBytes, SignatureDescriptor,
-    SignatureEnvelope, SignatureSuiteId, SignedAction, SignedGrant, SignedObservation,
-    StatementRef, StatusPolicy, StatusSnapshotId, Timestamp, TrustAnchor, TrustAnchorId,
-    TrustedContext, ValidityWindow, VerificationMethod, VerifierLimits,
+    ActionEnvelope, AttachmentDescriptor, Audience, AuthorizationPlan, BundleHeader,
+    CanonicalAction, Challenge, ChannelBindingId, ConditionTest, Confidentiality, ControlBinding,
+    CriticalExtensions, DetachedAttachment, DispositionId, EvidenceObject, FactName, FactValue,
+    MediaType, MemberValues, OBSERVATION_MEDIA_TYPE, ObservationCondition, ObservationFact,
+    ObservationFacts, ObservationRequirement, ObservationSchemaId, ObservationStatement,
+    ObservationSubject, ObserverAnchorId, Opacity, Presence, PrincipalId, ProofBundle, ProofRef,
+    ResourceId, SignatureEnvelope, SignedAction, SignedGrant, SignedObservation, StatementRef,
+    Timestamp, TrustedContext, ValidityWindow, VerifierLimits,
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_profile_api::ActionProfile as _;
 use auths_profile_mcp::{McpProfile, McpToolCall};
-use auths_raw_key::{RAW_KEY_MEDIA_TYPE, RAW_KEY_V1, RawKeyDescriptor, RawKeyType};
-use auths_registries::{ImmutableRegistries, OBSERVATION_REQUIREMENT_EXTENSION_V1};
+use auths_registries::ImmutableRegistries;
 use base64ct::{Base64UrlUnpadded, Encoding as _};
-use ed25519_dalek::{Signer as _, SigningKey};
 use serde_json::{Map, Value, json};
-use sha2::{Digest as _, Sha256};
-use std::sync::Mutex;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::ops::Deref;
 
 const NOW: u64 = 1_790_000_000;
-const SERVICE: &str = "gateway-observer-test";
-const TOOL: &str = "set_status_v1";
-const NAMESPACE: &str = "observer-demo";
-const ORIGIN: &str = "https://api.airtable.com";
-const RECORD: &str = "recTEST0000000001";
-const OTHER_RECORD: &str = "recTEST0000000002";
-const ANCHOR: &str = "gateway-observer";
-const ASSURANCE: &str = "gateway-observer-test-v1";
-
-/// Raw-key Ed25519 principal used for the root, the agent, and forgeries.
-struct Signer {
-    key: SigningKey,
-    raw: RawKeyDescriptor,
-    principal: PrincipalId,
-}
-
-impl Signer {
-    fn new(seed: u8) -> Self {
-        let key = SigningKey::from_bytes(&[seed; 32]);
-        let raw =
-            RawKeyDescriptor::new(RawKeyType::Ed25519, key.verifying_key().to_bytes().to_vec())
-                .expect("raw key");
-        let principal = raw.principal().expect("principal");
-        Self {
-            key,
-            raw,
-            principal,
-        }
-    }
-
-    fn descriptor(&self) -> SignatureDescriptor {
-        SignatureDescriptor::new(
-            PrincipalMethodId::parse(RAW_KEY_V1).expect("method"),
-            VerificationMethod::parse(self.principal.as_str()).expect("verification method"),
-            SignatureSuiteId::parse(auths_signature::ED25519_V1).expect("suite"),
-        )
-    }
-
-    fn evidence(&self) -> EvidenceObject {
-        let object = |id| {
-            EvidenceObject::new(
-                id,
-                EvidenceTypeId::parse(RAW_KEY_V1).expect("type"),
-                MediaType::parse(RAW_KEY_MEDIA_TYPE).expect("media"),
-                self.raw.encode(),
-            )
-            .expect("evidence")
-        };
-        object(evidence_id(&object(EvidenceId::new([0; 32]))).expect("evidence ID"))
-    }
-
-    fn sign(&self, preimage: &[u8]) -> SignatureBytes {
-        SignatureBytes::new(self.key.sign(preimage).to_bytes().to_vec()).expect("signature")
-    }
-}
 
 fn window(from: u64, until: u64) -> ValidityWindow {
-    ValidityWindow::new(Timestamp::new(from), Timestamp::new(until)).expect("window")
+    h::window(from, until).expect("window")
 }
 
 fn audience() -> Audience {
-    Audience::parse(&format!("mcp://{SERVICE}")).expect("audience")
+    h::audience().expect("audience")
 }
 
 fn call(arguments: &Map<String, Value>) -> McpToolCall {
-    McpToolCall::new(SERVICE, TOOL, arguments.clone()).expect("call")
+    h::call(arguments).expect("call")
 }
 
 fn name(value: &str) -> FactName {
-    FactName::parse(value).expect("fact name")
+    h::name(value).expect("fact name")
 }
 
 fn text(value: &str) -> FactValue {
-    FactValue::Text(FactText::new(value).expect("text"))
-}
-
-fn read_back_subject(record: &str) -> String {
-    format!("{ORIGIN}/v0/appTEST0000000001/tblTEST0000000001/{record}#/fields/DemoStatus")
+    h::text(value).expect("text")
 }
 
 fn namespace() -> OperatorNamespace {
-    OperatorNamespace::parse(NAMESPACE).expect("namespace")
+    h::namespace().expect("namespace")
+}
+
+fn signer(seed: u8) -> Signer {
+    Signer::from_seed(seed).expect("signer")
+}
+
+fn recipe(extra: &Value, preconditions: &Value) -> CompiledRecipe {
+    h::recipe(extra, preconditions).expect("test recipe compiles")
+}
+
+fn update_recipe() -> CompiledRecipe {
+    h::update_recipe().expect("update recipe")
+}
+
+fn context(
+    root: &Signer,
+    observer: &PrincipalId,
+    configuration: Option<[u8; 32]>,
+) -> TrustedContext {
+    h::context(root, observer, configuration, NOW).expect("context")
+}
+
+fn read_back_requirement() -> ObservationRequirement {
+    h::read_back_requirement().expect("requirement")
+}
+
+fn grant(
+    root: &Signer,
+    agent: &Signer,
+    requirement: Option<ObservationRequirement>,
+) -> SignedGrant {
+    h::grant(root, &agent.principal, requirement, NOW).expect("grant")
 }
 
 fn step_subject(operation: &str) -> String {
     operation_subject(
         &namespace(),
         &LogicalOperationId::parse(operation).expect("operation"),
-    )
-}
-
-/// Compiles a recipe for `extra` profile fields and its precondition block.
-fn recipe(extra: &Value, preconditions: &Value) -> CompiledRecipe {
-    let mut fields = json!({
-        "operation_id": {"kind": "string", "minimum": 1, "maximum": 128},
-        "operator_namespace": {"type": "enum", "variants": [NAMESPACE]},
-        "recipe_digest": {"kind": "string", "minimum": 64, "maximum": 64},
-        "record_id": {"kind": "string", "minimum": 17, "maximum": 43},
-        "replacement": {"type": "enum", "variants": ["Approved", "Pending"]}
-    });
-    for (key, value) in extra.as_object().expect("extra fields") {
-        fields[key] = value.clone();
-    }
-    let schema = json!({"kind": "object", "fields": fields});
-    let digest = hex::encode(Sha256::digest(
-        serde_json_canonicalizer::to_vec(&schema).expect("canonical schema"),
-    ));
-    let lock = json!({
-        "command_schema": schema, "generator_format": 2, "profile": "gateway-observer-test",
-        "schema": "auths.self-hosted-profile-lock/1", "schema_digest": digest,
-        "service": SERVICE, "tool": TOOL, "version": 1
-    });
-    let path = json!([
-        {"kind": "fixed", "value": "v0"},
-        {"kind": "fixed", "value": "appTEST0000000001"},
-        {"kind": "fixed", "value": "tblTEST0000000001"},
-        {"kind": "field", "name": "record_id"}
-    ]);
-    let source = json!({
-        "schema": "auths.gateway-recipe-source/1", "profile_schema_digest": digest,
-        "service": SERVICE, "tool": TOOL, "operator_namespace": NAMESPACE,
-        "credential": {"kind": "bearer"}, "origin": ORIGIN,
-        "write": {"method": "PATCH", "path": path, "body": {"kind": "json", "value": {
-            "kind": "object", "fields": {"fields": {"kind": "object", "fields": {
-                "DemoStatus": {"kind": "field", "name": "replacement"}}}}}}},
-        "observation": {"path": path, "json_pointer": "/fields/DemoStatus",
-            "expected_field": "replacement", "maximum_response_bytes": 16384},
-        "echo": {"write": "/fields/auths_echo", "observe": "/fields/auths_echo"},
-        "preconditions": preconditions
-    });
-    CompiledRecipe::compile(
-        &serde_json::to_vec(&source).expect("source"),
-        &serde_json::to_vec(&lock).expect("lock"),
-    )
-    .expect("test recipe compiles")
-}
-
-fn update_recipe() -> CompiledRecipe {
-    recipe(
-        &json!({
-            "expected": {"type": "enum", "variants": ["Approved", "Pending"]},
-            "record_uri": {"kind": "string", "minimum": 1, "maximum": 256}
-        }),
-        &json!({"read_back_subject": "record_uri", "verified": ["expected"]}),
     )
 }
 
@@ -207,123 +113,6 @@ fn chained_recipe() -> CompiledRecipe {
         }),
         &json!({"verified": ["depends_on", "depends_on_commitment"]}),
     )
-}
-
-fn observer_anchor(observer: &PrincipalId) -> ObserverAnchor {
-    ObserverAnchor::new(
-        ObserverAnchorId::parse(ANCHOR).expect("observer anchor ID"),
-        observer.clone(),
-        vec![PrincipalMethodId::parse(RAW_KEY_V1).expect("method")],
-        vec![
-            ObservationSchemaId::parse(READ_BACK_SCHEMA).expect("schema"),
-            ObservationSchemaId::parse(OUTCOME_SCHEMA).expect("schema"),
-        ],
-        vec![
-            ResourceId::parse(&format!("{ORIGIN}/")).expect("namespace"),
-            ResourceId::parse(&format!("auths-gateway://{NAMESPACE}/operations/"))
-                .expect("namespace"),
-        ],
-        window(NOW - 86_400, NOW + 86_400),
-    )
-    .expect("observer anchor")
-}
-
-fn accepted_registries() -> AcceptedRegistries {
-    AcceptedRegistries::new(
-        auths_registries::TARGET_V1_REGISTRY_MANIFEST,
-        vec![PrincipalMethodId::parse(RAW_KEY_V1).expect("method")],
-        vec![SignatureSuiteId::parse(auths_signature::ED25519_V1).expect("suite")],
-        vec![EvidenceTypeId::parse(RAW_KEY_V1).expect("evidence type")],
-        Vec::new(),
-        Vec::new(),
-        vec![
-            AssuranceClaimId::parse("offline-verifiable").expect("claim"),
-            AssuranceClaimId::parse("self-certifying-identifier").expect("claim"),
-        ],
-        Vec::new(),
-        vec![ResourceMatcherId::parse("uri-namespace-v1").expect("matcher")],
-        Vec::new(),
-        vec![ExtensionId::parse(OBSERVATION_REQUIREMENT_EXTENSION_V1).expect("extension")],
-        vec![call(&Map::new()).profile_ref().expect("profile")],
-        vec![ProfilePolicyId::parse(crate::MCP_ARGUMENTS_V1).expect("policy")],
-    )
-    .expect("registries")
-}
-
-/// Trust pinned to `root`, with one observer anchor for `observer`.
-fn context(
-    root: &Signer,
-    observer: &PrincipalId,
-    configuration: Option<[u8; 32]>,
-) -> TrustedContext {
-    let configuration = configuration.map_or_else(
-        || gateway_verifier_configuration().expect("configuration"),
-        auths_model::VerifierConfigurationId::new,
-    );
-    let assurance = AssurancePolicyId::parse(ASSURANCE).expect("assurance");
-    let anchor = TrustAnchor::new(
-        TrustAnchorId::parse("root").expect("anchor ID"),
-        root.principal.clone(),
-        vec![PrincipalMethodId::parse(RAW_KEY_V1).expect("method")],
-        vec![call(&Map::new()).profile_ref().expect("profile")],
-        PermissionSet::new(vec![call(&Map::new()).permission().expect("permission")])
-            .expect("permissions"),
-        vec![ResourceId::parse(&format!("mcp://{SERVICE}/")).expect("namespace")],
-        AudienceSet::new(vec![audience()]).expect("audiences"),
-        window(NOW - 86_400, NOW + 86_400),
-        None,
-        1,
-        assurance.clone(),
-        StatusPolicy::ExpiryOnly,
-    )
-    .expect("trust anchor");
-    TrustedContext::new(
-        configuration,
-        CompositionRequirement::new(None, 1, 1, 1).expect("composition"),
-        vec![anchor],
-        accepted_registries(),
-        audience(),
-        Challenge::new([0; 32]),
-        Timestamp::new(NOW),
-        AssurancePolicy::new(assurance, Vec::new()).expect("assurance policy"),
-        PrincipalStatusSnapshot::new(
-            StatusSnapshotId::new([0x63; 32]),
-            Timestamp::new(NOW - 86_400),
-            Timestamp::new(NOW + 86_400),
-            Vec::new(),
-            Vec::new(),
-        )
-        .expect("principal status"),
-        GrantStatusSnapshot::new(
-            StatusSnapshotId::new([0x64; 32]),
-            Timestamp::new(NOW - 86_400),
-            Timestamp::new(NOW + 86_400),
-            Vec::new(),
-            Vec::new(),
-        )
-        .expect("grant status"),
-        ResourceMatcherId::parse("uri-namespace-v1").expect("matcher"),
-        ProfilePolicyId::parse(crate::MCP_ARGUMENTS_V1).expect("policy"),
-        ChannelBindingId::parse("none-v1").expect("channel"),
-        VerifierLimits::default(),
-    )
-    .expect("context")
-    .with_observer_anchors(vec![observer_anchor(observer)])
-    .expect("observer anchors")
-}
-
-fn read_back_requirement() -> ObservationRequirement {
-    ObservationRequirement::new(
-        ObserverAnchorId::parse(ANCHOR).expect("anchor"),
-        ObservationSchemaId::parse(READ_BACK_SCHEMA).expect("schema"),
-        ObservationSubject::ActionFact(name("record_uri")),
-        60,
-        vec![ObservationCondition::new(
-            name("value"),
-            ConditionTest::EqAction(name("expected")),
-        )],
-    )
-    .expect("requirement")
 }
 
 fn outcome_requirement() -> ObservationRequirement {
@@ -346,46 +135,6 @@ fn outcome_requirement() -> ObservationRequirement {
         ],
     )
     .expect("requirement")
-}
-
-fn grant(
-    root: &Signer,
-    agent: &Signer,
-    requirement: Option<ObservationRequirement>,
-) -> SignedGrant {
-    let extensions = requirement.map_or_else(CriticalExtensions::empty, |requirement| {
-        let bytes = encode_observation_requirements(
-            &ObservationRequirements::new(vec![requirement]).expect("requirements"),
-        )
-        .expect("requirement bytes");
-        CriticalExtensions::new(vec![
-            CriticalExtension::new(
-                ExtensionId::parse(OBSERVATION_REQUIREMENT_EXTENSION_V1).expect("extension"),
-                bytes,
-            )
-            .expect("extension"),
-        ])
-        .expect("extensions")
-    });
-    let statement = GrantStatement::new(
-        root.principal.clone(),
-        agent.principal.clone(),
-        call(&Map::new()).profile_ref().expect("profile"),
-        PermissionSet::new(vec![call(&Map::new()).permission().expect("permission")])
-            .expect("permissions"),
-        window(NOW - 3_600, NOW + 86_400),
-        AudienceSet::new(vec![audience()]).expect("audiences"),
-        ActionConstraint::AnyBody,
-        None,
-        0,
-        None,
-        StatusPolicy::ExpiryOnly,
-        AssurancePolicyId::parse(ASSURANCE).expect("assurance"),
-        extensions,
-    );
-    let descriptor = root.descriptor();
-    let signature = root.sign(&grant_signing_preimage(&statement, &descriptor).expect("preimage"));
-    SignedGrant::new(statement, SignatureEnvelope::new(descriptor, signature))
 }
 
 /// One signed submission: proof bytes, canonical action bytes, commitment.
@@ -416,8 +165,10 @@ fn attachments(observations: &[Vec<u8>]) -> (Vec<AttachmentDescriptor>, Vec<Deta
 }
 
 fn sign_action(agent: &Signer, envelope: ActionEnvelope) -> SignedAction {
-    let descriptor = agent.descriptor();
-    let signature = agent.sign(&action_signing_preimage(&envelope, &descriptor).expect("preimage"));
+    let descriptor = agent.descriptor().expect("descriptor");
+    let signature = agent
+        .sign(&action_signing_preimage(&envelope, &descriptor).expect("preimage"))
+        .expect("signature");
     SignedAction::new(envelope, SignatureEnvelope::new(descriptor, signature))
 }
 
@@ -478,16 +229,19 @@ fn submission(
     let bindings = vec![
         ControlBinding::new(
             StatementRef::Grant(grant_id(grant.statement()).expect("grant ID")),
-            vec![root.evidence().id()],
+            vec![root.evidence().expect("evidence").id()],
         )
         .expect("grant binding"),
         ControlBinding::new(
             StatementRef::Action(action_id(action.envelope()).expect("action ID")),
-            vec![agent.evidence().id()],
+            vec![agent.evidence().expect("evidence").id()],
         )
         .expect("action binding"),
     ];
-    let mut evidence = vec![root.evidence(), agent.evidence()];
+    let mut evidence = vec![
+        root.evidence().expect("evidence"),
+        agent.evidence().expect("evidence"),
+    ];
     evidence.sort_by_key(EvidenceObject::id);
     let bundle = ProofBundle::new(
         BundleHeader::v1(),
@@ -524,120 +278,43 @@ fn forged_read_back(signer: &Signer, claimed: &PrincipalId, record: &str, value:
         ObservationFacts::new(vec![ObservationFact::new(name("value"), text(value))])
             .expect("facts"),
     );
-    let descriptor = signer.descriptor();
-    let signature =
-        signer.sign(&observation_signing_preimage(&statement, &descriptor).expect("preimage"));
+    let descriptor = signer.descriptor().expect("descriptor");
+    let signature = signer
+        .sign(&observation_signing_preimage(&statement, &descriptor).expect("preimage"))
+        .expect("signature");
     encode_signed_observation(
         &SignedObservation::new(
             statement,
             SignatureEnvelope::new(descriptor, signature),
-            vec![signer.evidence()],
+            vec![signer.evidence().expect("evidence")],
         )
         .expect("observation"),
     )
     .expect("observation bytes")
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Delivery {
-    Respond,
-    TimeoutAfterApplying,
-}
-
-/// Synthetic provider that counts every write entry, read, and lease.
-struct CountingProvider {
-    delivery: Mutex<Delivery>,
-    records: Mutex<Map<String, Value>>,
-    writes: AtomicUsize,
-    reads: AtomicUsize,
-    leases: AtomicUsize,
-}
-
-impl CountingProvider {
-    fn new() -> Self {
-        let mut records = Map::new();
-        for record in [RECORD, OTHER_RECORD] {
-            records.insert(record.to_owned(), json!({"DemoStatus": "Pending"}));
-        }
-        Self {
-            delivery: Mutex::new(Delivery::Respond),
-            records: Mutex::new(records),
-            writes: AtomicUsize::new(0),
-            reads: AtomicUsize::new(0),
-            leases: AtomicUsize::new(0),
-        }
-    }
-
-    fn set_delivery(&self, delivery: Delivery) {
-        *self.delivery.lock().expect("delivery") = delivery;
-    }
-
-    /// Another party with write access changes the record.
-    fn overwrite(&self, record: &str, status: &str) {
-        self.records.lock().expect("records")[record]["DemoStatus"] = json!(status);
-    }
-
-    fn record_of(url: &str) -> String {
-        url.rsplit('/').next().expect("record segment").to_owned()
-    }
-
-    fn counts(&self) -> (usize, usize, usize) {
-        (
-            self.writes.load(Ordering::SeqCst),
-            self.reads.load(Ordering::SeqCst),
-            self.leases.load(Ordering::SeqCst),
-        )
-    }
-}
-
-impl ProviderPort for CountingProvider {
-    async fn write(
-        &self,
-        request: &ClosedProviderRequest,
-    ) -> Result<WriteTransportOutcome, GatewayTransportError> {
-        self.writes.fetch_add(1, Ordering::SeqCst);
-        let body: Value = serde_json::from_slice(request.body())
-            .map_err(|_| GatewayTransportError::NotEntered)?;
-        let update = body["fields"].as_object().cloned().unwrap_or_default();
-        let record = Self::record_of(request.url());
-        self.records.lock().expect("records")[&record]
-            .as_object_mut()
-            .expect("record fields")
-            .extend(update);
-        Ok(match *self.delivery.lock().expect("delivery") {
-            Delivery::Respond => WriteTransportOutcome::ResponseRecorded {
-                status: 200,
-                digest: [4; 32],
-            },
-            Delivery::TimeoutAfterApplying => WriteTransportOutcome::Unknown,
-        })
-    }
-
-    async fn read_back(&self, request: &ClosedObservationRequest) -> Option<Vec<u8>> {
-        self.reads.fetch_add(1, Ordering::SeqCst);
-        let record = Self::record_of(request.url());
-        let fields = self.records.lock().expect("records")[&record].clone();
-        serde_json::to_vec(&json!({"id": record, "fields": fields})).ok()
-    }
-}
-
+/// The shared harness with a test-held agent key.
 struct Harness {
-    recipe: CompiledRecipe,
-    context: TrustedContext,
-    store: FileGatewayAttemptStore,
-    provider: CountingProvider,
-    observer: GatewayObserver,
+    core: h::Harness,
     root: Signer,
     agent: Signer,
     _temp: tempfile::TempDir,
 }
 
+impl Deref for Harness {
+    type Target = h::Harness;
+
+    fn deref(&self) -> &Self::Target {
+        &self.core
+    }
+}
+
 impl Harness {
     fn open(recipe: CompiledRecipe) -> Self {
-        let root = Signer::new(0x11);
-        let observer = GatewayObserver::from_test_seed(0x33);
+        let root = signer(h::ROOT_SEED);
+        let observer = GatewayObserver::from_test_seed(h::OBSERVER_SEED);
         let context = context(&root, observer.principal(), None);
-        Self::with(recipe, context, observer, root, Signer::new(0x22))
+        Self::with(recipe, context, observer, root, signer(0x22))
     }
 
     fn with(
@@ -648,15 +325,9 @@ impl Harness {
         agent: Signer,
     ) -> Self {
         let temp = tempfile::tempdir().expect("temp directory");
-        let store_root = std::fs::canonicalize(temp.path())
-            .expect("canonical temp")
-            .join("attempts");
+        let state = std::fs::canonicalize(temp.path()).expect("canonical temp");
         Self {
-            recipe,
-            context,
-            store: FileGatewayAttemptStore::open(&store_root).expect("store"),
-            provider: CountingProvider::new(),
-            observer,
+            core: h::Harness::with(recipe, context, observer, &state).expect("harness"),
             root,
             agent,
             _temp: temp,
@@ -688,37 +359,10 @@ impl Harness {
         submission(&self.root, &self.agent, &grant, arguments, observations)
     }
 
-    /// Mirrors the engine: verify, claim, lease, then enter the provider.
     async fn submit(&self, submission: &Submission, now: u64) -> GatewaySubmitResult {
-        let request = match verify_command(
-            &self.recipe,
-            &self.context,
-            now,
-            &submission.proof,
-            &submission.action,
-        ) {
-            Ok(value) => value,
-            Err(result) => return result,
-        };
-        match self.store.claim(&request, *self.recipe.digest()) {
-            Ok(claim) => {
-                self.provider.leases.fetch_add(1, Ordering::SeqCst);
-                execute_claimed(claim, &request, &self.provider).await
-            }
-            Err(GatewayAttemptError::Replay) => {
-                match self
-                    .store
-                    .resume_observable(&request, *self.recipe.digest())
-                {
-                    Ok(Some(attempt)) => {
-                        self.provider.leases.fetch_add(1, Ordering::SeqCst);
-                        reobserve(attempt, &request, &self.provider).await
-                    }
-                    _ => replay_refused(),
-                }
-            }
-            Err(_) => not_entered("gateway.attempt.unavailable"),
-        }
+        self.core
+            .submit(&submission.proof, &submission.action, now)
+            .await
     }
 
     async fn read_back(&self, record: &str, at: u64) -> Vec<u8> {
@@ -726,9 +370,11 @@ impl Harness {
             .as_object()
             .expect("object")
             .clone();
-        let target = self.recipe.read_back_target(&arguments).expect("target");
-        self.provider.leases.fetch_add(1, Ordering::SeqCst);
-        signed_bytes(observe_read_back(&target, &self.observer, &self.provider, || Some(at)).await)
+        signed_bytes(
+            self.core
+                .observe(&GatewayObserveRequest::ReadBack { arguments }, at)
+                .await,
+        )
     }
 
     fn outcome(&self, operation: &str, at: u64) -> GatewayObserveResult {
@@ -991,8 +637,8 @@ async fn self_signed_or_forged_observations_never_satisfy() {
 
 #[tokio::test]
 async fn observer_in_the_authority_chain_is_refused() {
-    let root = Signer::new(0x11);
-    let agent = Signer::new(0x22);
+    let root = signer(0x11);
+    let agent = signer(0x22);
     let context = context(&root, &agent.principal, None);
     let harness = Harness::with(
         update_recipe(),
@@ -1030,10 +676,10 @@ async fn action_fact_policy_is_bound_into_the_pinned_configuration() {
             .expect("configuration")
             .as_bytes()
     );
-    let root = Signer::new(0x11);
+    let root = signer(0x11);
     let observer = GatewayObserver::from_test_seed(0x33);
     let context = context(&root, observer.principal(), Some(without_policy));
-    let harness = Harness::with(update_recipe(), context, observer, root, Signer::new(0x22));
+    let harness = Harness::with(update_recipe(), context, observer, root, signer(0x22));
     let observation = harness.read_back(RECORD, NOW).await;
     let arguments = harness.arguments("unpinned", RECORD, &update_extra(RECORD, "Pending"));
     let signed = harness.sign(Some(read_back_requirement()), &arguments, &[observation]);

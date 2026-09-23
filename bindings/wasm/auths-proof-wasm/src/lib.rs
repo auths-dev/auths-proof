@@ -4,9 +4,10 @@
 
 use auths_author::{
     ApprovalPolicyCommitment, ExternalSigningRequest, GrantPlan, GrantRequest, OverGrantingWarning,
-    ProfilePlanCommitment, ProfilePlanMember, WorkflowAssemblyError, WorkflowProofBuilder,
-    address_evidence, commit_plan_approval, plan_child_grant, prepare_action, prepare_grant,
-    prepare_grant_status, prepare_principal_status, prepare_profile_action,
+    PreparedAction, ProfilePlanCommitment, ProfilePlanMember, WorkflowAssemblyError,
+    WorkflowProofBuilder, address_evidence, attach_observations, commit_plan_approval,
+    plan_child_grant, prepare_action, prepare_grant, prepare_grant_status,
+    prepare_principal_status, prepare_profile_action,
 };
 use auths_identity::{
     IdentityDescriptor, IdentityPacket, PublicIdentity, SignedIdentityMessage,
@@ -46,7 +47,7 @@ use auths_profile_domains::DomainReceiptInspector;
 use auths_profile_mcp::{
     McpCause, McpExecutionSession, McpHandlerEffect, McpHandlerResult, McpProfile,
     McpReservationResult, McpSessionKey, McpSessionStep, McpTerminal, McpToolCall,
-    mcp_authority_commitment,
+    mcp_authority_commitment, with_mcp_arguments_registries,
 };
 use auths_receipts::{
     AttestedDecisionReceipt, AttestedExecutionReceipt, ConfiguredReceiptVerifier, DecisionClass,
@@ -2499,6 +2500,91 @@ impl McpActionPreparationV1 {
     }
 }
 
+/// A prepared action carrying signed observations as detached attachments.
+#[wasm_bindgen]
+pub struct ObservationAttachmentV1 {
+    canonical_action_cbor: Vec<u8>,
+    action_envelope_cbor: Vec<u8>,
+}
+
+#[wasm_bindgen]
+impl ObservationAttachmentV1 {
+    /// Returns the canonical action with its detached observation bytes.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = canonicalActionCbor)]
+    pub fn canonical_action_cbor(&self) -> Vec<u8> {
+        self.canonical_action_cbor.clone()
+    }
+
+    /// Returns the unsigned action envelope whose descriptors bind them.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = actionEnvelopeCbor)]
+    pub fn action_envelope_cbor(&self) -> Vec<u8> {
+        self.action_envelope_cbor.clone()
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct OfferedObservation {
+    #[serde(rename = "mediaType")]
+    media_type: String,
+    observation: Vec<u8>,
+}
+
+/// Carries each signed observation as a detached attachment of a prepared
+/// action and binds its descriptor into the unsigned envelope, which must be
+/// signed afterwards.
+///
+/// `observations` is an array of `{ mediaType, observation }`. Only media
+/// type, size, count, and distinctness are checked; the verifier judges the
+/// observation.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for malformed canonical inputs, an envelope
+/// that does not bind the action, an action that already carries
+/// attachments, or a rejected observation set.
+#[wasm_bindgen(js_name = attachObservationsV1)]
+pub fn attach_observations_v1(
+    canonical_action_cbor: &[u8],
+    action_envelope_cbor: &[u8],
+    observations: JsValue,
+) -> Result<ObservationAttachmentV1, JsValue> {
+    let offered: Vec<OfferedObservation> =
+        serde_wasm_bindgen::from_value(observations).map_err(|_| {
+            js_error(EngineError::Abi(
+                "observations must be an array of { mediaType, observation }",
+            ))
+        })?;
+    attach_observations_native(canonical_action_cbor, action_envelope_cbor, &offered)
+        .map_err(js_error)
+}
+
+fn attach_observations_native(
+    canonical_action_cbor: &[u8],
+    action_envelope_cbor: &[u8],
+    offered: &[OfferedObservation],
+) -> Result<ObservationAttachmentV1, EngineError> {
+    if offered.len() > auths_model::MAX_OBSERVATION_ATTACHMENTS {
+        return Err(auths_author::ObservationAttachmentError::Count.into());
+    }
+    let limits = VerifierLimits::default_deployment();
+    let canonical = auths_codec::decode_canonical_action(canonical_action_cbor, &limits)?;
+    let envelope = auths_codec::decode_action_envelope(action_envelope_cbor, &limits)?;
+    let prepared = PreparedAction::bind(canonical, envelope)
+        .map_err(|_| EngineError::Abi("action envelope does not bind the canonical action"))?;
+    let pairs = offered
+        .iter()
+        .map(|item| (item.media_type.as_str(), item.observation.as_slice()))
+        .collect::<Vec<_>>();
+    let attached = attach_observations(prepared, &pairs)?;
+    Ok(ObservationAttachmentV1 {
+        canonical_action_cbor: auths_codec::encode_canonical_action(attached.canonical())?,
+        action_envelope_cbor: auths_codec::encode_action_envelope(attached.envelope())?,
+    })
+}
+
 /// Canonicalizes one closed MCP call and prepares its exact action envelope.
 ///
 /// # Errors
@@ -2543,20 +2629,15 @@ pub fn verify_exact_mcp_arguments_v1(
     expected_service: &str,
     expected_name: &str,
 ) -> Result<Option<Vec<u8>>, JsValue> {
-    let raw_key = auths_raw_key::RawKeyMethod::new().map_err(js_error)?;
-    let did_key = auths_did_key::DidKeyMethod::new().map_err(js_error)?;
-    let did_keri = auths_did_keri::DidKeriMethod::new().map_err(js_error)?;
-    let ed25519 = auths_signature::Ed25519Suite::new().map_err(js_error)?;
-    let p256 = auths_signature::P256Sha256Suite::new().map_err(js_error)?;
-    let methods: [&dyn PrincipalMethod; 3] = [&raw_key, &did_key, &did_keri];
-    let suites: [&dyn SignatureSuite; 2] = [&ed25519, &p256];
-    let registries = ImmutableRegistries::new(&methods, &suites).map_err(js_error)?;
-    let sealed = auths_verifier::verify_v1_sealed(
-        proof_cbor,
-        canonical_action_cbor,
-        trusted_context_cbor,
-        &registries,
-    )
+    let sealed = with_packaged_registries(trusted_context_cbor, |registries| {
+        auths_verifier::verify_v1_sealed(
+            proof_cbor,
+            canonical_action_cbor,
+            trusted_context_cbor,
+            registries,
+        )
+    })
+    .map_err(js_error)?
     .map_err(js_error)?;
     let Some(command) = sealed
         .action()
@@ -3273,20 +3354,15 @@ pub fn begin_mcp_execution_v1(
             "MCP decision receipt ID must contain 32 bytes",
         ))
     })?;
-    let raw_key = auths_raw_key::RawKeyMethod::new().map_err(js_error)?;
-    let did_key = auths_did_key::DidKeyMethod::new().map_err(js_error)?;
-    let did_keri = auths_did_keri::DidKeriMethod::new().map_err(js_error)?;
-    let ed25519 = auths_signature::Ed25519Suite::new().map_err(js_error)?;
-    let p256 = auths_signature::P256Sha256Suite::new().map_err(js_error)?;
-    let methods: [&dyn PrincipalMethod; 3] = [&raw_key, &did_key, &did_keri];
-    let suites: [&dyn SignatureSuite; 2] = [&ed25519, &p256];
-    let registries = ImmutableRegistries::new(&methods, &suites).map_err(js_error)?;
-    let sealed = auths_verifier::verify_v1_sealed(
-        proof_cbor,
-        canonical_action_cbor,
-        trusted_context_cbor,
-        &registries,
-    )
+    let sealed = with_packaged_registries(trusted_context_cbor, |registries| {
+        auths_verifier::verify_v1_sealed(
+            proof_cbor,
+            canonical_action_cbor,
+            trusted_context_cbor,
+            registries,
+        )
+    })
+    .map_err(js_error)?
     .map_err(js_error)?;
     let (_, _, action) = sealed.into_parts();
     let action =
@@ -5066,6 +5142,27 @@ pub fn verify_self_contained_v1(
     canonical_action_cbor: &[u8],
     trusted_context_cbor: &[u8],
 ) -> Result<Vec<u8>, EngineError> {
+    Ok(with_packaged_registries(
+        trusted_context_cbor,
+        |registries| {
+            auths_verifier::verify_v1(
+                proof_cbor,
+                canonical_action_cbor,
+                trusted_context_cbor,
+                registries,
+            )
+        },
+    )??)
+}
+
+/// Runs `verify` under this distribution's packaged configuration, or under
+/// the `mcp-arguments-v1` configuration over the same methods and suites
+/// when the trusted context pins that one. Any other pin is left for the
+/// verifier to report as a configuration mismatch.
+fn with_packaged_registries<T>(
+    trusted_context_cbor: &[u8],
+    verify: impl FnOnce(&ImmutableRegistries<'_>) -> T,
+) -> Result<T, EngineError> {
     let raw_key = auths_raw_key::RawKeyMethod::new()?;
     let did_key = auths_did_key::DidKeyMethod::new()?;
     let did_keri = auths_did_keri::DidKeriMethod::new()?;
@@ -5073,12 +5170,20 @@ pub fn verify_self_contained_v1(
     let p256 = auths_signature::P256Sha256Suite::new()?;
     let methods: [&dyn PrincipalMethod; 3] = [&raw_key, &did_key, &did_keri];
     let suites: [&dyn SignatureSuite; 2] = [&ed25519, &p256];
-    let registries = ImmutableRegistries::new(&methods, &suites)?;
-    Ok(auths_verifier::verify_v1(
-        proof_cbor,
-        canonical_action_cbor,
-        trusted_context_cbor,
-        &registries,
+    let packaged = ImmutableRegistries::new(&methods, &suites)?;
+    let pinned = auths_codec::decode_verifier_context(trusted_context_cbor)
+        .ok()
+        .map(|context| context.configuration());
+    Ok(with_mcp_arguments_registries(
+        &methods,
+        &suites,
+        |arguments| {
+            verify(if pinned == Some(arguments.configuration_id()) {
+                arguments
+            } else {
+                &packaged
+            })
+        },
     )?)
 }
 
@@ -5195,6 +5300,8 @@ pub enum EngineError {
     Author(auths_author::AuthorError),
     /// Exact action or authorization-artifact assembly failed.
     Workflow(WorkflowAssemblyError),
+    /// Signed observations could not be attached to the action.
+    Attachment(auths_author::ObservationAttachmentError),
     /// MCP profile construction or canonicalization failed.
     Mcp(auths_profile_mcp::ProfileError),
     /// Profile contract construction or projection failed.
@@ -5234,6 +5341,7 @@ impl EngineError {
             | Self::Planning(_)
             | Self::Author(_)
             | Self::Workflow(_)
+            | Self::Attachment(_)
             | Self::Mcp(_)
             | Self::Profile(_)
             | Self::Identity(_)
@@ -5274,6 +5382,7 @@ impl fmt::Display for EngineError {
             Self::Planning(error) => write!(formatter, "could not plan child authority: {error}"),
             Self::Author(error) => write!(formatter, "could not prepare signing request: {error}"),
             Self::Workflow(error) => write!(formatter, "could not assemble workflow: {error}"),
+            Self::Attachment(error) => write!(formatter, "could not attach observations: {error}"),
             Self::Mcp(error) => write!(formatter, "could not construct MCP action: {error}"),
             Self::Profile(error) => write!(formatter, "MCP profile contract failed: {error}"),
             Self::Identity(error) => write!(formatter, "identity descriptor failed: {error}"),
@@ -5291,6 +5400,23 @@ impl fmt::Display for EngineError {
 }
 
 impl std::error::Error for EngineError {}
+
+impl From<auths_profile_mcp::McpArgumentsRegistryError> for EngineError {
+    fn from(error: auths_profile_mcp::McpArgumentsRegistryError) -> Self {
+        match error {
+            auths_profile_mcp::McpArgumentsRegistryError::Registry(error) => Self::Registry(error),
+            auths_profile_mcp::McpArgumentsRegistryError::Policy(_) => {
+                Self::Registry(auths_registries::RegistryError::InvalidBuiltin)
+            }
+        }
+    }
+}
+
+impl From<auths_author::ObservationAttachmentError> for EngineError {
+    fn from(error: auths_author::ObservationAttachmentError) -> Self {
+        Self::Attachment(error)
+    }
+}
 
 impl From<auths_model::ModelError> for EngineError {
     fn from(error: auths_model::ModelError) -> Self {

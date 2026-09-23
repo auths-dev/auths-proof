@@ -1398,8 +1398,8 @@ runtime-enforcement-boundary = [
 kind = "cargo"
 layer = "product"
 path = "product/profiles/auths-profile-mcp"
-core_apis = ["auths-codec", "auths-model", "auths-verifier"]
-protocol_versions = ["auths-proof/v1"]
+core_apis = ["auths-codec", "auths-model", "auths-ports", "auths-registries", "auths-verifier"]
+protocol_versions = ["auths-proof/v1", "mcp-arguments-v1"]
 wire_objects = ["CanonicalAction", "VerifiedAction"]
 fixture_suites = ["product/fixtures/v1"]
 principal_families = []
@@ -1410,7 +1410,13 @@ configuration_inputs = ["channel-endpoint", "profile-id", "profile-version"]
 security_state = []
 
 [packages.auths-profile-mcp.claims]
-profile-canonicalizer = ["product/profiles/auths-profile-mcp/src/lib.rs#noncanonical_json_is_rejected"]
+profile-canonicalizer = [
+  "product/profiles/auths-profile-mcp/src/lib.rs#noncanonical_json_is_rejected",
+  "product/profiles/auths-profile-mcp/src/arguments.rs#exposes_only_top_level_text_and_unsigned_arguments",
+  "product/profiles/auths-profile-mcp/src/arguments.rs#accepts_only_canonical_mcp_actions",
+  "product/profiles/auths-profile-mcp/src/arguments.rs#configuration_commitment_names_the_policy_and_its_rules",
+  "product/profiles/auths-profile-mcp/src/arguments.rs#registries_commit_the_policy_into_a_distinct_configuration",
+]
 
 [packages.auths-proof-offline-example]
 kind = "cargo"
@@ -1641,7 +1647,7 @@ configuration-compiler = [
   "product/runtime/auths-gateway/src/recipe.rs#echo_token_is_domain_separated_and_bound_to_every_input",
   "product/runtime/auths-gateway/src/recipe.rs#preconditions_are_closed_reviewed_and_digest_bound",
   "product/runtime/auths-gateway/src/recipe.rs#read_back_subject_must_name_exactly_the_observed_record",
-  "product/runtime/auths-gateway/src/action_facts.rs#configuration_commitment_names_the_policy_and_its_rules",
+  "product/runtime/auths-gateway/src/app.rs#observation_frame_is_closed_and_read_only",
 ]
 principal-evidence-integration = [
   "product/runtime/auths-gateway/src/observer.rs#observer_seed_is_owner_only_never_overwritten_and_never_printed",

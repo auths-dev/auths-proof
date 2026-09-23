@@ -5,6 +5,10 @@
 
 extern crate alloc;
 
+mod observations;
+
+pub use observations::{ObservationAttachmentError, UnboundActionEnvelope, attach_observations};
+
 use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
@@ -244,7 +248,7 @@ impl WorkflowProofBuilder {
             bindings,
             Vec::new(),
             Vec::new(),
-            Vec::new(),
+            action.envelope().attachments().to_vec(),
             Some(canonical.body().to_vec()),
         )?;
         let context = context

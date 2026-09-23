@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import {
-  arrayField, authorMcpProof, booleanField, enumField, exactMcpTool, integerField, optionalField, stringField,
+  arrayField, attachObservations, authorMcpProof, booleanField, enumField, exactMcpTool, integerField, optionalField, stringField,
   runOnce, verifyCommand,
 } from "../../dist/self-hosted.js";
 import { runSelfHostedAdapterConformance } from "../../dist/testkit/index.js";
@@ -353,4 +353,53 @@ test("enum action and commitment match the shared Python/native corpus", async (
     assert.equal(Buffer.from(prepared.action).toString("hex"), item.action_hex);
     assert.equal(Buffer.from(prepared.actionCommitment).toString("hex"), item.commitment_hex);
   }
+});
+
+const OBSERVATION_MEDIA_TYPE = "application/vnd.auths.observation.v1+cbor";
+
+async function preparedReport() {
+  const contract = exactMcpTool({
+    service: "reports", name: "update_demo_record",
+    fields: { value: stringField({ minBytes: 1, maxBytes: 32 }) },
+  });
+  return contract.prepare({ value: "reviewed" }, {
+    actor: ACTOR, terminalGrant: vector("mcp.signed-root-grant.cbor"),
+    challenge: new Uint8Array(32).fill(0x22), evaluationTime: 50n,
+  });
+}
+
+test("attached observations are bound by the unsigned statement before signing", async () => {
+  const prepared = await preparedReport();
+  const first = { mediaType: OBSERVATION_MEDIA_TYPE, observation: new Uint8Array(40).fill(0xa1) };
+  const second = { mediaType: OBSERVATION_MEDIA_TYPE, observation: new Uint8Array(12).fill(0x07) };
+  const attached = await attachObservations(prepared, [first, second]);
+  assert.deepEqual(attached.command, prepared.command);
+  assert.deepEqual(attached.argumentsJson, prepared.argumentsJson);
+  assert.notDeepEqual(attached.action, prepared.action);
+  assert.notDeepEqual(attached.actionEnvelope, prepared.actionEnvelope);
+  assert.notDeepEqual(attached.actionCommitment, prepared.actionCommitment);
+  for (const item of [first, second]) {
+    assert.ok(Buffer.from(attached.action).includes(Buffer.from(item.observation)));
+  }
+  const unchanged = await attachObservations(prepared, []);
+  assert.deepEqual(unchanged.action, prepared.action);
+  await assert.rejects(attachObservations(attached, []), /already carries attachments/);
+});
+
+test("attachment refuses a foreign media type, a bad size, too many, or a repeat", async () => {
+  const prepared = await preparedReport();
+  const observation = (length, fill = 1, mediaType = OBSERVATION_MEDIA_TYPE) =>
+    ({ mediaType, observation: new Uint8Array(length).fill(fill) });
+  for (const [label, observations] of [
+    ["media type", [observation(8, 1, "application/cbor")]],
+    ["empty", [observation(0)]],
+    ["oversized", [observation(4097)]],
+    ["repeated", [observation(8, 3), observation(8, 3)]],
+    ["too many", Array.from({ length: 33 }, (_, index) =>
+      ({ mediaType: OBSERVATION_MEDIA_TYPE, observation: new Uint8Array([0xee, index]) }))],
+  ]) {
+    await assert.rejects(attachObservations(prepared, observations), Error, label);
+  }
+  await assert.rejects(attachObservations(prepared, [{ mediaType: OBSERVATION_MEDIA_TYPE }]),
+    TypeError);
 });

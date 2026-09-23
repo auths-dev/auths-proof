@@ -6,7 +6,8 @@
 
 #![forbid(unsafe_code)]
 
-mod action_facts;
+#[cfg(unix)]
+pub mod app;
 mod binding;
 mod engine;
 mod observer;
@@ -14,10 +15,11 @@ mod recipe;
 mod store;
 mod transport;
 
+#[cfg(any(test, feature = "testkit-harness"))]
+pub mod harness;
 #[cfg(test)]
 mod observed_tests;
 
-pub use action_facts::{MCP_ARGUMENTS_V1, McpArgumentsPolicy};
 pub use binding::{GatewayConnectionDescriptor, GatewayConnectionError};
 pub use engine::{
     GatewayEngine, GatewayEngineConfigurationError, GatewayEvidenceSummary, GatewayObserveRequest,
