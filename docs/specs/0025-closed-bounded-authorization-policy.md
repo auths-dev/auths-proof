@@ -1,6 +1,6 @@
 # AP-SPEC-025: Closed bounded-authorization policy contract
 
-**Status:** Partially implemented — tranches 1–3 built; 4–6 open
+**Status:** Partially implemented — tranches 1–3 built; 4–6 open. §24 assigns the parts of 4–6 that AP-SPEC-057 Epic 5 requires.
 
 **Evidence:** Seven-domain semantic inventory
 `docs/research/domains/0003-seven-domain-bounded-authorization-semantic-inventory.md`
@@ -545,3 +545,69 @@ This specification does not prove:
 - execution, observation, or reconciliation.
 
 Those assumptions remain explicit in receipts and assurance manifests.
+
+## 24. Amendment (2026-09-23): the tranches AP-SPEC-057 Epic 5 requires
+
+AP-SPEC-057 Epic 5 puts bounded policy in the enforcement path. A grant
+carries a policy commitment, and the gateway evaluates it beside the proof,
+before the claim. Different principals under one contract can therefore
+carry different bounds, verifiable from the proof and grant alone. Epic 5
+needs only part of tranches 4–6. This section fixes which part, so the status
+line stays honest about the rest.
+
+### 24.1 Carrying the commitment in a grant
+
+The commitment travels as a grant critical extension,
+`bounded-policy-commitment-v1`, whose body is the canonical
+`PolicyCommitmentV1` of §6.
+
+- **Core validates only the shape.** The kernel's handler checks the
+  canonical encoding, the bounds, and the identifier syntax. Policy meaning
+  stays in the product layer, as §4 requires.
+- **Unknown extensions fail closed.** Verifiers without the handler deny the
+  grant under the existing unknown-critical-extension rule.
+- **Delegation.** Per-extension attenuation (AP-SPEC-060 §17) lets a
+  delegate narrow the bound. The child's body carries its own commitment and
+  the digest of its parent's. The kernel checks that link, and before
+  eligibility the gateway runs the registered evaluator's tightening decider
+  (§15) on the pair. A child whose policy is not provably tighter is denied
+  as expanded. Adding a commitment to an unbounded grant is always
+  accepted.
+- **Obligations.** This is a core wire change: CDDL, registry manifest,
+  fixtures, bindings, and independent implementations change together, as
+  AGENTS.md requires.
+
+### 24.2 Tranches Epic 5 implements
+
+| Tranche | Epic 5 scope |
+| --- | --- |
+| 5 — evaluator registry and conformance | A closed registry keyed by `evaluator_semantic_id`. The gateway refuses an unregistered or mismatched evaluator before the claim (required-versus-executed, §8). |
+| 6 — concrete evaluator registration | **One** evaluator: a per-principal numeric ceiling on a named verified argument, plus a per-window count of authorized actions. The count's state lives in the gateway's attempt store, with the same single-host scope today and the multi-host scope of AP-SPEC-038 §9.1 later. |
+| 4 — formal model | For that evaluator: pure, bounded, extractable predicates that are Aeneas-qualified, and a Lean model proving fixed-context tightening (a smaller ceiling or count never authorizes more). The model also proves the tightening decider sound: it accepts a child only when the child's authorized set is a subset of the parent's. That result discharges the product-layer premise of AP-SPEC-060 §17.3. |
+
+### 24.3 Left open
+
+- The remaining evaluators across the seven domains.
+- The full §22 acceptance, including all seven domain corpora and the
+  records API parity.
+- Moving production domains onto the registry.
+
+These stay open, and the status line names them.
+
+### 24.4 Acceptance for Epic 5
+
+The Epic 2 hostile suite gains five cases:
+
+- agent A inside A's bound;
+- agent A outside A's bound;
+- agent A presenting B's larger bound;
+- a sub-agent delegated a narrower bound, acting inside it;
+- a sub-agent claiming a wider bound than its parent, refused as expanded.
+
+All five report zero unauthorized provider entries, and an over-bound action
+is refused before any credential lease. The status line then names the
+implemented tranches exactly.
+
+Epic 5 depends on AP-SPEC-060 §17 being implemented first, because the
+delegation cases need it.
+
