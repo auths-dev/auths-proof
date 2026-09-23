@@ -4,11 +4,15 @@ on:
   pull_request:
     paths:
       - "bindings/typescript/**"
+      - "bindings/fixtures/openapi-derivation/**"
+      - "product/tools/auths-openapi-derive/**"
       - ".github/workflows/typescript-sdk.yml"
   push:
     branches: [main]
     paths:
       - "bindings/typescript/**"
+      - "bindings/fixtures/openapi-derivation/**"
+      - "product/tools/auths-openapi-derive/**"
       - ".github/workflows/typescript-sdk.yml"
   workflow_dispatch:
 
