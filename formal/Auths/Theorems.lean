@@ -8,6 +8,7 @@ import Auths.Product.Refinement
 import Auths.Lifecycle.Theorems
 import Auths.Lifecycle.Refinement
 import Auths.Refinement.Production
+import Auths.Observation
 
 namespace Auths
 
@@ -170,7 +171,17 @@ def theoremInventory : List Lean.Name :=
     `Auths.plan_cost_is_node_count,
     `Auths.authorized_implies_threshold_met,
     `Auths.denied_implies_threshold_impossible,
-    `Auths.indeterminate_implies_threshold_reachable
+    `Auths.indeterminate_implies_threshold_reachable,
+    `Auths.Observation.requirements_monotone,
+    `Auths.Observation.conditions_monotone,
+    `Auths.Observation.child_requirements_superset_attenuates,
+    `Auths.Observation.satisfied_monotone_observations,
+    `Auths.Observation.no_observation_satisfies_nothing,
+    `Auths.Observation.future_observation_never_fresh,
+    `Auths.Observation.stale_observation_never_fresh,
+    `Auths.Observation.satisfied_requires_action_facts,
+    `Auths.Observation.decision_satisfied_iff,
+    `Auths.Observation.decision_denied_has_falsifying_observation
   ]
 
 end Auths
