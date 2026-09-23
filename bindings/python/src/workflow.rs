@@ -537,7 +537,12 @@ fn plan_child_fields(
         assurance_floor,
         statement.extensions().clone(),
     );
-    let inner = plan_child_grant(statement, request).map_err(planning_error)?;
+    let inner = plan_child_grant(
+        statement,
+        request,
+        &crate::authoring::core_extension_laws()?,
+    )
+    .map_err(planning_error)?;
     Ok(PyGrantPlan { inner })
 }
 

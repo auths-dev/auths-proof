@@ -54,7 +54,7 @@ verifier retains three diagnostic classes.
 | `local-policy-denied` | policy | Explicit local policy rejects established facts |
 | `observation-condition-false` | observation | A requirement has fresh, authentic, subject-matching observations and each falsifies some condition |
 | `observer-in-authority-chain` | observation | A requirement's observer is also the root, an issuer, a subject, or the actor of the branch |
-| `observation-requirement-dropped` | authority | A child grant drops or alters a parent's observation requirement |
+| `observation-requirement-dropped` | authority | A child grant drops a parent's observation requirement: none of its requirements has the same schema and subject |
 
 ## Indeterminate
 

@@ -38,7 +38,7 @@
       "reducible": false
     },
     {
-      "def_id": 27,
+      "def_id": 29,
       "lean_name": "auths_authority.auths_model.principal_id_equal",
       "lean_file": "qualification/aeneas/generated/authority/FunsExternal_Template.lean",
       "rust_name": "auths_model::principal_id_equal",
@@ -293,15 +293,66 @@
       "reducible": false
     },
     {
-      "def_id": 22,
-      "lean_name": "auths_authority.auths_model.critical_extensions_equal",
+      "def_id": 35,
+      "lean_name": "auths_authority.auths_model.critical_extension_find",
       "lean_file": "qualification/aeneas/generated/authority/FunsExternal_Template.lean",
-      "rust_name": "auths_model::critical_extensions_equal",
+      "rust_name": "auths_model::critical_extension_find",
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1105,
-        "end_line": 1105
+        "begin_line": 1115,
+        "end_line": 1118
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 30,
+      "lean_name": "auths_authority.auths_model.critical_extension_entries",
+      "lean_file": "qualification/aeneas/generated/authority/FunsExternal_Template.lean",
+      "rust_name": "auths_model::critical_extension_entries",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 1132,
+        "end_line": 1132
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 34,
+      "lean_name": "auths_authority.auths_model.critical_extension_id",
+      "lean_file": "qualification/aeneas/generated/authority/FunsExternal_Template.lean",
+      "rust_name": "auths_model::critical_extension_id",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 1139,
+        "end_line": 1139
+      },
+      "is_opaque": true,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 36,
+      "lean_name": "auths_authority.auths_model.critical_extension_payload",
+      "lean_file": "qualification/aeneas/generated/authority/FunsExternal_Template.lean",
+      "rust_name": "auths_model::critical_extension_payload",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 1146,
+        "end_line": 1146
       },
       "is_opaque": true,
       "can_fail": true,
@@ -317,12 +368,197 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-authority/src/lib.rs",
-        "begin_line": 146,
-        "end_line": 148
+        "begin_line": 148,
+        "end_line": 150
       },
       "is_opaque": false,
       "can_fail": true,
       "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 32,
+      "lean_name": "auths_authority.parent_extension_retained",
+      "lean_file": "qualification/aeneas/generated/authority/Funs.lean",
+      "rust_name": "auths_authority::parent_extension_retained",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-authority/src/lib.rs",
+        "begin_line": 155,
+        "end_line": 169
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 33,
+      "lean_name": "auths_authority.child_extension_admitted",
+      "lean_file": "qualification/aeneas/generated/authority/Funs.lean",
+      "rust_name": "auths_authority::child_extension_admitted",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-authority/src/lib.rs",
+        "begin_line": 174,
+        "end_line": 184
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 27,
+      "lean_name": "auths_authority.parent_extensions_retained_loop.body",
+      "lean_file": "qualification/aeneas/generated/authority/Funs.lean",
+      "rust_name": "auths_authority::parent_extensions_retained",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-authority/src/lib.rs",
+        "begin_line": 194,
+        "end_line": 201
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
+      "parent_lean_name": "auths_authority.parent_extensions_retained"
+    },
+    {
+      "def_id": 27,
+      "lean_name": "auths_authority.parent_extensions_retained_loop",
+      "lean_file": "qualification/aeneas/generated/authority/Funs.lean",
+      "rust_name": "auths_authority::parent_extensions_retained",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-authority/src/lib.rs",
+        "begin_line": 194,
+        "end_line": 201
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_authority.parent_extensions_retained"
+    },
+    {
+      "def_id": 27,
+      "lean_name": "auths_authority.parent_extensions_retained",
+      "lean_file": "qualification/aeneas/generated/authority/Funs.lean",
+      "rust_name": "auths_authority::parent_extensions_retained",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-authority/src/lib.rs",
+        "begin_line": 187,
+        "end_line": 201
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 28,
+      "lean_name": "auths_authority.child_extensions_admitted_loop.body",
+      "lean_file": "qualification/aeneas/generated/authority/Funs.lean",
+      "rust_name": "auths_authority::child_extensions_admitted",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-authority/src/lib.rs",
+        "begin_line": 211,
+        "end_line": 218
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
+      "parent_lean_name": "auths_authority.child_extensions_admitted"
+    },
+    {
+      "def_id": 28,
+      "lean_name": "auths_authority.child_extensions_admitted_loop",
+      "lean_file": "qualification/aeneas/generated/authority/Funs.lean",
+      "rust_name": "auths_authority::child_extensions_admitted",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-authority/src/lib.rs",
+        "begin_line": 211,
+        "end_line": 218
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_authority.child_extensions_admitted"
+    },
+    {
+      "def_id": 28,
+      "lean_name": "auths_authority.child_extensions_admitted",
+      "lean_file": "qualification/aeneas/generated/authority/Funs.lean",
+      "rust_name": "auths_authority::child_extensions_admitted",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-authority/src/lib.rs",
+        "begin_line": 204,
+        "end_line": 218
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 22,
+      "lean_name": "auths_authority.critical_extensions_attenuate",
+      "lean_file": "qualification/aeneas/generated/authority/Funs.lean",
+      "rust_name": "auths_authority::critical_extensions_attenuate",
+      "is_local": true,
+      "source": {
+        "file": "core/crates/auths-authority/src/lib.rs",
+        "begin_line": 226,
+        "end_line": 235
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
       "is_rec": false,
       "reducible": false
     },
@@ -334,12 +570,12 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-authority/src/lib.rs",
-        "begin_line": 160,
-        "end_line": 168
+        "begin_line": 245,
+        "end_line": 254
       },
       "is_opaque": false,
       "can_fail": true,
-      "can_diverge": false,
+      "can_diverge": true,
       "is_rec": false,
       "reducible": false
     },
@@ -351,8 +587,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-authority/src/lib.rs",
-        "begin_line": 180,
-        "end_line": 185
+        "begin_line": 266,
+        "end_line": 271
       },
       "is_opaque": false,
       "can_fail": true,
@@ -368,8 +604,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-authority/src/lib.rs",
-        "begin_line": 188,
-        "end_line": 198
+        "begin_line": 274,
+        "end_line": 284
       },
       "is_opaque": false,
       "can_fail": true,
@@ -385,8 +621,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-authority/src/lib.rs",
-        "begin_line": 200,
-        "end_line": 209
+        "begin_line": 286,
+        "end_line": 295
       },
       "is_opaque": false,
       "can_fail": true,
@@ -402,12 +638,12 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-authority/src/lib.rs",
-        "begin_line": 215,
-        "end_line": 250
+        "begin_line": 301,
+        "end_line": 337
       },
       "is_opaque": false,
       "can_fail": true,
-      "can_diverge": false,
+      "can_diverge": true,
       "is_rec": false,
       "reducible": false
     },
@@ -419,12 +655,12 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-authority/src/lib.rs",
-        "begin_line": 271,
-        "end_line": 335
+        "begin_line": 360,
+        "end_line": 425
       },
       "is_opaque": false,
       "can_fail": true,
-      "can_diverge": false,
+      "can_diverge": true,
       "is_rec": false,
       "reducible": false
     },
@@ -436,8 +672,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-authority/src/lib.rs",
-        "begin_line": 356,
-        "end_line": 397
+        "begin_line": 446,
+        "end_line": 487
       },
       "is_opaque": false,
       "can_fail": true,
@@ -464,6 +700,18 @@
       "lean_name": "auths_authority.auths_model.Audience",
       "lean_file": "qualification/aeneas/generated/authority/TypesExternal_Template.lean",
       "rust_name": "auths_model::Audience",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 122,
+        "end_line": 122
+      }
+    },
+    {
+      "def_id": 31,
+      "lean_name": "auths_authority.auths_model.ExtensionId",
+      "lean_file": "qualification/aeneas/generated/authority/TypesExternal_Template.lean",
+      "rust_name": "auths_model::ExtensionId",
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
@@ -616,6 +864,18 @@
       }
     },
     {
+      "def_id": 33,
+      "lean_name": "auths_authority.auths_model.CriticalExtension",
+      "lean_file": "qualification/aeneas/generated/authority/TypesExternal_Template.lean",
+      "rust_name": "auths_model::CriticalExtension",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 1033,
+        "end_line": 1033
+      }
+    },
+    {
       "def_id": 17,
       "lean_name": "auths_authority.auths_model.CriticalExtensions",
       "lean_file": "qualification/aeneas/generated/authority/TypesExternal_Template.lean",
@@ -659,8 +919,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1330,
-        "end_line": 1330
+        "begin_line": 1355,
+        "end_line": 1355
       }
     },
     {
@@ -671,8 +931,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1350,
-        "end_line": 1350
+        "begin_line": 1375,
+        "end_line": 1375
       }
     },
     {
@@ -683,8 +943,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 1558,
-        "end_line": 1558
+        "begin_line": 1583,
+        "end_line": 1583
       }
     },
     {
@@ -695,8 +955,8 @@
       "is_local": false,
       "source": {
         "file": "core/crates/auths-model/src/lib.rs",
-        "begin_line": 4525,
-        "end_line": 4525
+        "begin_line": 4550,
+        "end_line": 4550
       }
     },
     {
@@ -707,8 +967,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-authority/src/lib.rs",
-        "begin_line": 52,
-        "end_line": 64
+        "begin_line": 54,
+        "end_line": 66
       }
     },
     {
@@ -719,8 +979,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-authority/src/lib.rs",
-        "begin_line": 69,
-        "end_line": 72
+        "begin_line": 71,
+        "end_line": 74
       }
     },
     {
@@ -731,8 +991,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-authority/src/lib.rs",
-        "begin_line": 77,
-        "end_line": 80
+        "begin_line": 79,
+        "end_line": 82
       }
     },
     {
@@ -743,8 +1003,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-authority/src/lib.rs",
-        "begin_line": 85,
-        "end_line": 88
+        "begin_line": 87,
+        "end_line": 90
       }
     },
     {
@@ -755,8 +1015,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-authority/src/lib.rs",
-        "begin_line": 92,
-        "end_line": 103
+        "begin_line": 94,
+        "end_line": 105
       }
     },
     {
@@ -767,8 +1027,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-authority/src/lib.rs",
-        "begin_line": 108,
-        "end_line": 111
+        "begin_line": 110,
+        "end_line": 113
       }
     },
     {
@@ -779,8 +1039,8 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-authority/src/lib.rs",
-        "begin_line": 116,
-        "end_line": 134
+        "begin_line": 118,
+        "end_line": 136
       }
     },
     {
@@ -791,13 +1051,26 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-authority/src/lib.rs",
-        "begin_line": 143,
-        "end_line": 143
+        "begin_line": 145,
+        "end_line": 145
       }
     }
   ],
   "globals": [],
-  "trait_decls": [],
+  "trait_decls": [
+    {
+      "def_id": 0,
+      "lean_name": "auths_authority.auths_model.CriticalExtensionLaws",
+      "lean_file": "qualification/aeneas/generated/authority/Types.lean",
+      "rust_name": "auths_model::CriticalExtensionLaws",
+      "is_local": false,
+      "source": {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "begin_line": 1107,
+        "end_line": 1107
+      }
+    }
+  ],
   "trait_impls": [
     {
       "def_id": 0,
@@ -807,10 +1080,10 @@
       "is_local": true,
       "source": {
         "file": "core/crates/auths-authority/src/lib.rs",
-        "begin_line": 145,
-        "end_line": 149
+        "begin_line": 147,
+        "end_line": 151
       },
-      "impl_trait_def_id": 0,
+      "impl_trait_def_id": 1,
       "impl_trait_rust_name": "core::cmp::PartialEq",
       "impl_trait_is_builtin": true
     }

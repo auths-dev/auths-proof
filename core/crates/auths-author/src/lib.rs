@@ -18,13 +18,13 @@ use auths_codec::{
 use auths_model::{
     ActionConstraint, ActionEnvelope, ActionId, AssurancePolicyId, Audience, AudienceSet,
     AuthorizationPlan, BudgetCeiling, BundleHeader, CanonicalAction, Challenge, ChannelBindingId,
-    CompositionRequirement, ControlBinding, CriticalExtensions, Digest, EvidenceId, EvidenceObject,
-    EvidenceTypeId, GrantId, GrantStatement, GrantStatusId, GrantStatusStatement, LimitKind,
-    MediaType, ModelError, PermissionSet, PrincipalId, PrincipalStatusId, PrincipalStatusStatement,
-    ProfileRef, ProofBundle, ProofRef, ResourceId, ScopeAuthorityView, SignatureBytes,
-    SignatureDescriptor, SignatureEnvelope, SignedAction, SignedGrant, SignedGrantStatus,
-    SignedPrincipalStatus, StatementRef, StatusPolicy, Timestamp, TrustedContext, ValidityWindow,
-    VerifierLimits, grant_authority_view, scope_authority_view,
+    CompositionRequirement, ControlBinding, CriticalExtensionLaws, CriticalExtensions, Digest,
+    EvidenceId, EvidenceObject, EvidenceTypeId, GrantId, GrantStatement, GrantStatusId,
+    GrantStatusStatement, LimitKind, MediaType, ModelError, PermissionSet, PrincipalId,
+    PrincipalStatusId, PrincipalStatusStatement, ProfileRef, ProofBundle, ProofRef, ResourceId,
+    ScopeAuthorityView, SignatureBytes, SignatureDescriptor, SignatureEnvelope, SignedAction,
+    SignedGrant, SignedGrantStatus, SignedPrincipalStatus, StatementRef, StatusPolicy, Timestamp,
+    TrustedContext, ValidityWindow, VerifierLimits, grant_authority_view, scope_authority_view,
 };
 use core::fmt;
 
@@ -528,15 +528,18 @@ impl GrantPlan {
 /// Plans a child grant and refuses widening before any signer is invoked.
 ///
 /// The issuer and parent identifier are derived from `parent`; callers cannot
-/// substitute either field.
+/// substitute either field. Critical extensions are judged by `laws`, which
+/// must be the laws of the handlers the verifier will run; an identifier
+/// without a law is refused.
 ///
 /// # Errors
 ///
 /// Returns a typed error identifying the first widened authority dimension or
 /// a deterministic identifier failure.
-pub fn plan_child_grant(
+pub fn plan_child_grant<L: CriticalExtensionLaws>(
     parent: &GrantStatement,
     request: GrantRequest,
+    laws: &L,
 ) -> Result<GrantPlan, PlanningError> {
     let parent_scope = scope_authority_view(grant_authority_view(parent));
     let child_scope = ScopeAuthorityView {
@@ -552,7 +555,7 @@ pub fn plan_child_grant(
         extensions: &request.extensions,
     };
     if let AuthorScopeDecision::Denied(dimension) =
-        evaluate_author_scope_view(parent_scope, child_scope)
+        evaluate_author_scope_view(parent_scope, child_scope, laws)
     {
         return Err(PlanningError::Expanded(dimension));
     }
@@ -1197,6 +1200,10 @@ mod tests {
         )
     }
 
+    fn laws() -> auths_registries::CoreExtensionLaws {
+        auths_registries::CoreExtensionLaws::target_v1().unwrap()
+    }
+
     fn extensions(bytes: &[u8]) -> CriticalExtensions {
         CriticalExtensions::new(vec![
             CriticalExtension::new(
@@ -1229,7 +1236,12 @@ mod tests {
     #[test]
     fn planner_derives_linkage_and_reports_over_granting() {
         let parent = parent();
-        let plan = plan_child_grant(&parent, request(permissions("deploy://production"))).unwrap();
+        let plan = plan_child_grant(
+            &parent,
+            request(permissions("deploy://production")),
+            &laws(),
+        )
+        .unwrap();
         assert_eq!(plan.statement().issuer(), parent.subject());
         assert_eq!(plan.statement().parent(), Some(grant_id(&parent).unwrap()));
         assert_eq!(plan.diff().delegation_depth(), (2, 1));
@@ -1248,27 +1260,62 @@ mod tests {
         assert_eq!(
             plan_child_grant(
                 &parent(),
-                request(permissions("deploy://production-and-staging"))
+                request(permissions("deploy://production-and-staging")),
+                &laws()
             ),
             Err(PlanningError::Expanded(AuthorityDimension::Permissions))
         );
     }
 
     #[test]
-    fn planner_rejects_critical_extension_drift_before_signing() {
+    fn planner_applies_each_extension_law_before_signing() {
         let parent = parent_with_extensions();
-        for child_extensions in [CriticalExtensions::empty(), extensions(&[2])] {
+        let plan = |extensions| {
             let mut child = request(permissions("deploy://production"));
-            child.extensions = child_extensions;
+            child.extensions = extensions;
+            plan_child_grant(&parent, child, &laws())
+        };
+        let requirements = auths_codec::encode_observation_requirements(
+            &auths_model::ObservationRequirements::new(vec![
+                auths_model::ObservationRequirement::new(
+                    auths_model::ObserverAnchorId::parse("observer").unwrap(),
+                    auths_model::ObservationSchemaId::parse("auths.test/1").unwrap(),
+                    auths_model::ObservationSubject::Resource(
+                        ResourceId::parse("deploy://production").unwrap(),
+                    ),
+                    60,
+                    vec![auths_model::ObservationCondition::new(
+                        auths_model::FactName::parse("stage").unwrap(),
+                        auths_model::ConditionTest::EqLiteral(auths_model::FactValue::Uint(1)),
+                    )],
+                )
+                .unwrap(),
+            ])
+            .unwrap(),
+        )
+        .unwrap();
+        let with_requirements = |id: &str| {
+            CriticalExtensions::new(vec![
+                CriticalExtension::new(ExtensionId::parse("exact-marker-v1").unwrap(), vec![1])
+                    .unwrap(),
+                CriticalExtension::new(ExtensionId::parse(id).unwrap(), requirements.clone())
+                    .unwrap(),
+            ])
+            .unwrap()
+        };
+        for widened in [
+            CriticalExtensions::empty(),
+            extensions(&[2]),
+            with_requirements("unknown-extension-v1"),
+        ] {
             assert_eq!(
-                plan_child_grant(&parent, child),
+                plan(widened),
                 Err(PlanningError::Expanded(AuthorityDimension::Extensions))
             );
         }
-
-        let mut child = request(permissions("deploy://production"));
-        child.extensions = extensions(&[1]);
-        plan_child_grant(&parent, child).expect("exact extension set is accepted");
+        plan(extensions(&[1])).expect("a retained marker is accepted");
+        plan(with_requirements("observation-requirement-v1"))
+            .expect("an added observation requirement narrows");
     }
 
     #[test]

@@ -213,6 +213,25 @@ media type, parsed as a closed result and exercised only against fake sockets.
 Neither SDK has an action-authoring helper that attaches detached
 attachments, so attaching a returned observation is not yet an SDK workflow.
 
+### Delegated observation requirements (AP-SPEC-060 §17, repository-local only)
+
+**Claim.** A delegate can add observation requirements to the grant it
+issues, or narrow an inherited one (a smaller maximum age or extra condition
+atoms, with the same observer, schema, and subject). The verifier's authority
+kernel refuses a child grant that drops, widens, or replaces an inherited
+requirement, changes or adds the `exact-marker-v1` marker, or carries an
+extension identifier without an accepted handler. Every requirement of every
+grant in the chain is still enforced by the observation stage.
+
+**Not a claim.** That a narrower requirement is useful to the delegate, or
+that §16's observer quorum exists: a requirement still names one observer.
+
+Current evidence is the canonical corpus (Rust, Go, and TypeScript agree on
+every vector, including the added, narrowed, widened, reordered, dropped, and
+marker cases), native unit tests, and Lean theorems that delegation never
+widens authority given narrowing laws, with the marker and observation laws
+proved narrowing. No hosted CI result is cited here.
+
 ## Packaged clean-consumer exercise
 
 Exercised at auths-proof commit

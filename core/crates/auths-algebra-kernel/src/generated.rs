@@ -39,7 +39,7 @@ pub trait AttenuationProjection {
     fn status_attenuates(&self) -> bool;
     /// Whether assurance requirements do not weaken.
     fn assurance_attenuates(&self) -> bool;
-    /// Whether critical extensions remain exactly equal.
+    /// Whether every critical extension satisfies its identifier's attenuation law.
     fn extensions_attenuate(&self) -> bool;
 }
 
@@ -70,7 +70,7 @@ pub struct AttenuationChecks {
     pub status_attenuates: bool,
     /// Whether assurance requirements do not weaken.
     pub assurance_attenuates: bool,
-    /// Whether critical extensions remain exactly equal.
+    /// Whether every critical extension satisfies its identifier's attenuation law.
     pub extensions_attenuate: bool,
 }
 

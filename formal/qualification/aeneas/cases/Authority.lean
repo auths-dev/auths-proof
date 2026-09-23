@@ -12,6 +12,8 @@ open auths_authority
 #check evaluate_grant_view
 #check evaluate_action_coverage_view
 #check evaluate_author_scope_view
+#check critical_extensions_attenuate
+#check extensions_attenuate
 #check DelegationOutcome.Accepted
 #check DelegationOutcome.Denied
 #check CoverageDecision.Authorized

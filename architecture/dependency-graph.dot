@@ -148,6 +148,7 @@ digraph auths_architecture {
   "auths-author" -> "auths-authority" [label="normal"];
   "auths-author" -> "auths-codec" [label="normal"];
   "auths-author" -> "auths-model" [label="normal"];
+  "auths-author" -> "auths-registries" [label="dev"];
   "auths-authority" -> "auths-algebra-kernel" [label="normal"];
   "auths-authority" -> "auths-model" [label="normal"];
   "auths-bench-model" -> "auths-codec" [label="normal"];
@@ -225,6 +226,7 @@ digraph auths_architecture {
   "auths-formal-refinement" -> "auths-authority" [label="normal"];
   "auths-formal-refinement" -> "auths-composition" [label="normal"];
   "auths-formal-refinement" -> "auths-model" [label="normal"];
+  "auths-formal-refinement" -> "auths-registries" [label="normal"];
   "auths-gateway" -> "auths-codec" [label="normal"];
   "auths-gateway" -> "auths-connections" [label="normal"];
   "auths-gateway" -> "auths-did-keri" [label="normal"];

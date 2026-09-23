@@ -8,10 +8,10 @@ extern crate alloc;
 use alloc::{string::String, vec, vec::Vec};
 use auths_model::{
     AcceptedRegistries, AdapterConfigurationId, AssuranceClaim, AssuranceClaimId, BudgetAlgebraId,
-    BudgetCeiling, CanonicalAction, ExtensionId, GrantId, GrantState, GrantStatusSnapshot,
-    PrincipalId, PrincipalMethodId, PrincipalState, PrincipalStatusSnapshot, ProfilePolicyId,
-    RegistryManifestId, ResourceId, ResourceMatcherId, SignatureSuiteId, StatusMethodId,
-    StatusPolicy, Timestamp, VerifierConfigurationId,
+    BudgetCeiling, CanonicalAction, CriticalExtensionLaws, ExtensionId, GrantId, GrantState,
+    GrantStatusSnapshot, PrincipalId, PrincipalMethodId, PrincipalState, PrincipalStatusSnapshot,
+    ProfilePolicyId, RegistryManifestId, ResourceId, ResourceMatcherId, SignatureSuiteId,
+    StatusMethodId, StatusPolicy, Timestamp, VerifierConfigurationId,
 };
 use auths_ports::{
     AssuranceClaimRule, AssuranceImplication, BudgetAlgebra, CriticalExtensionHandler,
@@ -22,9 +22,10 @@ use core::fmt;
 
 /// Pinned identifier for the complete target V1 executable registry.
 ///
-/// The set includes the `observation-requirement-v1` critical extension; a
-/// context pinned to the earlier manifest is denied, not dual-read.
-pub const TARGET_V1_REGISTRY_MANIFEST: RegistryManifestId = RegistryManifestId::new([0x34; 32]);
+/// The set includes the `observation-requirement-v1` critical extension and
+/// the per-extension attenuation laws; a context pinned to an earlier
+/// manifest is denied, not dual-read.
+pub const TARGET_V1_REGISTRY_MANIFEST: RegistryManifestId = RegistryManifestId::new([0x35; 32]);
 /// Target V1 resource-matching algebra.
 pub const URI_NAMESPACE_V1: &str = "uri-namespace-v1";
 /// Target V1 profile policy used by the reference corpus.
@@ -36,6 +37,10 @@ pub const NUMERIC_CEILING_V1: &str = "numeric-ceiling-v1";
 pub const EXACT_MARKER_EXTENSION_V1: &str = "exact-marker-v1";
 /// Grant critical extension carrying observation requirements.
 pub const OBSERVATION_REQUIREMENT_EXTENSION_V1: &str = "observation-requirement-v1";
+/// Attenuation law committed by the `exact-marker-v1` handler.
+const MARKER_ATTENUATION_LAW: &str = "attenuation-law:byte-equality-v1";
+/// Attenuation law committed by the `observation-requirement-v1` handler.
+const OBSERVATION_ATTENUATION_LAW: &str = "attenuation-law:requirement-narrowing-v1";
 
 const CLAIMS: [&str; 13] = [
     "self-certifying-identifier",
@@ -162,7 +167,10 @@ impl CriticalExtensionHandler for ExactMarkerExtension {
     }
 
     fn configuration_id(&self) -> AdapterConfigurationId {
-        auths_ports::configuration_id(self.id.as_str().as_bytes(), core::iter::empty())
+        auths_ports::configuration_id(
+            self.id.as_str().as_bytes(),
+            [MARKER_ATTENUATION_LAW.as_bytes()],
+        )
     }
 
     fn maximum_work_units(&self, extension: &auths_model::CriticalExtension) -> u64 {
@@ -179,6 +187,19 @@ impl CriticalExtensionHandler for ExactMarkerExtension {
             Err(RegistryOperationError::InvalidInput)
         }
     }
+
+    /// Byte equality. Adding the marker is refused, so it changes no
+    /// authority.
+    fn attenuates(
+        &self,
+        child: Option<&[u8]>,
+        parent: Option<&[u8]>,
+    ) -> Result<bool, RegistryOperationError> {
+        Ok(match (child, parent) {
+            (Some(child), Some(parent)) => child == parent,
+            (Some(_) | None, None) | (None, Some(_)) => false,
+        })
+    }
 }
 
 /// Validates the canonical requirement list carried by a grant. The
@@ -189,13 +210,25 @@ struct ObservationRequirementExtension {
     id: ExtensionId,
 }
 
+fn decode_requirements(
+    bytes: &[u8],
+) -> Result<auths_model::ObservationRequirements, RegistryOperationError> {
+    auths_codec::decode_observation_requirements(bytes).map_err(|error| match error {
+        auths_codec::CodecError::LimitExceeded => RegistryOperationError::ResourceLimitExceeded,
+        _ => RegistryOperationError::InvalidInput,
+    })
+}
+
 impl CriticalExtensionHandler for ObservationRequirementExtension {
     fn id(&self) -> &ExtensionId {
         &self.id
     }
 
     fn configuration_id(&self) -> AdapterConfigurationId {
-        auths_ports::configuration_id(self.id.as_str().as_bytes(), core::iter::empty())
+        auths_ports::configuration_id(
+            self.id.as_str().as_bytes(),
+            [OBSERVATION_ATTENUATION_LAW.as_bytes()],
+        )
     }
 
     fn maximum_work_units(&self, extension: &auths_model::CriticalExtension) -> u64 {
@@ -209,12 +242,27 @@ impl CriticalExtensionHandler for ObservationRequirementExtension {
         if extension.id() != &self.id {
             return Err(RegistryOperationError::InvalidInput);
         }
-        match auths_codec::decode_observation_requirements(extension.bytes()) {
-            Ok(_) => Ok(()),
-            Err(auths_codec::CodecError::LimitExceeded) => {
-                Err(RegistryOperationError::ResourceLimitExceeded)
-            }
-            Err(_) => Err(RegistryOperationError::InvalidInput),
+        decode_requirements(extension.bytes()).map(|_| ())
+    }
+
+    /// Every parent requirement is kept byte-identical or strictly narrowed,
+    /// and the child may add requirements. Adding the extension where the
+    /// parent has none only adds requirements, so it is accepted.
+    fn attenuates(
+        &self,
+        child: Option<&[u8]>,
+        parent: Option<&[u8]>,
+    ) -> Result<bool, RegistryOperationError> {
+        let Some(child) = child else {
+            return Ok(false);
+        };
+        let child = decode_requirements(child)?;
+        match parent {
+            Some(parent) => Ok(auths_model::observation_requirements_attenuate(
+                &child,
+                &decode_requirements(parent)?,
+            )),
+            None => Ok(true),
         }
     }
 }
@@ -905,6 +953,19 @@ impl<'a> ImmutableRegistries<'a> {
             .find(|implementation| implementation.id() == id)
     }
 
+    /// The attenuation laws of the critical-extension handlers `accepted`
+    /// selects. An identifier without an accepted handler has no law.
+    #[must_use]
+    pub fn extension_laws<'s>(
+        &'s self,
+        accepted: &'s AcceptedRegistries,
+    ) -> AcceptedExtensionLaws<'s, 'a> {
+        AcceptedExtensionLaws {
+            registries: self,
+            accepted,
+        }
+    }
+
     /// Selects one exact status method.
     #[must_use]
     pub fn status_method(
@@ -977,6 +1038,80 @@ impl<'a> ImmutableRegistries<'a> {
     }
 }
 
+/// Attenuation laws of the handlers one trusted context accepts.
+pub struct AcceptedExtensionLaws<'s, 'a> {
+    registries: &'s ImmutableRegistries<'a>,
+    accepted: &'s AcceptedRegistries,
+}
+
+impl AcceptedExtensionLaws<'_, '_> {
+    /// Conservative work reservation for judging `child` against `parent`:
+    /// each present payload's handler bound. Identifiers without a handler
+    /// cost nothing, because the kernel refuses them without work.
+    #[must_use]
+    pub fn maximum_work_units(
+        &self,
+        child: &auths_model::CriticalExtensions,
+        parent: &auths_model::CriticalExtensions,
+    ) -> u64 {
+        child
+            .as_slice()
+            .iter()
+            .chain(parent.as_slice())
+            .filter_map(|extension| {
+                self.registries
+                    .extension_handler(self.accepted, extension.id())
+                    .map(|handler| handler.maximum_work_units(extension))
+            })
+            .fold(0, u64::saturating_add)
+    }
+}
+
+impl CriticalExtensionLaws for AcceptedExtensionLaws<'_, '_> {
+    fn attenuates(&self, id: &ExtensionId, child: Option<&[u8]>, parent: Option<&[u8]>) -> bool {
+        self.registries
+            .extension_handler(self.accepted, id)
+            .is_some_and(|handler| handler.attenuates(child, parent).unwrap_or(false))
+    }
+}
+
+/// Attenuation laws of the target V1 core critical-extension handlers,
+/// independent of any trusted context. Pre-signing planning uses them; an
+/// identifier outside the core set has no law and is refused.
+pub struct CoreExtensionLaws {
+    marker: ExactMarkerExtension,
+    observation: ObservationRequirementExtension,
+}
+
+impl CoreExtensionLaws {
+    /// Constructs the core laws.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RegistryError::InvalidBuiltin`] if a compile-time identifier
+    /// violates model bounds.
+    pub fn target_v1() -> Result<Self, RegistryError> {
+        let core = CoreSemantics::new()?;
+        Ok(Self {
+            marker: core.extension,
+            observation: core.observation,
+        })
+    }
+}
+
+impl CriticalExtensionLaws for CoreExtensionLaws {
+    fn attenuates(&self, id: &ExtensionId, child: Option<&[u8]>, parent: Option<&[u8]>) -> bool {
+        let handler: &dyn CriticalExtensionHandler = if id == self.marker.id() {
+            &self.marker
+        } else if id == self.observation.id() {
+            &self.observation
+        } else {
+            return false;
+        };
+        handler.attenuates(child, parent).unwrap_or(false)
+    }
+}
+
 fn reject_duplicates<'a>(identifiers: impl Iterator<Item = &'a str>) -> Result<(), RegistryError> {
     let mut identifiers: Vec<_> = identifiers.collect();
     identifiers.sort_unstable();
@@ -1007,3 +1142,137 @@ impl fmt::Display for RegistryError {
 
 #[cfg(feature = "std")]
 impl std::error::Error for RegistryError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec;
+    use auths_model::{
+        ConditionTest, FactName, ObservationCondition, ObservationRequirement,
+        ObservationRequirements, ObservationSchemaId, ObservationSubject, ObserverAnchorId,
+        UintRange,
+    };
+
+    fn laws() -> CoreExtensionLaws {
+        CoreExtensionLaws::target_v1().expect("core laws")
+    }
+
+    fn id(value: &str) -> ExtensionId {
+        ExtensionId::parse(value).expect("extension id")
+    }
+
+    fn condition(name: &str, hi: u64) -> ObservationCondition {
+        ObservationCondition::new(
+            FactName::parse(name).expect("fact name"),
+            ConditionTest::UintRange(UintRange::new(0, hi).expect("range")),
+        )
+    }
+
+    fn requirement(
+        observer: &str,
+        schema: &str,
+        max_age: u32,
+        conditions: Vec<ObservationCondition>,
+    ) -> ObservationRequirement {
+        ObservationRequirement::new(
+            ObserverAnchorId::parse(observer).expect("observer"),
+            ObservationSchemaId::parse(schema).expect("schema"),
+            ObservationSubject::Resource(ResourceId::parse("mcp://record").expect("subject")),
+            max_age,
+            conditions,
+        )
+        .expect("requirement")
+    }
+
+    fn base() -> ObservationRequirement {
+        requirement("observer", "auths.test/1", 60, vec![condition("a", 5)])
+    }
+
+    fn bytes(requirements: Vec<ObservationRequirement>) -> Vec<u8> {
+        auths_codec::encode_observation_requirements(
+            &ObservationRequirements::new(requirements).expect("requirements"),
+        )
+        .expect("canonical requirements")
+    }
+
+    fn observation(child: &[u8], parent: Option<&[u8]>) -> bool {
+        laws().attenuates(
+            &id(OBSERVATION_REQUIREMENT_EXTENSION_V1),
+            Some(child),
+            parent,
+        )
+    }
+
+    #[test]
+    fn marker_law_is_byte_equality_and_refuses_addition() {
+        let marker = id(EXACT_MARKER_EXTENSION_V1);
+        assert!(laws().attenuates(&marker, Some(&[1]), Some(&[1])));
+        assert!(!laws().attenuates(&marker, Some(&[2]), Some(&[1])));
+        assert!(!laws().attenuates(&marker, Some(&[1]), None));
+        assert!(!laws().attenuates(&marker, None, Some(&[1])));
+        assert!(!laws().attenuates(&id("unknown-v1"), Some(&[1]), Some(&[1])));
+    }
+
+    #[test]
+    fn observation_law_accepts_exactly_the_narrowings() {
+        let parent = bytes(vec![base()]);
+        let narrowed_age = requirement("observer", "auths.test/1", 30, vec![condition("a", 5)]);
+        let narrowed_conditions = requirement(
+            "observer",
+            "auths.test/1",
+            60,
+            vec![condition("a", 5), condition("b", 1)],
+        );
+        let other = requirement("observer", "auths.test/2", 60, vec![condition("a", 5)]);
+        for (child, reason) in [
+            (vec![base()], "identical"),
+            (vec![narrowed_age], "a smaller maximum age"),
+            (vec![narrowed_conditions], "an added condition"),
+            (vec![base(), other.clone()], "an added requirement"),
+        ] {
+            assert!(observation(&bytes(child), Some(&parent)), "{reason}");
+        }
+        let widened_age = requirement("observer", "auths.test/1", 61, vec![condition("a", 5)]);
+        let widened_range = requirement("observer", "auths.test/1", 60, vec![condition("a", 6)]);
+        let other_observer = requirement("other", "auths.test/1", 60, vec![condition("a", 5)]);
+        let mixed = requirement("observer", "auths.test/1", 30, vec![condition("b", 1)]);
+        for (child, reason) in [
+            (vec![widened_age], "a larger maximum age"),
+            (vec![widened_range], "a changed condition"),
+            (vec![other_observer], "another observer"),
+            (vec![other], "another schema"),
+            (vec![mixed], "narrower age but a dropped condition"),
+        ] {
+            assert!(!observation(&bytes(child), Some(&parent)), "{reason}");
+        }
+    }
+
+    #[test]
+    fn observation_law_needs_a_strict_narrowing_or_identity() {
+        let parent = bytes(vec![requirement(
+            "observer",
+            "auths.test/1",
+            60,
+            vec![condition("a", 5), condition("b", 1)],
+        )]);
+        let reordered = bytes(vec![requirement(
+            "observer",
+            "auths.test/1",
+            60,
+            vec![condition("b", 1), condition("a", 5)],
+        )]);
+        assert!(!observation(&reordered, Some(&parent)));
+    }
+
+    #[test]
+    fn observation_law_accepts_addition_and_refuses_malformed_bytes() {
+        assert!(observation(&bytes(vec![base()]), None));
+        assert!(!observation(&[0xff], None));
+        assert!(!observation(&bytes(vec![base()]), Some(&[0xff])));
+        assert!(!laws().attenuates(
+            &id(OBSERVATION_REQUIREMENT_EXTENSION_V1),
+            None,
+            Some(&bytes(vec![base()]))
+        ));
+    }
+}

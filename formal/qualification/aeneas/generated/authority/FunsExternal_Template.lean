@@ -160,13 +160,39 @@ axiom auths_model.budget_ceiling_covers_action
 axiom auths_model.status_policy_attenuates
   : auths_model.StatusPolicy → auths_model.StatusPolicy → Result Bool
 
-/-- [auths_model::critical_extensions_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1105:0-1105:97
-    Name pattern: [auths_model::critical_extensions_equal]
+/-- [auths_model::critical_extension_find]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1115:0-1118:34
+    Name pattern: [auths_model::critical_extension_find]
     Visibility: public -/
-@[rust_fun "auths_model::critical_extensions_equal"]
-axiom auths_model.critical_extensions_equal
+@[rust_fun "auths_model::critical_extension_find"]
+axiom auths_model.critical_extension_find
   :
-  auths_model.CriticalExtensions → auths_model.CriticalExtensions → Result
-    Bool
+  auths_model.CriticalExtensions → auths_model.ExtensionId → Result (Option
+    auths_model.CriticalExtension)
+
+/-- [auths_model::critical_extension_entries]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1132:0-1132:90
+    Name pattern: [auths_model::critical_extension_entries]
+    Visibility: public -/
+@[rust_fun "auths_model::critical_extension_entries"]
+axiom auths_model.critical_extension_entries
+  :
+  auths_model.CriticalExtensions → Result (Slice
+    auths_model.CriticalExtension)
+
+/-- [auths_model::critical_extension_id]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1139:0-1139:75
+    Name pattern: [auths_model::critical_extension_id]
+    Visibility: public -/
+@[rust_fun "auths_model::critical_extension_id"]
+axiom auths_model.critical_extension_id
+  : auths_model.CriticalExtension → Result auths_model.ExtensionId
+
+/-- [auths_model::critical_extension_payload]:
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1146:0-1146:73
+    Name pattern: [auths_model::critical_extension_payload]
+    Visibility: public -/
+@[rust_fun "auths_model::critical_extension_payload"]
+axiom auths_model.critical_extension_payload
+  : auths_model.CriticalExtension → Result (Slice Std.U8)
 

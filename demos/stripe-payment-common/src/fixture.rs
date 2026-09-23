@@ -116,6 +116,7 @@ pub fn authorization_fixture(
             assurance_id.clone(),
             CriticalExtensions::empty(),
         ),
+        &auths_registries::CoreExtensionLaws::target_v1().unwrap(),
     )
     .expect("child grant attenuates root");
     let child_request = prepare_grant(child_plan.into_statement(), workflow.descriptor())
