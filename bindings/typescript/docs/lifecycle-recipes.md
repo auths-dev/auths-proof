@@ -19,10 +19,15 @@ principal status `superseded` when the trust policy requires that fact.
 ## Record compromise
 
 Publish a principal status of `revoked` with a higher sequence and short
-validity, refresh every trusted context that requires principal status, and
-stop accepting cached evidence past its `validUntil`. Missing, conflicting, or
-unavailable required evidence remains denied or indeterminate according to the
-Rust verdict; applications must not convert it to authorized.
+validity, and re-publish it before it expires. Refresh every trusted context
+whose trust anchor requires principal status. The revocation stops the
+principal wherever it appears in a chain: as the trust anchor, as a delegate
+that issued a grant, or as the actor. Keep it in every snapshot until each
+grant that names the principal as subject has expired: a stale revocation
+makes the verdict indeterminate, and a removed one makes the principal active
+again. Stop accepting cached evidence past its `validUntil`. Missing,
+conflicting, or unavailable required evidence remains denied or indeterminate
+according to the Rust verdict; applications must not convert it to authorized.
 
 ## Replace a policy or profile before launch
 

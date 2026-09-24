@@ -2132,6 +2132,7 @@ enum StatusVariation {
     GrantFreshnessBoundary,
     GrantFreshnessBeyond,
     ConflictingGrant,
+    GrantBelowFloor,
     UnsupportedGrantMethod,
     RevokedPrincipal,
 }
@@ -2162,7 +2163,8 @@ fn status_fixture(name: &'static str, variation: StatusVariation) -> CorpusFixtu
         | StatusVariation::UntrustedGrantIssuer
         | StatusVariation::GrantFreshnessBoundary
         | StatusVariation::GrantFreshnessBeyond
-        | StatusVariation::ConflictingGrant => required_status(GRANT_STATUS_METHOD),
+        | StatusVariation::ConflictingGrant
+        | StatusVariation::GrantBelowFloor => required_status(GRANT_STATUS_METHOD),
         StatusVariation::UnsupportedGrantMethod => required_status("unknown-status-v1"),
         StatusVariation::RevokedPrincipal => StatusPolicy::ExpiryOnly,
     };
@@ -2271,6 +2273,7 @@ fn status_fixture(name: &'static str, variation: StatusVariation) -> CorpusFixtu
             | StatusVariation::GrantFreshnessBoundary
             | StatusVariation::GrantFreshnessBeyond
             | StatusVariation::ConflictingGrant
+            | StatusVariation::GrantBelowFloor
     ) {
         let (state, sequence) = if matches!(variation, StatusVariation::GrantSequenceRollback) {
             let older = GrantStatusStatement::new(
@@ -2335,7 +2338,11 @@ fn status_fixture(name: &'static str, variation: StatusVariation) -> CorpusFixtu
         let mut trust = vec![auths_model::StatusTrustRule::new(
             StatusMethodId::parse(GRANT_STATUS_METHOD).expect("status method"),
             identities[0].principal.clone(),
-            1,
+            if matches!(variation, StatusVariation::GrantBelowFloor) {
+                2
+            } else {
+                1
+            },
         )];
         if matches!(variation, StatusVariation::ConflictingGrant) {
             let active = GrantStatusStatement::new(
@@ -2415,6 +2422,7 @@ fn status_fixture(name: &'static str, variation: StatusVariation) -> CorpusFixtu
             | StatusVariation::GrantFreshnessBoundary
             | StatusVariation::GrantFreshnessBeyond
             | StatusVariation::ConflictingGrant
+            | StatusVariation::GrantBelowFloor
     ) {
         vec![StatusMethodId::parse(GRANT_STATUS_METHOD).expect("status method")]
     } else {
@@ -2466,7 +2474,7 @@ fn status_fixture(name: &'static str, variation: StatusVariation) -> CorpusFixtu
         StatusVariation::RevokedGrant | StatusVariation::ConflictingGrant => {
             Expected::Denied(DenialReason::GrantRevoked)
         }
-        StatusVariation::GrantSequenceRollback => {
+        StatusVariation::GrantSequenceRollback | StatusVariation::GrantBelowFloor => {
             Expected::Denied(DenialReason::StatusSequenceRollback)
         }
         StatusVariation::WrongGrantMethod => Expected::Denied(DenialReason::StatusMethodMismatch),
@@ -2661,6 +2669,312 @@ fn principal_status_selection_fixture(
     )
     .expect("principal status proof");
     fixture(name, "status", &bundle, &context, canonical, expected)
+}
+
+/// How the principal-status snapshot of a root → delegate → actor chain is
+/// arranged.
+#[derive(Clone, Copy)]
+enum DelegateStatusVariation {
+    RevokedActor,
+    RevokedDelegate,
+    SupersededDelegate,
+    Unlisted,
+    DelegateRollback,
+    StaleDelegateRevocation,
+    RevokedActorExpiryOnlyGrant,
+    ExpiryOnlyChain,
+    StaleAtGreatestSequence,
+    UnboundBesideValid,
+}
+
+/// A root → delegate → actor chain. Principal status is evaluated for every
+/// principal under the root anchor's status policy; the snapshot is a
+/// revocation list for the delegate and the actor.
+#[allow(clippy::too_many_lines)]
+fn delegate_status_fixture(
+    name: &'static str,
+    variation: DelegateStatusVariation,
+    expected: Expected,
+) -> CorpusFixture {
+    const METHOD: &str = "auths-principal-status-v1";
+    let identities = [
+        Identity::ed25519(201),
+        Identity::ed25519(202),
+        Identity::ed25519(203),
+    ];
+    let [root, delegate, actor] = &identities;
+    let canonical = canonical_action(BODY.to_vec());
+    let proof_ref = ProofRef::new([0xe1; 32]);
+    let plan = AuthorizationPlan::proof(proof_ref);
+    let plan_identifier = plan_id(&plan).expect("plan ID");
+    let expiry_only_chain = matches!(variation, DelegateStatusVariation::ExpiryOnlyChain);
+    let rollback = matches!(variation, DelegateStatusVariation::DelegateRollback);
+    let root_policy = if expiry_only_chain {
+        StatusPolicy::ExpiryOnly
+    } else {
+        required_status(METHOD)
+    };
+    let child_policy = if matches!(
+        variation,
+        DelegateStatusVariation::RevokedActorExpiryOnlyGrant
+            | DelegateStatusVariation::ExpiryOnlyChain
+    ) {
+        StatusPolicy::ExpiryOnly
+    } else {
+        required_status(METHOD)
+    };
+    let grant_scope = |issuer: &Identity,
+                       subject: &Identity,
+                       remaining_depth: u16,
+                       parent: Option<GrantId>,
+                       status_policy: StatusPolicy| {
+        GrantStatement::new(
+            issuer.principal.clone(),
+            subject.principal.clone(),
+            profile(),
+            PermissionSet::new(vec![permission()]).expect("permissions"),
+            ValidityWindow::new(Timestamp::new(20), Timestamp::new(80)).expect("validity"),
+            AudienceSet::new(vec![audience()]).expect("audience"),
+            ActionConstraint::ExactBodyDigest(body_digest(canonical.body())),
+            Some(BudgetCeiling::new(
+                BudgetAlgebraId::parse("numeric-ceiling-v1").expect("budget"),
+                10,
+            )),
+            remaining_depth,
+            parent,
+            status_policy,
+            AssurancePolicyId::parse("raw-key-baseline").expect("policy"),
+            CriticalExtensions::empty(),
+        )
+    };
+    let parent_grant = signed_grant(
+        root,
+        grant_scope(root, delegate, 1, None, root_policy.clone()),
+    );
+    let parent_id = grant_id(parent_grant.statement()).expect("parent grant ID");
+    let child_grant = signed_grant(
+        delegate,
+        grant_scope(delegate, actor, 0, Some(parent_id), child_policy.clone()),
+    );
+    let child_id = grant_id(child_grant.statement()).expect("child grant ID");
+    let action = signed_action(
+        actor,
+        action_envelope(
+            actor,
+            &canonical,
+            plan_identifier,
+            proof_ref,
+            Some(child_id),
+        ),
+    );
+    let mut bindings = vec![
+        ControlBinding::new(StatementRef::Grant(parent_id), vec![root.evidence().id()])
+            .expect("parent binding"),
+        ControlBinding::new(
+            StatementRef::Grant(child_id),
+            vec![delegate.evidence().id()],
+        )
+        .expect("child binding"),
+        ControlBinding::new(
+            StatementRef::Action(action_id(action.envelope()).expect("action ID")),
+            vec![actor.evidence().id()],
+        )
+        .expect("action binding"),
+    ];
+
+    let principal_entry = |subject: &Identity,
+                           issuer: &Identity,
+                           state: PrincipalState,
+                           sequence,
+                           observed_at,
+                           valid_until| {
+        let statement = PrincipalStatusStatement::new(
+            StatusMethodId::parse(METHOD).expect("status method"),
+            subject.principal.clone(),
+            PurposeId::parse(METHOD).expect("purpose"),
+            state,
+            sequence,
+            Timestamp::new(observed_at),
+            Timestamp::new(valid_until),
+            issuer.principal.clone(),
+            CriticalExtensions::empty(),
+        )
+        .expect("principal status");
+        let signed = signed_principal_status(issuer, statement);
+        let identifier = principal_status_id(signed.statement()).expect("principal status ID");
+        let binding = ControlBinding::new(
+            StatementRef::PrincipalStatus(identifier),
+            vec![issuer.evidence().id()],
+        )
+        .expect("principal-status binding");
+        (signed, binding)
+    };
+    let mut principal_statements = Vec::new();
+    let mut list = |(signed, binding), bound: bool| {
+        principal_statements.push(signed);
+        if bound {
+            bindings.push(binding);
+        }
+    };
+    if !expiry_only_chain {
+        let sequence = if rollback { 2 } else { 1 };
+        list(
+            principal_entry(root, root, PrincipalState::Active, sequence, 40, 100),
+            true,
+        );
+    }
+    match variation {
+        DelegateStatusVariation::RevokedActor
+        | DelegateStatusVariation::RevokedActorExpiryOnlyGrant => list(
+            principal_entry(actor, root, PrincipalState::Revoked, 1, 40, 100),
+            true,
+        ),
+        DelegateStatusVariation::RevokedDelegate | DelegateStatusVariation::ExpiryOnlyChain => {
+            list(
+                principal_entry(delegate, root, PrincipalState::Revoked, 1, 40, 100),
+                true,
+            );
+        }
+        DelegateStatusVariation::SupersededDelegate => list(
+            principal_entry(delegate, root, PrincipalState::Superseded, 1, 40, 100),
+            true,
+        ),
+        DelegateStatusVariation::DelegateRollback => list(
+            principal_entry(delegate, root, PrincipalState::Active, 1, 40, 100),
+            true,
+        ),
+        DelegateStatusVariation::StaleDelegateRevocation => list(
+            principal_entry(delegate, root, PrincipalState::Revoked, 1, 29, 100),
+            true,
+        ),
+        // Both statements sit at the greatest sequence; the stale one decides.
+        DelegateStatusVariation::StaleAtGreatestSequence => {
+            list(
+                principal_entry(delegate, root, PrincipalState::Active, 1, 29, 100),
+                true,
+            );
+            list(
+                principal_entry(delegate, actor, PrincipalState::Revoked, 1, 40, 100),
+                true,
+            );
+        }
+        // Control is required for every statement naming the delegate, not
+        // only for the one selection would pick.
+        DelegateStatusVariation::UnboundBesideValid => {
+            list(
+                principal_entry(delegate, root, PrincipalState::Active, 2, 40, 100),
+                true,
+            );
+            list(
+                principal_entry(delegate, root, PrincipalState::Active, 1, 40, 100),
+                false,
+            );
+        }
+        DelegateStatusVariation::Unlisted => {}
+    }
+    let mut principal_trust = vec![auths_model::StatusTrustRule::new(
+        StatusMethodId::parse(METHOD).expect("status method"),
+        root.principal.clone(),
+        if rollback { 2 } else { 1 },
+    )];
+    if matches!(variation, DelegateStatusVariation::StaleAtGreatestSequence) {
+        principal_trust.push(auths_model::StatusTrustRule::new(
+            StatusMethodId::parse(METHOD).expect("status method"),
+            actor.principal.clone(),
+            1,
+        ));
+    }
+    let principal_snapshot = PrincipalStatusSnapshot::with_trust(
+        StatusSnapshotId::new([0xe2; 32]),
+        Timestamp::new(40),
+        Timestamp::new(100),
+        principal_statements,
+        Vec::new(),
+        principal_trust,
+    )
+    .expect("principal snapshot");
+
+    let grant_entry = |grant: GrantId| {
+        let statement = GrantStatusStatement::new(
+            StatusMethodId::parse(METHOD).expect("status method"),
+            grant,
+            GrantState::Active,
+            1,
+            Timestamp::new(40),
+            Timestamp::new(100),
+            root.principal.clone(),
+            CriticalExtensions::empty(),
+        )
+        .expect("grant status");
+        let signed = signed_grant_status(root, statement);
+        let identifier = grant_status_id(signed.statement()).expect("grant status ID");
+        let binding = ControlBinding::new(
+            StatementRef::GrantStatus(identifier),
+            vec![root.evidence().id()],
+        )
+        .expect("grant-status binding");
+        (signed, binding)
+    };
+    let mut grant_entries = Vec::new();
+    if !expiry_only_chain {
+        grant_entries.push(grant_entry(parent_id));
+    }
+    if matches!(child_policy, StatusPolicy::SnapshotRequired { .. }) {
+        grant_entries.push(grant_entry(child_id));
+    }
+    let (grant_statements, grant_bindings): (Vec<_>, Vec<_>) = grant_entries.into_iter().unzip();
+    bindings.extend(grant_bindings);
+    let grant_snapshot = GrantStatusSnapshot::with_trust(
+        StatusSnapshotId::new([0xe3; 32]),
+        Timestamp::new(40),
+        Timestamp::new(100),
+        grant_statements,
+        Vec::new(),
+        vec![auths_model::StatusTrustRule::new(
+            StatusMethodId::parse(METHOD).expect("status method"),
+            root.principal.clone(),
+            1,
+        )],
+    )
+    .expect("grant snapshot");
+
+    let status_methods = || vec![StatusMethodId::parse(METHOD).expect("status method")];
+    let verifier_context = TrustedContext::new(
+        corpus_configuration_id(),
+        CompositionRequirement::new(None, 1, 1, 1).expect("baseline composition"),
+        vec![anchor_with_status(root, 2, root_policy)],
+        registries_with_status(&identities, status_methods(), status_methods()),
+        audience(),
+        Challenge::new([0x22; 32]),
+        Timestamp::new(50),
+        assurance_policy(&identities),
+        principal_snapshot,
+        grant_snapshot,
+        ResourceMatcherId::parse("uri-namespace-v1").expect("resource matcher"),
+        ProfilePolicyId::parse("exact-v1").expect("profile policy"),
+        ChannelBindingId::parse("none-v1").expect("channel policy"),
+        VerifierLimits::default(),
+    )
+    .expect("delegate status context");
+    let bundle = ProofBundle::new(
+        BundleHeader::v1(),
+        vec![parent_grant, child_grant],
+        vec![action],
+        plan,
+        addressed_evidence(&identities),
+        bindings,
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        Some(canonical.body().to_vec()),
+    )
+    .expect("delegate status proof");
+    let class = match expected {
+        Expected::Authorized => "valid",
+        Expected::Denied(_) => "denied",
+        Expected::Indeterminate(_) => "indeterminate",
+    };
+    fixture(name, class, &bundle, &verifier_context, canonical, expected)
 }
 
 #[derive(Clone, Copy)]
@@ -4852,6 +5166,60 @@ fn build_corpus() -> Vec<CorpusFixture> {
         ),
         revoked_principal_status(),
         missing_principal_status(),
+        delegate_status_fixture(
+            "revoked-actor-principal-status",
+            DelegateStatusVariation::RevokedActor,
+            Expected::Denied(DenialReason::PrincipalRevoked),
+        ),
+        delegate_status_fixture(
+            "revoked-delegate-principal-status",
+            DelegateStatusVariation::RevokedDelegate,
+            Expected::Denied(DenialReason::PrincipalRevoked),
+        ),
+        delegate_status_fixture(
+            "superseded-delegate-principal-status",
+            DelegateStatusVariation::SupersededDelegate,
+            Expected::Denied(DenialReason::PrincipalRevoked),
+        ),
+        delegate_status_fixture(
+            "unlisted-delegate-principal-status",
+            DelegateStatusVariation::Unlisted,
+            Expected::Authorized,
+        ),
+        delegate_status_fixture(
+            "delegate-principal-status-rollback",
+            DelegateStatusVariation::DelegateRollback,
+            Expected::Denied(DenialReason::StatusSequenceRollback),
+        ),
+        delegate_status_fixture(
+            "stale-delegate-principal-revocation",
+            DelegateStatusVariation::StaleDelegateRevocation,
+            Expected::Indeterminate(Requirement::StaleStatus),
+        ),
+        delegate_status_fixture(
+            "revoked-actor-under-expiry-only-grant",
+            DelegateStatusVariation::RevokedActorExpiryOnlyGrant,
+            Expected::Denied(DenialReason::PrincipalRevoked),
+        ),
+        delegate_status_fixture(
+            "revoked-delegate-expiry-only-chain",
+            DelegateStatusVariation::ExpiryOnlyChain,
+            Expected::Authorized,
+        ),
+        delegate_status_fixture(
+            "stale-principal-status-at-greatest-sequence",
+            DelegateStatusVariation::StaleAtGreatestSequence,
+            Expected::Indeterminate(Requirement::StaleStatus),
+        ),
+        delegate_status_fixture(
+            "unbound-principal-status-beside-valid",
+            DelegateStatusVariation::UnboundBesideValid,
+            Expected::Indeterminate(Requirement::MissingPrincipalEvidence),
+        ),
+        status_fixture(
+            "grant-status-below-sequence-floor",
+            StatusVariation::GrantBelowFloor,
+        ),
         action_permission_not_granted(),
         action_constraint_mismatch(),
         action_budget_exceeded(),

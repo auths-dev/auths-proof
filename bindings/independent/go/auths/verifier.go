@@ -1056,6 +1056,24 @@ func verifyFromAnchor(
 	if !containsText(anchor.methods, method) || anchor.assurance != context.assuranceID {
 		return nil, denied("untrusted-root")
 	}
+	// Status runs before resource and attenuation checks. Every grant subject
+	// is checked under the anchor's policy: by chain linkage the subjects are
+	// every issuer after the root and the actor.
+	if err := checkPrincipalStatus(
+		anchor.status, anchor.principal, statusRequired, context, controls,
+	); err != nil {
+		return nil, err
+	}
+	for _, grant := range chain {
+		if err := checkGrantStatus(grant.status, grant.id, context, controls); err != nil {
+			return nil, err
+		}
+		if err := checkPrincipalStatus(
+			anchor.status, grant.subject, statusRevocationList, context, controls,
+		); err != nil {
+			return nil, err
+		}
+	}
 	resourceAllowed := false
 	for _, namespace := range anchor.namespaces {
 		if uriNamespaceMatches(namespace, action.permission.resource) {
@@ -1064,19 +1082,6 @@ func verifyFromAnchor(
 	}
 	if !resourceAllowed {
 		return nil, denied("resource-namespace-mismatch")
-	}
-	principalStatusValue, err := checkPrincipalStatus(anchor.status, anchor.principal, context)
-	if err != nil {
-		return nil, err
-	}
-	if principalStatusValue != nil {
-		control, ok := controls[statementReference{kind: 2, id: principalStatusValue.id}.key()]
-		if !ok {
-			return nil, indeterminate("missing-principal-evidence")
-		}
-		if control.err != nil {
-			return nil, control.err
-		}
 	}
 	authority := effectiveAuthority{
 		subject: anchor.principal, allowedProfiles: anchor.profiles,
@@ -1096,19 +1101,6 @@ func verifyFromAnchor(
 		if index > 0 {
 			if err := requireParentRequirements(chain[index-1], grant); err != nil {
 				return nil, err
-			}
-		}
-		grantStatusValue, err := checkGrantStatus(grant.status, grant.id, context)
-		if err != nil {
-			return nil, err
-		}
-		if grantStatusValue != nil {
-			control, ok := controls[statementReference{kind: 3, id: grantStatusValue.id}.key()]
-			if !ok {
-				return nil, indeterminate("missing-principal-evidence")
-			}
-			if control.err != nil {
-				return nil, control.err
 			}
 		}
 		if err := authority.delegate(grant, context.extensions); err != nil {
@@ -1314,114 +1306,172 @@ func assuranceSatisfied(
 	return true
 }
 
-func trustedStatus(
+// statusListing says what an absent status statement means for a subject.
+type statusListing int
+
+const (
+	// statusRequired: the snapshot must name the subject.
+	statusRequired statusListing = iota
+	// statusRevocationList: a subject the snapshot does not name is active.
+	statusRevocationList
+)
+
+// statusEntry is the part of a principal- or grant-status statement that
+// selection reads.
+type statusEntry struct {
+	method     string
+	issuer     string
+	state      uint64
+	sequence   uint64
+	observedAt uint64
+	validUntil uint64
+}
+
+func statusControl(controls map[string]verifiedControl, kind uint64, id []byte) error {
+	control, ok := controls[statementReference{kind: kind, id: id}.key()]
+	if !ok {
+		return indeterminate("missing-principal-evidence")
+	}
+	return control.err
+}
+
+// selectStatus follows the native exact status method: a trusted statement
+// below its issuer's sequence floor is a rollback, and freshness and state are
+// judged across every trusted statement at the greatest sequence.
+func selectStatus(
+	candidates []statusEntry,
+	policy statusPolicy,
 	trust []statusTrustRule,
-	method string,
-	issuer string,
-	sequence uint64,
-) bool {
-	for _, rule := range trust {
-		if rule.method == method && rule.issuer == issuer && sequence >= rule.minimumSequence {
-			return true
+	evaluationTime uint64,
+	revoked string,
+) error {
+	methodMatch := false
+	for _, candidate := range candidates {
+		if candidate.method == policy.method {
+			methodMatch = true
 		}
 	}
-	return false
+	if !methodMatch {
+		return denied("status-method-mismatch")
+	}
+	trusted := make([]statusEntry, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.method != policy.method {
+			continue
+		}
+		var rule *statusTrustRule
+		for index := range trust {
+			if trust[index].method == policy.method && trust[index].issuer == candidate.issuer {
+				rule = &trust[index]
+				break
+			}
+		}
+		if rule == nil {
+			continue
+		}
+		if candidate.sequence < rule.minimumSequence {
+			return denied("status-sequence-rollback")
+		}
+		trusted = append(trusted, candidate)
+	}
+	if len(trusted) == 0 {
+		return denied("status-issuer-untrusted")
+	}
+	maximum := trusted[0].sequence
+	for _, candidate := range trusted[1:] {
+		if candidate.sequence > maximum {
+			maximum = candidate.sequence
+		}
+	}
+	for _, candidate := range trusted {
+		if candidate.sequence == maximum &&
+			(candidate.observedAt > evaluationTime || candidate.validUntil < evaluationTime ||
+				evaluationTime-candidate.observedAt > policy.maxAge) {
+			return indeterminate("stale-status")
+		}
+	}
+	for _, candidate := range trusted {
+		if candidate.sequence == maximum && candidate.state != 0 {
+			return denied(revoked)
+		}
+	}
+	return nil
 }
 
 func checkPrincipalStatus(
 	policy statusPolicy,
 	principal string,
+	listing statusListing,
 	context *verifierContext,
-) (*principalStatus, error) {
+	controls map[string]verifiedControl,
+) error {
 	if policy.kind == 0 {
-		return nil, nil
+		return nil
 	}
 	if !containsText(context.principalStatuses, policy.method) {
-		return nil, indeterminate("unsupported-status-method")
+		return indeterminate("unsupported-status-method")
 	}
 	snapshot := context.principalSnapshot
+	candidates := make([]statusEntry, 0)
+	for _, statement := range snapshot.statements {
+		if statement.principal != principal {
+			continue
+		}
+		if err := statusControl(controls, 2, statement.id); err != nil {
+			return err
+		}
+		candidates = append(candidates, statusEntry{
+			method: statement.method, issuer: statement.issuer, state: statement.state,
+			sequence: statement.sequence, observedAt: statement.observedAt,
+			validUntil: statement.validUntil,
+		})
+	}
 	if snapshot.observedAt > context.evaluationTime || snapshot.validUntil < context.evaluationTime {
-		return nil, indeterminate("stale-status")
+		return indeterminate("stale-status")
 	}
-	var selected *principalStatus
-	methodMatch := false
-	for _, statement := range snapshot.statements {
-		if statement.principal == principal && statement.method == policy.method {
-			methodMatch = true
-			if trustedStatus(snapshot.trust, statement.method, statement.issuer, statement.sequence) &&
-				(selected == nil || statement.sequence > selected.sequence ||
-					(statement.sequence == selected.sequence && statement.state > selected.state)) {
-				selected = statement
-			}
+	if len(candidates) == 0 {
+		if listing == statusRevocationList {
+			return nil
 		}
+		return indeterminate("missing-principal-status")
 	}
-	if selected != nil {
-		if selected.observedAt > context.evaluationTime ||
-			context.evaluationTime-selected.observedAt > policy.maxAge {
-			return nil, indeterminate("stale-status")
-		}
-		if selected.state != 0 {
-			return nil, denied("principal-revoked")
-		}
-		return selected, nil
-	}
-	if methodMatch {
-		return nil, denied("status-issuer-untrusted")
-	}
-	for _, statement := range snapshot.statements {
-		if statement.principal == principal {
-			return nil, denied("status-method-mismatch")
-		}
-	}
-	return nil, indeterminate("missing-principal-status")
+	return selectStatus(candidates, policy, snapshot.trust, context.evaluationTime, "principal-revoked")
 }
 
 func checkGrantStatus(
 	policy statusPolicy,
 	grantID []byte,
 	context *verifierContext,
-) (*grantStatus, error) {
+	controls map[string]verifiedControl,
+) error {
 	if policy.kind == 0 {
-		return nil, nil
+		return nil
 	}
 	if !containsText(context.grantStatuses, policy.method) {
-		return nil, indeterminate("unsupported-status-method")
+		return indeterminate("unsupported-status-method")
 	}
 	snapshot := context.grantSnapshot
+	candidates := make([]statusEntry, 0)
+	for _, statement := range snapshot.statements {
+		if !bytes.Equal(statement.grantID, grantID) {
+			continue
+		}
+		if err := statusControl(controls, 3, statement.id); err != nil {
+			return err
+		}
+		candidates = append(candidates, statusEntry{
+			method: statement.method, issuer: statement.issuer, state: statement.state,
+			sequence: statement.sequence, observedAt: statement.observedAt,
+			validUntil: statement.validUntil,
+		})
+	}
 	if snapshot.observedAt > context.evaluationTime || snapshot.validUntil < context.evaluationTime {
-		return nil, indeterminate("stale-status")
+		return indeterminate("stale-status")
 	}
-	var selected *grantStatus
-	methodMatch := false
-	for _, statement := range snapshot.statements {
-		if bytes.Equal(statement.grantID, grantID) && statement.method == policy.method {
-			methodMatch = true
-			if trustedStatus(snapshot.trust, statement.method, statement.issuer, statement.sequence) &&
-				(selected == nil || statement.sequence > selected.sequence ||
-					(statement.sequence == selected.sequence && statement.state > selected.state)) {
-				selected = statement
-			}
-		}
+	if len(candidates) == 0 {
+		return indeterminate("missing-grant-status")
 	}
-	if selected != nil {
-		if selected.observedAt > context.evaluationTime ||
-			context.evaluationTime-selected.observedAt > policy.maxAge {
-			return nil, indeterminate("stale-status")
-		}
-		if selected.state != 0 {
-			return nil, denied("grant-revoked")
-		}
-		return selected, nil
-	}
-	if methodMatch {
-		return nil, denied("status-issuer-untrusted")
-	}
-	for _, statement := range snapshot.statements {
-		if bytes.Equal(statement.grantID, grantID) {
-			return nil, denied("status-method-mismatch")
-		}
-	}
-	return nil, indeterminate("missing-grant-status")
+	return selectStatus(candidates, policy, snapshot.trust, context.evaluationTime, "grant-revoked")
 }
 
 func uniqueDigests(values [][]byte) [][]byte {

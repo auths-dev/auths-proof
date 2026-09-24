@@ -2710,6 +2710,615 @@
       "expected_code": "missing-principal-status"
     },
     {
+      "name": "revoked-actor-principal-status",
+      "class": "denied",
+      "proof": {
+        "path": "denied/revoked-actor-principal-status.proof.cbor",
+        "sha256": "60f5a98886e5facdd8c3308ac61ff5efac570db7b72e95642dac61ac2e6ad350"
+      },
+      "context": {
+        "path": "denied/revoked-actor-principal-status.context.cbor",
+        "sha256": "96ebfeb10f58f418fbf684a13bd972b8df7707bd741b718da4c3e19e7e885fd5"
+      },
+      "canonical_action": {
+        "path": "denied/revoked-actor-principal-status.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "denied/revoked-actor-principal-status.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "denied/revoked-actor-principal-status.result.cbor",
+        "sha256": "a15652f5c8a395f52b8d1511766c471c9e67afbc5d8aa84b202a438c3ef1eb06",
+        "stage": "authority",
+        "decision": "denied",
+        "code": "principal-revoked",
+        "proof_digest": "60f5a98886e5facdd8c3308ac61ff5efac570db7b72e95642dac61ac2e6ad350",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "3fb9e149f16e30f3c8492bd9b8e2582fa051d12cb1784b844261da0f08ff4482",
+        "plan_digest": "7da6feeb83cd4fd3660f6f2461363d600191672f5c7d0b9781ac0883831e6f40",
+        "result_digest": "f4210baa2a6888422f39e38c80604082248a949161bdd58cb728765769e70cb4",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 2515,
+          "action_bytes": 144,
+          "context_bytes": 2680,
+          "object_count": 13,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 809
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "denied",
+      "expected_code": "principal-revoked"
+    },
+    {
+      "name": "revoked-delegate-principal-status",
+      "class": "denied",
+      "proof": {
+        "path": "denied/revoked-delegate-principal-status.proof.cbor",
+        "sha256": "403dfd7cd295ed635b7711db3c1c7dd7cbf453571066160ef142d91fdc9995f2"
+      },
+      "context": {
+        "path": "denied/revoked-delegate-principal-status.context.cbor",
+        "sha256": "69599ae550bf90b743bb3c9a83f10363756a71feb1f7f6915fbcd4246463b3c4"
+      },
+      "canonical_action": {
+        "path": "denied/revoked-delegate-principal-status.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "denied/revoked-delegate-principal-status.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "denied/revoked-delegate-principal-status.result.cbor",
+        "sha256": "4e1d222dbd5a0383c15ba7d5de46132b7341faf3530c7adb9c4ea456aa082c12",
+        "stage": "authority",
+        "decision": "denied",
+        "code": "principal-revoked",
+        "proof_digest": "403dfd7cd295ed635b7711db3c1c7dd7cbf453571066160ef142d91fdc9995f2",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "beb738881f6e4a7c93cc6cc75b11fd5832c5de6550c7d4167d04a8a5a9f23845",
+        "plan_digest": "7da6feeb83cd4fd3660f6f2461363d600191672f5c7d0b9781ac0883831e6f40",
+        "result_digest": "b49f8e0ff926ae9b12c682a688566def6ebbe8ef7446604b7e99372c1f78aa68",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 2515,
+          "action_bytes": 144,
+          "context_bytes": 2680,
+          "object_count": 13,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 803
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "denied",
+      "expected_code": "principal-revoked"
+    },
+    {
+      "name": "superseded-delegate-principal-status",
+      "class": "denied",
+      "proof": {
+        "path": "denied/superseded-delegate-principal-status.proof.cbor",
+        "sha256": "0e7c51092733b72d12ee0fa71945fb7436cbdf77e4446f336a1fb1fdcea1a159"
+      },
+      "context": {
+        "path": "denied/superseded-delegate-principal-status.context.cbor",
+        "sha256": "88475a757c95fa04e6b89466d6cda159ba0e0a714f790994630a08d5acbc5cd2"
+      },
+      "canonical_action": {
+        "path": "denied/superseded-delegate-principal-status.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "denied/superseded-delegate-principal-status.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "denied/superseded-delegate-principal-status.result.cbor",
+        "sha256": "68eee1fb89ca6357f781ea3f783f60248e4b8fde4091bc71dcdcf06db0a7c9f2",
+        "stage": "authority",
+        "decision": "denied",
+        "code": "principal-revoked",
+        "proof_digest": "0e7c51092733b72d12ee0fa71945fb7436cbdf77e4446f336a1fb1fdcea1a159",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "3320a504eeca30d694da732a258d8301aff894d720f0dead261d179a2246f6e0",
+        "plan_digest": "7da6feeb83cd4fd3660f6f2461363d600191672f5c7d0b9781ac0883831e6f40",
+        "result_digest": "b28cb954384c3f81b81fdbc1bcd3209afe9628bdc9cfbb5ca72b8e2d3f7a74df",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 2515,
+          "action_bytes": 144,
+          "context_bytes": 2680,
+          "object_count": 13,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 803
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "denied",
+      "expected_code": "principal-revoked"
+    },
+    {
+      "name": "unlisted-delegate-principal-status",
+      "class": "valid",
+      "proof": {
+        "path": "valid/unlisted-delegate-principal-status.proof.cbor",
+        "sha256": "6794a85c52ae8494b3df59f59a70751c45f72f6a88ac433ff3dbb34ad6fbba9f"
+      },
+      "context": {
+        "path": "valid/unlisted-delegate-principal-status.context.cbor",
+        "sha256": "64b940002745ffcaa7be3712366a507c2a545cd52f6e273ea25a7f1218f69565"
+      },
+      "canonical_action": {
+        "path": "valid/unlisted-delegate-principal-status.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "valid/unlisted-delegate-principal-status.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "valid/unlisted-delegate-principal-status.result.cbor",
+        "sha256": "ed1b32deeadf0bdd3a3e1c0c0cb0b792905768ab2497751a8fa767c25a474c29",
+        "stage": "complete",
+        "decision": "authorized",
+        "code": "authorized",
+        "proof_digest": "6794a85c52ae8494b3df59f59a70751c45f72f6a88ac433ff3dbb34ad6fbba9f",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "efc02cb84eda311fe01931cf1f5987b7044d2e4337c2686f72a31682c8a27727",
+        "plan_digest": "7da6feeb83cd4fd3660f6f2461363d600191672f5c7d0b9781ac0883831e6f40",
+        "result_digest": "e3e3df0235c47be29834372bc415f676b1b1832141ec07eb72aa6abb28485442",
+        "authorized_branches": [
+          "e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1"
+        ],
+        "assurance_satisfactions": 2,
+        "resources": {
+          "proof_bytes": 2439,
+          "action_bytes": 144,
+          "context_bytes": 2341,
+          "object_count": 12,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 798
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "authorized",
+      "expected_code": "authorized"
+    },
+    {
+      "name": "delegate-principal-status-rollback",
+      "class": "denied",
+      "proof": {
+        "path": "denied/delegate-principal-status-rollback.proof.cbor",
+        "sha256": "4cbf586858f258c71e27b366160b32532beed4fe382dd56142a5a477535488a0"
+      },
+      "context": {
+        "path": "denied/delegate-principal-status-rollback.context.cbor",
+        "sha256": "b9d3e77ffc0211497c8b47eaaadad1c29e2219a056dcfafa811e5bf1fef5f8f5"
+      },
+      "canonical_action": {
+        "path": "denied/delegate-principal-status-rollback.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "denied/delegate-principal-status-rollback.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "denied/delegate-principal-status-rollback.result.cbor",
+        "sha256": "c9863a7b9fb285e2cf0b229519c9a6b4a67a2d7c15a8a6c0b82e4d4df14f8598",
+        "stage": "authority",
+        "decision": "denied",
+        "code": "status-sequence-rollback",
+        "proof_digest": "4cbf586858f258c71e27b366160b32532beed4fe382dd56142a5a477535488a0",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "cdae3f191ed5689bd7128dd98c88c00408f3fa0937cb20affacc2eb309d3105e",
+        "plan_digest": "7da6feeb83cd4fd3660f6f2461363d600191672f5c7d0b9781ac0883831e6f40",
+        "result_digest": "5f186dab370c953c7c8327417903d425b750f40dd34e3fc52be161c0d0f3d148",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 2515,
+          "action_bytes": 144,
+          "context_bytes": 2680,
+          "object_count": 13,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 803
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "denied",
+      "expected_code": "status-sequence-rollback"
+    },
+    {
+      "name": "stale-delegate-principal-revocation",
+      "class": "indeterminate",
+      "proof": {
+        "path": "indeterminate/stale-delegate-principal-revocation.proof.cbor",
+        "sha256": "301ffce9ed923f3a142e1c7568f8178927ee6aad85ea053fb7187722c2fcbecf"
+      },
+      "context": {
+        "path": "indeterminate/stale-delegate-principal-revocation.context.cbor",
+        "sha256": "fcbb016802d7d40ac96fd398930bca271c7fe3e176165bd3752cd4c92d01903e"
+      },
+      "canonical_action": {
+        "path": "indeterminate/stale-delegate-principal-revocation.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "indeterminate/stale-delegate-principal-revocation.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "indeterminate/stale-delegate-principal-revocation.result.cbor",
+        "sha256": "4ee64f55854d05e4765bfe8c0352322cb9ff1e61c200bcc0e2ea5d96634c4d05",
+        "stage": "authority",
+        "decision": "indeterminate",
+        "code": "stale-status",
+        "proof_digest": "301ffce9ed923f3a142e1c7568f8178927ee6aad85ea053fb7187722c2fcbecf",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "f22f4128b3f601f2ca478cd680e517166ddf2f479e4b185a966cb4fe710bb6a8",
+        "plan_digest": "7da6feeb83cd4fd3660f6f2461363d600191672f5c7d0b9781ac0883831e6f40",
+        "result_digest": "12cfa48c719272a920469cd23870f156bd4e630e468cdf079c47d28836e0f46e",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 2515,
+          "action_bytes": 144,
+          "context_bytes": 2680,
+          "object_count": 13,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 803
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "indeterminate",
+      "expected_code": "stale-status"
+    },
+    {
+      "name": "revoked-actor-under-expiry-only-grant",
+      "class": "denied",
+      "proof": {
+        "path": "denied/revoked-actor-under-expiry-only-grant.proof.cbor",
+        "sha256": "d51f77614a3543d4fb39cb1251fa78aaa47e568fd25479d08101e41a1fca00ad"
+      },
+      "context": {
+        "path": "denied/revoked-actor-under-expiry-only-grant.context.cbor",
+        "sha256": "4cb3cbf604c6d5d3bf5c013faacbc63b4c5ef25389dacd18624ba636881c093e"
+      },
+      "canonical_action": {
+        "path": "denied/revoked-actor-under-expiry-only-grant.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "denied/revoked-actor-under-expiry-only-grant.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "denied/revoked-actor-under-expiry-only-grant.result.cbor",
+        "sha256": "51c00f90963c20cb1e05a235e4d78c4069dbd0a855234f9a6cfd60c802530639",
+        "stage": "authority",
+        "decision": "denied",
+        "code": "principal-revoked",
+        "proof_digest": "d51f77614a3543d4fb39cb1251fa78aaa47e568fd25479d08101e41a1fca00ad",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "a55a3ec287afaf02656c9dc7878f4937b0d9b69a35f906261fdb92fbd12d5886",
+        "plan_digest": "7da6feeb83cd4fd3660f6f2461363d600191672f5c7d0b9781ac0883831e6f40",
+        "result_digest": "5c153f69aec3c3002cafcfab92d03b66fef0b13259fa811cfd8334729f69f4e0",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 2409,
+          "action_bytes": 144,
+          "context_bytes": 2391,
+          "object_count": 12,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 695
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "denied",
+      "expected_code": "principal-revoked"
+    },
+    {
+      "name": "revoked-delegate-expiry-only-chain",
+      "class": "valid",
+      "proof": {
+        "path": "valid/revoked-delegate-expiry-only-chain.proof.cbor",
+        "sha256": "3fe09bf01c70378904738ca0739f36b3eb9b8809a78f876a8f8daf2dddbcb448"
+      },
+      "context": {
+        "path": "valid/revoked-delegate-expiry-only-chain.context.cbor",
+        "sha256": "fe9d06106662bd0e7bed24c85f7418ebe32b4f1c272b130e5b6d6a0dbebea8ad"
+      },
+      "canonical_action": {
+        "path": "valid/revoked-delegate-expiry-only-chain.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "valid/revoked-delegate-expiry-only-chain.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "valid/revoked-delegate-expiry-only-chain.result.cbor",
+        "sha256": "b7ca196b69a432f423d201bdb757bb1bbc73fdeea510937a0151ff4de93f5668",
+        "stage": "complete",
+        "decision": "authorized",
+        "code": "authorized",
+        "proof_digest": "3fe09bf01c70378904738ca0739f36b3eb9b8809a78f876a8f8daf2dddbcb448",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "d69ea76d2359df1210cf6f0e4dcbb2f9201bc1c30c133b42d7fc616e52b08b30",
+        "plan_digest": "7da6feeb83cd4fd3660f6f2461363d600191672f5c7d0b9781ac0883831e6f40",
+        "result_digest": "fd0927cefbdc4d0cfc577291e0816367a7a8e53ef22abbfa3f5444062e2745d7",
+        "authorized_branches": [
+          "e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1"
+        ],
+        "assurance_satisfactions": 2,
+        "resources": {
+          "proof_bytes": 2227,
+          "action_bytes": 144,
+          "context_bytes": 1733,
+          "object_count": 10,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 566
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "authorized",
+      "expected_code": "authorized"
+    },
+    {
+      "name": "stale-principal-status-at-greatest-sequence",
+      "class": "indeterminate",
+      "proof": {
+        "path": "indeterminate/stale-principal-status-at-greatest-sequence.proof.cbor",
+        "sha256": "2f8c1773db0b310386028ceaf21ab91a517bab7951a533ae89d2efcdc8fb61cc"
+      },
+      "context": {
+        "path": "indeterminate/stale-principal-status-at-greatest-sequence.context.cbor",
+        "sha256": "e521163095e3ccdb749988f99c1f75434c8abe888e46cc31314b7a35d89d9f37"
+      },
+      "canonical_action": {
+        "path": "indeterminate/stale-principal-status-at-greatest-sequence.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "indeterminate/stale-principal-status-at-greatest-sequence.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "indeterminate/stale-principal-status-at-greatest-sequence.result.cbor",
+        "sha256": "83649b5f4d880801a4c45adfb417ef5bc6162e5896d7447b4a590255eb8ecb88",
+        "stage": "authority",
+        "decision": "indeterminate",
+        "code": "stale-status",
+        "proof_digest": "2f8c1773db0b310386028ceaf21ab91a517bab7951a533ae89d2efcdc8fb61cc",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "eb489e60eefe84e82a1b99409922f7480dd20d524cf09707ed49d18e74b794a1",
+        "plan_digest": "7da6feeb83cd4fd3660f6f2461363d600191672f5c7d0b9781ac0883831e6f40",
+        "result_digest": "672a31b2fa2a916415d1c912330bc11657ca2d11a638573d1af3f3a417707560",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 2591,
+          "action_bytes": 144,
+          "context_bytes": 3107,
+          "object_count": 14,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 915
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "indeterminate",
+      "expected_code": "stale-status"
+    },
+    {
+      "name": "unbound-principal-status-beside-valid",
+      "class": "indeterminate",
+      "proof": {
+        "path": "indeterminate/unbound-principal-status-beside-valid.proof.cbor",
+        "sha256": "8bb9b05478adc67a91a3a2d2a380dab85807a27179d627caac01c1e9802fcbe6"
+      },
+      "context": {
+        "path": "indeterminate/unbound-principal-status-beside-valid.context.cbor",
+        "sha256": "286204f50492f3bc7e81318febcfda138552c73c49756721bc1ae27ff5adc6dd"
+      },
+      "canonical_action": {
+        "path": "indeterminate/unbound-principal-status-beside-valid.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "indeterminate/unbound-principal-status-beside-valid.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "indeterminate/unbound-principal-status-beside-valid.result.cbor",
+        "sha256": "366f7bf1081bef0db8a227c23437f6df67ec4a324b020047252def696e044246",
+        "stage": "authority",
+        "decision": "indeterminate",
+        "code": "missing-principal-evidence",
+        "proof_digest": "8bb9b05478adc67a91a3a2d2a380dab85807a27179d627caac01c1e9802fcbe6",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "5d95e89227087eb546c6dc4fc8426a3b505492eb86528c5edaef6734bfac6349",
+        "plan_digest": "7da6feeb83cd4fd3660f6f2461363d600191672f5c7d0b9781ac0883831e6f40",
+        "result_digest": "d7fc0f43984de3afeaa0d141286033555e70913fc997d87b9b70818285ee2f08",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 2515,
+          "action_bytes": 144,
+          "context_bytes": 3019,
+          "object_count": 13,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 801
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "indeterminate",
+      "expected_code": "missing-principal-evidence"
+    },
+    {
+      "name": "grant-status-below-sequence-floor",
+      "class": "denied",
+      "proof": {
+        "path": "denied/grant-status-below-sequence-floor.proof.cbor",
+        "sha256": "e87e2cd6c744420782a78e746bff4a7f4b657d010fa1ac3e1e146c516ff8c348"
+      },
+      "context": {
+        "path": "denied/grant-status-below-sequence-floor.context.cbor",
+        "sha256": "a972f7ba94aa29364b7a0d70bbdc5d485481f71b6193a0e97133985c251f3bee"
+      },
+      "canonical_action": {
+        "path": "denied/grant-status-below-sequence-floor.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "denied/grant-status-below-sequence-floor.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "denied/grant-status-below-sequence-floor.result.cbor",
+        "sha256": "f4f97857988aec501276b48c95ddcc22c94cd45e05844c19d6039468b44fa618",
+        "stage": "authority",
+        "decision": "denied",
+        "code": "status-sequence-rollback",
+        "proof_digest": "e87e2cd6c744420782a78e746bff4a7f4b657d010fa1ac3e1e146c516ff8c348",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "02e300eccd4b521ae32b3bfa796f23ed7504166d913cb68610172021d9ff4f5e",
+        "plan_digest": "70696130dac7917ae925b3a7223ebc028fdcd1dc5009a641d2c892eb8de3fd81",
+        "result_digest": "f637f176c838037d89996a4adffe07e424815483639db327e1588a14238a800d",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 1576,
+          "action_bytes": 144,
+          "context_bytes": 1552,
+          "object_count": 7,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 356
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "denied",
+      "expected_code": "status-sequence-rollback"
+    },
+    {
       "name": "action-permission-not-granted",
       "class": "denied",
       "proof": {

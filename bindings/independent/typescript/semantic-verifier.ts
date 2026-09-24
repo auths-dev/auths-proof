@@ -1629,80 +1629,114 @@ function authorize(authority: Authority, actionValue: Action, budgetFree: boolea
   }
 }
 
+/** What an absent status statement means for a subject. */
+type StatusListing = "required" | "revocation-list";
+
+type StatusEntry = {
+  method: string; issuer: string; state: bigint; sequence: bigint;
+  observedAt: bigint; validUntil: bigint;
+};
+
+function statusControl(controls: Map<string, VerifiedControl>, kind: bigint, id: Uint8Array): void {
+  const verified = controls.get(refKey({ kind, id }));
+  if (!verified) throw indeterminate("missing-principal-evidence");
+  if (verified.error) throw verified.error;
+}
+
+/**
+ * Follows the native exact status method: a trusted statement below its
+ * issuer's sequence floor is a rollback, and freshness and state are judged
+ * across every trusted statement at the greatest sequence.
+ */
+function selectStatus(
+  candidates: StatusEntry[],
+  policy: StatusPolicy,
+  trust: StatusTrust[],
+  evaluationTime: bigint,
+  revoked: string,
+): void {
+  if (!candidates.some((item) => item.method === policy.method)) {
+    throw denied("status-method-mismatch");
+  }
+  const trusted: StatusEntry[] = [];
+  for (const item of candidates) {
+    if (item.method !== policy.method) continue;
+    const rule = trust.find((candidate) =>
+      candidate.method === policy.method && candidate.issuer === item.issuer);
+    if (!rule) continue;
+    if (item.sequence < rule.minimumSequence) throw denied("status-sequence-rollback");
+    trusted.push(item);
+  }
+  if (trusted.length === 0) throw denied("status-issuer-untrusted");
+  const maximum = trusted.reduce(
+    (current, item) => item.sequence > current ? item.sequence : current,
+    trusted[0]!.sequence,
+  );
+  const latest = trusted.filter((item) => item.sequence === maximum);
+  if (latest.some((item) =>
+    item.observedAt > evaluationTime || item.validUntil < evaluationTime ||
+    evaluationTime - item.observedAt > policy.maxAge!)) {
+    throw indeterminate("stale-status");
+  }
+  if (latest.some((item) => item.state !== 0n)) throw denied(revoked);
+}
+
 function checkPrincipalStatus(
   policy: StatusPolicy,
   principal: string,
+  listing: StatusListing,
   contextValue: Context,
-): PrincipalStatus | undefined {
-  if (policy.kind === 0n) return undefined;
+  controls: Map<string, VerifiedControl>,
+): void {
+  if (policy.kind === 0n) return;
   if (!contains(contextValue.principalStatuses, policy.method!)) {
     throw indeterminate("unsupported-status-method");
   }
   const snapshotValue = contextValue.principalSnapshot;
+  const candidates: StatusEntry[] = [];
+  for (const item of snapshotValue.statements) {
+    if (item.principal !== principal) continue;
+    statusControl(controls, 2n, item.id);
+    candidates.push(item);
+  }
   if (snapshotValue.observedAt > contextValue.evaluationTime ||
       snapshotValue.validUntil < contextValue.evaluationTime) {
     throw indeterminate("stale-status");
   }
-  const trust = snapshotValue.trust.filter((rule) => rule.method === policy.method);
-  const methodMatches = snapshotValue.statements.filter((item) =>
-    item.principal === principal && item.method === policy.method);
-  const trusted = methodMatches.filter((item) => trust.some((rule) =>
-    rule.issuer === item.issuer && item.sequence >= rule.minimumSequence));
-  const status = trusted.sort((left, right) =>
-    left.sequence === right.sequence
-      ? Number(right.state - left.state)
-      : left.sequence > right.sequence ? -1 : 1)[0];
-  if (!status) {
-    if (methodMatches.length > 0) throw denied("status-issuer-untrusted");
-    if (snapshotValue.statements.some((item) => item.principal === principal)) {
-      throw denied("status-method-mismatch");
-    }
+  if (candidates.length === 0) {
+    if (listing === "revocation-list") return;
     throw indeterminate("missing-principal-status");
   }
-  if (status.observedAt > contextValue.evaluationTime ||
-      contextValue.evaluationTime - status.observedAt > policy.maxAge!) {
-    throw indeterminate("stale-status");
-  }
-  if (status.state !== 0n) throw denied("principal-revoked");
-  return status;
+  selectStatus(
+    candidates, policy, snapshotValue.trust, contextValue.evaluationTime, "principal-revoked",
+  );
 }
 
 function checkGrantStatus(
   policy: StatusPolicy,
   grantID: Uint8Array,
   contextValue: Context,
-): GrantStatus | undefined {
-  if (policy.kind === 0n) return undefined;
+  controls: Map<string, VerifiedControl>,
+): void {
+  if (policy.kind === 0n) return;
   if (!contains(contextValue.grantStatuses, policy.method!)) {
     throw indeterminate("unsupported-status-method");
   }
   const snapshotValue = contextValue.grantSnapshot;
+  const candidates: StatusEntry[] = [];
+  for (const item of snapshotValue.statements) {
+    if (!equal(item.grantID, grantID)) continue;
+    statusControl(controls, 3n, item.id);
+    candidates.push(item);
+  }
   if (snapshotValue.observedAt > contextValue.evaluationTime ||
       snapshotValue.validUntil < contextValue.evaluationTime) {
     throw indeterminate("stale-status");
   }
-  const trust = snapshotValue.trust.filter((rule) => rule.method === policy.method);
-  const methodMatches = snapshotValue.statements.filter((item) =>
-    equal(item.grantID, grantID) && item.method === policy.method);
-  const trusted = methodMatches.filter((item) => trust.some((rule) =>
-    rule.issuer === item.issuer && item.sequence >= rule.minimumSequence));
-  const status = trusted.sort((left, right) =>
-    left.sequence === right.sequence
-      ? Number(right.state - left.state)
-      : left.sequence > right.sequence ? -1 : 1)[0];
-  if (!status) {
-    if (methodMatches.length > 0) throw denied("status-issuer-untrusted");
-    if (snapshotValue.statements.some((item) => equal(item.grantID, grantID))) {
-      throw denied("status-method-mismatch");
-    }
-    throw indeterminate("missing-grant-status");
-  }
-  if (status.observedAt > contextValue.evaluationTime ||
-      contextValue.evaluationTime - status.observedAt > policy.maxAge!) {
-    throw indeterminate("stale-status");
-  }
-  if (status.state !== 0n) throw denied("grant-revoked");
-  return status;
+  if (candidates.length === 0) throw indeterminate("missing-grant-status");
+  selectStatus(
+    candidates, policy, snapshotValue.trust, contextValue.evaluationTime, "grant-revoked",
+  );
 }
 
 function report(value: VerifiedControl, role: bigint): Participant {
@@ -1746,6 +1780,17 @@ function verifyFromAnchor(
   if (!contains(anchor.methods, method) || anchor.assurance !== contextValue.assuranceID) {
     throw denied("untrusted-root");
   }
+  if (rootControl.error) throw rootControl.error;
+  // Status runs before resource and attenuation checks. Every grant subject is
+  // checked under the anchor's policy: by chain linkage the subjects are every
+  // issuer after the root and the actor.
+  checkPrincipalStatus(anchor.status, anchor.principal, "required", contextValue, controls);
+  for (const grantValue of chain) {
+    checkGrantStatus(grantValue.status, grantValue.id, contextValue, controls);
+    checkPrincipalStatus(
+      anchor.status, grantValue.subject, "revocation-list", contextValue, controls,
+    );
+  }
   if (!anchor.namespaces.some((namespace) =>
     actionValue.permission.resource === namespace ||
     (
@@ -1756,13 +1801,6 @@ function verifyFromAnchor(
       )
     )
   )) throw denied("resource-namespace-mismatch");
-  if (rootControl.error) throw rootControl.error;
-  const principalStatusValue = checkPrincipalStatus(anchor.status, anchor.principal, contextValue);
-  if (principalStatusValue) {
-    const statusControl = controls.get(refKey({ kind: 2n, id: principalStatusValue.id }));
-    if (!statusControl) throw indeterminate("missing-principal-evidence");
-    if (statusControl.error) throw statusControl.error;
-  }
   const authority: Authority = {
     subject: anchor.principal, allowedProfiles: anchor.profiles,
     permissions: anchor.permissions, notBefore: anchor.notBefore, expiresAt: anchor.expiresAt,
@@ -1774,12 +1812,6 @@ function verifyFromAnchor(
   if (chain.length === 0) reports.push(report(rootControl, 0n));
   chain.forEach((grantValue, index) => {
     if (index > 0) requireParentRequirements(chain[index - 1]!, grantValue);
-    const grantStatusValue = checkGrantStatus(grantValue.status, grantValue.id, contextValue);
-    if (grantStatusValue) {
-      const statusControl = controls.get(refKey({ kind: 3n, id: grantStatusValue.id }));
-      if (!statusControl) throw indeterminate("missing-principal-evidence");
-      if (statusControl.error) throw statusControl.error;
-    }
     delegate(authority, grantValue, contextValue.extensions);
     const verified = controls.get(refKey({ kind: 0n, id: grantValue.id }));
     if (!verified) throw indeterminate("missing-principal-evidence");

@@ -2265,16 +2265,29 @@ fn verify_branch_from_anchor(
         controlled,
         anchor.status_policy(),
         anchor.principal(),
+        StatusListing::Required,
         context,
         registries,
         meter,
     )?;
+    // Every grant subject is checked under the anchor's policy, not the
+    // grant's own: by chain linkage the subjects are every issuer after the
+    // root and the actor, and a grant's policy governs only that grant.
     for grant in chain {
         let id = grant_id(grant.statement()).map_err(codec_failure)?;
         check_grant_status(
             controlled,
             grant.statement().status_policy(),
             id,
+            context,
+            registries,
+            meter,
+        )?;
+        check_principal_status(
+            controlled,
+            anchor.status_policy(),
+            grant.statement().subject(),
+            StatusListing::RevocationList,
             context,
             registries,
             meter,
@@ -2478,10 +2491,22 @@ fn evaluate_extensions(
     Ok(())
 }
 
+/// What an absent principal-status statement means.
+///
+/// The trust anchor must be named by the snapshot. For every other principal
+/// in the branch the snapshot is a revocation list, so a principal it does not
+/// name is active once the snapshot itself is fresh.
+#[derive(Clone, Copy)]
+enum StatusListing {
+    Required,
+    RevocationList,
+}
+
 fn check_principal_status(
     controlled: &ControlVerifiedProof,
     policy: &StatusPolicy,
     principal: &PrincipalId,
+    listing: StatusListing,
     context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
     meter: &mut WorkMeter,
@@ -2514,6 +2539,12 @@ fn check_principal_status(
             context.evaluation_time(),
         )
         .map_err(registry_operation_failure)?;
+    if matches!(
+        (listing, decision),
+        (StatusListing::RevocationList, StatusDecision::Missing)
+    ) {
+        return Ok(());
+    }
     status_decision(decision, true)
 }
 
