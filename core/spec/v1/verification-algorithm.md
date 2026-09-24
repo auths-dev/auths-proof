@@ -14,7 +14,9 @@
   - expected audience and challenge;
   - evaluation time;
   - role-indexed assurance policy;
-  - principal and grant status policy;
+  - principal-status and grant-status snapshots. Principal-status policy
+    comes from the selected trust anchor; grant-status policy comes from each
+    grant;
   - exact resource-matching algebra;
   - profile policy;
   - observer anchors, separate from trust anchors;
@@ -71,7 +73,8 @@ Produce `ControlVerifiedProof`.
 For each plan leaf:
 
 1. find the signed action by `proof-ref`;
-2. select a local trust anchor by exact principal and scoped ceilings;
+2. select a local trust anchor by exact principal and scoped ceilings, and
+   check its principal's status (see Principal status below);
 3. execute the context-selected resource matcher for the action resource and
    every anchor namespace;
 4. walk the referenced grant chain root to terminal:
@@ -81,6 +84,8 @@ For each plan leaf:
    - permissions, validity, audiences, action constraints, budget, and depth
      attenuate;
    - grant status policy is satisfied;
+   - the grant subject's principal status is satisfied under the trust
+     anchor's status policy (see Principal status below);
    - role-specific assurance floor is satisfied;
 5. require actor equals terminal subject;
 6. require exact permission, audience, body constraint, and time coverage;
@@ -95,6 +100,52 @@ For each plan leaf:
 9. run the observation stage below.
 
 Produce one `VerifiedAuthority` per valid branch.
+
+#### Principal status
+
+Principal status applies to every principal in the branch, not only the trust
+anchor. By chain linkage these are the trust anchor's principal and the
+subject of each grant, which covers every grant issuer and the actor.
+
+The selected trust anchor's status policy governs all of them. A grant's own
+status policy governs only that grant's status: it never changes which
+principals are checked or how. When the anchor's status policy is
+`ExpiryOnly`, no principal status is evaluated.
+
+Under `SnapshotRequired`, evaluate each principal against the context's
+principal-status snapshot:
+
+1. The status method named by the policy must be accepted and installed;
+   otherwise `unsupported-status-method`.
+2. Every snapshot statement about the principal must have verified control
+   from stage 3. A statement whose control failed fails the check with that
+   failure; it is never ignored.
+3. Reserve the method's declared maximum work for the snapshot's statement
+   count before evaluating.
+4. If the evaluation time is outside the snapshot's own validity window, the
+   result is `stale-status`.
+5. If no statement names the principal: for the trust anchor's principal, the
+   result is `missing-principal-status`; any other principal is active. For
+   delegates and actors the snapshot is a revocation list, and absence from a
+   fresh snapshot means not revoked.
+6. Otherwise select as follows. If no statement uses the policy's method, the
+   result is `status-method-mismatch`. Ignore statements whose issuer the
+   snapshot does not trust for that method; if none remain, the result is
+   `status-issuer-untrusted`. A trusted statement below its issuer's sequence
+   floor gives `status-sequence-rollback`. Among the trusted statements at the
+   greatest sequence, any stale statement gives `stale-status`; otherwise any
+   `revoked` or `superseded` statement gives `principal-revoked`; otherwise the
+   principal is active.
+
+A branch runs its status checks after its trust anchor is selected and before
+its resource, budget, and attenuation checks, in this order: the trust
+anchor's principal status; then, for each grant from root to terminal, that
+grant's status followed by its subject's principal status. The first failure
+is the branch result.
+
+A revocation must stay in the snapshot until every grant that names the
+principal as subject has expired. While it is stale the result is
+`stale-status`; once it is removed, the principal is active again.
 
 ### 4a. Observation stage
 

@@ -373,7 +373,7 @@ Each field receives at least the following cases:
 | Challenge | all-zero allowed only as explicit template; one-bit request mismatch |
 | Evaluation time | before validity, at boundary, after validity, arithmetic edge values |
 | Assurance policy | unsupported claim, duplicate requirement, unsatisfied role, stale observed time |
-| Principal status | duplicate statement, untrusted issuer, rollback sequence, conflict at greatest sequence, stale/missing |
+| Principal status | for the trust anchor, an intermediate delegate, and the actor, each: duplicate statement, untrusted issuer, rollback sequence, conflict at greatest sequence, stale, revoked, superseded; no statement for the anchor (indeterminate) and for a delegate or the actor (active under a fresh snapshot, `stale-status` under a stale one); an actor holding a grant whose own status policy is `ExpiryOnly` under an anchor that requires a snapshot (§14) |
 | Grant status | the same selection and freshness cases as principal status |
 | Resource matcher | accepted-but-uninstalled, installed-but-unaccepted, configuration drift |
 | Profile policy | accepted-but-uninstalled, denial, invalid result |
@@ -702,3 +702,43 @@ auths-proof-adversarial-conformance-v1/
 The claims document MUST state the exact adapter versions and immutable
 configuration IDs tested. “Adapter V1 passed” is insufficient when two
 configured instances commit to different trust records.
+
+## 14. Amendment (2026-09-24): principal status for every principal
+
+Owner decision. Principal status MUST be evaluated for every principal in an
+authority branch: the trust anchor and the subject of every grant, which by
+chain linkage covers every issuer and the actor. The selected trust anchor's
+status policy governs all of them; a grant's own status policy governs only
+that grant's status. The trust anchor MUST have a status statement. For
+delegates and actors the snapshot is a revocation list: a principal with no
+statement is active while the snapshot is fresh. The normative algorithm,
+check order, and codes are in `core/spec/v1/verification-algorithm.md`
+("Principal status").
+
+The alternative, requiring a statement for every principal, was rejected.
+Under an anchor that requires a snapshot, every grant already needs a fresh
+`active` grant-status statement, so a grant whose statement is no longer
+renewed already stops on its own. Requiring principal statements as well would
+add a second renewed statement for every principal and count every principal
+against the limit of 512 principal-status statements per context. What was
+missing is revoking one principal across every grant it holds, including
+grants its operator doesn't know about; the revocation list adds exactly that,
+with no renewal work.
+
+The canonical corpus MUST gain these vectors, passing identically in the Rust,
+Go, and TypeScript verifiers:
+
+| Case | Expected |
+| --- | --- |
+| revoked actor | `denied`, `principal-revoked` |
+| revoked intermediate delegate | `denied`, `principal-revoked` |
+| superseded delegate | `denied`, `principal-revoked` |
+| fresh snapshot, active grant statements, no statement for any delegate or the actor | `authorized` |
+| delegate with no statement under a stale snapshot | `indeterminate`, `stale-status` |
+| delegate whose revocation is stale | `indeterminate`, `stale-status` |
+| revoked actor holding a grant whose own status policy is `ExpiryOnly` | `denied`, `principal-revoked`, not `delegation-expanded`: status checks run first and use the anchor's policy |
+| revoked delegate, with the anchor and every grant `ExpiryOnly` | `authorized`: principal status is not evaluated |
+
+The per-principal work reservation changes the resource totals of existing
+vectors whose anchor requires a snapshot; those vectors are regenerated in the
+same change.

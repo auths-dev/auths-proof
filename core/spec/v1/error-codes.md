@@ -36,7 +36,7 @@ verifier retains three diagnostic classes.
 | `audience-mismatch` | action | Audience differs from verifier context |
 | `challenge-mismatch` | action | Challenge differs from verifier context |
 | `action-outside-validity` | action | Action is not live |
-| `principal-revoked` | status | Accepted status says principal is revoked |
+| `principal-revoked` | status | Accepted status says a principal in the branch (the trust anchor, a delegate, or the actor) is revoked or superseded |
 | `grant-revoked` | status | Accepted status says grant or ancestor is revoked |
 | `status-sequence-rollback` | status | Status sequence moves backwards |
 | `status-method-mismatch` | status | Subject status exists only under another exact method |
@@ -72,7 +72,7 @@ verifier retains three diagnostic classes.
 | `unsupported-critical-extension` | extension | Accepted critical extension has no exact executable handler |
 | `unsupported-assurance-claim` | assurance | An adapter emitted a claim without an accepted exact handler |
 | `missing-principal-evidence` | control | Required control fact cannot be established |
-| `missing-principal-status` | status | Required principal status is absent |
+| `missing-principal-status` | status | The trust anchor's required principal status is absent (a delegate or actor with no statement is active) |
 | `missing-grant-status` | status | Required grant status is absent |
 | `stale-status` | status | Status exists but is not fresh enough |
 | `historical-state-unavailable` | evidence | Historical control/existence cannot be established |

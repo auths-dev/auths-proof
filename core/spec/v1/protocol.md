@@ -165,6 +165,16 @@ selection is deterministic and revoked dominates active at the same sequence.
 Historical control, current control, statement existence, revocation, and
 freshness are not interchangeable.
 
+Principal status covers every principal in an authority branch: the trust
+anchor and the subject of every grant, which by chain linkage includes every
+issuer and the actor. The selected trust anchor's status policy governs all of
+them; a grant's own status policy governs only that grant's status. The trust
+anchor needs an explicit status statement. For
+delegates and actors the snapshot is a revocation list: a principal with no
+statement is active while the snapshot is fresh, and a `revoked` or
+`superseded` statement denies it. A revocation must stay in the snapshot until
+every grant that names that principal as subject has expired.
+
 Assurance is role-indexed and every requirement explicitly selects `Any` or
 `Every` participant with that role. Every claim records the participant, chain role,
 parameters, adapter and version, evidence digests, and provenance. A strong
