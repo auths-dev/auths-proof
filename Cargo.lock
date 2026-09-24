@@ -443,8 +443,11 @@ name = "auths-custody"
 version = "1.0.0-rc.1"
 dependencies = [
  "auths-author",
+ "auths-did-key",
  "auths-model",
+ "auths-multikey",
  "auths-operations",
+ "auths-raw-key",
  "p256",
  "subtle",
 ]
@@ -454,8 +457,6 @@ name = "auths-custody-aws-kms"
 version = "1.0.0-rc.1"
 dependencies = [
  "auths-custody",
- "auths-model",
- "base64ct",
  "hex",
  "p256",
  "sha2 0.10.9",
@@ -466,8 +467,6 @@ name = "auths-custody-pkcs11"
 version = "1.0.0-rc.1"
 dependencies = [
  "auths-custody",
- "auths-model",
- "base64ct",
  "hex",
  "p256",
  "sha2 0.10.9",
@@ -584,8 +583,12 @@ dependencies = [
  "auths-bounded-policy",
  "auths-codec",
  "auths-connections",
+ "auths-custody",
+ "auths-custody-aws-kms",
+ "auths-custody-pkcs11",
  "auths-did-keri",
  "auths-did-key",
+ "auths-lifecycle",
  "auths-model",
  "auths-ports",
  "auths-profile-api",
@@ -601,8 +604,12 @@ dependencies = [
  "getrandom 0.3.4",
  "hex",
  "minicbor",
+ "p256",
+ "postgres",
  "reqwest",
  "rustix",
+ "rustls",
+ "rustls-pki-types",
  "serde",
  "serde_json",
  "serde_json_canonicalizer",
@@ -610,6 +617,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.19",
  "tokio",
+ "tokio-postgres-rustls",
  "url",
  "zeroize",
 ]
@@ -620,6 +628,8 @@ version = "1.0.0-rc.1"
 dependencies = [
  "auths-author",
  "auths-codec",
+ "auths-custody",
+ "auths-custody-pkcs11",
  "auths-did-key",
  "auths-model",
  "auths-multikey",

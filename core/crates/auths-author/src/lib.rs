@@ -15,8 +15,9 @@ use alloc::vec::Vec;
 use auths_authority::{AuthorScopeDecision, evaluate_author_scope_view};
 use auths_codec::{
     CodecError, action_id, action_signing_preimage, body_digest, domain_commitment,
-    encode_canonical_action, evidence_id, grant_id, grant_signing_preimage, grant_status_id,
-    grant_status_signing_preimage, plan_id, principal_status_id, principal_status_signing_preimage,
+    encode_canonical_action, encode_observation_statement, evidence_id, grant_id,
+    grant_signing_preimage, grant_status_id, grant_status_signing_preimage,
+    observation_signing_preimage, plan_id, principal_status_id, principal_status_signing_preimage,
     transaction_binding,
 };
 use auths_model::{
@@ -24,11 +25,12 @@ use auths_model::{
     AuthorizationPlan, BudgetCeiling, BundleHeader, CanonicalAction, Challenge, ChannelBindingId,
     CompositionRequirement, ControlBinding, CriticalExtensionLaws, CriticalExtensions, Digest,
     EvidenceId, EvidenceObject, EvidenceTypeId, GrantId, GrantStatement, GrantStatusId,
-    GrantStatusStatement, LimitKind, MediaType, ModelError, PermissionSet, PrincipalId,
-    PrincipalStatusId, PrincipalStatusStatement, ProfileRef, ProofBundle, ProofRef, ResourceId,
-    ScopeAuthorityView, SignatureBytes, SignatureDescriptor, SignatureEnvelope, SignedAction,
-    SignedGrant, SignedGrantStatus, SignedPrincipalStatus, StatementRef, StatusPolicy, Timestamp,
-    TrustedContext, ValidityWindow, VerifierLimits, grant_authority_view, scope_authority_view,
+    GrantStatusStatement, LimitKind, MediaType, ModelError, ObservationStatement, PermissionSet,
+    PrincipalId, PrincipalStatusId, PrincipalStatusStatement, ProfileRef, ProofBundle, ProofRef,
+    ResourceId, ScopeAuthorityView, SignatureBytes, SignatureDescriptor, SignatureEnvelope,
+    SignedAction, SignedGrant, SignedGrantStatus, SignedObservation, SignedPrincipalStatus,
+    StatementRef, StatusPolicy, Timestamp, TrustedContext, ValidityWindow, VerifierLimits,
+    grant_authority_view, scope_authority_view,
 };
 use core::fmt;
 
@@ -731,6 +733,10 @@ pub enum SigningObjectId {
     PrincipalStatus(PrincipalStatusId),
     /// Grant-status statement identifier.
     GrantStatus(GrantStatusId),
+    /// Commitment to one unsigned observation statement. Observations have
+    /// no protocol content identifier; this names the statement a signer is
+    /// asked to sign and nothing else.
+    Observation(Digest),
 }
 
 impl SigningObjectId {
@@ -742,6 +748,7 @@ impl SigningObjectId {
             Self::Action(identifier) => identifier.as_bytes(),
             Self::PrincipalStatus(identifier) => identifier.as_bytes(),
             Self::GrantStatus(identifier) => identifier.as_bytes(),
+            Self::Observation(commitment) => commitment.as_bytes(),
         }
     }
 
@@ -753,6 +760,7 @@ impl SigningObjectId {
             Self::Action(_) => "action",
             Self::PrincipalStatus(_) => "principal-status",
             Self::GrantStatus(_) => "grant-status",
+            Self::Observation(_) => "observation",
         }
     }
 }
@@ -1026,6 +1034,53 @@ impl ExternalSigningRequest<GrantStatusStatement> {
             SignatureEnvelope::new(self.descriptor, signature),
         )
     }
+}
+
+impl ExternalSigningRequest<ObservationStatement> {
+    /// Completes an observation with the observer's control evidence.
+    ///
+    /// # Errors
+    ///
+    /// Returns a model error for more evidence objects than an observation
+    /// may carry or a duplicated evidence object.
+    pub fn complete(
+        self,
+        signature: SignatureBytes,
+        evidence: Vec<EvidenceObject>,
+    ) -> Result<SignedObservation, ModelError> {
+        SignedObservation::new(
+            self.unsigned,
+            SignatureEnvelope::new(self.descriptor, signature),
+            evidence,
+        )
+    }
+}
+
+/// Domain of the commitment naming an unsigned observation statement.
+pub const OBSERVATION_STATEMENT_COMMITMENT: &str = "auths.observation-statement.v1";
+
+/// Prepares one observation statement for an external signer, such as a
+/// custody-held observer key.
+///
+/// # Errors
+///
+/// Returns a codec error if deterministic encoding or the statement
+/// commitment fails.
+pub fn prepare_observation(
+    statement: ObservationStatement,
+    descriptor: SignatureDescriptor,
+) -> Result<ExternalSigningRequest<ObservationStatement>, AuthorError> {
+    let object_id = SigningObjectId::Observation(domain_commitment(
+        OBSERVATION_STATEMENT_COMMITMENT,
+        &encode_observation_statement(&statement)?,
+    )?);
+    let signing_preimage = observation_signing_preimage(&statement, &descriptor)?;
+    Ok(ExternalSigningRequest {
+        unsigned: statement,
+        descriptor,
+        object_id,
+        signing_preimage,
+    })
 }
 
 /// Prepares one grant for an external signer.

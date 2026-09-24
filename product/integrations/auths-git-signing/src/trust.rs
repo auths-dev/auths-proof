@@ -252,8 +252,7 @@ pub fn issue_grant(
         CriticalExtensions::empty(),
     );
     let request = model(prepare_grant(statement, root.descriptor()))?;
-    let signature = root.sign(request.signing_preimage())?;
-    let grant = request.complete(signature);
+    let grant = root.sign_grant(request)?;
     let [issuer_evidence] =
         <[_; 1]>::try_from(root.control_evidence()).map_err(|_| TrustBuildError::RootEvidence)?;
     Ok(Delegation::new(vec![DelegationLink::new(

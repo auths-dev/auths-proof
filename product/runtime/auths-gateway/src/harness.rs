@@ -17,7 +17,7 @@ use crate::observer::{OUTCOME_SCHEMA, READ_BACK_SCHEMA};
 use crate::transport::{GatewayTransportError, ProviderPort, WriteTransportOutcome};
 use crate::{
     ClosedObservationRequest, ClosedProviderRequest, CompiledRecipe, FileGatewayAttemptStore,
-    GatewayAttemptError, GatewayObserver,
+    GatewayAttemptError, GatewayAttempts, GatewayObserver,
 };
 use auths_codec::{encode_observation_requirements, evidence_id, grant_signing_preimage};
 use auths_model::{
@@ -258,10 +258,13 @@ pub(crate) fn accepted_registries() -> Result<AcceptedRegistries, HarnessError> 
         AcceptedRegistries::new(
             auths_registries::TARGET_V1_REGISTRY_MANIFEST,
             vec![fixture(PrincipalMethodId::parse(RAW_KEY_V1), "method")?],
-            vec![fixture(
-                SignatureSuiteId::parse(auths_signature::ED25519_V1),
-                "suite",
-            )?],
+            vec![
+                fixture(
+                    SignatureSuiteId::parse(auths_signature::ED25519_V1),
+                    "suite",
+                )?,
+                fixture(SignatureSuiteId::parse("p256-sha256-v1"), "suite")?,
+            ],
             vec![fixture(EvidenceTypeId::parse(RAW_KEY_V1), "evidence type")?],
             Vec::new(),
             Vec::new(),
@@ -314,40 +317,68 @@ pub(crate) fn context_with_depth(
     now: u64,
     depth: u16,
 ) -> Result<TrustedContext, HarnessError> {
+    context_with_roots(
+        &[root],
+        observer,
+        configuration,
+        now,
+        depth,
+        fixture(CompositionRequirement::new(None, 1, 1, 1), "composition")?,
+    )
+}
+
+/// Trust with one anchor per root in `roots` under one composition
+/// requirement, such as two authorized branches from two distinct roots.
+pub(crate) fn context_with_roots(
+    roots: &[&Signer],
+    observer: &PrincipalId,
+    configuration: Option<[u8; 32]>,
+    now: u64,
+    depth: u16,
+    composition: CompositionRequirement,
+) -> Result<TrustedContext, HarnessError> {
     let configuration = match configuration {
         Some(value) => auths_model::VerifierConfigurationId::new(value),
         None => fixture(gateway_verifier_configuration(), "configuration")?,
     };
     let assurance = fixture(AssurancePolicyId::parse(ASSURANCE), "assurance")?;
     let unbound = call(&Map::new())?;
-    let anchor = fixture(
-        TrustAnchor::new(
-            fixture(TrustAnchorId::parse("root"), "anchor ID")?,
-            root.principal.clone(),
-            vec![fixture(PrincipalMethodId::parse(RAW_KEY_V1), "method")?],
-            vec![fixture(unbound.profile_ref(), "profile")?],
-            fixture(
-                PermissionSet::new(vec![fixture(unbound.permission(), "permission")?]),
-                "permissions",
-            )?,
-            vec![fixture(
-                ResourceId::parse(&format!("mcp://{SERVICE}/")),
-                "namespace",
-            )?],
-            fixture(AudienceSet::new(vec![audience()?]), "audiences")?,
-            window(now - 86_400, now + 86_400)?,
-            None,
-            depth,
-            assurance.clone(),
-            StatusPolicy::ExpiryOnly,
-        ),
-        "trust anchor",
-    )?;
+    let mut anchors = Vec::with_capacity(roots.len());
+    for (index, root) in roots.iter().enumerate() {
+        let id = if roots.len() == 1 {
+            "root".to_owned()
+        } else {
+            format!("root-{index}")
+        };
+        anchors.push(fixture(
+            TrustAnchor::new(
+                fixture(TrustAnchorId::parse(&id), "anchor ID")?,
+                root.principal.clone(),
+                vec![fixture(PrincipalMethodId::parse(RAW_KEY_V1), "method")?],
+                vec![fixture(unbound.profile_ref(), "profile")?],
+                fixture(
+                    PermissionSet::new(vec![fixture(unbound.permission(), "permission")?]),
+                    "permissions",
+                )?,
+                vec![fixture(
+                    ResourceId::parse(&format!("mcp://{SERVICE}/")),
+                    "namespace",
+                )?],
+                fixture(AudienceSet::new(vec![audience()?]), "audiences")?,
+                window(now - 86_400, now + 86_400)?,
+                None,
+                depth,
+                assurance.clone(),
+                StatusPolicy::ExpiryOnly,
+            ),
+            "trust anchor",
+        )?);
+    }
     let context = fixture(
         TrustedContext::new(
             configuration,
-            fixture(CompositionRequirement::new(None, 1, 1, 1), "composition")?,
-            vec![anchor],
+            composition,
+            anchors,
             accepted_registries()?,
             audience()?,
             Challenge::new([0; 32]),
@@ -605,26 +636,43 @@ impl ProviderPort for CountingProvider {
 pub(crate) struct Harness {
     pub(crate) recipe: CompiledRecipe,
     pub(crate) context: TrustedContext,
-    pub(crate) store: FileGatewayAttemptStore,
+    pub(crate) store: GatewayAttempts,
     pub(crate) provider: CountingProvider,
     pub(crate) observer: GatewayObserver,
 }
 
 impl Harness {
+    /// Keeps attempts in a single-host file store under `state`.
     pub(crate) fn with(
         recipe: CompiledRecipe,
         context: TrustedContext,
         observer: GatewayObserver,
         state: &Path,
     ) -> Result<Self, HarnessError> {
-        Ok(Self {
+        let store = FileGatewayAttemptStore::open(state.join("attempts"))
+            .map_err(|_| HarnessError::Store)?;
+        Ok(Self::with_attempts(
             recipe,
             context,
-            store: FileGatewayAttemptStore::open(state.join("attempts"))
-                .map_err(|_| HarnessError::Store)?,
+            observer,
+            GatewayAttempts::new(std::sync::Arc::new(store)),
+        ))
+    }
+
+    /// Keeps attempts in `store`, such as the qualified multi-host store.
+    pub(crate) fn with_attempts(
+        recipe: CompiledRecipe,
+        context: TrustedContext,
+        observer: GatewayObserver,
+        store: GatewayAttempts,
+    ) -> Self {
+        Self {
+            recipe,
+            context,
+            store,
             provider: CountingProvider::new(),
             observer,
-        })
+        }
     }
 
     /// Mirrors the engine: verify at `now`, claim, reserve any bounded-policy
@@ -641,9 +689,10 @@ impl Harness {
             Ok(value) => value,
             Err(result) => return result,
         };
-        match self.store.claim(&request, *self.recipe.digest()) {
+        match self.store.claim(&request, *self.recipe.digest()).await {
             Ok(claim) => {
-                let claim = match reserve_bound(&self.store, bound.as_ref(), &request, claim) {
+                let claim = match reserve_bound(&self.store, bound.as_ref(), &request, claim).await
+                {
                     Ok(value) => value,
                     Err(result) => return result,
                 };
@@ -654,6 +703,7 @@ impl Harness {
                 match self
                     .store
                     .resume_observable(&request, *self.recipe.digest())
+                    .await
                 {
                     Ok(Some(attempt)) => {
                         self.provider.leases.fetch_add(1, Ordering::SeqCst);
@@ -674,13 +724,16 @@ impl Harness {
         now: u64,
     ) -> GatewayObserveResult {
         match request {
-            GatewayObserveRequest::Outcome { operation_id } => observe_outcome(
-                &self.store,
-                self.recipe.namespace(),
-                &self.observer,
-                operation_id,
-                now,
-            ),
+            GatewayObserveRequest::Outcome { operation_id } => {
+                observe_outcome(
+                    &self.store,
+                    self.recipe.namespace(),
+                    &self.observer,
+                    operation_id,
+                    now,
+                )
+                .await
+            }
             GatewayObserveRequest::ReadBack { arguments } => {
                 let Ok(target) = self.recipe.read_back_target(arguments) else {
                     return GatewayObserveResult::Refused {

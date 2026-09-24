@@ -4,7 +4,9 @@ on:
   pull_request:
     paths:
       - "product/runtime/auths-lifecycle/**"
+      - "product/runtime/auths-gateway/**"
       - "product/stores/auths-stores/**"
+      - "bindings/fixtures/gateway/**"
       - ".github/workflows/postgres-lifecycle.yml"
   workflow_dispatch:
 
@@ -30,6 +32,12 @@ jobs:
           AUTHS_POSTGRES_CA_PEM: ${{ github.workspace }}/product/stores/auths-stores/tests/postgres_tls/generated/ca.crt
           AUTHS_POSTGRES_SERVER_NAME: localhost
         run: cargo test -p auths-stores --test postgres_lifecycle -- --ignored
+      - name: Run gateway attempt-store conformance and hostile suites
+        env:
+          AUTHS_POSTGRES_URL: host=localhost port=55438 dbname=auths_lifecycle user=auths password=local-fixture-password sslmode=require
+          AUTHS_POSTGRES_CA_PEM: ${{ github.workspace }}/product/stores/auths-stores/tests/postgres_tls/generated/ca.crt
+          AUTHS_POSTGRES_SERVER_NAME: localhost
+        run: cargo test -p auths-gateway --lib -- --ignored postgres
       - name: Stop fixture
         if: always()
         run: docker compose -f product/stores/auths-stores/tests/postgres_tls/compose.yaml down -v

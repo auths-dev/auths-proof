@@ -269,7 +269,7 @@ fn sigstore_keyless_commits_verify_through_a_p256_log_signing_high_s_der() {
     };
     let signer = SigstoreKeylessSigner::acquire(&tokens, &sigstore).expect("signer");
     assert_eq!(signer.descriptor().suite().as_str(), "p256-sha256-v1");
-    let signature = signer.sign(b"preimage").expect("signature");
+    let signature = signer.sign_preimage(b"preimage").expect("signature");
     assert_eq!(signature.as_slice().len(), 64);
     assert!(
         signature.as_slice()[32] < 0x80,
