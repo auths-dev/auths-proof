@@ -205,7 +205,7 @@ async def test_python_authors_the_exact_gateway_quorum_bytes(case_id: str) -> No
 
 
 @pytest.mark.asyncio
-async def test_validity_seconds_matches_single_signer_authoring() -> None:
+async def test_quorum_window_defaults_to_a_day_and_is_configurable() -> None:
     case = CASES["two-of-three-managers"]
 
     async def author(validity: Any) -> Any:
@@ -220,12 +220,17 @@ async def test_validity_seconds_matches_single_signer_authoring() -> None:
             validity_seconds=validity,
         )
 
+    assert FIXTURE["validity_seconds"] == 86_400
     explicit = await author(FIXTURE["validity_seconds"])
     assert explicit.proof == _b64(case["proof_b64"])
-    longer = await author(300)
-    assert longer.plan.valid_until == FIXTURE["authored_at"] + 300
-    assert longer.proof != explicit.proof
-    for invalid in (0, 301):
+    shorter = await author(3_600)
+    assert shorter.plan.valid_until == FIXTURE["authored_at"] + 3_600
+    assert shorter.proof != explicit.proof
+    # A week passes the native bound; the one-day trust anchors then refuse it.
+    with pytest.raises(AuthoringUnsuccessful) as week:
+        await author(604_800)
+    assert (week.value.kind, week.value.code) == ("rejected", "action-outside-validity")
+    for invalid in (0, 604_801):
         with pytest.raises(ValueError):
             await author(invalid)
 
@@ -248,7 +253,8 @@ async def test_every_approver_reviews_the_same_action_and_plan() -> None:
     assert fields["Approval quorum"] == "2 of 3"
     assert len({signer.requests[0].object_id for signer in signers}) == 3
     assert all(
-        signer.requests[0].expires_at_unix_seconds == FIXTURE["authored_at"] + 300
+        signer.requests[0].expires_at_unix_seconds
+        == FIXTURE["authored_at"] + FIXTURE["validity_seconds"]
         for signer in signers
     )
 

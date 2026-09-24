@@ -14,7 +14,10 @@
 use crate::engine::{GatewaySubmitResult, gateway_verifier_configuration, verify_command};
 use crate::harness::{self, Harness};
 use crate::{CompiledRecipe, GatewayObserver};
-use auths_approval_quorum::{QuorumApproval, QuorumApprover, QuorumProposal, quorum_requirement};
+use auths_approval_quorum::{
+    DEFAULT_QUORUM_VALIDITY_SECONDS, QuorumApproval, QuorumApprover, QuorumProposal,
+    quorum_requirement,
+};
 use auths_codec::{
     action_signing_preimage, body_digest, encode_bundle, encode_canonical_action,
     encode_verifier_context, evidence_id, plan_id,
@@ -49,7 +52,7 @@ const LOCK: &[u8] =
 const SCHEMA: &str = "auths.gateway-approval-quorum/1";
 const NOW: u64 = 1_790_000_000;
 /// Approvals are authored this long before the gateway verifies them, inside
-/// the default action validity.
+/// the default quorum validity.
 const AUTHORED_AT: u64 = NOW - 10;
 const CHALLENGE: [u8; 32] = [0x51; 32];
 const REQUIRED: u16 = 2;
@@ -162,7 +165,7 @@ fn canonical(recipe: &CompiledRecipe, operation: &str) -> (CanonicalAction, Audi
 fn validity() -> ValidityWindow {
     ValidityWindow::new(
         Timestamp::new(AUTHORED_AT),
-        Timestamp::new(AUTHORED_AT + auths_author::DEFAULT_ACTION_VALIDITY_SECONDS),
+        Timestamp::new(AUTHORED_AT + DEFAULT_QUORUM_VALIDITY_SECONDS),
     )
     .expect("window")
 }
@@ -591,7 +594,7 @@ fn generate() -> String {
         "tool": "set_demo_status_v1",
         "evaluation_time": NOW,
         "authored_at": AUTHORED_AT,
-        "validity_seconds": auths_author::DEFAULT_ACTION_VALIDITY_SECONDS,
+        "validity_seconds": DEFAULT_QUORUM_VALIDITY_SECONDS,
         "challenge_hex": hex::encode(CHALLENGE),
         "required": REQUIRED,
         "members": members,
@@ -726,4 +729,79 @@ fn a_proof_carried_plan_cannot_lower_the_installed_threshold() {
             "{result:?}"
         );
     }
+}
+
+fn two_of_three_submission() -> (Vec<u8>, Vec<u8>) {
+    let fixture: Value = serde_json::from_str(FIXTURE).expect("fixture JSON");
+    let case = fixture["cases"]
+        .as_array()
+        .expect("cases")
+        .iter()
+        .find(|case| case["id"] == "two-of-three-managers")
+        .expect("two-of-three case");
+    (unb64(&case["proof_b64"]), unb64(&case["action_b64"]))
+}
+
+fn fresh_harness(state: &std::path::Path) -> Harness {
+    let recipe = recipe();
+    let context = trusted_context(&recipe);
+    Harness::with(
+        recipe,
+        context,
+        GatewayObserver::from_test_seed(harness::OBSERVER_SEED),
+        &std::fs::canonicalize(state).expect("canonical temp"),
+    )
+    .expect("harness")
+}
+
+#[tokio::test]
+async fn a_quorum_still_authorizes_23_hours_after_approval_and_only_once() {
+    let temp = tempfile::tempdir().expect("temp directory");
+    let harness = fresh_harness(temp.path());
+    let (proof, action) = two_of_three_submission();
+    let later = AUTHORED_AT + 23 * 3_600;
+    let result = harness.submit(&proof, &action, later).await;
+    assert!(
+        matches!(
+            result,
+            GatewaySubmitResult::ObservedByProvider {
+                status: Some(200),
+                ..
+            }
+        ),
+        "{result:?}"
+    );
+    let (writes, _, leases) = harness.provider.counts();
+    assert_eq!((writes, leases), (1, 1));
+    let replay = harness.submit(&proof, &action, later + 60).await;
+    assert!(
+        !matches!(replay, GatewaySubmitResult::ResponseRecorded { .. }),
+        "{replay:?}"
+    );
+    assert_eq!(
+        harness.provider.counts().0,
+        1,
+        "the durable claim refuses a second entry"
+    );
+}
+
+#[tokio::test]
+async fn a_quorum_after_its_window_is_refused_before_any_lease() {
+    let temp = tempfile::tempdir().expect("temp directory");
+    let harness = fresh_harness(temp.path());
+    let (proof, action) = two_of_three_submission();
+    let result = harness
+        .submit(
+            &proof,
+            &action,
+            AUTHORED_AT + DEFAULT_QUORUM_VALIDITY_SECONDS + 1,
+        )
+        .await;
+    assert_eq!(
+        result,
+        GatewaySubmitResult::Denied {
+            code: "action-outside-validity".to_owned()
+        }
+    );
+    assert_eq!(harness.provider.counts(), (0, 0, 0));
 }

@@ -56,14 +56,22 @@ SDK never submits a partial quorum.
 
 ## The approval window
 
-Every approval carries the same validity, derived exactly as for a single
-signer: from `evaluation_time` for `validity_seconds` (30 s by default, at
-most 300 s, both held in `auths-author`), cut to the earliest terminal-grant
-expiry among the approvers. Every approval must be collected, and the proof
-verified by the gateway, inside that window; an approval round that takes
-longer is a new proposal. The window is not a replay defence: the gateway's
-one-use claim is. `authored.plan` reports the window as `valid_from` and
-`valid_until` (`validFrom` and `validUntil` in TypeScript).
+Human approvers need hours, not seconds. Every approval carries the same
+validity: from `evaluation_time` for `validity_seconds`, which defaults to
+24 hours and is at most 7 days. Both values are held only in
+`auths-approval-quorum`; the single-signer defaults (30 s, at most 300 s)
+are unchanged. The window is cut to the earliest terminal-grant expiry among
+the approvers, and the arithmetic is the same core rule single-signer
+authoring uses.
+
+Every approval must be collected, and the proof verified by the gateway,
+inside the window. Each approver's custody signing request stays valid for
+the whole window. The gateway authorizes a quorum 23 hours after approval
+and denies it with `action-outside-validity` after the window, before any
+credential lease. The window is not a replay defence: the gateway's durable
+one-use claim refuses a second entry inside and after it. `authored.plan`
+reports the window as `valid_from` and `valid_until` (`validFrom` and
+`validUntil` in TypeScript).
 
 ## Python
 

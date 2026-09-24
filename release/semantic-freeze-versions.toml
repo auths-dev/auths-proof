@@ -6,7 +6,7 @@ freeze_version = 297
 # made the two generated artifacts hash each other and therefore unable to
 # converge. This file is a reviewed release input, never an automatic output.
 [entries]
-"auths.core.protocol" = 26
+"auths.core.protocol" = 27
 "auths.frozen-bytes/architecture/dependency-graph.json" = 55
 "auths.frozen-bytes/bindings/wasm/auths-proof-wasm/identity-abi-v1.json" = 4
 "auths.frozen-bytes/bounded-domains.toml" = 2

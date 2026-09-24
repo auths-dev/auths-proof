@@ -68,6 +68,87 @@ pub const DEFAULT_ACTION_VALIDITY_SECONDS: u64 = 30;
 /// Longest validity, in seconds, an authored action may carry.
 pub const MAX_ACTION_VALIDITY_SECONDS: u64 = 300;
 
+/// Caller-bounded rule for the validity window an authored action carries.
+///
+/// The authoring caller owns the default and the maximum; this type owns the
+/// window arithmetic, so every authoring path derives its window the same
+/// way. [`ActionValidityPolicy::SINGLE_SIGNER`] is the rule
+/// [`prepare_profile_action`] applies.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ActionValidityPolicy {
+    default_seconds: u64,
+    maximum_seconds: u64,
+}
+
+impl ActionValidityPolicy {
+    /// `DEFAULT_ACTION_VALIDITY_SECONDS` by default, at most
+    /// `MAX_ACTION_VALIDITY_SECONDS`.
+    pub const SINGLE_SIGNER: Self = Self {
+        default_seconds: DEFAULT_ACTION_VALIDITY_SECONDS,
+        maximum_seconds: MAX_ACTION_VALIDITY_SECONDS,
+    };
+
+    /// Constructs a rule with an explicit default and maximum.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WorkflowAssemblyError::ActionValidity`] unless
+    /// `1 <= default_seconds <= maximum_seconds`.
+    pub const fn new(
+        default_seconds: u64,
+        maximum_seconds: u64,
+    ) -> Result<Self, WorkflowAssemblyError> {
+        if default_seconds == 0 || default_seconds > maximum_seconds {
+            return Err(WorkflowAssemblyError::ActionValidity);
+        }
+        Ok(Self {
+            default_seconds,
+            maximum_seconds,
+        })
+    }
+
+    /// Returns the validity applied when none is requested.
+    #[must_use]
+    pub const fn default_seconds(self) -> u64 {
+        self.default_seconds
+    }
+
+    /// Returns the longest validity this rule accepts.
+    #[must_use]
+    pub const fn maximum_seconds(self) -> u64 {
+        self.maximum_seconds
+    }
+
+    /// Derives the window from `evaluation_time` through `evaluation_time +
+    /// validity_seconds` inclusive (the default when `None`), cut to the
+    /// earliest of `grant_expiries` and never ending before
+    /// `evaluation_time`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WorkflowAssemblyError::ActionValidity`] when a requested
+    /// `validity_seconds` is outside `1..=maximum_seconds`.
+    pub fn window(
+        self,
+        evaluation_time: u64,
+        validity_seconds: Option<u64>,
+        grant_expiries: impl IntoIterator<Item = u64>,
+    ) -> Result<ValidityWindow, WorkflowAssemblyError> {
+        let validity_seconds = validity_seconds.unwrap_or(self.default_seconds);
+        if !(1..=self.maximum_seconds).contains(&validity_seconds) {
+            return Err(WorkflowAssemblyError::ActionValidity);
+        }
+        let expires_at = grant_expiries
+            .into_iter()
+            .fold(evaluation_time.saturating_add(validity_seconds), u64::min)
+            .max(evaluation_time);
+        Ok(ValidityWindow::new(
+            Timestamp::new(evaluation_time),
+            Timestamp::new(expires_at),
+        )?)
+    }
+}
+
 /// Constructs the shared target V1 envelope for a profile-owned action.
 ///
 /// The action is valid from `evaluation_time` through `evaluation_time +
@@ -96,15 +177,11 @@ pub fn prepare_profile_action(
     evaluation_time: u64,
     validity_seconds: Option<u64>,
 ) -> Result<PreparedAction, WorkflowAssemblyError> {
-    let validity_seconds = validity_seconds.unwrap_or(DEFAULT_ACTION_VALIDITY_SECONDS);
-    if !(1..=MAX_ACTION_VALIDITY_SECONDS).contains(&validity_seconds) {
-        return Err(WorkflowAssemblyError::ActionValidity);
-    }
-    let grant_expires_at = terminal_grant.statement().validity().expires_at().get();
-    let expires_at = evaluation_time
-        .saturating_add(validity_seconds)
-        .min(grant_expires_at)
-        .max(evaluation_time);
+    let validity = ActionValidityPolicy::SINGLE_SIGNER.window(
+        evaluation_time,
+        validity_seconds,
+        [terminal_grant.statement().validity().expires_at().get()],
+    )?;
     let proof_ref = ProofRef::new(challenge);
     let plan = AuthorizationPlan::proof(proof_ref);
     let envelope = ActionEnvelope::new(
@@ -115,7 +192,7 @@ pub fn prepare_profile_action(
         canonical.requested_budget().cloned(),
         audience,
         Challenge::new(challenge),
-        ValidityWindow::new(Timestamp::new(evaluation_time), Timestamp::new(expires_at))?,
+        validity,
         actor,
         Some(grant_id(terminal_grant.statement())?),
         plan_id(&plan)?,
@@ -1454,6 +1531,41 @@ mod tests {
         assert_eq!(
             prepared.envelope().validity().expires_at(),
             Timestamp::new(72)
+        );
+    }
+
+    #[test]
+    fn validity_policy_bounds_defaults_and_clamps_to_grant_expiry() {
+        let window = |from: u64, until: u64| {
+            ValidityWindow::new(Timestamp::new(from), Timestamp::new(until)).unwrap()
+        };
+        let single = ActionValidityPolicy::SINGLE_SIGNER;
+        assert_eq!(single.window(42, None, []), Ok(window(42, 72)));
+        assert_eq!(
+            single.window(42, Some(300), [u64::MAX]),
+            Ok(window(42, 342))
+        );
+        for invalid in [0, 301] {
+            assert_eq!(
+                single.window(42, Some(invalid), []),
+                Err(WorkflowAssemblyError::ActionValidity)
+            );
+        }
+        let wide = ActionValidityPolicy::new(86_400, 604_800).unwrap();
+        assert_eq!(wide.window(42, None, []), Ok(window(42, 86_442)));
+        assert_eq!(
+            wide.window(42, Some(604_801), []),
+            Err(WorkflowAssemblyError::ActionValidity)
+        );
+        assert_eq!(wide.window(42, None, [9_000, 500]), Ok(window(42, 500)));
+        assert_eq!(wide.window(42, None, [10]), Ok(window(42, 42)));
+        assert_eq!(
+            ActionValidityPolicy::new(0, 10),
+            Err(WorkflowAssemblyError::ActionValidity)
+        );
+        assert_eq!(
+            ActionValidityPolicy::new(11, 10),
+            Err(WorkflowAssemblyError::ActionValidity)
         );
     }
 

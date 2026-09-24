@@ -335,9 +335,10 @@ async def author_mcp_quorum_proof(
     closed.
 
     Every approval is valid from ``evaluation_time`` for ``validity_seconds``
-    exactly as in :func:`author_mcp_proof` (the native default when ``None``,
-    bounded natively), cut to the earliest approver grant expiry; every
-    approval must be collected and verified inside that window.
+    (the native quorum default when ``None``, bounded natively), cut to the
+    earliest approver grant expiry; every approval must be collected and
+    verified inside that window, and each custody request stays valid for
+    the whole window.
     """
     if type(required) is not int or not 1 <= required <= len(approvers) <= 16:
         raise ValueError("quorum threshold or approver count is outside bounds")
@@ -345,7 +346,7 @@ async def author_mcp_quorum_proof(
         raise TypeError("approvers must be QuorumApprover values")
     if len(challenge) != 32:
         raise ValueError("challenge must contain 32 bytes")
-    if type(evaluation_time) is not int or not 0 <= evaluation_time < 2**64 - 300:
+    if type(evaluation_time) is not int or not 0 <= evaluation_time < 2**64:
         raise ValueError("evaluation time is outside bounds")
     descriptors = [approver.signer.descriptor for approver in approvers]
     if any(descriptor.contract != "signer-custody/2" for descriptor in descriptors):
@@ -373,6 +374,7 @@ async def author_mcp_quorum_proof(
     )
     template = _native.parse_trusted_context(bytes(trusted_context_template))
     context = template.bind_request(quorum.audience, bytes(challenge), evaluation_time)
+    _, valid_until = quorum.validity
     review = tuple(quorum.review_fields) + (
         ("Approval quorum", f"{required} of {len(approvers)}"),
         ("Quorum plan", bytes(quorum.plan_id).hex()),
@@ -394,7 +396,7 @@ async def author_mcp_quorum_proof(
             descriptor,
             bytes(request.transaction_digest),
             bytes(request.signing_preimage),
-            evaluation_time + 300,
+            valid_until,
             tuple(ReviewField(label, value) for label, value in review),
         )
         for request, descriptor in zip(requests, descriptors)

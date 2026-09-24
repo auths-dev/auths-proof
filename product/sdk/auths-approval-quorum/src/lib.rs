@@ -7,12 +7,13 @@
 //! approver must sign before the bundle can be assembled. Replacing an
 //! approver is a new proposal.
 //!
-//! Every envelope carries the same validity window, derived exactly as for a
-//! single signer: from the evaluation time for `validity_seconds`
-//! (`DEFAULT_ACTION_VALIDITY_SECONDS` when `None`, at most
-//! `MAX_ACTION_VALIDITY_SECONDS`), cut to the earliest terminal-grant expiry
-//! among the approvers. All approvals must be collected and verified inside
-//! that window.
+//! Every envelope carries the same validity window, from the evaluation time
+//! for `validity_seconds` ([`DEFAULT_QUORUM_VALIDITY_SECONDS`] when `None`, at
+//! most [`MAX_QUORUM_VALIDITY_SECONDS`]), cut to the earliest terminal-grant
+//! expiry among the approvers. Human approvers need hours, not the seconds a
+//! single signer gets, so the quorum path has its own bounds; the window
+//! arithmetic is core's `ActionValidityPolicy`. All approvals must be
+//! collected and verified inside the window.
 //!
 //! This crate assembles bytes only. Whether the approvals authorize is decided
 //! by the verifier against a trusted context whose composition requirement
@@ -21,18 +22,22 @@
 
 #![forbid(unsafe_code)]
 
-use auths_author::{
-    DEFAULT_ACTION_VALIDITY_SECONDS, MAX_ACTION_VALIDITY_SECONDS, PlanBuilder, PlanningError,
-};
+use auths_author::{ActionValidityPolicy, PlanBuilder, PlanningError, WorkflowAssemblyError};
 use auths_codec::{CodecError, action_id, body_digest, domain_commitment, grant_id, plan_id};
 use auths_model::{
     ActionEnvelope, Audience, AuthorizationPlan, BundleHeader, CanonicalAction, Challenge,
     ChannelBindingId, CompositionRequirement, ControlBinding, CriticalExtensions, EvidenceId,
     EvidenceObject, GrantId, ModelError, PrincipalId, ProofBundle, ProofRef, SignedAction,
-    SignedGrant, StatementRef, Timestamp, ValidityWindow, VerifierLimits,
+    SignedGrant, StatementRef, VerifierLimits,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use thiserror::Error;
+
+/// Validity, in seconds, of every approval when none is requested.
+pub const DEFAULT_QUORUM_VALIDITY_SECONDS: u64 = 86_400;
+
+/// Longest validity, in seconds, an approval quorum may carry.
+pub const MAX_QUORUM_VALIDITY_SECONDS: u64 = 604_800;
 
 /// Largest approver set one proposal accepts.
 pub const MAX_APPROVERS: usize = 16;
@@ -52,7 +57,7 @@ pub enum QuorumError {
     /// count is outside `1..=MAX_APPROVERS`.
     #[error("approval quorum threshold or approver count is invalid")]
     InvalidQuorum,
-    /// The requested validity is outside `1..=MAX_ACTION_VALIDITY_SECONDS`.
+    /// The requested validity is outside `1..=MAX_QUORUM_VALIDITY_SECONDS`.
     #[error("approval quorum validity is outside bounds")]
     ActionValidity,
     /// The same principal appears twice in one approver set.
@@ -92,6 +97,19 @@ impl From<ModelError> for QuorumError {
 impl From<CodecError> for QuorumError {
     fn from(error: CodecError) -> Self {
         Self::Codec(error)
+    }
+}
+
+impl From<WorkflowAssemblyError> for QuorumError {
+    fn from(error: WorkflowAssemblyError) -> Self {
+        match error {
+            WorkflowAssemblyError::Model(error) => Self::Model(error),
+            WorkflowAssemblyError::Codec(error) => Self::Codec(error),
+            WorkflowAssemblyError::CollectionLimit => Self::CollectionLimit,
+            WorkflowAssemblyError::ActionValidity
+            | WorkflowAssemblyError::InvalidGrantIndex
+            | WorkflowAssemblyError::ActionPlanMismatch => Self::ActionValidity,
+        }
     }
 }
 
@@ -186,17 +204,15 @@ impl QuorumProposal {
         if distinct.len() != approvers.len() {
             return Err(QuorumError::DuplicateApprover);
         }
-        let validity_seconds = validity_seconds.unwrap_or(DEFAULT_ACTION_VALIDITY_SECONDS);
-        if !(1..=MAX_ACTION_VALIDITY_SECONDS).contains(&validity_seconds) {
-            return Err(QuorumError::ActionValidity);
-        }
-        let expires_at = approvers
-            .iter()
-            .filter_map(|approver| approver.grant_expires_at)
-            .fold(evaluation_time.saturating_add(validity_seconds), u64::min)
-            .max(evaluation_time);
-        let validity =
-            ValidityWindow::new(Timestamp::new(evaluation_time), Timestamp::new(expires_at))?;
+        let validity = quorum_validity()?
+            .window(
+                evaluation_time,
+                validity_seconds,
+                approvers
+                    .iter()
+                    .filter_map(|approver| approver.grant_expires_at),
+            )
+            .map_err(QuorumError::from)?;
         let references = approvers
             .iter()
             .map(|approver| member_reference(&challenge, &approver.actor))
@@ -401,6 +417,11 @@ pub fn quorum_requirement(
         required,
         minimum_distinct_roots,
     )?)
+}
+
+fn quorum_validity() -> Result<ActionValidityPolicy, QuorumError> {
+    ActionValidityPolicy::new(DEFAULT_QUORUM_VALIDITY_SECONDS, MAX_QUORUM_VALIDITY_SECONDS)
+        .map_err(QuorumError::from)
 }
 
 fn member_reference(challenge: &[u8; 32], actor: &PrincipalId) -> Result<ProofRef, QuorumError> {

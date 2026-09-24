@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 718ecc594cde1cbb00ce4cd1b881d3590edce9acc3860648fcf7c4c15eebee53
+# declaration-sha256 ac362fdc216c16367d01ce2d5753195c1f0dd1972874bf746393d9051b9a9606
 .	AuthsError	value+type
 .	AuthsIssue	type
 .	AuthsOperationError	value+type

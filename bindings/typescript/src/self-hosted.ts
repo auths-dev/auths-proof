@@ -711,9 +711,10 @@ export interface AuthoredMcpQuorumProof<Command> extends AuthoredMcpProof<Comman
  * approver set, so every listed approver must sign. The threshold the
  * verifier enforces comes from the operator's trusted context, never from
  * the proof. Every approval is valid from `evaluationTime` for
- * `validitySeconds` exactly as in `authorMcpProof` (the native default when
- * omitted, bounded natively), cut to the earliest approver grant expiry;
- * every approval must be collected and verified inside that window.
+ * `validitySeconds` (the native quorum default when omitted, bounded
+ * natively), cut to the earliest approver grant expiry; every approval must
+ * be collected and verified inside that window, and each custody request
+ * stays valid for the whole window.
  */
 export async function authorMcpQuorumProof<Fields extends FieldMap>(input: Readonly<{
   contract: ExactMcpTool<Fields>;
@@ -732,7 +733,7 @@ export async function authorMcpQuorumProof<Fields extends FieldMap>(input: Reado
     throw new RangeError("quorum threshold or approver count is outside bounds");
   }
   if (input.challenge.length !== 32 || input.evaluationTime < 0n ||
-      input.evaluationTime >= (1n << 64n) - 300n) {
+      input.evaluationTime >= 1n << 64n) {
     throw new RangeError("challenge or evaluation time is outside bounds");
   }
   const validitySeconds = checkedValidity(input.validitySeconds);
@@ -767,6 +768,10 @@ export async function authorMcpQuorumProof<Fields extends FieldMap>(input: Reado
   }
   try {
     const action = quorum.canonicalActionCbor.slice();
+    const validity = quorum.validity;
+    if (validity.length !== 2) throw new TypeError("native quorum validity is inconsistent");
+    const validFrom = validity[0]!;
+    const validUntil = validity[1]!;
     const context = engine.bindTrustedContextRequestV1(
       input.trustedContextTemplate, quorum.audience, input.challenge, input.evaluationTime,
     );
@@ -796,7 +801,7 @@ export async function authorMcpQuorumProof<Fields extends FieldMap>(input: Reado
           requestId, objectKind: "action", objectId: objectId.slice(), descriptor,
           transactionDigest: transactionDigest.slice(),
           signingPreimage: request.signingPreimage.slice(),
-          expiresAtUnixSeconds: input.evaluationTime + 300n, display, signal,
+          expiresAtUnixSeconds: validUntil, display, signal,
         });
       } finally {
         request.free?.();
@@ -854,9 +859,6 @@ export async function authorMcpQuorumProof<Fields extends FieldMap>(input: Reado
       );
     }
     const references = quorum.proofReferences;
-    const validity = quorum.validity;
-    if (validity.length !== 2) throw new TypeError("native quorum validity is inconsistent");
-    const [validFrom, validUntil] = validity;
     return Object.freeze({
       command: decision.command, proof, action, trustedContext: context.slice(),
       actionCommitment: decision.actionCommitment,
@@ -871,8 +873,8 @@ export async function authorMcpQuorumProof<Fields extends FieldMap>(input: Reado
           { length: quorum.approverCount },
           (_, index) => references.slice(index * 32, (index + 1) * 32),
         )),
-        validFrom: validFrom!,
-        validUntil: validUntil!,
+        validFrom,
+        validUntil,
       }),
     });
   } finally {

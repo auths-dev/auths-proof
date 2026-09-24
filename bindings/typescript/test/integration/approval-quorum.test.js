@@ -113,15 +113,20 @@ for (const item of fixture.cases.filter((candidate) => candidate.decision === "a
   });
 }
 
-test("validitySeconds matches single-signer authoring", async () => {
+test("the quorum window defaults to a day and is configurable", async () => {
   const item = cases.get("two-of-three-managers");
+  assert.equal(fixture.validity_seconds, 86_400);
   const explicit = await author(item.id, item.approvers, 2, undefined, fixture.validity_seconds);
   assert.deepEqual(explicit.proof, b64(item.proof_b64));
-  const longer = await author(item.id, item.approvers, 2, undefined, 300);
-  assert.equal(longer.plan.validUntil, BigInt(fixture.authored_at + 300));
-  assert.notDeepEqual(longer.proof, explicit.proof);
-  for (const invalid of [0, 301]) {
-    await assert.rejects(author(item.id, item.approvers, 2, undefined, invalid));
+  const shorter = await author(item.id, item.approvers, 2, undefined, 3_600);
+  assert.equal(shorter.plan.validUntil, BigInt(fixture.authored_at + 3_600));
+  assert.notDeepEqual(shorter.proof, explicit.proof);
+  // A week passes the native bound; the one-day trust anchors then refuse it.
+  await assert.rejects(author(item.id, item.approvers, 2, undefined, 604_800), (error) =>
+    error instanceof AuthoringUnsuccessful && error.code === "action-outside-validity");
+  for (const invalid of [0, 604_801]) {
+    await assert.rejects(author(item.id, item.approvers, 2, undefined, invalid), (error) =>
+      !(error instanceof AuthoringUnsuccessful));
   }
 });
 
@@ -133,7 +138,8 @@ test("every approver reviews the same action and quorum", async () => {
   const fields = Object.fromEntries(signers[0].requests[0].display.map((field) => [field.label, field.value]));
   assert.equal(fields["approval quorum"], "2 of 3");
   assert.equal(new Set(signers.map((signer) => Buffer.from(signer.requests[0].objectId).toString("hex"))).size, 3);
-  assert.ok(signers.every((signer) => signer.requests[0].expiresAtUnixSeconds === BigInt(fixture.authored_at) + 300n));
+  assert.ok(signers.every((signer) => signer.requests[0].expiresAtUnixSeconds ===
+    BigInt(fixture.authored_at + fixture.validity_seconds)));
 });
 
 test("the TypeScript verifier decides every gateway vector identically", async () => {

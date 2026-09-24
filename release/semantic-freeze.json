@@ -73,7 +73,7 @@
   "entries": [
     {
       "id": "auths.core.protocol",
-      "version": 26,
+      "version": 27,
       "classification": "frozen-meaning",
       "categories": [
         "protocol-versions",
@@ -90,7 +90,7 @@
         "core/crates/auths-verifier/src",
         "core/spec/v1"
       ],
-      "sha256": "ffcaa4ace1480a8288a1e3a815c3748978df615186474ea2251bbe1b23034dc7"
+      "sha256": "e15a8831364bdfa9366d46f25fcadc80af6711b47f8c7f4543f8251e0a72b25d"
     },
     {
       "id": "auths.frozen-bytes/architecture/dependency-graph.json",
@@ -573,7 +573,7 @@
         "core/fixtures/identity/v1/vectors.json",
         "core/spec/identity/v1"
       ],
-      "sha256": "c3e5398f40927c0a2c04d7c17337cc29ba89f2efc04eb6e32f00ce630d84dee5"
+      "sha256": "a96636fda9b6395216bd410cf3eb7f67ee5fac51e8458974336368b033164e8e"
     },
     {
       "id": "auths.modular-components",
@@ -631,7 +631,7 @@
         "core/crates/auths-model/src/lib.rs",
         "core/spec/v1/auths-proof.cddl"
       ],
-      "sha256": "afa6a952a958c1c59cd160443283eb958df279aedd79fd58fb8b65cf37c0cf3d"
+      "sha256": "e608818aeaa1a1d4cbf88eb9d084d1ab32a1546f00bb9867cb78641e516a6370"
     },
     {
       "id": "auths.product.bounded-domains",
@@ -922,7 +922,7 @@
         "product/runtime/auths-runtime/src",
         "product/sdk/auths-sdk/src"
       ],
-      "sha256": "fe26a7cc2942ef740bfd38807348ed51fefb3460d8a9afba980e3b7e98736a12"
+      "sha256": "79e02513e15566175e71b6a1d3818dcd32fe98d075fd5a31421b497f5b491ff4"
     },
     {
       "id": "auths.product.receipts",
@@ -1040,7 +1040,7 @@
         "release/fixtures/evolution",
         "xtask/src/evolution_policy.rs"
       ],
-      "sha256": "1aa2ed6d001c7fc2577fc401d589c99ad7b7862163758dabc1a6f688f5b14ad5"
+      "sha256": "01a3ac90790cdaf3dfafff8d4da8fc2d7af34758922db2447e882755cf05c4f9"
     },
     {
       "id": "auths.release.public-surface",
@@ -1136,7 +1136,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "a649698d4ac7af128bbfd1d204983407fce025ae939b7a52dcd9054f2528ffd3"
+      "sha256": "5ab85f4f9fe03fd19198c236a066fc951f065cfe96fd17a28a1b06fc320593d3"
     }
   ]
 }

@@ -2,7 +2,7 @@ use super::*;
 use auths_codec::{action_signing_preimage, encode_bundle, evidence_id};
 use auths_model::{
     EvidenceTypeId, MediaType, PrincipalMethodId, SignatureBytes, SignatureDescriptor,
-    SignatureEnvelope, SignatureSuiteId, VerificationMethod,
+    SignatureEnvelope, SignatureSuiteId, Timestamp, ValidityWindow, VerificationMethod,
 };
 use auths_profile_api::ActionProfile as _;
 use auths_profile_mcp::{McpProfile, McpToolCall};
@@ -210,7 +210,7 @@ fn quorum_requirement_counts_distinct_actors() {
 }
 
 #[test]
-fn validity_follows_the_single_signer_rule() {
+fn validity_defaults_to_a_day_and_is_bounded_to_a_week() {
     let (canonical, audience) = refund();
     let a = Member::new(1);
     let window = |seconds| {
@@ -227,17 +227,14 @@ fn validity_follows_the_single_signer_rule() {
     };
     let expected =
         |until| ValidityWindow::new(Timestamp::new(1_000), Timestamp::new(until)).expect("window");
-    assert_eq!(
-        window(None),
-        Ok(expected(1_000 + DEFAULT_ACTION_VALIDITY_SECONDS))
-    );
-    assert_eq!(
-        window(Some(MAX_ACTION_VALIDITY_SECONDS)),
-        Ok(expected(1_000 + MAX_ACTION_VALIDITY_SECONDS))
-    );
+    assert_eq!(DEFAULT_QUORUM_VALIDITY_SECONDS, 86_400);
+    assert_eq!(MAX_QUORUM_VALIDITY_SECONDS, 604_800);
+    assert_eq!(window(None), Ok(expected(1_000 + 86_400)));
+    assert_eq!(window(Some(3_600)), Ok(expected(1_000 + 3_600)));
+    assert_eq!(window(Some(604_800)), Ok(expected(1_000 + 604_800)));
     assert_eq!(window(Some(0)).err(), Some(QuorumError::ActionValidity));
     assert_eq!(
-        window(Some(MAX_ACTION_VALIDITY_SECONDS + 1)).err(),
+        window(Some(604_801)).err(),
         Some(QuorumError::ActionValidity)
     );
 }
@@ -287,7 +284,7 @@ fn validity_is_cut_to_the_earliest_approver_grant_expiry() {
         &audience,
         [7; 32],
         1_000,
-        Some(300),
+        Some(86_400),
         2,
         &approvers,
     )
