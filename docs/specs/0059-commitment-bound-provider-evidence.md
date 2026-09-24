@@ -60,9 +60,13 @@ cannot reopen it at the provider**. A key derived from the commitment
 changes with every challenge and loses that protection whenever gateway
 state is lost.
 
-Decision: the idempotency key stays as 053 defines it. The commitment is
-carried in a **separate echo field**. For providers that return the
-idempotency key in authenticated events (Stripe events carry
+Decision: the idempotency key stays as 053 §3.2.1 defines it. A recipe opts
+in with `write.idempotency_key`, and the gateway derives the key from the
+namespace and logical operation ID only. It helps only when the gateway's
+claim was lost, and only with a provider that honors it, within that
+provider's retention window. The commitment is carried in a **separate echo
+field**. For providers that
+return the idempotency key in authenticated events (Stripe events carry
 `request.idempotency_key`; this is not checked against the current API),
 that is an additional binding to the logical operation, not a replacement
 for the echo.

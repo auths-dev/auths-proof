@@ -788,6 +788,7 @@ mod unix {
             "origin": review.origin(),
             "method": review.method().as_str(),
             "path": review.path(),
+            "sends_idempotency_key": review.sends_idempotency_key(),
             "verifier_configuration": hex::encode(gateway_verifier_configuration()?.as_bytes()),
             "profile_policy": auths_profile_mcp::MCP_ARGUMENTS_V1,
             "bounded_policy_extension": auths_registries::BOUNDED_POLICY_COMMITMENT_EXTENSION_V1,
