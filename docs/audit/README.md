@@ -16,8 +16,12 @@ never counts toward it.
 | `prompts/90-verify.md` | Re-checks each reported finding against the code and the docs. |
 | `prompts/91-plan-work.md` | Sorts the confirmed findings into work. |
 | `settled.md` | Findings already decided. Reviewers read it first so they don't raise them again. |
-| `passes/<date>/findings.md` | Every finding from one pass, with its verdict and severity. |
-| `passes/<date>/work.md` | How that pass's work was split, with links. |
+| `passes/<date>/findings.md` | Every finding from one pass, with its verdict and severity. Local only. |
+| `passes/<date>/work.md` | How that pass's work was split, with links. Local only. |
+
+`passes/` is ignored by git and never published. A finding that changes the
+design becomes a spec under `docs/specs/`; everything else lives in the
+issues, advisories, and PRs a pass files.
 
 ## Run a pass
 
@@ -34,8 +38,8 @@ never counts toward it.
 ## Rules
 
 - Security findings go to a private GitHub security advisory (see
-  `SECURITY.md`). Public files, including this folder, carry only the advisory
-  ID until the advisory is published.
+  `SECURITY.md`). Tracked files carry only the advisory ID until the advisory
+  is published.
 - Link to issues and PRs; don't copy their status here. GitHub tracks it.
 - Cite code as `path:line @ <short sha>`. Line numbers drift; the SHA pins them.
 - Don't edit a past pass. Corrections go in the next one.
