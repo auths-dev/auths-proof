@@ -104,7 +104,8 @@ fn clean() {
     let mut client = admin_client();
     client
         .batch_execute(
-            "DROP TABLE IF EXISTS auths_recovery_leases;
+            "DROP TABLE IF EXISTS auths_gateway_attempts;
+             DROP TABLE IF EXISTS auths_recovery_leases;
              DROP TABLE IF EXISTS auths_recovery_references;
              DROP TABLE IF EXISTS auths_lifecycle_records;
              DROP TABLE IF EXISTS auths_lifecycle_store_meta;",

@@ -209,9 +209,27 @@ result is cited here, and no document may yet describe gateway grants as
 conditioned on observed provider state. The Python and TypeScript gateway
 clients expose the observation request (`observe_read_back`/`observe_outcome`,
 `observeReadBack`/`observeOutcome`) and return the exact signed bytes and
-media type, parsed as a closed result and exercised only against fake sockets.
-Neither SDK has an action-authoring helper that attaches detached
-attachments, so attaching a returned observation is not yet an SDK workflow.
+media type, parsed as a closed result. Both SDKs can now attach a returned
+observation to the next action (`attach_observations`/`attachObservations`,
+or `observations` on the authoring functions). The descriptors are bound by
+the action signature, and the SDK's final verification reaches the gateway's
+verdict (0060 §15.4). A packed-wheel consumer and a packed-npm consumer run
+the expected-before-replacement journey against `auths-gateway-harness`,
+which is the gateway's application socket over the counting provider, with
+test trust and an explicit clock. SDK actions are valid for 30 seconds by
+default (at most 300, cut to the grant's expiry), so they verify at a later
+gateway clock; the gateway's durable operation claim, not the window, stops
+replay:
+
+- the write is authorized;
+- after the record changes, a stale `expected` is denied and an over-age
+  observation is indeterminate;
+- both are refused by the SDK, and by the gateway for an agent that skips
+  that check, with no write and no lease.
+
+This evidence is local and in the harness only. Hosted results are recorded
+on the pull request when they exist, and the live Airtable limit above still
+applies.
 
 ### Delegated observation requirements (AP-SPEC-060 §17, repository-local only)
 
@@ -231,6 +249,35 @@ every vector, including the added, narrowed, widened, reordered, dropped, and
 marker cases), native unit tests, and Lean theorems that delegation never
 widens authority given narrowing laws, with the marker and observation laws
 proved narrowing. No hosted CI result is cited here.
+
+### Per-principal bounds in the gateway path (AP-SPEC-025 §24, repository-local only)
+
+**Claim.** A grant can carry a bounded-policy commitment: a ceiling on one
+named verified MCP argument and a maximum number of authorized actions per
+principal per window. Two agents under one contract can hold different
+bounds, each readable from the proof and grant alone. The gateway refuses,
+before any durable claim or credential lease, an action above any bound in
+its chain, a bound whose evaluator is unregistered or mismatched, and a
+delegated bound its registered decider cannot prove tighter than the
+parent's. It refuses an action past the window count after the claim and
+before any lease. A delegated bound must link its parent's; the native
+verifier refuses one that does not.
+
+**Not a claim.** That the count is exact across hosts (the file attempt
+store is single-host; a multi-host store supplies the same insert-once
+primitive), that a verifier without the gateway's product layer checks
+anything about the policy beyond the link, or that the argument's value
+reflects provider state.
+
+Current evidence is the canonical corpus (Rust, Go, and TypeScript agree on
+the bounded-policy vectors), the gateway's per-principal hostile suite
+against the counting provider (`bindings/fixtures/gateway/bounds-hostile.json`:
+agent A inside and outside A's bound, A presenting B's larger bound, a
+sub-agent inside a narrower delegated bound, a sub-agent claiming a wider
+bound, an unlinked bound, an exhausted window, and an unregistered
+evaluator; every refused case has zero provider entries and zero leases),
+and Lean theorems for the evaluator's fixed-context tightening and decider
+soundness. No hosted CI result is cited here.
 
 ## Packaged clean-consumer exercise
 

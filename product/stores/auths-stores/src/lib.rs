@@ -8,6 +8,7 @@
 pub const __QUALIFICATION_EVIDENCE_ENABLED: bool = cfg!(feature = "qualification-evidence");
 
 mod connection;
+mod gateway_attempt;
 mod lifecycle;
 mod operation;
 
@@ -15,6 +16,7 @@ pub use connection::{
     ConnectionStoreConfigurationError, PersistentConnectionStore, PersistentConnectionStoreError,
 };
 
+pub use gateway_attempt::{GatewayAttemptInsert, MAX_GATEWAY_ATTEMPT_BYTES};
 pub use lifecycle::{
     InMemoryLifecycleStore, LifecycleCapacityRuleV1, LifecycleStoreConfigurationError,
     PersistentLifecycleStore, PostgresLifecycleStore, PostgresPoolConfig, PostgresServerName,

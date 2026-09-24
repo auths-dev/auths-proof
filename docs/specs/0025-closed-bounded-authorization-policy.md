@@ -1,6 +1,14 @@
 # AP-SPEC-025: Closed bounded-authorization policy contract
 
-**Status:** Partially implemented — tranches 1–3 built; 4–6 open. §24 assigns the parts of 4–6 that AP-SPEC-057 Epic 5 requires.
+**Status:** Partially implemented — tranches 1–3 built. Of tranches 4–6,
+exactly the §24.2 parts are implemented on `epic-5-bounds` (AP-SPEC-057 Epic
+5, step 2): the `bounded-policy-commitment-v1` grant extension (§24.1); a
+closed gateway evaluator registry keyed by evaluator semantic identifier
+(tranche 5); one registered evaluator, a per-principal ceiling on one named
+verified MCP argument with a per-window count kept in the gateway attempt
+store (tranche 6); and its Aeneas-translated leaves and Lean model proving
+fixed-context tightening and decider soundness (tranche 4). Readings are in
+§25. The rest of tranches 4–6 stays open as §24.3 lists.
 
 **Evidence:** Seven-domain semantic inventory
 `docs/research/domains/0003-seven-domain-bounded-authorization-semantic-inventory.md`
@@ -610,4 +618,21 @@ implemented tranches exactly.
 
 Epic 5 depends on AP-SPEC-060 §17 being implemented first, because the
 delegation cases need it.
+
+## 25. Readings fixed while implementing §24
+
+Each reading is the narrowest fail-closed choice that keeps §24's claim.
+
+| # | Spec text | Reading fixed |
+|---|---|---|
+| 1 | §24.1: "whose body is the canonical `PolicyCommitmentV1`"; AP-SPEC-060 §17.2: "the child's body carries its own policy commitment plus the digest of the parent's" | The body is `{0: policy-commitment, 1: policy bytes (1..4096), 2: parent link / null}` (`core/spec/v1/auths-proof.cddl`). Bounds are "verifiable from the proof and grant alone" only if the grant carries the policy, so the canonical policy bytes travel in the body and core checks that they open to the committed digest (domain `auths.bounded-policy.v1`). |
+| 2 | §24.1: "core validates only the shape" | Core checks canonical CBOR, the closed ASCII identifier syntax and lengths of §5, a non-zero version, the policy byte bound, and the digest opening. It never reads the policy. Any other failure is `local-policy-denied`; a byte bound is `resource-limit-exceeded`. |
+| 3 | AP-SPEC-060 §17.2: "the digest of the parent's commitment" | The link is the digest (domain `auths.bounded-policy-commitment.v1`) of the parent grant's exact extension bytes, so a chain of bounds is hash-linked to its root. A child adding a bound to an unbounded parent carries no link; a link with no parent bound is refused. The kernel cannot see a chain's first grant as a child, so the gateway refuses a root bound that carries a link (`gateway.policy.dangling-link`). |
+| 4 | §24.2 tranche 5: "a closed registry keyed by `evaluator_semantic_id`" | The gateway's registry is a fixed list of `EvaluatorRegistrationV1` records validated by `validate_registry`, each mapped to a closed enum variant; there are no callbacks. An unregistered identifier is `gateway.policy.evaluator-unregistered`; a commitment whose policy type, version, or canonicalization differs from the registration is `gateway.policy.evaluator-mismatch`. Both are refused before the claim, as `not-entered`, because the proof itself verified. |
+| 5 | §24.2 tranche 6: "a per-principal numeric ceiling on a named verified argument, plus a per-window count of authorized actions" | Evaluator `auths.gateway.argument-ceiling-window-count/1`, policy type `auths.gateway.argument-ceiling-policy/1`, version 1, canonicalization `auths.canonical-cbor/1`. Policy bytes are canonical CBOR `{0: argument, 1: ceiling, 2: window seconds (1..2678400), 3: maximum count (1..2^32)}`. The argument is a top-level verified MCP argument read through `mcp-arguments-v1`; a missing or non-integer value is `gateway.policy.argument-unavailable`. "Per principal" is the action's actor; the window is `floor(now / window)` at the gateway clock. |
+| 6 | §24.1: "the gateway runs the registered evaluator's tightening decider on the pair" | Every bound in the authorized chain is evaluated, and every linked pair must pass the decider: same argument and window, ceiling and count no larger. A child the decider refuses is `gateway.policy.expanded`. A value above any ceiling is `gateway.policy.above-ceiling`. |
+| 7 | §24.2 tranche 6: "the count's state lives in the gateway's attempt store" | After the durable claim and before any credential lease, the gateway reserves one slot of the actor's window count. Slots are insert-once records in the attempt store behind the `BoundedCountStore` trait, so a multi-host store supplies the same primitive. An exhausted window leaves the claim `not-entered` with `gateway.policy.window-exhausted`. A replayed logical operation consumes no slot. |
+| 8 | §24.2 tranche 4: "a Lean model proving fixed-context tightening … the tightening decider sound" | `Auths.Product.CeilingCount` proves `decider_sound`, `tightening_never_admits_more`, the smaller-ceiling and smaller-count cases, and the shared `ClosedEvaluator` law; `bounded_policy_law_lawful` packages the law the gateway enforces as a lawful narrowing law, which the assurance manifest records as the product-layer premise of AP-SPEC-060 §17.3. The translated `ceiling_count_code` and `ceiling_count_tightens` leaves refine the model. |
+| 9 | §24.4: "agent A presenting B's larger bound" | B's bound is in B's grant, whose subject is B, so an action A signs under it fails native verification as `broken-grant-chain` before any policy is read. |
+| 10 | §25 reading 5: "'Per principal' is the action's actor" | In a composed proof (for example a bounded agent beside approvers anchored directly in trust), the bound applies to the one authorized branch whose chain carries it, and the count is keyed to that branch's actor. The other authorized branches must carry no bound; two bounded branches would need a joint count this section does not define, so they are refused as `gateway.policy.multiple-branches`. |
 

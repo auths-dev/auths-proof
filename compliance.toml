@@ -166,25 +166,31 @@ core-api-consumer = ["product/config/auths-config/src/lib.rs#strict_target_confi
 kind = "cargo"
 layer = "product"
 path = "product/integrations/auths-custody"
-core_apis = ["auths-author", "auths-model"]
+core_apis = ["auths-author", "auths-did-key", "auths-model", "auths-multikey", "auths-raw-key"]
 protocol_versions = ["auths-proof/v1"]
-wire_objects = ["RawSigningResponse", "SigningIntent"]
+wire_objects = ["CustodyIdentity", "RawSigningResponse", "SignedObservation", "SigningIntent"]
 fixture_suites = ["product/fixtures/v1/custody"]
-principal_families = ["external-custody"]
-signature_families = ["provider-selected"]
+principal_families = ["did-key-v1", "external-custody", "raw-key-v1"]
+signature_families = ["p256-sha256-v1", "provider-selected"]
 profiles = []
 transports = []
-configuration_inputs = ["key-descriptor", "principal", "request-id", "signature-suite", "signing-preimage", "transaction-digest"]
-security_state = ["external-key-handle", "provider-response-binding", "signing-preimage"]
+configuration_inputs = ["custody-principal-form", "key-descriptor", "principal", "request-id", "signature-suite", "signing-preimage", "transaction-digest"]
+security_state = ["external-key-handle", "key-lifecycle-state", "provider-response-binding", "signing-preimage"]
 
 [packages.auths-custody.claims]
-proof-author-or-assembler = ["product/integrations/auths-custody/src/lib.rs#central_boundary_binds_and_verifies_provider_signature", "product/integrations/auths-custody/src/lib.rs#mismatched_provider_transaction_cannot_complete_object"]
+proof-author-or-assembler = [
+  "product/integrations/auths-custody/src/lib.rs#central_boundary_binds_and_verifies_provider_signature",
+  "product/integrations/auths-custody/src/lib.rs#mismatched_provider_transaction_cannot_complete_object",
+  "product/integrations/auths-custody/src/lib.rs#every_conformance_case_has_its_required_outcome_on_every_signing_path",
+  "product/integrations/auths-custody/src/lib.rs#only_ready_or_active_keys_reach_the_provider",
+  "product/integrations/auths-custody/src/lib.rs#a_key_refuses_a_signer_describing_another_identity",
+]
 
 [packages.auths-custody-aws-kms]
 kind = "cargo"
 layer = "product"
 path = "product/integrations/auths-custody-aws-kms"
-core_apis = ["auths-model"]
+core_apis = []
 protocol_versions = ["auths-proof/v1"]
 wire_objects = ["RawSigningResponse", "SigningIntent"]
 fixture_suites = ["product/fixtures/v1/custody"]
@@ -202,7 +208,7 @@ proof-author-or-assembler = ["product/integrations/auths-custody-aws-kms/src/lib
 kind = "cargo"
 layer = "product"
 path = "product/integrations/auths-custody-pkcs11"
-core_apis = ["auths-model"]
+core_apis = []
 protocol_versions = ["auths-proof/v1"]
 wire_objects = ["RawSigningResponse", "SigningIntent"]
 fixture_suites = ["product/fixtures/v1/custody"]
@@ -480,7 +486,7 @@ signature_families = ["ed25519-v1", "p256-sha256-v1", "rsa-pkcs1-sha256-v1"]
 profiles = ["auths.git-signature/1"]
 transports = ["git-signing-program", "github-actions-oidc-token", "sigstore-fulcio-v2-https", "sigstore-rekor-v1-https"]
 configuration_inputs = ["auths.repository", "auths.signer", "auths.trustDir", "enabled-principal-methods", "git-trust-context", "gpg.format", "gpg.x509.program", "methods.json", "user.signingkey"]
-security_state = ["ephemeral-workload-key", "installed-delegation", "revocation-records", "software-custody-key"]
+security_state = ["custody-held-root-key", "ephemeral-workload-key", "installed-delegation", "revocation-records", "software-custody-key"]
 
 [packages.auths-git-signing.claims]
 core-api-consumer = [
@@ -495,6 +501,9 @@ profile-contract = [
   "product/integrations/auths-git-signing/src/verify_tests.rs#verification_derives_the_request_from_the_object",
 ]
 proof-author-or-assembler = [
+  "product/integrations/auths-git-signing/src/custody_tests.rs#custody_roots_issue_grants_and_revocations_that_verify",
+  "product/integrations/auths-git-signing/src/custody_tests.rs#custody_root_passes_custody_conformance",
+  "product/integrations/auths-git-signing/src/custody_tests.rs#custody_root_lifecycle_gates_the_provider",
   "product/integrations/auths-git-signing/src/envelope.rs#envelope_round_trips_canonically",
   "product/integrations/auths-git-signing/src/envelope.rs#envelope_rejects_noncanonical_armor_with_stable_codes",
   "product/integrations/auths-git-signing/src/git_protocol_tests.rs#git_commit_signing_uses_the_program_protocol_and_stores_the_envelope",
@@ -1106,6 +1115,25 @@ security_state = []
 [packages.auths-profile-domains.claims]
 profile-canonicalizer = ["product/profiles/auths-profile-domains/src/lib.rs#unknown_fields_and_noncanonical_bytes_fail_closed"]
 
+[packages.auths-approval-quorum]
+kind = "cargo"
+layer = "product"
+path = "product/sdk/auths-approval-quorum"
+core_apis = ["auths-author", "auths-codec", "auths-model", "auths-raw-key", "auths-signature"]
+protocol_versions = ["auths-proof/v1"]
+wire_objects = ["ActionEnvelope", "AuthorizationPlan", "CompositionRequirement", "ProofBundle", "SignedAction"]
+fixture_suites = ["bindings/fixtures/gateway"]
+principal_families = []
+signature_families = []
+profiles = ["caller-defined"]
+transports = []
+configuration_inputs = ["composition-requirement", "trust-anchors"]
+security_state = []
+
+[packages.auths-approval-quorum.claims]
+core-api-consumer = ["product/sdk/auths-approval-quorum/src/tests.rs#every_envelope_shares_the_action_and_the_threshold_plan", "product/sdk/auths-approval-quorum/src/tests.rs#quorum_requirement_counts_distinct_actors"]
+proof-author-or-assembler = ["product/sdk/auths-approval-quorum/src/tests.rs#assembly_needs_one_exact_approval_per_listed_approver", "product/sdk/auths-approval-quorum/src/tests.rs#impossible_thresholds_and_duplicate_approvers_are_refused"]
+
 [packages.auths-profile-kit]
 kind = "cargo"
 layer = "product"
@@ -1398,8 +1426,8 @@ runtime-enforcement-boundary = [
 kind = "cargo"
 layer = "product"
 path = "product/profiles/auths-profile-mcp"
-core_apis = ["auths-codec", "auths-model", "auths-verifier"]
-protocol_versions = ["auths-proof/v1"]
+core_apis = ["auths-codec", "auths-model", "auths-ports", "auths-registries", "auths-verifier"]
+protocol_versions = ["auths-proof/v1", "mcp-arguments-v1"]
 wire_objects = ["CanonicalAction", "VerifiedAction"]
 fixture_suites = ["product/fixtures/v1"]
 principal_families = []
@@ -1410,7 +1438,13 @@ configuration_inputs = ["channel-endpoint", "profile-id", "profile-version"]
 security_state = []
 
 [packages.auths-profile-mcp.claims]
-profile-canonicalizer = ["product/profiles/auths-profile-mcp/src/lib.rs#noncanonical_json_is_rejected"]
+profile-canonicalizer = [
+  "product/profiles/auths-profile-mcp/src/lib.rs#noncanonical_json_is_rejected",
+  "product/profiles/auths-profile-mcp/src/arguments.rs#exposes_only_top_level_text_and_unsigned_arguments",
+  "product/profiles/auths-profile-mcp/src/arguments.rs#accepts_only_canonical_mcp_actions",
+  "product/profiles/auths-profile-mcp/src/arguments.rs#configuration_commitment_names_the_policy_and_its_rules",
+  "product/profiles/auths-profile-mcp/src/arguments.rs#registries_commit_the_policy_into_a_distinct_configuration",
+]
 
 [packages.auths-proof-offline-example]
 kind = "cargo"
@@ -1437,7 +1471,7 @@ path = "bindings/python"
 core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-identity", "auths-identity-raw-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-signature-core", "auths-signature-ed25519", "auths-verifier"]
 protocol_versions = ["auths-proof/v1", "auths.openapi-derive-result/1", "auths.portable-receipt/1", "auths.profile-client-runtime/1"]
 wire_objects = ["ActionEnvelope", "AuthorizationPlan", "CanonicalAction", "GrantStatement", "GrantStatusSnapshot", "GrantStatusStatement", "PortableReceiptV1", "PortableVerificationResult", "PrincipalStatusSnapshot", "PrincipalStatusStatement", "ProofBundle", "RecoveryHandle", "SignedAction", "SignedGrant", "SignedGrantStatus", "SignedPrincipalStatus", "VerifierContext"]
-fixture_suites = ["bindings/fixtures/openapi-derivation", "bindings/python/differential-fixtures-v1.json", "core/fixtures/v1"]
+fixture_suites = ["bindings/fixtures/gateway", "bindings/fixtures/openapi-derivation", "bindings/python/differential-fixtures-v1.json", "core/fixtures/v1"]
 principal_families = ["self-contained-v1"]
 signature_families = ["ed25519-v1", "p256-sha256-v1"]
 profiles = ["auths.opentofu.saved-plan-apply/1", "auths.postgresql.bounded-update/1", "auths.stripe.refund/1", "core-corpus"]
@@ -1447,7 +1481,7 @@ security_state = ["opaque-recovery-handle", "portable-linked-receipts", "profile
 
 [packages.auths-proof-python.claims]
 core-wire-consumer = ["bindings/python/tests/test_native_boundary_contract.py#test_every_registry_code_classifies_through_the_native_layer", "bindings/python/tests/test_portable_receipt_v1.py#test_portable_receipt_v1_projection_is_self_contained", "bindings/python/tests/test_native_authoring.py#test_child_planning_matches_the_shared_rust_typescript_fixture", "bindings/python/tests/test_workflow.py#test_attach_and_delegate_use_native_authority_without_protocol_bytes"]
-language-binding = ["bindings/python/tests/test_openapi_derivation.py#test_native_route_reproduces_the_corpus", "bindings/python/tests/test_openapi_derivation.py#test_derive_generate_check_and_hand_edit", "bindings/python/tests/test_public_api_v2.py#test_exact_public_inventory", "bindings/python/tests/test_profile_runtime_v1.py#test_generated_profile_shape_uses_alias_and_returns_typed_success", "bindings/python/tests/test_profile_runtime_v1.py#test_ambiguous_execute_uses_issued_recovery_handle_without_reentry", "bindings/python/tests/test_portable_receipt_v1.py#test_portable_receipt_v1_rejects_contradictory_projection"]
+language-binding = ["bindings/python/tests/test_approval_quorum.py#test_python_authors_the_exact_gateway_quorum_bytes", "bindings/python/tests/test_approval_quorum.py#test_python_verifier_decides_every_gateway_vector_identically", "bindings/python/tests/test_openapi_derivation.py#test_native_route_reproduces_the_corpus", "bindings/python/tests/test_openapi_derivation.py#test_derive_generate_check_and_hand_edit", "bindings/python/tests/test_public_api_v2.py#test_exact_public_inventory", "bindings/python/tests/test_profile_runtime_v1.py#test_generated_profile_shape_uses_alias_and_returns_typed_success", "bindings/python/tests/test_profile_runtime_v1.py#test_ambiguous_execute_uses_issued_recovery_handle_without_reentry", "bindings/python/tests/test_portable_receipt_v1.py#test_portable_receipt_v1_rejects_contradictory_projection"]
 runtime-enforcement-boundary = ["bindings/python/tests/test_public_api_v2.py#test_receipts_reject_direct_construction", "bindings/python/tests/test_profile_runtime_v1.py#test_operation_errors_are_not_caller_constructible", "bindings/python/tests/test_profile_runtime_v1.py#test_outcomes_and_error_envelopes_are_closed", "bindings/python/tests/test_native_boundary_contract.py#test_a_python_caller_cannot_mint_a_canonical_action_for_its_own_profile", "bindings/python/tests/test_native_boundary_contract.py#test_no_native_symbol_is_exported_without_being_declared"]
 
 [packages.auths-proof-wasm]
@@ -1457,7 +1491,7 @@ path = "bindings/wasm/auths-proof-wasm"
 core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-identity", "auths-identity-raw-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-signature-core", "auths-signature-ed25519", "auths-testkit", "auths-verifier"]
 protocol_versions = ["auths-identity/v1", "auths-proof/v1"]
 wire_objects = ["ActionEnvelope", "CanonicalAction", "ControlBinding", "EvidenceObject", "GrantStatement", "GrantStatusStatement", "IdentityPacket/PublicIdentityV2", "IdentityPacket/SignedMessageV2", "PortableVerificationResult", "PrincipalStatusStatement", "ProofBundle", "SignedAction", "SignedGrant", "VerifierContext"]
-fixture_suites = ["core/fixtures/identity/v1", "core/fixtures/v1"]
+fixture_suites = ["bindings/fixtures/gateway", "core/fixtures/identity/v1", "core/fixtures/v1"]
 principal_families = ["did-keri-v1", "did-key-v1", "raw-key-v1", "raw-key-v2"]
 signature_families = ["ed25519-v1", "p256-sha256-v1"]
 profiles = ["auths.mcp/1", "core-corpus"]
@@ -1467,7 +1501,7 @@ security_state = []
 
 [packages.auths-proof-wasm.claims]
 core-wire-consumer = ["bindings/wasm/auths-proof-wasm/src/lib.rs#authoring_abi_planning_matches_the_native_owner", "bindings/wasm/auths-proof-wasm/src/lib.rs#native_mcp_authorization_assembly_matches_profile_and_core_owners", "bindings/wasm/auths-proof-wasm/src/lib.rs#native_wasm_boundary_matches_the_portable_contract"]
-language-binding = ["bindings/typescript/test/unit/portable-receipt-v1.test.js#packaged WASM exposes the canonical portable receipt decoder", "bindings/typescript/test/unit/public-api-v2.test.js#clean-cut modules expose the intended domain-neutral surface"]
+language-binding = ["bindings/typescript/test/integration/approval-quorum.test.js#TypeScript authors the exact gateway quorum bytes", "bindings/typescript/test/integration/approval-quorum.test.js#the TypeScript verifier decides every gateway vector identically", "bindings/typescript/test/unit/portable-receipt-v1.test.js#packaged WASM exposes the canonical portable receipt decoder", "bindings/typescript/test/unit/public-api-v2.test.js#clean-cut modules expose the intended domain-neutral surface"]
 
 [packages.auths-openapi-derive-wasm]
 kind = "cargo"
@@ -1621,16 +1655,16 @@ runtime-enforcement-boundary = [
 kind = "cargo"
 layer = "product"
 path = "product/runtime/auths-gateway"
-core_apis = ["auths-codec", "auths-did-keri", "auths-did-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-verifier"]
-protocol_versions = ["auths.gateway-recipe-source/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/2", "auths.gateway-echo/1", "auths.gateway-observe/1", "auths.gateway-outcome/1", "auths.gateway-readback/1", "auths.self-hosted-profile-lock/1", "mcp-arguments-v1"]
-wire_objects = ["CompiledRecipe", "ClosedProviderRequest", "GatewayAttemptSnapshot", "GatewayConnectionDescriptor", "GatewayEvidenceSummary", "GatewayObserveRequest", "GatewayObserveResult", "GatewayProviderEvidence", "GatewaySubmitResult", "SignedObservation"]
+core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-verifier"]
+protocol_versions = ["auths.gateway-installation/2", "auths.lifecycle.transactional-store/4", "auths.gateway-recipe-source/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/2", "auths.gateway-echo/1", "auths.gateway-observe/1", "auths.gateway-outcome/1", "auths.gateway-readback/1", "auths.self-hosted-profile-lock/1", "mcp-arguments-v1", "auths.gateway-bounded-count/1", "auths.gateway-audit-bundle/1", "auths.gateway-audit-report/1", "auths.gateway.argument-ceiling-window-count/1", "bounded-policy-commitment-v1"]
+wire_objects = ["CompiledRecipe", "ClosedProviderRequest", "GatewayAttemptSnapshot", "GatewayConnectionDescriptor", "GatewayEvidenceSummary", "GatewayObserveRequest", "GatewayObserveResult", "GatewayProviderEvidence", "GatewaySubmitResult", "SignedObservation", "ArgumentCeilingPolicy", "BoundedPolicyCommitment", "AuditReport"]
 fixture_suites = ["bindings/fixtures/gateway"]
 principal_families = ["raw-key-v1"]
-signature_families = ["ed25519-v1"]
+signature_families = ["ed25519-v1", "p256-sha256-v1"]
 profiles = ["auths.mcp/2"]
-transports = ["bounded-https"]
-configuration_inputs = ["operator-approved-recipe", "profile-lock", "independently-provisioned-trust", "connection-binding", "observer-anchor", "observer-signing-key"]
-security_state = ["recipe-digest", "single-host-logical-operation-claims", "credential-reference-generation", "echo-bound-provider-evidence", "observer-signing-seed"]
+transports = ["bounded-https", "postgresql-tls", "loopback-http-development"]
+configuration_inputs = ["operator-approved-recipe", "profile-lock", "independently-provisioned-trust", "connection-binding", "observer-anchor", "observer-signing-key", "deployment-kind", "operator-principal", "postgresql-store-configuration", "audit-trust-and-observer-pins"]
+security_state = ["recipe-digest", "logical-operation-claims", "credential-reference-generation", "echo-bound-provider-evidence", "observer-signing-seed", "custody-held-observer-key", "principal-separation", "per-principal-window-count-slots"]
 
 [packages.auths-gateway.claims]
 configuration-compiler = [
@@ -1641,20 +1675,42 @@ configuration-compiler = [
   "product/runtime/auths-gateway/src/recipe.rs#echo_token_is_domain_separated_and_bound_to_every_input",
   "product/runtime/auths-gateway/src/recipe.rs#preconditions_are_closed_reviewed_and_digest_bound",
   "product/runtime/auths-gateway/src/recipe.rs#read_back_subject_must_name_exactly_the_observed_record",
-  "product/runtime/auths-gateway/src/action_facts.rs#configuration_commitment_names_the_policy_and_its_rules",
+  "product/runtime/auths-gateway/src/app.rs#observation_frame_is_closed_and_read_only",
+  "product/runtime/auths-gateway/src/recipe.rs#form_body_renders_an_integer_field_as_decimal_text",
 ]
 principal-evidence-integration = [
   "product/runtime/auths-gateway/src/observer.rs#observer_seed_is_owner_only_never_overwritten_and_never_printed",
   "product/runtime/auths-gateway/src/observer.rs#signed_read_back_decodes_with_exact_schema_subject_and_facts",
   "product/runtime/auths-gateway/src/observed_tests.rs#self_signed_or_forged_observations_never_satisfy",
   "product/runtime/auths-gateway/src/observed_tests.rs#observer_in_the_authority_chain_is_refused",
+  "product/runtime/auths-gateway/src/observed_tests.rs#custody_held_observers_satisfy_requirements",
+  "product/runtime/auths-gateway/src/observed_tests.rs#custody_observer_passes_custody_conformance",
+  "product/runtime/auths-gateway/src/observed_tests.rs#custody_observer_lifecycle_gates_the_provider",
+  "product/runtime/auths-gateway/src/observed_tests.rs#production_principals_must_be_separate",
+  "product/runtime/auths-gateway/src/observed_tests.rs#two_of_three_root_authorizes_only_with_two_distinct_roots",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_reproduces_every_gateway_decision",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_detects_a_tampered_bundle",
 ]
 runtime-enforcement-boundary = [
+  "product/runtime/auths-gateway/src/quorum_tests.rs#approval_quorum_hostile_cases_admit_only_a_two_manager_quorum",
+  "product/runtime/auths-gateway/src/quorum_tests.rs#a_proof_carried_plan_cannot_lower_the_installed_threshold",
+  "product/runtime/auths-gateway/src/quorum_tests.rs#a_quorum_still_authorizes_23_hours_after_approval_and_only_once",
+  "product/runtime/auths-gateway/src/quorum_tests.rs#a_quorum_after_its_window_is_refused_before_any_lease",
   "product/runtime/auths-gateway/src/observed_tests.rs#fresh_matching_read_back_authorizes_the_replacement_write",
   "product/runtime/auths-gateway/src/observed_tests.rs#stale_changed_or_missing_expected_is_refused_before_credential_access",
   "product/runtime/auths-gateway/src/observed_tests.rs#read_back_of_another_record_cannot_license_this_write",
   "product/runtime/auths-gateway/src/observed_tests.rs#chained_step_is_refused_until_the_previous_step_is_provider_bound",
   "product/runtime/auths-gateway/src/observed_tests.rs#action_fact_policy_is_bound_into_the_pinned_configuration",
+  "product/runtime/auths-gateway/src/observed_tests.rs#sdk_action_window_admits_a_later_gateway_clock_and_replay_stays_refused",
+  "product/runtime/auths-gateway/src/observed_tests.rs#sdk_action_window_is_cut_to_the_grant_expiry",
+  "product/runtime/auths-gateway/src/observed_tests.rs#a_longer_action_window_never_extends_observation_freshness",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#per_principal_bounds_admit_only_actions_inside_the_signer_bound",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#bounded_agent_needs_two_managers_and_stays_inside_its_bound",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#two_bounded_branches_in_one_composition_are_refused",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#unbounded_composition_is_admitted_without_a_count",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#one_bounded_branch_is_admitted_and_counted_against_its_actor",
+  "product/runtime/auths-gateway/src/bounds.rs#registry_refuses_unregistered_and_mismatched_evaluators",
+  "product/runtime/auths-gateway/src/bounds.rs#decider_accepts_only_a_tighter_bound_on_the_same_argument_and_window",
 ]
 stateful-replay-budget-component = [
   "product/runtime/auths-gateway/src/recipe.rs#durable_claim_is_one_use_across_races_and_restart",
@@ -1662,9 +1718,11 @@ stateful-replay-budget-component = [
   "product/runtime/auths-gateway/src/recipe.rs#read_back_links_only_an_exact_token_with_the_verified_value",
   "product/runtime/auths-gateway/src/engine.rs#attempt_scenario_corpus_drives_the_counting_provider",
   "product/runtime/auths-gateway/src/engine.rs#normal_write_reaches_observed_by_provider_with_secret_free_evidence",
-  "product/runtime/auths-gateway/src/engine.rs#timeout_after_delivery_resolves_on_next_observation_without_second_write",
-  "product/runtime/auths-gateway/src/engine.rs#provider_side_overwrite_records_echo_mismatch",
-  "product/runtime/auths-gateway/src/engine.rs#replay_or_fresh_challenge_makes_no_second_provider_entry",
+  "product/runtime/auths-gateway/src/engine.rs#file_store_passes_attempt_store_conformance",
+  "product/runtime/auths-gateway/src/engine.rs#postgres_store_passes_attempt_store_conformance",
+  "product/runtime/auths-gateway/src/engine.rs#postgres_attempt_scenario_corpus_drives_the_counting_provider",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#postgres_per_principal_bounds_admit_only_actions_inside_the_signer_bound",
+  "product/runtime/auths-gateway/src/bounds.rs#window_reservation_takes_exactly_the_maximum",
 ]
 
 [packages.auths-node]
@@ -1750,9 +1808,9 @@ fixture_suites = ["product/fixtures/v1/lifecycle"]
 principal_families = []
 signature_families = []
 profiles = []
-transports = ["filesystem", "memory"]
+transports = ["filesystem", "memory", "postgresql-tls"]
 configuration_inputs = ["budget-algebra", "capacity", "lifecycle-capacity-rule", "receipt-policy"]
-security_state = ["budget-ledger", "lifecycle-records", "receipt-spool", "replay-ledger"]
+security_state = ["budget-ledger", "gateway-attempt-records", "lifecycle-records", "receipt-spool", "replay-ledger"]
 
 [packages.auths-stores.claims]
 receipt-producer-consumer = ["product/stores/auths-stores/src/lib.rs#local_spool_policy_persists_attested_receipt_on_primary_failure"]
@@ -1761,6 +1819,7 @@ stateful-replay-budget-component = [
   "product/stores/auths-stores/src/lifecycle.rs#concurrent_final_capacity_has_one_winner",
   "product/stores/auths-stores/src/lifecycle.rs#persistent_capacity_and_replay_survive_reopen",
   "product/stores/auths-stores/src/lifecycle.rs#crash_matrix_reopens_old_or_new_canonical_state_never_partial_state",
+  "product/stores/auths-stores/src/gateway_attempt.rs#gateway_attempt_records_are_bounded_before_any_database_call",
 ]
 
 [packages."@auths-dev/profile-stripe"]

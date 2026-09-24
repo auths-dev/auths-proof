@@ -697,12 +697,14 @@ fn commit_mcp_plan(py: Python<'_>, calls: Vec<Py<PyMcpCall>>) -> PyResult<PyNati
 }
 
 #[pyfunction]
+#[pyo3(signature = (call, actor, terminal_grant, challenge, evaluation_time, validity_seconds = None))]
 fn prepare_mcp_call_action(
     call: PyRef<'_, PyMcpCall>,
     actor: PyRef<'_, PyPrincipal>,
     terminal_grant: PyRef<'_, PySignedObject>,
     challenge: &[u8],
     evaluation_time: u64,
+    validity_seconds: Option<u64>,
 ) -> PyResult<PyMcpAction> {
     let SignedObject::Grant(terminal_grant) = &terminal_grant.inner else {
         return Err(PyTypeError::new_err(
@@ -724,6 +726,7 @@ fn prepare_mcp_call_action(
         terminal_grant,
         challenge,
         evaluation_time,
+        validity_seconds,
     )
     .map_err(value_error)?;
     let (canonical, envelope) = prepared.into_parts();
@@ -1147,7 +1150,7 @@ fn consume_mcp_plan_command(
         .collect()
 }
 
-fn evidence_object(
+pub(crate) fn evidence_object(
     evidence_type: &str,
     media_type: &str,
     bytes: Vec<u8>,

@@ -2,6 +2,12 @@
 
 #![forbid(unsafe_code)]
 
+#[cfg(any(test, feature = "conformance"))]
+pub mod conformance;
+mod key;
+
+pub use key::{CustodyIdentity, CustodyKey, CustodyPrincipalForm, sign_observation};
+
 use auths_author::{ExternalSigningRequest, SigningObjectId};
 use auths_model::{
     ActionEnvelope, EvidenceObject, GrantStatement, GrantStatusStatement, PrincipalId,
@@ -22,6 +28,20 @@ pub enum CustodyKind {
     Kms,
     Hsm,
     Pkcs11,
+}
+
+impl CustodyKind {
+    /// Returns the stable label a signer reports for its custody.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::WebAuthn => "webauthn",
+            Self::Workload => "workload",
+            Self::Kms => "kms",
+            Self::Hsm => "hsm",
+            Self::Pkcs11 => "pkcs11",
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -368,6 +388,9 @@ pub trait CustodySignatureVerifier: Send + Sync {
     ) -> Result<(), CustodyError>;
 }
 
+/// Verifies P-256 custody signatures. The reference P-256 adapters return no
+/// attestation, so any evidence in a response is refused rather than passed
+/// through unexamined.
 pub struct P256SignatureVerifier {
     verification_key: VerifyingKey,
 }
@@ -391,10 +414,13 @@ impl CustodySignatureVerifier for P256SignatureVerifier {
         descriptor: &CustodyDescriptor,
         preimage: &[u8],
         signature: &SignatureBytes,
-        _evidence: &[EvidenceObject],
+        evidence: &[EvidenceObject],
     ) -> Result<(), CustodyError> {
         if descriptor.signature().suite().as_str() != "p256-sha256-v1" {
             return Err(CustodyError::DescriptorMismatch);
+        }
+        if !evidence.is_empty() {
+            return Err(CustodyError::EvidenceMismatch);
         }
         let signature = P256Signature::from_slice(signature.as_slice())
             .map_err(|_| CustodyError::MalformedSignature)?;
@@ -523,7 +549,7 @@ signing_operation!(
 );
 signing_operation!(sign_grant_status, GrantStatusStatement, SignedGrantStatus);
 
-fn observe_custody_result(
+pub(crate) fn observe_custody_result(
     events: &dyn auths_operations::EventSink,
     result: &Result<CustodySignature, CustodyError>,
 ) {
@@ -555,7 +581,7 @@ fn observe_custody_result(
     ));
 }
 
-fn sign_request<T>(
+pub(crate) fn sign_request<T>(
     request: &ExternalSigningRequest<T>,
     signer: &dyn ExternalSigner,
     verifier: &dyn CustodySignatureVerifier,
@@ -739,29 +765,8 @@ mod tests {
         }
     }
 
-    fn fixture() -> (
-        ExternalSigningRequest<ActionEnvelope>,
-        FakeSigner,
-        P256SignatureVerifier,
-    ) {
-        let key = SigningKey::from_slice(&[7; 32]).unwrap();
-        let verification = key.verifying_key().to_encoded_point(true);
-        let principal = PrincipalId::parse("raw:p256-test").unwrap();
-        let signature = SignatureDescriptor::new(
-            PrincipalMethodId::parse("raw-key-v1").unwrap(),
-            VerificationMethod::parse("raw:p256-test").unwrap(),
-            SignatureSuiteId::parse("p256-sha256-v1").unwrap(),
-        );
-        let descriptor = CustodyDescriptor::new(
-            CustodyKind::Kms,
-            CustodyAdapterId::parse("test-kms-p256-v1").unwrap(),
-            principal.clone(),
-            signature.clone(),
-            KeyVersionId::parse("sha256:test-key-version").unwrap(),
-            KeyLifecycleState::ActiveCurrent,
-        )
-        .unwrap();
-        let envelope = ActionEnvelope::new(
+    fn envelope(principal: PrincipalId) -> ActionEnvelope {
+        ActionEnvelope::new(
             ProfileRef::new(ProfileId::parse("auths.mcp").unwrap(), 1).unwrap(),
             MediaType::parse("application/vnd.auths.mcp-call.v1+json").unwrap(),
             Digest::new([1; 32]),
@@ -784,7 +789,32 @@ mod tests {
             ProofRef::new([4; 32]),
             Vec::new(),
             CriticalExtensions::empty(),
+        )
+    }
+
+    fn fixture() -> (
+        ExternalSigningRequest<ActionEnvelope>,
+        FakeSigner,
+        P256SignatureVerifier,
+    ) {
+        let key = SigningKey::from_slice(&[7; 32]).unwrap();
+        let verification = key.verifying_key().to_encoded_point(true);
+        let principal = PrincipalId::parse("raw:p256-test").unwrap();
+        let signature = SignatureDescriptor::new(
+            PrincipalMethodId::parse("raw-key-v1").unwrap(),
+            VerificationMethod::parse("raw:p256-test").unwrap(),
+            SignatureSuiteId::parse("p256-sha256-v1").unwrap(),
         );
+        let descriptor = CustodyDescriptor::new(
+            CustodyKind::Kms,
+            CustodyAdapterId::parse("test-kms-p256-v1").unwrap(),
+            principal.clone(),
+            signature.clone(),
+            KeyVersionId::parse("sha256:test-key-version").unwrap(),
+            KeyLifecycleState::ActiveCurrent,
+        )
+        .unwrap();
+        let envelope = envelope(principal);
         (
             prepare_action(envelope, signature).unwrap(),
             FakeSigner {
@@ -823,6 +853,131 @@ mod tests {
             "{:?}",
             result.err()
         );
+    }
+
+    fn observation(principal: &PrincipalId) -> auths_model::ObservationStatement {
+        auths_model::ObservationStatement::new(
+            principal.clone(),
+            auths_model::ObservationSchemaId::parse("auths.gateway-outcome/1").unwrap(),
+            ResourceId::parse("auths-gateway://ns/operations/op-1").unwrap(),
+            auths_model::Timestamp::new(1),
+            auths_model::ObservationFacts::new(vec![auths_model::ObservationFact::new(
+                auths_model::FactName::parse("stage").unwrap(),
+                auths_model::FactValue::Text(auths_model::FactText::new("unknown").unwrap()),
+            )])
+            .unwrap(),
+        )
+    }
+
+    #[test]
+    fn every_conformance_case_has_its_required_outcome_on_every_signing_path() {
+        use conformance::{ConformanceExpectation, ConformanceSigner};
+        for form in [
+            CustodyPrincipalForm::RawKeyV1,
+            CustodyPrincipalForm::DidKeyV1,
+        ] {
+            for (case, expected) in conformance::cases() {
+                if expected == ConformanceExpectation::Startup {
+                    continue;
+                }
+                let (key, probe) = ConformanceSigner::key(
+                    form,
+                    CustodyKind::Kms,
+                    KeyLifecycleState::ActiveCurrent,
+                    case,
+                );
+                let envelope = envelope(key.identity().principal().clone());
+                let action = key.sign_action(
+                    prepare_action(envelope, key.identity().signature().clone()).unwrap(),
+                );
+                let observed = key.sign_observation(
+                    auths_author::prepare_observation(
+                        observation(key.identity().principal()),
+                        key.identity().signature().clone(),
+                    )
+                    .unwrap(),
+                );
+                match expected {
+                    ConformanceExpectation::Signed => {
+                        assert!(action.is_ok(), "{case:?}");
+                        let observed = observed.unwrap();
+                        assert_eq!(
+                            observed.evidence(),
+                            [key.identity().control_evidence().clone()]
+                        );
+                    }
+                    ConformanceExpectation::Refused(error) => {
+                        assert_eq!(action.err(), Some(error), "{case:?}");
+                        assert_eq!(observed.err(), Some(error), "{case:?}");
+                        assert_eq!(error.to_string(), error.stable_code());
+                    }
+                    ConformanceExpectation::Startup => unreachable!(),
+                }
+                assert_eq!(probe.calls(), 2, "{case:?}: one provider call per object");
+            }
+        }
+    }
+
+    #[test]
+    fn only_ready_or_active_keys_reach_the_provider() {
+        use conformance::{ConformanceSigner, LIFECYCLE_CASES};
+        for (lifecycle, permitted) in LIFECYCLE_CASES {
+            let (key, probe) = ConformanceSigner::key(
+                CustodyPrincipalForm::RawKeyV1,
+                CustodyKind::Pkcs11,
+                *lifecycle,
+                CustodyConformanceCase::Valid,
+            );
+            let result = key.sign_observation(
+                auths_author::prepare_observation(
+                    observation(key.identity().principal()),
+                    key.identity().signature().clone(),
+                )
+                .unwrap(),
+            );
+            assert_eq!(result.is_ok(), *permitted, "{lifecycle:?}");
+            if !permitted {
+                assert_eq!(result.err(), Some(CustodyError::LifecycleNotPermitted));
+            }
+            assert_eq!(probe.calls(), usize::from(*permitted), "{lifecycle:?}");
+        }
+    }
+
+    #[test]
+    fn a_key_refuses_a_signer_describing_another_identity() {
+        use conformance::ConformanceSigner;
+        let (key, _) = ConformanceSigner::key(
+            CustodyPrincipalForm::RawKeyV1,
+            CustodyKind::Kms,
+            KeyLifecycleState::ActiveCurrent,
+            CustodyConformanceCase::Valid,
+        );
+        let other = SigningKey::from_slice(&[5; 32]).unwrap();
+        let identity = CustodyIdentity::p256(
+            CustodyPrincipalForm::RawKeyV1,
+            other.verifying_key().to_encoded_point(false).as_bytes(),
+        )
+        .unwrap();
+        assert!(matches!(
+            CustodyKey::new(Box::new(Rebound(key)), identity),
+            Err(CustodyError::PrincipalMismatch)
+        ));
+    }
+
+    /// Presents another key's descriptor, as a misconfigured adapter would.
+    struct Rebound(CustodyKey);
+
+    impl ExternalSigner for Rebound {
+        fn descriptor(&self) -> &CustodyDescriptor {
+            self.0.descriptor()
+        }
+
+        fn sign(
+            &self,
+            _request: &SigningIntent<'_>,
+        ) -> Result<UntrustedSigningResponse, CustodyProviderError> {
+            Err(CustodyProviderError::Denied)
+        }
     }
 
     #[test]

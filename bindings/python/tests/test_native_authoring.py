@@ -84,6 +84,7 @@ def test_mcp_profile_semantics_are_owned_by_rust() -> None:
         terminal,
         bytes([0x22]) * 32,
         50,
+        30,
     )
     canonical, arguments = mcp_action_bytes(action)
 
@@ -103,7 +104,20 @@ def test_mcp_profile_semantics_are_owned_by_rust() -> None:
             terminal,
             bytes([0x22]) * 32,
             50,
+            30,
         )
+    for validity in (0, 301):
+        with pytest.raises(ValueError):
+            native.prepare_mcp_action(
+                "reports",
+                "update_demo_record",
+                b'{"value":"reviewed"}',
+                ACTOR,
+                terminal,
+                bytes([0x22]) * 32,
+                50,
+                validity,
+            )
 
 
 def test_trust_compilation_and_request_binding_stay_native() -> None:

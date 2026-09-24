@@ -8,6 +8,7 @@ import Auths.Product.Refinement
 import Auths.Lifecycle.Theorems
 import Auths.Lifecycle.Refinement
 import Auths.Refinement.Production
+import Auths.Refinement.Observation
 import Auths.Observation
 
 namespace Auths
@@ -138,6 +139,19 @@ def theoremInventory : List Lean.Name :=
     `Auths.Product.Refinement.translated_checked_sub_refines_nat,
     `Auths.Product.Refinement.translated_checked_mul_refines_nat,
     `Auths.Product.Refinement.translated_checked_div_rejects_zero,
+    `Auths.Product.Refinement.translated_ceiling_count_refines_model,
+    `Auths.Product.Refinement.translated_ceiling_count_tightens_refines_model,
+    `Auths.Product.CeilingCount.code_eligible_iff,
+    `Auths.Product.CeilingCount.decider_iff_tightens,
+    `Auths.Product.CeilingCount.tightening_never_admits_more,
+    `Auths.Product.CeilingCount.decider_sound,
+    `Auths.Product.CeilingCount.smaller_ceiling_never_authorizes_more,
+    `Auths.Product.CeilingCount.smaller_count_never_authorizes_more,
+    `Auths.Product.CeilingCount.tightens_refl,
+    `Auths.Product.CeilingCount.tightens_trans,
+    `Auths.Product.CeilingCount.bounded_policy_law_lawful,
+    `Auths.Product.CeilingCount.bounded_policy_law_accepts_addition,
+    `Auths.Product.CeilingCount.ceiling_count_fixed_context_tightening,
     `Auths.Lifecycle.additive_capacity_success_positive,
     `Auths.Lifecycle.additive_capacity_success_conserves,
     `Auths.Lifecycle.additive_capacity_success_never_overflows_u64,
@@ -197,7 +211,21 @@ def theoremInventory : List Lean.Name :=
     `Auths.Observation.observation_requirement_law_accepts_addition,
     `Auths.exact_marker_law_lawful,
     `Auths.exact_marker_law_refuses_addition,
-    `Auths.Rich.ExtensionLawsNarrow.of_lawful
+    `Auths.Rich.ExtensionLawsNarrow.of_lawful,
+    `Auths.Refinement.Observation.translated_fact_name_equal_refines_model,
+    `Auths.Refinement.Observation.translated_observation_fresh_refines_model,
+    `Auths.Refinement.Observation.translated_observation_subject_equal_refines_model,
+    `Auths.Refinement.Observation.translated_fact_value_equal_refines_model,
+    `Auths.Refinement.Observation.translated_uint_range_contains_refines_model,
+    `Auths.Refinement.Observation.translated_member_values_contain_refines_model,
+    `Auths.Refinement.Observation.translated_observation_fact_refines_model,
+    `Auths.Refinement.Observation.translated_condition_value_holds_refines_model,
+    `Auths.Refinement.Observation.translated_observation_condition_holds_refines_model,
+    `Auths.Refinement.Observation.translated_observation_conditions_hold_refines_model,
+    `Auths.Refinement.Observation.translated_observation_conditions_length_mismatch_fails_closed,
+    `Auths.Refinement.Observation.translated_observation_conditions_hold_refines_conditions_hold,
+    `Auths.Refinement.Observation.translated_requirement_verdict_refines_model,
+    `Auths.Refinement.Observation.translated_requirement_verdict_refines_requirement_decision
   ]
 
 end Auths

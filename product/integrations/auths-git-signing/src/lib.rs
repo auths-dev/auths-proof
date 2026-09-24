@@ -12,7 +12,8 @@
 //! Principal methods are never named on the signing or verification path.
 //! A signer plugs in through [`sign::GitProofSigner`], and a verifier passes
 //! the executable registries for the methods it enables. Local agents sign
-//! as `did:key` ([`custody`]); CI workloads sign as their OIDC workload
+//! as `did:key` ([`custody`]), and production roots sign through
+//! `auths-custody` (KMS or PKCS#11); CI workloads sign as their OIDC workload
 //! identity ([`workload`]). The trust directory's `methods.json`
 //! ([`methods`]) enables the workload methods.
 //!
@@ -38,6 +39,8 @@ pub mod trust;
 pub mod verify;
 pub mod workload;
 
+#[cfg(test)]
+mod custody_tests;
 #[cfg(all(test, unix))]
 mod git_protocol_tests;
 #[cfg(test)]

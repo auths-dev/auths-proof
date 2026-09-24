@@ -4,5 +4,6 @@ import Auths.Attenuation
 import Auths.Composition
 import Auths.Diversity
 import Auths.Refinement.Production
+import Auths.Refinement.Observation
 import Auths.Rich.Mutations
 import Auths.Theorems

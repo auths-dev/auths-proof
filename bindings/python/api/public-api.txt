@@ -55,10 +55,14 @@ verify_receipt
 
 [auths.authoring]
 AuthoredMcpProof
+AuthoredMcpQuorumProof
 AuthoringUnsuccessful
 GrantEvidence
 ProductionAuthoringInputs
+QuorumApprover
+QuorumPlan
 author_mcp_proof
+author_mcp_quorum_proof
 author_production_mcp_proof
 
 [auths.attempts]
@@ -111,7 +115,9 @@ ObjectField
 OptionalField
 PreparedMcpAction
 RejectedCommand
+SignedObservationAttachment
 StringField
+attach_observations
 verify_command
 
 [auths.identity]

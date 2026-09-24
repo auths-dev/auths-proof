@@ -4,9 +4,10 @@
 
 use auths_author::{
     ApprovalPolicyCommitment, ExternalSigningRequest, GrantPlan, GrantRequest, OverGrantingWarning,
-    ProfilePlanCommitment, ProfilePlanMember, WorkflowAssemblyError, WorkflowProofBuilder,
-    address_evidence, commit_plan_approval, plan_child_grant, prepare_action, prepare_grant,
-    prepare_grant_status, prepare_principal_status, prepare_profile_action,
+    PreparedAction, ProfilePlanCommitment, ProfilePlanMember, WorkflowAssemblyError,
+    WorkflowProofBuilder, address_evidence, attach_observations, commit_plan_approval,
+    plan_child_grant, prepare_action, prepare_grant, prepare_grant_status,
+    prepare_principal_status, prepare_profile_action,
 };
 use auths_identity::{
     IdentityDescriptor, IdentityPacket, PublicIdentity, SignedIdentityMessage,
@@ -14,7 +15,7 @@ use auths_identity::{
 };
 use auths_identity_raw_key::RawKeyIdentityMethod;
 use auths_model::{
-    AcceptedRegistries, ActionConstraint, ActionEnvelope, AssuranceClaimId, AssuranceImplicationId,
+    AcceptedRegistries, ActionConstraint, AssuranceClaimId, AssuranceImplicationId,
     AssurancePolicy, AssurancePolicyId, AssuranceQuantifier, AssuranceRequirement, Audience,
     AudienceSet, AuthorizationPlan, BodyDigestSet, BudgetAlgebraId, BudgetCeiling, CapabilityId,
     Challenge, ChannelBindingId, CompositionRequirement, CriticalExtension, CriticalExtensions,
@@ -46,7 +47,7 @@ use auths_profile_domains::DomainReceiptInspector;
 use auths_profile_mcp::{
     McpCause, McpExecutionSession, McpHandlerEffect, McpHandlerResult, McpProfile,
     McpReservationResult, McpSessionKey, McpSessionStep, McpTerminal, McpToolCall,
-    mcp_authority_commitment,
+    mcp_authority_commitment, with_mcp_arguments_registries,
 };
 use auths_receipts::{
     AttestedDecisionReceipt, AttestedExecutionReceipt, ConfiguredReceiptVerifier, DecisionClass,
@@ -65,6 +66,9 @@ use serde_json::{Map, Value};
 use sha2::{Digest as _, Sha256};
 use std::{collections::BTreeSet, fmt};
 use wasm_bindgen::prelude::*;
+
+mod quorum;
+pub use quorum::{McpQuorumApproversV1, McpQuorumProofBuilderV1, McpQuorumV1};
 
 /// Version of the repository-owned authoring ABI exposed by this WASM module.
 pub const AUTHORING_ABI_V1: u16 = 1;
@@ -2499,12 +2503,100 @@ impl McpActionPreparationV1 {
     }
 }
 
-/// Canonicalizes one closed MCP call and prepares its exact action envelope.
+/// A prepared action carrying signed observations as detached attachments.
+#[wasm_bindgen]
+pub struct ObservationAttachmentV1 {
+    canonical_action_cbor: Vec<u8>,
+    action_envelope_cbor: Vec<u8>,
+}
+
+#[wasm_bindgen]
+impl ObservationAttachmentV1 {
+    /// Returns the canonical action with its detached observation bytes.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = canonicalActionCbor)]
+    pub fn canonical_action_cbor(&self) -> Vec<u8> {
+        self.canonical_action_cbor.clone()
+    }
+
+    /// Returns the unsigned action envelope whose descriptors bind them.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = actionEnvelopeCbor)]
+    pub fn action_envelope_cbor(&self) -> Vec<u8> {
+        self.action_envelope_cbor.clone()
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct OfferedObservation {
+    #[serde(rename = "mediaType")]
+    media_type: String,
+    observation: Vec<u8>,
+}
+
+/// Carries each signed observation as a detached attachment of a prepared
+/// action and binds its descriptor into the unsigned envelope, which must be
+/// signed afterwards.
+///
+/// `observations` is an array of `{ mediaType, observation }`. Only media
+/// type, size, count, and distinctness are checked; the verifier judges the
+/// observation.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for malformed canonical inputs, an envelope
+/// that does not bind the action, an action that already carries
+/// attachments, or a rejected observation set.
+#[wasm_bindgen(js_name = attachObservationsV1)]
+pub fn attach_observations_v1(
+    canonical_action_cbor: &[u8],
+    action_envelope_cbor: &[u8],
+    observations: JsValue,
+) -> Result<ObservationAttachmentV1, JsValue> {
+    let offered: Vec<OfferedObservation> =
+        serde_wasm_bindgen::from_value(observations).map_err(|_| {
+            js_error(EngineError::Abi(
+                "observations must be an array of { mediaType, observation }",
+            ))
+        })?;
+    attach_observations_native(canonical_action_cbor, action_envelope_cbor, &offered)
+        .map_err(js_error)
+}
+
+fn attach_observations_native(
+    canonical_action_cbor: &[u8],
+    action_envelope_cbor: &[u8],
+    offered: &[OfferedObservation],
+) -> Result<ObservationAttachmentV1, EngineError> {
+    if offered.len() > auths_model::MAX_OBSERVATION_ATTACHMENTS {
+        return Err(auths_author::ObservationAttachmentError::Count.into());
+    }
+    let limits = VerifierLimits::default_deployment();
+    let canonical = auths_codec::decode_canonical_action(canonical_action_cbor, &limits)?;
+    let envelope = auths_codec::decode_action_envelope(action_envelope_cbor, &limits)?;
+    let prepared = PreparedAction::bind(canonical, envelope)
+        .map_err(|_| EngineError::Abi("action envelope does not bind the canonical action"))?;
+    let pairs = offered
+        .iter()
+        .map(|item| (item.media_type.as_str(), item.observation.as_slice()))
+        .collect::<Vec<_>>();
+    let attached = attach_observations(prepared, &pairs)?;
+    Ok(ObservationAttachmentV1 {
+        canonical_action_cbor: auths_codec::encode_canonical_action(attached.canonical())?,
+        action_envelope_cbor: auths_codec::encode_action_envelope(attached.envelope())?,
+    })
+}
+
+/// Canonicalizes one closed MCP call and prepares its exact action envelope,
+/// valid from `evaluation_time` for `validity_seconds` (the native default
+/// when omitted, at most the native maximum), cut to the terminal grant.
 ///
 /// # Errors
 ///
 /// Returns a JavaScript error for malformed arguments, invalid profile
 /// identifiers, an invalid actor/challenge, or a malformed terminal grant.
+#[allow(clippy::too_many_arguments)]
 #[wasm_bindgen(js_name = prepareMcpActionV1)]
 pub fn prepare_mcp_action_v1(
     service: &str,
@@ -2514,6 +2606,7 @@ pub fn prepare_mcp_action_v1(
     terminal_grant_cbor: &[u8],
     challenge: &[u8],
     evaluation_time: u64,
+    validity_seconds: Option<u32>,
 ) -> Result<McpActionPreparationV1, JsValue> {
     let arguments = mcp_arguments_from_js(arguments).map_err(js_error)?;
     prepare_mcp_action_native(
@@ -2524,6 +2617,7 @@ pub fn prepare_mcp_action_v1(
         terminal_grant_cbor,
         challenge,
         evaluation_time,
+        validity_seconds.map(u64::from),
     )
     .map_err(js_error)
 }
@@ -2543,20 +2637,15 @@ pub fn verify_exact_mcp_arguments_v1(
     expected_service: &str,
     expected_name: &str,
 ) -> Result<Option<Vec<u8>>, JsValue> {
-    let raw_key = auths_raw_key::RawKeyMethod::new().map_err(js_error)?;
-    let did_key = auths_did_key::DidKeyMethod::new().map_err(js_error)?;
-    let did_keri = auths_did_keri::DidKeriMethod::new().map_err(js_error)?;
-    let ed25519 = auths_signature::Ed25519Suite::new().map_err(js_error)?;
-    let p256 = auths_signature::P256Sha256Suite::new().map_err(js_error)?;
-    let methods: [&dyn PrincipalMethod; 3] = [&raw_key, &did_key, &did_keri];
-    let suites: [&dyn SignatureSuite; 2] = [&ed25519, &p256];
-    let registries = ImmutableRegistries::new(&methods, &suites).map_err(js_error)?;
-    let sealed = auths_verifier::verify_v1_sealed(
-        proof_cbor,
-        canonical_action_cbor,
-        trusted_context_cbor,
-        &registries,
-    )
+    let sealed = with_packaged_registries(trusted_context_cbor, |registries| {
+        auths_verifier::verify_v1_sealed(
+            proof_cbor,
+            canonical_action_cbor,
+            trusted_context_cbor,
+            registries,
+        )
+    })
+    .map_err(js_error)?
     .map_err(js_error)?;
     let Some(command) = sealed
         .action()
@@ -3273,20 +3362,15 @@ pub fn begin_mcp_execution_v1(
             "MCP decision receipt ID must contain 32 bytes",
         ))
     })?;
-    let raw_key = auths_raw_key::RawKeyMethod::new().map_err(js_error)?;
-    let did_key = auths_did_key::DidKeyMethod::new().map_err(js_error)?;
-    let did_keri = auths_did_keri::DidKeriMethod::new().map_err(js_error)?;
-    let ed25519 = auths_signature::Ed25519Suite::new().map_err(js_error)?;
-    let p256 = auths_signature::P256Sha256Suite::new().map_err(js_error)?;
-    let methods: [&dyn PrincipalMethod; 3] = [&raw_key, &did_key, &did_keri];
-    let suites: [&dyn SignatureSuite; 2] = [&ed25519, &p256];
-    let registries = ImmutableRegistries::new(&methods, &suites).map_err(js_error)?;
-    let sealed = auths_verifier::verify_v1_sealed(
-        proof_cbor,
-        canonical_action_cbor,
-        trusted_context_cbor,
-        &registries,
-    )
+    let sealed = with_packaged_registries(trusted_context_cbor, |registries| {
+        auths_verifier::verify_v1_sealed(
+            proof_cbor,
+            canonical_action_cbor,
+            trusted_context_cbor,
+            registries,
+        )
+    })
+    .map_err(js_error)?
     .map_err(js_error)?;
     let (_, _, action) = sealed.into_parts();
     let action =
@@ -4281,7 +4365,9 @@ fn receipt_array32(value: &[u8], label: &'static str) -> Result<[u8; 32], JsValu
 }
 
 /// Prepares one action whose semantics were canonicalized by an
-/// application-owned closed profile.
+/// application-owned closed profile, valid from `evaluation_time` for
+/// `validity_seconds` (the native default when omitted, at most the native
+/// maximum), cut to the terminal grant.
 ///
 /// This boundary constructs protocol objects only. It does not interpret an
 /// operation tag, select an executor, or turn an authorized result into an
@@ -4308,6 +4394,7 @@ pub fn prepare_profile_action_v1(
     terminal_grant_cbor: &[u8],
     challenge: &[u8],
     evaluation_time: u64,
+    validity_seconds: Option<u32>,
 ) -> Result<ProfileActionPreparationV1, JsValue> {
     prepare_profile_action_native(
         profile_id,
@@ -4324,6 +4411,7 @@ pub fn prepare_profile_action_v1(
         terminal_grant_cbor,
         challenge,
         evaluation_time,
+        validity_seconds.map(u64::from),
     )
     .map_err(js_error)
 }
@@ -4344,6 +4432,7 @@ fn prepare_profile_action_native(
     terminal_grant_cbor: &[u8],
     challenge: &[u8],
     evaluation_time: u64,
+    validity_seconds: Option<u64>,
 ) -> Result<ProfileActionPreparationV1, EngineError> {
     let canonical = canonical_profile_action_native(
         profile_id,
@@ -4356,9 +4445,6 @@ fn prepare_profile_action_native(
         budget_algebra,
         budget_value,
     )?;
-    let profile = canonical.profile().clone();
-    let permission = canonical.permission().clone();
-    let requested_budget = canonical.requested_budget().cloned();
     let terminal_grant = auths_codec::decode_signed_grant(
         terminal_grant_cbor,
         &VerifierLimits::default_deployment(),
@@ -4366,37 +4452,26 @@ fn prepare_profile_action_native(
     let challenge: [u8; 32] = challenge
         .try_into()
         .map_err(|_| EngineError::Abi("challenge must contain exactly 32 bytes"))?;
-    let proof_ref = ProofRef::new(challenge);
-    let plan = AuthorizationPlan::proof(proof_ref);
     let audience = Audience::parse(audience)?;
-    let envelope = ActionEnvelope::new(
-        profile,
-        MediaType::parse(media_type)?,
-        auths_codec::body_digest(body),
-        permission,
-        requested_budget,
+    let resource = canonical.permission().resource().to_string();
+    let prepared = prepare_profile_action(
+        canonical,
         audience.clone(),
-        Challenge::new(challenge),
-        ValidityWindow::new(
-            Timestamp::new(evaluation_time),
-            Timestamp::new(evaluation_time),
-        )?,
         PrincipalId::parse(actor)?,
-        Some(auths_codec::grant_id(terminal_grant.statement())?),
-        auths_codec::plan_id(&plan)?,
-        ChannelBindingId::parse("none-v1")?,
-        proof_ref,
-        Vec::new(),
-        CriticalExtensions::empty(),
-    );
+        &terminal_grant,
+        challenge,
+        evaluation_time,
+        validity_seconds,
+    )?;
     Ok(ProfileActionPreparationV1 {
-        canonical_action_cbor: auths_codec::encode_canonical_action(&canonical)?,
-        action_envelope_cbor: auths_codec::encode_action_envelope(&envelope)?,
+        canonical_action_cbor: auths_codec::encode_canonical_action(prepared.canonical())?,
+        action_envelope_cbor: auths_codec::encode_action_envelope(prepared.envelope())?,
         audience: audience.to_string(),
-        resource: canonical.permission().resource().to_string(),
+        resource,
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn prepare_mcp_action_native(
     service: &str,
     name: &str,
@@ -4405,6 +4480,7 @@ fn prepare_mcp_action_native(
     terminal_grant_cbor: &[u8],
     challenge: &[u8],
     evaluation_time: u64,
+    validity_seconds: Option<u64>,
 ) -> Result<McpActionPreparationV1, EngineError> {
     let call = McpToolCall::new(service, name, arguments)?;
     let untrusted = call.canonical_bytes()?;
@@ -4424,6 +4500,7 @@ fn prepare_mcp_action_native(
         &terminal_grant,
         challenge,
         evaluation_time,
+        validity_seconds,
     )?;
     Ok(McpActionPreparationV1 {
         canonical_action_cbor: auths_codec::encode_canonical_action(prepared.canonical())?,
@@ -5074,6 +5151,27 @@ pub fn verify_self_contained_v1(
     canonical_action_cbor: &[u8],
     trusted_context_cbor: &[u8],
 ) -> Result<Vec<u8>, EngineError> {
+    Ok(with_packaged_registries(
+        trusted_context_cbor,
+        |registries| {
+            auths_verifier::verify_v1(
+                proof_cbor,
+                canonical_action_cbor,
+                trusted_context_cbor,
+                registries,
+            )
+        },
+    )??)
+}
+
+/// Runs `verify` under this distribution's packaged configuration, or under
+/// the `mcp-arguments-v1` configuration over the same methods and suites
+/// when the trusted context pins that one. Any other pin is left for the
+/// verifier to report as a configuration mismatch.
+fn with_packaged_registries<T>(
+    trusted_context_cbor: &[u8],
+    verify: impl FnOnce(&ImmutableRegistries<'_>) -> T,
+) -> Result<T, EngineError> {
     let raw_key = auths_raw_key::RawKeyMethod::new()?;
     let did_key = auths_did_key::DidKeyMethod::new()?;
     let did_keri = auths_did_keri::DidKeriMethod::new()?;
@@ -5081,12 +5179,20 @@ pub fn verify_self_contained_v1(
     let p256 = auths_signature::P256Sha256Suite::new()?;
     let methods: [&dyn PrincipalMethod; 3] = [&raw_key, &did_key, &did_keri];
     let suites: [&dyn SignatureSuite; 2] = [&ed25519, &p256];
-    let registries = ImmutableRegistries::new(&methods, &suites)?;
-    Ok(auths_verifier::verify_v1(
-        proof_cbor,
-        canonical_action_cbor,
-        trusted_context_cbor,
-        &registries,
+    let packaged = ImmutableRegistries::new(&methods, &suites)?;
+    let pinned = auths_codec::decode_verifier_context(trusted_context_cbor)
+        .ok()
+        .map(|context| context.configuration());
+    Ok(with_mcp_arguments_registries(
+        &methods,
+        &suites,
+        |arguments| {
+            verify(if pinned == Some(arguments.configuration_id()) {
+                arguments
+            } else {
+                &packaged
+            })
+        },
     )?)
 }
 
@@ -5203,6 +5309,8 @@ pub enum EngineError {
     Author(auths_author::AuthorError),
     /// Exact action or authorization-artifact assembly failed.
     Workflow(WorkflowAssemblyError),
+    /// Signed observations could not be attached to the action.
+    Attachment(auths_author::ObservationAttachmentError),
     /// MCP profile construction or canonicalization failed.
     Mcp(auths_profile_mcp::ProfileError),
     /// Profile contract construction or projection failed.
@@ -5217,6 +5325,8 @@ pub enum EngineError {
     Receipt(auths_receipts::ReceiptError),
     /// Receipt inspection or disclosure projection failed.
     Inspection(auths_receipts::ReceiptInspectionError),
+    /// Approval-quorum preparation or assembly failed.
+    Quorum(auths_approval_quorum::QuorumError),
     /// A binding-level invariant could not be represented.
     Abi(&'static str),
 }
@@ -5242,6 +5352,7 @@ impl EngineError {
             | Self::Planning(_)
             | Self::Author(_)
             | Self::Workflow(_)
+            | Self::Attachment(_)
             | Self::Mcp(_)
             | Self::Profile(_)
             | Self::Identity(_)
@@ -5249,6 +5360,7 @@ impl EngineError {
             | Self::Session(_)
             | Self::Receipt(_)
             | Self::Inspection(_)
+            | Self::Quorum(_)
             | Self::Abi(_) => "core.malformed-input",
         }
     }
@@ -5282,9 +5394,11 @@ impl fmt::Display for EngineError {
             Self::Planning(error) => write!(formatter, "could not plan child authority: {error}"),
             Self::Author(error) => write!(formatter, "could not prepare signing request: {error}"),
             Self::Workflow(error) => write!(formatter, "could not assemble workflow: {error}"),
+            Self::Attachment(error) => write!(formatter, "could not attach observations: {error}"),
             Self::Mcp(error) => write!(formatter, "could not construct MCP action: {error}"),
             Self::Profile(error) => write!(formatter, "MCP profile contract failed: {error}"),
             Self::Identity(error) => write!(formatter, "identity descriptor failed: {error}"),
+            Self::Quorum(error) => write!(formatter, "could not assemble approval quorum: {error}"),
             // These four variants exist only so the boundary can name a
             // registry code for an error that previously reached JavaScript
             // as its own bare `Display`. They add no prefix, because callers
@@ -5299,6 +5413,29 @@ impl fmt::Display for EngineError {
 }
 
 impl std::error::Error for EngineError {}
+
+impl From<auths_approval_quorum::QuorumError> for EngineError {
+    fn from(error: auths_approval_quorum::QuorumError) -> Self {
+        Self::Quorum(error)
+    }
+}
+
+impl From<auths_profile_mcp::McpArgumentsRegistryError> for EngineError {
+    fn from(error: auths_profile_mcp::McpArgumentsRegistryError) -> Self {
+        match error {
+            auths_profile_mcp::McpArgumentsRegistryError::Registry(error) => Self::Registry(error),
+            auths_profile_mcp::McpArgumentsRegistryError::Policy(_) => {
+                Self::Registry(auths_registries::RegistryError::InvalidBuiltin)
+            }
+        }
+    }
+}
+
+impl From<auths_author::ObservationAttachmentError> for EngineError {
+    fn from(error: auths_author::ObservationAttachmentError) -> Self {
+        Self::Attachment(error)
+    }
+}
 
 impl From<auths_model::ModelError> for EngineError {
     fn from(error: auths_model::ModelError) -> Self {
@@ -5597,6 +5734,7 @@ mod tests {
             &terminal,
             &[0x22; 32],
             50,
+            None,
         )
         .unwrap();
         let call = McpToolCall::new(

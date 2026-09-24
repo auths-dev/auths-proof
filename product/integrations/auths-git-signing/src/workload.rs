@@ -19,11 +19,12 @@
 //! verifier. Tokens are credentials: nothing here prints or logs them, and
 //! errors never carry response bodies.
 
-use crate::sign::{GitProofSigner, SignError};
-use auths_author::address_evidence;
+use crate::sign::{GitProofSigner, SignError, local_action, local_grant};
+use auths_author::{ExternalSigningRequest, address_evidence};
 use auths_model::{
-    Digest, EvidenceObject, EvidenceTypeId, MediaType, PrincipalId, PrincipalMethodId,
-    SignatureBytes, SignatureDescriptor, SignatureSuiteId,
+    ActionEnvelope, Digest, EvidenceObject, EvidenceTypeId, GrantStatement, MediaType, PrincipalId,
+    PrincipalMethodId, SignatureBytes, SignatureDescriptor, SignatureSuiteId, SignedAction,
+    SignedGrant,
 };
 use auths_oidc_workload::identity::{IssuerUrl, Subject};
 use auths_oidc_workload::jws::CompactJws;
@@ -253,6 +254,10 @@ fn ephemeral_p256_key() -> Result<P256SigningKey, WorkloadError> {
     Err(WorkloadError::Identity)
 }
 
+/// Custody label reported for ephemeral workload keys, which live only in
+/// this process for one signature.
+pub const WORKLOAD_CUSTODY: &str = "workload";
+
 /// Signs with ECDSA P-256/SHA-256 and returns the signature in the low-S
 /// form the kernel's P-256 suite accepts. `to_der` of the result is the
 /// encoding Fulcio and Rekor take.
@@ -329,8 +334,22 @@ impl GitProofSigner for OidcWorkloadSigner {
         self.evidence.clone()
     }
 
-    fn sign(&self, preimage: &[u8]) -> Result<SignatureBytes, SignError> {
-        sign_ed25519(&self.key, preimage)
+    fn custody(&self) -> &'static str {
+        WORKLOAD_CUSTODY
+    }
+
+    fn sign_grant(
+        &self,
+        request: ExternalSigningRequest<GrantStatement>,
+    ) -> Result<SignedGrant, SignError> {
+        local_grant(request, |preimage| sign_ed25519(&self.key, preimage))
+    }
+
+    fn sign_action(
+        &self,
+        request: ExternalSigningRequest<ActionEnvelope>,
+    ) -> Result<SignedAction, SignError> {
+        local_action(request, |preimage| sign_ed25519(&self.key, preimage))
     }
 }
 
@@ -464,7 +483,7 @@ impl GitProofSigner for SigstoreKeylessSigner<'_> {
         self.descriptor.clone()
     }
 
-    /// The certificate chain, and the Rekor entry once [`Self::sign`] has
+    /// The certificate chain, and the Rekor entry once a signature has
     /// recorded a signature. Without an entry the evidence is incomplete and
     /// verification fails.
     fn control_evidence(&self) -> Vec<EvidenceObject> {
@@ -473,10 +492,30 @@ impl GitProofSigner for SigstoreKeylessSigner<'_> {
         evidence
     }
 
+    fn custody(&self) -> &'static str {
+        WORKLOAD_CUSTODY
+    }
+
+    fn sign_grant(
+        &self,
+        request: ExternalSigningRequest<GrantStatement>,
+    ) -> Result<SignedGrant, SignError> {
+        local_grant(request, |preimage| self.sign_preimage(preimage))
+    }
+
+    fn sign_action(
+        &self,
+        request: ExternalSigningRequest<ActionEnvelope>,
+    ) -> Result<SignedAction, SignError> {
+        local_action(request, |preimage| self.sign_preimage(preimage))
+    }
+}
+
+impl SigstoreKeylessSigner<'_> {
     /// Signs `preimage` and records the signature in Rekor. The action
     /// carries the fixed-width low-S signature; Rekor records its DER
     /// encoding, which the adapter compares by value.
-    fn sign(&self, preimage: &[u8]) -> Result<SignatureBytes, SignError> {
+    pub(crate) fn sign_preimage(&self, preimage: &[u8]) -> Result<SignatureBytes, SignError> {
         let signature = sign_p256(&self.key, preimage);
         let fields = self
             .client

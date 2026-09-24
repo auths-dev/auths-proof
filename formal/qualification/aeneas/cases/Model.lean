@@ -228,3 +228,20 @@ example :
 #check critical_extension_id
 #check critical_extension_payload
 #check critical_extension_entries
+
+-- The bounded-policy link law: no link is accepted only without a parent
+-- bound, and a link needs a parent bound.
+example : bounded_policy.bounded_policy_link_accepts none none = ok true := by
+  rfl
+
+example :
+    bounded_policy.bounded_policy_link_accepts none
+      (some (Array.repeat 32#usize 0#u8)) = ok false := by
+  rfl
+
+example :
+    bounded_policy.bounded_policy_link_accepts
+      (some (Array.repeat 32#usize 0#u8)) none = ok false := by
+  rfl
+
+#check bounded_policy.digest_equal

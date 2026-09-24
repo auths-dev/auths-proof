@@ -2,8 +2,12 @@
 
 #![forbid(unsafe_code)]
 
+mod arguments;
 mod session;
 
+pub use arguments::{
+    MCP_ARGUMENTS_V1, McpArgumentsPolicy, McpArgumentsRegistryError, with_mcp_arguments_registries,
+};
 pub use session::*;
 
 use auths_model::{

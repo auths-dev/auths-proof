@@ -1,0 +1,25 @@
+[package]
+name = "auths-approval-quorum"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+description = "Authoring of one exact action approved by a threshold of distinct approvers"
+
+[dependencies]
+auths-author.workspace = true
+auths-codec.workspace = true
+auths-model.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+auths-profile-api.workspace = true
+auths-profile-mcp.workspace = true
+serde_json.workspace = true
+auths-raw-key = { workspace = true, features = ["std"] }
+auths-signature = { workspace = true, features = ["std"] }
+ed25519-dalek.workspace = true
+
+[lints]
+workspace = true

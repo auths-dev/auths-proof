@@ -223,6 +223,22 @@ name = "auths-algebra-kernel"
 version = "1.0.0-rc.1"
 
 [[package]]
+name = "auths-approval-quorum"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-author",
+ "auths-codec",
+ "auths-model",
+ "auths-profile-api",
+ "auths-profile-mcp",
+ "auths-raw-key",
+ "auths-signature",
+ "ed25519-dalek 2.2.0",
+ "serde_json",
+ "thiserror 2.0.19",
+]
+
+[[package]]
 name = "auths-apps-testkit"
 version = "1.0.0-rc.1"
 dependencies = [
@@ -443,8 +459,11 @@ name = "auths-custody"
 version = "1.0.0-rc.1"
 dependencies = [
  "auths-author",
+ "auths-did-key",
  "auths-model",
+ "auths-multikey",
  "auths-operations",
+ "auths-raw-key",
  "p256",
  "subtle",
 ]
@@ -454,8 +473,6 @@ name = "auths-custody-aws-kms"
 version = "1.0.0-rc.1"
 dependencies = [
  "auths-custody",
- "auths-model",
- "base64ct",
  "hex",
  "p256",
  "sha2 0.10.9",
@@ -466,8 +483,6 @@ name = "auths-custody-pkcs11"
 version = "1.0.0-rc.1"
 dependencies = [
  "auths-custody",
- "auths-model",
- "base64ct",
  "hex",
  "p256",
  "sha2 0.10.9",
@@ -580,16 +595,24 @@ dependencies = [
 name = "auths-gateway"
 version = "1.0.0-rc.1"
 dependencies = [
+ "auths-approval-quorum",
+ "auths-author",
+ "auths-bounded-policy",
  "auths-codec",
  "auths-connections",
+ "auths-custody",
+ "auths-custody-aws-kms",
+ "auths-custody-pkcs11",
  "auths-did-keri",
  "auths-did-key",
+ "auths-lifecycle",
  "auths-model",
  "auths-ports",
  "auths-profile-api",
  "auths-profile-mcp",
  "auths-raw-key",
  "auths-registries",
+ "auths-sdk",
  "auths-signature",
  "auths-stores",
  "auths-verifier",
@@ -598,8 +621,13 @@ dependencies = [
  "ed25519-dalek 2.2.0",
  "getrandom 0.3.4",
  "hex",
+ "minicbor",
+ "p256",
+ "postgres",
  "reqwest",
  "rustix",
+ "rustls",
+ "rustls-pki-types",
  "serde",
  "serde_json",
  "serde_json_canonicalizer",
@@ -607,6 +635,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.19",
  "tokio",
+ "tokio-postgres-rustls",
  "url",
  "zeroize",
 ]
@@ -617,6 +646,8 @@ version = "1.0.0-rc.1"
 dependencies = [
  "auths-author",
  "auths-codec",
+ "auths-custody",
+ "auths-custody-pkcs11",
  "auths-did-key",
  "auths-model",
  "auths-multikey",
@@ -1234,7 +1265,9 @@ dependencies = [
  "auths-codec",
  "auths-errors",
  "auths-model",
+ "auths-ports",
  "auths-profile-api",
+ "auths-registries",
  "auths-verifier",
  "hex",
  "hmac 0.12.1",
@@ -1438,6 +1471,7 @@ dependencies = [
 name = "auths-proof-python"
 version = "1.0.0-rc.1"
 dependencies = [
+ "auths-approval-quorum",
  "auths-author",
  "auths-codec",
  "auths-custody",
@@ -1476,6 +1510,7 @@ dependencies = [
 name = "auths-proof-wasm"
 version = "1.0.0-rc.1"
 dependencies = [
+ "auths-approval-quorum",
  "auths-author",
  "auths-codec",
  "auths-did-keri",

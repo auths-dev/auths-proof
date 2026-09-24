@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 287b868774a47c8f6132dda627d712a8e43f66883d5c1a606fb4f2775299c3e4
+# declaration-sha256 ac362fdc216c16367d01ce2d5753195c1f0dd1972874bf746393d9051b9a9606
 .	AuthsError	value+type
 .	AuthsIssue	type
 .	AuthsOperationError	value+type
@@ -51,13 +51,16 @@
 ./verify	Verifier	value+type
 ./self-hosted	arrayField	value
 ./self-hosted	ArrayField	type
+./self-hosted	attachObservations	value
 ./self-hosted	AttemptRecord	type
 ./self-hosted	AttemptState	type
 ./self-hosted	AttemptStore	type
 ./self-hosted	AuthoredMcpProof	type
+./self-hosted	AuthoredMcpQuorumProof	type
 ./self-hosted	AuthoringUnsuccessful	value+type
 ./self-hosted	AuthorizedCommand	type
 ./self-hosted	authorMcpProof	value
+./self-hosted	authorMcpQuorumProof	value
 ./self-hosted	authorProductionMcpProof	value
 ./self-hosted	booleanField	value
 ./self-hosted	BooleanField	type
@@ -83,10 +86,13 @@
 ./self-hosted	PreparedMcpAction	type
 ./self-hosted	ProductionAuthoringInputs	type
 ./self-hosted	ProviderOutcome	type
+./self-hosted	QuorumApprover	type
+./self-hosted	QuorumPlan	type
 ./self-hosted	reconcileReadOnly	value
 ./self-hosted	runOnce	value
 ./self-hosted	RunResult	type
 ./self-hosted	SelfHostedProviderAdapter	type
+./self-hosted	SignedObservationAttachment	type
 ./self-hosted	stringField	value
 ./self-hosted	StringField	type
 ./self-hosted	verifyCommand	value

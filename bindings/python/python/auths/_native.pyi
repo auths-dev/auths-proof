@@ -366,6 +366,33 @@ class McpAction:
     @property
     def review_fields(self) -> List[Tuple[str, str]]: ...
 
+class McpQuorum:
+    @property
+    def required(self) -> int: ...
+    @property
+    def approver_count(self) -> int: ...
+    @property
+    def approvers(self) -> List[str]: ...
+    @property
+    def plan_id(self) -> bytes: ...
+    @property
+    def canonical_plan(self) -> bytes: ...
+    @property
+    def proof_references(self) -> List[bytes]: ...
+    @property
+    def canonical_action(self) -> bytes: ...
+    @property
+    def arguments_json(self) -> bytes: ...
+    @property
+    def audience(self) -> str: ...
+    @property
+    def resource(self) -> str: ...
+    @property
+    def review_fields(self) -> List[Tuple[str, str]]: ...
+    @property
+    def validity(self) -> Tuple[int, int]: ...
+    def unsigned(self, index: int) -> UnsignedObject: ...
+
 class McpCall:
     @property
     def service(self) -> str: ...
@@ -782,6 +809,10 @@ def prepare_mcp_action(
     terminal_grant: SignedObject,
     challenge: bytes,
     evaluation_time: int,
+    validity_seconds: Optional[int] = None,
+) -> McpAction: ...
+def attach_mcp_observations(
+    action: McpAction, observations: List[Tuple[str, bytes]]
 ) -> McpAction: ...
 def canonicalize_mcp_arguments_json(arguments_json: bytes) -> bytes: ...
 def validate_mcp_service(service: str) -> None: ...
@@ -794,6 +825,7 @@ def prepare_mcp_call_action(
     terminal_grant: SignedObject,
     challenge: bytes,
     evaluation_time: int,
+    validity_seconds: Optional[int] = None,
 ) -> McpAction: ...
 def authorize_mcp(
     prepared: McpAction,
@@ -811,6 +843,27 @@ def assemble_mcp_proof(
     action_evidence: List[Tuple[str, str, bytes]],
     context: TrustedContext,
 ) -> Tuple[bytes, bytes, bytes]: ...
+def prepare_mcp_quorum(
+    service: str,
+    name: str,
+    arguments_json: bytes,
+    approvers: List[Tuple[Principal, Optional[SignedObject]]],
+    required: int,
+    challenge: bytes,
+    evaluation_time: int,
+    validity_seconds: Optional[int] = None,
+) -> McpQuorum: ...
+def assemble_mcp_quorum_proof(
+    quorum: McpQuorum,
+    approvals: List[
+        Tuple[
+            SignedObject,
+            List[SignedObject],
+            List[List[Tuple[str, str, bytes]]],
+            List[Tuple[str, str, bytes]],
+        ]
+    ],
+) -> bytes: ...
 def verify_exact_mcp_command(
     proof_cbor: bytes,
     canonical_action_cbor: bytes,

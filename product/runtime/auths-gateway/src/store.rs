@@ -1,6 +1,15 @@
-//! Single-host durable one-use claims. This store does not infer provider effect.
+//! Durable one-use gateway attempt claims. This store does not infer provider
+//! effect.
+//!
+//! [`GatewayAttempts`] owns the record format, its stages, and which stage
+//! changes are valid. It persists through a [`GatewayAttemptStore`], which is
+//! only an insert-once and compare-and-swap mechanism over opaque bounded
+//! bytes: [`FileGatewayAttemptStore`] for one host, and the qualified
+//! multi-host `PostgresLifecycleStore`.
 
 use crate::{ClosedProviderRequest, LogicalOperationId, OperatorNamespace, echo_token};
+use auths_lifecycle::StoreError;
+use auths_stores::{GatewayAttemptInsert, PostgresLifecycleStore};
 use base64ct::{Base64, Encoding as _};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
@@ -8,12 +17,13 @@ use std::{
     fs::{self, File, OpenOptions},
     io::Write as _,
     path::{Component, Path, PathBuf},
+    sync::Arc,
 };
 use tempfile::NamedTempFile;
 use thiserror::Error;
 
 const SCHEMA: &str = "auths.gateway-attempt/2";
-const MAX_RECORD_BYTES: usize = 131_072;
+const MAX_RECORD_BYTES: usize = auths_stores::MAX_GATEWAY_ATTEMPT_BYTES;
 const MAX_EVIDENCE_BYTES: usize = 65_536;
 const MAX_LOCATOR_BYTES: usize = 9_216;
 const MAX_EXPECTED_BYTES: usize = 8_192;
@@ -382,6 +392,67 @@ pub enum GatewayAttemptError {
     /// A claimed attempt attempted an invalid transition.
     #[error("invalid attempt transition")]
     InvalidTransition,
+    /// Another gateway process advanced this attempt first; nothing was
+    /// recorded by this caller.
+    #[error("attempt advanced concurrently")]
+    Conflict,
+}
+
+/// Storage key of one logical operation in one operator namespace.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct GatewayAttemptKey([u8; 32]);
+
+impl GatewayAttemptKey {
+    /// Derives the key of `operation_id` in `namespace`.
+    #[must_use]
+    pub fn for_operation(namespace: &OperatorNamespace, operation_id: &LogicalOperationId) -> Self {
+        let mut hash = Sha256::new();
+        hash.update(b"auths.gateway-logical-operation/1\0");
+        hash.update(namespace.as_str().as_bytes());
+        hash.update([0]);
+        hash.update(operation_id.as_str().as_bytes());
+        Self(hash.finalize().into())
+    }
+
+    /// Returns the key bytes.
+    #[must_use]
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+/// Durable insert-once and compare-and-swap storage of opaque attempt
+/// records. Implementations never interpret the bytes.
+///
+/// Every implementation must pass the same conformance suite: one winner per
+/// key across processes, no lost replacement, and fail-closed reads.
+pub trait GatewayAttemptStore: Send + Sync {
+    /// Stores `record` under `key` only when the key has never been stored.
+    ///
+    /// # Errors
+    /// Returns [`GatewayAttemptError::Replay`] when the key already exists,
+    /// including a record left by a crashed claim.
+    fn insert(&self, key: &GatewayAttemptKey, record: &[u8]) -> Result<(), GatewayAttemptError>;
+
+    /// Loads the record stored under `key`.
+    ///
+    /// # Errors
+    /// Returns [`GatewayAttemptError::Corrupt`] for unreadable or oversized
+    /// state; it is never reported as an unclaimed key.
+    fn load(&self, key: &GatewayAttemptKey) -> Result<Option<Vec<u8>>, GatewayAttemptError>;
+
+    /// Replaces the record under `key` with `next` only while it still
+    /// holds exactly `current`.
+    ///
+    /// # Errors
+    /// Returns [`GatewayAttemptError::Conflict`] when another writer replaced
+    /// it first.
+    fn replace(
+        &self,
+        key: &GatewayAttemptKey,
+        current: &[u8],
+        next: &[u8],
+    ) -> Result<(), GatewayAttemptError>;
 }
 
 /// Atomic file claim store for one host. This is not a multi-host claim store
@@ -434,18 +505,198 @@ impl FileGatewayAttemptStore {
         Ok(Self { root })
     }
 
+    fn path_for(&self, key: &GatewayAttemptKey) -> PathBuf {
+        self.root
+            .join(format!("claim-{}.json", hex::encode(key.as_bytes())))
+    }
+
+    fn read_path(path: &Path) -> Result<Option<Vec<u8>>, GatewayAttemptError> {
+        let bytes = match fs::read(path) {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(_) => return Err(GatewayAttemptError::Unavailable),
+        };
+        if bytes.is_empty() || bytes.len() > MAX_RECORD_BYTES {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        Ok(Some(bytes))
+    }
+
+    fn pending(&self, record: &[u8]) -> Result<NamedTempFile, GatewayAttemptError> {
+        let mut pending =
+            NamedTempFile::new_in(&self.root).map_err(|_| GatewayAttemptError::Unavailable)?;
+        pending
+            .write_all(record)
+            .and_then(|()| pending.as_file().sync_all())
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        Ok(pending)
+    }
+
+    /// Serializes replacements across every process on this host.
+    fn exclusive(&self) -> Result<File, GatewayAttemptError> {
+        let mut options = OpenOptions::new();
+        options.read(true).write(true).create(true).truncate(false);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt as _;
+            options.mode(0o600);
+        }
+        let lock = options
+            .open(self.root.join(".replace.lock"))
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        rustix::fs::flock(&lock, rustix::fs::FlockOperation::LockExclusive)
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        Ok(lock)
+    }
+}
+
+impl GatewayAttemptStore for FileGatewayAttemptStore {
+    fn insert(&self, key: &GatewayAttemptKey, record: &[u8]) -> Result<(), GatewayAttemptError> {
+        if record.is_empty() || record.len() > MAX_RECORD_BYTES {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        match self.pending(record)?.persist_noclobber(self.path_for(key)) {
+            Ok(_) => sync_directory(&self.root),
+            Err(error) if error.error.kind() == std::io::ErrorKind::AlreadyExists => {
+                Err(GatewayAttemptError::Replay)
+            }
+            Err(_) => Err(GatewayAttemptError::Unavailable),
+        }
+    }
+
+    fn load(&self, key: &GatewayAttemptKey) -> Result<Option<Vec<u8>>, GatewayAttemptError> {
+        Self::read_path(&self.path_for(key))
+    }
+
+    fn replace(
+        &self,
+        key: &GatewayAttemptKey,
+        current: &[u8],
+        next: &[u8],
+    ) -> Result<(), GatewayAttemptError> {
+        if next.is_empty() || next.len() > MAX_RECORD_BYTES {
+            return Err(GatewayAttemptError::Corrupt);
+        }
+        let path = self.path_for(key);
+        let _lock = self.exclusive()?;
+        if Self::read_path(&path)?.as_deref() != Some(current) {
+            return Err(GatewayAttemptError::Conflict);
+        }
+        self.pending(next)?
+            .persist(&path)
+            .map_err(|_| GatewayAttemptError::Unavailable)?;
+        sync_directory(&self.root)
+    }
+}
+
+/// The qualified multi-host store: attempts live in the lifecycle database
+/// under the same TLS, pooling, and schema contract as lifecycle records.
+///
+/// The pooled client blocks on its own runtime, so it is connected, used,
+/// and dropped only off the async executor.
+pub struct PostgresGatewayAttemptStore {
+    store: Option<Arc<PostgresLifecycleStore>>,
+}
+
+impl PostgresGatewayAttemptStore {
+    /// Uses an already connected lifecycle store, which may be shared with
+    /// lifecycle work in the same process.
+    #[must_use]
+    pub const fn new(store: Arc<PostgresLifecycleStore>) -> Self {
+        Self { store: Some(store) }
+    }
+
+    fn store(&self) -> Result<&PostgresLifecycleStore, GatewayAttemptError> {
+        self.store
+            .as_deref()
+            .ok_or(GatewayAttemptError::Unavailable)
+    }
+}
+
+impl Drop for PostgresGatewayAttemptStore {
+    fn drop(&mut self) {
+        if let Some(store) = self.store.take() {
+            let _ = std::thread::spawn(move || drop(store)).join();
+        }
+    }
+}
+
+impl GatewayAttemptStore for PostgresGatewayAttemptStore {
+    fn insert(&self, key: &GatewayAttemptKey, record: &[u8]) -> Result<(), GatewayAttemptError> {
+        match self.store()?.insert_gateway_attempt(key.as_bytes(), record) {
+            Ok(GatewayAttemptInsert::Inserted) => Ok(()),
+            Ok(GatewayAttemptInsert::Exists) => Err(GatewayAttemptError::Replay),
+            Err(error) => Err(postgres_error(error)),
+        }
+    }
+
+    fn load(&self, key: &GatewayAttemptKey) -> Result<Option<Vec<u8>>, GatewayAttemptError> {
+        self.store()?
+            .load_gateway_attempt(key.as_bytes())
+            .map_err(postgres_error)
+    }
+
+    fn replace(
+        &self,
+        key: &GatewayAttemptKey,
+        current: &[u8],
+        next: &[u8],
+    ) -> Result<(), GatewayAttemptError> {
+        self.store()?
+            .replace_gateway_attempt(key.as_bytes(), current, next)
+            .map_err(postgres_error)
+    }
+}
+
+const fn postgres_error(error: StoreError) -> GatewayAttemptError {
+    match error {
+        StoreError::Conflict => GatewayAttemptError::Conflict,
+        StoreError::Corrupt
+        | StoreError::LimitExceeded
+        | StoreError::SchemaMismatch
+        | StoreError::InvalidAcknowledgement
+        | StoreError::Rejected(_) => GatewayAttemptError::Corrupt,
+        StoreError::Unavailable | StoreError::PoolExhausted | StoreError::Timeout => {
+            GatewayAttemptError::Unavailable
+        }
+    }
+}
+
+/// Runs one blocking store operation off the async executor. The pooled
+/// `PostgreSQL` client must never block an executor thread.
+async fn blocking<T: Send + 'static>(
+    operation: impl FnOnce() -> Result<T, GatewayAttemptError> + Send + 'static,
+) -> Result<T, GatewayAttemptError> {
+    tokio::task::spawn_blocking(operation)
+        .await
+        .map_err(|_| GatewayAttemptError::Unavailable)?
+}
+
+/// Gateway attempt semantics over one durable [`GatewayAttemptStore`].
+#[derive(Clone)]
+pub struct GatewayAttempts {
+    store: Arc<dyn GatewayAttemptStore>,
+}
+
+impl GatewayAttempts {
+    /// Uses `store` for every claim and stage change.
+    #[must_use]
+    pub fn new(store: Arc<dyn GatewayAttemptStore>) -> Self {
+        Self { store }
+    }
+
     /// Claims one logical ID before credential access or transport entry. The
     /// record keeps the request's verified action commitment and observation
     /// target; a later echo token is always derived from this record.
     ///
     /// # Errors
-    /// An existing file, including a partial crashed claim, is `Replay`.
-    pub fn claim(
+    /// An existing record, including a crashed claim, is `Replay`.
+    pub async fn claim(
         &self,
         request: &ClosedProviderRequest,
         recipe_digest: [u8; 32],
     ) -> Result<ClaimedGatewayAttempt, GatewayAttemptError> {
-        let path = self.path_for(request.namespace(), request.operation_id());
+        let key = GatewayAttemptKey::for_operation(request.namespace(), request.operation_id());
         let mut nonce = [0_u8; 16];
         getrandom::fill(&mut nonce).map_err(|_| GatewayAttemptError::Unavailable)?;
         let record = Record {
@@ -463,42 +714,33 @@ impl FileGatewayAttemptStore {
             observation_fact: None,
             provider_evidence: None,
         };
-        let mut options = OpenOptions::new();
-        options.write(true).create_new(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt as _;
-            options.mode(0o600);
-        }
-        let mut file = match options.open(&path) {
-            Ok(file) => file,
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                return Err(GatewayAttemptError::Replay);
-            }
-            Err(_) => return Err(GatewayAttemptError::Unavailable),
-        };
-        file.write_all(&encode(&record)?)
-            .and_then(|()| file.sync_all())
-            .map_err(|_| GatewayAttemptError::Unavailable)?;
-        sync_directory(&self.root)?;
+        let stored = encode(&record)?;
+        let store = Arc::clone(&self.store);
+        let bytes = stored.clone();
+        blocking(move || store.insert(&key, &bytes)).await?;
         Ok(ClaimedGatewayAttempt {
-            root: self.root.clone(),
-            path,
-            record,
+            attempt: Attempt {
+                store: Arc::clone(&self.store),
+                key,
+                stored,
+                record,
+            },
         })
     }
 
-    /// Reads a secret-free durable snapshot. A prior `attempting` stage is
-    /// conservatively projected as `unknown` after restart.
+    /// Reads a secret-free durable snapshot. An `attempting` stage is
+    /// conservatively projected as `unknown`: another process may hold it, or
+    /// it may have crashed.
     ///
     /// # Errors
     /// Malformed state is a hard failure, not an unclaimed slot.
-    pub fn read(
+    pub async fn read(
         &self,
         namespace: &OperatorNamespace,
         operation_id: &LogicalOperationId,
     ) -> Result<Option<GatewayAttemptSnapshot>, GatewayAttemptError> {
-        self.load(namespace, operation_id)?
+        self.load(namespace, operation_id)
+            .await?
             .map(|(_, record)| record.snapshot(true))
             .transpose()
     }
@@ -507,17 +749,20 @@ impl FileGatewayAttemptStore {
     /// more read-only observation. It returns `None` unless the recipe declared
     /// an echo, the recipe digest is unchanged, and the new verified request
     /// names the same observation target and expected value stored at claim.
-    /// A crashed `attempting` record is not reopened: it cannot be told apart
-    /// from an in-flight attempt.
+    /// An `attempting` record is not reopened: it cannot be told apart from
+    /// an attempt still in flight in another process.
     ///
     /// # Errors
     /// Malformed state is a hard failure.
-    pub fn resume_observable(
+    pub async fn resume_observable(
         &self,
         request: &ClosedProviderRequest,
         recipe_digest: [u8; 32],
     ) -> Result<Option<ObservableGatewayAttempt>, GatewayAttemptError> {
-        let Some((path, record)) = self.load(request.namespace(), request.operation_id())? else {
+        let Some((stored, record)) = self
+            .load(request.namespace(), request.operation_id())
+            .await?
+        else {
             return Ok(None);
         };
         record.snapshot(false)?;
@@ -532,55 +777,64 @@ impl FileGatewayAttemptStore {
                 .is_some_and(|plan| plan.echo)
             && record.observation_plan == current;
         Ok(resumable.then(|| ObservableGatewayAttempt {
-            root: self.root.clone(),
-            path,
-            record,
+            attempt: Attempt {
+                store: Arc::clone(&self.store),
+                key: GatewayAttemptKey::for_operation(request.namespace(), request.operation_id()),
+                stored,
+                record,
+            },
         }))
     }
 
-    fn load(
+    async fn load(
         &self,
         namespace: &OperatorNamespace,
         operation_id: &LogicalOperationId,
-    ) -> Result<Option<(PathBuf, Record)>, GatewayAttemptError> {
-        let path = self.path_for(namespace, operation_id);
-        let bytes = match fs::read(&path) {
-            Ok(bytes) => bytes,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(_) => return Err(GatewayAttemptError::Unavailable),
+    ) -> Result<Option<(Vec<u8>, Record)>, GatewayAttemptError> {
+        let key = GatewayAttemptKey::for_operation(namespace, operation_id);
+        let store = Arc::clone(&self.store);
+        let Some(bytes) = blocking(move || store.load(&key)).await? else {
+            return Ok(None);
         };
-        if bytes.len() > MAX_RECORD_BYTES {
-            return Err(GatewayAttemptError::Corrupt);
-        }
-        let record: Record =
-            serde_json::from_slice(&bytes).map_err(|_| GatewayAttemptError::Corrupt)?;
+        let record = decode(&bytes)?;
         if record.namespace != namespace.as_str() || record.operation_id != operation_id.as_str() {
             return Err(GatewayAttemptError::Corrupt);
         }
-        Ok(Some((path, record)))
+        Ok(Some((bytes, record)))
     }
+}
 
-    fn path_for(
-        &self,
-        namespace: &OperatorNamespace,
-        operation_id: &LogicalOperationId,
-    ) -> PathBuf {
-        let mut hash = Sha256::new();
-        hash.update(b"auths.gateway-logical-operation/1\0");
-        hash.update(namespace.as_str().as_bytes());
-        hash.update([0]);
-        hash.update(operation_id.as_str().as_bytes());
-        self.root
-            .join(format!("claim-{}.json", hex::encode(hash.finalize())))
+/// One loaded or claimed attempt and the exact bytes it was read as.
+struct Attempt {
+    store: Arc<dyn GatewayAttemptStore>,
+    key: GatewayAttemptKey,
+    stored: Vec<u8>,
+    record: Record,
+}
+
+impl Attempt {
+    /// Persists `next` only as a valid stage change from the exact stored
+    /// record; a concurrent change by another process is a conflict.
+    async fn advance(mut self, next: Record) -> Result<Self, GatewayAttemptError> {
+        if !valid_transition(&self.record, &next) {
+            return Err(GatewayAttemptError::InvalidTransition);
+        }
+        let bytes = encode(&next)?;
+        let store = Arc::clone(&self.store);
+        let key = self.key;
+        let current = std::mem::take(&mut self.stored);
+        let replacement = bytes.clone();
+        blocking(move || store.replace(&key, &current, &replacement)).await?;
+        self.stored = bytes;
+        self.record = next;
+        Ok(self)
     }
 }
 
 /// A durable claim token; dropping it without a result leaves `unknown` on
 /// restart and never permits another automatic write.
 pub struct ClaimedGatewayAttempt {
-    root: PathBuf,
-    path: PathBuf,
-    record: Record,
+    attempt: Attempt,
 }
 
 impl ClaimedGatewayAttempt {
@@ -588,42 +842,40 @@ impl ClaimedGatewayAttempt {
     ///
     /// # Errors
     /// Persistence failure does not permit a retry.
-    pub fn record_not_entered(mut self) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
-        self.record.stage = GatewayAttemptStage::NotEntered;
-        replace(&self.root, &self.path, &self.record)?;
-        self.record.snapshot(false)
+    pub async fn record_not_entered(self) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
+        let mut next = self.attempt.record.clone();
+        next.stage = GatewayAttemptStage::NotEntered;
+        self.attempt.advance(next).await?.record.snapshot(false)
     }
 
     /// Records an ambiguous outcome while retaining replay history.
     ///
     /// # Errors
     /// Persistence failure does not permit a retry.
-    pub fn record_unknown(mut self) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
-        self.record.stage = GatewayAttemptStage::Unknown;
-        replace(&self.root, &self.path, &self.record)?;
-        self.record.snapshot(false)
+    pub async fn record_unknown(self) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
+        let mut next = self.attempt.record.clone();
+        next.stage = GatewayAttemptStage::Unknown;
+        self.attempt.advance(next).await?.record.snapshot(false)
     }
 
     /// Records a complete bounded HTTP response, never effect success.
     ///
     /// # Errors
     /// Rejects invalid status and persistence failure.
-    pub fn record_response(
-        mut self,
+    pub async fn record_response(
+        self,
         status: u16,
         digest: [u8; 32],
     ) -> Result<ObservableGatewayAttempt, GatewayAttemptError> {
         if !(100..=599).contains(&status) {
             return Err(GatewayAttemptError::InvalidTransition);
         }
-        self.record.stage = GatewayAttemptStage::ResponseRecorded;
-        self.record.response_status = Some(status);
-        self.record.response_digest = Some(hex::encode(digest));
-        replace(&self.root, &self.path, &self.record)?;
+        let mut next = self.attempt.record.clone();
+        next.stage = GatewayAttemptStage::ResponseRecorded;
+        next.response_status = Some(status);
+        next.response_digest = Some(hex::encode(digest));
         Ok(ObservableGatewayAttempt {
-            root: self.root,
-            path: self.path,
-            record: self.record,
+            attempt: self.attempt.advance(next).await?,
         })
     }
 }
@@ -631,9 +883,7 @@ impl ClaimedGatewayAttempt {
 /// A `response-recorded` or `unknown` attempt that may be advanced only by a
 /// separate read-only observation, never by another write.
 pub struct ObservableGatewayAttempt {
-    root: PathBuf,
-    path: PathBuf,
-    record: Record,
+    attempt: Attempt,
 }
 
 impl ObservableGatewayAttempt {
@@ -642,18 +892,19 @@ impl ObservableGatewayAttempt {
     /// # Errors
     /// Rejects contradictory state.
     pub fn snapshot(&self) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
-        self.record.snapshot(false)
+        self.attempt.record.snapshot(false)
     }
 
     /// Returns this attempt's echo token, derived from the stored verified
     /// commitment, when the recipe declared an echo field.
     #[must_use]
     pub fn echo_token(&self) -> Option<String> {
-        self.record
+        self.attempt
+            .record
             .observation_plan
             .as_ref()
             .filter(|plan| plan.echo)
-            .and_then(|_| self.record.echo_token().ok())
+            .and_then(|_| self.attempt.record.echo_token().ok())
     }
 
     /// Records read-back equality; a match does not prove this write caused it.
@@ -661,14 +912,14 @@ impl ObservableGatewayAttempt {
     ///
     /// # Errors
     /// Persistence failure retains only the recorded response.
-    pub fn record_observation(
-        mut self,
+    pub async fn record_observation(
+        self,
         matched: bool,
     ) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
-        self.record.stage = GatewayAttemptStage::Observed;
-        self.record.observation_match = Some(matched);
-        replace(&self.root, &self.path, &self.record)?;
-        self.record.snapshot(false)
+        let mut next = self.attempt.record.clone();
+        next.stage = GatewayAttemptStage::Observed;
+        next.observation_match = Some(matched);
+        self.attempt.advance(next).await?.record.snapshot(false)
     }
 
     /// Records `observed` with `matched: false` and the `echo-mismatch` fact.
@@ -676,12 +927,12 @@ impl ObservableGatewayAttempt {
     ///
     /// # Errors
     /// Persistence failure retains only the recorded response.
-    pub fn record_echo_mismatch(mut self) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
-        self.record.stage = GatewayAttemptStage::Observed;
-        self.record.observation_match = Some(false);
-        self.record.observation_fact = Some(GatewayObservationFact::EchoMismatch);
-        replace(&self.root, &self.path, &self.record)?;
-        self.record.snapshot(false)
+    pub async fn record_echo_mismatch(self) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
+        let mut next = self.attempt.record.clone();
+        next.stage = GatewayAttemptStage::Observed;
+        next.observation_match = Some(false);
+        next.observation_fact = Some(GatewayObservationFact::EchoMismatch);
+        self.attempt.advance(next).await?.record.snapshot(false)
     }
 
     /// Records terminal `observed-by-provider` with the exact response bytes.
@@ -691,13 +942,13 @@ impl ObservableGatewayAttempt {
     /// # Errors
     /// Rejects a recipe without echo, empty or oversized evidence, and
     /// persistence failure.
-    pub fn record_provider_evidence(
-        mut self,
+    pub async fn record_provider_evidence(
+        self,
         evidence: &[u8],
         observed_at: u64,
     ) -> Result<GatewayAttemptSnapshot, GatewayAttemptError> {
-        let plan = self
-            .record
+        let record = &self.attempt.record;
+        let plan = record
             .observation_plan
             .as_ref()
             .filter(|plan| plan.echo)
@@ -705,17 +956,17 @@ impl ObservableGatewayAttempt {
         if evidence.is_empty() || evidence.len() > MAX_EVIDENCE_BYTES {
             return Err(GatewayAttemptError::InvalidTransition);
         }
-        self.record.provider_evidence = Some(EvidenceWire {
+        let mut next = record.clone();
+        next.provider_evidence = Some(EvidenceWire {
             channel: GatewayEvidenceChannel::ReadBack,
             locator: plan.locator.clone(),
-            echo: self.record.echo_token()?,
+            echo: record.echo_token()?,
             evidence_digest: hex::encode(Sha256::digest(evidence)),
             evidence_b64: Base64::encode_string(evidence),
             observed_at,
         });
-        self.record.stage = GatewayAttemptStage::ObservedByProvider;
-        replace(&self.root, &self.path, &self.record)?;
-        self.record.snapshot(false)
+        next.stage = GatewayAttemptStage::ObservedByProvider;
+        self.attempt.advance(next).await?.record.snapshot(false)
     }
 }
 
@@ -727,20 +978,22 @@ fn encode(record: &Record) -> Result<Vec<u8>, GatewayAttemptError> {
     Ok(bytes)
 }
 
-fn replace(root: &Path, path: &Path, record: &Record) -> Result<(), GatewayAttemptError> {
-    let bytes = fs::read(path).map_err(|_| GatewayAttemptError::Unavailable)?;
-    if bytes.len() > MAX_RECORD_BYTES {
+fn decode(bytes: &[u8]) -> Result<Record, GatewayAttemptError> {
+    if bytes.is_empty() || bytes.len() > MAX_RECORD_BYTES {
         return Err(GatewayAttemptError::Corrupt);
     }
-    let old: Record = serde_json::from_slice(&bytes).map_err(|_| GatewayAttemptError::Corrupt)?;
-    if old.nonce != record.nonce
-        || old.namespace != record.namespace
-        || old.operation_id != record.operation_id
-        || old.action_commitment != record.action_commitment
-        || old.recipe_digest != record.recipe_digest
-        || old.observation_plan != record.observation_plan
-        || !matches!(
-            (old.stage, record.stage),
+    serde_json::from_slice(bytes).map_err(|_| GatewayAttemptError::Corrupt)
+}
+
+fn valid_transition(old: &Record, new: &Record) -> bool {
+    old.nonce == new.nonce
+        && old.namespace == new.namespace
+        && old.operation_id == new.operation_id
+        && old.action_commitment == new.action_commitment
+        && old.recipe_digest == new.recipe_digest
+        && old.observation_plan == new.observation_plan
+        && matches!(
+            (old.stage, new.stage),
             (
                 GatewayAttemptStage::Attempting,
                 GatewayAttemptStage::NotEntered
@@ -754,18 +1007,7 @@ fn replace(root: &Path, path: &Path, record: &Record) -> Result<(), GatewayAttem
                 GatewayAttemptStage::ObservedByProvider
             )
         )
-    {
-        return Err(GatewayAttemptError::InvalidTransition);
-    }
-    let mut pending = NamedTempFile::new_in(root).map_err(|_| GatewayAttemptError::Unavailable)?;
-    pending
-        .write_all(&encode(record)?)
-        .and_then(|()| pending.as_file().sync_all())
-        .map_err(|_| GatewayAttemptError::Unavailable)?;
-    pending
-        .persist(path)
-        .map_err(|_| GatewayAttemptError::Unavailable)?;
-    sync_directory(root)
+        && new.snapshot(false).is_ok()
 }
 
 fn sync_directory(root: &Path) -> Result<(), GatewayAttemptError> {
@@ -776,4 +1018,44 @@ fn sync_directory(root: &Path) -> Result<(), GatewayAttemptError> {
     #[cfg(not(unix))]
     let _ = root;
     Ok(())
+}
+
+/// Per-window count slots use the same insert-once mechanism as attempt
+/// claims, under keys from their own hash domain, so every attempt store,
+/// including the qualified multi-host store, also holds the counts.
+impl<S: GatewayAttemptStore + ?Sized> crate::bounds::BoundedCountStore for S {
+    fn insert_count_slot(
+        &self,
+        key: &[u8; 32],
+        record: &[u8],
+    ) -> Result<bool, GatewayAttemptError> {
+        match self.insert(&GatewayAttemptKey(*key), record) {
+            Ok(()) => Ok(true),
+            Err(GatewayAttemptError::Replay) => Ok(false),
+            Err(error) => Err(error),
+        }
+    }
+
+    fn count_slot_exists(&self, key: &[u8; 32]) -> Result<bool, GatewayAttemptError> {
+        self.load(&GatewayAttemptKey(*key))
+            .map(|slot| slot.is_some())
+    }
+}
+
+impl GatewayAttempts {
+    /// Reserves one per-window count slot off the async executor.
+    pub(crate) async fn reserve_window(
+        &self,
+        reservation: &crate::bounds::WindowReservation,
+        operation: &LogicalOperationId,
+    ) -> Result<(), crate::bounds::ReserveRefusal> {
+        let store = Arc::clone(&self.store);
+        let reservation = reservation.clone();
+        let operation = operation.clone();
+        tokio::task::spawn_blocking(move || {
+            crate::bounds::reserve_window(&*store, &reservation, &operation)
+        })
+        .await
+        .map_err(|_| crate::bounds::ReserveRefusal::Unavailable)?
+    }
 }

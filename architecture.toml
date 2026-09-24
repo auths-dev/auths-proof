@@ -95,6 +95,7 @@ no_std_packages = [
 [packages]
 auths-algebra-kernel = "core"
 auths-apps-testkit = "demos"
+auths-approval-quorum = "product"
 auths-identity = "core"
 auths-identity-authority = "core"
 auths-identity-raw-key = "core"
@@ -237,6 +238,9 @@ allowed_workspace_dependencies = ["auths-model", "auths-ports", "auths-raw-key-c
 
 # Git signing must never reach auths-did-keri. The allowlist grows only by
 # explicit, reviewed additions as later steps need core crates.
+# auths-custody and its closure (auths-operations, auths-config, auths-errors,
+# auths-proof-exchange-model, auths-raw-key) hold production roots behind
+# KMS or PKCS#11 custody; none of them reaches auths-did-keri.
 [dependency_boundaries.git-signing]
 roots = ["auths-git-signing"]
 allowed_workspace_dependencies = [
@@ -246,12 +250,18 @@ allowed_workspace_dependencies = [
   "auths-authority",
   "auths-codec",
   "auths-composition",
+  "auths-config",
+  "auths-custody",
   "auths-did-key",
+  "auths-errors",
   "auths-model",
   "auths-multikey",
   "auths-oidc-workload",
+  "auths-operations",
   "auths-path-webpki",
   "auths-ports",
+  "auths-proof-exchange-model",
+  "auths-raw-key",
   "auths-raw-key-core",
   "auths-registries",
   "auths-signature",
