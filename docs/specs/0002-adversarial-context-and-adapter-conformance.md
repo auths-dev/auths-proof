@@ -734,11 +734,24 @@ Go, and TypeScript verifiers:
 | revoked intermediate delegate | `denied`, `principal-revoked` |
 | superseded delegate | `denied`, `principal-revoked` |
 | fresh snapshot, active grant statements, no statement for any delegate or the actor | `authorized` |
-| delegate with no statement under a stale snapshot | `indeterminate`, `stale-status` |
+| delegate statement below its issuer's sequence floor | `denied`, `status-sequence-rollback` |
 | delegate whose revocation is stale | `indeterminate`, `stale-status` |
 | revoked actor holding a grant whose own status policy is `ExpiryOnly` | `denied`, `principal-revoked`, not `delegation-expanded`: status checks run first and use the anchor's policy |
 | revoked delegate, with the anchor and every grant `ExpiryOnly` | `authorized`: principal status is not evaluated |
+| two trusted statements for a delegate at the greatest sequence, one of them stale | `indeterminate`, `stale-status` |
+| a delegate statement without bound control evidence, beside a valid one | `indeterminate`, `missing-principal-evidence` |
+| grant-status statement below its issuer's sequence floor | `denied`, `status-sequence-rollback` |
 
-The per-principal work reservation changes the resource totals of existing
-vectors whose anchor requires a snapshot; those vectors are regenerated in the
-same change.
+A stale snapshot has no delegate-specific vector: the trust anchor's check runs
+first against the same snapshot and reports it.
+
+The last three vectors pin selection rules on which the Go and TypeScript
+verifiers had diverged from the native verifier. They ignored a trusted
+statement below its issuer's floor, judged freshness only for the one
+statement they selected, and required control only for that statement. Before
+this amendment each divergence could authorize an action the native verifier
+refuses; the independent verifiers now follow the "Principal status" steps in
+`core/spec/v1/verification-algorithm.md`.
+
+No existing vector changed. In every one whose anchor requires a snapshot,
+either the anchor's own check fails first or the chain has no grants.
