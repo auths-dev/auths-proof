@@ -11,13 +11,26 @@ publish = false
 # Development and CI only: lets `serve --loopback-provider <port>` send
 # provider requests to a plain-HTTP provider double on 127.0.0.1.
 loopback-provider = []
+testkit-harness = []
+
+[[bin]]
+name = "auths-gateway"
+path = "src/bin/auths-gateway.rs"
+
+[[bin]]
+name = "auths-gateway-harness"
+path = "src/bin/auths-gateway-harness.rs"
+required-features = ["testkit-harness"]
 
 [dependencies]
+auths-author.workspace = true
 auths-bounded-policy.workspace = true
 auths-connections.workspace = true
 auths-codec.workspace = true
 auths-did-keri.workspace = true
+auths-custody.workspace = true
 auths-did-key.workspace = true
+auths-lifecycle.workspace = true
 auths-model.workspace = true
 auths-ports.workspace = true
 auths-profile-api.workspace = true
@@ -47,7 +60,16 @@ zeroize.workspace = true
 
 [dev-dependencies]
 auths-approval-quorum.workspace = true
+auths-author.workspace = true
 auths-sdk.workspace = true
+auths-custody = { workspace = true, features = ["conformance"] }
+auths-custody-aws-kms.workspace = true
+auths-custody-pkcs11.workspace = true
+p256.workspace = true
+postgres.workspace = true
+rustls.workspace = true
+rustls-pki-types = { workspace = true, features = ["std"] }
+tokio-postgres-rustls.workspace = true
 
 [lints]
 workspace = true

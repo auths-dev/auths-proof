@@ -1,17 +1,25 @@
-//! Software custody for a local `did:key` signer.
+//! Custody for `did:key` signers.
 //!
-//! The Ed25519 seed lives in one file readable only by its owner. Loading
-//! refuses a file that group or other can access. The seed never appears in
-//! arguments, the environment, output, or Git configuration, and it is
-//! zeroized when the key is dropped. Signatures report custody as `software`,
-//! so nobody mistakes this for hardware protection.
+//! [`SoftwareKey`] is the development path: the Ed25519 seed lives in one
+//! file readable only by its owner. Loading refuses a file that group or
+//! other can access. The seed never appears in arguments, the environment,
+//! output, or Git configuration, and it is zeroized when the key is dropped.
+//! Signatures report custody as `software`, so nobody mistakes this for
+//! hardware protection.
+//!
+//! [`CustodyKeySigner`] is the production path for roots: a P-256 key held
+//! behind `auths-custody` (KMS or PKCS#11). The private key never enters this
+//! process, and grants and revocation records go through the same
+//! transaction-bound request and response check as all other custody.
 
-use crate::sign::{GitProofSigner, SignError};
-use auths_author::address_evidence;
+use crate::sign::{GitProofSigner, SignError, local_action, local_grant};
+use auths_author::{ExternalSigningRequest, address_evidence};
+use auths_custody::{CustodyKey, CustodyPrincipalForm};
 use auths_did_key::{DID_KEY_MEDIA_TYPE, DID_KEY_V1, DidKeyEvidence};
 use auths_model::{
-    EvidenceObject, EvidenceTypeId, MediaType, PrincipalId, PrincipalMethodId, SignatureBytes,
-    SignatureDescriptor, SignatureSuiteId,
+    ActionEnvelope, EvidenceObject, EvidenceTypeId, GrantStatement, MediaType, PrincipalId,
+    PrincipalMethodId, SignatureBytes, SignatureDescriptor, SignatureSuiteId, SignedAction,
+    SignedGrant,
 };
 use auths_multikey::{Multikey, MultikeyType};
 use auths_signature::ED25519_V1;
@@ -174,9 +182,82 @@ impl GitProofSigner for SoftwareKey {
         vec![self.control.clone()]
     }
 
-    fn sign(&self, preimage: &[u8]) -> Result<SignatureBytes, SignError> {
+    fn custody(&self) -> &'static str {
+        SOFTWARE_CUSTODY
+    }
+
+    fn sign_grant(
+        &self,
+        request: ExternalSigningRequest<GrantStatement>,
+    ) -> Result<SignedGrant, SignError> {
+        local_grant(request, |preimage| self.sign_preimage(preimage))
+    }
+
+    fn sign_action(
+        &self,
+        request: ExternalSigningRequest<ActionEnvelope>,
+    ) -> Result<SignedAction, SignError> {
+        local_action(request, |preimage| self.sign_preimage(preimage))
+    }
+}
+
+impl SoftwareKey {
+    fn sign_preimage(&self, preimage: &[u8]) -> Result<SignatureBytes, SignError> {
         SignatureBytes::new(self.key.sign(preimage).to_bytes().to_vec())
             .map_err(|_| SignError::Signer)
+    }
+}
+
+/// A `did:key` signer whose P-256 key is held behind `auths-custody`.
+pub struct CustodyKeySigner {
+    key: CustodyKey,
+}
+
+impl CustodyKeySigner {
+    /// Uses a custody-held key presented as `did:key`, the method Git trust
+    /// pins roots under.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CustodyError::Identity`] for a key presented under another
+    /// principal method.
+    pub fn new(key: CustodyKey) -> Result<Self, CustodyError> {
+        if key.identity().form() != CustodyPrincipalForm::DidKeyV1 {
+            return Err(CustodyError::Identity);
+        }
+        Ok(Self { key })
+    }
+}
+
+impl GitProofSigner for CustodyKeySigner {
+    fn principal(&self) -> PrincipalId {
+        self.key.identity().principal().clone()
+    }
+
+    fn descriptor(&self) -> SignatureDescriptor {
+        self.key.identity().signature().clone()
+    }
+
+    fn control_evidence(&self) -> Vec<EvidenceObject> {
+        vec![self.key.identity().control_evidence().clone()]
+    }
+
+    fn custody(&self) -> &'static str {
+        self.key.kind().label()
+    }
+
+    fn sign_grant(
+        &self,
+        request: ExternalSigningRequest<GrantStatement>,
+    ) -> Result<SignedGrant, SignError> {
+        self.key.sign_grant(request).map_err(SignError::Custody)
+    }
+
+    fn sign_action(
+        &self,
+        request: ExternalSigningRequest<ActionEnvelope>,
+    ) -> Result<SignedAction, SignError> {
+        self.key.sign_action(request).map_err(SignError::Custody)
     }
 }
 

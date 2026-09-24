@@ -84,7 +84,7 @@ async function seededSigner(name, { reject = false } = {}) {
   };
 }
 
-async function author(caseId, names, required, signers) {
+async function author(caseId, names, required, signers, validitySeconds) {
   return authorMcpQuorumProof({
     contract,
     command: contract.decode(JSON.parse(cases.get(caseId).arguments_json)),
@@ -93,8 +93,8 @@ async function author(caseId, names, required, signers) {
       .map((signer) => ({ signer })),
     trustedContextTemplate: template,
     challenge,
-    evaluationTime: BigInt(fixture.not_before),
-    expiresAt: BigInt(fixture.expires_at),
+    evaluationTime: BigInt(fixture.authored_at),
+    ...(validitySeconds === undefined ? {} : { validitySeconds }),
   });
 }
 
@@ -108,8 +108,27 @@ for (const item of fixture.cases.filter((candidate) => candidate.decision === "a
     assert.deepEqual(authored.plan.approvers, item.approvers.map((name) => members.get(name).principal));
     assert.equal(new Set(authored.plan.proofReferences.map((value) => Buffer.from(value).toString("hex"))).size,
       item.approvers.length);
+    assert.deepEqual([authored.plan.validFrom, authored.plan.validUntil],
+      [BigInt(fixture.authored_at), BigInt(fixture.authored_at + fixture.validity_seconds)]);
   });
 }
+
+test("the quorum window defaults to a day and is configurable", async () => {
+  const item = cases.get("two-of-three-managers");
+  assert.equal(fixture.validity_seconds, 86_400);
+  const explicit = await author(item.id, item.approvers, 2, undefined, fixture.validity_seconds);
+  assert.deepEqual(explicit.proof, b64(item.proof_b64));
+  const shorter = await author(item.id, item.approvers, 2, undefined, 3_600);
+  assert.equal(shorter.plan.validUntil, BigInt(fixture.authored_at + 3_600));
+  assert.notDeepEqual(shorter.proof, explicit.proof);
+  // A week passes the native bound; the one-day trust anchors then refuse it.
+  await assert.rejects(author(item.id, item.approvers, 2, undefined, 604_800), (error) =>
+    error instanceof AuthoringUnsuccessful && error.code === "action-outside-validity");
+  for (const invalid of [0, 604_801]) {
+    await assert.rejects(author(item.id, item.approvers, 2, undefined, invalid), (error) =>
+      !(error instanceof AuthoringUnsuccessful));
+  }
+});
 
 test("every approver reviews the same action and quorum", async () => {
   const signers = await Promise.all(["manager-a", "manager-b", "manager-c"].map((name) => seededSigner(name)));
@@ -119,7 +138,8 @@ test("every approver reviews the same action and quorum", async () => {
   const fields = Object.fromEntries(signers[0].requests[0].display.map((field) => [field.label, field.value]));
   assert.equal(fields["approval quorum"], "2 of 3");
   assert.equal(new Set(signers.map((signer) => Buffer.from(signer.requests[0].objectId).toString("hex"))).size, 3);
-  assert.ok(signers.every((signer) => signer.requests[0].expiresAtUnixSeconds === BigInt(fixture.expires_at)));
+  assert.ok(signers.every((signer) => signer.requests[0].expiresAtUnixSeconds ===
+    BigInt(fixture.authored_at + fixture.validity_seconds)));
 });
 
 test("the TypeScript verifier decides every gateway vector identically", async () => {

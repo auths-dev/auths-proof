@@ -54,6 +54,25 @@ verifier requires one signed action for every leaf of the plan. So:
 An approver who declines stops authoring with `AuthoringUnsuccessful`. The
 SDK never submits a partial quorum.
 
+## The approval window
+
+Human approvers need hours, not seconds. Every approval carries the same
+validity: from `evaluation_time` for `validity_seconds`, which defaults to
+24 hours and is at most 7 days. Both values are held only in
+`auths-approval-quorum`; the single-signer defaults (30 s, at most 300 s)
+are unchanged. The window is cut to the earliest terminal-grant expiry among
+the approvers, and the arithmetic is the same core rule single-signer
+authoring uses.
+
+Every approval must be collected, and the proof verified by the gateway,
+inside the window. Each approver's custody signing request stays valid for
+the whole window. The gateway authorizes a quorum 23 hours after approval
+and denies it with `action-outside-validity` after the window, before any
+credential lease. The window is not a replay defence: the gateway's durable
+one-use claim refuses a second entry inside and after it. `authored.plan`
+reports the window as `valid_from` and `valid_until` (`validFrom` and
+`validUntil` in TypeScript).
+
 ## Python
 
 ```python
@@ -70,7 +89,6 @@ authored = await author_mcp_quorum_proof(
     trusted_context_template=operator_template,
     challenge=installed_challenge,
     evaluation_time=now,
-    expires_at=now + 900,
 )
 gateway = GatewayClient(GatewayEndpoint(Path("/run/auths/app.sock")))
 result = await gateway.submit(proof=authored.proof, action=authored.action)
@@ -95,7 +113,6 @@ const authored = await authorMcpQuorumProof({
   trustedContextTemplate: operatorTemplate,
   challenge: installedChallenge,
   evaluationTime: now,
-  expiresAt: now + 900n,
 });
 const gateway = new GatewayClient(new GatewayEndpoint("/run/auths/app.sock"));
 const result = await gateway.submit({ proof: authored.proof, action: authored.action });

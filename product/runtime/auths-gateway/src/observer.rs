@@ -1,11 +1,15 @@
 //! Gateway observer: the signing identity that turns what the gateway itself
 //! saw into observations a grant's observation requirements can consume.
 //!
-//! The observer is a self-certifying `raw-key-v1` Ed25519 principal. Its
-//! 32-byte seed is created by the operator in the gateway's private state
-//! directory (mode 0600, never overwritten), loaded only by the gateway
-//! process, and zeroized when dropped. The application never reaches it: the
-//! application socket can only ask the gateway to observe and sign.
+//! The development observer is a self-certifying `raw-key-v1` Ed25519
+//! principal. Its 32-byte seed is created by the operator in the gateway's
+//! private state directory (mode 0600, never overwritten), loaded only by the
+//! gateway process, and zeroized when dropped. A production observer is held
+//! behind `auths-custody` (KMS or PKCS#11): the gateway never holds its
+//! private key, and every observation goes through the transaction-bound
+//! custody request and local verification. Either way the application never
+//! reaches the key: the application socket can only ask the gateway to
+//! observe and sign.
 //!
 //! An observer can make facts count; it cannot authorize anything. A trusted
 //! context lists it as an observer anchor, and the verifier refuses a proof in
@@ -25,6 +29,7 @@
 
 use crate::{GatewayAttemptSnapshot, LogicalOperationId, OperatorNamespace};
 use auths_codec::{encode_signed_observation, evidence_id, observation_signing_preimage};
+use auths_custody::{CustodyError, CustodyKey, CustodyKind};
 use auths_model::{
     EvidenceId, EvidenceObject, EvidenceTypeId, FactName, FactText, FactValue, MediaType,
     ObservationFact, ObservationFacts, ObservationSchemaId, ObservationStatement, PrincipalId,
@@ -72,6 +77,10 @@ pub enum GatewayObserverError {
     /// The subject or facts exceed the observation model's bounds.
     #[error("the observation is not representable")]
     Unrepresentable,
+    /// The custody boundary refused to sign, or its response did not bind to
+    /// the exact observation.
+    #[error("custody refused the observation: {0}")]
+    Custody(CustodyError),
 }
 
 impl GatewayObserverError {
@@ -86,13 +95,39 @@ impl GatewayObserverError {
             Self::Create => "gateway.observer.key-create-failed",
             Self::Identity => "gateway.observer.identity",
             Self::Unrepresentable => "gateway.observer.unrepresentable",
+            Self::Custody(error) => error.stable_code(),
         }
     }
 }
 
+/// Where the observer's private key is held.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ObserverCustody {
+    /// A seed file in the gateway's private state; development only.
+    Software,
+    /// An external custody provider; the gateway never holds the key.
+    External(CustodyKind),
+}
+
+impl ObserverCustody {
+    /// Returns the stable custody label the observer reports.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Software => "software",
+            Self::External(kind) => kind.label(),
+        }
+    }
+}
+
+enum ObserverKey {
+    Software(Box<SigningKey>),
+    Custody(Box<CustodyKey>),
+}
+
 /// The gateway's observer signing key and its public identity.
 pub struct GatewayObserver {
-    key: SigningKey,
+    key: ObserverKey,
     principal: PrincipalId,
     descriptor: SignatureDescriptor,
     control: EvidenceObject,
@@ -200,15 +235,45 @@ impl GatewayObserver {
         )
         .map_err(|_| GatewayObserverError::Identity)?;
         Ok(Self {
-            key,
+            key: ObserverKey::Software(Box::new(key)),
             principal,
             descriptor,
             control,
         })
     }
 
+    /// Uses a custody-held key. The gateway process never holds its private
+    /// key; each observation is a transaction-bound custody request whose
+    /// signature is verified locally before it is returned.
+    ///
+    /// # Errors
+    /// Returns [`GatewayObserverError::Identity`] unless the key presents a
+    /// `raw-key-v1` principal, the only method gateway observer anchors
+    /// accept.
+    pub fn from_custody(key: CustodyKey) -> Result<Self, GatewayObserverError> {
+        let identity = key.identity();
+        if identity.signature().principal_method().as_str() != RAW_KEY_V1 {
+            return Err(GatewayObserverError::Identity);
+        }
+        Ok(Self {
+            principal: identity.principal().clone(),
+            descriptor: identity.signature().clone(),
+            control: identity.control_evidence().clone(),
+            key: ObserverKey::Custody(Box::new(key)),
+        })
+    }
+
+    /// Returns where the observer key is held.
+    #[must_use]
+    pub fn custody(&self) -> ObserverCustody {
+        match &self.key {
+            ObserverKey::Software(_) => ObserverCustody::Software,
+            ObserverKey::Custody(key) => ObserverCustody::External(key.kind()),
+        }
+    }
+
     /// Builds an observer from a fixed seed so tests reproduce exactly.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "testkit-harness"))]
     pub(crate) fn from_test_seed(seed: u8) -> Self {
         Self::from_seed(&[seed; 32]).expect("a fixed seed yields an observer")
     }
@@ -230,7 +295,7 @@ impl GatewayObserver {
     ) -> ObserverAnchorTemplate {
         ObserverAnchorTemplate {
             principal: self.principal.as_str().to_owned(),
-            principal_method: RAW_KEY_V1.to_owned(),
+            principal_method: self.descriptor.principal_method().as_str().to_owned(),
             verification_method: self.descriptor.verification_method().as_str().to_owned(),
             signature_suite: self.descriptor.suite().as_str().to_owned(),
             schemas: vec![READ_BACK_SCHEMA.to_owned(), OUTCOME_SCHEMA.to_owned()],
@@ -265,16 +330,26 @@ impl GatewayObserver {
             Timestamp::new(observed_at),
             ObservationFacts::new(facts).map_err(|_| GatewayObserverError::Unrepresentable)?,
         );
-        let preimage = observation_signing_preimage(&statement, &self.descriptor)
-            .map_err(|_| GatewayObserverError::Unrepresentable)?;
-        let signature = SignatureBytes::new(self.key.sign(&preimage).to_bytes().to_vec())
-            .map_err(|_| GatewayObserverError::Unrepresentable)?;
-        let signed = SignedObservation::new(
-            statement,
-            SignatureEnvelope::new(self.descriptor.clone(), signature),
-            vec![self.control.clone()],
-        )
-        .map_err(|_| GatewayObserverError::Unrepresentable)?;
+        let signed = match &self.key {
+            ObserverKey::Software(key) => {
+                let preimage = observation_signing_preimage(&statement, &self.descriptor)
+                    .map_err(|_| GatewayObserverError::Unrepresentable)?;
+                let signature = SignatureBytes::new(key.sign(&preimage).to_bytes().to_vec())
+                    .map_err(|_| GatewayObserverError::Unrepresentable)?;
+                SignedObservation::new(
+                    statement,
+                    SignatureEnvelope::new(self.descriptor.clone(), signature),
+                    vec![self.control.clone()],
+                )
+                .map_err(|_| GatewayObserverError::Unrepresentable)?
+            }
+            ObserverKey::Custody(key) => {
+                let request = auths_author::prepare_observation(statement, self.descriptor.clone())
+                    .map_err(|_| GatewayObserverError::Unrepresentable)?;
+                key.sign_observation(request)
+                    .map_err(GatewayObserverError::Custody)?
+            }
+        };
         let bytes = encode_signed_observation(&signed)
             .map_err(|_| GatewayObserverError::Unrepresentable)?;
         if bytes.len() > auths_model::MAX_OBSERVATION_BYTES {

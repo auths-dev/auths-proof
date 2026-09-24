@@ -304,7 +304,6 @@ async def _refund(args: argparse.Namespace) -> Dict[str, Any]:
             trusted_context_template=local_trust.read_bytes(),
             challenge=bytes.fromhex(setup_facts["challenge_hex"]),
             evaluation_time=now,
-            expires_at=now + 900,
         )
     except AuthoringUnsuccessful as refused:
         record.update(stage="authoring", outcome="refused-locally", code=refused.code)

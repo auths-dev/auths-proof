@@ -5,7 +5,7 @@ managers approve that exact refund, and only up to its own limit: at most
 50.00 per refund and two refunds a day. The Stripe key lives only in the
 Auths gateway. An auditor checks every refund afterwards, offline.
 
-**10 steps. The unattended run of all of them (step 10) took 2.1 s on an
+**10 steps. The unattended run of all of them (step 10) took 2.6 s on an
 Apple-silicon laptop once the wheel and gateway were built.** Building the
 gateway the first time takes a few minutes.
 

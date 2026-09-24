@@ -89,6 +89,7 @@
     "test:performance": "npm run build && node tools/performance.mjs",
     "test:contract": "tsc -p test/contract/tsconfig.json",
     "test:examples": "npm run build && node --test test/package/packed-examples.test.js",
+    "test:gateway": "npm run build && node --test test/gateway/packed-gateway-observation.test.js",
     "test:integration": "npm run build && npm run build:wasm && npm run build:vectors && node tools/run-tests.mjs integration",
     "test:integration:built": "npm run build && node tools/run-tests.mjs integration",
     "test:package": "npm run build && node tools/run-tests.mjs package",

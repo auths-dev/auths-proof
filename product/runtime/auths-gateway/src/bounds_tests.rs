@@ -164,12 +164,19 @@ struct Principals {
 }
 
 impl Principals {
-    fn open() -> Self {
+    fn open(backend: Backend) -> Self {
         let root = Signer::new(0x11);
         let observer = GatewayObserver::from_test_seed(0x33);
         let context = context_with_depth(&root, observer.principal(), None, 2);
         Self {
-            harness: Harness::with(bounds_recipe(), context, observer, root, Signer::new(0x22)),
+            harness: Harness::with(
+                bounds_recipe(),
+                context,
+                observer,
+                root,
+                Signer::new(0x22),
+                backend,
+            ),
             a: Signer::new(0x44),
             b: Signer::new(0x55),
             sub: Signer::new(0x66),
@@ -315,8 +322,8 @@ fn submissions(principals: &Principals, id: &str) -> Vec<Submission> {
 }
 
 /// Runs one case and reports its decision, code, and provider entries.
-async fn run(id: &str) -> (String, Option<String>, (usize, usize, usize)) {
-    let principals = Principals::open();
+async fn run(id: &str, backend: Backend) -> (String, Option<String>, (usize, usize, usize)) {
+    let principals = Principals::open(backend);
     let mut last = None;
     for submission in &submissions(&principals, id) {
         last = Some(principals.harness.submit(submission, NOW).await);
@@ -333,15 +340,16 @@ async fn run(id: &str) -> (String, Option<String>, (usize, usize, usize)) {
     (decision, code, principals.harness.provider.counts())
 }
 
-#[tokio::test]
-async fn per_principal_bounds_admit_only_actions_inside_the_signer_bound() {
+/// Drives the pre-generated bounded hostile suite against `backend`; the
+/// per-window counts live in the same store as the attempt claims.
+async fn bounded_hostile_suite(backend: Backend) {
     let suite: Suite = serde_json::from_str(include_str!(
         "../../../../bindings/fixtures/gateway/bounds-hostile.json"
     ))
     .expect("bounded hostile suite");
     assert_eq!(suite.schema, "auths.gateway-bounds-hostile/1");
     for case in suite.cases {
-        let (decision, code, (writes, _reads, leases)) = run(&case.id).await;
+        let (decision, code, (writes, _reads, leases)) = run(&case.id, backend).await;
         assert_eq!(decision, case.decision, "{}", case.id);
         assert_eq!(code, case.code, "{}", case.id);
         assert_eq!(
@@ -355,6 +363,21 @@ async fn per_principal_bounds_admit_only_actions_inside_the_signer_bound() {
             case.id
         );
     }
+}
+
+#[tokio::test]
+async fn per_principal_bounds_admit_only_actions_inside_the_signer_bound() {
+    bounded_hostile_suite(Backend::File).await;
+}
+
+#[tokio::test]
+#[ignore = "needs the TLS PostgreSQL fixture"]
+async fn postgres_per_principal_bounds_admit_only_actions_inside_the_signer_bound() {
+    assert!(
+        postgres_configured(),
+        "TLS PostgreSQL environment slots are required"
+    );
+    bounded_hostile_suite(Backend::Postgres).await;
 }
 
 /// A root with one delegation edge, three managers anchored directly, and
@@ -374,18 +397,24 @@ impl RefundQuorum {
         let root = Signer::new(0x11);
         let managers = [Signer::new(0xa1), Signer::new(0xb2), Signer::new(0xc3)];
         let observer = GatewayObserver::from_test_seed(0x33);
-        let context = context_for(
-            vec![
-                anchor("root", &root, 1),
-                anchor("manager-a", &managers[0], 0),
-                anchor("manager-b", &managers[1], 0),
-                anchor("manager-c", &managers[2], 0),
-            ],
-            CompositionRequirement::new(None, 3, 3, roots).expect("composition"),
-            None,
+        let anchors: Vec<&Signer> = vec![&root, &managers[0], &managers[1], &managers[2]];
+        let context = h::context_with_roots(
+            &anchors,
             observer.principal(),
+            None,
+            NOW,
+            1,
+            auths_model::CompositionRequirement::new(None, 3, 3, roots).expect("composition"),
+        )
+        .expect("refund trust");
+        let harness = Harness::with(
+            bounds_recipe(),
+            context,
+            observer,
+            root,
+            Signer::new(0x44),
+            Backend::File,
         );
-        let harness = Harness::with(bounds_recipe(), context, observer, root, Signer::new(0x44));
         let policy = bound(ceiling, max_count);
         let body = || Some(policy.extension_body(None).expect("body"));
         let grant = bounded_grant(&harness.root, &harness.agent, None, 0, body());
@@ -424,7 +453,8 @@ impl RefundQuorum {
             canonical.clone(),
             &audience(),
             [0; 32],
-            window(NOW - 3_600, NOW + 3_600),
+            NOW - 600,
+            Some(3_600),
             u16::try_from(signers.len()).expect("count"),
             &approvers,
         )
@@ -532,6 +562,61 @@ async fn bounded_agent_needs_two_managers_and_stays_inside_its_bound() {
 }
 
 #[tokio::test]
+async fn unbounded_composition_is_admitted_without_a_count() {
+    let quorum = RefundQuorum::open(500, 1, 3);
+    let managers = [quorum.manager(0), quorum.manager(1), quorum.manager(2)];
+    for operation in ["managers-1", "managers-2"] {
+        let result = quorum
+            .harness
+            .submit(&quorum.submission(operation, 900, &managers), NOW)
+            .await;
+        assert_eq!(verdict(&result), ("entered", None), "{operation}");
+    }
+    let (writes, _reads, leases) = quorum.harness.provider.counts();
+    assert_eq!((writes, leases), (2, 2), "no bound, no ceiling, no count");
+}
+
+#[tokio::test]
+async fn one_bounded_branch_is_admitted_and_counted_against_its_actor() {
+    let quorum = RefundQuorum::open(500, 1, 3);
+    let first = quorum.submission(
+        "bounded-1",
+        100,
+        &[quorum.agent(), quorum.manager(0), quorum.manager(1)],
+    );
+    let second = quorum.submission(
+        "bounded-2",
+        100,
+        &[quorum.agent(), quorum.manager(1), quorum.manager(2)],
+    );
+    let other = quorum.submission(
+        "other-agent",
+        100,
+        &[
+            (&quorum.other, Some(&quorum.other_grant)),
+            quorum.manager(0),
+            quorum.manager(2),
+        ],
+    );
+    assert_eq!(
+        verdict(&quorum.harness.submit(&first, NOW).await),
+        ("entered", None)
+    );
+    assert_eq!(
+        verdict(&quorum.harness.submit(&second, NOW).await),
+        ("not-entered", Some("gateway.policy.window-exhausted")),
+        "the agent's one slot is spent whichever managers approve"
+    );
+    assert_eq!(
+        verdict(&quorum.harness.submit(&other, NOW).await),
+        ("entered", None),
+        "another agent's count is separate"
+    );
+    let (writes, _reads, leases) = quorum.harness.provider.counts();
+    assert_eq!((writes, leases), (2, 2));
+}
+
+#[tokio::test]
 async fn two_bounded_branches_in_one_composition_are_refused() {
     let quorum = RefundQuorum::open(500, 3, 2);
     let submission = quorum.submission(
@@ -557,7 +642,7 @@ async fn journey_bundle(quorum: &RefundQuorum) -> Value {
     let mut entries = Vec::new();
     for (operation, submission) in quorum.journey() {
         let _ = quorum.harness.submit(&submission, NOW).await;
-        let outcome = match quorum.harness.outcome(operation, NOW + 1) {
+        let outcome = match quorum.harness.outcome(operation, NOW + 1).await {
             GatewayObserveResult::Signed {
                 observation_b64, ..
             } => Some(observation_b64),
@@ -570,10 +655,11 @@ async fn journey_bundle(quorum: &RefundQuorum) -> Value {
             "outcome_b64": outcome,
         }));
     }
-    let (source, lock) = recipe_sources(
+    let (source, lock) = h::recipe_sources(
         &json!({"amount": {"kind": "integer", "minimum": 0, "maximum": 1_000_000}}),
         &json!({"verified": ["amount"]}),
-    );
+    )
+    .expect("recipe sources");
     json!({
         "schema": crate::AUDIT_BUNDLE_SCHEMA,
         "recipe_b64": Base64UrlUnpadded::encode_string(&source),
@@ -589,7 +675,8 @@ fn context_bytes(quorum: &RefundQuorum) -> Vec<u8> {
 
 fn pins(quorum: &RefundQuorum) -> crate::AuditPins {
     crate::AuditPins {
-        trusted_context_sha256: Sha256::digest(context_bytes(quorum)).into(),
+        trusted_context_sha256: <sha2::Sha256 as sha2::Digest>::digest(context_bytes(quorum))
+            .into(),
         observer: quorum.harness.observer.principal().clone(),
     }
 }

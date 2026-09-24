@@ -3,22 +3,21 @@
 //! provider.
 //!
 //! The installed trust anchors exactly three managers and requires two
-//! authorized branches from two distinct actors. Every proof, action, and the
+//! authorized branches from two distinct actors. Submissions run through the
+//! shared `Harness`, which verifies, claims, reserves, leases, and enters the
+//! counting provider in the engine's order. Every proof, action, and the
 //! trusted context are read from `bindings/fixtures/gateway/approval-quorum.json`;
 //! the drive test signs nothing. The fixture test regenerates the file from
 //! fixed seeds and requires it to be byte-identical, so the Python and
 //! TypeScript SDKs can check their own authoring against the same bytes.
 
-use crate::engine::{
-    GatewaySubmitResult, execute_claimed, gateway_verifier_configuration, not_entered,
-    replay_refused, reserve_bound, verify_command,
+use crate::engine::{GatewaySubmitResult, gateway_verifier_configuration, verify_command};
+use crate::harness::{self, Harness};
+use crate::{CompiledRecipe, GatewayObserver};
+use auths_approval_quorum::{
+    DEFAULT_QUORUM_VALIDITY_SECONDS, QuorumApproval, QuorumApprover, QuorumProposal,
+    quorum_requirement,
 };
-use crate::transport::{GatewayTransportError, ProviderPort, WriteTransportOutcome};
-use crate::{
-    ClosedObservationRequest, ClosedProviderRequest, CompiledRecipe, FileGatewayAttemptStore,
-    GatewayAttemptError,
-};
-use auths_approval_quorum::{QuorumApproval, QuorumApprover, QuorumProposal, quorum_requirement};
 use auths_codec::{
     action_signing_preimage, body_digest, encode_bundle, encode_canonical_action,
     encode_verifier_context, evidence_id, plan_id,
@@ -40,7 +39,6 @@ use auths_raw_key::{RAW_KEY_MEDIA_TYPE, RAW_KEY_V1, RawKeyDescriptor, RawKeyType
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 use ed25519_dalek::{Signer as _, SigningKey};
 use serde_json::{Map, Value, json};
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 const FIXTURE_PATH: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -53,11 +51,11 @@ const LOCK: &[u8] =
 
 const SCHEMA: &str = "auths.gateway-approval-quorum/1";
 const NOW: u64 = 1_790_000_000;
-const NOT_BEFORE: u64 = NOW - 600;
-const EXPIRES_AT: u64 = NOW + 3_000;
+/// Approvals are authored this long before the gateway verifies them, inside
+/// the default quorum validity.
+const AUTHORED_AT: u64 = NOW - 10;
 const CHALLENGE: [u8; 32] = [0x51; 32];
 const REQUIRED: u16 = 2;
-const RECORD: &str = "recQUORUM00000001";
 const ASSURANCE: &str = "approval-quorum-test-v1";
 
 /// Fixed test seeds: three members and one principal outside the quorum.
@@ -139,7 +137,7 @@ fn arguments(recipe: &CompiledRecipe, operation: &str) -> Map<String, Value> {
         "operation_id": operation,
         "operator_namespace": recipe.namespace().as_str(),
         "recipe_digest": recipe.digest_hex(),
-        "record_id": RECORD,
+        "record_id": harness::RECORD,
         "replacement": "Approved"
     })
     .as_object()
@@ -165,7 +163,11 @@ fn canonical(recipe: &CompiledRecipe, operation: &str) -> (CanonicalAction, Audi
 }
 
 fn validity() -> ValidityWindow {
-    ValidityWindow::new(Timestamp::new(NOT_BEFORE), Timestamp::new(EXPIRES_AT)).expect("window")
+    ValidityWindow::new(
+        Timestamp::new(AUTHORED_AT),
+        Timestamp::new(AUTHORED_AT + DEFAULT_QUORUM_VALIDITY_SECONDS),
+    )
+    .expect("window")
 }
 
 fn proposal(
@@ -183,7 +185,8 @@ fn proposal(
         canonical,
         &audience,
         CHALLENGE,
-        validity(),
+        AUTHORED_AT,
+        None,
         required,
         &approvers,
     )
@@ -236,7 +239,7 @@ fn trusted_context(recipe: &CompiledRecipe) -> TrustedContext {
         Vec::new(),
         Vec::new(),
         vec![profile],
-        vec![ProfilePolicyId::parse(crate::MCP_ARGUMENTS_V1).expect("policy")],
+        vec![ProfilePolicyId::parse(auths_profile_mcp::MCP_ARGUMENTS_V1).expect("policy")],
     )
     .expect("registries");
     TrustedContext::new(
@@ -265,7 +268,7 @@ fn trusted_context(recipe: &CompiledRecipe) -> TrustedContext {
         )
         .expect("grant status"),
         ResourceMatcherId::parse("uri-namespace-v1").expect("matcher"),
-        ProfilePolicyId::parse(crate::MCP_ARGUMENTS_V1).expect("policy"),
+        ProfilePolicyId::parse(auths_profile_mcp::MCP_ARGUMENTS_V1).expect("policy"),
         ChannelBindingId::parse("none-v1").expect("channel"),
         VerifierLimits::default(),
     )
@@ -427,6 +430,17 @@ fn hand_bundle(
     .expect("hand-built bundle")
 }
 
+#[test]
+fn sdk_and_hand_built_approvals_share_the_default_window() {
+    let quorum = proposal(&recipe(), "window", 2, &["manager-a", "manager-b"]);
+    assert!(
+        quorum
+            .envelopes()
+            .iter()
+            .all(|envelope| envelope.validity() == validity())
+    );
+}
+
 fn sdk_bundle(
     recipe: &CompiledRecipe,
     operation: &str,
@@ -579,8 +593,8 @@ fn generate() -> String {
         "service": "airtable-gateway-demo",
         "tool": "set_demo_status_v1",
         "evaluation_time": NOW,
-        "not_before": NOT_BEFORE,
-        "expires_at": EXPIRES_AT,
+        "authored_at": AUTHORED_AT,
+        "validity_seconds": DEFAULT_QUORUM_VALIDITY_SECONDS,
         "challenge_hex": hex::encode(CHALLENGE),
         "required": REQUIRED,
         "members": members,
@@ -608,66 +622,6 @@ fn approval_quorum_fixture_is_current() {
     );
 }
 
-/// Counts every provider write entry and every credential lease.
-struct CountingProvider {
-    writes: AtomicUsize,
-    leases: AtomicUsize,
-}
-
-impl ProviderPort for CountingProvider {
-    async fn write(
-        &self,
-        _: &ClosedProviderRequest,
-    ) -> Result<WriteTransportOutcome, GatewayTransportError> {
-        self.writes.fetch_add(1, Ordering::SeqCst);
-        Ok(WriteTransportOutcome::ResponseRecorded {
-            status: 200,
-            digest: [4; 32],
-        })
-    }
-
-    async fn read_back(&self, _: &ClosedObservationRequest) -> Option<Vec<u8>> {
-        None
-    }
-}
-
-impl CountingProvider {
-    fn counts(&self) -> (usize, usize) {
-        (
-            self.writes.load(Ordering::SeqCst),
-            self.leases.load(Ordering::SeqCst),
-        )
-    }
-}
-
-/// Mirrors the engine: verify, claim, reserve any bound, lease, then enter
-/// the provider.
-async fn submit(
-    recipe: &CompiledRecipe,
-    context: &TrustedContext,
-    store: &FileGatewayAttemptStore,
-    provider: &CountingProvider,
-    proof: &[u8],
-    action: &[u8],
-) -> GatewaySubmitResult {
-    let (request, bound) = match verify_command(recipe, context, NOW, proof, action) {
-        Ok(value) => value,
-        Err(result) => return result,
-    };
-    match store.claim(&request, *recipe.digest()) {
-        Ok(claim) => {
-            let claim = match reserve_bound(store, bound.as_ref(), &request, claim) {
-                Ok(claim) => claim,
-                Err(result) => return result,
-            };
-            provider.leases.fetch_add(1, Ordering::SeqCst);
-            execute_claimed(claim, &request, provider).await
-        }
-        Err(GatewayAttemptError::Replay) => replay_refused(),
-        Err(_) => not_entered("gateway.attempt.unavailable"),
-    }
-}
-
 fn decision_of(result: &GatewaySubmitResult) -> (&'static str, String) {
     match result {
         GatewaySubmitResult::Denied { code } => ("denied", code.clone()),
@@ -685,15 +639,16 @@ async fn approval_quorum_hostile_cases_admit_only_a_two_manager_quorum() {
     let context = auths_codec::decode_verifier_context(&unb64(&fixture["trusted_context_b64"]))
         .expect("installed trust");
     let temp = tempfile::tempdir().expect("temp directory");
-    let store = FileGatewayAttemptStore::open(
-        std::fs::canonicalize(temp.path())
-            .expect("canonical temp")
-            .join("attempts"),
+    let harness = Harness::with(
+        recipe,
+        context,
+        GatewayObserver::from_test_seed(harness::OBSERVER_SEED),
+        &std::fs::canonicalize(temp.path()).expect("canonical temp"),
     )
-    .expect("store");
-    let provider = CountingProvider {
-        writes: AtomicUsize::new(0),
-        leases: AtomicUsize::new(0),
+    .expect("harness");
+    let counts = || {
+        let (writes, _, leases) = harness.provider.counts();
+        (writes, leases)
     };
     let mut expected_entries = 0;
     let mut unauthorized_entries = 0;
@@ -701,17 +656,11 @@ async fn approval_quorum_hostile_cases_admit_only_a_two_manager_quorum() {
     assert_eq!(cases.len(), CASES.len());
     for case in cases {
         let id = case["id"].as_str().expect("id");
-        let before = provider.counts();
-        let result = submit(
-            &recipe,
-            &context,
-            &store,
-            &provider,
-            &unb64(&case["proof_b64"]),
-            &unb64(&case["action_b64"]),
-        )
-        .await;
-        let after = provider.counts();
+        let before = counts();
+        let result = harness
+            .submit(&unb64(&case["proof_b64"]), &unb64(&case["action_b64"]), NOW)
+            .await;
+        let after = counts();
         let (entries, leases) = (after.0 - before.0, after.1 - before.1);
         let (decision, code) = decision_of(&result);
         assert_eq!(decision, case["decision"], "{id}: {result:?}");
@@ -723,7 +672,10 @@ async fn approval_quorum_hostile_cases_admit_only_a_two_manager_quorum() {
             assert!(
                 matches!(
                     result,
-                    GatewaySubmitResult::ResponseRecorded { status: 200 }
+                    GatewaySubmitResult::ObservedByProvider {
+                        status: Some(200),
+                        ..
+                    }
                 ),
                 "{id}: {result:?}"
             );
@@ -735,21 +687,22 @@ async fn approval_quorum_hostile_cases_admit_only_a_two_manager_quorum() {
         }
         expected_entries += expected;
     }
-    assert_eq!(provider.counts().0, expected_entries);
+    assert_eq!(counts().0, expected_entries);
     assert_eq!(unauthorized_entries, 0);
 
     let replay = &cases[0];
-    let result = submit(
-        &recipe,
-        &context,
-        &store,
-        &provider,
-        &unb64(&replay["proof_b64"]),
-        &unb64(&replay["action_b64"]),
-    )
-    .await;
-    assert_eq!(result, replay_refused(), "an authorized quorum is one-use");
-    assert_eq!(provider.counts().0, expected_entries);
+    let result = harness
+        .submit(
+            &unb64(&replay["proof_b64"]),
+            &unb64(&replay["action_b64"]),
+            NOW,
+        )
+        .await;
+    assert!(
+        !matches!(result, GatewaySubmitResult::ResponseRecorded { .. }),
+        "an authorized quorum is one-use: {result:?}"
+    );
+    assert_eq!(counts().0, expected_entries, "a replay never writes again");
 }
 
 #[test]
@@ -776,4 +729,79 @@ fn a_proof_carried_plan_cannot_lower_the_installed_threshold() {
             "{result:?}"
         );
     }
+}
+
+fn two_of_three_submission() -> (Vec<u8>, Vec<u8>) {
+    let fixture: Value = serde_json::from_str(FIXTURE).expect("fixture JSON");
+    let case = fixture["cases"]
+        .as_array()
+        .expect("cases")
+        .iter()
+        .find(|case| case["id"] == "two-of-three-managers")
+        .expect("two-of-three case");
+    (unb64(&case["proof_b64"]), unb64(&case["action_b64"]))
+}
+
+fn fresh_harness(state: &std::path::Path) -> Harness {
+    let recipe = recipe();
+    let context = trusted_context(&recipe);
+    Harness::with(
+        recipe,
+        context,
+        GatewayObserver::from_test_seed(harness::OBSERVER_SEED),
+        &std::fs::canonicalize(state).expect("canonical temp"),
+    )
+    .expect("harness")
+}
+
+#[tokio::test]
+async fn a_quorum_still_authorizes_23_hours_after_approval_and_only_once() {
+    let temp = tempfile::tempdir().expect("temp directory");
+    let harness = fresh_harness(temp.path());
+    let (proof, action) = two_of_three_submission();
+    let later = AUTHORED_AT + 23 * 3_600;
+    let result = harness.submit(&proof, &action, later).await;
+    assert!(
+        matches!(
+            result,
+            GatewaySubmitResult::ObservedByProvider {
+                status: Some(200),
+                ..
+            }
+        ),
+        "{result:?}"
+    );
+    let (writes, _, leases) = harness.provider.counts();
+    assert_eq!((writes, leases), (1, 1));
+    let replay = harness.submit(&proof, &action, later + 60).await;
+    assert!(
+        !matches!(replay, GatewaySubmitResult::ResponseRecorded { .. }),
+        "{replay:?}"
+    );
+    assert_eq!(
+        harness.provider.counts().0,
+        1,
+        "the durable claim refuses a second entry"
+    );
+}
+
+#[tokio::test]
+async fn a_quorum_after_its_window_is_refused_before_any_lease() {
+    let temp = tempfile::tempdir().expect("temp directory");
+    let harness = fresh_harness(temp.path());
+    let (proof, action) = two_of_three_submission();
+    let result = harness
+        .submit(
+            &proof,
+            &action,
+            AUTHORED_AT + DEFAULT_QUORUM_VALIDITY_SECONDS + 1,
+        )
+        .await;
+    assert_eq!(
+        result,
+        GatewaySubmitResult::Denied {
+            code: "action-outside-validity".to_owned()
+        }
+    );
+    assert_eq!(harness.provider.counts(), (0, 0, 0));
 }

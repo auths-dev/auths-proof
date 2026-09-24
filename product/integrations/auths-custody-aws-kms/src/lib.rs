@@ -3,14 +3,10 @@
 #![forbid(unsafe_code)]
 
 use auths_custody::{
-    CustodyAdapterId, CustodyDescriptor, CustodyKind, CustodyProviderError, ExternalSigner,
-    KeyLifecycleState, KeyVersionId, P256SignatureVerifier, RawSigningResponse, SigningIntent,
-    UntrustedSigningResponse,
+    CustodyAdapterId, CustodyDescriptor, CustodyIdentity, CustodyKind, CustodyPrincipalForm,
+    CustodyProviderError, ExternalSigner, KeyLifecycleState, KeyVersionId, P256SignatureVerifier,
+    RawSigningResponse, SigningIntent, UntrustedSigningResponse,
 };
-use auths_model::{
-    PrincipalId, PrincipalMethodId, SignatureDescriptor, SignatureSuiteId, VerificationMethod,
-};
-use base64ct::{Base64UrlUnpadded, Encoding as _};
 use p256::{EncodedPoint, pkcs8::DecodePublicKey as _};
 use sha2::{Digest as _, Sha256};
 
@@ -194,6 +190,7 @@ pub struct AwsKmsP256Adapter<C> {
     client: C,
     key_arn: SecretKeyArn,
     descriptor: CustodyDescriptor,
+    identity: CustodyIdentity,
     verifier: P256SignatureVerifier,
 }
 
@@ -207,6 +204,7 @@ impl<C: AwsKmsApi> AwsKmsP256Adapter<C> {
     pub fn connect(
         client: C,
         configuration: AwsKmsConfiguration,
+        form: CustodyPrincipalForm,
     ) -> Result<Self, AwsKmsConfigurationError> {
         let key_arn = configuration
             .key_arn
@@ -234,22 +232,15 @@ impl<C: AwsKmsApi> AwsKmsP256Adapter<C> {
         let key = p256::PublicKey::from_public_key_der(&public_key_der)
             .map_err(|_| AwsKmsConfigurationError::InvalidPublicKey)?;
         let sec1 = EncodedPoint::from(key).compress();
-        let principal = principal(&sec1)?;
-        let signature = SignatureDescriptor::new(
-            PrincipalMethodId::parse("raw-key-v1")
-                .map_err(|_| AwsKmsConfigurationError::InvalidPublicKey)?,
-            VerificationMethod::parse(principal.as_str())
-                .map_err(|_| AwsKmsConfigurationError::InvalidPublicKey)?,
-            SignatureSuiteId::parse(SUITE_ID)
-                .map_err(|_| AwsKmsConfigurationError::InvalidPublicKey)?,
-        );
+        let identity = CustodyIdentity::p256(form, sec1.as_bytes())
+            .map_err(|_| AwsKmsConfigurationError::InvalidPublicKey)?;
         let key_version = key_version(key_arn, &public_key_der)?;
         let descriptor = CustodyDescriptor::new(
             CustodyKind::Kms,
             CustodyAdapterId::parse(ADAPTER_ID)
                 .map_err(|_| AwsKmsConfigurationError::InvalidPublicKey)?,
-            principal,
-            signature,
+            identity.principal().clone(),
+            identity.signature().clone(),
             key_version,
             KeyLifecycleState::ActiveCurrent,
         )
@@ -260,8 +251,15 @@ impl<C: AwsKmsApi> AwsKmsP256Adapter<C> {
             client,
             key_arn: configuration.key_arn,
             descriptor,
+            identity,
             verifier,
         })
+    }
+
+    /// Returns the key's public identity, derived from the public key only.
+    #[must_use]
+    pub const fn identity(&self) -> &CustodyIdentity {
+        &self.identity
     }
 
     #[must_use]
@@ -358,15 +356,6 @@ pub enum AwsKmsConfigurationError {
     InvalidPublicKey,
 }
 
-fn principal(public_key: &EncodedPoint) -> Result<PrincipalId, AwsKmsConfigurationError> {
-    let digest: [u8; 32] = Sha256::digest(public_key.as_bytes()).into();
-    PrincipalId::parse(&format!(
-        "key:sha256:{}",
-        Base64UrlUnpadded::encode_string(&digest)
-    ))
-    .map_err(|_| AwsKmsConfigurationError::InvalidPublicKey)
-}
-
 fn key_version(
     key_arn: &str,
     public_key_der: &[u8],
@@ -457,7 +446,7 @@ mod tests {
             AwsAccountId::parse("123456789012").unwrap(),
         );
         assert!(matches!(
-            AwsKmsP256Adapter::connect(client, config),
+            AwsKmsP256Adapter::connect(client, config, CustodyPrincipalForm::RawKeyV1),
             Err(AwsKmsConfigurationError::KeyPolicyMismatch)
         ));
     }
@@ -474,7 +463,8 @@ mod tests {
             AwsRegion::parse("eu-west-2").unwrap(),
             AwsAccountId::parse("123456789012").unwrap(),
         );
-        let adapter = AwsKmsP256Adapter::connect(client, config).unwrap();
+        let adapter =
+            AwsKmsP256Adapter::connect(client, config, CustodyPrincipalForm::RawKeyV1).unwrap();
         assert_eq!(adapter.readiness().adapter_id(), ADAPTER_ID);
         assert_eq!(adapter.readiness().suite_id(), SUITE_ID);
     }

@@ -5,14 +5,19 @@
 
 extern crate alloc;
 
+mod observations;
+
+pub use observations::{ObservationAttachmentError, UnboundActionEnvelope, attach_observations};
+
 use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 use auths_authority::{AuthorScopeDecision, evaluate_author_scope_view};
 use auths_codec::{
     CodecError, action_id, action_signing_preimage, body_digest, domain_commitment,
-    encode_canonical_action, evidence_id, grant_id, grant_signing_preimage, grant_status_id,
-    grant_status_signing_preimage, plan_id, principal_status_id, principal_status_signing_preimage,
+    encode_canonical_action, encode_observation_statement, evidence_id, grant_id,
+    grant_signing_preimage, grant_status_id, grant_status_signing_preimage,
+    observation_signing_preimage, plan_id, principal_status_id, principal_status_signing_preimage,
     transaction_binding,
 };
 use auths_model::{
@@ -20,11 +25,12 @@ use auths_model::{
     AuthorizationPlan, BudgetCeiling, BundleHeader, CanonicalAction, Challenge, ChannelBindingId,
     CompositionRequirement, ControlBinding, CriticalExtensionLaws, CriticalExtensions, Digest,
     EvidenceId, EvidenceObject, EvidenceTypeId, GrantId, GrantStatement, GrantStatusId,
-    GrantStatusStatement, LimitKind, MediaType, ModelError, PermissionSet, PrincipalId,
-    PrincipalStatusId, PrincipalStatusStatement, ProfileRef, ProofBundle, ProofRef, ResourceId,
-    ScopeAuthorityView, SignatureBytes, SignatureDescriptor, SignatureEnvelope, SignedAction,
-    SignedGrant, SignedGrantStatus, SignedPrincipalStatus, StatementRef, StatusPolicy, Timestamp,
-    TrustedContext, ValidityWindow, VerifierLimits, grant_authority_view, scope_authority_view,
+    GrantStatusStatement, LimitKind, MediaType, ModelError, ObservationStatement, PermissionSet,
+    PrincipalId, PrincipalStatusId, PrincipalStatusStatement, ProfileRef, ProofBundle, ProofRef,
+    ResourceId, ScopeAuthorityView, SignatureBytes, SignatureDescriptor, SignatureEnvelope,
+    SignedAction, SignedGrant, SignedGrantStatus, SignedObservation, SignedPrincipalStatus,
+    StatementRef, StatusPolicy, Timestamp, TrustedContext, ValidityWindow, VerifierLimits,
+    grant_authority_view, scope_authority_view,
 };
 use core::fmt;
 
@@ -57,11 +63,111 @@ impl PreparedAction {
     }
 }
 
+/// Validity, in seconds, an authored action carries when none is requested.
+pub const DEFAULT_ACTION_VALIDITY_SECONDS: u64 = 30;
+/// Longest validity, in seconds, an authored action may carry.
+pub const MAX_ACTION_VALIDITY_SECONDS: u64 = 300;
+
+/// Caller-bounded rule for the validity window an authored action carries.
+///
+/// The authoring caller owns the default and the maximum; this type owns the
+/// window arithmetic, so every authoring path derives its window the same
+/// way. [`ActionValidityPolicy::SINGLE_SIGNER`] is the rule
+/// [`prepare_profile_action`] applies.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ActionValidityPolicy {
+    default_seconds: u64,
+    maximum_seconds: u64,
+}
+
+impl ActionValidityPolicy {
+    /// `DEFAULT_ACTION_VALIDITY_SECONDS` by default, at most
+    /// `MAX_ACTION_VALIDITY_SECONDS`.
+    pub const SINGLE_SIGNER: Self = Self {
+        default_seconds: DEFAULT_ACTION_VALIDITY_SECONDS,
+        maximum_seconds: MAX_ACTION_VALIDITY_SECONDS,
+    };
+
+    /// Constructs a rule with an explicit default and maximum.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WorkflowAssemblyError::ActionValidity`] unless
+    /// `1 <= default_seconds <= maximum_seconds`.
+    pub const fn new(
+        default_seconds: u64,
+        maximum_seconds: u64,
+    ) -> Result<Self, WorkflowAssemblyError> {
+        if default_seconds == 0 || default_seconds > maximum_seconds {
+            return Err(WorkflowAssemblyError::ActionValidity);
+        }
+        Ok(Self {
+            default_seconds,
+            maximum_seconds,
+        })
+    }
+
+    /// Returns the validity applied when none is requested.
+    #[must_use]
+    pub const fn default_seconds(self) -> u64 {
+        self.default_seconds
+    }
+
+    /// Returns the longest validity this rule accepts.
+    #[must_use]
+    pub const fn maximum_seconds(self) -> u64 {
+        self.maximum_seconds
+    }
+
+    /// Derives the window from `evaluation_time` through `evaluation_time +
+    /// validity_seconds` inclusive (the default when `None`), cut to the
+    /// earliest of `grant_expiries` and never ending before
+    /// `evaluation_time`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WorkflowAssemblyError::ActionValidity`] when a requested
+    /// `validity_seconds` is outside `1..=maximum_seconds`.
+    pub fn window(
+        self,
+        evaluation_time: u64,
+        validity_seconds: Option<u64>,
+        grant_expiries: impl IntoIterator<Item = u64>,
+    ) -> Result<ValidityWindow, WorkflowAssemblyError> {
+        let validity_seconds = validity_seconds.unwrap_or(self.default_seconds);
+        if !(1..=self.maximum_seconds).contains(&validity_seconds) {
+            return Err(WorkflowAssemblyError::ActionValidity);
+        }
+        let expires_at = grant_expiries
+            .into_iter()
+            .fold(evaluation_time.saturating_add(validity_seconds), u64::min)
+            .max(evaluation_time);
+        Ok(ValidityWindow::new(
+            Timestamp::new(evaluation_time),
+            Timestamp::new(expires_at),
+        )?)
+    }
+}
+
 /// Constructs the shared target V1 envelope for a profile-owned action.
+///
+/// The action is valid from `evaluation_time` through `evaluation_time +
+/// validity_seconds` inclusive (`DEFAULT_ACTION_VALIDITY_SECONDS` when
+/// `None`), cut to the terminal grant's expiry and never ending before
+/// `evaluation_time`. A verifier evaluating at its own later clock, such as
+/// a gateway, still accepts the action inside that window. The window never
+/// widens authority, because every grant in the chain must contain it. It is
+/// not a replay defence either: the challenge binds the verifier deployment
+/// or request, and exactly-once execution is the enforcement boundary's
+/// durable claim, which holds inside and after the window. Observation
+/// freshness is judged at the verifier's evaluation time, so a longer window
+/// never extends an observation's maximum age.
 ///
 /// # Errors
 ///
-/// Returns a typed error if any deterministic identifier cannot be derived.
+/// Returns [`WorkflowAssemblyError::ActionValidity`] when a requested
+/// `validity_seconds` is outside `1..=MAX_ACTION_VALIDITY_SECONDS`, and a
+/// typed error if any deterministic identifier cannot be derived.
 pub fn prepare_profile_action(
     canonical: CanonicalAction,
     audience: Audience,
@@ -69,7 +175,13 @@ pub fn prepare_profile_action(
     terminal_grant: &SignedGrant,
     challenge: [u8; 32],
     evaluation_time: u64,
+    validity_seconds: Option<u64>,
 ) -> Result<PreparedAction, WorkflowAssemblyError> {
+    let validity = ActionValidityPolicy::SINGLE_SIGNER.window(
+        evaluation_time,
+        validity_seconds,
+        [terminal_grant.statement().validity().expires_at().get()],
+    )?;
     let proof_ref = ProofRef::new(challenge);
     let plan = AuthorizationPlan::proof(proof_ref);
     let envelope = ActionEnvelope::new(
@@ -80,10 +192,7 @@ pub fn prepare_profile_action(
         canonical.requested_budget().cloned(),
         audience,
         Challenge::new(challenge),
-        ValidityWindow::new(
-            Timestamp::new(evaluation_time),
-            Timestamp::new(evaluation_time),
-        )?,
+        validity,
         actor,
         Some(grant_id(terminal_grant.statement())?),
         plan_id(&plan)?,
@@ -244,7 +353,7 @@ impl WorkflowProofBuilder {
             bindings,
             Vec::new(),
             Vec::new(),
-            Vec::new(),
+            action.envelope().attachments().to_vec(),
             Some(canonical.body().to_vec()),
         )?;
         let context = context
@@ -314,6 +423,8 @@ pub enum WorkflowAssemblyError {
     InvalidGrantIndex,
     /// The signed action did not bind the derived authorization plan.
     ActionPlanMismatch,
+    /// The requested action validity is outside `1..=MAX_ACTION_VALIDITY_SECONDS`.
+    ActionValidity,
 }
 
 impl From<ModelError> for WorkflowAssemblyError {
@@ -338,6 +449,7 @@ impl fmt::Display for WorkflowAssemblyError {
             Self::ActionPlanMismatch => {
                 formatter.write_str("signed action does not bind its authorization plan")
             }
+            Self::ActionValidity => formatter.write_str("action validity is outside bounds"),
         }
     }
 }
@@ -698,6 +810,10 @@ pub enum SigningObjectId {
     PrincipalStatus(PrincipalStatusId),
     /// Grant-status statement identifier.
     GrantStatus(GrantStatusId),
+    /// Commitment to one unsigned observation statement. Observations have
+    /// no protocol content identifier; this names the statement a signer is
+    /// asked to sign and nothing else.
+    Observation(Digest),
 }
 
 impl SigningObjectId {
@@ -709,6 +825,7 @@ impl SigningObjectId {
             Self::Action(identifier) => identifier.as_bytes(),
             Self::PrincipalStatus(identifier) => identifier.as_bytes(),
             Self::GrantStatus(identifier) => identifier.as_bytes(),
+            Self::Observation(commitment) => commitment.as_bytes(),
         }
     }
 
@@ -720,6 +837,7 @@ impl SigningObjectId {
             Self::Action(_) => "action",
             Self::PrincipalStatus(_) => "principal-status",
             Self::GrantStatus(_) => "grant-status",
+            Self::Observation(_) => "observation",
         }
     }
 }
@@ -993,6 +1111,53 @@ impl ExternalSigningRequest<GrantStatusStatement> {
             SignatureEnvelope::new(self.descriptor, signature),
         )
     }
+}
+
+impl ExternalSigningRequest<ObservationStatement> {
+    /// Completes an observation with the observer's control evidence.
+    ///
+    /// # Errors
+    ///
+    /// Returns a model error for more evidence objects than an observation
+    /// may carry or a duplicated evidence object.
+    pub fn complete(
+        self,
+        signature: SignatureBytes,
+        evidence: Vec<EvidenceObject>,
+    ) -> Result<SignedObservation, ModelError> {
+        SignedObservation::new(
+            self.unsigned,
+            SignatureEnvelope::new(self.descriptor, signature),
+            evidence,
+        )
+    }
+}
+
+/// Domain of the commitment naming an unsigned observation statement.
+pub const OBSERVATION_STATEMENT_COMMITMENT: &str = "auths.observation-statement.v1";
+
+/// Prepares one observation statement for an external signer, such as a
+/// custody-held observer key.
+///
+/// # Errors
+///
+/// Returns a codec error if deterministic encoding or the statement
+/// commitment fails.
+pub fn prepare_observation(
+    statement: ObservationStatement,
+    descriptor: SignatureDescriptor,
+) -> Result<ExternalSigningRequest<ObservationStatement>, AuthorError> {
+    let object_id = SigningObjectId::Observation(domain_commitment(
+        OBSERVATION_STATEMENT_COMMITMENT,
+        &encode_observation_statement(&statement)?,
+    )?);
+    let signing_preimage = observation_signing_preimage(&statement, &descriptor)?;
+    Ok(ExternalSigningRequest {
+        unsigned: statement,
+        descriptor,
+        object_id,
+        signing_preimage,
+    })
 }
 
 /// Prepares one grant for an external signer.
@@ -1350,6 +1515,7 @@ mod tests {
             &grant,
             [7; 32],
             42,
+            None,
         )
         .unwrap();
         assert_eq!(prepared.canonical(), &canonical);
@@ -1361,6 +1527,45 @@ mod tests {
         assert_eq!(
             prepared.envelope().validity().not_before(),
             Timestamp::new(42)
+        );
+        assert_eq!(
+            prepared.envelope().validity().expires_at(),
+            Timestamp::new(72)
+        );
+    }
+
+    #[test]
+    fn validity_policy_bounds_defaults_and_clamps_to_grant_expiry() {
+        let window = |from: u64, until: u64| {
+            ValidityWindow::new(Timestamp::new(from), Timestamp::new(until)).unwrap()
+        };
+        let single = ActionValidityPolicy::SINGLE_SIGNER;
+        assert_eq!(single.window(42, None, []), Ok(window(42, 72)));
+        assert_eq!(
+            single.window(42, Some(300), [u64::MAX]),
+            Ok(window(42, 342))
+        );
+        for invalid in [0, 301] {
+            assert_eq!(
+                single.window(42, Some(invalid), []),
+                Err(WorkflowAssemblyError::ActionValidity)
+            );
+        }
+        let wide = ActionValidityPolicy::new(86_400, 604_800).unwrap();
+        assert_eq!(wide.window(42, None, []), Ok(window(42, 86_442)));
+        assert_eq!(
+            wide.window(42, Some(604_801), []),
+            Err(WorkflowAssemblyError::ActionValidity)
+        );
+        assert_eq!(wide.window(42, None, [9_000, 500]), Ok(window(42, 500)));
+        assert_eq!(wide.window(42, None, [10]), Ok(window(42, 42)));
+        assert_eq!(
+            ActionValidityPolicy::new(0, 10),
+            Err(WorkflowAssemblyError::ActionValidity)
+        );
+        assert_eq!(
+            ActionValidityPolicy::new(11, 10),
+            Err(WorkflowAssemblyError::ActionValidity)
         );
     }
 

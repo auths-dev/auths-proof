@@ -2100,8 +2100,8 @@ mod tests {
         assert!(OperatorNamespace::parse(&"x".repeat(65)).is_err());
     }
 
-    #[test]
-    fn durable_claim_is_one_use_across_races_and_restart() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn durable_claim_is_one_use_across_races_and_restart() {
         let fixture: Value = serde_json::from_slice(include_bytes!(
             "../../../../bindings/fixtures/gateway/attempt-scenarios.json"
         ))
@@ -2122,16 +2122,21 @@ mod tests {
         let root = std::fs::canonicalize(temp.path())
             .expect("canonical temp")
             .join("attempts");
-        let store = Arc::new(FileGatewayAttemptStore::open(&root).expect("private store"));
-        let outcomes: Vec<_> = (0..16)
+        let store = crate::GatewayAttempts::new(Arc::new(
+            FileGatewayAttemptStore::open(&root).expect("private store"),
+        ));
+        let tasks: Vec<_> = (0..16)
             .map(|_| {
-                let store = Arc::clone(&store);
+                let store = store.clone();
                 let request = Arc::clone(&request);
                 let digest = *recipe.digest();
-                std::thread::spawn(move || store.claim(&request, digest))
+                tokio::spawn(async move { store.claim(&request, digest).await.map(drop) })
             })
-            .map(|thread| thread.join().expect("thread"))
             .collect();
+        let mut outcomes = Vec::new();
+        for task in tasks {
+            outcomes.push(task.await.expect("task"));
+        }
         assert_eq!(outcomes.iter().filter(|outcome| outcome.is_ok()).count(), 1);
         assert_eq!(
             outcomes
@@ -2140,22 +2145,24 @@ mod tests {
                 .count(),
             15
         );
-        drop(outcomes);
         drop(store);
-        let restarted = FileGatewayAttemptStore::open(&root).expect("restart");
+        let restarted = crate::GatewayAttempts::new(Arc::new(
+            FileGatewayAttemptStore::open(&root).expect("restart"),
+        ));
         let snapshot = restarted
             .read(request.namespace(), request.operation_id())
+            .await
             .expect("read")
             .expect("retained claim");
         assert_eq!(snapshot.stage(), GatewayAttemptStage::Unknown);
         assert!(matches!(
-            restarted.claim(&request, *recipe.digest()),
+            restarted.claim(&request, *recipe.digest()).await,
             Err(GatewayAttemptError::Replay)
         ));
     }
 
-    #[test]
-    fn response_and_observation_are_distinct_durable_stages() {
+    #[tokio::test]
+    async fn response_and_observation_are_distinct_durable_stages() {
         let recipe = compiled("airtable");
         let args = arguments(
             &recipe,
@@ -2168,24 +2175,33 @@ mod tests {
         let root = std::fs::canonicalize(temp.path())
             .expect("canonical temp")
             .join("attempts");
-        let store = FileGatewayAttemptStore::open(&root).expect("store");
-        let claim = store.claim(&request, *recipe.digest()).expect("claim");
-        let response = claim.record_response(200, [3; 32]).expect("response");
+        let store = crate::GatewayAttempts::new(Arc::new(
+            FileGatewayAttemptStore::open(&root).expect("store"),
+        ));
+        let claim = store
+            .claim(&request, *recipe.digest())
+            .await
+            .expect("claim");
+        let response = claim.record_response(200, [3; 32]).await.expect("response");
         assert_eq!(
             response.snapshot().expect("snapshot").stage(),
             GatewayAttemptStage::ResponseRecorded
         );
-        let observed = response.record_observation(true).expect("observation");
+        let observed = response
+            .record_observation(true)
+            .await
+            .expect("observation");
         assert_eq!(observed.stage(), GatewayAttemptStage::Observed);
         assert_eq!(observed.observation_match(), Some(true));
         assert_eq!(
             store
                 .read(request.namespace(), request.operation_id())
+                .await
                 .expect("read"),
             Some(observed)
         );
         assert!(matches!(
-            store.claim(&request, *recipe.digest()),
+            store.claim(&request, *recipe.digest()).await,
             Err(GatewayAttemptError::Replay)
         ));
     }

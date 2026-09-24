@@ -115,7 +115,9 @@ ObjectField
 OptionalField
 PreparedMcpAction
 RejectedCommand
+SignedObservationAttachment
 StringField
+attach_observations
 verify_command
 
 [auths.identity]

@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "66b8cdc154efc0401b3ce3c4c7a032523e0b5e4b5f3f8faf22927b81bd58b6af",
+  "digest": "8cdfc18ae059a25aef5598243748da3d62c83634b81a506699d35182d3c41f58",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -8,7 +8,7 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "662acbc9fd5f0ad65a14ebdfa90150da785bd8223e4ff9a95a4849af7db3fc41",
+      "sha256": "c1110138f30f4dd9649553fea39940e311f1040f3e2570f604671b62f55e6552",
       "normalization": "translated-cargo-closure-v1"
     },
     {
@@ -257,7 +257,7 @@
     },
     {
       "path": "xtask/src/formal.rs",
-      "sha256": "a8ef42bb41866b030cf5a2d81904216fb49d9dc01aa4c969f2d07c102321390c"
+      "sha256": "caa3195d670fe1f658c365582e7a6ce82fbbc6159759070213f015fe764287c1"
     },
     {
       "path": "xtask/src/formal_qualification.rs",
@@ -337,7 +337,7 @@
     },
     {
       "path": "xtask/src/semantic_freeze.rs",
-      "sha256": "eeddeefce8b8fdf6329a9bb76fa016e5df970cfc2fd103940a6388ba94aee666"
+      "sha256": "816d88501e0ad14fe49e33b02f2ad550e6cbe8f6185a38358cca263a5c688f90"
     },
     {
       "path": "xtask/src/stripe.rs",

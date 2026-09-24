@@ -8,6 +8,7 @@ import Auths.Product.Refinement
 import Auths.Lifecycle.Theorems
 import Auths.Lifecycle.Refinement
 import Auths.Refinement.Production
+import Auths.Refinement.Observation
 import Auths.Observation
 
 namespace Auths
@@ -210,7 +211,21 @@ def theoremInventory : List Lean.Name :=
     `Auths.Observation.observation_requirement_law_accepts_addition,
     `Auths.exact_marker_law_lawful,
     `Auths.exact_marker_law_refuses_addition,
-    `Auths.Rich.ExtensionLawsNarrow.of_lawful
+    `Auths.Rich.ExtensionLawsNarrow.of_lawful,
+    `Auths.Refinement.Observation.translated_fact_name_equal_refines_model,
+    `Auths.Refinement.Observation.translated_observation_fresh_refines_model,
+    `Auths.Refinement.Observation.translated_observation_subject_equal_refines_model,
+    `Auths.Refinement.Observation.translated_fact_value_equal_refines_model,
+    `Auths.Refinement.Observation.translated_uint_range_contains_refines_model,
+    `Auths.Refinement.Observation.translated_member_values_contain_refines_model,
+    `Auths.Refinement.Observation.translated_observation_fact_refines_model,
+    `Auths.Refinement.Observation.translated_condition_value_holds_refines_model,
+    `Auths.Refinement.Observation.translated_observation_condition_holds_refines_model,
+    `Auths.Refinement.Observation.translated_observation_conditions_hold_refines_model,
+    `Auths.Refinement.Observation.translated_observation_conditions_length_mismatch_fails_closed,
+    `Auths.Refinement.Observation.translated_observation_conditions_hold_refines_conditions_hold,
+    `Auths.Refinement.Observation.translated_requirement_verdict_refines_model,
+    `Auths.Refinement.Observation.translated_requirement_verdict_refines_requirement_decision
   ]
 
 end Auths

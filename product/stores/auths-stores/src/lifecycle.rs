@@ -34,7 +34,9 @@ use tokio_postgres_rustls::MakeRustlsConnect;
 const DATABASE_MAGIC: &[u8; 8] = b"AUTHSLF1";
 const MAX_DATABASE_BYTES: usize = 256 * 1024 * 1024;
 const MAX_RECORD_BYTES: usize = auths_lifecycle::MAX_LIFECYCLE_RECORD_BYTES;
-const POSTGRES_SCHEMA: &str = include_str!("../migrations/postgres_lifecycle_v3.sql");
+const SCHEMA_VERSION: i32 = 4;
+const CONTRACT_ID: &str = "auths.lifecycle.transactional-store/4";
+const POSTGRES_SCHEMA: &str = include_str!("../migrations/postgres_lifecycle_v4.sql");
 
 /// One closed capacity rule configured by a domain registration.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -265,7 +267,7 @@ impl LifecycleReader for PersistentLifecycleStore {
 pub struct PostgresLifecycleStore {
     rules: Vec<LifecycleCapacityRuleV1>,
     maximum_records: usize,
-    pool: Pool<PostgresConnectionManager<MakeRustlsConnect>>,
+    pub(crate) pool: Pool<PostgresConnectionManager<MakeRustlsConnect>>,
 }
 
 /// Connection material that is erased when its owner is dropped.
@@ -531,13 +533,13 @@ impl PostgresStoreSummary {
     /// Returns the physical schema identity.
     #[must_use]
     pub const fn schema_id(self) -> &'static str {
-        "auths.lifecycle.postgresql/3"
+        "auths.lifecycle.postgresql/4"
     }
 
     /// Returns the transactional store contract identity.
     #[must_use]
     pub const fn contract_id(self) -> &'static str {
-        "auths.lifecycle.transactional-store/3"
+        CONTRACT_ID
     }
 
     /// Returns the minimum maintained connection count.
@@ -606,14 +608,14 @@ impl CustomizeConnection<Client, postgres::Error> for SessionCustomizer {
 }
 
 impl PostgresLifecycleStore {
-    /// Opens a pooled TLS-only store and installs the fixed V3 schema only in
+    /// Opens a pooled TLS-only store and installs the fixed V4 schema only in
     /// an otherwise empty database.
     ///
     /// # Errors
     ///
     /// Returns a typed configuration error when limits or rules are invalid,
     /// the database is unavailable, or an existing metadata row conflicts
-    /// with the V3 store contract.
+    /// with the V4 store contract.
     pub fn connect(
         configuration: PostgresStoreConfig,
     ) -> Result<Self, LifecycleStoreConfigurationError> {
@@ -630,7 +632,7 @@ impl PostgresLifecycleStore {
             return Err(LifecycleStoreConfigurationError::InvalidTlsConfiguration);
         }
         validate_server_identity(&database, &tls.expected_server_name)?;
-        database.application_name("auths-lifecycle-v3");
+        database.application_name("auths-lifecycle-v4");
         let tls_connector = make_tls_connector(&tls)?;
         let manager = PostgresConnectionManager::new(database, tls_connector);
         let connections = Pool::builder()
@@ -703,7 +705,7 @@ impl PostgresLifecycleStore {
         }
         let state = self.pool.state();
         Ok(PostgresStoreHealth {
-            schema_version: 3,
+            schema_version: 4,
             pool_connections: state.connections,
             pool_idle_connections: state.idle_connections,
         })
@@ -733,7 +735,7 @@ impl LifecycleStore for PostgresLifecycleStore {
         let contract_id: String = metadata
             .try_get(1)
             .map_err(|_| StoreError::SchemaMismatch)?;
-        if schema_version != 3 || contract_id != "auths.lifecycle.transactional-store/3" {
+        if schema_version != SCHEMA_VERSION || contract_id != CONTRACT_ID {
             return Err(StoreError::SchemaMismatch);
         }
         let mut database = load_postgres_database(&mut sql, self.maximum_records)?;
@@ -979,11 +981,16 @@ fn make_tls_connector(
     if count == 0 {
         return Err(LifecycleStoreConfigurationError::InvalidTlsConfiguration);
     }
-    Ok(MakeRustlsConnect::new(
-        ClientConfig::builder()
-            .with_root_certificates(roots)
-            .with_no_client_auth(),
+    // An explicit provider keeps the connector independent of which other
+    // rustls providers the embedding binary links.
+    let config = ClientConfig::builder_with_provider(std::sync::Arc::new(
+        rustls::crypto::ring::default_provider(),
     ))
+    .with_safe_default_protocol_versions()
+    .map_err(|_| LifecycleStoreConfigurationError::InvalidTlsConfiguration)?
+    .with_root_certificates(roots)
+    .with_no_client_auth();
+    Ok(MakeRustlsConnect::new(config))
 }
 
 fn validate_server_identity(
@@ -1025,7 +1032,8 @@ fn initialize_or_verify_schema(
             "SELECT to_regclass('auths_lifecycle_store_meta') IS NOT NULL,
                     to_regclass('auths_lifecycle_records') IS NOT NULL,
                     to_regclass('auths_recovery_references') IS NOT NULL,
-                    to_regclass('auths_recovery_leases') IS NOT NULL",
+                    to_regclass('auths_recovery_leases') IS NOT NULL,
+                    to_regclass('auths_gateway_attempts') IS NOT NULL",
             &[],
         )
         .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?;
@@ -1041,13 +1049,17 @@ fn initialize_or_verify_schema(
     let leases_exist: bool = tables
         .try_get(3)
         .map_err(|_| LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
+    let attempts_exist: bool = tables
+        .try_get(4)
+        .map_err(|_| LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
     match (
         metadata_exists,
         records_exist,
         references_exist,
         leases_exist,
+        attempts_exist,
     ) {
-        (false, false, false, false) => {
+        (false, false, false, false, false) => {
             let existing: i64 = client
                 .query_one(
                     "SELECT count(*)
@@ -1064,7 +1076,7 @@ fn initialize_or_verify_schema(
                 .batch_execute(POSTGRES_SCHEMA)
                 .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?;
         }
-        (true, true, true, true) => {}
+        (true, true, true, true, true) => {}
         _ => return Err(LifecycleStoreConfigurationError::DatabaseSchemaMismatch),
     }
     verify_store_contract(client)?;
@@ -1108,7 +1120,7 @@ fn verify_store_contract(client: &mut Client) -> Result<(), LifecycleStoreConfig
     let contract_id: String = rows[0]
         .try_get(1)
         .map_err(|_| LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
-    if schema_version != 3 || contract_id != "auths.lifecycle.transactional-store/3" {
+    if schema_version != SCHEMA_VERSION || contract_id != CONTRACT_ID {
         return Err(LifecycleStoreConfigurationError::DatabaseSchemaMismatch);
     }
     Ok(())
@@ -1321,7 +1333,7 @@ const fn lifecycle_state_code(state: LifecycleState) -> i16 {
     }
 }
 
-fn map_postgres_error(error: &postgres::Error) -> StoreError {
+pub(crate) fn map_postgres_error(error: &postgres::Error) -> StoreError {
     let Some(database_error) = error.as_db_error() else {
         return StoreError::Unavailable;
     };

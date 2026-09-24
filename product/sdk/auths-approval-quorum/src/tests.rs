@@ -2,7 +2,7 @@ use super::*;
 use auths_codec::{action_signing_preimage, encode_bundle, evidence_id};
 use auths_model::{
     EvidenceTypeId, MediaType, PrincipalMethodId, SignatureBytes, SignatureDescriptor,
-    SignatureEnvelope, SignatureSuiteId, Timestamp, VerificationMethod,
+    SignatureEnvelope, SignatureSuiteId, Timestamp, ValidityWindow, VerificationMethod,
 };
 use auths_profile_api::ActionProfile as _;
 use auths_profile_mcp::{McpProfile, McpToolCall};
@@ -85,12 +85,7 @@ fn proposal(required: u16, members: &[&Member]) -> Result<QuorumProposal, Quorum
     let (canonical, audience) = refund();
     let approvers: Vec<_> = members.iter().map(|member| member.approver()).collect();
     QuorumProposal::new(
-        canonical,
-        &audience,
-        [7; 32],
-        ValidityWindow::new(Timestamp::new(1_000), Timestamp::new(2_000)).expect("window"),
-        required,
-        &approvers,
+        canonical, &audience, [7; 32], 1_000, None, required, &approvers,
     )
 }
 
@@ -212,4 +207,98 @@ fn quorum_requirement_counts_distinct_actors() {
     assert_eq!(requirement.minimum_distinct_roots(), 1);
     assert!(quorum_requirement(0, 1).is_err());
     assert!(quorum_requirement(2, 3).is_err());
+}
+
+#[test]
+fn validity_defaults_to_a_day_and_is_bounded_to_a_week() {
+    let (canonical, audience) = refund();
+    let a = Member::new(1);
+    let window = |seconds| {
+        QuorumProposal::new(
+            canonical.clone(),
+            &audience,
+            [7; 32],
+            1_000,
+            seconds,
+            1,
+            &[a.approver()],
+        )
+        .map(|quorum| quorum.envelopes()[0].validity())
+    };
+    let expected =
+        |until| ValidityWindow::new(Timestamp::new(1_000), Timestamp::new(until)).expect("window");
+    assert_eq!(DEFAULT_QUORUM_VALIDITY_SECONDS, 86_400);
+    assert_eq!(MAX_QUORUM_VALIDITY_SECONDS, 604_800);
+    assert_eq!(window(None), Ok(expected(1_000 + 86_400)));
+    assert_eq!(window(Some(3_600)), Ok(expected(1_000 + 3_600)));
+    assert_eq!(window(Some(604_800)), Ok(expected(1_000 + 604_800)));
+    assert_eq!(window(Some(0)).err(), Some(QuorumError::ActionValidity));
+    assert_eq!(
+        window(Some(604_801)).err(),
+        Some(QuorumError::ActionValidity)
+    );
+}
+
+#[test]
+fn validity_is_cut_to_the_earliest_approver_grant_expiry() {
+    use auths_model::{
+        ActionConstraint, AssurancePolicyId, AudienceSet, CriticalExtensions, PermissionSet,
+        StatusPolicy,
+    };
+    let (canonical, audience) = refund();
+    let (root, a, b) = (Member::new(1), Member::new(2), Member::new(3));
+    let grant = |subject: &Member, expires_at| {
+        let statement = auths_model::GrantStatement::new(
+            root.principal.clone(),
+            subject.principal.clone(),
+            canonical.profile().clone(),
+            PermissionSet::new(vec![canonical.permission().clone()]).expect("permissions"),
+            ValidityWindow::new(Timestamp::new(0), Timestamp::new(expires_at)).expect("window"),
+            AudienceSet::new(vec![audience.clone()]).expect("audiences"),
+            ActionConstraint::AnyBody,
+            None,
+            0,
+            None,
+            StatusPolicy::ExpiryOnly,
+            AssurancePolicyId::parse("quorum-test").expect("assurance"),
+            CriticalExtensions::empty(),
+        );
+        let descriptor = SignatureDescriptor::new(
+            PrincipalMethodId::parse(RAW_KEY_V1).expect("method"),
+            VerificationMethod::parse(root.principal.as_str()).expect("verification method"),
+            SignatureSuiteId::parse(auths_signature::ED25519_V1).expect("suite"),
+        );
+        let preimage =
+            auths_codec::grant_signing_preimage(&statement, &descriptor).expect("preimage");
+        let signature =
+            SignatureBytes::new(root.key.sign(&preimage).to_bytes().to_vec()).expect("signature");
+        SignedGrant::new(statement, SignatureEnvelope::new(descriptor, signature))
+    };
+    let (early, late) = (grant(&a, 1_010), grant(&b, 5_000));
+    let approvers = [
+        QuorumApprover::new(a.principal.clone(), Some(&early)).expect("approver"),
+        QuorumApprover::new(b.principal.clone(), Some(&late)).expect("approver"),
+    ];
+    let quorum = QuorumProposal::new(
+        canonical,
+        &audience,
+        [7; 32],
+        1_000,
+        Some(86_400),
+        2,
+        &approvers,
+    )
+    .expect("proposal");
+    let expected =
+        ValidityWindow::new(Timestamp::new(1_000), Timestamp::new(1_010)).expect("window");
+    assert!(
+        quorum
+            .envelopes()
+            .iter()
+            .all(|envelope| envelope.validity() == expected)
+    );
+    assert_eq!(
+        quorum.envelopes()[0].terminal_grant(),
+        Some(grant_id(early.statement()).expect("grant ID"))
+    );
 }

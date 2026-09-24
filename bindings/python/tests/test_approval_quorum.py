@@ -177,8 +177,7 @@ async def _author(case_id: str, names: list[str], required: int) -> Any:
         approvers=[QuorumApprover(SeededSigner(name)) for name in names],
         trusted_context_template=_template(),
         challenge=CHALLENGE,
-        evaluation_time=FIXTURE["not_before"],
-        expires_at=FIXTURE["expires_at"],
+        evaluation_time=FIXTURE["authored_at"],
     )
 
 
@@ -199,6 +198,41 @@ async def test_python_authors_the_exact_gateway_quorum_bytes(case_id: str) -> No
     )
     assert len(authored.plan.proof_references) == len(case["approvers"])
     assert len(set(authored.plan.proof_references)) == len(case["approvers"])
+    assert (authored.plan.valid_from, authored.plan.valid_until) == (
+        FIXTURE["authored_at"],
+        FIXTURE["authored_at"] + FIXTURE["validity_seconds"],
+    )
+
+
+@pytest.mark.asyncio
+async def test_quorum_window_defaults_to_a_day_and_is_configurable() -> None:
+    case = CASES["two-of-three-managers"]
+
+    async def author(validity: Any) -> Any:
+        return await author_mcp_quorum_proof(
+            contract=TOOL,
+            command=_command(case),
+            required=2,
+            approvers=[QuorumApprover(SeededSigner(name)) for name in case["approvers"]],
+            trusted_context_template=_template(),
+            challenge=CHALLENGE,
+            evaluation_time=FIXTURE["authored_at"],
+            validity_seconds=validity,
+        )
+
+    assert FIXTURE["validity_seconds"] == 86_400
+    explicit = await author(FIXTURE["validity_seconds"])
+    assert explicit.proof == _b64(case["proof_b64"])
+    shorter = await author(3_600)
+    assert shorter.plan.valid_until == FIXTURE["authored_at"] + 3_600
+    assert shorter.proof != explicit.proof
+    # A week passes the native bound; the one-day trust anchors then refuse it.
+    with pytest.raises(AuthoringUnsuccessful) as week:
+        await author(604_800)
+    assert (week.value.kind, week.value.code) == ("rejected", "action-outside-validity")
+    for invalid in (0, 604_801):
+        with pytest.raises(ValueError):
+            await author(invalid)
 
 
 @pytest.mark.asyncio
@@ -211,8 +245,7 @@ async def test_every_approver_reviews_the_same_action_and_plan() -> None:
         approvers=[QuorumApprover(signer) for signer in signers],
         trusted_context_template=_template(),
         challenge=CHALLENGE,
-        evaluation_time=FIXTURE["not_before"],
-        expires_at=FIXTURE["expires_at"],
+        evaluation_time=FIXTURE["authored_at"],
     )
     displays = {request.display for signer in signers for request in signer.requests}
     assert len(displays) == 1
@@ -220,7 +253,8 @@ async def test_every_approver_reviews_the_same_action_and_plan() -> None:
     assert fields["Approval quorum"] == "2 of 3"
     assert len({signer.requests[0].object_id for signer in signers}) == 3
     assert all(
-        signer.requests[0].expires_at_unix_seconds == FIXTURE["expires_at"]
+        signer.requests[0].expires_at_unix_seconds
+        == FIXTURE["authored_at"] + FIXTURE["validity_seconds"]
         for signer in signers
     )
 
@@ -279,8 +313,7 @@ async def test_duplicate_approver_and_impossible_threshold_are_refused() -> None
                 approvers=[QuorumApprover(SeededSigner(name)) for name in approvers],
                 trusted_context_template=_template(),
                 challenge=CHALLENGE,
-                evaluation_time=FIXTURE["not_before"],
-                expires_at=FIXTURE["expires_at"],
+                evaluation_time=FIXTURE["authored_at"],
             )
 
 
@@ -297,8 +330,7 @@ async def test_a_declining_approver_stops_the_quorum() -> None:
             ],
             trusted_context_template=_template(),
             challenge=CHALLENGE,
-            evaluation_time=FIXTURE["not_before"],
-            expires_at=FIXTURE["expires_at"],
+            evaluation_time=FIXTURE["authored_at"],
         )
     assert declined.value.kind == "rejected"
 

@@ -73,13 +73,31 @@ impl GitProofSigner for DidKeySigner {
         vec![self.single_evidence()]
     }
 
-    fn sign(&self, preimage: &[u8]) -> Result<SignatureBytes, SignError> {
-        SignatureBytes::new(self.key.sign(preimage).to_bytes().to_vec())
-            .map_err(|_| SignError::Signer)
+    fn custody(&self) -> &'static str {
+        "software"
+    }
+
+    fn sign_grant(
+        &self,
+        request: auths_author::ExternalSigningRequest<GrantStatement>,
+    ) -> Result<SignedGrant, SignError> {
+        crate::sign::local_grant(request, |preimage| self.sign_preimage(preimage))
+    }
+
+    fn sign_action(
+        &self,
+        request: auths_author::ExternalSigningRequest<auths_model::ActionEnvelope>,
+    ) -> Result<auths_model::SignedAction, SignError> {
+        crate::sign::local_action(request, |preimage| self.sign_preimage(preimage))
     }
 }
 
 impl DidKeySigner {
+    fn sign_preimage(&self, preimage: &[u8]) -> Result<SignatureBytes, SignError> {
+        SignatureBytes::new(self.key.sign(preimage).to_bytes().to_vec())
+            .map_err(|_| SignError::Signer)
+    }
+
     fn single_evidence(&self) -> EvidenceObject {
         auths_author::address_evidence(
             EvidenceTypeId::parse(DID_KEY_V1).expect("evidence type"),
@@ -144,10 +162,7 @@ fn delegate(
         CriticalExtensions::empty(),
     );
     let request = prepare_grant(statement, root.descriptor()).expect("grant request");
-    let signature = root
-        .sign(request.signing_preimage())
-        .expect("grant signature");
-    let grant: SignedGrant = request.complete(signature);
+    let grant: SignedGrant = root.sign_grant(request).expect("grant signature");
     Delegation::new(vec![DelegationLink::new(grant, root.single_evidence())]).expect("chain")
 }
 

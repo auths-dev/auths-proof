@@ -2,7 +2,10 @@
 
 **Status:** Specified as nine ordered implementation epics. Production claims
 remain prohibited until the completion gate in this document is satisfied for
-one immutable release candidate.
+one immutable release candidate. §9 engineering is implemented on branch
+`038-production-trust` (see §9.5); the §9.3 gate items that need a second
+operator, a root ceremony record, or the AP-SPEC-060 §16 observer quorum are
+open, and no §9 production claim is made.
 
 **Depends on:** [AP-SPEC-026 reservation and execution
 semantics](0026-reservation-and-execution-state-semantics.md), [AP-SPEC-029
@@ -291,3 +294,44 @@ The completion gate in §8 adds three items:
 - **Hardware custody for local developer agents** (for example the Secure
   Enclave). It is deferred until someone adopts Git signing.
 
+
+### 9.5 Implementation status
+
+Implemented (engineering only; no production claim):
+
+| Requirement | Where | Evidence |
+| --- | --- | --- |
+| §9.1 Epic 2: claims, provider-bound evidence, and outcome stages on the qualified store | `GatewayAttemptStore` in `auths-gateway`; `PostgresLifecycleStore` rows in schema `auths.lifecycle.postgresql/4` | One conformance suite on both stores: claim exactly once, replay, fresh challenge, unknown and re-observe, `echo-mismatch`, concurrent re-observation, fail-closed reads, and concurrent claims from two gateway processes. The PostgreSQL variants run in the PostgreSQL lifecycle workflow against its TLS fixture. |
+| §9.1 Epic 2 fault matrix: replay, fresh challenge, crash after entry, concurrent re-observation | same | The attempt-scenario corpus and the conformance suite, on both stores. The TLS/pooling/failover/backup parts of the Epic 2 matrix are Epic 2's own open work. |
+| §9.1 Epic 4: observer and Git roots behind `auths-custody` | `GatewayObserver::from_custody`, `CustodyKeySigner`, `CustodyKey` | KMS- and PKCS#11-held keys, through the reference adapters over mock provider APIs, sign observations and grants that verify in the kernel. The shared custody conformance kit runs every `CustodyConformanceCase` and every lifecycle state on both paths. |
+| §9.1 Epic 4: each signer reports its custody kind | `ObserverCustody`, `GitProofSigner::custody` | Unit tests. |
+| §9.1 Epic 5: runbook | [gateway trust and Git-signing runbook](../operations/GATEWAY_TRUST_AND_GIT_SIGNING_RUNBOOK.md) | Observer key rotation, observer-anchor updates, Git revocation records. |
+| §9.1 Epic 9: hostile run against the multi-host store | `observed_tests` and `engine` suites | Observation-conditioned grants and provider-bound evidence, pre-generated fixtures, on both stores. |
+| §9.2 separation | `check_principal_separation` in `auths-gateway`; production install | Stable codes `gateway.trust.operator-is-root`, `operator-is-observer`, `observer-is-root`, `observer-not-anchored`. |
+| §9.2 root M-of-N | kernel `KOfN` with a two-distinct-root composition requirement | 2-of-3 root test. |
+
+Readings taken:
+
+- The operator is not a kernel principal, so operator separation lives in
+  the gateway, its only consumer, and runs at install and at every start.
+  Root and observer overlap is also checked statically there; the kernel's
+  per-proof refusal is unchanged.
+- Gateway claims are row-level insert-once and compare-and-swap operations
+  in the lifecycle database. They do not take the singleton contract-row
+  lock, so the AP-SPEC-057 §3 concern about that lock under competing
+  instances does not arise for gateway claims.
+- The AWS KMS and PKCS#11 reference adapters derived their principal as
+  SHA-256 of the SEC1 key, which is not a `raw-key-v1` identifier; the
+  kernel could not have verified their signatures. They now derive it
+  through `CustodyIdentity`.
+
+Open, each with its reason:
+
+| Item | Reason |
+| --- | --- |
+| §9.3: separation and custody exercised by a second operator | Needs a second human operator. |
+| §9.3: 2-of-3 observer quorum across three operator domains, with one refuting observer | Depends on AP-SPEC-060 §16, which the program board holds as demand-gated; not implemented. |
+| §9.3: root ceremony record in the candidate evidence | Needs a reviewed human key ceremony. |
+| §9.1 Epic 4: a trusted context requiring a custody kind for roots and observers | Custody kind is self-reported today; a verifier requirement needs provider attestation evidence and a trusted-context wire field (a core wire change with its own spec, fixtures, and bindings). Not implemented. |
+| Custody keys in the shipped binaries | The `auths-gateway` and `auths-git` binaries have no KMS or PKCS#11 client: the reference adapters define ports with no maintained production client, and adding one (with SoftHSM CI) is Epic 4's own work. The binaries refuse a software observer in production and keep the software root for development. |
+| Git trust M-of-N roots | AP-SPEC-058 pins one root anchor per repository trust, and a Git signature carries one delegation branch. An M-of-N Git root needs a 058 amendment for multi-branch signature proofs; the M-of-N composition is implemented and tested for gateway trust. |
