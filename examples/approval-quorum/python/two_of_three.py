@@ -119,8 +119,7 @@ async def main(fixture_path: Path) -> None:
             approvers=[QuorumApprover(managers[name]) for name in names],
             trusted_context_template=b64(fixture["sdk_trusted_context_b64"]),
             challenge=bytes.fromhex(fixture["challenge_hex"]),
-            evaluation_time=fixture["not_before"],
-            expires_at=fixture["expires_at"],
+            evaluation_time=fixture["authored_at"],
         )
 
     authored = await author(["manager-a", "manager-b"], 2)

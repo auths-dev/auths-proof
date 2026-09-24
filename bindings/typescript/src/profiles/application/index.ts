@@ -623,6 +623,7 @@ async function authorizeApplication(
       resources.signedGrant.slice(),
       challenge,
       evaluationTime,
+      undefined,
     );
   } catch {
     throw new AuthsWorkflowError(

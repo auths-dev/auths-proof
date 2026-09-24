@@ -53,8 +53,9 @@ const LOCK: &[u8] =
 
 const SCHEMA: &str = "auths.gateway-approval-quorum/1";
 const NOW: u64 = 1_790_000_000;
-const NOT_BEFORE: u64 = NOW - 600;
-const EXPIRES_AT: u64 = NOW + 3_000;
+/// Approvals are authored this long before the gateway verifies them, inside
+/// the default action validity.
+const AUTHORED_AT: u64 = NOW - 10;
 const CHALLENGE: [u8; 32] = [0x51; 32];
 const REQUIRED: u16 = 2;
 const RECORD: &str = "recQUORUM00000001";
@@ -165,7 +166,11 @@ fn canonical(recipe: &CompiledRecipe, operation: &str) -> (CanonicalAction, Audi
 }
 
 fn validity() -> ValidityWindow {
-    ValidityWindow::new(Timestamp::new(NOT_BEFORE), Timestamp::new(EXPIRES_AT)).expect("window")
+    ValidityWindow::new(
+        Timestamp::new(AUTHORED_AT),
+        Timestamp::new(AUTHORED_AT + auths_author::DEFAULT_ACTION_VALIDITY_SECONDS),
+    )
+    .expect("window")
 }
 
 fn proposal(
@@ -183,7 +188,8 @@ fn proposal(
         canonical,
         &audience,
         CHALLENGE,
-        validity(),
+        AUTHORED_AT,
+        None,
         required,
         &approvers,
     )
@@ -236,7 +242,7 @@ fn trusted_context(recipe: &CompiledRecipe) -> TrustedContext {
         Vec::new(),
         Vec::new(),
         vec![profile],
-        vec![ProfilePolicyId::parse(crate::MCP_ARGUMENTS_V1).expect("policy")],
+        vec![ProfilePolicyId::parse(auths_profile_mcp::MCP_ARGUMENTS_V1).expect("policy")],
     )
     .expect("registries");
     TrustedContext::new(
@@ -265,7 +271,7 @@ fn trusted_context(recipe: &CompiledRecipe) -> TrustedContext {
         )
         .expect("grant status"),
         ResourceMatcherId::parse("uri-namespace-v1").expect("matcher"),
-        ProfilePolicyId::parse(crate::MCP_ARGUMENTS_V1).expect("policy"),
+        ProfilePolicyId::parse(auths_profile_mcp::MCP_ARGUMENTS_V1).expect("policy"),
         ChannelBindingId::parse("none-v1").expect("channel"),
         VerifierLimits::default(),
     )
@@ -427,6 +433,17 @@ fn hand_bundle(
     .expect("hand-built bundle")
 }
 
+#[test]
+fn sdk_and_hand_built_approvals_share_the_default_window() {
+    let quorum = proposal(&recipe(), "window", 2, &["manager-a", "manager-b"]);
+    assert!(
+        quorum
+            .envelopes()
+            .iter()
+            .all(|envelope| envelope.validity() == validity())
+    );
+}
+
 fn sdk_bundle(
     recipe: &CompiledRecipe,
     operation: &str,
@@ -579,8 +596,8 @@ fn generate() -> String {
         "service": "airtable-gateway-demo",
         "tool": "set_demo_status_v1",
         "evaluation_time": NOW,
-        "not_before": NOT_BEFORE,
-        "expires_at": EXPIRES_AT,
+        "authored_at": AUTHORED_AT,
+        "validity_seconds": auths_author::DEFAULT_ACTION_VALIDITY_SECONDS,
         "challenge_hex": hex::encode(CHALLENGE),
         "required": REQUIRED,
         "members": members,

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Generic, Literal, Sequence, TypeVar, Union
+from typing import Generic, Literal, Optional, Sequence, TypeVar, Union
 
 from . import _native
 from .adapters.custody import (
@@ -24,7 +24,12 @@ from .adapters.custody import (
     SigningRequest,
     SigningResponse,
 )
-from .self_hosted import ExactMcpTool, _canonical_arguments
+from .self_hosted import (
+    ExactMcpTool,
+    SignedObservationAttachment,
+    _canonical_arguments,
+    attach_observations,
+)
 
 CommandT = TypeVar("CommandT")
 
@@ -97,11 +102,14 @@ async def author_production_mcp_proof(
     contract: ExactMcpTool[CommandT],
     command: CommandT,
     inputs: ProductionAuthoringInputs,
+    observations: Sequence[SignedObservationAttachment] = (),
+    validity_seconds: Optional[int] = None,
 ) -> AuthoredMcpProof[CommandT]:
     """Author with explicit durable custody and separately supplied trust.
 
     The verifier decides authorization; structural readiness is not a grant,
     proof of independent trust provisioning, or provider qualification.
+    ``observations`` and ``validity_seconds`` are as in :func:`author_mcp_proof`.
     """
     return await author_mcp_proof(
         contract=contract,
@@ -111,6 +119,8 @@ async def author_production_mcp_proof(
         signer=inputs.signer,
         challenge=inputs.challenge,
         evaluation_time=inputs.evaluation_time,
+        observations=observations,
+        validity_seconds=validity_seconds,
     )
 
 
@@ -147,12 +157,27 @@ async def author_mcp_proof(
     signer: CustodySigner,
     challenge: bytes,
     evaluation_time: int,
+    observations: Sequence[SignedObservationAttachment] = (),
+    validity_seconds: Optional[int] = None,
 ) -> AuthoredMcpProof[CommandT]:
     """Sign and assemble one exact action with externally supplied authority.
 
     The signed grant, signer identity, and trusted context remain distinct
     inputs. Native Rust owns canonical action, bundle, and verifier semantics.
     The caller retains custody of the signer and must close it separately.
+
+    Each signed observation in ``observations`` (for example a gateway
+    read-back) is carried as a detached attachment that the action signature
+    covers; a grant's observation requirements are then judged by the final
+    verification against the trusted context.
+
+    The action is valid from ``evaluation_time`` for ``validity_seconds``
+    (the native default when ``None``, bounded natively), cut to the terminal
+    grant's expiry, so a gateway verifying at its own clock accepts it inside
+    that window. The window is not a replay defence: the executor's durable
+    exactly-once claim is, inside and after the window. Observation freshness
+    is judged at the verifier's evaluation time, so the window never extends
+    an observation's maximum age.
     """
     if not 1 <= len(grants) <= 16:
         raise ValueError("grant chain count is outside bounds")
@@ -173,7 +198,10 @@ async def author_mcp_proof(
         terminal_grant=signed_grants[-1],
         challenge=challenge,
         evaluation_time=evaluation_time,
+        validity_seconds=validity_seconds,
     )
+    if observations:
+        prepared = attach_observations(prepared, observations)
     template = _native.parse_trusted_context(bytes(trusted_context_template))
     context = template.bind_request(prepared.audience, bytes(challenge), evaluation_time)
     signature = descriptor.signature
@@ -262,7 +290,8 @@ class QuorumPlan:
     """Projection of the native threshold plan every approval signed.
 
     ``approvers`` and ``proof_references`` are in approver order; the plan
-    itself is canonical and independent of that order.
+    itself is canonical and independent of that order. Every approval is
+    valid from ``valid_from`` through ``valid_until`` inclusive.
     """
 
     required: int
@@ -270,6 +299,8 @@ class QuorumPlan:
     plan_id: bytes
     canonical_plan: bytes
     proof_references: tuple[bytes, ...]
+    valid_from: int
+    valid_until: int
 
 
 @dataclass(frozen=True)
@@ -292,7 +323,7 @@ async def author_mcp_quorum_proof(
     trusted_context_template: bytes,
     challenge: bytes,
     evaluation_time: int,
-    expires_at: int,
+    validity_seconds: Optional[int] = None,
 ) -> AuthoredMcpQuorumProof[CommandT]:
     """Collect one signature per approver over one exact action and assemble
     a ``required``-of-N threshold proof.
@@ -300,8 +331,13 @@ async def author_mcp_quorum_proof(
     Each signature commits to the whole approver set, so every listed approver
     must sign; list only the approvers being asked. The threshold the verifier
     enforces comes from the operator's trusted context (branches and distinct
-    actors), never from the proof. Approvals are valid from ``evaluation_time``
-    through ``expires_at``. Signers are asked concurrently and are not closed.
+    actors), never from the proof. Signers are asked concurrently and are not
+    closed.
+
+    Every approval is valid from ``evaluation_time`` for ``validity_seconds``
+    exactly as in :func:`author_mcp_proof` (the native default when ``None``,
+    bounded natively), cut to the earliest approver grant expiry; every
+    approval must be collected and verified inside that window.
     """
     if type(required) is not int or not 1 <= required <= len(approvers) <= 16:
         raise ValueError("quorum threshold or approver count is outside bounds")
@@ -309,13 +345,8 @@ async def author_mcp_quorum_proof(
         raise TypeError("approvers must be QuorumApprover values")
     if len(challenge) != 32:
         raise ValueError("challenge must contain 32 bytes")
-    if (
-        type(evaluation_time) is not int
-        or type(expires_at) is not int
-        or not 0 <= evaluation_time <= expires_at < 2**64
-        or expires_at - evaluation_time > 86_400
-    ):
-        raise ValueError("quorum validity window is outside bounds")
+    if type(evaluation_time) is not int or not 0 <= evaluation_time < 2**64 - 300:
+        raise ValueError("evaluation time is outside bounds")
     descriptors = [approver.signer.descriptor for approver in approvers]
     if any(descriptor.contract != "signer-custody/2" for descriptor in descriptors):
         raise ValueError("signer does not implement the custody contract")
@@ -338,7 +369,7 @@ async def author_mcp_quorum_proof(
         required,
         bytes(challenge),
         evaluation_time,
-        expires_at,
+        validity_seconds,
     )
     template = _native.parse_trusted_context(bytes(trusted_context_template))
     context = template.bind_request(quorum.audience, bytes(challenge), evaluation_time)
@@ -363,7 +394,7 @@ async def author_mcp_quorum_proof(
             descriptor,
             bytes(request.transaction_digest),
             bytes(request.signing_preimage),
-            expires_at,
+            evaluation_time + 300,
             tuple(ReviewField(label, value) for label, value in review),
         )
         for request, descriptor in zip(requests, descriptors)
@@ -419,6 +450,7 @@ async def author_mcp_quorum_proof(
             bytes(quorum.plan_id),
             bytes(quorum.canonical_plan),
             tuple(bytes(reference) for reference in quorum.proof_references),
+            *quorum.validity,
         ),
     )
 

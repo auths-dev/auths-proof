@@ -25,12 +25,27 @@ from auths.authoring import (
     author_mcp_proof,
     author_production_mcp_proof,
 )
-from auths.self_hosted import AuthorizedCommand, ExactMcpTool, StringField, verify_command
+from auths.self_hosted import (
+    AuthorizedCommand,
+    ExactMcpTool,
+    PreparedMcpAction,
+    StringField,
+    attach_observations,
+    verify_command,
+)
+
+OBSERVATION_MEDIA_TYPE = "application/vnd.auths.observation.v1+cbor"
 
 
 @dataclass(frozen=True)
 class Change:
     value: str
+
+
+@dataclass(frozen=True)
+class Observation:
+    media_type: str
+    observation: bytes
 
 
 TOOL = ExactMcpTool(
@@ -214,3 +229,114 @@ async def test_signer_response_must_bind_the_exact_request(field_name: str) -> N
             challenge=_native.generate_challenge_v1(), evaluation_time=now,
         )
     assert signer.calls == 1
+
+
+
+def _prepared(now: int) -> PreparedMcpAction[Change]:
+    key, grant, _ = _authority(now)
+    return TOOL.prepare(
+        Change("approved"),
+        actor=_native.Principal(key.principal),
+        terminal_grant=_native.parse_signed("grant", grant.signed_grant),
+        challenge=_native.generate_challenge_v1(),
+        evaluation_time=now,
+    )
+
+
+def test_attached_observations_are_bound_before_signing() -> None:
+    prepared = _prepared(int(time.time()))
+    first = Observation(OBSERVATION_MEDIA_TYPE, b"\xa1" * 40)
+    second = Observation(OBSERVATION_MEDIA_TYPE, b"\x07" * 12)
+    attached = attach_observations(prepared, (first, second))
+    assert attached.command == prepared.command
+    assert attached.arguments_json == prepared.arguments_json
+    assert attached.canonical_action != prepared.canonical_action
+    assert attached.action_commitment != prepared.action_commitment
+    assert (
+        _native.inspect_unsigned(attached.action.unsigned)
+        != _native.inspect_unsigned(prepared.action.unsigned)
+    )
+    for observation in (first, second):
+        assert observation.observation in attached.canonical_action
+    unchanged = attach_observations(prepared, ())
+    assert unchanged.canonical_action == prepared.canonical_action
+
+
+@pytest.mark.parametrize(
+    "observations",
+    [
+        (Observation("application/cbor", b"\x01" * 8),),
+        (Observation(OBSERVATION_MEDIA_TYPE, b""),),
+        (Observation(OBSERVATION_MEDIA_TYPE, b"\x02" * 4_097),),
+        (
+            Observation(OBSERVATION_MEDIA_TYPE, b"\x03" * 8),
+            Observation(OBSERVATION_MEDIA_TYPE, b"\x03" * 8),
+        ),
+        tuple(
+            Observation(OBSERVATION_MEDIA_TYPE, bytes([0xEE, index])) for index in range(33)
+        ),
+    ],
+    ids=["media-type", "empty", "oversized", "repeated", "too-many"],
+)
+def test_attachment_rejects_media_type_size_count_and_repeats(
+    observations: tuple[Observation, ...],
+) -> None:
+    with pytest.raises(_native.NativeAuthsError):
+        attach_observations(_prepared(int(time.time())), observations)
+
+
+def test_attachment_happens_once_and_needs_the_observation_shape() -> None:
+    prepared = _prepared(int(time.time()))
+    once = attach_observations(prepared, (Observation(OBSERVATION_MEDIA_TYPE, b"\x04" * 8),))
+    with pytest.raises(_native.NativeAuthsError):
+        attach_observations(once, ())
+    with pytest.raises(TypeError):
+        attach_observations(prepared, (b"not an observation",))  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_attachment_is_signed_and_judged_only_by_the_verifier() -> None:
+    now = int(time.time())
+    key, grant, template = _authority(now)
+    signer = ExternalSigner(key)
+    carried = Observation(OBSERVATION_MEDIA_TYPE, b"bytes the attacher never decodes")
+    authored = await author_mcp_proof(
+        contract=TOOL,
+        command=Change("approved"),
+        grants=(grant,),
+        trusted_context_template=template,
+        signer=signer,
+        challenge=_native.generate_challenge_v1(),
+        evaluation_time=now,
+        observations=(carried,),
+    )
+    assert carried.observation in authored.action
+    result = verify_command(
+        contract=TOOL, proof=authored.proof, action=authored.action,
+        trusted_context=authored.trusted_context,
+    )
+    assert isinstance(result, AuthorizedCommand), "no requirement reads it"
+    stripped = _prepared(now)
+    assert authored.action_commitment != stripped.action_commitment
+
+
+def test_prepared_action_validity_is_natively_bounded_and_defaulted() -> None:
+    now = int(time.time())
+    key, grant, _ = _authority(now)
+    arguments = {
+        "actor": _native.Principal(key.principal),
+        "terminal_grant": _native.parse_signed("grant", grant.signed_grant),
+        "challenge": bytes([0x22]) * 32,
+        "evaluation_time": now,
+    }
+    unsigned = [
+        _native.inspect_unsigned(TOOL.prepare(Change("approved"), **arguments, **extra).action.unsigned
+        )
+        for extra in ({}, {"validity_seconds": 30}, {"validity_seconds": 1})
+    ]
+    assert unsigned[0] == unsigned[1] != unsigned[2]
+    for validity in (0, 301):
+        with pytest.raises(ValueError, match="action validity is outside bounds"):
+            TOOL.prepare(Change("approved"), validity_seconds=validity, **arguments)
+    with pytest.raises(TypeError):
+        TOOL.prepare(Change("approved"), validity_seconds=True, **arguments)

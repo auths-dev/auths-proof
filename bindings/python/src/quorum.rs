@@ -7,7 +7,6 @@ use crate::authoring::{
 };
 use crate::mcp::evidence_object;
 use auths_approval_quorum::{QuorumApproval, QuorumApprover, QuorumProposal};
-use auths_model::{Timestamp, ValidityWindow};
 use auths_profile_api::ActionProfile;
 use auths_profile_mcp::{McpProfile, McpToolCall};
 use pyo3::{exceptions::PyTypeError, prelude::*, types::PyBytes};
@@ -99,6 +98,19 @@ impl PyMcpQuorum {
         self.review_fields.clone()
     }
 
+    #[getter]
+    fn validity(&self) -> (u64, u64) {
+        self.proposal
+            .envelopes()
+            .first()
+            .map_or((0, 0), |envelope| {
+                (
+                    envelope.validity().not_before().get(),
+                    envelope.validity().expires_at().get(),
+                )
+            })
+    }
+
     fn unsigned(&self, index: usize) -> PyResult<PyUnsignedObject> {
         let envelope = self
             .proposal
@@ -120,6 +132,10 @@ impl PyMcpQuorum {
 }
 
 #[pyfunction]
+#[pyo3(signature = (
+    service, name, arguments_json, approvers, required, challenge, evaluation_time,
+    validity_seconds = None
+))]
 #[allow(clippy::too_many_arguments)]
 fn prepare_mcp_quorum(
     py: Python<'_>,
@@ -129,8 +145,8 @@ fn prepare_mcp_quorum(
     approvers: Vec<(Py<PyPrincipal>, Option<Py<PySignedObject>>)>,
     required: u16,
     challenge: &[u8],
-    not_before: u64,
-    expires_at: u64,
+    evaluation_time: u64,
+    validity_seconds: Option<u64>,
 ) -> PyResult<PyMcpQuorum> {
     let Value::Object(arguments) =
         serde_json::from_slice::<Value>(arguments_json).map_err(value_error)?
@@ -169,13 +185,17 @@ fn prepare_mcp_quorum(
         .canonicalize(&call.canonical_bytes().map_err(value_error)?)
         .map_err(value_error)?;
     let display = McpProfile.review_display(&canonical).map_err(value_error)?;
-    let validity = ValidityWindow::new(Timestamp::new(not_before), Timestamp::new(expires_at))
-        .map_err(value_error)?;
     let canonical_action = auths_codec::encode_canonical_action(&canonical).map_err(value_error)?;
     let resource = canonical.permission().resource().to_string();
     let audience = call.audience().map_err(value_error)?;
     let proposal = QuorumProposal::new(
-        canonical, &audience, challenge, validity, required, &members,
+        canonical,
+        &audience,
+        challenge,
+        evaluation_time,
+        validity_seconds,
+        required,
+        &members,
     )
     .map_err(value_error)?;
     Ok(PyMcpQuorum {

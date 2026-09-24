@@ -360,6 +360,7 @@ pub(crate) fn ci_formal_proof_fast() -> Result<(), String> {
     let (formal_root, _) = prepare_formal_translation(false, false)?;
     for target in [
         "Auths.Refinement.Production",
+        "Auths.Refinement.Observation",
         "Auths.Product.Refinement",
         "Auths.Lifecycle.Refinement",
         "Auths.Rich.Mutations",
@@ -1468,7 +1469,9 @@ pub(crate) fn formal_assurance_audit(formal_root: &Path, update: bool) -> Result
                 claim.lean_declaration, claim.claim_status
             ));
         }
-        if let Some(metadata) = production_refinement_metadata(&claim.lean_declaration) {
+        if let Some((metadata, translation_artifact)) =
+            qualified_refinement_metadata(&claim.lean_declaration)
+        {
             let expected_symbols = metadata
                 .rust_symbols
                 .iter()
@@ -1494,6 +1497,7 @@ pub(crate) fn formal_assurance_audit(formal_root: &Path, update: bool) -> Result
                 &claim.lean_declaration,
                 &claim.evidence,
                 metadata.translation_evidence_kind,
+                translation_artifact,
             )?;
         }
         if claim.toolchain_lock_sha256 != toolchain_lock_digest {
@@ -1763,7 +1767,9 @@ pub(crate) fn synchronize_formal_assurance_manifest(
                 "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the qualified translation boundary, the listed foundational axioms, and the theorem premises are trusted.".to_owned(),
             ];
         }
-        if let Some(metadata) = production_refinement_metadata(&declaration.name) {
+        if let Some((metadata, translation_artifact)) =
+            qualified_refinement_metadata(&declaration.name)
+        {
             claim.claim_text = metadata.claim_text.to_owned();
             claim.claim_status = "qualified".to_owned();
             claim.rust_symbols = metadata
@@ -1787,7 +1793,7 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             });
             claim.evidence.push(FormalEvidence {
                 kind: metadata.translation_evidence_kind,
-                artifact: "formal/qualification/aeneas/generated/authority/Funs.lean".to_owned(),
+                artifact: translation_artifact.to_owned(),
                 sha256: String::new(),
             });
             claim.evidence.push(FormalEvidence {
@@ -2011,10 +2017,28 @@ struct ProductionRefinementMetadata {
     translation_evidence_kind: FormalEvidenceKind,
 }
 
+const AUTHORITY_TRANSLATION: &str = "formal/qualification/aeneas/generated/authority/Funs.lean";
+const MODEL_TRANSLATION: &str = "formal/qualification/aeneas/generated/model/Funs.lean";
+
+/// Qualified refinement metadata together with the generated translation the
+/// claim must cite: the authority evaluators live in the authority crate's
+/// translation, the observation predicates in the model crate's.
+fn qualified_refinement_metadata(
+    declaration: &str,
+) -> Option<(ProductionRefinementMetadata, &'static str)> {
+    production_refinement_metadata(declaration)
+        .map(|metadata| (metadata, AUTHORITY_TRANSLATION))
+        .or_else(|| {
+            observation_refinement_metadata(declaration)
+                .map(|metadata| (metadata, MODEL_TRANSLATION))
+        })
+}
+
 fn validate_production_evidence(
     declaration: &str,
     evidence: &[FormalEvidence],
     translation_kind: FormalEvidenceKind,
+    translation_artifact: &str,
 ) -> Result<(), String> {
     let source_closure = evidence
         .iter()
@@ -2033,10 +2057,10 @@ fn validate_production_evidence(
         || source_closure[0].artifact != "formal/qualification/aeneas/source-closure.json"
         || translation.len() != 1
         || translation[0].kind != translation_kind
-        || translation[0].artifact != "formal/qualification/aeneas/generated/authority/Funs.lean"
+        || translation[0].artifact != translation_artifact
     {
         return Err(format!(
-            "formal claim {declaration} must bind exactly one production source closure and one generated authority translation"
+            "formal claim {declaration} must bind exactly one production source closure and the generated translation {translation_artifact}"
         ));
     }
     Ok(())
@@ -2148,6 +2172,132 @@ fn production_refinement_metadata(declaration: &str) -> Option<ProductionRefinem
         }
         _ => None,
     }
+}
+
+fn observation_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    const COMMON: &str = "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the reviewed transparent external bridges, the listed foundational axioms, and the theorem's explicit representation-validity premises (every compared text fits the u32 UTF-8 byte bound) are trusted.";
+    const BOUNDARY: &str = "Observation signature verification, CBOR decoding, the subject namespace matcher, and the verifier's stage orchestration are outside this theorem.";
+    const RESIDUAL: &[&str] = &[COMMON, BOUNDARY];
+    const FACT_NAME_EQUAL: &str = "auths_model::observation::fact_name_equal";
+    const FACT_VALUE_EQUAL: &str = "auths_model::observation::fact_value_equal";
+    const UINT_RANGE_CONTAINS: &str = "auths_model::observation::uint_range_contains";
+    const MEMBER_VALUES_CONTAIN: &str = "auths_model::observation::member_values_contain";
+    const OBSERVATION_FACT: &str = "auths_model::observation::observation_fact";
+    const CONDITION_VALUE_HOLDS: &str = "auths_model::observation::condition_value_holds";
+    const OBSERVATION_CONDITION_HOLDS: &str =
+        "auths_model::observation::observation_condition_holds";
+    const OBSERVATION_CONDITIONS_HOLD: &str =
+        "auths_model::observation::observation_conditions_hold";
+    const REQUIREMENT_VERDICT: &str = "auths_model::observation::requirement_verdict";
+    const CONDITION_CLOSURE: &[&str] = &[
+        OBSERVATION_CONDITIONS_HOLD,
+        OBSERVATION_CONDITION_HOLDS,
+        OBSERVATION_FACT,
+        FACT_NAME_EQUAL,
+        CONDITION_VALUE_HOLDS,
+        FACT_VALUE_EQUAL,
+        UINT_RANGE_CONTAINS,
+        MEMBER_VALUES_CONTAIN,
+    ];
+    let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
+        "Auths.Refinement.Observation.translated_fact_name_equal_refines_model" => (
+            "The mechanically translated fact-name comparison returns exactly the model's String equality.",
+            &[FACT_NAME_EQUAL],
+            "UTF-8 byte comparison of two fact names, bridged to String equality by UTF-8 injectivity.",
+        ),
+        "Auths.Refinement.Observation.translated_observation_fresh_refines_model" => (
+            "The mechanically translated freshness predicate returns exactly the model's freshness over the u64 values.",
+            &["auths_model::observation::observation_fresh"],
+            "The guarded u64 age subtraction, maximum age, and anchor validity window, for every u64 input.",
+        ),
+        "Auths.Refinement.Observation.translated_observation_subject_equal_refines_model" => (
+            "The mechanically translated exact-subject comparison returns exactly the model's String equality.",
+            &["auths_model::observation::observation_subject_equal"],
+            "UTF-8 byte comparison of the expected and observed resource, bridged to String equality.",
+        ),
+        "Auths.Refinement.Observation.translated_fact_value_equal_refines_model" => (
+            "The mechanically translated fact-value comparison returns exactly the model's equality of abstracted fact values.",
+            &[FACT_VALUE_EQUAL],
+            "Unsigned, byte-string, and text fact values, including every cross-type pair.",
+        ),
+        "Auths.Refinement.Observation.translated_uint_range_contains_refines_model" => (
+            "The mechanically translated inclusive range test returns exactly the model's uintRange condition atom.",
+            &[UINT_RANGE_CONTAINS],
+            "The inclusive u64 range test on an observed unsigned value.",
+        ),
+        "Auths.Refinement.Observation.translated_member_values_contain_refines_model" => (
+            "The mechanically translated membership loop returns exactly the model's member condition atom.",
+            &[MEMBER_VALUES_CONTAIN, FACT_VALUE_EQUAL],
+            "The terminating scan of a finite literal list for an observed fact value.",
+        ),
+        "Auths.Refinement.Observation.translated_observation_fact_refines_model" => (
+            "The mechanically translated fact lookup returns a value whose abstraction is exactly the model's lookupFact.",
+            &[OBSERVATION_FACT, FACT_NAME_EQUAL],
+            "The terminating first-match scan of an observation's facts by name.",
+        ),
+        "Auths.Refinement.Observation.translated_condition_value_holds_refines_model" => (
+            "The mechanically translated condition-atom evaluator returns exactly the model's valueHolds with the supplied action value.",
+            &[
+                CONDITION_VALUE_HOLDS,
+                FACT_VALUE_EQUAL,
+                UINT_RANGE_CONTAINS,
+                MEMBER_VALUES_CONTAIN,
+            ],
+            "All four condition atoms against a present or absent observed value and a present or absent action value.",
+        ),
+        "Auths.Refinement.Observation.translated_observation_condition_holds_refines_model" => (
+            "The mechanically translated named-condition evaluator returns exactly the model's valueHolds on the looked-up fact.",
+            &[
+                OBSERVATION_CONDITION_HOLDS,
+                OBSERVATION_FACT,
+                FACT_NAME_EQUAL,
+                CONDITION_VALUE_HOLDS,
+                FACT_VALUE_EQUAL,
+                UINT_RANGE_CONTAINS,
+                MEMBER_VALUES_CONTAIN,
+            ],
+            "One named condition over an observation's facts with its supplied action value.",
+        ),
+        "Auths.Refinement.Observation.translated_observation_conditions_hold_refines_model" => (
+            "The mechanically translated condition conjunction returns exactly the model's conjunction over conditions paired with their action values, and false on a length mismatch.",
+            CONDITION_CLOSURE,
+            "The terminating conjunction loop over a condition slice and a parallel action-value slice.",
+        ),
+        "Auths.Refinement.Observation.translated_observation_conditions_length_mismatch_fails_closed" => {
+            (
+                "The mechanically translated condition conjunction rejects a condition list and action-value list of different lengths.",
+                &[OBSERVATION_CONDITIONS_HOLD],
+                "The length guard that precedes every condition evaluation.",
+            )
+        }
+        "Auths.Refinement.Observation.translated_observation_conditions_hold_refines_conditions_hold" => {
+            (
+                "With action values drawn from the environment, the mechanically translated condition conjunction returns exactly the model's conditionsHold.",
+                CONDITION_CLOSURE,
+                "The conjunction loop when each eqAction condition's supplied action value is the environment's action fact for its reference.",
+            )
+        }
+        "Auths.Refinement.Observation.translated_requirement_verdict_refines_model" => (
+            "The mechanically translated verdict combinator returns exactly the model's three-valued decision order.",
+            &[REQUIREMENT_VERDICT],
+            "Satisfied before denied before indeterminate, for every pair of eligibility and satisfaction inputs.",
+        ),
+        "Auths.Refinement.Observation.translated_requirement_verdict_refines_requirement_decision" => {
+            (
+                "When every referenced action fact is available, the mechanically translated verdict over the model's eligibility and satisfaction is exactly requirementDecision.",
+                &[REQUIREMENT_VERDICT],
+                "The per-requirement verdict when the requirement's action facts are available; unavailable action facts are indeterminate in the model.",
+            )
+        }
+        _ => return None,
+    };
+    Some(ProductionRefinementMetadata {
+        claim_text,
+        rust_symbols,
+        scope,
+        residual_assumptions: RESIDUAL,
+        translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+    })
 }
 
 pub(crate) fn semantic_source_closure_digest(paths: &[String]) -> Result<String, String> {
@@ -2441,6 +2591,7 @@ mod phase_ordering {
                     declaration,
                     std::slice::from_ref(&translated),
                     FormalEvidenceKind::TranslatedRust,
+                    AUTHORITY_TRANSLATION,
                 )
                 .is_err(),
                 "qualified production claim without source closure must fail"
@@ -2458,8 +2609,117 @@ mod phase_ordering {
             "Auths.Refinement.translated_coverage_refines_rich_spec",
             &complete,
             FormalEvidenceKind::TranslatedRust,
+            AUTHORITY_TRANSLATION,
         )
         .expect("complete production evidence");
+    }
+
+    #[test]
+    fn observation_refinement_metadata_binds_every_claim_to_the_model_translation() {
+        let inventory = include_str!("../../formal/Auths/Theorems.lean");
+        let qualification = include_str!("../../formal/qualification/aeneas/qualification.toml");
+        let declarations = inventory
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix('`'))
+            .map(|name| name.trim_end_matches(','))
+            .filter(|name| name.starts_with("Auths.Refinement.Observation."))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            declarations.len(),
+            14,
+            "every observation refinement is inventoried"
+        );
+        for declaration in &declarations {
+            let (metadata, artifact) = qualified_refinement_metadata(declaration)
+                .unwrap_or_else(|| panic!("{declaration} lacks qualified metadata"));
+            assert_eq!(artifact, MODEL_TRANSLATION);
+            assert!(production_refinement_metadata(declaration).is_none());
+            assert!(!metadata.rust_symbols.is_empty());
+            for symbol in metadata.rust_symbols {
+                assert!(
+                    qualification.contains(&format!("\"{symbol}\"")),
+                    "{declaration} cites {symbol}, which is not a qualified translation symbol"
+                );
+            }
+            let residual = metadata.residual_assumptions.join(" ");
+            for boundary in [
+                "signature verification",
+                "CBOR decoding",
+                "namespace matcher",
+                "stage orchestration",
+                "representation-validity premises",
+            ] {
+                assert!(
+                    residual.contains(boundary),
+                    "{declaration} omits {boundary}"
+                );
+            }
+        }
+        for translated in [
+            "auths_model::observation::observation_fresh",
+            "auths_model::observation::observation_subject_equal",
+            "auths_model::observation::fact_name_equal",
+            "auths_model::observation::fact_value_equal",
+            "auths_model::observation::uint_range_contains",
+            "auths_model::observation::member_values_contain",
+            "auths_model::observation::observation_fact",
+            "auths_model::observation::condition_value_holds",
+            "auths_model::observation::observation_condition_holds",
+            "auths_model::observation::observation_conditions_hold",
+            "auths_model::observation::requirement_verdict",
+        ] {
+            assert!(
+                declarations.iter().any(|declaration| {
+                    observation_refinement_metadata(declaration)
+                        .is_some_and(|metadata| metadata.rust_symbols.first() == Some(&translated))
+                }),
+                "{translated} has no refinement claim of its own"
+            );
+        }
+
+        let declaration = declarations[0];
+        let closure = FormalEvidence {
+            kind: FormalEvidenceKind::SourceClosure,
+            artifact: "formal/qualification/aeneas/source-closure.json".to_owned(),
+            sha256: "b".repeat(64),
+        };
+        let authority = vec![
+            FormalEvidence {
+                kind: FormalEvidenceKind::MechanicalTranslation,
+                artifact: AUTHORITY_TRANSLATION.to_owned(),
+                sha256: "a".repeat(64),
+            },
+            FormalEvidence {
+                kind: closure.kind,
+                artifact: closure.artifact.clone(),
+                sha256: closure.sha256.clone(),
+            },
+        ];
+        assert!(
+            validate_production_evidence(
+                declaration,
+                &authority,
+                FormalEvidenceKind::MechanicalTranslation,
+                MODEL_TRANSLATION,
+            )
+            .is_err(),
+            "an observation claim citing the authority translation must fail"
+        );
+        let model = vec![
+            FormalEvidence {
+                kind: FormalEvidenceKind::MechanicalTranslation,
+                artifact: MODEL_TRANSLATION.to_owned(),
+                sha256: "a".repeat(64),
+            },
+            closure,
+        ];
+        validate_production_evidence(
+            declaration,
+            &model,
+            FormalEvidenceKind::MechanicalTranslation,
+            MODEL_TRANSLATION,
+        )
+        .expect("complete observation evidence");
     }
 
     #[test]

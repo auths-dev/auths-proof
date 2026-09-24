@@ -76,8 +76,7 @@ const author = (names, required) => authorMcpQuorumProof({
   approvers: names.map((name) => ({ signer: managers.get(name) })),
   trustedContextTemplate: bytes(fixture.sdk_trusted_context_b64),
   challenge: new Uint8Array(Buffer.from(fixture.challenge_hex, "hex")),
-  evaluationTime: BigInt(fixture.not_before),
-  expiresAt: BigInt(fixture.expires_at),
+  evaluationTime: BigInt(fixture.authored_at),
 });
 
 const authored = await author(["manager-a", "manager-b"], 2);

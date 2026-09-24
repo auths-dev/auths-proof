@@ -5,10 +5,7 @@ use auths_approval_quorum::{
     MAX_APPROVAL_GRANTS, MAX_APPROVERS, MAX_STATEMENT_EVIDENCE, QuorumApproval, QuorumApprover,
     QuorumProposal,
 };
-use auths_model::{
-    EvidenceObject, PrincipalId, SignedAction, SignedGrant, Timestamp, ValidityWindow,
-    VerifierLimits,
-};
+use auths_model::{EvidenceObject, PrincipalId, SignedAction, SignedGrant, VerifierLimits};
 use auths_profile_api::ActionProfile;
 use auths_profile_mcp::{McpProfile, McpToolCall};
 use wasm_bindgen::prelude::*;
@@ -49,12 +46,14 @@ impl McpQuorumApproversV1 {
             .map_err(js_error)
     }
 
-    /// Prepares one envelope per approver under a `required`-of-N plan.
+    /// Prepares one envelope per approver under a `required`-of-N plan,
+    /// valid from `evaluation_time` for `validity_seconds` (the native
+    /// default when omitted), cut to the earliest approver grant expiry.
     ///
     /// # Errors
     ///
     /// Rejects malformed arguments, an impossible threshold, a repeated
-    /// approver, or an invalid validity window.
+    /// approver, or a validity outside the native bounds.
     #[allow(clippy::too_many_arguments)]
     pub fn prepare(
         &self,
@@ -63,11 +62,17 @@ impl McpQuorumApproversV1 {
         arguments: &JsValue,
         required: u16,
         challenge: &[u8],
-        not_before: u64,
-        expires_at: u64,
+        evaluation_time: u64,
+        validity_seconds: Option<u32>,
     ) -> Result<McpQuorumV1, JsValue> {
         self.prepare_native(
-            service, name, arguments, required, challenge, not_before, expires_at,
+            service,
+            name,
+            arguments,
+            required,
+            challenge,
+            evaluation_time,
+            validity_seconds.map(u64::from),
         )
         .map_err(js_error)
     }
@@ -108,8 +113,8 @@ impl McpQuorumApproversV1 {
         arguments: &JsValue,
         required: u16,
         challenge: &[u8],
-        not_before: u64,
-        expires_at: u64,
+        evaluation_time: u64,
+        validity_seconds: Option<u64>,
     ) -> Result<McpQuorumV1, EngineError> {
         let call = McpToolCall::new(service, name, mcp_arguments_from_js(arguments)?)?;
         let canonical = McpProfile.canonicalize(&call.canonical_bytes()?)?;
@@ -117,7 +122,6 @@ impl McpQuorumApproversV1 {
         let challenge: [u8; 32] = challenge
             .try_into()
             .map_err(|_| EngineError::Abi("challenge must contain exactly 32 bytes"))?;
-        let validity = ValidityWindow::new(Timestamp::new(not_before), Timestamp::new(expires_at))?;
         let canonical_action_cbor = auths_codec::encode_canonical_action(&canonical)?;
         let resource = canonical.permission().resource().to_string();
         let audience = call.audience()?;
@@ -125,7 +129,8 @@ impl McpQuorumApproversV1 {
             canonical,
             &audience,
             challenge,
-            validity,
+            evaluation_time,
+            validity_seconds,
             required,
             &self.approvers,
         )?;
@@ -232,6 +237,21 @@ impl McpQuorumV1 {
     #[wasm_bindgen(getter)]
     pub fn resource(&self) -> String {
         self.resource.clone()
+    }
+
+    /// Returns the shared envelope validity as `[notBefore, expiresAt]`.
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn validity(&self) -> Vec<u64> {
+        self.proposal
+            .envelopes()
+            .first()
+            .map_or_else(Vec::new, |envelope| {
+                vec![
+                    envelope.validity().not_before().get(),
+                    envelope.validity().expires_at().get(),
+                ]
+            })
     }
 
     #[must_use]

@@ -597,6 +597,7 @@ name = "auths-gateway"
 version = "1.0.0-rc.1"
 dependencies = [
  "auths-approval-quorum",
+ "auths-author",
  "auths-bounded-policy",
  "auths-codec",
  "auths-connections",
@@ -1254,7 +1255,9 @@ dependencies = [
  "auths-codec",
  "auths-errors",
  "auths-model",
+ "auths-ports",
  "auths-profile-api",
+ "auths-registries",
  "auths-verifier",
  "hex",
  "hmac 0.12.1",

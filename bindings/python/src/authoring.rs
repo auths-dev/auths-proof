@@ -7,9 +7,9 @@
 
 use auths_author::{
     AuthorityDiff, ExternalSigningRequest, GrantPlan, GrantRequest, OverGrantingWarning,
-    PlanBuilder, commit_plan_approval as commit_plan_approval_native, plan_child_grant,
-    prepare_action, prepare_grant, prepare_grant_status, prepare_principal_status,
-    prepare_profile_action,
+    PlanBuilder, PreparedAction, attach_observations,
+    commit_plan_approval as commit_plan_approval_native, plan_child_grant, prepare_action,
+    prepare_grant, prepare_grant_status, prepare_principal_status, prepare_profile_action,
 };
 use auths_model::{
     ActionConstraint, ActionEnvelope, AssuranceClaimId, AssurancePolicy, AssurancePolicyId,
@@ -686,6 +686,7 @@ impl PyMcpAction {
 }
 
 #[pyfunction]
+#[pyo3(signature = (service, name, arguments_json, actor, terminal_grant, challenge, evaluation_time, validity_seconds = None))]
 #[allow(clippy::too_many_arguments)]
 fn prepare_mcp_action(
     service: &str,
@@ -695,6 +696,7 @@ fn prepare_mcp_action(
     terminal_grant: PyRef<'_, PySignedObject>,
     challenge: &[u8],
     evaluation_time: u64,
+    validity_seconds: Option<u64>,
 ) -> PyResult<PyMcpAction> {
     let Value::Object(arguments) =
         serde_json::from_slice::<Value>(arguments_json).map_err(value_error)?
@@ -727,6 +729,7 @@ fn prepare_mcp_action(
         terminal_grant,
         array32(challenge, "challenge")?,
         evaluation_time,
+        validity_seconds,
     )
     .map_err(value_error)?;
     let (canonical, envelope) = prepared.into_parts();
@@ -739,6 +742,43 @@ fn prepare_mcp_action(
         review_fields: display.fields().to_vec(),
         canonical,
         envelope,
+    })
+}
+
+/// Returns `action` with each signed observation carried as a detached
+/// attachment bound by the unsigned action statement.
+///
+/// Media type, size, count, and distinctness are checked natively; the
+/// observation itself is judged only by the verifier.
+///
+/// # Errors
+///
+/// Rejects a non-observation media type, an empty or oversized observation,
+/// too many or repeated observations, and an action that already carries
+/// attachments.
+#[pyfunction]
+fn attach_mcp_observations(
+    action: PyRef<'_, PyMcpAction>,
+    observations: Vec<(String, Vec<u8>)>,
+) -> PyResult<PyMcpAction> {
+    let prepared = PreparedAction::bind(action.canonical.clone(), action.envelope.clone())
+        .map_err(value_error)?;
+    let offered = observations
+        .iter()
+        .map(|(media_type, bytes)| (media_type.as_str(), bytes.as_slice()))
+        .collect::<Vec<_>>();
+    let (canonical, envelope) = attach_observations(prepared, &offered)
+        .map_err(crate::errors::malformed_input)?
+        .into_parts();
+    Ok(PyMcpAction {
+        canonical,
+        envelope,
+        arguments_json: action.arguments_json.clone(),
+        audience: action.audience.clone(),
+        resource: action.resource.clone(),
+        display_digest_hex: action.display_digest_hex.clone(),
+        review_title: action.review_title.clone(),
+        review_fields: action.review_fields.clone(),
     })
 }
 
@@ -1260,6 +1300,7 @@ pub fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(grant_status_statement, module)?)?;
     module.add_function(wrap_pyfunction!(prepare_signing, module)?)?;
     module.add_function(wrap_pyfunction!(prepare_mcp_action, module)?)?;
+    module.add_function(wrap_pyfunction!(attach_mcp_observations, module)?)?;
     module.add_function(wrap_pyfunction!(canonicalize_mcp_arguments_json, module)?)?;
     module.add_function(wrap_pyfunction!(status_snapshot, module)?)?;
     module.add_function(wrap_pyfunction!(compile_trusted_context, module)?)?;

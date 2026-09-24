@@ -22,7 +22,7 @@
 //! plus a maximum count of authorized actions per principal per fixed window.
 
 use crate::engine::{GatewaySubmitResult, not_entered};
-use crate::{GatewayAttemptError, LogicalOperationId, McpArgumentsPolicy, OperatorNamespace};
+use crate::{GatewayAttemptError, LogicalOperationId, OperatorNamespace};
 use auths_bounded_policy::kernel::{
     CeilingCountCode, ceiling_count_code, ceiling_count_tightens, window_index,
 };
@@ -35,6 +35,7 @@ use auths_model::{
     SignedGrant,
 };
 use auths_ports::ProfilePolicy as _;
+use auths_profile_mcp::McpArgumentsPolicy;
 use auths_registries::BOUNDED_POLICY_COMMITMENT_EXTENSION_V1;
 use auths_verifier::VerifiedAction;
 use minicbor::{Decoder, Encoder};
