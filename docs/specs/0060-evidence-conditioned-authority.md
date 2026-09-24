@@ -2,14 +2,15 @@
 
 - **Status:** Epic steps 1–4 implemented: kernel, fixtures, and bindings in
   #133, and the gateway observer. The client observation requests are in
-  #134. Step 5 (live) is open. §17 (per-extension attenuation) is
-  implemented on `epic-5-policy` (AP-SPEC-057 Epic 5, step 1) for the
+  #134. Step 5 (live) is open. §15 (SDK attachment and the Rust–Lean link)
+  is implemented in draft PR #144, with the readings in §15.4; its
+  hosted gate is that PR's CI. §17 (per-extension attenuation) is
+  implemented (AP-SPEC-057 Epic 5, step 1, PR #141) for the
   `exact-marker-v1` and `observation-requirement-v1` laws, with the
   readings in §18; the `bounded-policy-commitment-v1` law is implemented
-  with AP-SPEC-025 §24 on `epic-5-bounds` (Epic 5, step 2), readings in
-  AP-SPEC-025 §25. §15 (SDK attachment, the Rust–Lean link) and §16 (the
-  observer quorum) are specified and not implemented. §16 is a wire
-  change.
+  with AP-SPEC-025 §24 (Epic 5, step 2, PR #149), readings in
+  AP-SPEC-025 §25. §16 (the observer quorum) is specified and not
+  implemented; it is a wire change.
 - **Depends on:** [AP-SPEC-011](0011-rich-authority-refinement-and-bounded-authorization.md)
   (rich authority model and Rust–Lean link),
   [AP-SPEC-059](0059-commitment-bound-provider-evidence.md) (the outcomes the
@@ -439,6 +440,21 @@ connects them to the model.
 Observer quorum (§16) and extension attenuation (§17) are wire changes
 specified below. They are part of this specification's scope, not future
 work.
+
+### 15.4 Readings fixed during implementation
+
+Each reading is the narrowest design that meets §15.1 and §15.2 as written.
+
+| # | Spec text | Reading fixed |
+|---|---|---|
+| 1 | §15.1 item 1: "the native authoring path gains one operation" | `auths_author::attach_observations(prepared, [(media type, bytes)])`. It returns the prepared action with each observation carried as a required, plain, inspectable detached attachment whose disposition is `authorization-input`. The descriptors, in content-digest order, go into the unsigned envelope, so the action signature covers them. The proof builder now copies the signed descriptors into the bundle. Bindings that hold the canonical action and envelope separately re-pair them with `PreparedAction::bind`, which refuses an envelope that does not bind that action. |
+| 2 | "validates each observation's media type and size" | It checks the media type is `application/vnd.auths.observation.v1+cbor` and the size is 1 to 4096 bytes. It also checks the per-action count (at most 32) and that no bytes repeat, because the kernel rejects both anyway. An action that already carries attachments is refused, so attachment happens once. Observations are never decoded, and an attachment that no requirement reads changes nothing but the action commitment. |
+| 3 | §15.1 item 2: Python and TypeScript "expose that operation as a thin projection" | `auths.self_hosted.attach_observations` and `attachObservations` from `@auths-dev/sdk/self-hosted` call the native operation and recompute only the action commitment. `author_mcp_proof` / `authorMcpProof` and their production variants take `observations`, which are attached before the signing request is built. Any object carrying `media_type`/`mediaType` and `observation` is accepted, so a gateway `GatewaySignedObservation` can be passed as is. |
+| 4 | Authoring ends with local verification against the supplied trust | The SDK verifiers could not evaluate a gateway context, because that context pins the `mcp-arguments-v1` configuration. `McpArgumentsPolicy` moves from the gateway to the MCP profile package (`auths-profile-mcp`), which now owns the one constructor of that configuration's registries. The Python and WASM verifiers build both of their configurations over the same methods and suites: their own, and `mcp-arguments-v1`. The configuration the context pins selects one, and any other pin is still a configuration mismatch. A proof the SDK authors therefore gets the same verdict from the SDK and from the gateway at the same instant. |
+| 5 | §15.1 item 3: "the gateway's test harness" | This is the counting-provider harness that the gateway's own observed-precondition tests use, now a module of `auths-gateway`. It also runs as the `auths-gateway-harness` binary, built only with the `testkit-harness` feature. The binary serves the gateway's application-socket protocol through the same `app` module as `auths-gateway serve`, over a fixed test root and observer, with a control socket that changes a record, advances the gateway clock, and reports writes, reads, and leases. The trust is test-only. |
+| 6 | "change the record, and the stale observation is denied before any credential lease" | After another writer changes the record, a fresh read-back contradicts the agent's stale `expected` value, which is `observation-condition-false` (denied). An observation older than its maximum age is `observation-missing` (indeterminate). The SDK refuses to author either. An agent that skips that check and submits anyway gets the same result from the gateway, with no write and no lease beyond the read-back's own. An observation taken before the change and still within its maximum age authorizes: that is §1's non-claim, and `replaced_in_between_is_authorized_inside_the_documented_window` shows it. |
+| 7 | Timing of an SDK-authored action at a gateway | `prepare_profile_action` takes an optional `validity_seconds`, which must be in `1..=300`; a value outside that range is the typed error `ActionValidity`. When it is omitted, the default is 30 s. The default and the maximum live only in `auths-author`, and the Python and TypeScript SDKs pass an omitted value through. The window is `[t, max(t, min(t + validity_seconds, terminal grant expiry))]`, so the gateway, which verifies at its own clock (§14 reading 7), accepts the action anywhere inside it. Every grant in the chain must contain the window, which is why it is cut to the grant: an action authored in a grant's last seconds still verifies, and one authored after expiry keeps `[t, t]` and is denied. The window is not a replay defence. At the gateway the challenge is the installed one and binds the deployment, not freshness. The only replay defence is the durable claim keyed by namespace and operation ID, and it holds inside and after the window. An observation's `max_age` is judged at the verifier's evaluation time, so a longer action window never extends it. Tests: `sdk_action_window_admits_a_later_gateway_clock_and_replay_stays_refused` (a gateway clock 5 s after the SDK's evaluation time is authorized with the default window; a replay inside the window, and a fresh action for the same operation after it, are refused with no second write; a 1 s window, and a gateway clock 1 s before evaluation, are `action-outside-validity` before any lease); `sdk_action_window_is_cut_to_the_grant_expiry`; `a_longer_action_window_never_extends_observation_freshness` (read-back at NOW, action at NOW+50 with 300 s, gateway at NOW+61: `observation-missing`, no write or lease). |
+| 8 | §15.2: "for each translated predicate, equality with its model counterpart" | `formal/Auths/Refinement/Observation.lean` has fourteen theorems. Eleven state that each translated predicate returns `ok` with its model value. One more states that a length mismatch fails closed. Two bridge theorems tie `observation_conditions_hold` to `conditionsHold` and `requirement_verdict` to `requirementDecision`, under the premise that the supplied action values are the environment's action facts and that those facts are available. The only representation premise is that each compared text fits the `u32` byte bound of the translated `String::as_bytes`. The claims are `qualified`, cite the generated model translation and the source closure, and use only `propext`, `Quot.sound`, and `Classical.choice`. |
 
 ## 16. Amendment (2026-09-23): observer quorum
 

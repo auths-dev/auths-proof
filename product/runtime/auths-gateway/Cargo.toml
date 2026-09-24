@@ -7,6 +7,18 @@ rust-version.workspace = true
 description = "Closed developer-authored request recipes for the Auths gateway"
 publish = false
 
+[features]
+testkit-harness = []
+
+[[bin]]
+name = "auths-gateway"
+path = "src/bin/auths-gateway.rs"
+
+[[bin]]
+name = "auths-gateway-harness"
+path = "src/bin/auths-gateway-harness.rs"
+required-features = ["testkit-harness"]
+
 [dependencies]
 auths-author.workspace = true
 auths-bounded-policy.workspace = true

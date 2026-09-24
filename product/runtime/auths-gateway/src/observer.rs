@@ -273,7 +273,7 @@ impl GatewayObserver {
     }
 
     /// Builds an observer from a fixed seed so tests reproduce exactly.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "testkit-harness"))]
     pub(crate) fn from_test_seed(seed: u8) -> Self {
         Self::from_seed(&[seed; 32]).expect("a fixed seed yields an observer")
     }

@@ -6,7 +6,8 @@
 
 #![forbid(unsafe_code)]
 
-mod action_facts;
+#[cfg(unix)]
+pub mod app;
 mod binding;
 mod bounds;
 mod engine;
@@ -16,12 +17,13 @@ mod separation;
 mod store;
 mod transport;
 
+#[cfg(any(test, feature = "testkit-harness"))]
+pub mod harness;
 #[cfg(test)]
 mod observed_tests;
 #[cfg(test)]
 mod store_testkit;
 
-pub use action_facts::{MCP_ARGUMENTS_V1, McpArgumentsPolicy};
 pub use binding::{GatewayConnectionDescriptor, GatewayConnectionError};
 pub use bounds::{
     ARGUMENT_CEILING_CANONICALIZATION_V1, ARGUMENT_CEILING_EVALUATOR_V1,

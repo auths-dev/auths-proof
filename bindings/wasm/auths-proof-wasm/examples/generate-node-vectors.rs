@@ -338,6 +338,7 @@ fn write_mcp_workflow_vectors(output: &std::path::Path) -> Result<(), Box<dyn st
             &signed,
             [0x22; 32],
             50,
+            None,
         )?;
         let signing =
             auths_author::prepare_action(prepared.envelope().clone(), actor_signature.clone())?;
@@ -390,6 +391,7 @@ fn write_mcp_workflow_vectors(output: &std::path::Path) -> Result<(), Box<dyn st
         &signed_child,
         [0x22; 32],
         50,
+        None,
     )?;
     let child_action_signing = auths_author::prepare_action(
         child_action.envelope().clone(),
@@ -456,6 +458,7 @@ fn write_shared_workflow_projection(
         root_grant,
         [0x22; 32],
         50,
+        None,
     )?;
     let signing = auths_author::prepare_action(
         prepared.envelope().clone(),
