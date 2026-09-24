@@ -67,6 +67,9 @@ use sha2::{Digest as _, Sha256};
 use std::{collections::BTreeSet, fmt};
 use wasm_bindgen::prelude::*;
 
+mod quorum;
+pub use quorum::{McpQuorumApproversV1, McpQuorumProofBuilderV1, McpQuorumV1};
+
 /// Version of the repository-owned authoring ABI exposed by this WASM module.
 pub const AUTHORING_ABI_V1: u16 = 1;
 /// Version of the neutral identity ABI exposed independently of authority authoring.
@@ -5322,6 +5325,8 @@ pub enum EngineError {
     Receipt(auths_receipts::ReceiptError),
     /// Receipt inspection or disclosure projection failed.
     Inspection(auths_receipts::ReceiptInspectionError),
+    /// Approval-quorum preparation or assembly failed.
+    Quorum(auths_approval_quorum::QuorumError),
     /// A binding-level invariant could not be represented.
     Abi(&'static str),
 }
@@ -5355,6 +5360,7 @@ impl EngineError {
             | Self::Session(_)
             | Self::Receipt(_)
             | Self::Inspection(_)
+            | Self::Quorum(_)
             | Self::Abi(_) => "core.malformed-input",
         }
     }
@@ -5392,6 +5398,7 @@ impl fmt::Display for EngineError {
             Self::Mcp(error) => write!(formatter, "could not construct MCP action: {error}"),
             Self::Profile(error) => write!(formatter, "MCP profile contract failed: {error}"),
             Self::Identity(error) => write!(formatter, "identity descriptor failed: {error}"),
+            Self::Quorum(error) => write!(formatter, "could not assemble approval quorum: {error}"),
             // These four variants exist only so the boundary can name a
             // registry code for an error that previously reached JavaScript
             // as its own bare `Display`. They add no prefix, because callers
@@ -5406,6 +5413,12 @@ impl fmt::Display for EngineError {
 }
 
 impl std::error::Error for EngineError {}
+
+impl From<auths_approval_quorum::QuorumError> for EngineError {
+    fn from(error: auths_approval_quorum::QuorumError) -> Self {
+        Self::Quorum(error)
+    }
+}
 
 impl From<auths_profile_mcp::McpArgumentsRegistryError> for EngineError {
     fn from(error: auths_profile_mcp::McpArgumentsRegistryError) -> Self {

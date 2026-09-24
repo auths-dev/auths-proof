@@ -580,6 +580,8 @@ export interface WorkflowWasmEngine {
   developmentEd25519PublicKeyV1(seed: Uint8Array): Uint8Array;
   AuthorizationPlanBuilderV1: new () => WorkflowAuthorizationPlanBuilder;
   WorkflowProofBuilderV1: new () => WorkflowProofBuilder;
+  McpQuorumApproversV1: new () => WorkflowMcpQuorumApprovers;
+  McpQuorumProofBuilderV1: new () => WorkflowMcpQuorumProofBuilder;
   commitCanonicalV1(domain: string, canonical: Uint8Array): Uint8Array;
   commitApprovalPolicyV1(
     mode: string,
@@ -824,6 +826,57 @@ export interface WorkflowRawKeyIdentity {
 export interface WorkflowAuthorizationArtifacts {
   readonly proofCbor: Uint8Array;
   readonly trustedContextCbor: Uint8Array;
+  free?(): void;
+}
+
+export interface WorkflowMcpQuorumApprovers {
+  addApprover(actor: string, terminalGrant?: Uint8Array): void;
+  prepare(
+    service: string,
+    name: string,
+    argumentsValue: unknown,
+    required: number,
+    challenge: Uint8Array,
+    evaluationTime: bigint,
+    validitySeconds: number | undefined,
+  ): WorkflowMcpQuorum;
+  free?(): void;
+}
+
+export interface WorkflowMcpQuorum {
+  readonly required: number;
+  readonly approverCount: number;
+  approver(index: number): string;
+  readonly planId: Uint8Array;
+  readonly planCbor: Uint8Array;
+  readonly proofReferences: Uint8Array;
+  readonly canonicalActionCbor: Uint8Array;
+  readonly argumentsJson: Uint8Array;
+  readonly audience: string;
+  readonly resource: string;
+  readonly displayDigestHex: string;
+  readonly validity: BigUint64Array;
+  actionEnvelopeCbor(index: number): Uint8Array;
+  free?(): void;
+}
+
+export interface WorkflowMcpQuorumProofBuilder {
+  addApproval(signedAction: Uint8Array): number;
+  pushGrant(approval: number, signedGrant: Uint8Array): number;
+  bindGrantEvidence(
+    approval: number,
+    grant: number,
+    evidenceType: string,
+    mediaType: string,
+    bytes: Uint8Array,
+  ): void;
+  bindActionEvidence(
+    approval: number,
+    evidenceType: string,
+    mediaType: string,
+    bytes: Uint8Array,
+  ): void;
+  finish(quorum: WorkflowMcpQuorum): Uint8Array;
   free?(): void;
 }
 

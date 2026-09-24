@@ -56,6 +56,9 @@ url.workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]
+auths-approval-quorum.workspace = true
+auths-author.workspace = true
+auths-sdk.workspace = true
 auths-custody = { workspace = true, features = ["conformance"] }
 auths-custody-aws-kms.workspace = true
 auths-custody-pkcs11.workspace = true

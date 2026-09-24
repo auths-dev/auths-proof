@@ -25,7 +25,7 @@ import auths.verify
 EXPECTED_EXPORTS = {
     "auths": 28,
     "auths.verify": 23,
-    "auths.authoring": 6,
+    "auths.authoring": 10,
     "auths.attempts": 5,
     "auths.execution": 11,
     "auths.gateway": 15,
@@ -50,7 +50,7 @@ def test_exact_public_inventory() -> None:
         assert len(exported) == expected
         assert len(set(exported)) == expected
         assert all(hasattr(module, value) for value in exported)
-    assert sum(EXPECTED_EXPORTS.values()) == 187
+    assert sum(EXPECTED_EXPORTS.values()) == 191
 
 
 def test_product_root_is_small_and_removed_names_are_absent() -> None:

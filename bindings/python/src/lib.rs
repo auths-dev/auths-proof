@@ -41,6 +41,7 @@ mod errors;
 mod identity;
 mod mcp;
 mod observability;
+mod quorum;
 mod receipts;
 mod result;
 mod runtime;
@@ -137,6 +138,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     identity::register(module)?;
     mcp::register(module)?;
     observability::register(module)?;
+    quorum::register(module)?;
     result::register(module)?;
     receipts::register(module)?;
     runtime::register(module)?;

@@ -80,6 +80,8 @@ async function loadPackagedWorkflowEngineOnce(): Promise<PackagedWorkflowEngine>
     typeof loaded.developmentEd25519PublicKeyV1 !== "function" ||
     typeof loaded.AuthorizationPlanBuilderV1 !== "function" ||
     typeof loaded.WorkflowProofBuilderV1 !== "function" ||
+    typeof loaded.McpQuorumApproversV1 !== "function" ||
+    typeof loaded.McpQuorumProofBuilderV1 !== "function" ||
     typeof loaded.inspectSignedGrantV1 !== "function" ||
     typeof loaded.validateRootAuthorityV1 !== "function" ||
     typeof loaded.planChildGrantFieldsV1 !== "function" ||

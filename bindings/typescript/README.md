@@ -56,6 +56,9 @@ The package does not install a competing `auths` command; that name belongs to
 the Rust CLI. An application holding its own provider token can bypass
 `runOnce`, so this path is not credential-isolated.
 
+To require that a threshold of named approvers sign one exact action before
+it is submitted, see [approval quorum](../../docs/product/APPROVAL_QUORUM.md).
+
 ## Outcomes and recovery
 
 The ordinary domain method returns its success DTO directly. Use the adjacent

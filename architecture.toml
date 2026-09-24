@@ -95,6 +95,7 @@ no_std_packages = [
 [packages]
 auths-algebra-kernel = "core"
 auths-apps-testkit = "demos"
+auths-approval-quorum = "product"
 auths-identity = "core"
 auths-identity-authority = "core"
 auths-identity-raw-key = "core"

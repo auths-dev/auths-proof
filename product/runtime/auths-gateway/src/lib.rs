@@ -22,6 +22,8 @@ pub mod harness;
 #[cfg(test)]
 mod observed_tests;
 #[cfg(test)]
+mod quorum_tests;
+#[cfg(test)]
 mod store_testkit;
 
 pub use binding::{GatewayConnectionDescriptor, GatewayConnectionError};

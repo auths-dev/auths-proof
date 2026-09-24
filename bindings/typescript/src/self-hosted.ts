@@ -683,6 +683,205 @@ export async function authorMcpProof<Fields extends FieldMap>(input: Readonly<{
   }
 }
 
+/** One member asked to approve; `grants` is empty when it is a trust anchor. */
+export interface QuorumApprover {
+  readonly signer: CustodySigner;
+  readonly grants?: readonly GrantEvidence[];
+}
+
+/** Projection of the native threshold plan every approval signed. */
+export interface QuorumPlan {
+  readonly required: number;
+  readonly approvers: readonly string[];
+  readonly planId: Uint8Array;
+  readonly canonicalPlan: Uint8Array;
+  readonly proofReferences: readonly Uint8Array[];
+  /** Every approval is valid from `validFrom` through `validUntil` inclusive. */
+  readonly validFrom: bigint;
+  readonly validUntil: bigint;
+}
+
+export interface AuthoredMcpQuorumProof<Command> extends AuthoredMcpProof<Command> {
+  readonly plan: QuorumPlan;
+}
+
+/**
+ * Collect one signature per approver over one exact action and assemble a
+ * `required`-of-N threshold proof. Each signature commits to the whole
+ * approver set, so every listed approver must sign. The threshold the
+ * verifier enforces comes from the operator's trusted context, never from
+ * the proof. Every approval is valid from `evaluationTime` for
+ * `validitySeconds` (the native quorum default when omitted, bounded
+ * natively), cut to the earliest approver grant expiry; every approval must
+ * be collected and verified inside that window, and each custody request
+ * stays valid for the whole window.
+ */
+export async function authorMcpQuorumProof<Fields extends FieldMap>(input: Readonly<{
+  contract: ExactMcpTool<Fields>;
+  command: CommandOf<Fields>;
+  required: number;
+  approvers: readonly QuorumApprover[];
+  trustedContextTemplate: Uint8Array;
+  challenge: Uint8Array;
+  evaluationTime: bigint;
+  validitySeconds?: number;
+  signal?: AbortSignal;
+}>): Promise<AuthoredMcpQuorumProof<CommandOf<Fields>>> {
+  const approvers = input.approvers;
+  if (!Number.isInteger(input.required) || input.required < 1 ||
+      input.required > approvers.length || approvers.length > 16) {
+    throw new RangeError("quorum threshold or approver count is outside bounds");
+  }
+  if (input.challenge.length !== 32 || input.evaluationTime < 0n ||
+      input.evaluationTime >= 1n << 64n) {
+    throw new RangeError("challenge or evaluation time is outside bounds");
+  }
+  const validitySeconds = checkedValidity(input.validitySeconds);
+  for (const approver of approvers) {
+    if (approver.signer.descriptor.contract !== "signer-custody/2") {
+      throw new TypeError("signer does not implement the custody contract");
+    }
+    const grants = approver.grants ?? [];
+    if (grants.length > 16) throw new RangeError("approver grant chain is outside bounds");
+    for (const grant of grants) {
+      if (grant.signedGrant.length < 1 || grant.signedGrant.length > 262_144 ||
+          grant.evidence.length < 1 || grant.evidence.length > 32) {
+        throw new RangeError("grant or its control evidence is outside bounds");
+      }
+    }
+  }
+  const engine = await loadPackagedWorkflowEngine();
+  const encoded = input.contract.encode(input.command);
+  const set = new engine.McpQuorumApproversV1();
+  let quorum;
+  try {
+    for (const approver of approvers) {
+      const grants = approver.grants ?? [];
+      set.addApprover(approver.signer.descriptor.principal, grants.at(-1)?.signedGrant);
+    }
+    quorum = set.prepare(
+      input.contract.service, input.contract.name, encoded, input.required,
+      input.challenge, input.evaluationTime, validitySeconds,
+    );
+  } finally {
+    set.free?.();
+  }
+  try {
+    const action = quorum.canonicalActionCbor.slice();
+    const validity = quorum.validity;
+    if (validity.length !== 2) throw new TypeError("native quorum validity is inconsistent");
+    const validFrom = validity[0]!;
+    const validUntil = validity[1]!;
+    const context = engine.bindTrustedContextRequestV1(
+      input.trustedContextTemplate, quorum.audience, input.challenge, input.evaluationTime,
+    );
+    const planId = quorum.planId.slice();
+    const display = Object.freeze([
+      { label: "service", value: input.contract.service },
+      { label: "tool", value: input.contract.name },
+      { label: "arguments", value: new TextDecoder("utf-8", { fatal: true }).decode(quorum.argumentsJson) },
+      { label: "action digest", value: quorum.displayDigestHex },
+      { label: "approval quorum", value: `${input.required} of ${approvers.length}` },
+      { label: "quorum plan", value: Array.from(planId, (byte) => byte.toString(16).padStart(2, "0")).join("") },
+    ]);
+    const signal = input.signal ?? new AbortController().signal;
+    const signed = await Promise.all(approvers.map(async (approver, index) => {
+      const descriptor = approver.signer.descriptor;
+      const signature = descriptor.signature;
+      const envelope = quorum.actionEnvelopeCbor(index);
+      const request = engine.prepareActionSigningV1(
+        envelope, signature.principalMethod, signature.verificationMethod, signature.suite,
+      );
+      const requestId = request.requestId;
+      const objectId = request.objectId.slice();
+      const transactionDigest = request.transactionDigest.slice();
+      let outcome: Awaited<ReturnType<CustodySigner["sign"]>>;
+      try {
+        outcome = await approver.signer.sign({
+          requestId, objectKind: "action", objectId: objectId.slice(), descriptor,
+          transactionDigest: transactionDigest.slice(),
+          signingPreimage: request.signingPreimage.slice(),
+          expiresAtUnixSeconds: validUntil, display, signal,
+        });
+      } finally {
+        request.free?.();
+      }
+      if (outcome.kind !== "signed") {
+        throw new AuthoringUnsuccessful(
+          outcome.kind === "rejected" ? "rejected" : "indeterminate", outcome.failure,
+        );
+      }
+      const response = outcome.response;
+      if (response.requestId !== requestId ||
+          !bytesEqual(response.objectId, objectId) ||
+          !bytesEqual(response.transactionDigest, transactionDigest) ||
+          response.principal !== descriptor.principal ||
+          response.providerKeyVersion !== descriptor.keyVersion ||
+          response.descriptor.principalMethod !== signature.principalMethod ||
+          response.descriptor.verificationMethod !== signature.verificationMethod ||
+          response.descriptor.suite !== signature.suite ||
+          response.evidence.length < 1 || response.evidence.length > 32) {
+        throw new TypeError("custody response does not bind the exact signing request");
+      }
+      return {
+        action: engine.completeActionSigningV1(
+          envelope, signature.principalMethod, signature.verificationMethod,
+          signature.suite, response.signature,
+        ),
+        evidence: response.evidence,
+      };
+    }));
+    const builder = new engine.McpQuorumProofBuilderV1();
+    let proof: Uint8Array;
+    try {
+      signed.forEach((approval, index) => {
+        const slot = builder.addApproval(approval.action);
+        for (const grant of approvers[index]!.grants ?? []) {
+          const grantIndex = builder.pushGrant(slot, grant.signedGrant);
+          for (const evidence of grant.evidence) {
+            builder.bindGrantEvidence(slot, grantIndex, evidence.type, evidence.mediaType, evidence.bytes);
+          }
+        }
+        for (const evidence of approval.evidence) {
+          builder.bindActionEvidence(slot, evidence.type, evidence.mediaType, evidence.bytes);
+        }
+      });
+      proof = builder.finish(quorum).slice();
+    } finally {
+      builder.free?.();
+    }
+    const decision = await verifyCommand({
+      contract: input.contract, proof, action, trustedContext: context,
+    });
+    if (decision.kind !== "authorized") {
+      throw new AuthoringUnsuccessful(
+        decision.kind === "denied" ? "rejected" : "indeterminate", decision.code,
+      );
+    }
+    const references = quorum.proofReferences;
+    return Object.freeze({
+      command: decision.command, proof, action, trustedContext: context.slice(),
+      actionCommitment: decision.actionCommitment,
+      plan: Object.freeze({
+        required: quorum.required,
+        approvers: Object.freeze(Array.from(
+          { length: quorum.approverCount }, (_, index) => quorum.approver(index),
+        )),
+        planId,
+        canonicalPlan: quorum.planCbor.slice(),
+        proofReferences: Object.freeze(Array.from(
+          { length: quorum.approverCount },
+          (_, index) => references.slice(index * 32, (index + 1) * 32),
+        )),
+        validFrom,
+        validUntil,
+      }),
+    });
+  } finally {
+    quorum.free?.();
+  }
+}
+
 function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
   if (left.length !== right.length) return false;
   let difference = 0;
