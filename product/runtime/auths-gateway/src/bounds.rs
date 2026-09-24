@@ -297,46 +297,71 @@ pub(crate) struct WindowReservation {
     max_count: u64,
 }
 
-/// The authorized chain of every verified branch, each root to terminal.
+/// The authorized chain of every verified action, root to terminal, with
+/// each action's actor.
 fn authorized_chains(
     proof_cbor: &[u8],
     verified: &VerifiedAction,
 ) -> Result<Vec<(auths_model::PrincipalId, Vec<SignedGrant>)>, &'static str> {
+    let unavailable = "gateway.policy.proof-unavailable";
     let bundle = auths_codec::decode_bundle(proof_cbor, &auths_model::VerifierLimits::default())
-        .map_err(|_| "gateway.policy.proof-unavailable")?;
-    verified
-        .action_ids()
-        .iter()
-        .map(|action_id| authorized_chain(&bundle, action_id))
-        .collect()
+        .map_err(|_| unavailable)?;
+    let mut chains = Vec::with_capacity(verified.action_ids().len());
+    for action_id in verified.action_ids() {
+        let action = bundle
+            .actions()
+            .iter()
+            .find(|action| {
+                auths_codec::action_id(action.envelope()).is_ok_and(|id| id == *action_id)
+            })
+            .ok_or(unavailable)?;
+        let mut chain = Vec::new();
+        let mut cursor = action.envelope().terminal_grant();
+        while let Some(id) = cursor {
+            if chain.len() > bundle.grants().len() {
+                return Err(unavailable);
+            }
+            let grant = bundle
+                .grants()
+                .iter()
+                .find(|grant| {
+                    auths_codec::grant_id(grant.statement()).is_ok_and(|found| found == id)
+                })
+                .ok_or(unavailable)?;
+            chain.push(grant.clone());
+            cursor = grant.statement().parent();
+        }
+        chain.reverse();
+        chains.push((action.envelope().actor().clone(), chain));
+    }
+    Ok(chains)
 }
 
-fn authorized_chain(
-    bundle: &auths_model::ProofBundle,
-    action_id: &auths_model::ActionId,
-) -> Result<(auths_model::PrincipalId, Vec<SignedGrant>), &'static str> {
-    let unavailable = "gateway.policy.proof-unavailable";
-    let action = bundle
-        .actions()
-        .iter()
-        .find(|action| auths_codec::action_id(action.envelope()).is_ok_and(|id| id == *action_id))
-        .ok_or(unavailable)?;
-    let mut chain = Vec::new();
-    let mut cursor = action.envelope().terminal_grant();
-    while let Some(id) = cursor {
-        if chain.len() > bundle.grants().len() {
-            return Err(unavailable);
+/// A bounded policy is counted against one actor's single branch. A
+/// multi-branch proof, such as an M-of-N root, is admitted only when no
+/// branch carries a bound.
+fn bounded_chain(
+    proof_cbor: &[u8],
+    verified: &VerifiedAction,
+) -> Result<Option<(auths_model::PrincipalId, Vec<SignedGrant>)>, &'static str> {
+    let bounded = |chain: &[SignedGrant]| {
+        chain.iter().any(|grant| {
+            grant
+                .statement()
+                .extensions()
+                .as_slice()
+                .iter()
+                .any(|extension| extension.id().as_str() == BOUNDED_POLICY_COMMITMENT_EXTENSION_V1)
+        })
+    };
+    let mut chains = authorized_chains(proof_cbor, verified)?;
+    match chains.len() {
+        1 => Ok(chains.pop()),
+        _ if chains.iter().any(|(_, chain)| bounded(chain)) => {
+            Err("gateway.policy.multiple-branches")
         }
-        let grant = bundle
-            .grants()
-            .iter()
-            .find(|grant| auths_codec::grant_id(grant.statement()).is_ok_and(|found| found == id))
-            .ok_or(unavailable)?;
-        chain.push(grant.clone());
-        cursor = grant.statement().parent();
+        _ => Ok(None),
     }
-    chain.reverse();
-    Ok((action.envelope().actor().clone(), chain))
 }
 
 /// Admits the verified action under every bound in its authorized chain, or
@@ -348,27 +373,11 @@ pub(crate) fn admit_bounds(
     now: u64,
 ) -> Result<Option<WindowReservation>, GatewaySubmitResult> {
     let refuse = not_entered;
-    let chains = authorized_chains(proof_cbor, verified).map_err(refuse)?;
-    let carries_bound = |chain: &[SignedGrant]| {
-        chain.iter().any(|grant| {
-            grant
-                .statement()
-                .extensions()
-                .as_slice()
-                .iter()
-                .any(|extension| extension.id().as_str() == BOUNDED_POLICY_COMMITMENT_EXTENSION_V1)
-        })
-    };
-    if !chains.iter().any(|(_, chain)| carries_bound(chain)) {
+    let Some((actor, chain)) = bounded_chain(proof_cbor, verified).map_err(refuse)? else {
         return Ok(None);
-    }
-    // A bound's count is keyed to one actor; its meaning across the branches
-    // of a composed proof is unspecified, so a bounded composition is refused.
-    let [(actor, chain)] = chains.as_slice() else {
-        return Err(refuse("gateway.policy.multiple-branches"));
     };
     let mut bounds: Vec<(Vec<u8>, BoundedPolicyCommitment)> = Vec::new();
-    for grant in chain {
+    for grant in &chain {
         for extension in grant.statement().extensions().as_slice() {
             if extension.id().as_str() != BOUNDED_POLICY_COMMITMENT_EXTENSION_V1 {
                 continue;
@@ -489,7 +498,7 @@ fn slot_key(counter: &[u8; 32], slot: u64) -> [u8; 32] {
 /// search is exact. Work is logarithmic in the maximum plus one insert per
 /// concurrent winner.
 pub(crate) fn reserve_window(
-    store: &impl BoundedCountStore,
+    store: &(impl BoundedCountStore + ?Sized),
     reservation: &WindowReservation,
     operation: &LogicalOperationId,
 ) -> Result<(), ReserveRefusal> {

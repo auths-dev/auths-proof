@@ -163,12 +163,19 @@ struct Principals {
 }
 
 impl Principals {
-    fn open() -> Self {
+    fn open(backend: Backend) -> Self {
         let root = Signer::new(0x11);
         let observer = GatewayObserver::from_test_seed(0x33);
         let context = context_with_depth(&root, observer.principal(), None, 2);
         Self {
-            harness: Harness::with(bounds_recipe(), context, observer, root, Signer::new(0x22)),
+            harness: Harness::with(
+                bounds_recipe(),
+                context,
+                observer,
+                root,
+                Signer::new(0x22),
+                backend,
+            ),
             a: Signer::new(0x44),
             b: Signer::new(0x55),
             sub: Signer::new(0x66),
@@ -314,8 +321,8 @@ fn submissions(principals: &Principals, id: &str) -> Vec<Submission> {
 }
 
 /// Runs one case and reports its decision, code, and provider entries.
-async fn run(id: &str) -> (String, Option<String>, (usize, usize, usize)) {
-    let principals = Principals::open();
+async fn run(id: &str, backend: Backend) -> (String, Option<String>, (usize, usize, usize)) {
+    let principals = Principals::open(backend);
     let mut last = None;
     for submission in &submissions(&principals, id) {
         last = Some(principals.harness.submit(submission, NOW).await);
@@ -332,15 +339,16 @@ async fn run(id: &str) -> (String, Option<String>, (usize, usize, usize)) {
     (decision, code, principals.harness.provider.counts())
 }
 
-#[tokio::test]
-async fn per_principal_bounds_admit_only_actions_inside_the_signer_bound() {
+/// Drives the pre-generated bounded hostile suite against `backend`; the
+/// per-window counts live in the same store as the attempt claims.
+async fn bounded_hostile_suite(backend: Backend) {
     let suite: Suite = serde_json::from_str(include_str!(
         "../../../../bindings/fixtures/gateway/bounds-hostile.json"
     ))
     .expect("bounded hostile suite");
     assert_eq!(suite.schema, "auths.gateway-bounds-hostile/1");
     for case in suite.cases {
-        let (decision, code, (writes, _reads, leases)) = run(&case.id).await;
+        let (decision, code, (writes, _reads, leases)) = run(&case.id, backend).await;
         assert_eq!(decision, case.decision, "{}", case.id);
         assert_eq!(code, case.code, "{}", case.id);
         assert_eq!(
@@ -354,4 +362,19 @@ async fn per_principal_bounds_admit_only_actions_inside_the_signer_bound() {
             case.id
         );
     }
+}
+
+#[tokio::test]
+async fn per_principal_bounds_admit_only_actions_inside_the_signer_bound() {
+    bounded_hostile_suite(Backend::File).await;
+}
+
+#[tokio::test]
+#[ignore = "needs the TLS PostgreSQL fixture"]
+async fn postgres_per_principal_bounds_admit_only_actions_inside_the_signer_bound() {
+    assert!(
+        postgres_configured(),
+        "TLS PostgreSQL environment slots are required"
+    );
+    bounded_hostile_suite(Backend::Postgres).await;
 }

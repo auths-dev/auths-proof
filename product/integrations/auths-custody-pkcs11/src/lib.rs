@@ -3,14 +3,10 @@
 #![forbid(unsafe_code)]
 
 use auths_custody::{
-    CustodyAdapterId, CustodyDescriptor, CustodyKind, CustodyProviderError, ExternalSigner,
-    KeyLifecycleState, KeyVersionId, P256SignatureVerifier, RawSigningResponse, SigningIntent,
-    UntrustedSigningResponse,
+    CustodyAdapterId, CustodyDescriptor, CustodyIdentity, CustodyKind, CustodyPrincipalForm,
+    CustodyProviderError, ExternalSigner, KeyLifecycleState, KeyVersionId, P256SignatureVerifier,
+    RawSigningResponse, SigningIntent, UntrustedSigningResponse,
 };
-use auths_model::{
-    PrincipalId, PrincipalMethodId, SignatureDescriptor, SignatureSuiteId, VerificationMethod,
-};
-use base64ct::{Base64UrlUnpadded, Encoding as _};
 use sha2::{Digest as _, Sha256};
 use std::{path::PathBuf, time::Duration};
 
@@ -192,6 +188,7 @@ pub struct Pkcs11P256Adapter<C, S> {
     secrets: S,
     configuration: Pkcs11Configuration,
     descriptor: CustodyDescriptor,
+    identity: CustodyIdentity,
     verifier: P256SignatureVerifier,
 }
 
@@ -206,6 +203,7 @@ impl<C: Pkcs11Api, S: Pkcs11SecretProvider> Pkcs11P256Adapter<C, S> {
         client: C,
         secrets: S,
         configuration: Pkcs11Configuration,
+        form: CustodyPrincipalForm,
     ) -> Result<Self, Pkcs11ConfigurationError> {
         let pin = secrets
             .acquire()
@@ -219,22 +217,15 @@ impl<C: Pkcs11Api, S: Pkcs11SecretProvider> Pkcs11P256Adapter<C, S> {
         }
         let verifier = P256SignatureVerifier::from_sec1_bytes(&description.public_key_sec1)
             .map_err(|_| Pkcs11ConfigurationError::InvalidPublicKey)?;
-        let principal = principal(&description.public_key_sec1)?;
-        let signature = SignatureDescriptor::new(
-            PrincipalMethodId::parse("raw-key-v1")
-                .map_err(|_| Pkcs11ConfigurationError::InvalidPublicKey)?,
-            VerificationMethod::parse(principal.as_str())
-                .map_err(|_| Pkcs11ConfigurationError::InvalidPublicKey)?,
-            SignatureSuiteId::parse(SUITE_ID)
-                .map_err(|_| Pkcs11ConfigurationError::InvalidPublicKey)?,
-        );
+        let identity = CustodyIdentity::p256(form, &description.public_key_sec1)
+            .map_err(|_| Pkcs11ConfigurationError::InvalidPublicKey)?;
         let key_version = key_version(&configuration, &description.public_key_sec1)?;
         let descriptor = CustodyDescriptor::new(
             CustodyKind::Pkcs11,
             CustodyAdapterId::parse(ADAPTER_ID)
                 .map_err(|_| Pkcs11ConfigurationError::InvalidPublicKey)?,
-            principal,
-            signature,
+            identity.principal().clone(),
+            identity.signature().clone(),
             key_version,
             KeyLifecycleState::ActiveCurrent,
         )
@@ -244,8 +235,15 @@ impl<C: Pkcs11Api, S: Pkcs11SecretProvider> Pkcs11P256Adapter<C, S> {
             secrets,
             configuration,
             descriptor,
+            identity,
             verifier,
         })
+    }
+
+    /// Returns the key's public identity, derived from the public key only.
+    #[must_use]
+    pub const fn identity(&self) -> &CustodyIdentity {
+        &self.identity
     }
 
     #[must_use]
@@ -346,15 +344,6 @@ fn selector(configuration: &Pkcs11Configuration) -> Pkcs11Selector<'_> {
         session_limit: configuration.session_limit,
         operation_timeout: configuration.operation_timeout,
     }
-}
-
-fn principal(public_key: &[u8]) -> Result<PrincipalId, Pkcs11ConfigurationError> {
-    let digest: [u8; 32] = Sha256::digest(public_key).into();
-    PrincipalId::parse(&format!(
-        "key:sha256:{}",
-        Base64UrlUnpadded::encode_string(&digest)
-    ))
-    .map_err(|_| Pkcs11ConfigurationError::InvalidPublicKey)
 }
 
 fn key_version(
@@ -464,6 +453,7 @@ mod tests {
             },
             FixedSecret,
             configuration(),
+            CustodyPrincipalForm::RawKeyV1,
         )
         .unwrap();
         assert_eq!(adapter.readiness().adapter_id(), ADAPTER_ID);

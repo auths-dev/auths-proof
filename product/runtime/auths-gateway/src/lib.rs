@@ -13,6 +13,7 @@ mod bounds;
 mod engine;
 mod observer;
 mod recipe;
+mod separation;
 mod store;
 mod transport;
 
@@ -22,6 +23,8 @@ pub mod harness;
 mod observed_tests;
 #[cfg(test)]
 mod quorum_tests;
+#[cfg(test)]
+mod store_testkit;
 
 pub use binding::{GatewayConnectionDescriptor, GatewayConnectionError};
 pub use bounds::{
@@ -36,16 +39,18 @@ pub use engine::{
 };
 pub use observer::{
     GatewayObserver, GatewayObserverError, GatewaySignedObservation, OBSERVATION_MEDIA_TYPE,
-    OPERATION_SUBJECT_SCHEME, OUTCOME_SCHEMA, ObserverAnchorTemplate, READ_BACK_SCHEMA,
-    operation_subject,
+    OPERATION_SUBJECT_SCHEME, OUTCOME_SCHEMA, ObserverAnchorTemplate, ObserverCustody,
+    READ_BACK_SCHEMA, operation_subject,
 };
 pub use recipe::{
     ClosedObservationRequest, ClosedProviderRequest, CompiledRecipe, CredentialRequirement,
     GatewayRecipeError, LogicalOperationId, OperatorNamespace, RecipeEchoReview,
     RecipePreconditionReview, RecipeReview, WriteMethod, echo_token,
 };
+pub use separation::{PrincipalSeparationError, check_principal_separation};
 pub use store::{
-    ClaimedGatewayAttempt, FileGatewayAttemptStore, GatewayAttemptError, GatewayAttemptSnapshot,
-    GatewayAttemptStage, GatewayEvidenceChannel, GatewayObservationFact, GatewayProviderEvidence,
-    ObservableGatewayAttempt,
+    ClaimedGatewayAttempt, FileGatewayAttemptStore, GatewayAttemptError, GatewayAttemptKey,
+    GatewayAttemptSnapshot, GatewayAttemptStage, GatewayAttemptStore, GatewayAttempts,
+    GatewayEvidenceChannel, GatewayObservationFact, GatewayProviderEvidence,
+    ObservableGatewayAttempt, PostgresGatewayAttemptStore,
 };
