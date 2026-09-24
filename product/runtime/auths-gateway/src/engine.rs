@@ -4,7 +4,6 @@
 // distinct public stage; `let...else` would obscure those boundary decisions.
 #![allow(clippy::manual_let_else)]
 
-use crate::action_facts::McpArgumentsPolicy;
 use crate::bounds::{BoundedCountStore, WindowReservation, admit_bounds, reserve_window};
 use crate::observer::{
     GatewayObserver, GatewaySignedObservation, OUTCOME_SCHEMA, READ_BACK_SCHEMA, operation_subject,
@@ -24,10 +23,10 @@ use auths_connections::{
     ConnectionState, PersistentCredentialStore, ProviderKind, SecretBytes, StoredSecretLease,
 };
 use auths_model::{Timestamp, TrustedContext, VerificationDecision, VerifierConfigurationId};
-use auths_ports::{PrincipalMethod, ProfilePolicy, SignatureSuite};
+use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_profile_api::ActionProfile;
-use auths_profile_mcp::McpProfile;
-use auths_registries::{ImmutableRegistries, PureRegistrySet};
+use auths_profile_mcp::{McpProfile, with_mcp_arguments_registries};
+use auths_registries::ImmutableRegistries;
 use auths_stores::PersistentConnectionStore;
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 use serde::{Deserialize, Serialize};
@@ -513,25 +512,9 @@ fn with_gateway_registries<T>(check: impl FnOnce(&ImmutableRegistries<'_>) -> T)
     let did_keri = auths_did_keri::DidKeriMethod::new().ok()?;
     let ed25519 = auths_signature::Ed25519Suite::new().ok()?;
     let p256 = auths_signature::P256Sha256Suite::new().ok()?;
-    let policy = McpArgumentsPolicy::new().ok()?;
     let methods: [&dyn PrincipalMethod; 3] = [&raw_key, &did_key, &did_keri];
     let suites: [&dyn SignatureSuite; 2] = [&ed25519, &p256];
-    let policies: [&dyn ProfilePolicy; 1] = [&policy];
-    let registries = ImmutableRegistries::with_pure(
-        &methods,
-        &suites,
-        PureRegistrySet {
-            resource_matchers: &[],
-            profile_policies: &policies,
-            budget_algebras: &[],
-            extension_handlers: &[],
-            status_methods: &[],
-            assurance_claims: &[],
-            assurance_implications: &[],
-        },
-    )
-    .ok()?;
-    Some(check(&registries))
+    with_mcp_arguments_registries(&methods, &suites, check).ok()
 }
 
 /// Returns the verifier configuration a gateway trusted context must pin.

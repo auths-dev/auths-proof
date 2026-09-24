@@ -11,6 +11,8 @@ description = "Canonical Auths action profile for exact MCP tool calls"
 [dependencies]
 auths-codec.workspace = true
 auths-model.workspace = true
+auths-ports.workspace = true
+auths-registries.workspace = true
 auths-verifier.workspace = true
 auths-profile-api.workspace = true
 hex.workspace = true

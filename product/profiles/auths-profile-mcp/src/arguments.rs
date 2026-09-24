@@ -1,5 +1,5 @@
-//! `mcp-arguments-v1`: the gateway's profile policy for observation
-//! requirements over exact MCP tool calls.
+//! `mcp-arguments-v1`: the profile policy for observation requirements over
+//! exact MCP tool calls.
 //!
 //! The kernel treats action bodies as opaque, so an observation requirement
 //! that compares an observed fact with the action, or names its subject from
@@ -21,11 +21,17 @@ use auths_model::{
     AdapterConfigurationId, CanonicalAction, FactName, FactText, FactValue,
     MAX_FACT_VALUE_TEXT_BYTES, ProfileId, ProfilePolicyId, ProfileRef,
 };
-use auths_ports::{ProfileDecision, ProfilePolicy, RegistryOperationError};
-use auths_profile_mcp::{MEDIA_TYPE, McpToolCall, PROFILE_ID, PROFILE_VERSION};
+use auths_ports::{
+    PrincipalMethod, ProfileDecision, ProfilePolicy, RegistryOperationError, SignatureSuite,
+};
+use auths_registries::{ImmutableRegistries, PureRegistrySet, RegistryError};
 use serde_json::Value;
+use std::fmt;
 
-/// Profile-policy identifier selected by a gateway trusted context.
+use crate::{MEDIA_TYPE, McpToolCall, PROFILE_ID, PROFILE_VERSION};
+
+/// Profile-policy identifier selected by a trusted context whose observation
+/// requirements read MCP arguments.
 pub const MCP_ARGUMENTS_V1: &str = "mcp-arguments-v1";
 
 /// Configuration components committed with the policy identifier. Changing
@@ -114,11 +120,66 @@ impl ProfilePolicy for McpArgumentsPolicy {
     }
 }
 
+/// Failure to construct the `mcp-arguments-v1` verifier registries.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum McpArgumentsRegistryError {
+    /// The compiled policy identifier was invalid.
+    Policy(RegistryOperationError),
+    /// The registry set rejected a duplicate or invalid identifier.
+    Registry(RegistryError),
+}
+
+impl fmt::Display for McpArgumentsRegistryError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Policy(_) => formatter.write_str("invalid mcp-arguments-v1 policy identifier"),
+            Self::Registry(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl std::error::Error for McpArgumentsRegistryError {}
+
+/// Runs `check` against the immutable registries of the `mcp-arguments-v1`
+/// verifier configuration: exactly `methods` and `suites` plus this policy.
+///
+/// Every verifier that must accept a context pinning this configuration
+/// builds its registries here, so the gateway and the SDK verifiers commit
+/// to one configuration identifier for the same methods and suites.
+///
+/// # Errors
+///
+/// Returns [`McpArgumentsRegistryError`] for a duplicate method or suite
+/// identifier or an invalid compiled identifier.
+pub fn with_mcp_arguments_registries<T>(
+    methods: &[&dyn PrincipalMethod],
+    suites: &[&dyn SignatureSuite],
+    check: impl FnOnce(&ImmutableRegistries<'_>) -> T,
+) -> Result<T, McpArgumentsRegistryError> {
+    let policy = McpArgumentsPolicy::new().map_err(McpArgumentsRegistryError::Policy)?;
+    let policies: [&dyn ProfilePolicy; 1] = [&policy];
+    let registries = ImmutableRegistries::with_pure(
+        methods,
+        suites,
+        PureRegistrySet {
+            resource_matchers: &[],
+            profile_policies: &policies,
+            budget_algebras: &[],
+            extension_handlers: &[],
+            status_methods: &[],
+            assurance_claims: &[],
+            assurance_implications: &[],
+        },
+    )
+    .map_err(McpArgumentsRegistryError::Registry)?;
+    Ok(check(&registries))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::McpProfile;
     use auths_profile_api::ActionProfile as _;
-    use auths_profile_mcp::McpProfile;
     use serde_json::json;
 
     fn action(arguments: &Value) -> CanonicalAction {
@@ -204,6 +265,26 @@ mod tests {
             McpArgumentsPolicy::new()
                 .expect("policy")
                 .configuration_id()
+        );
+    }
+
+    #[test]
+    #[allow(
+        clippy::redundant_closure_for_method_calls,
+        reason = "the method path is not general over the registries' borrow lifetime"
+    )]
+    fn registries_commit_the_policy_into_a_distinct_configuration() {
+        let with_policy =
+            with_mcp_arguments_registries(&[], &[], |registries| registries.configuration_id())
+                .expect("registries");
+        let without = ImmutableRegistries::new(&[], &[])
+            .expect("registries")
+            .configuration_id();
+        assert_ne!(with_policy, without);
+        assert_eq!(
+            with_policy,
+            with_mcp_arguments_registries(&[], &[], |registries| registries.configuration_id())
+                .expect("registries")
         );
     }
 }

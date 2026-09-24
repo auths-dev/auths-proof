@@ -53,6 +53,7 @@ async function loadPackagedWorkflowEngineOnce(): Promise<PackagedWorkflowEngine>
     typeof loaded.configurationV1 !== "function" ||
     typeof loaded.validateTrustedContextV1 !== "function" ||
     typeof loaded.prepareMcpActionV1 !== "function" ||
+    typeof loaded.attachObservationsV1 !== "function" ||
     typeof loaded.verifyExactMcpArgumentsV1 !== "function" ||
     typeof loaded.bindTrustedContextRequestV1 !== "function" ||
     typeof loaded.canonicalizeMcpPlanMemberV1 !== "function" ||

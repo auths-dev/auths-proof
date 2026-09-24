@@ -121,7 +121,7 @@ def development_mcp_artifacts(
     grant = grant_request.complete(key.sign(grant_request.signing_preimage))
     challenge = _native.generate_challenge_v1()
     prepared = _native.prepare_mcp_call_action(
-        call, actor, grant, challenge, current
+        call, actor, grant, challenge, current, 30
     )
     action_request = _native.prepare_signing(
         prepared.unsigned, key.principal_method, key.verification_method, key.suite

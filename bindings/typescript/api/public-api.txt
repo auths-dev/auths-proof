@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 287b868774a47c8f6132dda627d712a8e43f66883d5c1a606fb4f2775299c3e4
+# declaration-sha256 0caf25b0e1385c5d14c98f33d878971b33ecb4f8bd83e5fef3ce00382dfe8252
 .	AuthsError	value+type
 .	AuthsIssue	type
 .	AuthsOperationError	value+type
@@ -51,6 +51,7 @@
 ./verify	Verifier	value+type
 ./self-hosted	arrayField	value
 ./self-hosted	ArrayField	type
+./self-hosted	attachObservations	value
 ./self-hosted	AttemptRecord	type
 ./self-hosted	AttemptState	type
 ./self-hosted	AttemptStore	type
@@ -87,6 +88,7 @@
 ./self-hosted	runOnce	value
 ./self-hosted	RunResult	type
 ./self-hosted	SelfHostedProviderAdapter	type
+./self-hosted	SignedObservationAttachment	type
 ./self-hosted	stringField	value
 ./self-hosted	StringField	type
 ./self-hosted	verifyCommand	value

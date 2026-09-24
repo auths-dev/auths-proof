@@ -227,6 +227,7 @@ digraph auths_architecture {
   "auths-formal-refinement" -> "auths-composition" [label="normal"];
   "auths-formal-refinement" -> "auths-model" [label="normal"];
   "auths-formal-refinement" -> "auths-registries" [label="normal"];
+  "auths-gateway" -> "auths-author" [label="dev"];
   "auths-gateway" -> "auths-bounded-policy" [label="normal"];
   "auths-gateway" -> "auths-codec" [label="normal"];
   "auths-gateway" -> "auths-connections" [label="normal"];
@@ -420,7 +421,9 @@ digraph auths_architecture {
   "auths-profile-mcp" -> "auths-codec" [label="normal"];
   "auths-profile-mcp" -> "auths-errors" [label="dev"];
   "auths-profile-mcp" -> "auths-model" [label="normal"];
+  "auths-profile-mcp" -> "auths-ports" [label="normal"];
   "auths-profile-mcp" -> "auths-profile-api" [label="normal"];
+  "auths-profile-mcp" -> "auths-registries" [label="normal"];
   "auths-profile-mcp" -> "auths-verifier" [label="normal"];
   "auths-profile-runtime" -> "auths-connections" [label="normal"];
   "auths-profile-runtime" -> "auths-lifecycle" [label="normal"];

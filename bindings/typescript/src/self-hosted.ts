@@ -2,6 +2,7 @@
 
 import { createVerifier, type VerificationResult } from "./verify.js";
 import { loadPackagedWorkflowEngine } from "./verifier/wasm.js";
+import { checkedValidity } from "./internal/action-validity.js";
 import type { CustodySigner, PublicControlEvidence } from "./adapters.js";
 
 export interface StringField {
@@ -192,17 +193,26 @@ export class ExactMcpTool<Fields extends FieldMap> {
     return projectObject(this.#fields, command, false) as Readonly<Record<string, unknown>>;
   }
 
+  /**
+   * Prepares the unsigned exact action, valid from `evaluationTime` for `validitySeconds`
+   * (the native default when omitted, bounded natively) and cut to the terminal grant's
+   * expiry, so a verifier with its own later clock, such as a gateway, accepts it inside
+   * that window. The window is not a replay defence, and it never extends an observation's
+   * maximum age, which is judged at the verifier's evaluation time.
+   */
   async prepare(command: CommandOf<Fields>, options: Readonly<{
     actor: string;
     terminalGrant: Uint8Array;
     challenge: Uint8Array;
     evaluationTime: bigint;
+    validitySeconds?: number;
   }>): Promise<PreparedMcpAction<CommandOf<Fields>>> {
     const encoded = this.encode(command);
+    const validitySeconds = checkedValidity(options.validitySeconds);
     const engine = await loadPackagedWorkflowEngine();
     const prepared = engine.prepareMcpActionV1(
       this.service, this.name, encoded, options.actor, options.terminalGrant,
-      options.challenge, options.evaluationTime,
+      options.challenge, options.evaluationTime, validitySeconds,
     );
     try {
       if (prepared.argumentsJson.length > 4096) {
@@ -222,6 +232,52 @@ export class ExactMcpTool<Fields extends FieldMap> {
     } finally {
       prepared.free?.();
     }
+  }
+}
+
+/**
+ * One signed observation to carry with an action. A gateway `GatewaySignedObservation`
+ * satisfies this shape: `observation` is the exact signed bytes and `mediaType` their
+ * declared media type.
+ */
+export interface SignedObservationAttachment {
+  readonly mediaType: string;
+  readonly observation: Uint8Array;
+}
+
+/**
+ * Returns `prepared` carrying each observation as a detached attachment whose descriptor
+ * the unsigned action statement binds, so sign the returned action, not the original.
+ * Native code checks only media type, size, count, and distinctness; whether an
+ * observation is authentic, fresh, about the right subject, and satisfies a grant's
+ * conditions is decided by the verifier. Attach at most once.
+ */
+export async function attachObservations<Command>(
+  prepared: PreparedMcpAction<Command>,
+  observations: readonly SignedObservationAttachment[],
+): Promise<PreparedMcpAction<Command>> {
+  if (!Array.isArray(observations)) {
+    throw new TypeError("observations must be an array");
+  }
+  const offered = observations.map((item) => {
+    if (item === null || typeof item !== "object" || typeof item.mediaType !== "string" ||
+        !(item.observation instanceof Uint8Array)) {
+      throw new TypeError("each observation needs a media type and signed bytes");
+    }
+    return Object.freeze({ mediaType: item.mediaType, observation: item.observation.slice() });
+  });
+  const engine = await loadPackagedWorkflowEngine();
+  const attached = engine.attachObservationsV1(prepared.action, prepared.actionEnvelope, offered);
+  try {
+    const action = attached.canonicalActionCbor.slice();
+    return Object.freeze({
+      ...prepared,
+      action,
+      actionEnvelope: attached.actionEnvelopeCbor.slice(),
+      actionCommitment: engine.commitCanonicalV1("auths.canonical-action.v1", action),
+    });
+  } finally {
+    attached.free?.();
   }
 }
 
@@ -449,6 +505,8 @@ export async function authorProductionMcpProof<Fields extends FieldMap>(input: R
   contract: ExactMcpTool<Fields>;
   command: CommandOf<Fields>;
   inputs: ProductionAuthoringInputs;
+  observations?: readonly SignedObservationAttachment[];
+  validitySeconds?: number;
 }>): Promise<AuthoredMcpProof<CommandOf<Fields>>> {
   const production = input.inputs;
   if (production.signer.descriptor.contract !== "signer-custody/2" ||
@@ -469,6 +527,8 @@ export async function authorProductionMcpProof<Fields extends FieldMap>(input: R
     challenge: production.challenge,
     evaluationTime: production.evaluationTime,
     ...(production.signal === undefined ? {} : { signal: production.signal }),
+    ...(input.observations === undefined ? {} : { observations: input.observations }),
+    ...(input.validitySeconds === undefined ? {} : { validitySeconds: input.validitySeconds }),
   });
 }
 
@@ -502,6 +562,8 @@ export async function authorMcpProof<Fields extends FieldMap>(input: Readonly<{
   challenge: Uint8Array;
   evaluationTime: bigint;
   signal?: AbortSignal;
+  observations?: readonly SignedObservationAttachment[];
+  validitySeconds?: number;
 }>): Promise<AuthoredMcpProof<CommandOf<Fields>>> {
   if (input.grants.length < 1 || input.grants.length > 16) {
     throw new RangeError("grant chain count is outside bounds");
@@ -521,12 +583,16 @@ export async function authorMcpProof<Fields extends FieldMap>(input: Readonly<{
     }
   }
   const engine = await loadPackagedWorkflowEngine();
-  const prepared = await input.contract.prepare(input.command, {
+  const unattached = await input.contract.prepare(input.command, {
     actor: descriptor.principal,
     terminalGrant: input.grants[input.grants.length - 1]!.signedGrant,
     challenge: input.challenge,
     evaluationTime: input.evaluationTime,
+    ...(input.validitySeconds === undefined ? {} : { validitySeconds: input.validitySeconds }),
   });
+  const prepared = input.observations === undefined || input.observations.length === 0
+    ? unattached
+    : await attachObservations(unattached, input.observations);
   const context = engine.bindTrustedContextRequestV1(
     input.trustedContextTemplate, prepared.audience,
     input.challenge, input.evaluationTime,
