@@ -293,8 +293,8 @@ fn registered(commitment: &PolicyCommitment) -> Result<GatewayEvaluator, &'stati
 /// One slot of an actor's per-window count, reserved after the claim.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct WindowReservation {
-    counter: [u8; 32],
-    max_count: u64,
+    pub(crate) counter: [u8; 32],
+    pub(crate) max_count: u64,
 }
 
 /// The authorized chain of every verified action, root to terminal, with
@@ -337,9 +337,21 @@ fn authorized_chains(
     Ok(chains)
 }
 
-/// A bounded policy is counted against one actor's single branch. A
-/// multi-branch proof, such as an M-of-N root, is admitted only when no
-/// branch carries a bound.
+/// The actor of every authorized branch, in verified order.
+pub(crate) fn authorized_actors(
+    proof_cbor: &[u8],
+    verified: &VerifiedAction,
+) -> Result<Vec<auths_model::PrincipalId>, &'static str> {
+    Ok(authorized_chains(proof_cbor, verified)?
+        .into_iter()
+        .map(|(actor, _)| actor)
+        .collect())
+}
+
+/// The one branch whose chain carries a bound, keyed to its actor. The
+/// other branches of a composed proof must be unbounded, such as approvers
+/// anchored directly in trust; a joint count over two bounded branches has
+/// no specified meaning, so that composition is refused.
 fn bounded_chain(
     proof_cbor: &[u8],
     verified: &VerifiedAction,
@@ -354,13 +366,13 @@ fn bounded_chain(
                 .any(|extension| extension.id().as_str() == BOUNDED_POLICY_COMMITMENT_EXTENSION_V1)
         })
     };
-    let mut chains = authorized_chains(proof_cbor, verified)?;
+    let mut chains: Vec<_> = authorized_chains(proof_cbor, verified)?
+        .into_iter()
+        .filter(|(_, chain)| bounded(chain))
+        .collect();
     match chains.len() {
-        1 => Ok(chains.pop()),
-        _ if chains.iter().any(|(_, chain)| bounded(chain)) => {
-            Err("gateway.policy.multiple-branches")
-        }
-        _ => Ok(None),
+        0 | 1 => Ok(chains.pop()),
+        _ => Err("gateway.policy.multiple-branches"),
     }
 }
 

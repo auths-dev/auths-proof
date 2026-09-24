@@ -8,6 +8,7 @@
 
 #[cfg(unix)]
 pub mod app;
+mod audit;
 mod binding;
 mod bounds;
 mod engine;
@@ -26,6 +27,10 @@ mod quorum_tests;
 #[cfg(test)]
 mod store_testkit;
 
+pub use audit::{
+    AUDIT_BUNDLE_SCHEMA, AUDIT_REPORT_SCHEMA, AuditPins, AuditReport, AuditStatus, AuditedEntry,
+    MAX_AUDIT_BUNDLE_BYTES, MAX_AUDIT_ENTRIES, audit_bundle,
+};
 pub use binding::{GatewayConnectionDescriptor, GatewayConnectionError};
 pub use bounds::{
     ARGUMENT_CEILING_CANONICALIZATION_V1, ARGUMENT_CEILING_EVALUATOR_V1,

@@ -492,6 +492,84 @@ pub(crate) fn outcome_facts(
     ])
 }
 
+/// A signed outcome observation whose signature verified under a pinned
+/// observer principal.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct VerifiedOutcome {
+    pub(crate) subject: String,
+    pub(crate) observed_at: u64,
+    pub(crate) commitment: String,
+    pub(crate) stage: String,
+}
+
+/// Verifies one `auths.gateway-outcome/1` observation offline: canonical
+/// bytes, the pinned observer as signer, raw-key control evidence opening to
+/// that principal, and the Ed25519 signature over the canonical preimage.
+///
+/// # Errors
+/// Returns `audit.outcome-invalid` for any failure; the reason is not
+/// distinguished because every failure means the gateway did not sign it.
+pub(crate) fn verify_outcome(
+    bytes: &[u8],
+    observer: &PrincipalId,
+) -> Result<VerifiedOutcome, &'static str> {
+    use auths_ports::{SignatureInput, SignatureSuite as _};
+    let invalid = "audit.outcome-invalid";
+    let signed =
+        auths_codec::decode_signed_observation(bytes, &auths_model::VerifierLimits::default())
+            .map_err(|_| invalid)?;
+    if auths_codec::encode_signed_observation(&signed).map_err(|_| invalid)? != bytes {
+        return Err(invalid);
+    }
+    let statement = signed.statement();
+    let descriptor = signed.signature().descriptor();
+    if statement.observer() != observer
+        || statement.schema().as_str() != OUTCOME_SCHEMA
+        || descriptor.principal_method().as_str() != RAW_KEY_V1
+        || descriptor.verification_method().as_str() != observer.as_str()
+        || descriptor.suite().as_str() != auths_signature::ED25519_V1
+    {
+        return Err(invalid);
+    }
+    let key = signed
+        .evidence()
+        .iter()
+        .filter(|object| object.evidence_type().as_str() == RAW_KEY_V1)
+        .find_map(|object| {
+            RawKeyDescriptor::decode(object.bytes())
+                .ok()
+                .filter(|key| key.principal().is_ok_and(|found| &found == observer))
+        })
+        .ok_or(invalid)?;
+    let preimage = observation_signing_preimage(statement, descriptor).map_err(|_| invalid)?;
+    auths_signature::Ed25519Suite::new()
+        .map_err(|_| invalid)?
+        .verify(SignatureInput {
+            verification_key: key.public_key(),
+            signing_preimage: &preimage,
+            signature: signed.signature().signature().as_slice(),
+        })
+        .map_err(|_| invalid)?;
+    let text_fact = |name: &str| {
+        statement
+            .facts()
+            .as_slice()
+            .iter()
+            .find(|fact| fact.name().as_str() == name)
+            .and_then(|fact| match fact.value() {
+                FactValue::Text(value) => Some(value.as_str().to_owned()),
+                FactValue::Uint(_) | FactValue::Bytes(_) => None,
+            })
+            .ok_or(invalid)
+    };
+    Ok(VerifiedOutcome {
+        subject: statement.subject().as_str().to_owned(),
+        observed_at: statement.observed_at().get(),
+        commitment: text_fact("commitment")?,
+        stage: text_fact("stage")?,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

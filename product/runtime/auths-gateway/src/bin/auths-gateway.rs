@@ -20,6 +20,7 @@ mod unix {
         APP_OBSERVE_SCHEMA, APP_REQUEST_SCHEMA, AppObservation, AppSubmission, app_session,
         read_frame, write_frame,
     };
+    use auths_gateway::{ArgumentCeilingPolicy, AuditPins, audit_bundle};
     use auths_gateway::{
         CompiledRecipe, FileGatewayAttemptStore, GatewayAttempts, GatewayConnectionDescriptor,
         GatewayEngine, GatewayObserveRequest, GatewayObserveResult, GatewayObserver,
@@ -104,6 +105,45 @@ mod unix {
             state_dir: PathBuf,
             #[arg(long)]
             app_socket: PathBuf,
+            /// Development builds only: send provider requests to a
+            /// plain-HTTP provider double on 127.0.0.1:<port>.
+            #[cfg(feature = "loopback-provider")]
+            #[arg(long)]
+            loopback_provider: Option<u16>,
+        },
+        /// Operator review before install: the recipe digest to approve,
+        /// what the recipe sends, and the verifier configuration a gateway
+        /// trusted context must pin. Prints no secret and contacts nothing.
+        Review {
+            #[arg(long)]
+            recipe: PathBuf,
+            #[arg(long)]
+            profile_lock: PathBuf,
+        },
+        /// Print the grant extension committing to a ceiling on one verified
+        /// integer argument and a count per principal per window, as this
+        /// gateway's registered evaluator enforces it.
+        BoundExtension {
+            #[arg(long)]
+            argument: String,
+            #[arg(long)]
+            ceiling: u64,
+            #[arg(long)]
+            window_seconds: u64,
+            #[arg(long)]
+            max_count: u64,
+        },
+        /// Audit an exported bundle offline against pinned trust and observer.
+        /// Opens no socket and reads no gateway state.
+        Audit {
+            #[arg(long)]
+            bundle: PathBuf,
+            /// SHA-256 of the installed trusted context, from the operator.
+            #[arg(long)]
+            trusted_context_sha256: String,
+            /// Gateway observer principal, from the operator.
+            #[arg(long)]
+            observer: String,
         },
         /// Submit proof and action to the app socket, never a provider request.
         Submit {
@@ -676,13 +716,28 @@ mod unix {
         UnixListener::bind(path).map_err(|_| code)
     }
 
-    async fn serve(state_dir: PathBuf, app_socket: PathBuf) -> Result<(), &'static str> {
+    async fn serve(
+        state_dir: PathBuf,
+        app_socket: PathBuf,
+        loopback_provider: Option<u16>,
+    ) -> Result<(), &'static str> {
         let loading = state_dir.clone();
-        let engine = Arc::new(
-            tokio::task::spawn_blocking(move || load_engine(&loading))
-                .await
-                .map_err(|_| "gateway.serve.load-failed")??,
-        );
+        let engine = tokio::task::spawn_blocking(move || load_engine(&loading))
+            .await
+            .map_err(|_| "gateway.serve.load-failed")??;
+        #[cfg(feature = "loopback-provider")]
+        let engine = match loopback_provider {
+            Some(port) => {
+                eprintln!(
+                    "development build: provider requests go to http://127.0.0.1:{port}, not the approved origin"
+                );
+                engine.with_loopback_provider(port)
+            }
+            None => engine,
+        };
+        #[cfg(not(feature = "loopback-provider"))]
+        let _ = loopback_provider;
+        let engine = Arc::new(engine);
         if !app_socket.is_absolute() {
             return Err("gateway.serve.invalid-app-socket");
         }
@@ -715,6 +770,85 @@ mod unix {
                     }
                 }
             }
+        }
+    }
+
+    fn review(recipe_path: &Path, lock_path: &Path) -> Result<(), &'static str> {
+        let recipe = CompiledRecipe::compile(
+            &read_bounded(recipe_path, 65_536)?,
+            &read_bounded(lock_path, 65_536)?,
+        )
+        .map_err(|_| "gateway.review.invalid-recipe")?;
+        let review = recipe.review();
+        let output = serde_json::json!({
+            "recipe_digest": recipe.digest_hex(),
+            "operator_namespace": recipe.namespace().as_str(),
+            "service": review.service(),
+            "tool": review.tool(),
+            "origin": review.origin(),
+            "method": review.method().as_str(),
+            "path": review.path(),
+            "verifier_configuration": hex::encode(gateway_verifier_configuration()?.as_bytes()),
+            "profile_policy": auths_profile_mcp::MCP_ARGUMENTS_V1,
+            "bounded_policy_extension": auths_registries::BOUNDED_POLICY_COMMITMENT_EXTENSION_V1,
+        });
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&output).map_err(|_| "gateway.output")?
+        );
+        Ok(())
+    }
+
+    fn bound_extension(
+        argument: &str,
+        ceiling: u64,
+        window_seconds: u64,
+        max_count: u64,
+    ) -> Result<(), &'static str> {
+        let policy = ArgumentCeilingPolicy::new(argument, ceiling, window_seconds, max_count)
+            .map_err(|_| "gateway.policy.invalid-policy")?;
+        let body = policy
+            .extension_body(None)
+            .map_err(|_| "gateway.policy.invalid-policy")?;
+        let output = serde_json::json!({
+            "extension_id": auths_registries::BOUNDED_POLICY_COMMITMENT_EXTENSION_V1,
+            "extension_body_hex": hex::encode(body),
+            "evaluator": auths_gateway::ARGUMENT_CEILING_EVALUATOR_V1,
+            "argument": policy.argument(),
+            "ceiling": policy.ceiling(),
+            "window_seconds": policy.window_seconds(),
+            "max_count": policy.max_count(),
+        });
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&output).map_err(|_| "gateway.output")?
+        );
+        Ok(())
+    }
+
+    fn audit(bundle: &Path, trust_sha256: &str, observer: &str) -> Result<(), &'static str> {
+        let pinned: [u8; 32] = hex::decode(trust_sha256)
+            .ok()
+            .and_then(|bytes| bytes.try_into().ok())
+            .ok_or("audit.invalid-trust-pin")?;
+        let observer =
+            auths_model::PrincipalId::parse(observer).map_err(|_| "audit.invalid-observer-pin")?;
+        let bytes = read_bounded(bundle, auths_gateway::MAX_AUDIT_BUNDLE_BYTES)?;
+        let report = audit_bundle(
+            &bytes,
+            &AuditPins {
+                trusted_context_sha256: pinned,
+                observer,
+            },
+        )?;
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&report).map_err(|_| "audit.output")?
+        );
+        if report.inconsistent == 0 {
+            Ok(())
+        } else {
+            Err("audit.inconsistent")
         }
     }
 
@@ -931,10 +1065,32 @@ mod unix {
                 )
                 .await
             }
+            #[cfg(feature = "loopback-provider")]
             Command::Serve {
                 state_dir,
                 app_socket,
-            } => serve(state_dir, app_socket).await,
+                loopback_provider,
+            } => serve(state_dir, app_socket, loopback_provider).await,
+            #[cfg(not(feature = "loopback-provider"))]
+            Command::Serve {
+                state_dir,
+                app_socket,
+            } => serve(state_dir, app_socket, None).await,
+            Command::Review {
+                recipe,
+                profile_lock,
+            } => review(&recipe, &profile_lock),
+            Command::BoundExtension {
+                argument,
+                ceiling,
+                window_seconds,
+                max_count,
+            } => bound_extension(&argument, ceiling, window_seconds, max_count),
+            Command::Audit {
+                bundle,
+                trusted_context_sha256,
+                observer,
+            } => audit(&bundle, &trusted_context_sha256, &observer),
             Command::Submit {
                 app_socket,
                 proof,

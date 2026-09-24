@@ -1524,11 +1524,11 @@ fn build_body(
             for (name, value) in fields {
                 let text = match value {
                     FormExpr::String { value } => value.clone(),
-                    FormExpr::Field { name } => arguments
-                        .get(name)
-                        .and_then(Value::as_str)
-                        .ok_or(GatewayRecipeError::ActionMismatch)?
-                        .to_owned(),
+                    FormExpr::Field { name } => match arguments.get(name) {
+                        Some(Value::String(text)) => text.clone(),
+                        Some(Value::Number(number)) if number.is_i64() => number.to_string(),
+                        _ => return Err(GatewayRecipeError::ActionMismatch),
+                    },
                     FormExpr::Json { value } => {
                         let evaluated = eval_value_expr(value, arguments)?;
                         let bytes = serde_json_canonicalizer::to_vec(&evaluated)
@@ -2021,6 +2021,50 @@ mod tests {
         let commands: Value = serde_json::from_str(&form["commands"]).expect("JSON form field");
         assert_eq!(commands.as_array().expect("array").len(), 1);
         assert_eq!(commands[0]["type"], "item_add");
+    }
+
+    #[test]
+    fn form_body_renders_an_integer_field_as_decimal_text() {
+        let schema = json!({"kind": "object", "fields": {
+            "operation_id": {"kind": "string", "minimum": 1, "maximum": 128},
+            "operator_namespace": {"type": "enum", "variants": ["refunds"]},
+            "recipe_digest": {"kind": "string", "minimum": 64, "maximum": 64},
+            "payment_intent": {"kind": "string", "minimum": 3, "maximum": 255},
+            "amount": {"kind": "integer", "minimum": 1, "maximum": 99_999_999}
+        }});
+        let digest = hex::encode(Sha256::digest(
+            serde_json_canonicalizer::to_vec(&schema).expect("canonical schema"),
+        ));
+        let lock = json!({
+            "command_schema": schema, "generator_format": 2, "profile": "refund",
+            "schema": "auths.self-hosted-profile-lock/1", "schema_digest": digest,
+            "service": "refunds", "tool": "create_refund_v1", "version": 1
+        });
+        let source = json!({
+            "schema": "auths.gateway-recipe-source/1", "profile_schema_digest": digest,
+            "service": "refunds", "tool": "create_refund_v1", "operator_namespace": "refunds",
+            "credential": {"kind": "bearer"}, "origin": "https://api.stripe.com",
+            "write": {"method": "POST",
+                "path": [{"kind": "fixed", "value": "v1"}, {"kind": "fixed", "value": "refunds"}],
+                "body": {"kind": "form", "fields": {
+                    "payment_intent": {"kind": "field", "name": "payment_intent"},
+                    "amount": {"kind": "field", "name": "amount"}}}}
+        });
+        let recipe = CompiledRecipe::compile(
+            &serde_json::to_vec(&source).expect("source"),
+            &serde_json::to_vec(&lock).expect("lock"),
+        )
+        .expect("form recipe compiles");
+        let arguments = arguments(
+            &recipe,
+            &json!({"operation_id": "refund-1", "payment_intent": "pi_1", "amount": 1500}),
+        );
+        let request = recipe
+            .closed_request_from_arguments(&arguments, [0; 32])
+            .expect("closed request");
+        assert_eq!(request.url(), "https://api.stripe.com/v1/refunds");
+        assert_eq!(request.content_type(), "application/x-www-form-urlencoded");
+        assert_eq!(request.body(), b"amount=1500&payment_intent=pi_1");
     }
 
     #[test]

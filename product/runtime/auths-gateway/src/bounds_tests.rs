@@ -9,6 +9,7 @@
 use super::*;
 use crate::ArgumentCeilingPolicy;
 use auths_registries::BOUNDED_POLICY_COMMITMENT_EXTENSION_V1;
+use std::collections::BTreeSet;
 
 const WINDOW: u64 = 3_600;
 
@@ -377,4 +378,405 @@ async fn postgres_per_principal_bounds_admit_only_actions_inside_the_signer_boun
         "TLS PostgreSQL environment slots are required"
     );
     bounded_hostile_suite(Backend::Postgres).await;
+}
+
+/// A root with one delegation edge, three managers anchored directly, and
+/// agents holding bounded grants from the root. Installed trust requires
+/// three authorized approvals from three distinct actors and `roots`
+/// distinct roots, so a bounded agent needs two managers beside it.
+struct RefundQuorum {
+    harness: Harness,
+    managers: [Signer; 3],
+    grant: SignedGrant,
+    other: Signer,
+    other_grant: SignedGrant,
+}
+
+impl RefundQuorum {
+    fn open(ceiling: u64, max_count: u64, roots: u16) -> Self {
+        let root = Signer::new(0x11);
+        let managers = [Signer::new(0xa1), Signer::new(0xb2), Signer::new(0xc3)];
+        let observer = GatewayObserver::from_test_seed(0x33);
+        let anchors: Vec<&Signer> = vec![&root, &managers[0], &managers[1], &managers[2]];
+        let context = h::context_with_roots(
+            &anchors,
+            observer.principal(),
+            None,
+            NOW,
+            1,
+            auths_model::CompositionRequirement::new(None, 3, 3, roots).expect("composition"),
+        )
+        .expect("refund trust");
+        let harness = Harness::with(
+            bounds_recipe(),
+            context,
+            observer,
+            root,
+            Signer::new(0x44),
+            Backend::File,
+        );
+        let policy = bound(ceiling, max_count);
+        let body = || Some(policy.extension_body(None).expect("body"));
+        let grant = bounded_grant(&harness.root, &harness.agent, None, 0, body());
+        let other = Signer::new(0x55);
+        let other_grant = bounded_grant(&harness.root, &other, None, 0, body());
+        Self {
+            harness,
+            managers,
+            grant,
+            other,
+            other_grant,
+        }
+    }
+
+    /// One exact action signed by every listed approver under the core
+    /// threshold plan the approval-quorum SDK builds.
+    fn submission(
+        &self,
+        operation: &str,
+        amount: u64,
+        signers: &[(&Signer, Option<&SignedGrant>)],
+    ) -> Submission {
+        let arguments = self
+            .harness
+            .arguments(operation, RECORD, &json!({"amount": amount}));
+        let bytes = call(&arguments).canonical_bytes().expect("canonical call");
+        let canonical: CanonicalAction = McpProfile.canonicalize(&bytes).expect("canonical");
+        let approvers: Vec<_> = signers
+            .iter()
+            .map(|(signer, grant)| {
+                auths_approval_quorum::QuorumApprover::new(signer.principal.clone(), *grant)
+                    .expect("approver")
+            })
+            .collect();
+        let proposal = auths_approval_quorum::QuorumProposal::new(
+            canonical.clone(),
+            &audience(),
+            [0; 32],
+            NOW - 600,
+            Some(3_600),
+            u16::try_from(signers.len()).expect("count"),
+            &approvers,
+        )
+        .expect("proposal");
+        let approvals: Vec<_> = signers
+            .iter()
+            .zip(proposal.envelopes())
+            .map(|((signer, grant), envelope)| {
+                auths_approval_quorum::QuorumApproval::new(
+                    sign_action(signer, envelope.clone()),
+                    grant
+                        .map(|grant| vec![(grant.clone(), vec![self.harness.root.evidence()])])
+                        .unwrap_or_default(),
+                    vec![signer.evidence()],
+                )
+                .expect("approval")
+            })
+            .collect();
+        let bundle = proposal.assemble(&approvals).expect("assembled");
+        let action = encode_canonical_action(&canonical).expect("action bytes");
+        let commitment = *domain_commitment("auths.canonical-action.v1", &action)
+            .expect("commitment")
+            .as_bytes();
+        Submission {
+            proof: encode_bundle(&bundle).expect("proof bytes"),
+            action,
+            commitment,
+        }
+    }
+
+    fn agent(&self) -> (&Signer, Option<&SignedGrant>) {
+        (&self.harness.agent, Some(&self.grant))
+    }
+
+    fn manager(&self, index: usize) -> (&Signer, Option<&SignedGrant>) {
+        (&self.managers[index], None)
+    }
+
+    /// The refund journey's submissions in order: one inside the bound, one
+    /// with a single manager, one above the ceiling, one past the window.
+    fn journey(&self) -> Vec<(&'static str, Submission)> {
+        vec![
+            (
+                "refund-1",
+                self.submission(
+                    "refund-1",
+                    400,
+                    &[self.agent(), self.manager(0), self.manager(1)],
+                ),
+            ),
+            (
+                "refund-2",
+                self.submission("refund-2", 100, &[self.agent(), self.manager(0)]),
+            ),
+            (
+                "refund-3",
+                self.submission(
+                    "refund-3",
+                    600,
+                    &[self.agent(), self.manager(0), self.manager(1)],
+                ),
+            ),
+            (
+                "refund-4",
+                self.submission(
+                    "refund-4",
+                    100,
+                    &[self.agent(), self.manager(1), self.manager(2)],
+                ),
+            ),
+        ]
+    }
+}
+
+fn verdict(result: &GatewaySubmitResult) -> (&'static str, Option<&str>) {
+    match result {
+        GatewaySubmitResult::Denied { code } => ("denied", Some(code)),
+        GatewaySubmitResult::Indeterminate { code } => ("indeterminate", Some(code)),
+        GatewaySubmitResult::NotEntered { code } => ("not-entered", Some(code)),
+        GatewaySubmitResult::Unknown
+        | GatewaySubmitResult::ResponseRecorded { .. }
+        | GatewaySubmitResult::Observed { .. }
+        | GatewaySubmitResult::ObservedByProvider { .. } => ("entered", None),
+    }
+}
+
+#[tokio::test]
+async fn bounded_agent_needs_two_managers_and_stays_inside_its_bound() {
+    let quorum = RefundQuorum::open(500, 1, 3);
+    let mut results = Vec::new();
+    for (_, submission) in quorum.journey() {
+        results.push(quorum.harness.submit(&submission, NOW).await);
+    }
+    assert_eq!(
+        results.iter().map(verdict).collect::<Vec<_>>(),
+        vec![
+            ("entered", None),
+            ("denied", Some("composition-requirement-not-met")),
+            ("not-entered", Some("gateway.policy.above-ceiling")),
+            ("not-entered", Some("gateway.policy.window-exhausted")),
+        ]
+    );
+    let (writes, _reads, leases) = quorum.harness.provider.counts();
+    assert_eq!((writes, leases), (1, 1), "refused refunds never lease");
+}
+
+#[tokio::test]
+async fn unbounded_composition_is_admitted_without_a_count() {
+    let quorum = RefundQuorum::open(500, 1, 3);
+    let managers = [quorum.manager(0), quorum.manager(1), quorum.manager(2)];
+    for operation in ["managers-1", "managers-2"] {
+        let result = quorum
+            .harness
+            .submit(&quorum.submission(operation, 900, &managers), NOW)
+            .await;
+        assert_eq!(verdict(&result), ("entered", None), "{operation}");
+    }
+    let (writes, _reads, leases) = quorum.harness.provider.counts();
+    assert_eq!((writes, leases), (2, 2), "no bound, no ceiling, no count");
+}
+
+#[tokio::test]
+async fn one_bounded_branch_is_admitted_and_counted_against_its_actor() {
+    let quorum = RefundQuorum::open(500, 1, 3);
+    let first = quorum.submission(
+        "bounded-1",
+        100,
+        &[quorum.agent(), quorum.manager(0), quorum.manager(1)],
+    );
+    let second = quorum.submission(
+        "bounded-2",
+        100,
+        &[quorum.agent(), quorum.manager(1), quorum.manager(2)],
+    );
+    let other = quorum.submission(
+        "other-agent",
+        100,
+        &[
+            (&quorum.other, Some(&quorum.other_grant)),
+            quorum.manager(0),
+            quorum.manager(2),
+        ],
+    );
+    assert_eq!(
+        verdict(&quorum.harness.submit(&first, NOW).await),
+        ("entered", None)
+    );
+    assert_eq!(
+        verdict(&quorum.harness.submit(&second, NOW).await),
+        ("not-entered", Some("gateway.policy.window-exhausted")),
+        "the agent's one slot is spent whichever managers approve"
+    );
+    assert_eq!(
+        verdict(&quorum.harness.submit(&other, NOW).await),
+        ("entered", None),
+        "another agent's count is separate"
+    );
+    let (writes, _reads, leases) = quorum.harness.provider.counts();
+    assert_eq!((writes, leases), (2, 2));
+}
+
+#[tokio::test]
+async fn two_bounded_branches_in_one_composition_are_refused() {
+    let quorum = RefundQuorum::open(500, 3, 2);
+    let submission = quorum.submission(
+        "two-bounded",
+        100,
+        &[
+            quorum.agent(),
+            (&quorum.other, Some(&quorum.other_grant)),
+            quorum.manager(0),
+        ],
+    );
+    let result = quorum.harness.submit(&submission, NOW).await;
+    assert_eq!(
+        verdict(&result),
+        ("not-entered", Some("gateway.policy.multiple-branches"))
+    );
+    assert_eq!(quorum.harness.provider.counts(), (0, 0, 0));
+}
+
+/// Runs the refund journey and exports its audit bundle as the application
+/// would: proof, action, and the gateway-signed outcome when one exists.
+async fn journey_bundle(quorum: &RefundQuorum) -> Value {
+    let mut entries = Vec::new();
+    for (operation, submission) in quorum.journey() {
+        let _ = quorum.harness.submit(&submission, NOW).await;
+        let outcome = match quorum.harness.outcome(operation, NOW + 1).await {
+            GatewayObserveResult::Signed {
+                observation_b64, ..
+            } => Some(observation_b64),
+            GatewayObserveResult::Refused { .. } => None,
+        };
+        entries.push(json!({
+            "operation_id": operation,
+            "proof_b64": Base64UrlUnpadded::encode_string(&submission.proof),
+            "action_b64": Base64UrlUnpadded::encode_string(&submission.action),
+            "outcome_b64": outcome,
+        }));
+    }
+    let (source, lock) = h::recipe_sources(
+        &json!({"amount": {"kind": "integer", "minimum": 0, "maximum": 1_000_000}}),
+        &json!({"verified": ["amount"]}),
+    )
+    .expect("recipe sources");
+    json!({
+        "schema": crate::AUDIT_BUNDLE_SCHEMA,
+        "recipe_b64": Base64UrlUnpadded::encode_string(&source),
+        "profile_lock_b64": Base64UrlUnpadded::encode_string(&lock),
+        "trusted_context_b64": Base64UrlUnpadded::encode_string(&context_bytes(quorum)),
+        "entries": entries,
+    })
+}
+
+fn context_bytes(quorum: &RefundQuorum) -> Vec<u8> {
+    auths_codec::encode_verifier_context(&quorum.harness.context).expect("context bytes")
+}
+
+fn pins(quorum: &RefundQuorum) -> crate::AuditPins {
+    crate::AuditPins {
+        trusted_context_sha256: <sha2::Sha256 as sha2::Digest>::digest(context_bytes(quorum))
+            .into(),
+        observer: quorum.harness.observer.principal().clone(),
+    }
+}
+
+fn audit(bundle: &Value, pins: &crate::AuditPins) -> crate::AuditReport {
+    crate::audit_bundle(&serde_json::to_vec(bundle).expect("bundle"), pins).expect("audit")
+}
+
+fn statuses(report: &crate::AuditReport) -> Vec<(crate::AuditStatus, String)> {
+    report
+        .entries
+        .iter()
+        .map(|entry| (entry.status, entry.code.clone()))
+        .collect()
+}
+
+#[tokio::test]
+async fn offline_audit_reproduces_every_gateway_decision() {
+    use crate::AuditStatus::{Refused, Verified};
+    let quorum = RefundQuorum::open(500, 1, 3);
+    let bundle = journey_bundle(&quorum).await;
+    let report = audit(&bundle, &pins(&quorum));
+    assert_eq!(
+        statuses(&report),
+        vec![
+            (Verified, "audit.verified".to_owned()),
+            (Refused, "composition-requirement-not-met".to_owned()),
+            (Refused, "gateway.policy.above-ceiling".to_owned()),
+            (Refused, "gateway.policy.window-exhausted".to_owned()),
+        ]
+    );
+    let approvals: BTreeSet<&str> = report.entries[0]
+        .approvals
+        .iter()
+        .map(String::as_str)
+        .collect();
+    let expected: BTreeSet<&str> = [
+        quorum.harness.agent.principal.as_str(),
+        quorum.managers[0].principal.as_str(),
+        quorum.managers[1].principal.as_str(),
+    ]
+    .into_iter()
+    .collect();
+    assert_eq!(approvals, expected);
+    assert_eq!(
+        report.entries[0].gateway_stage.as_deref(),
+        Some("observed-by-provider")
+    );
+    assert_eq!(report.inconsistent, 0);
+}
+
+#[tokio::test]
+async fn offline_audit_detects_a_tampered_bundle() {
+    let quorum = RefundQuorum::open(500, 1, 3);
+    let bundle = journey_bundle(&quorum).await;
+    let pins = pins(&quorum);
+    let finding = |bundle: &Value, pins: &crate::AuditPins| {
+        let report = audit(bundle, pins);
+        report
+            .entries
+            .iter()
+            .filter(|entry| entry.status == crate::AuditStatus::Inconsistent)
+            .map(|entry| entry.code.clone())
+            .collect::<Vec<_>>()
+    };
+
+    let mut flipped = bundle.clone();
+    let mut proof =
+        Base64UrlUnpadded::decode_vec(flipped["entries"][0]["proof_b64"].as_str().expect("proof"))
+            .expect("proof bytes");
+    let middle = proof.len() / 2;
+    proof[middle] ^= 1;
+    flipped["entries"][0]["proof_b64"] = Value::String(Base64UrlUnpadded::encode_string(&proof));
+    assert_eq!(
+        finding(&flipped, &pins),
+        vec!["audit.entered-without-authority"]
+    );
+
+    let mut swapped = bundle.clone();
+    swapped["entries"][0]["action_b64"] = bundle["entries"][3]["action_b64"].clone();
+    assert_eq!(
+        finding(&swapped, &pins),
+        vec!["audit.outcome-commitment-mismatch"]
+    );
+
+    let mut replayed = bundle.clone();
+    replayed["entries"][0]["outcome_b64"] = bundle["entries"][3]["outcome_b64"].clone();
+    assert_eq!(finding(&replayed, &pins), vec!["audit.outcome-invalid"]);
+
+    let mut forged_observer = pins.clone();
+    forged_observer.observer = quorum.managers[0].principal.clone();
+    assert_eq!(
+        finding(&bundle, &forged_observer),
+        vec!["audit.outcome-invalid", "audit.outcome-invalid"]
+    );
+
+    let mut other_trust = pins.clone();
+    other_trust.trusted_context_sha256[0] ^= 1;
+    assert_eq!(
+        crate::audit_bundle(&serde_json::to_vec(&bundle).expect("bundle"), &other_trust).err(),
+        Some("audit.trust-pin-mismatch")
+    );
 }

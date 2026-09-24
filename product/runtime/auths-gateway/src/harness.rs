@@ -164,6 +164,15 @@ pub(crate) fn namespace() -> Result<crate::OperatorNamespace, HarnessError> {
 
 /// Compiles a recipe for `extra` profile fields and its precondition block.
 pub(crate) fn recipe(extra: &Value, preconditions: &Value) -> Result<CompiledRecipe, HarnessError> {
+    let (source, lock) = recipe_sources(extra, preconditions)?;
+    fixture(CompiledRecipe::compile(&source, &lock), "recipe")
+}
+
+/// The recipe source and profile lock bytes [`recipe`] compiles.
+pub(crate) fn recipe_sources(
+    extra: &Value,
+    preconditions: &Value,
+) -> Result<(Vec<u8>, Vec<u8>), HarnessError> {
     let mut fields = json!({
         "operation_id": {"kind": "string", "minimum": 1, "maximum": 128},
         "operator_namespace": {"type": "enum", "variants": [NAMESPACE]},
@@ -205,13 +214,10 @@ pub(crate) fn recipe(extra: &Value, preconditions: &Value) -> Result<CompiledRec
         "echo": {"write": "/fields/auths_echo", "observe": "/fields/auths_echo"},
         "preconditions": preconditions
     });
-    fixture(
-        CompiledRecipe::compile(
-            &fixture(serde_json::to_vec(&source), "source")?,
-            &fixture(serde_json::to_vec(&lock), "lock")?,
-        ),
-        "recipe",
-    )
+    Ok((
+        fixture(serde_json::to_vec(&source), "source")?,
+        fixture(serde_json::to_vec(&lock), "lock")?,
+    ))
 }
 
 /// The expected-before-replacement recipe: `record_uri` must equal this
