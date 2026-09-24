@@ -11,3 +11,4 @@ bindings/generated/*/python/build/
 .env
 .env.*
 !.env.example
+/docs/audit/passes/
