@@ -168,6 +168,8 @@ pub struct GatewayEngine {
     credentials: PersistentCredentialStore,
     attempts: FileGatewayAttemptStore,
     administrative_gate: RwLock<()>,
+    #[cfg(feature = "loopback-provider")]
+    loopback_port: Option<u16>,
 }
 
 impl GatewayEngine {
@@ -209,7 +211,18 @@ impl GatewayEngine {
             credentials,
             attempts,
             administrative_gate: RwLock::new(()),
+            #[cfg(feature = "loopback-provider")]
+            loopback_port: None,
         })
+    }
+
+    /// Development builds only: sends provider requests to a plain-HTTP
+    /// provider double on `127.0.0.1:port` instead of the approved origin.
+    #[cfg(feature = "loopback-provider")]
+    #[must_use]
+    pub fn with_loopback_provider(mut self, port: u16) -> Self {
+        self.loopback_port = Some(port);
+        self
     }
 
     /// Installs the operator-provisioned observer key. Without one, every
@@ -425,6 +438,16 @@ impl GatewayEngine {
         {
             return Err(not_entered("gateway.connection.changed"));
         }
+        #[cfg(feature = "loopback-provider")]
+        if let Some(port) = self.loopback_port {
+            return GatewayHttpTransport::prepare_loopback(
+                &self.recipe,
+                descriptor.credential(),
+                port,
+            )
+            .map(|transport| (binding, transport))
+            .map_err(|_| not_entered("gateway.transport.preparation"));
+        }
         match GatewayHttpTransport::prepare(&self.recipe, descriptor.credential()) {
             Ok(transport) => Ok((binding, transport)),
             Err(_) => Err(not_entered("gateway.transport.preparation")),
@@ -562,6 +585,27 @@ pub(crate) fn verify_command(
     proof_cbor: &[u8],
     action_cbor: &[u8],
 ) -> Result<(ClosedProviderRequest, Option<WindowReservation>), GatewaySubmitResult> {
+    verify_detailed(recipe, context, now, proof_cbor, action_cbor)
+        .map(|verified| (verified.request, verified.bound))
+}
+
+/// A command the gateway would admit, with the actors of its authorized
+/// branches.
+pub(crate) struct VerifiedCommand {
+    pub(crate) request: ClosedProviderRequest,
+    pub(crate) bound: Option<WindowReservation>,
+    pub(crate) actors: Vec<auths_model::PrincipalId>,
+    pub(crate) arguments: Map<String, Value>,
+}
+
+/// [`verify_command`] that also reports what an auditor needs.
+pub(crate) fn verify_detailed(
+    recipe: &CompiledRecipe,
+    context: &TrustedContext,
+    now: u64,
+    proof_cbor: &[u8],
+    action_cbor: &[u8],
+) -> Result<VerifiedCommand, GatewaySubmitResult> {
     if proof_cbor.is_empty()
         || proof_cbor.len() > MAX_PROOF_BYTES
         || action_cbor.is_empty()
@@ -609,7 +653,14 @@ pub(crate) fn verify_command(
     let request = recipe
         .closed_request(&command, *action_commitment.as_bytes())
         .map_err(|error| not_entered(error.code()))?;
-    Ok((request, bound))
+    let actors = crate::bounds::authorized_actors(proof_cbor, action)
+        .map_err(|_| not_entered("gateway.policy.proof-unavailable"))?;
+    Ok(VerifiedCommand {
+        request,
+        bound,
+        actors,
+        arguments: command.arguments().clone(),
+    })
 }
 
 /// Reserves the bound's window slot for a fresh claim before any lease. An

@@ -1,0 +1,23 @@
+{
+  "schema": "auths.gateway-recipe-source/1",
+  "profile_schema_digest": "06c91dcf9660ed2445c04c87bd5546d8bdfb7540c3f91276685c93ea5abdd82d",
+  "service": "stripe-refunds",
+  "tool": "create_refund_v1",
+  "operator_namespace": "stripe-refunds",
+  "credential": {"kind": "bearer"},
+  "origin": "https://api.stripe.com",
+  "write": {
+    "method": "POST",
+    "path": [
+      {"kind": "fixed", "value": "v1"},
+      {"kind": "fixed", "value": "refunds"}
+    ],
+    "body": {
+      "kind": "form",
+      "fields": {
+        "payment_intent": {"kind": "field", "name": "payment_intent"},
+        "amount": {"kind": "field", "name": "amount"}
+      }
+    }
+  }
+}

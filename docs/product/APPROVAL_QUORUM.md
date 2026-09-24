@@ -114,6 +114,12 @@ refused with `composition-requirement-not-met`, and check that the proof is
 byte-identical to the gateway vector. Python and TypeScript produce the same
 bytes and reach the same decisions on every vector.
 
+`examples/stripe-refund-approval` puts an agent holding a bounded grant beside
+two managers: trust requires three approvals from three distinct roots, so
+the agent counts once, and the gateway also enforces the agent's refund
+ceiling and daily count. `auths-gateway audit` re-verifies every refund
+offline.
+
 ## What this does not claim
 
 - Approvers are not authenticated as humans; a signature proves control of a

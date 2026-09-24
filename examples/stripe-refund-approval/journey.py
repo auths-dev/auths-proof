@@ -1,0 +1,512 @@
+"""Run the whole README journey unattended and check every claim it makes.
+
+    python journey.py --gateway PATH/TO/auths-gateway [--summary out.json]
+
+By default the gateway sends refunds to ``mock_stripe.py``, a counting
+Stripe double on 127.0.0.1; that needs a gateway built with
+``--features loopback-provider``. With ``--stripe-test-mode`` the same
+journey calls Stripe's test mode instead, using the developer's own
+``STRIPE_TEST_SECRET_KEY`` (``sk_test_`` only) and a refundable
+``--payment-intent`` of at least 55.00 USD. The key is piped to the gateway
+install and nowhere else.
+"""
+
+from __future__ import annotations
+
+import argparse
+import base64
+import hashlib
+import json
+import os
+import platform
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
+
+HERE = Path(__file__).resolve().parent
+PYTHON = sys.executable
+
+
+class Journey:
+    def __init__(self, gateway: str, workdir: Path) -> None:
+        self.gateway = gateway
+        self.work = workdir
+        self.state = workdir / "state"
+        self.gateway_state = workdir / "gateway"
+        self.socket = workdir / "app.sock"
+        self.ledger = workdir / "ledger.jsonl"
+        self.processes: List[subprocess.Popen[str]] = []
+        # No child process inherits a Stripe key; the install reads it on stdin.
+        self.env = {
+            key: value for key, value in os.environ.items() if key != "STRIPE_TEST_SECRET_KEY"
+        }
+        self.steps: List[Dict[str, Any]] = []
+        self.started = time.monotonic()
+
+    def step(self, name: str, action: Callable[[], Any]) -> Any:
+        begun = time.monotonic()
+        result = action()
+        self.steps.append({"step": name, "seconds": round(time.monotonic() - begun, 3)})
+        print(f"[{len(self.steps):2}] {name} ({self.steps[-1]['seconds']}s)", file=sys.stderr)
+        return result
+
+    def run(
+        self, *command: str, stdin: Optional[str] = None, check: bool = True
+    ) -> subprocess.CompletedProcess[str]:
+        result = subprocess.run(
+            command, input=stdin, capture_output=True, text=True, cwd=HERE, env=self.env
+        )
+        if check and result.returncode != 0:
+            raise SystemExit(f"{' '.join(command[:3])} failed: {result.stderr.strip()}")
+        return result
+
+    def background(self, *command: str) -> subprocess.Popen[str]:
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            cwd=HERE,
+            env=self.env,
+        )
+        self.processes.append(process)
+        return process
+
+    def stop(self) -> None:
+        for process in self.processes:
+            if process.poll() is None:
+                process.send_signal(signal.SIGTERM)
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+        self.processes.clear()
+
+    def provider_entries(self) -> List[Dict[str, Any]]:
+        if not self.ledger.exists():
+            return []
+        return [json.loads(line) for line in self.ledger.read_text().splitlines() if line]
+
+    def refund(
+        self,
+        operation: str,
+        amount: int,
+        approvers: str,
+        payment_intent: str,
+        local_trust: Optional[Path] = None,
+    ) -> Dict[str, Any]:
+        command = [
+            PYTHON,
+            "refunds.py",
+            "refund",
+            "--state",
+            str(self.state),
+            "--socket",
+            str(self.socket),
+            "--operation-id",
+            operation,
+            "--payment-intent",
+            payment_intent,
+            "--amount",
+            str(amount),
+            "--approvers",
+            approvers,
+        ]
+        if local_trust is not None:
+            command += ["--local-trust", str(local_trust)]
+        return json.loads(self.run(*command).stdout)
+
+    def audit(self, bundle: Path, trust: str, observer: str) -> subprocess.CompletedProcess[str]:
+        command = [
+            self.gateway,
+            "audit",
+            "--bundle",
+            str(bundle),
+            "--trusted-context-sha256",
+            trust,
+            "--observer",
+            observer,
+        ]
+        # Prove the audit needs no network where the platform allows it.
+        if platform.system() == "Linux" and shutil.which("unshare"):
+            probe = subprocess.run(["unshare", "-rn", "true"], capture_output=True)
+            if probe.returncode == 0:
+                command = ["unshare", "-rn", *command]
+        return subprocess.run(command, capture_output=True, text=True, cwd=HERE, env=self.env)
+
+
+def expect(condition: bool, message: str) -> None:
+    if not condition:
+        raise SystemExit(f"journey check failed: {message}")
+
+
+def lax_local_trust(journey: Journey) -> Path:
+    """What a careless or compromised agent might use for its own pre-submit
+    check: the same anchors with a one-approval threshold. The gateway's
+    installed trust is unaffected."""
+    sys.path.insert(0, str(HERE))
+    from auths import _native
+
+    import refunds
+
+    facts = json.loads((journey.state / "setup.json").read_text())
+
+    now = int(time.time())
+    audience = facts["audience"]
+    permission = ("tools/call", f"{audience}/tools/create_refund_v1")
+    anchors = [
+        _native.TrustAnchor(
+            name,
+            _native.Principal(facts["principals"][name]),
+            ["raw-key-v1"],
+            [("auths.mcp", 2)],
+            [permission],
+            [audience],
+            [audience],
+            now - 3600,
+            now + 400 * 86_400,
+            None,
+            1 if name == "root" else 0,
+            refunds.ASSURANCE,
+            None,
+        )
+        for name in ("root",) + refunds.MANAGERS
+    ]
+    lax = refunds._trusted_context(
+        bytes(_native.self_contained_configuration()),
+        anchors,
+        audience,
+        bytes.fromhex(facts["challenge_hex"]),
+        now,
+        1,
+        "bounded-policy-commitment-v1",
+    )
+    path = journey.work / "lax-local-trust.cbor"
+    path.write_bytes(lax)
+    return path
+
+
+def tamper(
+    bundle: Dict[str, Any], operation: str, change: Callable[[Dict[str, Any]], None]
+) -> Dict[str, Any]:
+    copy = json.loads(json.dumps(bundle))
+    change(next(entry for entry in copy["entries"] if entry["operation_id"] == operation))
+    return copy
+
+
+def flip_proof_byte(entry: Dict[str, Any]) -> None:
+    raw = bytearray(
+        base64.urlsafe_b64decode(entry["proof_b64"] + "=" * (-len(entry["proof_b64"]) % 4))
+    )
+    raw[len(raw) // 2] ^= 0x01
+    entry["proof_b64"] = base64.urlsafe_b64encode(bytes(raw)).rstrip(b"=").decode()
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--gateway", required=True, help="auths-gateway binary")
+    parser.add_argument("--summary", type=Path, help="write the timing and result summary here")
+    parser.add_argument("--stripe-test-mode", action="store_true")
+    parser.add_argument("--payment-intent", default="pi_mock_journey")
+    args = parser.parse_args()
+
+    live = args.stripe_test_mode
+    if live:
+        secret = os.environ.get("STRIPE_TEST_SECRET_KEY", "")
+        if not secret.startswith("sk_test_"):
+            raise SystemExit(
+                "--stripe-test-mode needs STRIPE_TEST_SECRET_KEY=sk_test_...; live keys are refused"
+            )
+        if not args.payment_intent.startswith("pi_") or args.payment_intent == "pi_mock_journey":
+            raise SystemExit(
+                "--stripe-test-mode needs --payment-intent pi_... from your test account"
+            )
+    else:
+        secret = "sk_test_mock_" + os.urandom(12).hex()
+
+    workdir = Path(tempfile.mkdtemp(prefix="auths-refunds-", dir="/tmp")).resolve()
+    journey = Journey(args.gateway, workdir)
+    try:
+        # README step 3: principals, trust, and the agent's bounded grant.
+        facts = journey.step(
+            "setup: root, three managers, agent, trust, bounded grant",
+            lambda: json.loads(
+                journey.run(
+                    PYTHON,
+                    "refunds.py",
+                    "setup",
+                    "--state",
+                    str(journey.state),
+                    "--gateway",
+                    args.gateway,
+                ).stdout
+            ),
+        )
+        # README step 4: the gateway takes the Stripe key on stdin, and only it.
+        journey.gateway_state.mkdir(mode=0o700)
+        journey.step(
+            "gateway install with the key on stdin",
+            lambda: journey.run(
+                args.gateway,
+                "install",
+                "--state-dir",
+                str(journey.gateway_state),
+                "--recipe",
+                "recipe.json",
+                "--profile-lock",
+                "profile.lock.json",
+                "--trusted-context",
+                str(journey.state / "trust" / "gateway.context.cbor"),
+                "--approve-digest",
+                facts["recipe_digest"],
+                "--provider",
+                "stripe",
+                "--alias",
+                "refunds",
+                "--account-label",
+                "stripe-test-account",
+                "--credential-stdin",
+                stdin=secret + "\n",
+            ),
+        )
+        observer = journey.step(
+            "gateway observer key",
+            lambda: json.loads(
+                journey.run(
+                    args.gateway, "observer-init", "--state-dir", str(journey.gateway_state)
+                ).stdout
+            )["observer_anchor"]["principal"],
+        )
+        # The double checks the bearer token by digest; the key itself stays
+        # only in the gateway's credential store.
+        mock_token_sha256 = hashlib.sha256(secret.encode()).hexdigest()
+
+        serve = [
+            args.gateway,
+            "serve",
+            "--state-dir",
+            str(journey.gateway_state),
+            "--app-socket",
+            str(journey.socket),
+        ]
+
+        def start() -> None:
+            if not live:
+                mock = journey.background(
+                    PYTHON,
+                    "mock_stripe.py",
+                    "--ledger",
+                    str(journey.ledger),
+                    "--token-sha256",
+                    mock_token_sha256,
+                )
+                port = mock.stdout.readline().strip() if mock.stdout else ""
+                expect(port.isdigit(), "mock Stripe did not start")
+                serve.extend(["--loopback-provider", port])
+            journey.background(*serve)
+            deadline = time.monotonic() + 10
+            while not journey.socket.exists():
+                expect(time.monotonic() < deadline, "gateway did not open its app socket")
+                time.sleep(0.05)
+
+        journey.step("gateway serve" + ("" if live else " (to the counting Stripe double)"), start)
+
+        pi = args.payment_intent
+        results: Dict[str, Dict[str, Any]] = {}
+
+        def submit(
+            operation: str, amount: int, approvers: str, local_trust: Optional[Path] = None
+        ) -> None:
+            before = len(journey.provider_entries())
+            results[operation] = journey.refund(operation, amount, approvers, pi, local_trust)
+            results[operation]["provider_entries"] = len(journey.provider_entries()) - before
+
+        # README step 5: agent requests, two managers approve, gateway submits.
+        journey.step(
+            "refund 1: 15.00, agent + manager-a + manager-b",
+            lambda: submit("refund-1", 1_500, "manager-a,manager-b"),
+        )
+        lax = lax_local_trust(journey)
+        journey.step(
+            "hostile: 1 of 3 approvals",
+            lambda: submit("refund-2-one-approval", 1_200, "manager-a", lax),
+        )
+        journey.step(
+            "hostile: over the 50.00 ceiling",
+            lambda: submit("refund-3-over-ceiling", 9_000, "manager-a,manager-b"),
+        )
+        journey.step(
+            "refund 4: 40.00, agent + manager-b + manager-c",
+            lambda: submit("refund-4", 4_000, "manager-b,manager-c"),
+        )
+        journey.step(
+            "hostile: third refund in the window",
+            lambda: submit("refund-5-window", 1_000, "manager-a,manager-c"),
+        )
+
+        expect(
+            results["refund-1"]["outcome"] == "response-recorded"
+            and results["refund-1"]["status"] == 200,
+            f"refund-1: {results['refund-1']}",
+        )
+        expect(
+            results["refund-4"]["outcome"] == "response-recorded"
+            and results["refund-4"]["status"] == 200,
+            f"refund-4: {results['refund-4']}",
+        )
+        expected_refusals = {
+            "refund-2-one-approval": ("denied", "composition-requirement-not-met"),
+            "refund-3-over-ceiling": ("not-entered", "gateway.policy.above-ceiling"),
+            "refund-5-window": ("not-entered", "gateway.policy.window-exhausted"),
+        }
+        for operation, (outcome, code) in expected_refusals.items():
+            got = results[operation]
+            expect(got.get("outcome") == outcome and got.get("code") == code, f"{operation}: {got}")
+        if not live:
+            entries = journey.provider_entries()
+            expect(len(entries) == 2, f"expected exactly 2 provider entries, saw {len(entries)}")
+            expect(
+                all(entry["authorized"] and entry["well_formed"] for entry in entries),
+                "provider saw a malformed or unauthenticated request",
+            )
+            expect(
+                [entry["amount"] for entry in entries] == [1_500, 4_000],
+                f"provider amounts {entries}",
+            )
+            for operation in expected_refusals:
+                expect(
+                    results[operation]["provider_entries"] == 0, f"{operation} reached the provider"
+                )
+
+        # README step 6: the audit bundle.
+        bundle_path = journey.work / "audit-bundle.json"
+        journey.step(
+            "export audit bundle",
+            lambda: journey.run(
+                PYTHON,
+                "refunds.py",
+                "export",
+                "--state",
+                str(journey.state),
+                "--out",
+                str(bundle_path),
+            ),
+        )
+        journey.stop()
+
+        # README step 7: the offline audit, with the gateway stopped.
+        audited = journey.step(
+            "offline audit (gateway stopped)",
+            lambda: journey.audit(bundle_path, facts["trusted_context_sha256"], observer),
+        )
+        expect(audited.returncode == 0, f"audit failed: {audited.stderr}")
+        report = json.loads(audited.stdout)
+        verdicts = {
+            entry["operation_id"]: (entry["status"], entry["code"]) for entry in report["entries"]
+        }
+        expect(verdicts["refund-1"] == ("verified", "audit.verified"), f"audit refund-1 {verdicts}")
+        expect(verdicts["refund-4"] == ("verified", "audit.verified"), f"audit refund-4 {verdicts}")
+        for operation, (_, code) in expected_refusals.items():
+            expect(
+                verdicts[operation] == ("refused", code),
+                f"audit {operation}: {verdicts[operation]}",
+            )
+        verified = next(entry for entry in report["entries"] if entry["operation_id"] == "refund-1")
+        expect(len(verified["approvals"]) == 3, "refund-1 should carry the agent and two managers")
+        expect(
+            set(verified["approvals"])
+            == {facts["principals"][name] for name in ("agent", "manager-a", "manager-b")},
+            "refund-1 approvers",
+        )
+
+        # Hostile: a tampered bundle is detected.
+        bundle = json.loads(bundle_path.read_text())
+        outcome_of_4 = next(
+            entry for entry in bundle["entries"] if entry["operation_id"] == "refund-4"
+        )["outcome_b64"]
+        tampered = {
+            "proof byte flipped": (
+                tamper(bundle, "refund-1", flip_proof_byte),
+                "audit.entered-without-authority",
+            ),
+            "action swapped": (
+                tamper(
+                    bundle,
+                    "refund-1",
+                    lambda entry: entry.update(
+                        action_b64=next(
+                            item for item in bundle["entries"] if item["operation_id"] == "refund-4"
+                        )["action_b64"]
+                    ),
+                ),
+                "audit.outcome-commitment-mismatch",
+            ),
+            "outcome replayed": (
+                tamper(bundle, "refund-1", lambda entry: entry.update(outcome_b64=outcome_of_4)),
+                "audit.outcome-invalid",
+            ),
+        }
+        detections: Dict[str, str] = {}
+        for label, (value, code) in tampered.items():
+            path = journey.work / "tampered.json"
+            path.write_text(json.dumps(value))
+            result = journey.audit(path, facts["trusted_context_sha256"], observer)
+            findings = [
+                entry["code"]
+                for entry in json.loads(result.stdout)["entries"]
+                if entry["status"] == "inconsistent"
+            ]
+            expect(
+                result.returncode != 0 and findings == [code],
+                f"tamper '{label}' not detected: {findings} {result.stderr}",
+            )
+            detections[label] = code
+        swapped_trust = dict(
+            bundle,
+            trusted_context_b64=base64.urlsafe_b64encode(
+                (journey.state / "trust" / "sdk.context.cbor").read_bytes()
+            )
+            .rstrip(b"=")
+            .decode(),
+        )
+        path = journey.work / "tampered.json"
+        path.write_text(json.dumps(swapped_trust))
+        result = journey.audit(path, facts["trusted_context_sha256"], observer)
+        expect(
+            result.returncode != 0 and "audit.trust-pin-mismatch" in result.stderr,
+            "replaced trust not detected",
+        )
+        detections["trust replaced"] = "audit.trust-pin-mismatch"
+        journey.steps.append({"step": "tampered bundles detected", "seconds": 0})
+
+        summary = {
+            "journey": "stripe-refund-approval",
+            "provider": "stripe-test-mode" if live else "counting-mock",
+            "wall_seconds": round(time.monotonic() - journey.started, 2),
+            "steps": journey.steps,
+            "refunds": results,
+            "provider_entries": None if live else len(journey.provider_entries()),
+            "audit": {
+                "verified": report["verified"],
+                "refused": report["refused"],
+                "inconsistent": report["inconsistent"],
+            },
+            "tamper_detected": detections,
+        }
+        text = json.dumps(summary, indent=2)
+        print(text)
+        if args.summary:
+            args.summary.write_text(text + "\n")
+        return 0
+    finally:
+        journey.stop()
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

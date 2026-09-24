@@ -149,6 +149,12 @@ fn step_subject(operation: &str) -> String {
 
 /// Compiles a recipe for `extra` profile fields and its precondition block.
 fn recipe(extra: &Value, preconditions: &Value) -> CompiledRecipe {
+    let (source, lock) = recipe_sources(extra, preconditions);
+    CompiledRecipe::compile(&source, &lock).expect("test recipe compiles")
+}
+
+/// The recipe source and profile lock bytes [`recipe`] compiles.
+fn recipe_sources(extra: &Value, preconditions: &Value) -> (Vec<u8>, Vec<u8>) {
     let mut fields = json!({
         "operation_id": {"kind": "string", "minimum": 1, "maximum": 128},
         "operator_namespace": {"type": "enum", "variants": [NAMESPACE]},
@@ -186,11 +192,10 @@ fn recipe(extra: &Value, preconditions: &Value) -> CompiledRecipe {
         "echo": {"write": "/fields/auths_echo", "observe": "/fields/auths_echo"},
         "preconditions": preconditions
     });
-    CompiledRecipe::compile(
-        &serde_json::to_vec(&source).expect("source"),
-        &serde_json::to_vec(&lock).expect("lock"),
+    (
+        serde_json::to_vec(&source).expect("source"),
+        serde_json::to_vec(&lock).expect("lock"),
     )
-    .expect("test recipe compiles")
 }
 
 fn update_recipe() -> CompiledRecipe {
@@ -274,14 +279,19 @@ fn context_with_depth(
     configuration: Option<[u8; 32]>,
     depth: u16,
 ) -> TrustedContext {
-    let configuration = configuration.map_or_else(
-        || gateway_verifier_configuration().expect("configuration"),
-        auths_model::VerifierConfigurationId::new,
-    );
-    let assurance = AssurancePolicyId::parse(ASSURANCE).expect("assurance");
-    let anchor = TrustAnchor::new(
-        TrustAnchorId::parse("root").expect("anchor ID"),
-        root.principal.clone(),
+    context_for(
+        vec![anchor("root", root, depth)],
+        CompositionRequirement::new(None, 1, 1, 1).expect("composition"),
+        configuration,
+        observer,
+    )
+}
+
+/// A trust anchor for `signer` over the one test tool.
+fn anchor(name: &str, signer: &Signer, depth: u16) -> TrustAnchor {
+    TrustAnchor::new(
+        TrustAnchorId::parse(name).expect("anchor ID"),
+        signer.principal.clone(),
         vec![PrincipalMethodId::parse(RAW_KEY_V1).expect("method")],
         vec![call(&Map::new()).profile_ref().expect("profile")],
         PermissionSet::new(vec![call(&Map::new()).permission().expect("permission")])
@@ -291,14 +301,28 @@ fn context_with_depth(
         window(NOW - 86_400, NOW + 86_400),
         None,
         depth,
-        assurance.clone(),
+        AssurancePolicyId::parse(ASSURANCE).expect("assurance"),
         StatusPolicy::ExpiryOnly,
     )
-    .expect("trust anchor");
+    .expect("trust anchor")
+}
+
+/// Trust over `anchors` under `composition`, with one observer anchor.
+fn context_for(
+    anchors: Vec<TrustAnchor>,
+    composition: CompositionRequirement,
+    configuration: Option<[u8; 32]>,
+    observer: &PrincipalId,
+) -> TrustedContext {
+    let configuration = configuration.map_or_else(
+        || gateway_verifier_configuration().expect("configuration"),
+        auths_model::VerifierConfigurationId::new,
+    );
+    let assurance = AssurancePolicyId::parse(ASSURANCE).expect("assurance");
     TrustedContext::new(
         configuration,
-        CompositionRequirement::new(None, 1, 1, 1).expect("composition"),
-        vec![anchor],
+        composition,
+        anchors,
         accepted_registries(),
         audience(),
         Challenge::new([0; 32]),

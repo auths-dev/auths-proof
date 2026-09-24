@@ -7,6 +7,7 @@
 #![forbid(unsafe_code)]
 
 mod action_facts;
+mod audit;
 mod binding;
 mod bounds;
 mod engine;
@@ -21,6 +22,10 @@ mod observed_tests;
 mod quorum_tests;
 
 pub use action_facts::{MCP_ARGUMENTS_V1, McpArgumentsPolicy};
+pub use audit::{
+    AUDIT_BUNDLE_SCHEMA, AUDIT_REPORT_SCHEMA, AuditPins, AuditReport, AuditStatus, AuditedEntry,
+    MAX_AUDIT_BUNDLE_BYTES, MAX_AUDIT_ENTRIES, audit_bundle,
+};
 pub use binding::{GatewayConnectionDescriptor, GatewayConnectionError};
 pub use bounds::{
     ARGUMENT_CEILING_CANONICALIZATION_V1, ARGUMENT_CEILING_EVALUATOR_V1,

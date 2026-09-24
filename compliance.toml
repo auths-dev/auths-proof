@@ -1641,14 +1641,14 @@ kind = "cargo"
 layer = "product"
 path = "product/runtime/auths-gateway"
 core_apis = ["auths-codec", "auths-did-keri", "auths-did-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-verifier"]
-protocol_versions = ["auths.gateway-recipe-source/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/2", "auths.gateway-echo/1", "auths.gateway-observe/1", "auths.gateway-outcome/1", "auths.gateway-readback/1", "auths.gateway-bounded-count/1", "auths.gateway.argument-ceiling-window-count/1", "auths.self-hosted-profile-lock/1", "bounded-policy-commitment-v1", "mcp-arguments-v1"]
-wire_objects = ["ArgumentCeilingPolicy", "BoundedPolicyCommitment", "CompiledRecipe", "ClosedProviderRequest", "GatewayAttemptSnapshot", "GatewayConnectionDescriptor", "GatewayEvidenceSummary", "GatewayObserveRequest", "GatewayObserveResult", "GatewayProviderEvidence", "GatewaySubmitResult", "SignedObservation"]
+protocol_versions = ["auths.gateway-recipe-source/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/2", "auths.gateway-echo/1", "auths.gateway-observe/1", "auths.gateway-outcome/1", "auths.gateway-readback/1", "auths.gateway-bounded-count/1", "auths.gateway-audit-bundle/1", "auths.gateway-audit-report/1", "auths.gateway.argument-ceiling-window-count/1", "auths.self-hosted-profile-lock/1", "bounded-policy-commitment-v1", "mcp-arguments-v1"]
+wire_objects = ["ArgumentCeilingPolicy", "BoundedPolicyCommitment", "CompiledRecipe", "ClosedProviderRequest", "GatewayAttemptSnapshot", "GatewayConnectionDescriptor", "GatewayEvidenceSummary", "GatewayObserveRequest", "GatewayObserveResult", "GatewayProviderEvidence", "GatewaySubmitResult", "SignedObservation", "AuditReport"]
 fixture_suites = ["bindings/fixtures/gateway"]
 principal_families = ["raw-key-v1"]
 signature_families = ["ed25519-v1"]
 profiles = ["auths.mcp/2"]
-transports = ["bounded-https"]
-configuration_inputs = ["operator-approved-recipe", "profile-lock", "independently-provisioned-trust", "connection-binding", "observer-anchor", "observer-signing-key"]
+transports = ["bounded-https", "loopback-http-development"]
+configuration_inputs = ["operator-approved-recipe", "profile-lock", "independently-provisioned-trust", "connection-binding", "observer-anchor", "observer-signing-key", "audit-trust-and-observer-pins"]
 security_state = ["recipe-digest", "single-host-logical-operation-claims", "credential-reference-generation", "echo-bound-provider-evidence", "observer-signing-seed", "per-principal-window-count-slots"]
 
 [packages.auths-gateway.claims]
@@ -1661,12 +1661,15 @@ configuration-compiler = [
   "product/runtime/auths-gateway/src/recipe.rs#preconditions_are_closed_reviewed_and_digest_bound",
   "product/runtime/auths-gateway/src/recipe.rs#read_back_subject_must_name_exactly_the_observed_record",
   "product/runtime/auths-gateway/src/action_facts.rs#configuration_commitment_names_the_policy_and_its_rules",
+  "product/runtime/auths-gateway/src/recipe.rs#form_body_renders_an_integer_field_as_decimal_text",
 ]
 principal-evidence-integration = [
   "product/runtime/auths-gateway/src/observer.rs#observer_seed_is_owner_only_never_overwritten_and_never_printed",
   "product/runtime/auths-gateway/src/observer.rs#signed_read_back_decodes_with_exact_schema_subject_and_facts",
   "product/runtime/auths-gateway/src/observed_tests.rs#self_signed_or_forged_observations_never_satisfy",
   "product/runtime/auths-gateway/src/observed_tests.rs#observer_in_the_authority_chain_is_refused",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_reproduces_every_gateway_decision",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_detects_a_tampered_bundle",
 ]
 runtime-enforcement-boundary = [
   "product/runtime/auths-gateway/src/quorum_tests.rs#approval_quorum_hostile_cases_admit_only_a_two_manager_quorum",
@@ -1677,6 +1680,8 @@ runtime-enforcement-boundary = [
   "product/runtime/auths-gateway/src/observed_tests.rs#chained_step_is_refused_until_the_previous_step_is_provider_bound",
   "product/runtime/auths-gateway/src/observed_tests.rs#action_fact_policy_is_bound_into_the_pinned_configuration",
   "product/runtime/auths-gateway/src/bounds_tests.rs#per_principal_bounds_admit_only_actions_inside_the_signer_bound",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#bounded_agent_needs_two_managers_and_stays_inside_its_bound",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#two_bounded_branches_in_one_composition_are_refused",
   "product/runtime/auths-gateway/src/bounds.rs#registry_refuses_unregistered_and_mismatched_evaluators",
   "product/runtime/auths-gateway/src/bounds.rs#decider_accepts_only_a_tighter_bound_on_the_same_argument_and_window",
 ]

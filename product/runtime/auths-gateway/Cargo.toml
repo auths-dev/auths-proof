@@ -7,6 +7,11 @@ rust-version.workspace = true
 description = "Closed developer-authored request recipes for the Auths gateway"
 publish = false
 
+[features]
+# Development and CI only: lets `serve --loopback-provider <port>` send
+# provider requests to a plain-HTTP provider double on 127.0.0.1.
+loopback-provider = []
+
 [dependencies]
 auths-bounded-policy.workspace = true
 auths-connections.workspace = true

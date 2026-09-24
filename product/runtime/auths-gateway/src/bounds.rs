@@ -292,8 +292,8 @@ fn registered(commitment: &PolicyCommitment) -> Result<GatewayEvaluator, &'stati
 /// One slot of an actor's per-window count, reserved after the claim.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct WindowReservation {
-    counter: [u8; 32],
-    max_count: u64,
+    pub(crate) counter: [u8; 32],
+    pub(crate) max_count: u64,
 }
 
 /// The authorized chain of every verified branch, each root to terminal.
@@ -308,6 +308,17 @@ fn authorized_chains(
         .iter()
         .map(|action_id| authorized_chain(&bundle, action_id))
         .collect()
+}
+
+/// The actor of every authorized branch, in verified order.
+pub(crate) fn authorized_actors(
+    proof_cbor: &[u8],
+    verified: &VerifiedAction,
+) -> Result<Vec<auths_model::PrincipalId>, &'static str> {
+    Ok(authorized_chains(proof_cbor, verified)?
+        .into_iter()
+        .map(|(actor, _)| actor)
+        .collect())
 }
 
 fn authorized_chain(
@@ -358,13 +369,18 @@ pub(crate) fn admit_bounds(
                 .any(|extension| extension.id().as_str() == BOUNDED_POLICY_COMMITMENT_EXTENSION_V1)
         })
     };
-    if !chains.iter().any(|(_, chain)| carries_bound(chain)) {
-        return Ok(None);
-    }
-    // A bound's count is keyed to one actor; its meaning across the branches
-    // of a composed proof is unspecified, so a bounded composition is refused.
-    let [(actor, chain)] = chains.as_slice() else {
-        return Err(refuse("gateway.policy.multiple-branches"));
+    // A bound's count is keyed to the one actor whose chain carries it. The
+    // other branches of a composed proof must be unbounded, such as
+    // approvers anchored directly in trust; a joint count over two bounded
+    // branches has no specified meaning, so that composition is refused.
+    let bounded: Vec<_> = chains
+        .iter()
+        .filter(|(_, chain)| carries_bound(chain))
+        .collect();
+    let (actor, chain) = match bounded.as_slice() {
+        [] => return Ok(None),
+        [(actor, chain)] => (actor, chain),
+        _ => return Err(refuse("gateway.policy.multiple-branches")),
     };
     let mut bounds: Vec<(Vec<u8>, BoundedPolicyCommitment)> = Vec::new();
     for grant in chain {

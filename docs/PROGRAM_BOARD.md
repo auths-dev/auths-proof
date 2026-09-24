@@ -6,6 +6,40 @@ Program definition: [AP-SPEC-057](specs/0057-evidence-program-for-the-exact-acti
 Independent baseline: [How revolutionary is Auths Proof, really?](research/competition/2026-09-21-how-revolutionary-is-auths-proof.md)
 (scores 3 / 6 / 4).
 
+## 0. North star
+
+> **An unfamiliar developer puts their AI agent's Stripe refunds behind 2-of-3 manager approval and a per-agent limit in under 30 minutes, and an auditor verifies every refund offline.**
+
+Every piece of work traces to a step of this done test, or goes to Not now.
+
+1. **Quickstart.** `examples/stripe-refund-approval/` has a README a stranger
+   follows top to bottom in at most about ten numbered steps. It creates a
+   root, three managers, and an agent; writes trust where refunds need 2 of 3
+   manager approvals (the core `k_of_n` plan through the approval-quorum SDK);
+   gives the agent a grant with a bounded-policy commitment (a ceiling on the
+   amount and a count per window); configures a gateway recipe for
+   `POST /v1/refunds` whose Stripe credential only the gateway holds; has the
+   agent request a refund, collect two approvals, and submit through the
+   gateway; and exports an audit bundle.
+2. **Offline audit.** One command, with no network and no gateway access,
+   verifies every refund in the bundle: the proof chain to the root, the 2-of-3
+   approvals, the bound, and the gateway's recorded outcome and provider
+   evidence where available. Each refund is verified or refused with a stable
+   code.
+3. **Hostile cases in the same automated journey,** each refused before any
+   credential lease with zero provider calls: 1 of 3 approvals, over the
+   ceiling, window count exhausted; and a tampered bundle the auditor detects.
+4. **Provider.** Hosted CI uses a Stripe-compatible counting double and no
+   credentials. The README gives the exact command for Stripe test mode with
+   the developer's own key; agents do not run it.
+5. **Timing.** The journey runs locally in minutes, and a CI job runs it from
+   the packed Python wheel. The README records the step count and local time.
+6. **Board.** This section.
+
+| Now | Next | Not now |
+| --- | --- | --- |
+| This journey: `examples/stripe-refund-approval/`, `auths-gateway audit`, CI job `stripe-refund-journey` in `sdk-recipes.yml` (branch `north-star-stripe-refunds`, after PR #142). | An unfamiliar developer runs the README cold and reports the time (the "under 30 minutes" clause cannot be self-certified). The same journey from the npm package. | 060 §16 observer quorum; the witnessed did:keri adapter; 061; grant-constrained decoding; the any-2-of-3 quorum mode (approver set chosen after signing starts); more vendor recipes. |
+
 ## Rules
 
 1. WIP limit: two epics in flight — one code, one evidence/docs.
@@ -120,6 +154,7 @@ gates do not shrink.
 | 2026-09-23 | Owner directed spec amendments with no shortcuts: 0038 §9 (gateway, observer, and Git signing in the production substrate; separation of duties; K-of-N observer quorum); 0060 §15 (SDK attach, Rust–Lean link), §16 (K-of-N observer quorum counted per operator domain), and §17 (per-extension attenuation, which lets delegates add observation requirements and narrow policy bounds); 0025 §24 (the tranches Epic 5 needs, using §17). Epic 5 now depends on 0060 §17. | 0038 §9, 0060 §15–§17, 0025 §24 |
 | 2026-09-23 | PROVISIONAL, taken unattended as the narrower readings: the AP-SPEC-056 mapper spells the root body `.`; records `minLength` above 1, `pattern`, and `format` as unenforced; treats `anyOf [T, null]` as nullable and resolves it only by `--pick`; splits server base paths into fixed segments and drops one trailing slash; takes `operator_namespace` from a required `--operator-namespace` flag; writes `recipe.json`; reads JSON only; flattens nested closed objects to `_`-joined root fields because the compiler accepts root scalars only; makes `--max-items` unusable until the compiler accepts arrays; lets `--max-bytes` only narrow `maxLength`; refuses an override name shared by a parameter and a body property; and refuses to derive an operation declared `security: []`. | 0056 §8.1 |
 | 2026-09-23 | PROVISIONAL, taken as the narrower readings for queue item 7, which the owner directed to start before Epic 5 merged: the quorum threshold and membership come only from the operator's installed trusted context (members are depth-zero trust anchors; `k` authorized branches from `k` distinct actors), never from the proof-carried plan; the approver set is fixed before the first signature, because each envelope commits to the plan identifier and the verifier requires a signed action for every plan leaf, so every listed approver must sign and replacing a declining approver is a new proposal. Letting unsigned leaves count as absent would be a core verifier change and was not made. | `docs/product/APPROVAL_QUORUM.md`; `auths-approval-quorum` |
+| 2026-09-24 | PROVISIONAL, taken on owner direction for the §0 north-star journey, each the narrowest reading that makes it work: (1) the gateway admits a composed proof in which exactly one authorized branch carries bounds, keying the count to that branch's actor; two bounded branches stay refused as `gateway.policy.multiple-branches`. (2) "2 of 3 managers" for an agent is installed as three authorized approvals from three distinct roots under anchors {root, manager A, B, C}; the agent's root counts once, so two must be managers. Three managers without the agent also meet it, with no agent bound; the README says so. (3) The CI provider double is reached only through a `loopback-provider` cargo feature that the default gateway build lacks. (4) `auths-gateway audit` evaluates each entry at the gateway-signed outcome time (or the approvals' start without one) and recounts windows in that order; it cannot prove the bundle complete. | 0025 §25 reading 10; `examples/stripe-refund-approval/README.md` |
 
 ## 5. Not doing
 

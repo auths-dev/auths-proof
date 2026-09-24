@@ -77,6 +77,9 @@ impl ProviderPort for LeasedTransport<'_> {
 pub(crate) struct GatewayHttpTransport {
     client: Client,
     origin: String,
+    /// Where requests for `origin` are sent: `origin` itself except in a
+    /// `loopback-provider` development build.
+    target_origin: String,
     requirement: CredentialRequirement,
 }
 
@@ -117,6 +120,37 @@ impl GatewayHttpTransport {
         Ok(Self {
             client,
             origin: origin.to_owned(),
+            target_origin: origin.to_owned(),
+            requirement: connection_requirement.clone(),
+        })
+    }
+
+    /// Development-only transport that sends requests for the approved
+    /// origin to a plain-HTTP provider double on `127.0.0.1:port`. URL
+    /// ownership is still checked against the approved origin first.
+    #[cfg(feature = "loopback-provider")]
+    pub(crate) fn prepare_loopback(
+        recipe: &CompiledRecipe,
+        connection_requirement: &CredentialRequirement,
+        port: u16,
+    ) -> Result<Self, GatewayTransportError> {
+        let review = recipe.review();
+        if review.credential() != connection_requirement || port == 0 {
+            return Err(GatewayTransportError::NotEntered);
+        }
+        let origin = review.origin();
+        let client = Client::builder()
+            .no_proxy()
+            .redirect(reqwest::redirect::Policy::none())
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(15))
+            .pool_max_idle_per_host(0)
+            .build()
+            .map_err(|_| GatewayTransportError::NotEntered)?;
+        Ok(Self {
+            client,
+            origin: origin.to_owned(),
+            target_origin: format!("http://{}:{port}", Ipv4Addr::LOCALHOST),
             requirement: connection_requirement.clone(),
         })
     }
@@ -137,7 +171,7 @@ impl GatewayHttpTransport {
             .map_err(|_| GatewayTransportError::NotEntered)?;
         let outbound = self
             .client
-            .request(method, request.url())
+            .request(method, self.target(request.url()))
             .headers(headers)
             .header(ACCEPT, "application/json")
             .header(CONTENT_TYPE, request.content_type())
@@ -172,7 +206,7 @@ impl GatewayHttpTransport {
         let headers = credential_headers(&self.requirement, lease).ok()?;
         let outbound = self
             .client
-            .get(request.url())
+            .get(self.target(request.url()))
             .headers(headers)
             .header(ACCEPT, "application/json")
             .build()
@@ -182,6 +216,11 @@ impl GatewayHttpTransport {
             return None;
         }
         read_bounded(&mut response, request.maximum_response_bytes()).await
+    }
+
+    /// Maps an owned URL onto the transport's target origin.
+    fn target(&self, owned: &str) -> String {
+        format!("{}{}", self.target_origin, &owned[self.origin.len()..])
     }
 
     fn owns_url(&self, candidate: &str) -> bool {
