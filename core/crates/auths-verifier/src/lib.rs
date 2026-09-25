@@ -2499,6 +2499,36 @@ fn evaluate_extensions(
     Ok(())
 }
 
+/// Applies the accepted-extension rule to one status statement about a
+/// principal or grant being evaluated.
+///
+/// No registered critical extension defines status semantics, and a grant or
+/// action handler never evaluates a status statement, so the first extension
+/// decides: one the context does not accept is unknown, and an accepted one
+/// has no status handler. A statement is refused whether or not selection
+/// would pick it, because every statement about the subject takes part in
+/// selection.
+fn check_status_extensions(
+    extensions: &auths_model::CriticalExtensions,
+    context: &TrustedContext,
+) -> Result<(), VerificationFailure> {
+    match extensions.as_slice().first() {
+        None => Ok(()),
+        Some(extension)
+            if !context
+                .accepted_registries()
+                .accepts_critical_extension(extension.id()) =>
+        {
+            Err(VerificationFailure::Denied(
+                DenialReason::CriticalExtensionUnknown,
+            ))
+        }
+        Some(_) => Err(VerificationFailure::Indeterminate(
+            Requirement::UnsupportedCriticalExtension,
+        )),
+    }
+}
+
 /// What an absent principal-status statement means.
 ///
 /// The trust anchor must be named by the snapshot. For every other principal
@@ -2535,6 +2565,7 @@ fn check_principal_status(
     {
         let identifier = principal_status_id(status.statement()).map_err(codec_failure)?;
         control_for(controlled, StatementRef::PrincipalStatus(identifier))?;
+        check_status_extensions(status.statement().extensions(), context)?;
     }
     meter.reserve(
         implementation.maximum_work_units(context.principal_status_snapshot().statements().len()),
@@ -2580,6 +2611,7 @@ fn check_grant_status(
     {
         let identifier = grant_status_id(status.statement()).map_err(codec_failure)?;
         control_for(controlled, StatementRef::GrantStatus(identifier))?;
+        check_status_extensions(status.statement().extensions(), context)?;
     }
     meter.reserve(
         implementation.maximum_work_units(context.grant_status_snapshot().statements().len()),

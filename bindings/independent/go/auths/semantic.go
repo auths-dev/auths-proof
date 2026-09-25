@@ -355,6 +355,7 @@ type principalStatus struct {
 	observedAt uint64
 	validUntil uint64
 	issuer     string
+	extensions []criticalExtension
 	signature  signatureEnvelope
 	id         []byte
 }
@@ -368,6 +369,7 @@ type grantStatus struct {
 	observedAt uint64
 	validUntil uint64
 	issuer     string
+	extensions []criticalExtension
 	signature  signatureEnvelope
 	id         []byte
 }

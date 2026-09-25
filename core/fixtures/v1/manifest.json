@@ -13163,6 +13163,668 @@
       },
       "expected_decision": "denied",
       "expected_code": "delegation-expanded"
+    },
+    {
+      "name": "anchor-status-extension-unknown",
+      "class": "status",
+      "proof": {
+        "path": "status/anchor-status-extension-unknown.proof.cbor",
+        "sha256": "4b40b18a221d94a44611b2fcbd6163d5cfc1d478205969e109a9e2e7049b3438"
+      },
+      "context": {
+        "path": "status/anchor-status-extension-unknown.context.cbor",
+        "sha256": "a2d75b552fe54038b756998b462c9eb51bf186c59d559817c326e59b449f64a2"
+      },
+      "canonical_action": {
+        "path": "status/anchor-status-extension-unknown.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "status/anchor-status-extension-unknown.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "status/anchor-status-extension-unknown.result.cbor",
+        "sha256": "a5dbb33336be57c452a70283eed2a241651ff2278f9cb459b9513ead4b12501f",
+        "stage": "authority",
+        "decision": "denied",
+        "code": "critical-extension-unknown",
+        "proof_digest": "4b40b18a221d94a44611b2fcbd6163d5cfc1d478205969e109a9e2e7049b3438",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "77519836f9cb404452b3a65a3f7249f164f813dcedd24e8c7c9bee616f70fb93",
+        "plan_digest": "60a823daabda6e6d7873a9a132cc8a0ddc489a3732b12a925698372b873b17b3",
+        "result_digest": "0b3608fc7ccfd880ac2312b22a3fa421c70f04dd3d12997d30c31044690aefd8",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 2439,
+          "action_bytes": 144,
+          "context_bytes": 2338,
+          "object_count": 12,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 684
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "denied",
+      "expected_code": "critical-extension-unknown"
+    },
+    {
+      "name": "delegate-status-extension-unknown",
+      "class": "status",
+      "proof": {
+        "path": "status/delegate-status-extension-unknown.proof.cbor",
+        "sha256": "107c5a29c845a5bbab4148b3d13f19365162e90e71133caaa79cf7b2fb56c2f4"
+      },
+      "context": {
+        "path": "status/delegate-status-extension-unknown.context.cbor",
+        "sha256": "621b4e6a5199a413e18d841ecf084231bc8e6caec88d7ff7b7372fa274f8fe10"
+      },
+      "canonical_action": {
+        "path": "status/delegate-status-extension-unknown.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "status/delegate-status-extension-unknown.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "status/delegate-status-extension-unknown.result.cbor",
+        "sha256": "8e6de6b5eb6f201c527669aab3eb0a8057b8ddc6e6bb170dc61cbaeef10a36d1",
+        "stage": "authority",
+        "decision": "denied",
+        "code": "critical-extension-unknown",
+        "proof_digest": "107c5a29c845a5bbab4148b3d13f19365162e90e71133caaa79cf7b2fb56c2f4",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "fe69b1e3b600e0e71435b759ee9e7e3cd0ac9f8816d347b1e06ad3a30774edb7",
+        "plan_digest": "60a823daabda6e6d7873a9a132cc8a0ddc489a3732b12a925698372b873b17b3",
+        "result_digest": "2b37e65c60e976aa606c6eae8ed9dc564cbf76582ae1f2ba4329fb92f28a7c1c",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 2515,
+          "action_bytes": 144,
+          "context_bytes": 2649,
+          "object_count": 13,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 800
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "denied",
+      "expected_code": "critical-extension-unknown"
+    },
+    {
+      "name": "actor-status-extension-unknown",
+      "class": "status",
+      "proof": {
+        "path": "status/actor-status-extension-unknown.proof.cbor",
+        "sha256": "43dd91596009de697a411edf771f203238db2c37914ba1f185ce8869a23f8049"
+      },
+      "context": {
+        "path": "status/actor-status-extension-unknown.context.cbor",
+        "sha256": "47de0f7d7e29aa1317159b8db75b3b4f3afd0b6a325b6f4d663376b1a9ebf4ff"
+      },
+      "canonical_action": {
+        "path": "status/actor-status-extension-unknown.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "status/actor-status-extension-unknown.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "status/actor-status-extension-unknown.result.cbor",
+        "sha256": "63dc2ca194b63222d7edaf5013520e1a6e8606fe7636d4cec7706e768b6e8be0",
+        "stage": "authority",
+        "decision": "denied",
+        "code": "critical-extension-unknown",
+        "proof_digest": "43dd91596009de697a411edf771f203238db2c37914ba1f185ce8869a23f8049",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "d72496650c118d128e49fcd0a9292c2d431e389b5ab049f14729bd7fe8eebd1b",
+        "plan_digest": "60a823daabda6e6d7873a9a132cc8a0ddc489a3732b12a925698372b873b17b3",
+        "result_digest": "0f418a52a91f6549469b564ff1f7578c9da57ce3d57a4f79e60914b0d2457f0e",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 2515,
+          "action_bytes": 144,
+          "context_bytes": 2649,
+          "object_count": 13,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 806
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "denied",
+      "expected_code": "critical-extension-unknown"
+    },
+    {
+      "name": "delegate-status-extension-beside-newer",
+      "class": "status",
+      "proof": {
+        "path": "status/delegate-status-extension-beside-newer.proof.cbor",
+        "sha256": "76c04990b1523595141395b376b8df55dd5e006fd8a156e781ce9604dc19e32a"
+      },
+      "context": {
+        "path": "status/delegate-status-extension-beside-newer.context.cbor",
+        "sha256": "f226359bf73115278cc37b983d9a8efcb556a5c8adc9c668bcf7f4e60dc09a4c"
+      },
+      "canonical_action": {
+        "path": "status/delegate-status-extension-beside-newer.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "status/delegate-status-extension-beside-newer.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "status/delegate-status-extension-beside-newer.result.cbor",
+        "sha256": "101f4fec8158c0966127853ddf16a6cb50fce0da954b016b2005d605be1835c5",
+        "stage": "authority",
+        "decision": "denied",
+        "code": "critical-extension-unknown",
+        "proof_digest": "76c04990b1523595141395b376b8df55dd5e006fd8a156e781ce9604dc19e32a",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "0f7b25a37f2f36736472c7ef79d884c5e72ac3fef61789a5b92283f829d5eef8",
+        "plan_digest": "60a823daabda6e6d7873a9a132cc8a0ddc489a3732b12a925698372b873b17b3",
+        "result_digest": "c7b2d7d690cb15b48756e1f3f0d0f7d15bad797bf888895c564dff1e102d6d27",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 2591,
+          "action_bytes": 144,
+          "context_bytes": 2960,
+          "object_count": 14,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 911
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "denied",
+      "expected_code": "critical-extension-unknown"
+    },
+    {
+      "name": "anchor-status-extension-without-handler",
+      "class": "status",
+      "proof": {
+        "path": "status/anchor-status-extension-without-handler.proof.cbor",
+        "sha256": "c8e30a3a877628cb7fba164feccafbf237b6432667888438c6f7650611f925ed"
+      },
+      "context": {
+        "path": "status/anchor-status-extension-without-handler.context.cbor",
+        "sha256": "72753deb7f4dcb676ec98c95a200e3e1c6568927f55358dcf41c1419874cea2b"
+      },
+      "canonical_action": {
+        "path": "status/anchor-status-extension-without-handler.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "status/anchor-status-extension-without-handler.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "status/anchor-status-extension-without-handler.result.cbor",
+        "sha256": "fa7499a342334233e75aeb8c0ba1952039f306460fa011899aad539777e14b6d",
+        "stage": "authority",
+        "decision": "indeterminate",
+        "code": "unsupported-critical-extension",
+        "proof_digest": "c8e30a3a877628cb7fba164feccafbf237b6432667888438c6f7650611f925ed",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "7b554e922f2b12b309b223d32a0c9235e282bcb509a82f07c434e3ce640a05c2",
+        "plan_digest": "60a823daabda6e6d7873a9a132cc8a0ddc489a3732b12a925698372b873b17b3",
+        "result_digest": "549f1576534563d22c65cfd02f299e4f8edb01431eb323777fee9b56242b0c33",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 2439,
+          "action_bytes": 144,
+          "context_bytes": 2350,
+          "object_count": 12,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 684
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "indeterminate",
+      "expected_code": "unsupported-critical-extension"
+    },
+    {
+      "name": "delegate-status-extension-without-handler",
+      "class": "status",
+      "proof": {
+        "path": "status/delegate-status-extension-without-handler.proof.cbor",
+        "sha256": "7f790b62f6f58792a26c5f1ca071e0fbc02f48b70339327c952c05d6513e1e86"
+      },
+      "context": {
+        "path": "status/delegate-status-extension-without-handler.context.cbor",
+        "sha256": "2efb862ed7f7ce9d75c4a9f4c0817f0c0d8d98ddc6f465c7857f2d8d7e27dc72"
+      },
+      "canonical_action": {
+        "path": "status/delegate-status-extension-without-handler.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "status/delegate-status-extension-without-handler.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "status/delegate-status-extension-without-handler.result.cbor",
+        "sha256": "ad2f17d02db04645a641b3d1b4f4ad135b7f9875a0ebd46f8c6ca59784afe26d",
+        "stage": "authority",
+        "decision": "indeterminate",
+        "code": "unsupported-critical-extension",
+        "proof_digest": "7f790b62f6f58792a26c5f1ca071e0fbc02f48b70339327c952c05d6513e1e86",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "1a1e7040936ddc90e60cd524162fccd9d59b7df301e847861107a13167b9310f",
+        "plan_digest": "60a823daabda6e6d7873a9a132cc8a0ddc489a3732b12a925698372b873b17b3",
+        "result_digest": "9410bb33ff122b64ad1a043d6dca1669ae19a6f9f92a9fe3737d5ab72503a6ae",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 2515,
+          "action_bytes": 144,
+          "context_bytes": 2661,
+          "object_count": 13,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 800
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "indeterminate",
+      "expected_code": "unsupported-critical-extension"
+    },
+    {
+      "name": "grant-status-extension-unknown",
+      "class": "status",
+      "proof": {
+        "path": "status/grant-status-extension-unknown.proof.cbor",
+        "sha256": "f0a5b7f52c842889f8602cd77c98006a0d850f48b5cf76972327d189789ade5f"
+      },
+      "context": {
+        "path": "status/grant-status-extension-unknown.context.cbor",
+        "sha256": "8a8e1365dd83ff9318a7ceab0b18d4f48747987ccea871fdd20b59e563ec09b6"
+      },
+      "canonical_action": {
+        "path": "status/grant-status-extension-unknown.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "status/grant-status-extension-unknown.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "status/grant-status-extension-unknown.result.cbor",
+        "sha256": "9d30d13af1d3d673e1dd096dd6f130657b5999bbc6df2a10db48aecd0f539468",
+        "stage": "authority",
+        "decision": "denied",
+        "code": "critical-extension-unknown",
+        "proof_digest": "f0a5b7f52c842889f8602cd77c98006a0d850f48b5cf76972327d189789ade5f",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "746a075b5527b5347776a7feac8820a6633c2b65a0f876a4fa92c170f7cc7e0e",
+        "plan_digest": "60a823daabda6e6d7873a9a132cc8a0ddc489a3732b12a925698372b873b17b3",
+        "result_digest": "707f0b54aebbfae419fa560fa9960d15f8c666b025d2a09c9a0823d70b7f8496",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 2439,
+          "action_bytes": 144,
+          "context_bytes": 2338,
+          "object_count": 12,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 691
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "denied",
+      "expected_code": "critical-extension-unknown"
+    },
+    {
+      "name": "grant-status-extension-without-handler",
+      "class": "status",
+      "proof": {
+        "path": "status/grant-status-extension-without-handler.proof.cbor",
+        "sha256": "297f1ee4d5932cdf5f6c463c6a83f0e05b3d1b058e5140b2e093f4f9f1092ea7"
+      },
+      "context": {
+        "path": "status/grant-status-extension-without-handler.context.cbor",
+        "sha256": "173bab8740f287f485a5382bfa491f30e75baf1162751f6d9a405d1c08ce706f"
+      },
+      "canonical_action": {
+        "path": "status/grant-status-extension-without-handler.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "status/grant-status-extension-without-handler.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "status/grant-status-extension-without-handler.result.cbor",
+        "sha256": "e53c1b8ab704b94dcc48352f3eb435f3c381f16544d23a3285f01d41a5ef7b56",
+        "stage": "authority",
+        "decision": "indeterminate",
+        "code": "unsupported-critical-extension",
+        "proof_digest": "297f1ee4d5932cdf5f6c463c6a83f0e05b3d1b058e5140b2e093f4f9f1092ea7",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "39b367ae8b5da6f4b5ba9cea11a8cda8ea6ae71f287662985766733339642840",
+        "plan_digest": "60a823daabda6e6d7873a9a132cc8a0ddc489a3732b12a925698372b873b17b3",
+        "result_digest": "bf03dd91827830302ea3e37c9ae0ec168deef4cc06f02e70330b983d6ca7c105",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 2439,
+          "action_bytes": 144,
+          "context_bytes": 2350,
+          "object_count": 12,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 691
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "indeterminate",
+      "expected_code": "unsupported-critical-extension"
+    },
+    {
+      "name": "unrelated-principal-status-extension",
+      "class": "status",
+      "proof": {
+        "path": "status/unrelated-principal-status-extension.proof.cbor",
+        "sha256": "e649a3d9a4bb257ec74c235e0eea4dea4c430c107449dba7235f463fb278deb6"
+      },
+      "context": {
+        "path": "status/unrelated-principal-status-extension.context.cbor",
+        "sha256": "629f272cfd9a950a123cb3dbf3552a12960ab049682dac5dd8d551ce5bec9a0f"
+      },
+      "canonical_action": {
+        "path": "status/unrelated-principal-status-extension.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "status/unrelated-principal-status-extension.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "status/unrelated-principal-status-extension.result.cbor",
+        "sha256": "e17ef193ffa9f27fb4f271c3913039adb807ecd038cb8c8f8f55f6b54576def6",
+        "stage": "complete",
+        "decision": "authorized",
+        "code": "authorized",
+        "proof_digest": "e649a3d9a4bb257ec74c235e0eea4dea4c430c107449dba7235f463fb278deb6",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "1ec937385af139ec579956cc6742bdad350e46f6263a55b104af119da874fa7a",
+        "plan_digest": "60a823daabda6e6d7873a9a132cc8a0ddc489a3732b12a925698372b873b17b3",
+        "result_digest": "d1d8ba7700e8d15d0a5fa5cc95edc7927d2c16803db982133ae47042a0873886",
+        "authorized_branches": [
+          "e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5"
+        ],
+        "assurance_satisfactions": 2,
+        "resources": {
+          "proof_bytes": 2515,
+          "action_bytes": 144,
+          "context_bytes": 2649,
+          "object_count": 13,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 911
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "authorized",
+      "expected_code": "authorized"
+    },
+    {
+      "name": "two-fault-status-control-and-extension",
+      "class": "status",
+      "proof": {
+        "path": "status/two-fault-status-control-and-extension.proof.cbor",
+        "sha256": "983932c5647f3e08488b8e6ca8a68bcd510b01d65d83f661d7aef365ef372b01"
+      },
+      "context": {
+        "path": "status/two-fault-status-control-and-extension.context.cbor",
+        "sha256": "621b4e6a5199a413e18d841ecf084231bc8e6caec88d7ff7b7372fa274f8fe10"
+      },
+      "canonical_action": {
+        "path": "status/two-fault-status-control-and-extension.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "status/two-fault-status-control-and-extension.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "status/two-fault-status-control-and-extension.result.cbor",
+        "sha256": "44fe630eabf56249fd84d2e1c420ac88b416f52303ea306ab09929810caf767e",
+        "stage": "authority",
+        "decision": "indeterminate",
+        "code": "missing-principal-evidence",
+        "proof_digest": "983932c5647f3e08488b8e6ca8a68bcd510b01d65d83f661d7aef365ef372b01",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "fe69b1e3b600e0e71435b759ee9e7e3cd0ac9f8816d347b1e06ad3a30774edb7",
+        "plan_digest": "60a823daabda6e6d7873a9a132cc8a0ddc489a3732b12a925698372b873b17b3",
+        "result_digest": "59e2b2dd80b210e1dbec95039aaf53d091d0db4564210816303af515d60812a7",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 2439,
+          "action_bytes": 144,
+          "context_bytes": 2649,
+          "object_count": 12,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 690
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "indeterminate",
+      "expected_code": "missing-principal-evidence"
+    },
+    {
+      "name": "two-fault-status-extension-and-principal-revoked",
+      "class": "status",
+      "proof": {
+        "path": "status/two-fault-status-extension-and-principal-revoked.proof.cbor",
+        "sha256": "98cf7e7a12afb126eaf1a24c279d11e7d56f8081a1df7358de5a6779dbe3ee3b"
+      },
+      "context": {
+        "path": "status/two-fault-status-extension-and-principal-revoked.context.cbor",
+        "sha256": "bb3d35fd5c778842c2f62d0b2bab7443c3df30d490ce637f2839235019d63bc8"
+      },
+      "canonical_action": {
+        "path": "status/two-fault-status-extension-and-principal-revoked.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "status/two-fault-status-extension-and-principal-revoked.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "status/two-fault-status-extension-and-principal-revoked.result.cbor",
+        "sha256": "878bde45f6bfbf657778a3bf9a004d70bdc58d965e2225dfac0b315367991ea4",
+        "stage": "authority",
+        "decision": "denied",
+        "code": "critical-extension-unknown",
+        "proof_digest": "98cf7e7a12afb126eaf1a24c279d11e7d56f8081a1df7358de5a6779dbe3ee3b",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "2a54528ae0c46344bcc4a4896f8fc5bd76c697b014504c1c8cf2ccea8bf8a117",
+        "plan_digest": "60a823daabda6e6d7873a9a132cc8a0ddc489a3732b12a925698372b873b17b3",
+        "result_digest": "2711053d2aeaf2e7effa3201adfbb1ccafb4b157cd5a97966e2d0c3e05e2a224",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 2515,
+          "action_bytes": 144,
+          "context_bytes": 2649,
+          "object_count": 13,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 800
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "denied",
+      "expected_code": "critical-extension-unknown"
+    },
+    {
+      "name": "two-fault-status-accepted-and-unknown-extension",
+      "class": "status",
+      "proof": {
+        "path": "status/two-fault-status-accepted-and-unknown-extension.proof.cbor",
+        "sha256": "c436c203f2d131ef4309e3be0e2b18395987ef9b7c085e93b86ea4ddf5377cd1"
+      },
+      "context": {
+        "path": "status/two-fault-status-accepted-and-unknown-extension.context.cbor",
+        "sha256": "08f07a91f5cbf9e5279b671a84328978d52ebd3a604a0fab5a23dac4d020ebc5"
+      },
+      "canonical_action": {
+        "path": "status/two-fault-status-accepted-and-unknown-extension.action.cbor",
+        "sha256": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "status/two-fault-status-accepted-and-unknown-extension.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "status/two-fault-status-accepted-and-unknown-extension.result.cbor",
+        "sha256": "92881fd4a4d5c4e65e8b5c6d8f84565be55e99b35dcf6247efd346c58f0265c0",
+        "stage": "authority",
+        "decision": "indeterminate",
+        "code": "unsupported-critical-extension",
+        "proof_digest": "c436c203f2d131ef4309e3be0e2b18395987ef9b7c085e93b86ea4ddf5377cd1",
+        "action_digest": "409417c365cae4d8dd06b6106f954bc35a564355503f6d304efa1e1d00065297",
+        "context_digest": "1b0cfbda37beb024029c714cc26a74179403cb0a9f38dde783a6e9396468d774",
+        "plan_digest": "60a823daabda6e6d7873a9a132cc8a0ddc489a3732b12a925698372b873b17b3",
+        "result_digest": "69a78002d0e0c8adbbed4c6d11fe558d3a0bf3521cef2951030f353e342ea3fe",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 2439,
+          "action_bytes": 144,
+          "context_bytes": 2375,
+          "object_count": 12,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 684
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "indeterminate",
+      "expected_code": "unsupported-critical-extension"
     }
   ]
 }

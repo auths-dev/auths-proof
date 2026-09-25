@@ -230,9 +230,9 @@ earlier leaves returned. For one leaf:
    1. The anchor must accept the principal method of the root statement's
       signature, and its assurance policy must be the context's:
       `untrusted-root`.
-   2. Status, as Principal status below specifies: the anchor principal's
-      status (`branch.anchor-principal-status`); then, for each grant root to
-      terminal, that grant's status under its own status policy
+   2. Status, as Principal status and Grant status below specify: the anchor
+      principal's status (`branch.anchor-principal-status`); then, for each
+      grant root to terminal, that grant's status under its own status policy
       (`branch.grant-status`), followed by its subject's principal status
       (`branch.subject-principal-status`).
    3. `branch.resource-matcher`: the context's resource matcher must be
@@ -328,9 +328,18 @@ principal-status snapshot:
 
 1. The status method named by the policy must be accepted and installed;
    otherwise `unsupported-status-method`.
-2. Every snapshot statement about the principal must have verified control
-   from stage 3. A statement whose control failed fails the check with that
-   failure; it is never ignored.
+2. Each snapshot statement about the principal, in snapshot order, whatever
+   its method or issuer and whether or not selection would pick it:
+   1. It must have verified control from stage 3. A statement whose control
+      failed fails the check with that failure; it is never ignored.
+   2. Its critical extensions, in order: an identifier the context does not
+      accept is `critical-extension-unknown`
+      (`branch.principal-status-extension-accepted`); an accepted one is
+      `unsupported-critical-extension`
+      (`branch.principal-status-extension-handler`), because no registered
+      extension defines status semantics and a grant or action handler never
+      evaluates a status statement (`registry.md`, "Status-statement
+      extensions"). No handler runs and no work is reserved.
 3. Reserve the method's declared maximum work for the snapshot's statement
    count before evaluating.
 4. If the evaluation time is outside the snapshot's own validity window, the
@@ -357,6 +366,32 @@ is the branch result.
 A revocation must stay in the snapshot until every grant that names the
 principal as subject has expired. While it is stale the result is
 `stale-status`; once it is removed, the principal is active again.
+
+#### Grant status
+
+A grant's own status policy governs its status. When the policy is
+`ExpiryOnly`, no grant status is evaluated. Under `SnapshotRequired`, evaluate
+the grant against the context's grant-status snapshot:
+
+1. The status method named by the policy must be accepted and installed;
+   otherwise `unsupported-status-method`.
+2. Each snapshot statement about the grant, in snapshot order, whatever its
+   method or issuer and whether or not selection would pick it:
+   1. It must have verified control from stage 3; a statement whose control
+      failed fails the check with that failure.
+   2. Its critical extensions, in order: an identifier the context does not
+      accept is `critical-extension-unknown`
+      (`branch.grant-status-extension-accepted`); an accepted one is
+      `unsupported-critical-extension`
+      (`branch.grant-status-extension-handler`), for the reason principal
+      status gives.
+3. Reserve the method's declared maximum work for the snapshot's statement
+   count before evaluating.
+4. If the evaluation time is outside the snapshot's own validity window, the
+   result is `stale-status`.
+5. If no statement names the grant, the result is `missing-grant-status`.
+6. Otherwise select as principal status does, where a `revoked` or
+   `superseded` statement gives `grant-revoked`.
 
 ### 5a. Observation stage
 

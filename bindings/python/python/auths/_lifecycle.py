@@ -67,7 +67,9 @@ class PrincipalStatusRequest:
     """Fields of one principal-status statement.
 
     The statement names no purpose: one latest statement governs the principal
-    in every role it holds.
+    in every role it holds. No registered critical extension gives a status
+    statement meaning, so a verifier that evaluates the principal refuses a
+    statement carrying any ``extensions``.
     """
 
     method: str
@@ -85,6 +87,13 @@ class PrincipalStatusRequest:
 
 @dataclass(frozen=True)
 class GrantStatusRequest:
+    """Fields of one grant-status statement.
+
+    No registered critical extension gives a status statement meaning, so a
+    verifier that evaluates the grant refuses a statement carrying any
+    ``extensions``.
+    """
+
     method: str
     grant_id: ProtocolDigest
     state: LifecycleState

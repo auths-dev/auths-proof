@@ -50,7 +50,8 @@ func decodePrincipalStatus(value *cborValue) (*principalStatus, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err := extensionValues(values[8]); err != nil {
+	extensions, err := extensionValues(values[8])
+	if err != nil {
 		return nil, err
 	}
 	signatureNode, _ := mapValue(value, 1)
@@ -67,6 +68,7 @@ func decodePrincipalStatus(value *cborValue) (*principalStatus, error) {
 		observedAt: observedAt,
 		validUntil: validUntil,
 		issuer:     issuer,
+		extensions: extensions,
 		signature:  signature,
 		id:         domainHash(5, statement.raw),
 	}, nil
@@ -116,7 +118,8 @@ func decodeGrantStatus(value *cborValue) (*grantStatus, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err := extensionValues(values[8]); err != nil {
+	extensions, err := extensionValues(values[8])
+	if err != nil {
 		return nil, err
 	}
 	signatureNode, _ := mapValue(value, 1)
@@ -133,6 +136,7 @@ func decodeGrantStatus(value *cborValue) (*grantStatus, error) {
 		observedAt: observedAt,
 		validUntil: validUntil,
 		issuer:     issuer,
+		extensions: extensions,
 		signature:  signature,
 		id:         domainHash(6, statement.raw),
 	}, nil

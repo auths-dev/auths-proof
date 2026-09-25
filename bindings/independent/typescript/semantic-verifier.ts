@@ -210,11 +210,13 @@ type StatementRef = { kind: bigint; id: Uint8Array };
 type Binding = { statement: StatementRef; evidence: Uint8Array[] };
 type PrincipalStatus = {
   statement: V; method: string; principal: string; state: bigint; sequence: bigint;
-  observedAt: bigint; validUntil: bigint; issuer: string; signature: Signature; id: Uint8Array;
+  observedAt: bigint; validUntil: bigint; issuer: string; extensions: Extension[];
+  signature: Signature; id: Uint8Array;
 };
 type GrantStatus = {
   statement: V; method: string; grantID: Uint8Array; state: bigint; sequence: bigint;
-  observedAt: bigint; validUntil: bigint; issuer: string; signature: Signature; id: Uint8Array;
+  observedAt: bigint; validUntil: bigint; issuer: string; extensions: Extension[];
+  signature: Signature; id: Uint8Array;
 };
 type StatusTrust = { method: string; issuer: string; minimumSequence: bigint };
 type Snapshot<T> = {
@@ -451,21 +453,45 @@ function binding(value: V, maximum: bigint): Binding {
   return { statement: statementRef(mapAt(value, 0)), evidence: ids };
 }
 
+/**
+ * Reads the fields a principal-status and a grant-status statement share,
+ * whose keys are the same in both, with the native decoder's checks: the
+ * protocol version, a state of active, revoked, or superseded, a validity
+ * window that is not inverted, the issuer, and the signed critical
+ * extensions.
+ */
+function statusFields(statement: V, kind: string): {
+  state: bigint; sequence: bigint; observedAt: bigint; validUntil: bigint; issuer: string;
+  extensions: Extension[];
+} {
+  if (uint(mapAt(statement, 0)) !== 1n) throw new Error(`unsupported ${kind} protocol`);
+  const state = uint(mapAt(statement, 3));
+  if (state > 2n) throw new Error(`invalid ${kind} state`);
+  const sequence = uint(mapAt(statement, 4));
+  const observedAt = uint(mapAt(statement, 5));
+  const validUntil = uint(mapAt(statement, 6));
+  if (observedAt > validUntil) throw new Error(`invalid ${kind} validity`);
+  return {
+    state,
+    sequence,
+    observedAt,
+    validUntil,
+    issuer: text(mapAt(statement, 7)),
+    extensions: extensions(mapAt(statement, 8)),
+  };
+}
+
 function principalStatus(value: V): PrincipalStatus {
   exactMap(value, 2);
   const statement = mapAt(value, 0);
   exactMap(statement, 9);
-  const observedAt = uint(mapAt(statement, 5));
-  const validUntil = uint(mapAt(statement, 6));
+  const method = text(mapAt(statement, 1));
+  const principal = text(mapAt(statement, 2));
   return {
     statement,
-    method: text(mapAt(statement, 1)),
-    principal: text(mapAt(statement, 2)),
-    state: uint(mapAt(statement, 3)),
-    sequence: uint(mapAt(statement, 4)),
-    observedAt,
-    validUntil,
-    issuer: text(mapAt(statement, 7)),
+    method,
+    principal,
+    ...statusFields(statement, "principal-status"),
     signature: signature(mapAt(value, 1)),
     id: domainHash(5, statement.raw),
   };
@@ -475,15 +501,13 @@ function grantStatus(value: V): GrantStatus {
   exactMap(value, 2);
   const statement = mapAt(value, 0);
   exactMap(statement, 9);
+  const method = text(mapAt(statement, 1));
+  const grantID = bytes(mapAt(statement, 2), 32);
   return {
     statement,
-    method: text(mapAt(statement, 1)),
-    grantID: bytes(mapAt(statement, 2), 32),
-    state: uint(mapAt(statement, 3)),
-    sequence: uint(mapAt(statement, 4)),
-    observedAt: uint(mapAt(statement, 5)),
-    validUntil: uint(mapAt(statement, 6)),
-    issuer: text(mapAt(statement, 7)),
+    method,
+    grantID,
+    ...statusFields(statement, "grant-status"),
     signature: signature(mapAt(value, 1)),
     id: domainHash(6, statement.raw),
   };
@@ -1680,6 +1704,20 @@ function statusControl(controls: Map<string, VerifiedControl>, kind: bigint, id:
 }
 
 /**
+ * Applies the accepted-extension rule to one status statement about a
+ * principal or grant being evaluated. No registered critical extension
+ * defines status semantics, and a grant or action handler never evaluates a
+ * status statement, so the first extension decides: one the context does not
+ * accept is unknown, and an accepted one has no status handler.
+ */
+function evaluateStatusExtensions(values: Extension[], accepted: string[]): void {
+  const first = values[0];
+  if (first === undefined) return;
+  if (!contains(accepted, first.id)) throw denied("critical-extension-unknown");
+  throw indeterminate("unsupported-critical-extension");
+}
+
+/**
  * Follows the native exact status method: a trusted statement below its
  * issuer's sequence floor is a rollback, and freshness and state are judged
  * across every trusted statement at the greatest sequence.
@@ -1733,6 +1771,7 @@ function checkPrincipalStatus(
   for (const item of snapshotValue.statements) {
     if (item.principal !== principal) continue;
     statusControl(controls, 2n, item.id);
+    evaluateStatusExtensions(item.extensions, contextValue.extensions);
     candidates.push(item);
   }
   if (snapshotValue.observedAt > contextValue.evaluationTime ||
@@ -1763,6 +1802,7 @@ function checkGrantStatus(
   for (const item of snapshotValue.statements) {
     if (!equal(item.grantID, grantID)) continue;
     statusControl(controls, 3n, item.id);
+    evaluateStatusExtensions(item.extensions, contextValue.extensions);
     candidates.push(item);
   }
   if (snapshotValue.observedAt > contextValue.evaluationTime ||

@@ -2037,6 +2037,9 @@ pub enum GrantState {
 /// The statement names no purpose or role: one latest statement governs the
 /// principal in every position it holds in an authority branch, which is the
 /// key both status selection and carried-status rollback detection use.
+/// Critical extensions are carried and signed, but no registered extension
+/// gives a status statement meaning, so a verifier that evaluates the
+/// principal refuses a statement that carries one.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PrincipalStatusStatement {
     version: ProtocolVersion,
@@ -2147,6 +2150,11 @@ impl SignedPrincipalStatus {
     }
 }
 
+/// A signed fact about one grant's lifecycle state.
+///
+/// Critical extensions are carried and signed, but no registered extension
+/// gives a status statement meaning, so a verifier that evaluates the grant
+/// refuses a statement that carries one.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GrantStatusStatement {
     version: ProtocolVersion,

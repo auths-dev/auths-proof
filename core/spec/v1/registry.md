@@ -125,6 +125,28 @@ signed-byte validation, work reservation, and portable interoperability.
 Unknown critical extensions are denied. New attenuation or composition
 semantics require a protocol review, an executable model, and a new manifest.
 
+### Status-statement extensions
+
+Principal-status and grant-status statements carry signed critical
+extensions, and V1 registers no handler that gives one status meaning. Every
+registered extension, `exact-marker-v1` included, is defined for grants or
+actions only, and its handler never evaluates a status statement.
+
+When a verifier evaluates the status of a principal or a grant
+(`verification-algorithm.md`, "Principal status" and "Grant status"), it
+checks the extensions of each statement about that subject, in canonical
+order, and the first extension decides: an identifier the context does not
+accept is `critical-extension-unknown`, and an accepted one is
+`unsupported-critical-extension`. This holds for every statement about the
+subject, whatever its method or issuer and whether or not selection would
+pick it, because each takes part in selection. A statement about a principal
+or grant the verifier does not evaluate, such as one outside the branch or
+under an `ExpiryOnly` policy, is not checked.
+
+A status extension, such as one restricting a statement to a role or a
+scope, requires a protocol review, an executable model of how selection
+applies it, and a new manifest.
+
 ### Attenuation laws
 
 Every handler declares an attenuation law over an optional child payload and

@@ -201,7 +201,9 @@ fn grant_state(value: &str) -> Result<GrantState, EngineError> {
 /// Constructs canonical unsigned principal-status bytes from typed fields.
 ///
 /// The statement names no purpose: one latest statement governs the principal
-/// in every role.
+/// in every role. No registered critical extension gives a status statement
+/// meaning, so a verifier that evaluates the principal refuses a statement
+/// carrying any extension.
 ///
 /// # Errors
 ///
@@ -233,6 +235,10 @@ pub fn encode_principal_status_statement_v1(
 }
 
 /// Constructs canonical unsigned grant-status bytes from typed fields.
+///
+/// No registered critical extension gives a status statement meaning, so a
+/// verifier that evaluates the grant refuses a statement carrying any
+/// extension.
 ///
 /// # Errors
 ///

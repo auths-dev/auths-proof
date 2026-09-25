@@ -164,16 +164,21 @@ binding must exactly equal the evidence IDs reported consumed by the selected
 principal adapter. Extra, ignored, or adapter-invented evidence fails closed.
 
 Principal status and grant status are separate signed facts. Each carries an
-exact method, subject, issuer, sequence, and validity boundary. The trusted
-snapshot supplies accepted issuers and sequence floors; latest-sequence
-selection is deterministic and revoked dominates active at the same sequence.
-Historical control, current control, statement existence, revocation, and
-freshness are not interchangeable.
+exact method, subject, issuer, sequence, validity boundary, and critical
+extensions. The trusted snapshot supplies accepted issuers and sequence
+floors; latest-sequence selection is deterministic and revoked dominates
+active at the same sequence. Historical control, current control, statement
+existence, revocation, and freshness are not interchangeable.
 
 A principal-status statement names no purpose or role. The latest statement
 about a principal governs it in every position it holds in a branch, and
 selection and the rollback check on a proof-carried statement both key on
-the principal alone, as they key on the grant for grant status.
+the principal alone, as they key on the grant for grant status. No registered
+critical extension gives a status statement meaning. When a verifier
+evaluates the status of a principal or grant, a statement about it that
+carries an extension is refused: `critical-extension-unknown` for an
+identifier the context does not accept, and `unsupported-critical-extension`
+for one it does (`registry.md`, "Status-statement extensions").
 
 Principal status covers every principal in an authority branch: the trust
 anchor and the subject of every grant, which by chain linkage includes every
