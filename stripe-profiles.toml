@@ -4,7 +4,7 @@ schema = 1
 id = "auths-proof-stripe-profile-inventory"
 product_package = "product/integrations/auths-stripe"
 implementation_plan = "docs/target-state/STRIPE_PROFILE_FAMILY_IMPLEMENTATION_PLAN.md"
-spec_numbers = [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+spec_numbers = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
 allowed_statuses = ["specified", "implemented"]
 
 [boundary]
@@ -43,6 +43,21 @@ profile_owned_surfaces = [
   "receipt-and-stable-codes",
   "fixtures-and-mutation-corpus",
   "live-demo-contract",
+]
+
+[[families]]
+id = "auths.stripe.bounded-refund-policy/1"
+evaluator = "auths.stripe.bounded-refund-evaluator/1"
+owner_spec = 12
+members = ["auths.stripe.exact-refund/1"]
+shared_semantics = [
+  "closed-policy-carrier",
+  "checked-money-and-window-primitives",
+  "aggregate-refund-capacity",
+]
+forbidden_shared_semantics = [
+  "merchant-payment-policy-alias",
+  "generic-bounded-policy-evaluator",
 ]
 
 [[families]]
@@ -149,6 +164,27 @@ forbidden_shared_semantics = [
   "netted-credit-and-debit-authorization",
   "unobserved-liability-release",
 ]
+
+[[profiles]]
+spec = 12
+spec_path = "docs/specs/0012-stripe-bounded-refunds.md"
+status = "implemented"
+profile = "auths.stripe.exact-refund/1"
+family = "auths.stripe.bounded-refund-policy/1"
+evaluator = "auths.stripe.bounded-refund-evaluator/1"
+module = "bounded"
+action_type = "ExactRefundActionV1"
+evaluator_entrypoint = "evaluate_bounded_refund"
+verified_command = "VerifiedRefundCommand"
+lifecycle_transition = "project_refund_lifecycle"
+state_store = "refund-reservations"
+receipt_type = "BoundedDecisionReceipt"
+provider_gateway = "StripeGateway"
+credential_scope = "stripe-refund-create"
+effect = "refund-create"
+demo = "demos/stripe-refund"
+fixture_dir = "product/fixtures/v1/stripe"
+depends_on = []
 
 [[profiles]]
 spec = 13
@@ -363,7 +399,7 @@ depends_on = ["auths.stripe.exact-subscription-create/1"]
 [[profiles]]
 spec = 23
 spec_path = "docs/specs/0023-stripe-subscription-cancel.md"
-status = "implemented"
+status = "specified"
 profile = "auths.stripe.exact-subscription-cancel/1"
 family = "auths.stripe.bounded-subscription-policy/1"
 evaluator = "auths.stripe.bounded-subscription-evaluator/1"
