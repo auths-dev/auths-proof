@@ -338,6 +338,7 @@ where
             amount_minor: request.action.amount().amount_minor(),
             intents: eligibility.reservations.clone(),
             idempotency_key_digest: sha256(request.action.idempotency_key().as_bytes()),
+            action_expires_at: request.action.expires_at(),
             now,
         };
         let reserved = execute_store_transaction(

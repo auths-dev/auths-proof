@@ -641,6 +641,15 @@ trait TestStaticLocalProfileBridge: Send + Sync {
         record: &JournalRecordV1,
     ) -> Result<(), ProfileBridgeError>;
 
+    fn hold_provider_entry(
+        &self,
+        _context: &LocalOperationContext,
+        _record: &JournalRecordV1,
+        _now_unix_seconds: u64,
+    ) -> Result<(), ProfileBridgeError> {
+        Ok(())
+    }
+
     async fn call_provider(
         &self,
         context: &LocalOperationContext,
@@ -979,6 +988,30 @@ impl ProfileRuntime {
             }
             #[cfg(test)]
             Self::Test(profile) => profile.release_pre_entry(context, record),
+        }
+    }
+
+    fn hold_provider_entry(
+        &self,
+        context: &LocalOperationContext,
+        record: &JournalRecordV1,
+        now_unix_seconds: u64,
+    ) -> Result<(), ProfileBridgeError> {
+        match self {
+            Self::BuiltIn { profile, mode } => {
+                #[cfg(feature = "testkit-agent")]
+                if *mode == RuntimeMode::TestkitStripe
+                    && *profile == RegisteredProfile::StripeRefundsCreate
+                {
+                    // The disposable testkit agent owns no refund reservation.
+                    return Ok(());
+                }
+                #[cfg(not(feature = "testkit-agent"))]
+                let _ = mode;
+                profile.hold_provider_entry(context, record, now_unix_seconds)
+            }
+            #[cfg(test)]
+            Self::Test(profile) => profile.hold_provider_entry(context, record, now_unix_seconds),
         }
     }
 
@@ -1952,16 +1985,18 @@ impl JournaledLocalExecutor {
                 Ok(value) => value,
                 Err(auths_stores::OperationJournalError::Conflict) => {
                     let current = self.status_record(&context.principal, &operation_id)?;
-                    if current.projection().state() != OperationStateV1::Executing
+                    if current.projection().is_terminal()
                         && current.projection().effect() == OperationEffectV1::NotApplied
+                        && !current.provider_entered()
                     {
                         // Sealing may already have created a domain
                         // reservation/claim. If this BeginExecution CAS loses
-                        // to a non-executing terminal/recovery transition,
-                        // release by operation ID so the unpersisted command
-                        // cannot orphan that capability.
+                        // to a durable pre-entry conclusion, release by
+                        // operation ID so the command cannot orphan that
+                        // capability. A non-terminal record still carries its
+                        // command, so its capability stays held.
                         bridge
-                            .release_pre_entry(context, &record)
+                            .release_pre_entry(context, &current)
                             .map_err(|_| LocalAgentFailure::Internal)?;
                     }
                     return Ok(current);
@@ -1982,23 +2017,13 @@ impl JournaledLocalExecutor {
                 }
                 Err(ProfileBridgeError::PreEntryPending) => return Ok(executing),
                 Err(ProfileBridgeError::PreEntry(issue)) => {
-                    bridge
-                        .release_pre_entry(context, &executing)
-                        .map_err(|_| LocalAgentFailure::Internal)?;
-                    return self
-                        .journal
-                        .mutate_operation(
-                            &context.principal,
-                            &operation_id,
-                            executing.revision(),
-                            OperationMutationV1::ConcludePreEntry {
-                                state: OperationStateV1::NotApplied,
-                                issue,
-                                profile_state: executing.profile_state().to_vec(),
-                            },
-                            unix_seconds()?,
-                        )
-                        .map_err(map_journal);
+                    return self.conclude_pre_entry(
+                        context,
+                        bridge,
+                        &executing,
+                        OperationStateV1::NotApplied,
+                        issue,
+                    );
                 }
             };
             let rechecked_at = unix_seconds()?;
@@ -2022,27 +2047,36 @@ impl JournaledLocalExecutor {
                 .to_vec(),
             profile_state: executing.profile_state().to_vec(),
         };
+        // Every attempt, including one that resumes a durable pre-entry
+        // checkpoint, claims its profile-owned state from the profile's own
+        // store before any credential exists. A withdrawn claim concludes the
+        // operation without provider entry.
+        match bridge.hold_provider_entry(context, &executing, unix_seconds()?) {
+            Ok(()) => {}
+            Err(ProfileBridgeError::PreEntry(issue)) => {
+                return self.conclude_pre_entry(
+                    context,
+                    bridge,
+                    &executing,
+                    OperationStateV1::NotApplied,
+                    issue,
+                );
+            }
+            Err(ProfileBridgeError::PreEntryPending) => return Ok(executing),
+            Err(
+                ProfileBridgeError::Invalid
+                | ProfileBridgeError::Possible(_)
+                | ProfileBridgeError::PossibleWithProfileState { .. },
+            ) => return Err(LocalAgentFailure::Internal),
+        }
         if bridge.revalidate_configuration(context).is_err() {
-            bridge
-                .release_pre_entry(context, &executing)
-                .map_err(|_| LocalAgentFailure::Internal)?;
-            return self
-                .journal
-                .mutate_operation(
-                    &context.principal,
-                    &operation_id,
-                    executing.revision(),
-                    OperationMutationV1::ConcludePreEntry {
-                        state: OperationStateV1::Unavailable,
-                        issue: common_issue(
-                            CommonIssue::InvalidConfiguration,
-                            Some(&operation_id),
-                        )?,
-                        profile_state: executing.profile_state().to_vec(),
-                    },
-                    unix_seconds()?,
-                )
-                .map_err(map_journal);
+            return self.conclude_pre_entry(
+                context,
+                bridge,
+                &executing,
+                OperationStateV1::Unavailable,
+                common_issue(CommonIssue::InvalidConfiguration, Some(&operation_id))?,
+            );
         }
         let lease = if recovering_pre_entry {
             self.lease_connection_for_recovery(
@@ -2064,26 +2098,13 @@ impl JournaledLocalExecutor {
         let (_binding, credential) = match lease {
             Ok(value) => value,
             Err(_) => {
-                bridge
-                    .release_pre_entry(context, &executing)
-                    .map_err(|_| LocalAgentFailure::Internal)?;
-                return self
-                    .journal
-                    .mutate_operation(
-                        &context.principal,
-                        &operation_id,
-                        executing.revision(),
-                        OperationMutationV1::ConcludePreEntry {
-                            state: OperationStateV1::Unavailable,
-                            issue: common_issue(
-                                CommonIssue::CredentialUnavailable,
-                                Some(&operation_id),
-                            )?,
-                            profile_state: executing.profile_state().to_vec(),
-                        },
-                        unix_seconds()?,
-                    )
-                    .map_err(map_journal);
+                return self.conclude_pre_entry(
+                    context,
+                    bridge,
+                    &executing,
+                    OperationStateV1::Unavailable,
+                    common_issue(CommonIssue::CredentialUnavailable, Some(&operation_id))?,
+                );
             }
         };
         let entered_at = unix_seconds()?;
@@ -2321,6 +2342,74 @@ impl JournaledLocalExecutor {
             observed_at,
         )
         .await
+    }
+
+    /// Concludes an operation that never entered the provider, then releases
+    /// the profile-owned state that its preparation or seal acquired.
+    ///
+    /// The conclusion is durable before the release. Once it is durable no
+    /// sealed command of the operation can reach the provider, so the release
+    /// can never return capacity that an executable command still relies on.
+    /// A crash or failure between the two leaves the capacity held until a
+    /// later execute or recover of the terminal record repeats the release.
+    fn conclude_pre_entry(
+        &self,
+        context: &LocalOperationContext,
+        bridge: &ProfileRuntime,
+        record: &JournalRecordV1,
+        state: OperationStateV1,
+        issue: Vec<u8>,
+    ) -> Result<JournalRecordV1, LocalAgentFailure> {
+        let concluded = self
+            .journal
+            .mutate_operation(
+                &context.principal,
+                record.operation_id(),
+                record.revision(),
+                OperationMutationV1::ConcludePreEntry {
+                    state,
+                    issue,
+                    profile_state: record.profile_state().to_vec(),
+                },
+                unix_seconds()?,
+            )
+            .map_err(map_journal)?;
+        bridge
+            .release_pre_entry(context, &concluded)
+            .map_err(|_| LocalAgentFailure::Internal)?;
+        Ok(concluded)
+    }
+
+    /// Repeats the pre-entry release for a record that concluded before
+    /// provider entry, because a crash may have landed between its durable
+    /// conclusion and the release. The terminal projection is already durable
+    /// truth, so a failed repeat leaves the state held for the next call; a
+    /// profile whose state another operation has since claimed reports a
+    /// conflict here that must not fail the replay.
+    fn redrive_pre_entry_release(&self, context: &LocalOperationContext, record: &JournalRecordV1) {
+        if !record.projection().is_terminal()
+            || record.provider_entered()
+            || !matches!(
+                record.projection().state(),
+                OperationStateV1::NotApplied | OperationStateV1::Unavailable
+            )
+        {
+            return;
+        }
+        let Ok(profile) = SessionProfileKey::new(
+            record.binding().profile().id(),
+            record.binding().profile().version(),
+        ) else {
+            return;
+        };
+        let Ok(bridge) = self.bridge(&profile) else {
+            return;
+        };
+        let context = LocalOperationContext {
+            profile,
+            ..context.clone()
+        };
+        let _ = bridge.release_pre_entry(&context, record);
     }
 
     async fn observe_durable_provider_result(
@@ -3657,6 +3746,7 @@ impl JournaledLocalExecutor {
             return self.encode_record_for_request(&record, None, Some(response_request_id));
         }
         if record.projection().is_terminal() {
+            self.redrive_pre_entry_release(&context, &record);
             return self.encode_record_for_request(
                 &record,
                 Some(LocalOperationCompletion::Replayed),
@@ -3711,23 +3801,13 @@ impl JournaledLocalExecutor {
                 return Err(LocalAgentFailure::Internal);
             }
             Err(ProfileBridgeError::PreEntry(issue)) => {
-                bridge
-                    .release_pre_entry(context, &record)
-                    .map_err(|_| LocalAgentFailure::Internal)?;
-                return self
-                    .journal
-                    .mutate_operation(
-                        &context.principal,
-                        &operation_id,
-                        record.revision(),
-                        OperationMutationV1::ConcludePreEntry {
-                            state: OperationStateV1::NotApplied,
-                            issue,
-                            profile_state: record.profile_state().to_vec(),
-                        },
-                        unix_seconds()?,
-                    )
-                    .map_err(map_journal);
+                return self.conclude_pre_entry(
+                    context,
+                    bridge,
+                    &record,
+                    OperationStateV1::NotApplied,
+                    issue,
+                );
             }
         };
         let persisted_at = unix_seconds()?;
@@ -3743,22 +3823,24 @@ impl JournaledLocalExecutor {
         ) {
             Ok(value) => Ok(value),
             Err(auths_stores::OperationJournalError::Conflict) => {
+                // The seal lost the revision race. Release only when the
+                // current record can never carry a sealed command into the
+                // provider; otherwise that command owns the capability.
                 let current = self.status_record(&context.principal, &operation_id)?;
-                if current.projection().state() != OperationStateV1::Ready
-                    || current.sealed_command().is_none()
+                if current.sealed_command().is_none()
+                    || (current.projection().is_terminal() && !current.provider_entered())
                 {
                     bridge
-                        .release_pre_entry(context, &record)
+                        .release_pre_entry(context, &current)
                         .map_err(|_| LocalAgentFailure::Internal)?;
                 }
                 Ok(current)
             }
-            Err(error) => {
-                bridge
-                    .release_pre_entry(context, &record)
-                    .map_err(|_| LocalAgentFailure::Internal)?;
-                Err(map_journal(error))
-            }
+            // Any other failure may already have published the sealed command
+            // (a journal that could not sync its directory says so), so the
+            // capability stays held. Recovery concludes before it releases,
+            // and the provider-entry hold refuses a released capability.
+            Err(error) => Err(map_journal(error)),
         }
     }
 
@@ -3800,6 +3882,7 @@ impl JournaledLocalExecutor {
             );
         }
         if record.projection().is_terminal() {
+            self.redrive_pre_entry_release(&context, &record);
             return self.encode_recovery_projection(
                 &context.principal,
                 &record,
@@ -3833,24 +3916,16 @@ impl JournaledLocalExecutor {
             // sealing, immediately before the common BeginExecution CAS. If
             // the process dies in that gap, the Ready journal record has no
             // sealed command/token, so the concrete profile store releases by
-            // the immutable operation ID instead.
-            bridge
-                .release_pre_entry(&profile_context, &record)
-                .map_err(|_| LocalAgentFailure::Internal)?;
-            let updated = self
-                .journal
-                .mutate_operation(
-                    &profile_context.principal,
-                    record.operation_id(),
-                    record.revision(),
-                    OperationMutationV1::ConcludePreEntry {
-                        state: OperationStateV1::NotApplied,
-                        issue: common_issue(CommonIssue::TimedOut, Some(record.operation_id()))?,
-                        profile_state: record.profile_state().to_vec(),
-                    },
-                    unix_seconds()?,
-                )
-                .map_err(map_journal)?;
+            // the immutable operation ID instead. The conclusion is durable
+            // before the release, so a sealed command can never outlive its
+            // released capability.
+            let updated = self.conclude_pre_entry(
+                &profile_context,
+                &bridge,
+                &record,
+                OperationStateV1::NotApplied,
+                common_issue(CommonIssue::TimedOut, Some(record.operation_id()))?,
+            )?;
             return self.encode_recovery_projection(
                 &profile_context.principal,
                 &updated,
@@ -4730,9 +4805,23 @@ mod tests {
     const RUNTIME_DIGEST: [u8; 32] =
         auths_opentofu::generated::profile_routes::SAVED_PLANS_APPLY_RUNTIME_DIGEST;
 
+    /// Durable state of the one domain reservation a synthetic seal acquires.
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    enum SyntheticReservation {
+        Absent,
+        Reserved,
+        Held,
+        Released,
+    }
+
     struct SyntheticBridge {
         provider_calls: AtomicUsize,
         pre_entry_releases: AtomicUsize,
+        terminal_pre_entry_releases: AtomicUsize,
+        provider_entry_holds: AtomicUsize,
+        reservation: std::sync::Mutex<SyntheticReservation>,
+        reservation_at_provider_call: std::sync::Mutex<Option<SyntheticReservation>>,
+        unsynchronized_seal_directory: std::sync::Mutex<Option<std::path::PathBuf>>,
         fail_execution_claims: AtomicBool,
         fail_seal_after_reservation: AtomicBool,
         observation_kind: AtomicUsize,
@@ -4749,6 +4838,11 @@ mod tests {
             Self {
                 provider_calls: AtomicUsize::new(0),
                 pre_entry_releases: AtomicUsize::new(0),
+                terminal_pre_entry_releases: AtomicUsize::new(0),
+                provider_entry_holds: AtomicUsize::new(0),
+                reservation: std::sync::Mutex::new(SyntheticReservation::Absent),
+                reservation_at_provider_call: std::sync::Mutex::new(None),
+                unsynchronized_seal_directory: std::sync::Mutex::new(None),
                 fail_execution_claims: AtomicBool::new(false),
                 fail_seal_after_reservation: AtomicBool::new(false),
                 observation_kind: AtomicUsize::new(0),
@@ -4759,6 +4853,14 @@ mod tests {
                 provider_call_started: tokio::sync::Notify::new(),
                 continue_provider_call: tokio::sync::Notify::new(),
             }
+        }
+
+        fn reservation(&self) -> SyntheticReservation {
+            *self.reservation.lock().unwrap()
+        }
+
+        fn set_reservation(&self, value: SyntheticReservation) {
+            *self.reservation.lock().unwrap() = value;
         }
 
         fn completed_observation(&self, reconciled: bool) -> ProfileObservation {
@@ -4876,6 +4978,9 @@ mod tests {
             if self.deny_seal {
                 return Err(ProfileBridgeError::PreEntry(vec![3]));
             }
+            if self.reservation() == SyntheticReservation::Absent {
+                self.set_reservation(SyntheticReservation::Reserved);
+            }
             if self.fail_seal_after_reservation.load(Ordering::SeqCst) {
                 return Err(ProfileBridgeError::Invalid);
             }
@@ -4883,6 +4988,14 @@ mod tests {
                 record.profile_state(),
                 b"prepared-state" | b"command-state"
             ));
+            if let Some(directory) = self.unsynchronized_seal_directory.lock().unwrap().take() {
+                // Write and search permission still admit the journal's
+                // temporary file and atomic rename; only its directory sync
+                // fails, so the sealed command is published but not synced.
+                use std::os::unix::fs::PermissionsExt as _;
+                std::fs::set_permissions(directory, std::fs::Permissions::from_mode(0o300))
+                    .unwrap();
+            }
             Ok(SealedProfileCall {
                 command: b"sealed-command".to_vec(),
                 profile_state: b"command-state".to_vec(),
@@ -4900,7 +5013,35 @@ mod tests {
             {
                 self.pre_entry_releases.fetch_add(1, Ordering::SeqCst);
             }
+            if record.projection().is_terminal() {
+                self.terminal_pre_entry_releases
+                    .fetch_add(1, Ordering::SeqCst);
+            }
+            if matches!(
+                self.reservation(),
+                SyntheticReservation::Reserved | SyntheticReservation::Held
+            ) {
+                self.set_reservation(SyntheticReservation::Released);
+            }
             Ok(())
+        }
+
+        fn hold_provider_entry(
+            &self,
+            _context: &LocalOperationContext,
+            record: &JournalRecordV1,
+            _now_unix_seconds: u64,
+        ) -> Result<(), ProfileBridgeError> {
+            assert!(record.sealed_command().is_some() && !record.provider_entered());
+            self.provider_entry_holds.fetch_add(1, Ordering::SeqCst);
+            match self.reservation() {
+                SyntheticReservation::Released => Err(ProfileBridgeError::PreEntry(vec![3])),
+                SyntheticReservation::Reserved => {
+                    self.set_reservation(SyntheticReservation::Held);
+                    Ok(())
+                }
+                SyntheticReservation::Absent | SyntheticReservation::Held => Ok(()),
+            }
         }
 
         async fn call_provider(
@@ -4912,6 +5053,7 @@ mod tests {
         ) -> Result<Vec<u8>, ProfileBridgeError> {
             assert_eq!(credential.is_some(), self.requires_connection);
             assert_eq!(call.command, b"sealed-command");
+            *self.reservation_at_provider_call.lock().unwrap() = Some(self.reservation());
             if self.block_provider_call.load(Ordering::SeqCst) {
                 self.provider_call_started.notify_one();
                 self.continue_provider_call.notified().await;
@@ -4981,6 +5123,23 @@ mod tests {
         requires_connection: bool,
         deny_seal: bool,
     ) -> Fixture {
+        fixture_at_with_bridge(
+            directory,
+            Arc::new(SyntheticBridge::new(
+                fail_first_call,
+                requires_connection,
+                deny_seal,
+            )),
+        )
+    }
+
+    /// Reopens the durable stores under one bridge, whose modelled domain
+    /// reservation therefore survives the simulated restart.
+    fn fixture_at_with_bridge(
+        directory: &std::path::Path,
+        bridge: Arc<SyntheticBridge>,
+    ) -> Fixture {
+        let requires_connection = bridge.requires_connection;
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt as _;
@@ -5023,11 +5182,6 @@ mod tests {
             Arc::new(RecoveryHandleSigner::from_seed("test-recovery", [7; 32], []).unwrap());
         let receipts =
             Arc::new(ReceiptAttestor::from_root_seed("test-recovery", &[7; 32]).unwrap());
-        let bridge = Arc::new(SyntheticBridge::new(
-            fail_first_call,
-            requires_connection,
-            deny_seal,
-        ));
         let dynamic: Arc<dyn TestStaticLocalProfileBridge> = bridge.clone();
         let executor = JournaledLocalExecutor::new_for_tests(
             Arc::clone(&journal),
@@ -5813,7 +5967,7 @@ uid = 10001
     }
 
     #[tokio::test]
-    async fn credential_failure_releases_profile_state_before_concluding_pre_entry() {
+    async fn credential_failure_concludes_pre_entry_before_releasing_profile_state() {
         let directory = tempdir().unwrap();
         let fixture = fixture_at_with_options(directory.path(), false, true, false);
         let connection = install_stripe_connection(&fixture).await;
@@ -5841,6 +5995,238 @@ uid = 10001
         assert_eq!(outcome_kind(&unavailable), "unavailable");
         assert_eq!(fixture.bridge.provider_calls.load(Ordering::SeqCst), 0);
         assert_eq!(fixture.bridge.pre_entry_releases.load(Ordering::SeqCst), 1);
+        // The release saw the durable terminal conclusion.
+        assert_eq!(
+            fixture
+                .bridge
+                .terminal_pre_entry_releases
+                .load(Ordering::SeqCst),
+            1
+        );
+        assert_eq!(fixture.bridge.reservation(), SyntheticReservation::Released);
+    }
+
+    #[tokio::test]
+    async fn released_reservation_is_never_entered_after_release_before_conclusion() {
+        // A ready record whose reservation was released but not concluded, as
+        // after a crash between release and conclusion.
+        let (_directory, fixture) = fixture(false);
+        let ready = fixture
+            .executor
+            .prepare(fixture.context.clone(), prepare_request())
+            .await
+            .unwrap();
+        let (operation, commitment, _recovery) = ready_fields(&ready);
+        assert_eq!(fixture.bridge.reservation(), SyntheticReservation::Reserved);
+        fixture
+            .bridge
+            .set_reservation(SyntheticReservation::Released);
+
+        let outcome = fixture
+            .executor
+            .execute(
+                fixture.context.clone(),
+                ExecuteOperationRequest::new(request_id(2), operation.clone(), commitment),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(outcome_kind(&outcome), "not-applied");
+        assert_eq!(fixture.bridge.provider_calls.load(Ordering::SeqCst), 0);
+        assert_eq!(
+            fixture.bridge.provider_entry_holds.load(Ordering::SeqCst),
+            1
+        );
+        let stored = record(&fixture, &operation);
+        assert!(stored.projection().is_terminal());
+        assert!(!stored.provider_entered());
+    }
+
+    #[tokio::test]
+    async fn released_reservation_is_never_entered_from_a_resumed_checkpoint() {
+        let (directory, fixture) = fixture(false);
+        let (operation, _recovery, ready) = prepared_checkpoint(&fixture).await;
+        let _executing = begin_execution(&fixture, &ready);
+        let commitment = *ready.binding().preparation_commitment();
+        let bridge = Arc::clone(&fixture.bridge);
+        drop(fixture);
+        bridge.set_reservation(SyntheticReservation::Released);
+
+        let reopened = fixture_at_with_bridge(directory.path(), bridge);
+        let outcome = reopened
+            .executor
+            .execute(
+                reopened.context.clone(),
+                ExecuteOperationRequest::new(request_id(3), operation.clone(), commitment),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(outcome_kind(&outcome), "not-applied");
+        assert_eq!(reopened.bridge.provider_calls.load(Ordering::SeqCst), 0);
+        assert!(!record(&reopened, &operation).provider_entered());
+    }
+
+    #[tokio::test]
+    async fn crash_after_pre_entry_conclusion_then_execute_repeats_only_the_release() {
+        let (directory, fixture) = fixture(false);
+        let (operation, recovery, ready) = prepared_checkpoint(&fixture).await;
+        let commitment = *ready.binding().preparation_commitment();
+        let executing = begin_execution(&fixture, &ready);
+        // The conclusion is durable and the process dies before the release.
+        let _concluded = mutate(
+            &fixture,
+            &executing,
+            OperationMutationV1::ConcludePreEntry {
+                state: OperationStateV1::NotApplied,
+                issue: vec![3],
+                profile_state: executing.profile_state().to_vec(),
+            },
+        );
+        assert_eq!(fixture.bridge.reservation(), SyntheticReservation::Reserved);
+        let bridge = Arc::clone(&fixture.bridge);
+        drop(fixture);
+
+        let reopened = fixture_at_with_bridge(directory.path(), bridge);
+        let outcome = reopened
+            .executor
+            .execute(
+                reopened.context.clone(),
+                ExecuteOperationRequest::new(request_id(4), operation.clone(), commitment),
+            )
+            .await
+            .unwrap();
+        assert_eq!(outcome_kind(&outcome), "not-applied");
+        assert_eq!(reopened.bridge.provider_calls.load(Ordering::SeqCst), 0);
+        assert_eq!(
+            reopened.bridge.provider_entry_holds.load(Ordering::SeqCst),
+            0
+        );
+        assert_eq!(
+            reopened.bridge.reservation(),
+            SyntheticReservation::Released
+        );
+
+        // Recovery of the terminal record repeats the idempotent release.
+        let recovered = reopened
+            .executor
+            .recover(
+                reopened.context.clone(),
+                Some(operation),
+                RecoverOperationRequest::new(request_id(5), recovery).unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(outcome_kind(&recovered), "not-applied");
+        assert_eq!(reopened.bridge.provider_calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn seal_published_without_directory_sync_keeps_the_reservation_held() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let directory = tempdir().unwrap();
+        let probe = directory.path().join("permission-probe");
+        std::fs::create_dir(&probe).unwrap();
+        std::fs::set_permissions(&probe, std::fs::Permissions::from_mode(0o300)).unwrap();
+        let permissions_enforced = std::fs::File::open(&probe).is_err();
+        std::fs::set_permissions(&probe, std::fs::Permissions::from_mode(0o700)).unwrap();
+        if !permissions_enforced {
+            // Permission checks do not apply to this user (for example root),
+            // so the directory sync cannot be made to fail here.
+            return;
+        }
+        let fixture = fixture_at(directory.path(), false);
+        *fixture.bridge.unsynchronized_seal_directory.lock().unwrap() =
+            Some(directory.path().to_path_buf());
+
+        let ambiguous = fixture
+            .executor
+            .prepare(fixture.context.clone(), prepare_request())
+            .await;
+        std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        assert!(matches!(ambiguous, Err(LocalAgentFailure::Internal)));
+        // The sealed command may be live, so the reservation stays held.
+        assert_eq!(fixture.bridge.pre_entry_releases.load(Ordering::SeqCst), 0);
+        assert_eq!(fixture.bridge.reservation(), SyntheticReservation::Reserved);
+        let bridge = Arc::clone(&fixture.bridge);
+        drop(fixture);
+
+        // After the restart the published seal is live; a retry with the same
+        // idempotency key replays it and executes once, with capacity held.
+        let reopened = fixture_at_with_bridge(directory.path(), bridge);
+        let retry = PrepareOperationRequest::new(
+            request_id(6),
+            Some("test-operation".to_owned()),
+            RUNTIME_DIGEST,
+            b"canonical-input".to_vec(),
+            None,
+            1024,
+        )
+        .unwrap();
+        let replay = reopened
+            .executor
+            .prepare(reopened.context.clone(), retry)
+            .await
+            .unwrap();
+        assert_eq!(outcome_kind(&replay), "ready");
+        let (operation, commitment, _recovery) = ready_fields(&replay);
+        let completed = reopened
+            .executor
+            .execute(
+                reopened.context.clone(),
+                ExecuteOperationRequest::new(request_id(7), operation, commitment),
+            )
+            .await
+            .unwrap();
+        assert_eq!(outcome_kind(&completed), "completed");
+        assert_eq!(reopened.bridge.provider_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            *reopened.bridge.reservation_at_provider_call.lock().unwrap(),
+            Some(SyntheticReservation::Held)
+        );
+    }
+
+    #[tokio::test]
+    async fn clock_behind_the_record_still_records_the_provider_result() {
+        let (_directory, fixture) = fixture(false);
+        let (operation, _recovery, ready) = prepared_checkpoint(&fixture).await;
+        let commitment = *ready.binding().preparation_commitment();
+        // The record was last written at a later clock reading than the one
+        // the executor will now sample, as after a backward clock step.
+        let ahead = ready.updated_at_unix_seconds() + 3_600;
+        let _executing = fixture
+            .journal
+            .mutate_operation(
+                fixture.context.principal.as_ref(),
+                ready.operation_id(),
+                ready.revision(),
+                OperationMutationV1::BeginExecution {
+                    profile_state: ready.profile_state().to_vec(),
+                    sealed_command: ready.sealed_command().unwrap().to_vec(),
+                },
+                ahead,
+            )
+            .unwrap();
+
+        let completed = fixture
+            .executor
+            .execute(
+                fixture.context.clone(),
+                ExecuteOperationRequest::new(request_id(8), operation.clone(), commitment),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(outcome_kind(&completed), "completed");
+        assert_eq!(fixture.bridge.provider_calls.load(Ordering::SeqCst), 1);
+        let stored = record(&fixture, &operation);
+        assert_eq!(
+            stored.provider_result(),
+            Some(b"provider-result".as_slice())
+        );
+        assert_eq!(stored.updated_at_unix_seconds(), ahead);
     }
 
     async fn recover_connected_after_reopen(

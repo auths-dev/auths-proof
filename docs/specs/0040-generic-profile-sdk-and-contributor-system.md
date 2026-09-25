@@ -2732,6 +2732,7 @@ bounded API input
   -> atomic reservation
   -> verifier-sealed exact command
   -> fresh critical evidence/connection/configuration re-read
+  -> profile-owned provider-entry hold
   -> required/executed connection and configuration equality
   -> least-privilege credential lease for the sealed connection
   -> closed provider command
@@ -2746,6 +2747,28 @@ bounded API input
 
 The durable provider result MUST be written before observation. This ordering
 is crash-tested immediately before and after every arrow.
+
+The provider-entry hold is the profile's last decision before any credential
+exists. Common code calls it under the operation gate on every attempt to
+enter the provider, including an attempt that resumes a durable executing,
+not-applied checkpoint. The profile answers from its own durable store, never
+from the journal's copy of its state: it either holds the state that the
+sealed command consumes, withdraws the attempt (common code then concludes the
+operation not-applied without a credential or provider call), or leaves the
+attempt pending. A profile whose sealed capability needs no separate claim
+states that decision explicitly in its hook.
+
+When common code ends an operation before provider entry it persists the
+pre-entry conclusion first and invokes the profile's release afterwards; the
+release is idempotent and is repeated for terminal pre-entry records by later
+`execute` and `recover` calls, so a crash between the two leaves capacity held
+rather than returned under a live command. A journal write that replaced the
+journal file but could not synchronize its directory is reported as a distinct
+error, poisons the journal until it is reopened, and is treated as possibly
+durable: it never triggers a release. Journal record time never decreases; a
+transition requested with an earlier clock reading keeps the record's last
+time, so a backward clock step cannot discard a transition such as a durable
+provider result.
 
 Connection resolution before canonicalization performs no provider I/O and
 acquires no credential. It supplies only the sealed connection identity and

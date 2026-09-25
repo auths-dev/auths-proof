@@ -25,17 +25,28 @@ use auths_lifecycle::{
 
 use crate::{
     bounded::{
-        AggregateBudgetSnapshot, AggregateBudgetUsage, RefundReservationIntent,
+        AggregateBudgetSnapshot, AggregateBudgetUsage, MAX_WINDOW_SECONDS, RefundReservationIntent,
         StripeBoundedRefundPolicyV1,
     },
     canonical::{canonical_json, sha256},
-    types::{Currency, DigestHex, RefundId, StripeAccountId},
+    types::{
+        Currency, DigestHex, HARD_MAX_AUTHORIZATION_LIFETIME_SECONDS, RefundId, StripeAccountId,
+    },
 };
 
 const RESERVATION_SCHEMA: &str = "auths.stripe.bounded-reservation/1";
-const STATE_SCHEMA: &str = "auths.stripe.bounded-reservation-state/2";
-const MAX_STATE_BYTES: usize = 32 * 1024 * 1024;
-const MAX_RECORDS: usize = 16_384;
+const STATE_SCHEMA: &str = "auths.stripe.bounded-reservation-state/3";
+/// Canonical state-file bound. Every store call rewrites the whole file.
+pub const MAX_RESERVATION_STATE_BYTES: usize = 32 * 1024 * 1024;
+/// Reservation-record bound, shared by every principal of one deployment.
+pub const MAX_RESERVATION_RECORDS: usize = 16_384;
+/// Upper bound on the canonical bytes one record can gain between admission
+/// and its longest terminal form: the longest state name (12 bytes more than
+/// `reserved`), a refund identifier of at most 96 bytes replacing `null`, and
+/// a 64-hex result digest replacing `null`.
+pub const MAX_RESERVATION_TERMINAL_GROWTH_BYTES: usize = 256;
+const MAX_STATE_BYTES: usize = MAX_RESERVATION_STATE_BYTES;
+const MAX_RECORDS: usize = MAX_RESERVATION_RECORDS;
 
 /// Durable aggregate-capacity state.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -43,6 +54,10 @@ const MAX_RECORDS: usize = 16_384;
 pub enum RefundReservationState {
     /// Capacity is held before provider acceptance is known.
     Reserved,
+    /// Capacity is held by the one provider-entry attempt that claimed it.
+    /// A released reservation can never reach this state, so an attempt that
+    /// finds its reservation released concludes without calling Stripe.
+    EntryHeld,
     /// Stripe created the exact refund.
     Committed,
     /// Definite non-effect returned capacity.
@@ -179,7 +194,14 @@ impl RefundReservationRecord {
         &self.idempotency_key_digest
     }
 
-    /// Last durable domain transition time.
+    /// Reservation time.
+    #[must_use]
+    pub const fn created_at(&self) -> u64 {
+        self.created_at
+    }
+
+    /// Last durable domain transition time. It never decreases, even when
+    /// a transition is requested with an earlier clock reading.
     #[must_use]
     pub const fn updated_at(&self) -> u64 {
         self.updated_at
@@ -216,6 +238,10 @@ pub struct ReserveRefundRequest {
     pub intents: Vec<RefundReservationIntent>,
     /// Stripe idempotency key commitment.
     pub idempotency_key_digest: DigestHex,
+    /// Expiry of the exact action. The store admits only an unexpired action
+    /// whose expiry is at most one maximum authorization lifetime after the
+    /// reservation time, which is what bounds how long a record can matter.
+    pub action_expires_at: u64,
     /// Explicit reservation time.
     pub now: u64,
 }
@@ -349,6 +375,16 @@ pub enum ReserveRefundResult {
     Unavailable,
 }
 
+/// Outcome of claiming one reservation for provider entry.
+#[derive(Debug)]
+pub enum ProviderEntryHold {
+    /// The reservation is held for this provider-entry attempt.
+    Held(RefundReservationRecord),
+    /// The reservation was released or retired, so it holds no capacity and
+    /// the attempt must conclude without entering Stripe.
+    Withdrawn,
+}
+
 /// Stripe-local durable reservation contract.
 pub trait RefundReservationStore: Send + Sync {
     /// Reads an immutable aggregate state view.
@@ -401,13 +437,28 @@ pub trait RefundReservationStore: Send + Sync {
         now: u64,
     ) -> Result<RefundReservationRecord, ReservationError>;
 
+    /// Atomically moves a reserved record to `entry-held` for the one
+    /// provider-entry attempt of its sealed command. Repeating the hold for the
+    /// same lease is idempotent. A released or retired reservation is
+    /// reported as [`ProviderEntryHold::Withdrawn`] and never re-held.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a conflicting lease, and a record that already carries a
+    /// provider outcome, because a pre-entry attempt cannot own either.
+    fn hold_for_provider_entry(
+        &self,
+        lease: &RefundReservationLease,
+        now: u64,
+    ) -> Result<ProviderEntryHold, ReservationError>;
+
     /// Reconciles an unknown outcome to committed or released.
     ///
     /// # Errors
     ///
-    /// Only a reserved or outcome-unknown record may reconcile. A reserved
-    /// record is ambiguous after process failure because the crash may have
-    /// happened during provider I/O.
+    /// Only a reserved, entry-held, or outcome-unknown record may reconcile.
+    /// A reserved or entry-held record is ambiguous after process failure
+    /// because the crash may have happened during provider I/O.
     fn reconcile(
         &self,
         workflow_id: &str,
@@ -571,6 +622,14 @@ impl<T: RefundReservationStore + ?Sized> RefundReservationStore for Arc<T> {
         (**self).mark_outcome_unknown(lease, now)
     }
 
+    fn hold_for_provider_entry(
+        &self,
+        lease: &RefundReservationLease,
+        now: u64,
+    ) -> Result<ProviderEntryHold, ReservationError> {
+        (**self).hold_for_provider_entry(lease, now)
+    }
+
     fn reconcile(
         &self,
         workflow_id: &str,
@@ -643,6 +702,7 @@ impl InMemoryRefundReservationStore {
                     matches!(
                         record.state,
                         RefundReservationState::Reserved
+                            | RefundReservationState::EntryHeld
                             | RefundReservationState::Committed
                             | RefundReservationState::OutcomeUnknown
                             | RefundReservationState::ReconciledCommitted
@@ -671,7 +731,7 @@ impl RefundReservationStore for InMemoryRefundReservationStore {
         let Ok(mut database) = self.database.lock() else {
             return ReserveRefundResult::Unavailable;
         };
-        reserve_in(&mut database.records, request)
+        reserve_in(&mut database, request)
     }
 
     fn commit(
@@ -720,6 +780,18 @@ impl RefundReservationStore for InMemoryRefundReservationStore {
             RefundReservationState::OutcomeUnknown,
             now,
         )
+    }
+
+    fn hold_for_provider_entry(
+        &self,
+        lease: &RefundReservationLease,
+        now: u64,
+    ) -> Result<ProviderEntryHold, ReservationError> {
+        let mut database = self
+            .database
+            .lock()
+            .map_err(|_| ReservationError::Unavailable)?;
+        hold_for_provider_entry_in(&mut database.records, lease, now)
     }
 
     fn reconcile(
@@ -849,7 +921,7 @@ impl PersistentRefundReservationStore {
             if request.policy_digest != policy_digest || request.intents != expected {
                 return Ok::<_, ReservationError>(ReserveRefundResult::Unavailable);
             }
-            Ok::<_, ReservationError>(reserve_in(&mut database.records, request))
+            Ok::<_, ReservationError>(reserve_in(database, request))
         })
         .unwrap_or(ReserveRefundResult::Unavailable)
     }
@@ -962,7 +1034,7 @@ impl RefundReservationStore for PersistentRefundReservationStore {
 
     fn reserve(&self, request: ReserveRefundRequest) -> ReserveRefundResult {
         self.with_locked_database(|database| {
-            Ok::<_, ReservationError>(reserve_in(&mut database.records, request))
+            Ok::<_, ReservationError>(reserve_in(database, request))
         })
         .unwrap_or(ReserveRefundResult::Unavailable)
     }
@@ -1006,6 +1078,16 @@ impl RefundReservationStore for PersistentRefundReservationStore {
                 RefundReservationState::OutcomeUnknown,
                 now,
             )
+        })
+    }
+
+    fn hold_for_provider_entry(
+        &self,
+        lease: &RefundReservationLease,
+        now: u64,
+    ) -> Result<ProviderEntryHold, ReservationError> {
+        self.with_locked_database(|database| {
+            hold_for_provider_entry_in(&mut database.records, lease, now)
         })
     }
 
@@ -1207,7 +1289,7 @@ fn reserve_lifecycle_in(
     if transaction.context.capacity != expected_capacity {
         return Err(StoreError::Corrupt);
     }
-    match reserve_in(&mut database.records, request) {
+    match reserve_in(database, request) {
         ReserveRefundResult::Reserved { .. } => Ok(()),
         ReserveRefundResult::Replay(_) | ReserveRefundResult::Conflict(_) => {
             Err(StoreError::Conflict)
@@ -1311,6 +1393,9 @@ fn persist_database(path: &Path, database: &ReservationDatabase) -> Result<(), R
     if bytes.len() > MAX_STATE_BYTES {
         return Err(ReservationError::Unavailable);
     }
+    // The store never writes state that its own loader would refuse: one bad
+    // record would otherwise make every later open of the deployment fail.
+    validate_database_state(&state, &bytes)?;
     let parent = path.parent().ok_or(ReservationError::Unavailable)?;
     let mut temporary = NamedTempFile::new_in(parent).map_err(|_| ReservationError::Unavailable)?;
     temporary
@@ -1350,6 +1435,7 @@ fn valid_record(record: &RefundReservationRecord) -> bool {
             record.refund_id.is_some() && record.result_digest.is_some()
         }
         RefundReservationState::Reserved
+        | RefundReservationState::EntryHeld
         | RefundReservationState::Released
         | RefundReservationState::OutcomeUnknown
         | RefundReservationState::ReconciledReleased => {
@@ -1405,15 +1491,18 @@ fn snapshot_in(
                 && record.currency == *budget.currency()
                 && record_holds_capacity_in(record, budget.budget_id(), &window)
         }) {
-            let target =
-                match record.state {
-                    RefundReservationState::Reserved => &mut usage.reserved_minor,
-                    RefundReservationState::Committed
-                    | RefundReservationState::ReconciledCommitted => &mut usage.committed_minor,
-                    RefundReservationState::OutcomeUnknown => &mut usage.outcome_unknown_minor,
-                    RefundReservationState::Released
-                    | RefundReservationState::ReconciledReleased => continue,
-                };
+            let target = match record.state {
+                RefundReservationState::Reserved | RefundReservationState::EntryHeld => {
+                    &mut usage.reserved_minor
+                }
+                RefundReservationState::Committed | RefundReservationState::ReconciledCommitted => {
+                    &mut usage.committed_minor
+                }
+                RefundReservationState::OutcomeUnknown => &mut usage.outcome_unknown_minor,
+                RefundReservationState::Released | RefundReservationState::ReconciledReleased => {
+                    continue;
+                }
+            };
             *target = target
                 .checked_add(record.amount_minor)
                 .ok_or(ReservationError::Corrupt)?;
@@ -1424,7 +1513,7 @@ fn snapshot_in(
 }
 
 fn reserve_in(
-    records: &mut BTreeMap<String, RefundReservationRecord>,
+    database: &mut ReservationDatabase,
     request: ReserveRefundRequest,
 ) -> ReserveRefundResult {
     if !valid_workflow_id(&request.workflow_id)
@@ -1434,9 +1523,132 @@ fn reserve_in(
             .intents
             .iter()
             .any(|intent| intent.amount_minor != request.amount_minor)
+        || request.action_expires_at < request.now
+        || request.action_expires_at - request.now > HARD_MAX_AUTHORIZATION_LIFETIME_SECONDS
     {
         return ReserveRefundResult::Unavailable;
     }
+    retire_expired_in(database, request.now);
+    let result = reserve_record_in(&mut database.records, request);
+    if let ReserveRefundResult::Reserved { record, .. } = &result {
+        // Admission keeps room for every live record to reach its longest
+        // terminal form, so a later commit or outcome-unknown write never
+        // fails on the state-file bound.
+        match admission_fits_state_bound(database) {
+            Ok(true) => {}
+            Ok(false) | Err(_) => {
+                database.records.remove(record.workflow_id());
+                return ReserveRefundResult::Unavailable;
+            }
+        }
+    }
+    result
+}
+
+/// Removes reservation records that can never matter again: the exact action
+/// has expired, so it can no longer be authorized or entered, and the record
+/// holds capacity in no budget window at this or any later time. Live records
+/// (`reserved`, `entry-held`, `outcome-unknown`) are never retired, and neither
+/// is a record paired with a shared lifecycle record.
+fn retire_expired_in(database: &mut ReservationDatabase, now: u64) {
+    let lifecycle_records = &database.lifecycle_records;
+    database.records.retain(|workflow, record| {
+        lifecycle_records.contains_key(workflow) || !record_retirable(record, now)
+    });
+}
+
+fn record_retirable(record: &RefundReservationRecord, now: u64) -> bool {
+    // Admission bounds the action expiry by one maximum authorization
+    // lifetime after `created_at`.
+    let action_expired = record
+        .created_at
+        .checked_add(HARD_MAX_AUTHORIZATION_LIFETIME_SECONDS)
+        .is_some_and(|expiry| now > expiry);
+    if !action_expired {
+        return false;
+    }
+    match record.state {
+        RefundReservationState::Released | RefundReservationState::ReconciledReleased => true,
+        RefundReservationState::Committed | RefundReservationState::ReconciledCommitted => record
+            .intents
+            .iter()
+            .all(|intent| committed_window_elapsed(record, intent, now)),
+        RefundReservationState::Reserved
+        | RefundReservationState::EntryHeld
+        | RefundReservationState::OutcomeUnknown => false,
+    }
+}
+
+/// Whether committed usage can no longer fall inside any window of the
+/// intent's budget. A fixed window is over once it ends; a rolling window of
+/// duration `d` contains a commit made at `created_at` only up to
+/// `created_at + d - 1`.
+fn committed_window_elapsed(
+    record: &RefundReservationRecord,
+    intent: &RefundReservationIntent,
+    now: u64,
+) -> bool {
+    match intent.window.kind.as_str() {
+        "fixed" => now >= intent.window.ends_at,
+        "rolling" => {
+            // A window resolved near the epoch saturates at zero and no longer
+            // encodes its duration; fall back to the longest valid duration.
+            let duration = if intent.window.starts_at == 0 {
+                Some(MAX_WINDOW_SECONDS)
+            } else {
+                intent.window.ends_at.checked_sub(intent.window.starts_at)
+            };
+            duration
+                .and_then(|duration| record.created_at.checked_add(duration))
+                .is_some_and(|elapsed| now >= elapsed)
+        }
+        _ => false,
+    }
+}
+
+fn admission_fits_state_bound(database: &ReservationDatabase) -> Result<bool, ReservationError> {
+    admission_fits_byte_bound(database, MAX_STATE_BYTES)
+}
+
+fn admission_fits_byte_bound(
+    database: &ReservationDatabase,
+    maximum_bytes: usize,
+) -> Result<bool, ReservationError> {
+    #[derive(Serialize)]
+    struct StateView<'a> {
+        schema: &'a str,
+        records: &'a BTreeMap<String, RefundReservationRecord>,
+        lifecycle_records: &'a BTreeMap<String, Vec<u8>>,
+    }
+    let bytes = canonical_json(&StateView {
+        schema: STATE_SCHEMA,
+        records: &database.records,
+        lifecycle_records: &database.lifecycle_records,
+    })
+    .map_err(|_| ReservationError::Corrupt)?
+    .len();
+    let live = database
+        .records
+        .values()
+        .filter(|record| {
+            matches!(
+                record.state,
+                RefundReservationState::Reserved
+                    | RefundReservationState::EntryHeld
+                    | RefundReservationState::OutcomeUnknown
+            )
+        })
+        .count();
+    Ok(live
+        .checked_mul(MAX_RESERVATION_TERMINAL_GROWTH_BYTES)
+        .and_then(|headroom| headroom.checked_add(bytes))
+        .is_some_and(|projected| projected <= maximum_bytes))
+}
+
+fn reserve_record_in(
+    records: &mut BTreeMap<String, RefundReservationRecord>,
+    request: ReserveRefundRequest,
+) -> ReserveRefundResult {
     if let Some(existing) = records.get(&request.workflow_id) {
         return if is_exact_replay(existing, &request) {
             ReserveRefundResult::Replay(existing.clone())
@@ -1545,6 +1757,7 @@ fn record_holds_capacity_in(
     matches!(
         record.state,
         RefundReservationState::Reserved
+            | RefundReservationState::EntryHeld
             | RefundReservationState::OutcomeUnknown
             | RefundReservationState::Committed
             | RefundReservationState::ReconciledCommitted
@@ -1569,14 +1782,16 @@ fn commit_in(
     }
     if !matches!(
         record.state,
-        RefundReservationState::Reserved | RefundReservationState::OutcomeUnknown
+        RefundReservationState::Reserved
+            | RefundReservationState::EntryHeld
+            | RefundReservationState::OutcomeUnknown
     ) {
         return Err(ReservationError::InvalidTransition);
     }
     record.state = RefundReservationState::Committed;
     record.refund_id = Some(refund_id.clone());
     record.result_digest = Some(result_digest.clone());
-    record.updated_at = now;
+    record.updated_at = now.max(record.updated_at);
     Ok(record.clone())
 }
 
@@ -1593,7 +1808,7 @@ fn transition_in(
     let valid = matches!(
         (record.state, next),
         (
-            RefundReservationState::Reserved,
+            RefundReservationState::Reserved | RefundReservationState::EntryHeld,
             RefundReservationState::Released | RefundReservationState::OutcomeUnknown
         )
     );
@@ -1601,8 +1816,38 @@ fn transition_in(
         return Err(ReservationError::InvalidTransition);
     }
     record.state = next;
-    record.updated_at = now;
+    record.updated_at = now.max(record.updated_at);
     Ok(record.clone())
+}
+
+fn hold_for_provider_entry_in(
+    records: &mut BTreeMap<String, RefundReservationRecord>,
+    lease: &RefundReservationLease,
+    now: u64,
+) -> Result<ProviderEntryHold, ReservationError> {
+    // Only retirement removes a record, and it retires only records that hold
+    // no capacity, so a sealed command whose reservation is gone is withdrawn.
+    let Some(record) = records.get_mut(&lease.workflow_id) else {
+        return Ok(ProviderEntryHold::Withdrawn);
+    };
+    if record.reservation_id != lease.reservation_id || record.action_digest != lease.action_digest
+    {
+        return Err(ReservationError::Conflict);
+    }
+    match record.state {
+        RefundReservationState::Reserved => {
+            record.state = RefundReservationState::EntryHeld;
+            record.updated_at = now.max(record.updated_at);
+            Ok(ProviderEntryHold::Held(record.clone()))
+        }
+        RefundReservationState::EntryHeld => Ok(ProviderEntryHold::Held(record.clone())),
+        RefundReservationState::Released | RefundReservationState::ReconciledReleased => {
+            Ok(ProviderEntryHold::Withdrawn)
+        }
+        RefundReservationState::Committed
+        | RefundReservationState::ReconciledCommitted
+        | RefundReservationState::OutcomeUnknown => Err(ReservationError::InvalidTransition),
+    }
 }
 
 fn reconcile_in(
@@ -1637,7 +1882,9 @@ fn reconcile_in(
     }
     if !matches!(
         record.state,
-        RefundReservationState::Reserved | RefundReservationState::OutcomeUnknown
+        RefundReservationState::Reserved
+            | RefundReservationState::EntryHeld
+            | RefundReservationState::OutcomeUnknown
     ) {
         return Err(ReservationError::InvalidTransition);
     }
@@ -1654,7 +1901,7 @@ fn reconcile_in(
             record.state = RefundReservationState::ReconciledReleased;
         }
     }
-    record.updated_at = now;
+    record.updated_at = now.max(record.updated_at);
     Ok(record.clone())
 }
 
@@ -1782,6 +2029,7 @@ mod tests {
             amount_minor: amount,
             intents: decision.eligibility.unwrap().reservations,
             idempotency_key_digest: sha256(action.idempotency_key().as_bytes()),
+            action_expires_at: action.expires_at(),
             now: NOW,
         }
     }
@@ -2078,15 +2326,17 @@ mod tests {
     fn obsolete_prelaunch_state_is_rejected_instead_of_migrated() {
         let temporary = tempfile::tempdir().unwrap();
         let path = temporary.path().join("bounded-reservations.json");
-        fs::write(
-            &path,
-            br#"{"records":{},"schema":"auths.stripe.bounded-reservation-state/1"}"#,
-        )
-        .unwrap();
-        assert!(matches!(
-            PersistentRefundReservationStore::open(&path),
-            Err(ReservationError::Corrupt)
-        ));
+        for obsolete in [
+            br#"{"records":{},"schema":"auths.stripe.bounded-reservation-state/1"}"#.as_slice(),
+            br#"{"lifecycle_records":{},"records":{},"schema":"auths.stripe.bounded-reservation-state/2"}"#
+                .as_slice(),
+        ] {
+            fs::write(&path, obsolete).unwrap();
+            assert!(matches!(
+                PersistentRefundReservationStore::open(&path),
+                Err(ReservationError::Corrupt)
+            ));
+        }
     }
 
     #[test]
@@ -2178,5 +2428,485 @@ mod tests {
             .snapshot(&policy, evidence.stripe_account_id(), NOW + 3_600)
             .unwrap();
         assert_eq!(unresolved.usages[0].outcome_unknown_minor, 1_000);
+    }
+
+    fn default_policy() -> StripeBoundedRefundPolicyV1 {
+        bounded_policy(
+            &evidence(2_000, 0),
+            2_000,
+            10_000,
+            RefundDenominator::OriginalChargeAmount,
+            1_000,
+        )
+    }
+
+    fn rolling_policy(duration_seconds: u64, limit_minor: u64) -> StripeBoundedRefundPolicyV1 {
+        let evidence = evidence(2_000, 0);
+        let mut input = crate::test_support::bounded_policy_input(&evidence);
+        input.aggregate_budgets = vec![
+            crate::bounded::AggregateRefundBudget::new(
+                "support-rolling",
+                evidence.currency().clone(),
+                limit_minor,
+                crate::bounded::RefundBudgetWindow::Rolling { duration_seconds },
+            )
+            .unwrap(),
+        ];
+        StripeBoundedRefundPolicyV1::new(input).unwrap()
+    }
+
+    fn reserve_lease(
+        store: &dyn RefundReservationStore,
+        workflow: &str,
+        amount: u64,
+    ) -> (RefundReservationLease, RefundReservationRecord) {
+        let ReserveRefundResult::Reserved { lease, record } =
+            store.reserve(request(store, workflow, amount))
+        else {
+            panic!("reservation expected")
+        };
+        (lease, record)
+    }
+
+    #[test]
+    fn entry_hold_claims_a_reserved_reservation_and_never_a_released_one() {
+        let store = InMemoryRefundReservationStore::default();
+        let policy = default_policy();
+        let account = evidence(2_000, 0).stripe_account_id().clone();
+
+        let (held_lease, reserved) = reserve_lease(&store, "bounded-entry-held-01", 400);
+        let ProviderEntryHold::Held(held) =
+            store.hold_for_provider_entry(&held_lease, NOW + 1).unwrap()
+        else {
+            panic!("a reserved reservation must be held")
+        };
+        assert_eq!(held.state(), RefundReservationState::EntryHeld);
+        assert_eq!(held.reservation_id(), reserved.reservation_id());
+        // A repeated attempt for the same sealed command keeps its hold.
+        assert!(matches!(
+            store.hold_for_provider_entry(&held_lease, NOW + 2).unwrap(),
+            ProviderEntryHold::Held(_)
+        ));
+        let snapshot = store.snapshot(&policy, &account, NOW).unwrap();
+        assert_eq!(snapshot.usages[0].reserved_minor, 400);
+
+        let (released_lease, _) = reserve_lease(&store, "bounded-entry-held-02", 400);
+        store.release(&released_lease, NOW + 1).unwrap();
+        assert!(matches!(
+            store
+                .hold_for_provider_entry(&released_lease, NOW + 2)
+                .unwrap(),
+            ProviderEntryHold::Withdrawn
+        ));
+        assert_eq!(
+            store.get("bounded-entry-held-02").unwrap().unwrap().state(),
+            RefundReservationState::Released
+        );
+
+        let missing = RefundReservationLease {
+            workflow_id: "bounded-entry-held-retired".into(),
+            reservation_id: reserved.reservation_id().clone(),
+            action_digest: reserved.action_digest().clone(),
+        };
+        assert!(matches!(
+            store.hold_for_provider_entry(&missing, NOW + 2).unwrap(),
+            ProviderEntryHold::Withdrawn
+        ));
+
+        // An entry-held reservation still reaches every provider outcome.
+        store
+            .commit(
+                &held_lease,
+                &RefundId::parse("re_authsdemo00000777").unwrap(),
+                &sha256(b"entry-held-result"),
+                NOW + 3,
+            )
+            .unwrap();
+        let (unknown_lease, _) = reserve_lease(&store, "bounded-entry-held-03", 100);
+        store.hold_for_provider_entry(&unknown_lease, NOW).unwrap();
+        store.mark_outcome_unknown(&unknown_lease, NOW + 1).unwrap();
+        assert_eq!(
+            store.hold_for_provider_entry(&unknown_lease, NOW + 2).err(),
+            Some(ReservationError::InvalidTransition)
+        );
+        let (pre_entry_lease, _) = reserve_lease(&store, "bounded-entry-held-04", 100);
+        store
+            .hold_for_provider_entry(&pre_entry_lease, NOW)
+            .unwrap();
+        assert_eq!(
+            store.release(&pre_entry_lease, NOW + 1).unwrap().state(),
+            RefundReservationState::Released
+        );
+    }
+
+    #[test]
+    fn entry_hold_is_durable_across_restart() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("bounded-reservations.json");
+        let lease = {
+            let store = PersistentRefundReservationStore::open(&path).unwrap();
+            let (lease, _) = reserve_lease(&store, "bounded-entry-held-durable", 500);
+            store.hold_for_provider_entry(&lease, NOW + 1).unwrap();
+            lease
+        };
+        let reopened = PersistentRefundReservationStore::open(&path).unwrap();
+        assert_eq!(
+            reopened
+                .get("bounded-entry-held-durable")
+                .unwrap()
+                .unwrap()
+                .state(),
+            RefundReservationState::EntryHeld
+        );
+        let reconciled = reopened
+            .reconcile(
+                lease.workflow_id(),
+                &lease.action_digest,
+                ReconciledRefundOutcome::Released,
+                NOW + 2,
+            )
+            .unwrap();
+        assert_eq!(
+            reconciled.state(),
+            RefundReservationState::ReconciledReleased
+        );
+    }
+
+    #[test]
+    fn transition_with_an_earlier_clock_keeps_the_store_readable() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("bounded-reservations.json");
+        {
+            let store = PersistentRefundReservationStore::open(&path).unwrap();
+            let (lease, record) = reserve_lease(&store, "bounded-clock-step-01", 500);
+            assert_eq!(record.created_at(), NOW);
+            // The wall clock stepped back behind the reservation time.
+            let committed = store
+                .commit(
+                    &lease,
+                    &RefundId::parse("re_authsdemo00000555").unwrap(),
+                    &sha256(b"clock-step-result"),
+                    NOW - 100,
+                )
+                .unwrap();
+            assert_eq!(committed.updated_at(), NOW);
+
+            let (release_lease, _) = reserve_lease(&store, "bounded-clock-step-02", 100);
+            store
+                .hold_for_provider_entry(&release_lease, NOW - 50)
+                .unwrap();
+            assert_eq!(
+                store
+                    .release(&release_lease, NOW - 60)
+                    .unwrap()
+                    .updated_at(),
+                NOW
+            );
+            let (unknown_lease, unknown) = reserve_lease(&store, "bounded-clock-step-03", 100);
+            store
+                .mark_outcome_unknown(&unknown_lease, NOW - 10)
+                .unwrap();
+            let reconciled = store
+                .reconcile(
+                    "bounded-clock-step-03",
+                    unknown.action_digest(),
+                    ReconciledRefundOutcome::Released,
+                    NOW - 20,
+                )
+                .unwrap();
+            assert_eq!(reconciled.updated_at(), NOW);
+        }
+        let reopened = PersistentRefundReservationStore::open(&path).unwrap();
+        assert_eq!(
+            reopened
+                .get("bounded-clock-step-01")
+                .unwrap()
+                .unwrap()
+                .state(),
+            RefundReservationState::Committed
+        );
+    }
+
+    #[test]
+    fn persist_refuses_state_that_the_loader_would_reject() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("bounded-reservations.json");
+        let store = InMemoryRefundReservationStore::default();
+        let (_, mut record) = reserve_lease(&store, "bounded-invalid-01", 500);
+        record.updated_at = record.created_at - 1;
+        let mut database = ReservationDatabase::empty();
+        database
+            .records
+            .insert(record.workflow_id().to_owned(), record);
+        assert_eq!(
+            persist_database(&path, &database),
+            Err(ReservationError::Corrupt)
+        );
+        assert!(!path.exists());
+    }
+
+    fn released_record_for(
+        workflow: &str,
+        template: &RefundReservationRecord,
+    ) -> RefundReservationRecord {
+        let mut record = template.clone();
+        record.workflow_id = workflow.into();
+        record.state = RefundReservationState::Released;
+        let identity = ReservationIdentity {
+            domain: RESERVATION_SCHEMA,
+            policy_digest: &record.policy_digest,
+            action_digest: &record.action_digest,
+            workflow_id: &record.workflow_id,
+            intents: record
+                .intents
+                .iter()
+                .map(|intent| ReservationIdentityIntent {
+                    budget_id: &intent.budget_id,
+                    currency: &intent.currency,
+                    window: &intent.window,
+                    limit_minor: intent.limit_minor,
+                    amount_minor: intent.amount_minor,
+                })
+                .collect(),
+        };
+        record.reservation_id = sha256(&canonical_json(&identity).unwrap());
+        assert!(valid_record(&record));
+        record
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn full_ledger_admits_new_refunds_once_earlier_actions_expire() {
+        let temporary = tempfile::tempdir().unwrap();
+        let path = temporary.path().join("bounded-reservations.json");
+        let policy = default_policy();
+        let template = {
+            let scratch = InMemoryRefundReservationStore::default();
+            reserve_lease(&scratch, "bounded-ledger-template", 1).1
+        };
+        let mut database = ReservationDatabase::empty();
+        for index in 0..MAX_RECORDS {
+            let workflow = format!("bounded-ledger-{index:05}");
+            let record = released_record_for(&workflow, &template);
+            database.records.insert(workflow, record);
+        }
+        persist_database(&path, &database).unwrap();
+        drop(database);
+
+        let store = PersistentRefundReservationStore::open(&path).unwrap();
+        let mut fresh = request(&store, "bounded-ledger-fresh-01", 500);
+        fresh.now = NOW + 60;
+        assert!(matches!(
+            store.reserve_checked(&policy, fresh),
+            ReserveRefundResult::Unavailable
+        ));
+
+        // Every earlier record is released and its action has expired.
+        let evidence = evidence(2_000, 0);
+        let exact = configuration(2_000);
+        let later = NOW + HARD_MAX_AUTHORIZATION_LIFETIME_SECONDS + 1;
+        let later_evidence =
+            crate::types::RefundEvidenceV1::new(crate::types::RefundEvidenceInput {
+                stripe_account_id: evidence.stripe_account_id().clone(),
+                stripe_api_version: evidence.stripe_api_version().into(),
+                livemode: false,
+                charge_id: evidence.charge_id().clone(),
+                payment_intent_id: evidence.payment_intent_id().cloned(),
+                connect_account_id: None,
+                currency: evidence.currency().clone(),
+                charge_amount_minor: 2_000,
+                captured_amount_minor: 2_000,
+                amount_refunded_minor: 0,
+                paid: true,
+                captured: true,
+                charge_refunded: false,
+                disputed: false,
+                observed_at: later - 5,
+                response_commitment: sha256(b"later normalized Stripe response"),
+            })
+            .unwrap();
+        let later_policy = {
+            let mut input = crate::test_support::bounded_policy_input(&later_evidence);
+            input.valid_from = NOW - 60;
+            input.expires_at = later + 3_600;
+            input.aggregate_budgets = vec![
+                crate::bounded::AggregateRefundBudget::new(
+                    "support-daily",
+                    later_evidence.currency().clone(),
+                    1_000,
+                    crate::bounded::RefundBudgetWindow::Fixed {
+                        starts_at: NOW - 3_600,
+                        ends_at: later + 3_600,
+                    },
+                )
+                .unwrap(),
+            ];
+            StripeBoundedRefundPolicyV1::new(input).unwrap()
+        };
+        let bounded = bounded_configuration(&later_policy);
+        let action = crate::test_support::bounded_action(
+            &exact,
+            &later_policy,
+            &later_evidence,
+            500,
+            "bounded-ledger-fresh-02",
+        );
+        let snapshot = store
+            .snapshot(&later_policy, later_evidence.stripe_account_id(), later)
+            .unwrap();
+        let decision = evaluate_bounded_refund(&BoundedEvaluationContext {
+            policy: &later_policy,
+            action: &action,
+            evidence: &later_evidence,
+            aggregate_snapshot: &snapshot,
+            required_exact_configuration: &exact,
+            executed_exact_configuration: &exact,
+            required_bounded_configuration: &bounded,
+            executed_bounded_configuration: &bounded,
+            request_audience: exact.executor_audience(),
+            now: later,
+        });
+        let admitted = store.reserve_checked(
+            &later_policy,
+            ReserveRefundRequest {
+                workflow_id: "bounded-ledger-fresh-02".into(),
+                action_digest: action.digest().unwrap(),
+                decision_receipt_digest: sha256(b"bounded-decision-receipt"),
+                policy_digest: later_policy.digest().unwrap(),
+                evaluator_semantic_id: later_policy.evaluator_semantic_id().into(),
+                evaluator_semantic_version: later_policy.evaluator_semantic_version(),
+                evidence_digest: later_evidence.digest().unwrap(),
+                required_configuration_digest: bounded.digest().unwrap(),
+                executed_configuration_digest: bounded.digest().unwrap(),
+                stripe_account_id: later_evidence.stripe_account_id().clone(),
+                currency: later_evidence.currency().clone(),
+                amount_minor: 500,
+                intents: decision.eligibility.unwrap().reservations,
+                idempotency_key_digest: sha256(action.idempotency_key().as_bytes()),
+                action_expires_at: action.expires_at(),
+                now: later,
+            },
+        );
+        assert!(matches!(admitted, ReserveRefundResult::Reserved { .. }));
+        assert!(store.get("bounded-ledger-00000").unwrap().is_none());
+        assert_eq!(
+            store
+                .get("bounded-ledger-fresh-02")
+                .unwrap()
+                .unwrap()
+                .state(),
+            RefundReservationState::Reserved
+        );
+    }
+
+    #[test]
+    fn live_and_in_window_records_are_never_retired() {
+        let policy = rolling_policy(7_200, 10_000);
+        let evidence = evidence(2_000, 0);
+        let exact = configuration(2_000);
+        let store = InMemoryRefundReservationStore::default();
+        let reserve = |workflow: &str| {
+            let ReserveRefundResult::Reserved { lease, record } = store.reserve(
+                request_for_policy(&store, workflow, 100, &evidence, &exact, &policy),
+            ) else {
+                panic!("reservation expected")
+            };
+            (lease, record)
+        };
+        let (committed, committed_record) = reserve("bounded-retire-committed");
+        store
+            .commit(
+                &committed,
+                &RefundId::parse("re_authsdemo00000444").unwrap(),
+                &canonical_digest(&committed_record).unwrap(),
+                NOW,
+            )
+            .unwrap();
+        let _reserved = reserve("bounded-retire-reserved");
+        let (held, _) = reserve("bounded-retire-held");
+        store.hold_for_provider_entry(&held, NOW).unwrap();
+        let (unknown, _) = reserve("bounded-retire-unknown");
+        store.mark_outcome_unknown(&unknown, NOW).unwrap();
+        let (released, _) = reserve("bounded-retire-released");
+        store.release(&released, NOW).unwrap();
+
+        let retire_at = |now: u64| {
+            let mut database = store.database.lock().unwrap();
+            retire_expired_in(&mut database, now);
+        };
+        // The actions have expired, but the commit is still inside its
+        // rolling window, so it still holds capacity.
+        retire_at(NOW + HARD_MAX_AUTHORIZATION_LIFETIME_SECONDS + 1);
+        assert!(store.get("bounded-retire-released").unwrap().is_none());
+        assert!(store.get("bounded-retire-committed").unwrap().is_some());
+        let usage = store
+            .snapshot(
+                &policy,
+                evidence.stripe_account_id(),
+                NOW + HARD_MAX_AUTHORIZATION_LIFETIME_SECONDS + 1,
+            )
+            .unwrap();
+        assert_eq!(usage.usages[0].committed_minor, 100);
+
+        retire_at(NOW + 7_200);
+        assert!(store.get("bounded-retire-committed").unwrap().is_none());
+        retire_at(NOW + 365 * 24 * 3_600);
+        for live in [
+            "bounded-retire-reserved",
+            "bounded-retire-held",
+            "bounded-retire-unknown",
+        ] {
+            assert!(store.get(live).unwrap().is_some(), "{live} was retired");
+        }
+    }
+
+    #[test]
+    fn reservation_admission_rejects_an_action_outside_its_lifetime() {
+        let store = InMemoryRefundReservationStore::default();
+        let mut expired = request(&store, "bounded-expired-action", 100);
+        expired.action_expires_at = expired.now - 1;
+        assert!(matches!(
+            store.reserve(expired),
+            ReserveRefundResult::Unavailable
+        ));
+        let mut too_long = request(&store, "bounded-long-action", 100);
+        too_long.action_expires_at = too_long.now + HARD_MAX_AUTHORIZATION_LIFETIME_SECONDS + 1;
+        assert!(matches!(
+            store.reserve(too_long),
+            ReserveRefundResult::Unavailable
+        ));
+    }
+
+    #[test]
+    fn admission_keeps_room_for_every_live_record_to_reach_its_terminal_form() {
+        let store = InMemoryRefundReservationStore::default();
+        let (_, reserved) = reserve_lease(&store, "bounded-growth-01", 100);
+        let mut terminal = reserved.clone();
+        terminal.state = RefundReservationState::ReconciledCommitted;
+        terminal.refund_id = Some(RefundId::parse(format!("re_{}", "A".repeat(93))).unwrap());
+        terminal.result_digest = Some(sha256(b"longest terminal result"));
+        let growth =
+            canonical_json(&terminal).unwrap().len() - canonical_json(&reserved).unwrap().len();
+        assert!(growth <= MAX_RESERVATION_TERMINAL_GROWTH_BYTES);
+
+        let database = store.database.lock().unwrap().clone();
+        let bytes = canonical_json(&ReservationStateFile {
+            schema: STATE_SCHEMA.into(),
+            records: database.records.clone(),
+            lifecycle_records: database.lifecycle_records.clone(),
+        })
+        .unwrap()
+        .len();
+        assert!(
+            admission_fits_byte_bound(&database, bytes + MAX_RESERVATION_TERMINAL_GROWTH_BYTES)
+                .unwrap()
+        );
+        assert!(
+            !admission_fits_byte_bound(
+                &database,
+                bytes + MAX_RESERVATION_TERMINAL_GROWTH_BYTES - 1
+            )
+            .unwrap()
+        );
     }
 }

@@ -1647,7 +1647,7 @@ security_state = ["durable-provider-result", "journal-record", "profile-owned-st
 [packages.auths-profile-runtime.claims]
 runtime-enforcement-boundary = [
   "product/runtime/auths-node/src/journal_executor.rs#provider_result_and_observation_are_distinct_durable_checkpoints",
-  "product/runtime/auths-node/src/journal_executor.rs#credential_failure_releases_profile_state_before_concluding_pre_entry",
+  "product/runtime/auths-node/src/journal_executor.rs#credential_failure_concludes_pre_entry_before_releasing_profile_state",
   "product/runtime/auths-node/src/journal_executor.rs#restart_after_provider_entry_reconciles_without_provider_retry",
 ]
 
