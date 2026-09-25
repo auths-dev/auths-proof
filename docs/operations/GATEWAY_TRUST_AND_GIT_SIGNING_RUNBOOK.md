@@ -34,8 +34,16 @@ Install and every `serve` refuse an overlap with one stable code:
 | `gateway.trust.observer-is-root` | An observer anchor, or the gateway's observer key, is a trust anchor |
 | `gateway.trust.observer-not-anchored` | The gateway's observer key is not an observer anchor of the trust |
 
+These checks compare principal identifiers exactly. They refuse the same
+identifier in two roles; they cannot detect one key anchored under two
+principal methods (for example `did:key` and `raw-key-v1`), and
+`--operator-principal` is a declaration the gateway does not authenticate.
+Anchor each key under one principal method, and keep the custody of the
+three principals separate.
+
 The kernel separately refuses, per proof, an observer that appears in the
-proof's authority chain (`observer-in-authority-chain`).
+proof's authority chain (`observer-in-authority-chain`), by the same exact
+identifier comparison.
 
 ### Root M-of-N
 

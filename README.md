@@ -23,22 +23,30 @@ async with auths.connect() as session:
 ```
 
 The operator starts `auths agent serve`, maps the observed workload to sealed
-authority, and provisions the non-secret connection alias separately. Real
-Stripe, PostgreSQL, and OpenTofu routes remain unavailable until their exact
-live-provider qualification records are imported; the disposable testkit is
-not production qualification.
+authority, and provisions the non-secret connection alias separately. Through
+the local agent, real Stripe, PostgreSQL, and OpenTofu routes remain
+unavailable until their exact live-provider qualification records are
+imported; the disposable testkit is not production qualification. The
+credential-isolated gateway (`auths-gateway`) is a separate path with no
+provider-effect qualification: it calls the exact recipe the operator
+installs.
 
 Start with the [production SDK quickstart](docs/product/PRODUCTION_SDK_QUICKSTART.md),
 then use the [local-agent operator guide](docs/product/LOCAL_AGENT_SDK_QUICKSTART.md)
 or [profile authoring guide](docs/product/PROFILE_AUTHORING.md). The offline
 proof kernel described below is the verification subsystem behind that SDK.
 
-The workspace contains only the target V1 model, deterministic codec,
+The core layer (`core/`) contains the target V1 model, deterministic codec,
 effect-free ports and registries, mandatory Ed25519 and P-256/SHA-256 suites,
 authority attenuation, authorization-plan composition, assurance, status,
 staged verification, keyless authoring, raw-key, `did:key`, `did:keri`,
 bundled `did:web`, SPIFFE/X.509, WebAuthn, and HSM-attested methods, and the
-canonical language-neutral corpus.
+canonical language-neutral corpus. It also holds the OIDC-workload and
+Sigstore-keyless adapters and the RSA PKCS#1 v1.5 SHA-256 suite, which the
+Git-signing verifier registers; they are outside the built-in set (see
+`core/spec/v1/registry.md`). The `exchange/`, `product/`, `bindings/`, and
+`demos/` layers hold transports, profiles and runtimes, language bindings,
+and demos.
 
 The sealed verification pipeline is:
 
@@ -121,9 +129,11 @@ Run the full native backend and browser workbench with:
 cargo run -p auths-identity-iroh-demo
 ```
 
-Then open `http://localhost:8080`. Architecture CI pins both the neutral
-identity port and Iroh transport to zero workspace dependencies, while each
-optional identity adapter may depend only on `auths-identity`.
+Then open `http://localhost:8080`. Architecture CI pins the neutral identity
+port to zero workspace dependencies and the Iroh transport to
+`auths-byte-channel` only. The optional identity adapters may depend only on
+`auths-identity`, `auths-identity-raw-key`, `auths-model`,
+`auths-raw-key-core`, and `auths-signature-core`.
 
 Focused validation:
 

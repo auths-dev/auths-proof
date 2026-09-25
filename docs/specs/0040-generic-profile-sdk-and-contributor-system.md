@@ -2,7 +2,9 @@
 
 ## Status
 
-Target-state specification. Not yet implemented.
+Target-state specification, partly implemented on `main`: the local
+agent, SDK sessions, and generated profile clients. No provider effect
+profile is qualified.
 
 This document is intentionally self-contained. A new implementation session
 with no conversation history must be able to implement the target by reading

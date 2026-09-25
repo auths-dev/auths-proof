@@ -3,8 +3,8 @@
 - **Status:** Epic steps 1–4 implemented: kernel, fixtures, and bindings in
   #133, and the gateway observer. The client observation requests are in
   #134. Step 5 (live) is open. §15 (SDK attachment and the Rust–Lean link)
-  is implemented in draft PR #144, with the readings in §15.4; its
-  hosted gate is that PR's CI. §17 (per-extension attenuation) is
+  is implemented and merged in PR #144, with the readings in §15.4.
+  §17 (per-extension attenuation) is
   implemented (AP-SPEC-057 Epic 5, step 1, PR #141) for the
   `exact-marker-v1` and `observation-requirement-v1` laws, with the
   readings in §18; the `bounded-policy-commitment-v1` law is implemented
