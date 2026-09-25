@@ -161,6 +161,35 @@ checks every result, including exactly two Stripe calls, and prints timings.
 CI runs it from the packed wheel (`.github/workflows/sdk-recipes.yml`,
 job `stripe-refund-journey`).
 
+## From npm
+
+The same journey runs from the npm package, `@auths-dev/sdk`, against the
+same recipe, gateway, and Stripe double. `typescript/refunds.ts` and
+`typescript/journey.ts` are the TypeScript `refunds.py` and `journey.py`, and
+`generated.ts` is the command contract the package's `auths-profile generate`
+wrote from the same `profile.toml`. You need Node 20.6+ and Rust. From
+`typescript/`:
+
+```sh
+rustup target add wasm32-unknown-unknown
+cargo install wasm-pack --version 0.15.0 --locked
+npm --prefix ../../../bindings/typescript ci
+npm --prefix ../../../bindings/typescript run build:wasm
+npm --prefix ../../../bindings/typescript run build
+npm pack ../../../bindings/typescript && mv auths-dev-sdk-*.tgz auths-dev-sdk.tgz
+npm install && npm run build
+cargo install --locked --path ../../../product/runtime/auths-gateway --features loopback-provider
+node build/journey.js --gateway "$(command -v auths-gateway)"
+```
+
+The last command took 1.6 s on an Apple-silicon laptop once the package and
+gateway were built. Each `python refunds.py …` step above is
+`node build/refunds.js …` with the same flags, and `journey.js` takes the same
+`--stripe-test-mode` and `--payment-intent` options as `journey.py`. The
+package installs from the tarball you packed, so this directory keeps no
+lockfile. CI runs it from the packed tarball as job
+`stripe-refund-journey-npm`.
+
 ## Real Stripe, test mode
 
 The same journey runs against Stripe's test mode with your own test key.
