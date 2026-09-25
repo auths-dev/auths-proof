@@ -60,7 +60,10 @@ This writes development keys for `root`, `manager-a`, `manager-b`,
   `--ceiling`, `--max-count`, and `--window-seconds` change it.
 
 It prints `recipe_digest` and `trusted_context_sha256`. Keep both.
-`recipe.json` is the gateway recipe for `POST /v1/refunds`, and
+`recipe.json` is the gateway recipe for `POST /v1/refunds`. It sets
+`write.idempotency_key`, so the gateway sends each refund with an
+`Idempotency-Key` it derives from the namespace and operation ID
+(`auths-gateway review` shows `"sends_idempotency_key": true`).
 `profile.toml` generated `generated.py` and `profile.lock.json` with
 `auths-profile generate`.
 
@@ -157,16 +160,20 @@ python journey.py --gateway "$(command -v auths-gateway)"
 ```
 
 This runs steps 3–9, the three refusals, and the four tampering cases,
-checks every result, including exactly two Stripe calls, and prints timings.
-CI runs it from the packed wheel (`.github/workflows/sdk-recipes.yml`,
-job `stripe-refund-journey`).
+checks every result, including exactly two Stripe calls and the
+`Idempotency-Key` each one carried, and prints timings. It then wipes the
+gateway's attempt store, as restoring an older backup would, and resubmits
+refund 1's approved proof. With the claim gone the gateway sends it again,
+with the same key, and the double answers with the first refund: three calls,
+two refunds. CI runs it from the packed wheel
+(`.github/workflows/sdk-recipes.yml`, job `stripe-refund-journey`).
 
 ## Real Stripe, test mode
 
 The same journey runs against Stripe's test mode with your own test key.
 Automated runs here never call Stripe; run this yourself. It makes exactly
 two refunds (15.00 and 40.00) against one PaymentIntent, and refuses live
-keys.
+keys. The state-loss resubmission runs only against the double.
 
 ```sh
 export STRIPE_TEST_SECRET_KEY=sk_test_...        # your own test-mode key
@@ -202,3 +209,9 @@ on stdin.
   and a digest. The response body is not in the bundle, and the gateway does
   not read the refund back, so the audit shows what the gateway recorded,
   not what Stripe settled.
+- The gateway's attempt store stops a second submission of the same
+  operation ID: at most one Stripe call per operation ID on a single host,
+  and an `unknown` outcome needs reconciliation. The `Idempotency-Key`
+  helps only if that store is lost and the refund is submitted again, and
+  then only while Stripe still keeps the key. `journey.py` shows this
+  against the double, not against Stripe.
