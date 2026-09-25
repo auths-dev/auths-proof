@@ -891,6 +891,7 @@ mod tests {
         reads: AtomicUsize,
         fields: Mutex<Map<String, Value>>,
         last_read: Mutex<Vec<u8>>,
+        idempotency_keys: Mutex<Vec<Option<String>>>,
     }
 
     impl CountingProvider {
@@ -904,6 +905,7 @@ mod tests {
                 reads: AtomicUsize::new(0),
                 fields: Mutex::new(fields),
                 last_read: Mutex::new(Vec::new()),
+                idempotency_keys: Mutex::new(Vec::new()),
             }
         }
 
@@ -922,6 +924,10 @@ mod tests {
             request: &ClosedProviderRequest,
         ) -> Result<WriteTransportOutcome, GatewayTransportError> {
             self.writes.fetch_add(1, Ordering::SeqCst);
+            self.idempotency_keys
+                .lock()
+                .expect("keys")
+                .push(request.idempotency_key().map(str::to_owned));
             if matches!(
                 self.delivery,
                 Delivery::Respond | Delivery::TimeoutAfterApplying
@@ -1321,6 +1327,55 @@ mod tests {
             "no bytes or locator reach the application"
         );
         assert_eq!((provider.writes(), provider.reads()), (1, 1));
+    }
+
+    /// While the attempt store is intact, the claim alone stops a fresh
+    /// challenge for the same logical operation. Once the store is lost
+    /// (wiped, or restored from an older backup) the claim is gone and the
+    /// operation enters the provider again; only the repeated derived key
+    /// lets a provider that honors it de-duplicate that second entry.
+    #[tokio::test]
+    async fn a_lost_claim_resends_the_same_idempotency_key() {
+        let mut source: Value = serde_json::from_slice(include_bytes!(
+            "../../../../bindings/fixtures/gateway/airtable/recipe.json"
+        ))
+        .expect("source");
+        source["write"]["idempotency_key"] = json!(true);
+        let recipe = CompiledRecipe::compile(
+            &serde_json::to_vec(&source).expect("source"),
+            include_bytes!("../../../../bindings/fixtures/gateway/airtable/profile.lock.json"),
+        )
+        .expect("recipe");
+        let key = crate::idempotency_key(
+            recipe.namespace(),
+            &LogicalOperationId::parse("run-1").expect("operation"),
+        );
+        let intact = Harness {
+            recipe: recipe.clone(),
+            store: TestAttempts::open(Backend::File),
+        };
+        let provider = CountingProvider::new(Delivery::Respond, Reading::Faithful);
+        let original = intact.airtable(ORIGINAL, "Approved");
+        assert!(matches!(
+            intact.submit(&original, &provider).await,
+            GatewaySubmitResult::ObservedByProvider { .. }
+        ));
+        let fresh = intact.airtable(FRESH, "Approved");
+        assert_eq!(intact.submit(&fresh, &provider).await, replay_refused());
+        assert_eq!(provider.writes(), 1, "the intact claim stops the repeat");
+        let lost = Harness {
+            recipe,
+            store: TestAttempts::open(Backend::File),
+        };
+        assert!(matches!(
+            lost.submit(&fresh, &provider).await,
+            GatewaySubmitResult::ObservedByProvider { .. }
+        ));
+        assert_eq!(provider.writes(), 2, "a lost claim no longer stops it");
+        assert_eq!(
+            *provider.idempotency_keys.lock().expect("keys"),
+            [Some(key.clone()), Some(key)]
+        );
     }
 
     // One shared conformance suite for every attempt store. The file store
