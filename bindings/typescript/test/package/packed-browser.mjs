@@ -163,7 +163,7 @@ try {
   }
   const coldStartTimingsMs = coldStartSamples.map((sample) => sample.coldStartMs);
   // The median of independent cold starts resists the single slow outlier that a mean
-  // or a lone sample cannot, without loosening the per-sample budget itself.
+  // or a lone sample cannot, and is held to the same budget a lone sample was.
   const sortedColdStartTimingsMs = [...coldStartTimingsMs].sort((left, right) => left - right);
   const workerColdStartMedianMs = sortedColdStartTimingsMs[Math.floor(sortedColdStartTimingsMs.length / 2)];
   outcome.worker = coldStartSamples[0].kind;
