@@ -51,7 +51,6 @@ Fault scenarios        42 / 42 passed
 SDK matrix             TypeScript and Python / passed
 Independent review     complete / 0 open blockers
 Known limitations      7 / read before use
-Verify evidence        cargo xtask assurance verify bundle.json
 ```
 
 The summary links to the threat model, scope, exact configuration, profile
@@ -100,15 +99,9 @@ AssuranceManifestV1
   signature
 ```
 
-Provide:
-
-```text
-cargo xtask assurance candidate
-cargo xtask assurance record <evidence>
-cargo xtask assurance sign <manifest>
-cargo xtask assurance verify <manifest>
-cargo xtask assurance summarize <manifest>
-```
+The `cargo xtask assurance` commands that once implemented this were
+removed from xtask; `release/assurance/README.md` records the current
+promotion inputs.
 
 The verifier must work offline from checked-in schemas and public verification
 material. It validates artifact binding, manifest canonicalization, signatures,

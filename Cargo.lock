@@ -1924,7 +1924,6 @@ dependencies = [
  "auths-connections",
  "auths-lifecycle",
  "auths-model",
- "auths-proof-exchange-model",
  "auths-receipts",
  "auths-runtime",
  "base64ct",

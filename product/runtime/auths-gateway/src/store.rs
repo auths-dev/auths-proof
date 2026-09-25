@@ -4,8 +4,8 @@
 //! [`GatewayAttempts`] owns the record format, its stages, and which stage
 //! changes are valid. It persists through a [`GatewayAttemptStore`], which is
 //! only an insert-once and compare-and-swap mechanism over opaque bounded
-//! bytes: [`FileGatewayAttemptStore`] for one host, and the qualified
-//! multi-host `PostgresLifecycleStore`.
+//! bytes: [`FileGatewayAttemptStore`] for one host, and the multi-host
+//! `PostgresLifecycleStore`, whose production qualification is still open.
 
 use crate::{ClosedProviderRequest, LogicalOperationId, OperatorNamespace, echo_token};
 use auths_lifecycle::StoreError;
@@ -589,8 +589,9 @@ impl GatewayAttemptStore for FileGatewayAttemptStore {
     }
 }
 
-/// The qualified multi-host store: attempts live in the lifecycle database
-/// under the same TLS, pooling, and schema contract as lifecycle records.
+/// The multi-host store, not yet production-qualified: attempts live in the
+/// lifecycle database under the same TLS, pooling, and schema contract as
+/// lifecycle records.
 ///
 /// The pooled client blocks on its own runtime, so it is connected, used,
 /// and dropped only off the async executor.
@@ -1022,7 +1023,7 @@ fn sync_directory(root: &Path) -> Result<(), GatewayAttemptError> {
 
 /// Per-window count slots use the same insert-once mechanism as attempt
 /// claims, under keys from their own hash domain, so every attempt store,
-/// including the qualified multi-host store, also holds the counts.
+/// including the multi-host `PostgreSQL` store, also holds the counts.
 impl<S: GatewayAttemptStore + ?Sized> crate::bounds::BoundedCountStore for S {
     fn insert_count_slot(
         &self,

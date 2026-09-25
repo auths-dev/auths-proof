@@ -23,7 +23,7 @@ context.
 | Hidden adapter configuration | Context and result bind the exact executable registry and every adapter configuration digest |
 | Prover weakens quorum | Host context independently requires the exact plan and minimum branch/actor/root diversity |
 | Same signer cloned into leaves | Distinct-actor and distinct-root obligations count principals, not proof references |
-| Same key under another identifier | Principals use exact identifier equality |
+| Same key under another identifier | Principals use exact identifier equality, so one key anchored under two principal methods (for example `did:key` and `raw-key-v1`) counts as two principals; the host anchors each key under one method |
 | Algorithm confusion | Exact algorithm registry and key compatibility checks |
 | Body modification | SHA-256 of exact body is signed |
 | Cross-service replay | Audience and verifier challenge are signed |

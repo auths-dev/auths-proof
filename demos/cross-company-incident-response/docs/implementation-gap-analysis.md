@@ -181,10 +181,12 @@ Evidence:
 
 Each pre-effect attack must report zero new credential acquisitions and zero provider calls. Post-effect ambiguity must instead report the exact provider entry, block retry, and require reconciliation.
 
-- [x] delegation widening fails in the native child planner before signing;
+- [ ] delegation widening fails in the native child planner before signing;
 - [x] canonical action mutation fails in both Python and TypeScript verification;
 - [x] replay and concurrent ownership fail at durable reservation;
-- [x] expiry and compromised principal cases fail through native lifecycle semantics;
+- [x] expiry fails through native lifecycle semantics;
+- [ ] a compromised principal fails through a signed, verified principal-status
+  revocation;
 - [x] unauthorized Iroh delivery succeeds as transport but reaches no effect gateway;
 - [x] pre-effect, post-effect, and ambiguous provider outcomes remain distinct;
 - [x] approval withdrawal exposes no second plan-member command;

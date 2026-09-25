@@ -2,12 +2,10 @@
 
 | Attack | Executable path | Expected boundary |
 | --- | --- | --- |
-| widen one region to all regions | Rust child-grant planner through Python | `delegation-expanded` before signing; zero credentials/provider calls |
 | mutate a canonical action byte | Python and TypeScript native verifiers | fail closed before execution; zero credentials/provider calls |
 | replay a completed workflow | full backend authorization and SQLite reservation | conflict; zero additional credentials/provider calls |
 | race two workflow requests | two full authorization and execution attempts | one winner; one provider call per plan member total |
 | use expired authority | Rust lifecycle transition | `grant-expired` before credentials/provider entry |
-| use a compromised approver | Rust lifecycle status gate | `principal-revoked` before execution |
 | rotate the EdgeShield key | Python lifecycle recipe and live Edge service | previous principal superseded; current principal active |
 | deliver unauthorized bytes over Iroh | real Iroh exchange followed by native denial | delivery succeeds; no opaque command or provider effect |
 | fail before provider effect | Rust lifecycle transition | released; retry may be safe |

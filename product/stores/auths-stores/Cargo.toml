@@ -15,7 +15,6 @@ auths-bounded-policy.workspace = true
 auths-connections.workspace = true
 auths-model.workspace = true
 auths-lifecycle.workspace = true
-auths-proof-exchange-model.workspace = true
 auths-receipts.workspace = true
 auths-runtime.workspace = true
 base64ct.workspace = true

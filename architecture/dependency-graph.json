@@ -14667,18 +14667,6 @@
     {
       "source": "auths-stores",
       "source_layer": "product",
-      "target": "auths-proof-exchange-model",
-      "target_layer": "exchange",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
-      "features": []
-    },
-    {
-      "source": "auths-stores",
-      "source_layer": "product",
       "target": "auths-receipts",
       "target_layer": "product",
       "scope": "internal",

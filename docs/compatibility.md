@@ -28,8 +28,9 @@ Target V1 supports:
   adapters on `wasm32-unknown-unknown` with default features disabled.
 
 The verifier API and pure adapters use no ambient platform facilities. The
-native `auths-resolver-did-web` integration lives in `auths-proof-apps` and is
-therefore outside both the proof workspace and its WASM compatibility set.
+native `auths-resolver-did-web` integration lives in the product layer
+(`product/integrations/auths-resolver-did-web`) and is therefore outside the
+core layer and its WASM compatibility set.
 
 ## Algorithm compatibility
 

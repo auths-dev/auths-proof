@@ -639,7 +639,6 @@ configuration_inputs = ["connect-transfer-configuration", "immutable-configured-
 security_state = ["connect-transfer-capacity", "receipt-sink", "transfer-claim"]
 
 [packages.auths-stripe-connect-transfer-demo.claims]
-runtime-enforcement-boundary = ["demos/stripe-connect-transfer/src/lib.rs#denial_is_pre_credential_and_replay_has_no_second_effect"]
 stateful-replay-budget-component = ["demos/stripe-connect-transfer/src/lib.rs#denial_is_pre_credential_and_replay_has_no_second_effect", "demos/stripe-connect-transfer/src/lib.rs#unknown_outcome_keeps_capacity_held"]
 
 [packages.auths-stripe-payout-demo]
@@ -658,7 +657,6 @@ configuration_inputs = ["immutable-configured-policy", "payout-configuration", "
 security_state = ["approval-set", "payout-capacity", "payout-claim", "receipt-sink"]
 
 [packages.auths-stripe-payout-demo.claims]
-runtime-enforcement-boundary = ["demos/stripe-payout/src/lib.rs#approval_denial_is_pre_credential_and_pending_replays_once"]
 stateful-replay-budget-component = ["demos/stripe-payout/src/lib.rs#approval_denial_is_pre_credential_and_pending_replays_once", "demos/stripe-payout/src/lib.rs#unknown_outcome_keeps_outgoing_capacity"]
 
 [packages.auths-stripe-purchase-authorization-demo]
@@ -696,7 +694,6 @@ configuration_inputs = ["exact-subscription-before-state", "immutable-configured
 security_state = ["receipt-sink", "subscription-cancel-claim", "subscription-cancellation-release-intent", "subscription-term-liability"]
 
 [packages.auths-stripe-subscription-cancel-demo.claims]
-runtime-enforcement-boundary = ["demos/stripe-subscription-cancel/src/lib.rs#invoice_and_race_denials_are_pre_credential_and_unknown_retains_all"]
 stateful-replay-budget-component = ["demos/stripe-subscription-cancel/src/lib.rs#both_modes_release_only_proven_liability_and_replay_has_no_effect", "demos/stripe-subscription-cancel/src/lib.rs#invoice_and_race_denials_are_pre_credential_and_unknown_retains_all"]
 
 [packages.auths-stripe-demo]
@@ -1808,19 +1805,18 @@ layer = "product"
 path = "product/stores/auths-stores"
 core_apis = ["auths-model"]
 protocol_versions = ["auths-proof/v1"]
-wire_objects = ["AttestedDecisionReceipt", "AttestedExecutionReceipt", "BudgetState", "LifecycleRecordV1", "ReplayState"]
+wire_objects = ["AttestedDecisionReceipt", "AttestedExecutionReceipt", "LifecycleRecordV1"]
 fixture_suites = ["product/fixtures/v1/lifecycle"]
 principal_families = []
 signature_families = []
 profiles = []
 transports = ["filesystem", "memory", "postgresql-tls"]
 configuration_inputs = ["budget-algebra", "capacity", "lifecycle-capacity-rule", "receipt-policy"]
-security_state = ["budget-ledger", "gateway-attempt-records", "lifecycle-records", "receipt-spool", "replay-ledger"]
+security_state = ["budget-ledger", "gateway-attempt-records", "lifecycle-records", "receipt-spool"]
 
 [packages.auths-stores.claims]
 receipt-producer-consumer = ["product/stores/auths-stores/src/lib.rs#local_spool_policy_persists_attested_receipt_on_primary_failure"]
 stateful-replay-budget-component = [
-  "product/stores/auths-stores/src/lib.rs#persistent_ledgers_survive_reopen",
   "product/stores/auths-stores/src/lifecycle.rs#concurrent_final_capacity_has_one_winner",
   "product/stores/auths-stores/src/lifecycle.rs#persistent_capacity_and_replay_survive_reopen",
   "product/stores/auths-stores/src/lifecycle.rs#crash_matrix_reopens_old_or_new_canonical_state_never_partial_state",

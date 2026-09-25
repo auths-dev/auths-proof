@@ -2,7 +2,9 @@
 
 ## Status
 
-Target-state specification. Not yet implemented.
+Target-state specification, partly implemented on `main`: the local
+agent, SDK sessions, and generated profile clients. No provider effect
+profile is qualified.
 
 This document is intentionally self-contained. A new implementation session
 with no conversation history must be able to implement the target by reading
@@ -818,10 +820,32 @@ configuration is:
 [agent]
 authority_root = "/var/lib/auths/authorities"
 
+[agent.receipt_signing.decision]
+algorithm = "Ed25519"
+key_id = "decision-2026-01"
+verification_method = "did:key:auths-receipt-decision#decision-2026-01"
+public_key_base64url = "<32-byte Ed25519 public key, base64url>"
+seed_file = "/var/lib/auths/receipt-decision.key"
+not_before_unix_seconds = 1
+not_after_unix_seconds = 4102444800
+
+[agent.receipt_signing.execution]
+algorithm = "Ed25519"
+key_id = "execution-2026-01"
+verification_method = "did:key:auths-receipt-execution#execution-2026-01"
+public_key_base64url = "<32-byte Ed25519 public key, base64url>"
+seed_file = "/var/lib/auths/receipt-execution.key"
+not_before_unix_seconds = 1
+not_after_unix_seconds = 4102444800
+
 [agent.authority_sources.payments-worker-authority]
 kind = "sealed-file-v1"
 path = "/var/lib/auths/authorities/payments-worker.cbor"
 ```
+
+The `[agent.receipt_signing]` table is required. It names the current
+decision and execution receipt signing keys, and the agent refuses a
+configuration without it.
 
 `authority_root` and `path` are absolute, normalized host paths of 1-1024
 UTF-8 bytes. Every source path must be a strict descendant of the root. The
@@ -3977,7 +4001,8 @@ security states were deleted or domain semantics were weakened.
   approval boundaries.
 - `docs/target-state/STRIPE_PROFILE_FAMILY_IMPLEMENTATION_PLAN.md` — concrete
   profile-family separation used by the reference client example.
-- `public_api_chatgpt.md` — the current exact prelaunch public-surface proposal;
+- `docs/target-state/public_api_chatgpt.md` — the current exact prelaunch
+  public-surface proposal;
   implementation of this specification must update its ordinary effectful path,
   inventories, examples, and cutover units atomically rather than leaving two
   conflicting target APIs.

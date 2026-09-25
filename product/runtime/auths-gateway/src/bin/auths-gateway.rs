@@ -1,7 +1,8 @@
 //! Customer-operated gateway. The app socket accepts proof and action only;
 //! installation and administration require the operator channel. A
 //! development installation keeps attempts on one host; a production
-//! installation keeps them in the qualified multi-host `PostgreSQL` store.
+//! installation keeps them in the multi-host `PostgreSQL` store, whose
+//! production qualification is still open.
 
 #[cfg(not(unix))]
 fn main() {
@@ -91,7 +92,7 @@ mod unix {
             #[arg(long, default_value_t = false)]
             credential_stdin: bool,
             /// `development` keeps attempts in a single-host file store;
-            /// `production` requires the qualified `PostgreSQL` store, a
+            /// `production` requires the `PostgreSQL` store, a
             /// separate operator principal, and no software observer key.
             #[arg(long, value_enum, default_value_t = Deployment::Development)]
             deployment: Deployment,
@@ -462,7 +463,7 @@ mod unix {
     }
 
     /// Opens the attempt store the installation names. Production uses the
-    /// qualified `PostgreSQL` store from the reference deployment's secret
+    /// `PostgreSQL` store from the reference deployment's secret
     /// slots; it blocks, so the caller must not be on an async executor.
     fn attempt_store(
         state_dir: &Path,

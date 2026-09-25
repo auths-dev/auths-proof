@@ -3,7 +3,7 @@
 - **Status:** Steps 1–4 implemented in `product/runtime/auths-gateway` and
   the gateway clients. Step 5 (live Airtable) is open.
 - **Depends on:** [AP-SPEC-053](0053-declarative-credential-isolated-gateway.md)
-  (gateway, recipe compiler, attempt store, and outcome states on draft
+  (gateway, recipe compiler, attempt store, and outcome states, merged in
   PR #125), [AP-SPEC-057](0057-evidence-program-for-the-exact-action-boundary.md)
 - **Enables:** [AP-SPEC-060](0060-evidence-conditioned-authority.md), which
   consumes the outcomes defined here as signed observations

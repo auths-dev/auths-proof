@@ -95,11 +95,10 @@ pub(crate) fn stripe_profiles() -> Result<(), String> {
     {
         return Err("Stripe inventory identity or product package changed".to_owned());
     }
-    let expected_specs: Vec<u16> = (13..=23).collect();
-    if inventory.inventory.spec_numbers != expected_specs {
+    let expected_specs = &inventory.inventory.spec_numbers;
+    if expected_specs.is_empty() || expected_specs.windows(2).any(|pair| pair[0] >= pair[1]) {
         return Err(format!(
-            "Stripe inventory must cover specifications 0013 through 0023 in order, found {:?}",
-            inventory.inventory.spec_numbers
+            "Stripe inventory specification numbers must be non-empty and strictly increasing, found {expected_specs:?}"
         ));
     }
     stripe_require_unique_nonempty(
@@ -339,6 +338,15 @@ pub(crate) fn stripe_profiles() -> Result<(), String> {
                     ));
                 }
             }
+            let demo_sources = root().join(&profile.demo).join("src");
+            if !stripe_demo_implements_gateway(&demo_sources, &profile.provider_gateway)? {
+                return Err(format!(
+                    "implemented Stripe profile {} has no implementation of its provider gateway {} in {}",
+                    profile.profile,
+                    profile.provider_gateway,
+                    demo_sources.display()
+                ));
+            }
         }
     }
 
@@ -389,4 +397,75 @@ pub(crate) fn stripe_profiles() -> Result<(), String> {
         inventory.profiles.len()
     );
     Ok(())
+}
+
+/// Reports whether a demo implements `gateway` outside its test modules.
+///
+/// Only unindented `impl` lines count. An implementation inside a test module
+/// is indented, so a mock alone cannot satisfy an implemented profile.
+fn stripe_demo_implements_gateway(source: &Path, gateway: &str) -> Result<bool, String> {
+    for path in files_with_extension(source, "rs")? {
+        let contents = fs::read_to_string(&path)
+            .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+        if contents
+            .lines()
+            .any(|line| stripe_impl_names_trait(line, gateway))
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// Reports whether an unindented `impl ... Trait for Type` line implements
+/// `gateway`, ignoring a path prefix and generic arguments on the trait.
+fn stripe_impl_names_trait(line: &str, gateway: &str) -> bool {
+    let Some(rest) = line.strip_prefix("impl") else {
+        return false;
+    };
+    if !rest.starts_with([' ', '<']) {
+        return false;
+    }
+    let Some((trait_part, _)) = rest.split_once(" for ") else {
+        return false;
+    };
+    trait_part
+        .split_whitespace()
+        .last()
+        .and_then(|path| path.rsplit("::").next())
+        .and_then(|name| name.split('<').next())
+        == Some(gateway)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_top_level_implementations_of_the_named_gateway_count() {
+        assert!(stripe_impl_names_trait(
+            "impl StripeGateway for LiveStripeEnvironment {",
+            "StripeGateway"
+        ));
+        assert!(stripe_impl_names_trait(
+            "impl<T: Send> auths_stripe::PayoutGateway for Wrapper<T> {",
+            "PayoutGateway"
+        ));
+        assert!(!stripe_impl_names_trait(
+            "    impl StripeGateway for FakeStripe {",
+            "StripeGateway"
+        ));
+        assert!(!stripe_impl_names_trait(
+            "impl CredentialProvider for LiveStripeEnvironment {",
+            "StripeGateway"
+        ));
+        assert!(!stripe_impl_names_trait(
+            "impl LiveStripeEnvironment {",
+            "StripeGateway"
+        ));
+        assert!(!stripe_impl_names_trait(
+            "impl_gateway!(StripeGateway for Live);",
+            "StripeGateway"
+        ));
+    }
 }

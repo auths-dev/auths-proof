@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "d707205c1464a06089c712285ba13d4fabffb180c04d2180643d311a371c7a73",
+  "digest": "5798293069b69e5f915e4f84d3de1b9367b13da40291ea9f7acc95a7f9a68617",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -8,7 +8,7 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "0a8b5b930481ad2749839ef171bb269073a34e4b6a296e7b2ac9d3c028102313",
+      "sha256": "f28c5ef6e2556b3d2e737bc511ebb67c65daa390c84411604a47f86c53ed6c76",
       "normalization": "translated-cargo-closure-v1"
     },
     {
@@ -213,7 +213,7 @@
     },
     {
       "path": "xtask/src/architecture.rs",
-      "sha256": "835ca016d7d85b37419b3b76f6cdb2d02d37882605411f0b66267c891a2a56ae"
+      "sha256": "05fb3f7dfa2365e75a567169acc6697bae9a5a1c4c1d6c44efde944facc82f17"
     },
     {
       "path": "xtask/src/benchmark.rs",
@@ -273,7 +273,7 @@
     },
     {
       "path": "xtask/src/main.rs",
-      "sha256": "65c8e82e2568fe11e3fa9bf71052cfa62fc45bbda1fa444b77e50f1048765f07"
+      "sha256": "f9848501b393b34044a302492f2a3bd5744db1f9240319986d38da23498654fc"
     },
     {
       "path": "xtask/src/mcp_session_contract.rs",
@@ -297,7 +297,7 @@
     },
     {
       "path": "xtask/src/profile_codegen.rs",
-      "sha256": "c78fb26253f6a76eeecda57fc84b00b90722961c397749c15832b5c76abf68be"
+      "sha256": "f19012f1370a47aaeb385331ed2742ccfe846ad4f8055ca9dcc1411c526ace1b"
     },
     {
       "path": "xtask/src/profile_qualification.rs",
@@ -341,7 +341,7 @@
     },
     {
       "path": "xtask/src/stripe.rs",
-      "sha256": "69d296cfb809053bd57b40604bbbad2072719053c5c91a7f594a3fa8b1875c33"
+      "sha256": "450a0c5c95b255b52b8f1887f4be735d20387966bb4884af6eabfb3186c976b5"
     }
   ]
 }

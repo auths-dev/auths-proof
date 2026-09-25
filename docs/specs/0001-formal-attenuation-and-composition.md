@@ -438,8 +438,10 @@ verifier applies `CompositionRequirement`:
 and, when present, the computed `PlanId` MUST equal `expected_plan`.
 
 Failure of these local requirements is
-`Denied(CompositionRequirementNotMet)`, not `Indeterminate`, because the
-verifier possesses all relevant branch results and its own local policy.
+`Denied(CompositionRequirementNotMet)`, not `Indeterminate`: the floor is the
+verifier's own local policy, applied to the branches that authorized with the
+facts available. When some leaves were indeterminate, the result can change
+once those leaves resolve, for example after fresher status is supplied.
 
 ## 6. Required theorems
 
