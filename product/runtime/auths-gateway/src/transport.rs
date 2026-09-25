@@ -18,6 +18,7 @@ use std::{
 };
 use thiserror::Error;
 use url::Url;
+use zeroize::Zeroizing;
 
 const MAX_WRITE_RESPONSE_BYTES: usize = 65_536;
 const MAX_SECRET_BYTES: usize = 4_096;
@@ -262,23 +263,25 @@ fn credential_headers(
     {
         return Err(GatewayTransportError::NotEntered);
     }
-    let (name, value) = match requirement {
-        CredentialRequirement::Bearer => {
-            let mut value = b"Bearer ".to_vec();
-            value.extend_from_slice(secret);
-            (AUTHORIZATION, value)
-        }
-        CredentialRequirement::HeaderApiKey { header } => {
-            let name = HeaderName::from_bytes(header.as_bytes())
-                .map_err(|_| GatewayTransportError::NotEntered)?;
-            (name, secret.to_vec())
-        }
+    let (name, prefix): (HeaderName, &[u8]) = match requirement {
+        CredentialRequirement::Bearer => (AUTHORIZATION, b"Bearer "),
+        CredentialRequirement::HeaderApiKey { header } => (
+            HeaderName::from_bytes(header.as_bytes())
+                .map_err(|_| GatewayTransportError::NotEntered)?,
+            b"",
+        ),
     };
+    // Sized up front so no reallocation strands an unwiped copy. `HeaderValue`
+    // keeps its own copy, which the request owns and `http` cannot zeroize.
+    let mut value = Zeroizing::new(Vec::with_capacity(prefix.len() + secret.len()));
+    value.extend_from_slice(prefix);
+    value.extend_from_slice(secret);
+    let mut header =
+        HeaderValue::from_bytes(&value).map_err(|_| GatewayTransportError::NotEntered)?;
+    // `Debug` then prints `Sensitive`, and an HTTP/2 encoder never indexes it.
+    header.set_sensitive(true);
     let mut headers = HeaderMap::new();
-    headers.insert(
-        name,
-        HeaderValue::from_bytes(&value).map_err(|_| GatewayTransportError::NotEntered)?,
-    );
+    headers.insert(name, header);
     Ok(headers)
 }
 
@@ -313,6 +316,78 @@ mod tests {
         let pinned = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)), 443);
         let client = pinned_client("api.example.com", pinned).expect("client");
         drop(client);
+    }
+
+    #[tokio::test]
+    async fn credential_headers_are_marked_sensitive() {
+        let lease = leased_secret(b"not-a-real-secret").await;
+        for (requirement, name, expected) in [
+            (
+                CredentialRequirement::Bearer,
+                AUTHORIZATION,
+                b"Bearer not-a-real-secret".as_slice(),
+            ),
+            (
+                CredentialRequirement::HeaderApiKey {
+                    header: "x-api-key".to_owned(),
+                },
+                HeaderName::from_static("x-api-key"),
+                b"not-a-real-secret".as_slice(),
+            ),
+        ] {
+            let headers = credential_headers(&requirement, &lease).expect("credential headers");
+            assert_eq!(headers.len(), 1);
+            let value = headers.get(&name).expect("credential header");
+            assert!(value.is_sensitive());
+            assert_eq!(value.as_bytes(), expected);
+            assert!(!format!("{headers:?}").contains("not-a-real-secret"));
+        }
+    }
+
+    /// Leases `secret` through the public credential-store path.
+    async fn leased_secret(secret: &[u8]) -> StoredSecretLease {
+        use auths_connections::{
+            ConnectionAlias, ConnectionCredentialStore as _, ConnectionId, ConnectionProfile,
+            ConnectionRecord, ConnectionState, InMemoryCredentialStore, ProviderKind, SecretBytes,
+            SemanticId,
+        };
+        use std::num::NonZeroU64;
+
+        let store = InMemoryCredentialStore::new(1, 1_024).expect("store");
+        let connection_id = ConnectionId::parse("conn_AAAAAAAAAAAAAAAAAAAAAA").expect("id");
+        let generation = NonZeroU64::MIN;
+        let secret = SecretBytes::new(secret.to_vec()).expect("secret");
+        let commitment = store
+            .install(&connection_id, generation, secret)
+            .await
+            .expect("install");
+        let profile = ConnectionProfile::new(SemanticId::parse("auths.mcp").expect("id"), 2)
+            .expect("profile");
+        let record = ConnectionRecord::new(
+            ProviderKind::parse("example").expect("provider"),
+            ConnectionAlias::parse("default").expect("alias"),
+            connection_id,
+            SemanticId::parse("auths.gateway-operation/1").expect("contract"),
+            SemanticId::parse("auths.gateway-connection-descriptor/1").expect("schema"),
+            b"descriptor".to_vec(),
+            [2; 32],
+            *commitment.as_bytes(),
+            generation,
+            ConnectionState::Active,
+            vec!["gateway".to_owned()],
+            vec![profile],
+            10,
+            10,
+            None,
+        )
+        .expect("record");
+        let binding = record
+            .binding_for_recovery(generation, commitment)
+            .expect("binding");
+        store
+            .lease_secret(&binding, Instant::now() + Duration::from_secs(30))
+            .await
+            .expect("lease")
     }
 
     #[test]
