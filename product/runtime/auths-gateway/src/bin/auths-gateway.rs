@@ -50,6 +50,7 @@ mod unix {
         net::{UnixListener, UnixStream},
         sync::Semaphore,
     };
+    use zeroize::{Zeroize as _, Zeroizing};
 
     const MANIFEST_SCHEMA: &str = "auths.gateway-installation/2";
     const OBSERVER_SEED: &str = "observer.seed";
@@ -294,7 +295,9 @@ mod unix {
     }
 
     fn read_install_credential() -> Result<SecretBytes, &'static str> {
-        let mut bytes = Vec::new();
+        // Pre-sized to the read limit so reading never reallocates and strands
+        // an unwiped partial copy; every exit path zeroizes the buffer.
+        let mut bytes = Zeroizing::new(Vec::with_capacity(4_098));
         std::io::stdin()
             .take(4_098)
             .read_to_end(&mut bytes)
@@ -306,10 +309,10 @@ mod unix {
             || bytes.len() > 4_096
             || !bytes.iter().all(|byte| (0x21..=0x7e).contains(byte))
         {
-            bytes.fill(0);
             return Err("gateway.install.invalid-credential");
         }
-        SecretBytes::new(bytes).map_err(|_| "gateway.install.invalid-credential")
+        SecretBytes::new(std::mem::take(&mut *bytes))
+            .map_err(|_| "gateway.install.invalid-credential")
     }
 
     /// A production installation names an operator principal that is neither
@@ -650,7 +653,7 @@ mod unix {
                             }
                         }
                         Ok(Ok(mut bytes)) => {
-                            bytes.fill(0);
+                            bytes.zeroize();
                             AdminResponse {
                                 ok: false,
                                 code: "gateway.admin.invalid-credential",
@@ -946,7 +949,9 @@ mod unix {
         if !credential_stdin || std::io::stdin().is_terminal() {
             return Err("gateway.admin.credential-must-be-piped-to-stdin");
         }
-        let mut bytes = Vec::new();
+        // Pre-sized to the read limit so reading never reallocates and strands
+        // an unwiped partial copy; every exit path zeroizes the buffer.
+        let mut bytes = Zeroizing::new(Vec::with_capacity(4_098));
         std::io::stdin()
             .take(4_098)
             .read_to_end(&mut bytes)
@@ -960,9 +965,12 @@ mod unix {
         {
             return Err("gateway.admin.invalid-credential");
         }
-        let result = admin_command(state_dir, br#"{"command":"rotate"}"#, Some(&bytes)).await;
-        bytes.fill(0);
-        result
+        admin_command(
+            state_dir,
+            br#"{"command":"rotate"}"#,
+            Some(bytes.as_slice()),
+        )
+        .await
     }
 
     fn doctor(

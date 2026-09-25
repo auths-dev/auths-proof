@@ -430,6 +430,7 @@ dependencies = [
  "getrandom 0.3.4",
  "minicbor",
  "sha2 0.10.9",
+ "subtle",
  "tempfile",
  "thiserror 2.0.19",
  "zeroize",
