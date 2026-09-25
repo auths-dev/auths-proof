@@ -16,6 +16,8 @@ const MAX_PATH_SEGMENTS: usize = 16;
 const DIGEST_DOMAIN: &[u8] = b"auths.gateway-compiled-recipe/1\0";
 const ECHO_DOMAIN: &[u8] = b"auths.gateway-echo/1\0";
 const ECHO_PREFIX: &str = "auths-e1-";
+const IDEMPOTENCY_DOMAIN: &[u8] = b"auths.gateway-idempotency-key/1\0";
+const IDEMPOTENCY_PREFIX: &str = "auths-i1-";
 const MAX_POINTER_BYTES: usize = 128;
 const ECHO_DISCLOSURE: &str = "the gateway writes a token derived from the authorized action into this provider field; the provider stores it and anyone who can read the record can read it; do not declare echo when the observation response may contain secrets";
 const MAX_VERIFIED_FIELDS: usize = 8;
@@ -107,6 +109,7 @@ impl CredentialRequirement {
                         | "accept"
                         | "connection"
                         | "transfer-encoding"
+                        | "idempotency-key"
                 )
             {
                 return Err(GatewayRecipeError::InvalidCredential);
@@ -269,6 +272,11 @@ struct WriteSource {
     method: WriteMethod,
     path: Vec<PathSegment>,
     body: BodySource,
+    /// Whether the write carries the derived `Idempotency-Key`. The value is
+    /// never written in the source. `false` is omitted from the canonical
+    /// source, so a recipe that does not declare the key keeps its digest.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    idempotency_key: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -405,6 +413,7 @@ pub struct RecipeReview {
     credential: CredentialRequirement,
     maximum_body_bytes: usize,
     has_observation: bool,
+    sends_idempotency_key: bool,
     echo: Option<RecipeEchoReview>,
     preconditions: Option<RecipePreconditionReview>,
 }
@@ -499,6 +508,13 @@ impl RecipeReview {
     #[must_use]
     pub const fn has_observation(&self) -> bool {
         self.has_observation
+    }
+    /// Reports whether the write sends the `Idempotency-Key` the gateway
+    /// derives from the verified namespace and logical operation ID. The
+    /// observation never sends it.
+    #[must_use]
+    pub const fn sends_idempotency_key(&self) -> bool {
+        self.sends_idempotency_key
     }
     /// Returns the declared echo field, if any.
     #[must_use]
@@ -654,6 +670,7 @@ impl CompiledRecipe {
             credential: self.source.credential.clone(),
             maximum_body_bytes: MAX_BODY_BYTES,
             has_observation: self.source.observation.is_some(),
+            sends_idempotency_key: self.source.write.idempotency_key,
             echo: self.source.echo.as_ref().map(|echo| RecipeEchoReview {
                 write: echo.write.clone(),
                 observe: echo.observe.clone(),
@@ -669,8 +686,10 @@ impl CompiledRecipe {
 
     /// Builds a closed request only from a native-verified MCP command and
     /// the commitment of that same verified action. When the recipe declares
-    /// an echo field, the token is derived here from the commitment; no
-    /// submit-time input can supply or change it.
+    /// an echo field, the token is derived here from the commitment; when it
+    /// declares the idempotency key, the key is derived here from the
+    /// verified namespace and logical operation ID. No submit-time input can
+    /// supply or change either.
     ///
     /// # Errors
     /// Rejects a mismatched service/tool, schema value, recipe digest,
@@ -715,6 +734,11 @@ impl CompiledRecipe {
             .echo
             .as_ref()
             .map(|_| echo_token(&self.namespace, &operation_id, &action_commitment));
+        let idempotency = self
+            .source
+            .write
+            .idempotency_key
+            .then(|| idempotency_key(&self.namespace, &operation_id));
         let path = build_path(&self.source.write.path, arguments)?;
         let placement = self
             .source
@@ -753,6 +777,7 @@ impl CompiledRecipe {
             operation_id,
             action_commitment,
             echo,
+            idempotency_key: idempotency,
             method: self.source.write.method,
             url: format!("{}{path}", self.source.origin),
             content_type,
@@ -850,6 +875,7 @@ pub struct ClosedProviderRequest {
     operation_id: LogicalOperationId,
     action_commitment: [u8; 32],
     echo: Option<String>,
+    idempotency_key: Option<String>,
     method: WriteMethod,
     url: String,
     content_type: &'static str,
@@ -878,6 +904,12 @@ impl ClosedProviderRequest {
     #[must_use]
     pub fn echo_token(&self) -> Option<&str> {
         self.echo.as_deref()
+    }
+    /// Returns the `Idempotency-Key` value the write sends, only when the
+    /// recipe declares one. The read-only observation never sends it.
+    #[must_use]
+    pub fn idempotency_key(&self) -> Option<&str> {
+        self.idempotency_key.as_deref()
     }
     /// Returns the approved write method.
     #[must_use]
@@ -1029,6 +1061,27 @@ pub fn echo_token(
     hasher.update([0]);
     hasher.update(action_commitment);
     format!("{ECHO_PREFIX}{}", hex::encode(hasher.finalize()))
+}
+
+/// Derives the 73-byte `Idempotency-Key` value for one logical operation in
+/// one operator namespace. Nothing else enters it, so a fresh proof
+/// challenge, a changed action, or a new credential generation for the same
+/// logical operation yields the same key. Anyone who knows the namespace and
+/// operation ID can compute it, so it is neither a secret nor a signature.
+///
+/// The gateway's durable claim of the same pair already stops a second
+/// provider entry while its attempt store is intact. The key matters only
+/// when that claim is lost and the operation is submitted again: a provider
+/// that honors the header can then de-duplicate the repeat, within the
+/// provider's own retention window.
+#[must_use]
+pub fn idempotency_key(namespace: &OperatorNamespace, operation_id: &LogicalOperationId) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(IDEMPOTENCY_DOMAIN);
+    hasher.update(namespace.as_str().as_bytes());
+    hasher.update([0]);
+    hasher.update(operation_id.as_str().as_bytes());
+    format!("{IDEMPOTENCY_PREFIX}{}", hex::encode(hasher.finalize()))
 }
 
 fn lower_hex_digest(value: &str) -> bool {
@@ -1926,6 +1979,131 @@ mod tests {
                 &operation,
                 &[1; 32]
             )
+        );
+    }
+
+    #[test]
+    fn idempotency_key_is_domain_separated_and_bound_to_namespace_and_operation() {
+        let namespace = |value| OperatorNamespace::parse(value).expect("namespace");
+        let operation = |value| LogicalOperationId::parse(value).expect("operation");
+        let key = idempotency_key(&namespace("stripe-refunds"), &operation("refund-1"));
+        assert_eq!(
+            key,
+            format!(
+                "auths-i1-{}",
+                hex::encode(Sha256::digest(
+                    b"auths.gateway-idempotency-key/1\0stripe-refunds\0refund-1"
+                ))
+            )
+        );
+        assert_eq!(key.len(), 73);
+        assert_eq!(
+            key,
+            idempotency_key(&namespace("stripe-refunds"), &operation("refund-1")),
+            "deterministic"
+        );
+        assert_ne!(
+            key,
+            idempotency_key(&namespace("stripe-refunds"), &operation("refund-2"))
+        );
+        assert_ne!(
+            key,
+            idempotency_key(&namespace("other"), &operation("refund-1"))
+        );
+        assert_ne!(
+            idempotency_key(&namespace("ab"), &operation("c")),
+            idempotency_key(&namespace("a"), &operation("bc")),
+            "the separator keeps the two fields apart"
+        );
+        let replay = crate::GatewayAttemptKey::for_operation(
+            &namespace("stripe-refunds"),
+            &operation("refund-1"),
+        );
+        assert_ne!(key[9..], hex::encode(replay.as_bytes()), "own hash domain");
+    }
+
+    /// Compiles fixture `name` with `write.idempotency_key` set to `value`.
+    fn with_idempotency_key(
+        name: &str,
+        value: Value,
+    ) -> Result<CompiledRecipe, GatewayRecipeError> {
+        let (source, lock) = fixture(name);
+        let mut source: Value = serde_json::from_slice(source).expect("source");
+        source["write"]["idempotency_key"] = value;
+        CompiledRecipe::compile(&serde_json::to_vec(&source).expect("source"), lock)
+    }
+
+    #[test]
+    fn idempotency_key_is_opt_in_reviewed_and_digest_bound() {
+        for name in ["airtable", "todoist", "github"] {
+            let (source, _) = fixture(name);
+            let plain = compiled(name);
+            let mut preimage = DIGEST_DOMAIN.to_vec();
+            preimage.extend(
+                serde_json_canonicalizer::to_vec(
+                    &serde_json::from_slice::<Value>(source).expect("source"),
+                )
+                .expect("canonical source"),
+            );
+            assert_eq!(
+                plain.digest_hex(),
+                hex::encode(Sha256::digest(&preimage)),
+                "{name}: an undeclared key adds nothing to the canonical source"
+            );
+            assert!(!plain.review().sends_idempotency_key());
+            let explicit = with_idempotency_key(name, json!(false)).expect("explicit false");
+            assert_eq!(explicit.digest(), plain.digest(), "{name}");
+            let declared = with_idempotency_key(name, json!(true)).expect("declared");
+            assert_ne!(
+                declared.digest(),
+                plain.digest(),
+                "{name}: needs a new approval"
+            );
+            assert!(declared.review().sends_idempotency_key());
+        }
+    }
+
+    #[test]
+    fn closed_request_carries_the_derived_key_only_when_declared() {
+        let values = |operation: &str, replacement: &str| {
+            json!({"operation_id": operation, "record_id": "recTEST0000000001",
+                "replacement": replacement})
+        };
+        let plain = compiled("airtable");
+        let undeclared = plain
+            .closed_request_from_arguments(
+                &arguments(&plain, &values("run-7", "Approved")),
+                [1; 32],
+            )
+            .expect("request");
+        assert_eq!(undeclared.idempotency_key(), None);
+        let recipe = with_idempotency_key("airtable", json!(true)).expect("declared");
+        let request = |operation: &str, replacement: &str, commitment: [u8; 32]| {
+            recipe
+                .closed_request_from_arguments(
+                    &arguments(&recipe, &values(operation, replacement)),
+                    commitment,
+                )
+                .expect("request")
+        };
+        let first = request("run-7", "Approved", [1; 32]);
+        let key = idempotency_key(
+            recipe.namespace(),
+            &LogicalOperationId::parse("run-7").expect("operation"),
+        );
+        assert_eq!(first.idempotency_key(), Some(key.as_str()));
+        assert!(!String::from_utf8_lossy(first.body()).contains(&key));
+        assert!(!first.url().contains(&key));
+        let reentered = request("run-7", "Pending", [2; 32]);
+        assert_ne!(reentered.echo_token(), first.echo_token());
+        assert_eq!(
+            reentered.idempotency_key(),
+            first.idempotency_key(),
+            "a fresh challenge or changed action for the same logical operation sends the same key"
+        );
+        assert_ne!(
+            request("run-8", "Approved", [1; 32]).idempotency_key(),
+            first.idempotency_key()
         );
     }
 

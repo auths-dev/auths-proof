@@ -1,6 +1,7 @@
 # AP-SPEC-045: OIDC Workload Principal Adapter
 
-**Status:** Proposed
+**Status:** Implemented on `main` in PR #129 (AP-SPEC-057 Epic 3); the live OIDC
+workload run is recorded in that PR.
 **Intended audience:** principal-adapter authors, verifier implementers,
 CI platform integrators, and security reviewers
 **Normative language:** the terms **MUST**, **MUST NOT**, **SHOULD**, and

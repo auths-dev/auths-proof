@@ -9,12 +9,19 @@ journey calls Stripe's test mode instead, using the developer's own
 ``STRIPE_TEST_SECRET_KEY`` (``sk_test_`` only) and a refundable
 ``--payment-intent`` of at least 55.00 USD. The key is piped to the gateway
 install and nowhere else.
+
+Against the double it also checks the ``Idempotency-Key`` the gateway derives
+for each refund, then wipes the gateway's attempt store and resubmits an
+approved refund: the double, like Stripe, must return the first refund
+rather than create a second.
 """
 
 from __future__ import annotations
 
 import argparse
+import asyncio
 import base64
+import dataclasses
 import hashlib
 import json
 import os
@@ -30,6 +37,17 @@ from typing import Any, Callable, Dict, List, Optional
 
 HERE = Path(__file__).resolve().parent
 PYTHON = sys.executable
+IDEMPOTENCY_DOMAIN = b"auths.gateway-idempotency-key/1\0"
+
+
+def idempotency_key(namespace: str, operation: str) -> str:
+    """The ``Idempotency-Key`` the gateway derives for one logical operation."""
+    preimage = IDEMPOTENCY_DOMAIN + namespace.encode() + b"\0" + operation.encode()
+    return "auths-i1-" + hashlib.sha256(preimage).hexdigest()
+
+
+def unb64(value: str) -> bytes:
+    return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
 
 
 class Journey:
@@ -77,15 +95,19 @@ class Journey:
         self.processes.append(process)
         return process
 
+    def terminate(self, process: subprocess.Popen[str]) -> None:
+        if process.poll() is None:
+            process.send_signal(signal.SIGTERM)
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+        self.processes.remove(process)
+
     def stop(self) -> None:
-        for process in self.processes:
-            if process.poll() is None:
-                process.send_signal(signal.SIGTERM)
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-        self.processes.clear()
+        for process in list(self.processes):
+            self.terminate(process)
 
     def provider_entries(self) -> List[Dict[str, Any]]:
         if not self.ledger.exists():
@@ -191,6 +213,27 @@ def lax_local_trust(journey: Journey) -> Path:
     return path
 
 
+def resubmit(journey: Journey, operation: str) -> Dict[str, Any]:
+    """Submits the recorded proof and action of ``operation`` again,
+    unchanged, as a client retrying after the gateway lost its state would."""
+    from auths.gateway import GatewayClient, GatewayEndpoint
+
+    log = journey.state / "audit" / "entries.jsonl"
+    entry = next(
+        item
+        for item in (json.loads(line) for line in log.read_text().splitlines() if line)
+        if item["operation_id"] == operation
+    )
+
+    async def submit() -> Any:
+        gateway = GatewayClient(GatewayEndpoint(journey.socket.resolve()))
+        return await gateway.submit(
+            proof=unb64(entry["proof_b64"]), action=unb64(entry["action_b64"])
+        )
+
+    return dataclasses.asdict(asyncio.run(submit()))
+
+
 def tamper(
     bundle: Dict[str, Any], operation: str, change: Callable[[Dict[str, Any]], None]
 ) -> Dict[str, Any]:
@@ -294,6 +337,16 @@ def main() -> int:
             "--app-socket",
             str(journey.socket),
         ]
+        running: Dict[str, subprocess.Popen[str]] = {}
+
+        def start_gateway() -> None:
+            # A stopped gateway leaves its socket file behind; wait for a new one.
+            journey.socket.unlink(missing_ok=True)
+            running["gateway"] = journey.background(*serve)
+            deadline = time.monotonic() + 10
+            while not journey.socket.exists():
+                expect(time.monotonic() < deadline, "gateway did not open its app socket")
+                time.sleep(0.05)
 
         def start() -> None:
             if not live:
@@ -308,11 +361,7 @@ def main() -> int:
                 port = mock.stdout.readline().strip() if mock.stdout else ""
                 expect(port.isdigit(), "mock Stripe did not start")
                 serve.extend(["--loopback-provider", port])
-            journey.background(*serve)
-            deadline = time.monotonic() + 10
-            while not journey.socket.exists():
-                expect(time.monotonic() < deadline, "gateway did not open its app socket")
-                time.sleep(0.05)
+            start_gateway()
 
         journey.step("gateway serve" + ("" if live else " (to the counting Stripe double)"), start)
 
@@ -367,6 +416,7 @@ def main() -> int:
         for operation, (outcome, code) in expected_refusals.items():
             got = results[operation]
             expect(got.get("outcome") == outcome and got.get("code") == code, f"{operation}: {got}")
+        state_loss: Optional[Dict[str, Any]] = None
         if not live:
             entries = journey.provider_entries()
             expect(len(entries) == 2, f"expected exactly 2 provider entries, saw {len(entries)}")
@@ -382,6 +432,43 @@ def main() -> int:
                 expect(
                     results[operation]["provider_entries"] == 0, f"{operation} reached the provider"
                 )
+            keys = {
+                operation: idempotency_key(facts["operator_namespace"], operation)
+                for operation in ("refund-1", "refund-4")
+            }
+            sent = [entry["idempotency_key"] for entry in entries]
+            expect(sent == [keys["refund-1"], keys["refund-4"]], f"Idempotency-Key values {sent}")
+            expect(not any(entry["replayed"] for entry in entries), f"provider replays {entries}")
+
+            # State loss: the gateway's attempt store is wiped, as a restore
+            # from an older backup would leave it, and a client resubmits
+            # refund-1's approved proof and action. No claim stops it now;
+            # only the repeated Idempotency-Key keeps the double, like Stripe,
+            # from making a second refund.
+            def lose_attempts_and_resubmit() -> Dict[str, Any]:
+                journey.terminate(running["gateway"])
+                shutil.rmtree(journey.gateway_state / "attempts")
+                start_gateway()
+                return resubmit(journey, "refund-1")
+
+            state_loss = journey.step(
+                "state loss: attempt store wiped, refund-1 resubmitted",
+                lose_attempts_and_resubmit,
+            )
+            expect(
+                state_loss == {"status": 200, "outcome": "response-recorded"},
+                f"resubmitted refund-1: {state_loss}",
+            )
+            entries = journey.provider_entries()
+            expect(len(entries) == 3, f"expected 3 provider entries, saw {len(entries)}")
+            expect(
+                entries[2]["idempotency_key"] == keys["refund-1"]
+                and entries[2]["replayed"]
+                and entries[2]["refund"] == entries[0]["refund"],
+                f"resubmitted refund-1 was not de-duplicated: {entries[2]}",
+            )
+            refunds_created = {entry["refund"] for entry in entries if entry["refund"]}
+            expect(len(refunds_created) == 2, f"expected 2 refunds, saw {sorted(refunds_created)}")
 
         # README step 6: the audit bundle.
         bundle_path = journey.work / "audit-bundle.json"
@@ -491,6 +578,10 @@ def main() -> int:
             "steps": journey.steps,
             "refunds": results,
             "provider_entries": None if live else len(journey.provider_entries()),
+            "provider_refunds": None
+            if live
+            else len({entry["refund"] for entry in journey.provider_entries() if entry["refund"]}),
+            "state_loss_resubmission": state_loss,
             "audit": {
                 "verified": report["verified"],
                 "refused": report["refused"],

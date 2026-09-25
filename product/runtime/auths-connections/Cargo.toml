@@ -18,6 +18,7 @@ base64ct.workspace = true
 getrandom.workspace = true
 minicbor.workspace = true
 sha2.workspace = true
+subtle.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 zeroize.workspace = true
