@@ -523,6 +523,7 @@ enum FormalPlanReason {
     ComprehensiveEvent,
     ClassificationUncertain,
     FormalClosureChanged,
+    KaniClosureChanged,
     ProtectedBaseEvidenceRequired,
 }
 
@@ -533,6 +534,7 @@ impl FormalPlanReason {
             Self::ComprehensiveEvent => "comprehensive_event",
             Self::ClassificationUncertain => "classification_uncertain",
             Self::FormalClosureChanged => "formal_closure_changed",
+            Self::KaniClosureChanged => "kani_closure_changed",
             Self::ProtectedBaseEvidenceRequired => "protected_base_evidence_required",
         }
     }
@@ -950,10 +952,16 @@ fn build_formal_ci_plan(
             formal_required,
             translation_reason,
         )?,
-        // Until protected-branch Kani attestations are published, every formal
-        // run executes Kani. The independent closure digest makes later reuse
-        // an additive planner change rather than workflow path matching.
-        kani: phase(FormalClosureKind::Kani, formal_required, default_reason)?,
+        kani: plan_kani_phase(
+            formal_required,
+            default_reason,
+            base_revision
+                .map(|revision| {
+                    digest_formal_closure(root, Some(revision), FormalClosureKind::Kani)
+                })
+                .transpose()?,
+            digest_formal_closure(root, None, FormalClosureKind::Kani)?,
+        ),
         toolchain: phase(
             FormalClosureKind::Toolchain,
             formal_required && toolchain_changed,
@@ -981,6 +989,35 @@ fn build_formal_ci_plan(
             FormalPlanReason::NotRequired
         },
     })
+}
+
+/// Kani runs with every formal run and whenever its own closure changes.
+///
+/// Harness packages outside the translated closure reach no other formal
+/// phase, so their harnesses are scheduled by this digest comparison alone.
+/// Until protected-branch Kani attestations are published, a scheduled run
+/// executes the complete harness set. A missing base digest (a comprehensive
+/// event, or no base revision) counts as a change.
+fn plan_kani_phase(
+    formal_required: bool,
+    formal_reason: FormalPlanReason,
+    base_digest: Option<String>,
+    head_digest: String,
+) -> PlannedFormalPhase {
+    let closure_changed = base_digest.as_deref() != Some(head_digest.as_str());
+    let (required, reason) = if formal_required {
+        (true, formal_reason)
+    } else if closure_changed {
+        (true, FormalPlanReason::KaniClosureChanged)
+    } else {
+        (false, FormalPlanReason::NotRequired)
+    };
+    PlannedFormalPhase {
+        required,
+        reason,
+        base_digest,
+        head_digest,
+    }
 }
 
 fn digest_formal_closure(
@@ -1025,6 +1062,13 @@ fn digest_formal_closure(
         digest.update([0xff]);
     }
     Ok(hex::encode(digest.finalize()))
+}
+
+/// Whether `path` belongs to the Kani closure, whose digest schedules the Kani
+/// job even when no other formal phase runs.
+#[must_use]
+pub fn kani_closure_contains(path: &str) -> bool {
+    formal_closure_contains(path, FormalClosureKind::Kani)
 }
 
 fn formal_closure_contains(path: &str, kind: FormalClosureKind) -> bool {
@@ -1385,12 +1429,11 @@ fn validate_repository(
     model: &RepositoryModel,
 ) -> Result<(), String> {
     validate_manifest(manifest)?;
-    let tracked = git_stdout_bytes(root, &["ls-files", "-z"])?;
+    let tracked = tracked_paths(root)?;
     let uncovered: Vec<_> = tracked
-        .split(|byte| *byte == 0)
-        .filter(|bytes| !bytes.is_empty())
-        .map(|bytes| String::from_utf8_lossy(bytes).into_owned())
+        .iter()
         .filter(|path| !manifest.rules.iter().any(|rule| rule.matches(path)))
+        .map(String::as_str)
         .collect();
     if !uncovered.is_empty() {
         return Err(format!(
@@ -1398,6 +1441,7 @@ fn validate_repository(
             uncovered.join(", ")
         ));
     }
+    validate_kani_closure_coverage(root, &tracked)?;
     for (package, directory) in &model.workspace_packages {
         let manifest_path = format!("{directory}/Cargo.toml");
         if !manifest
@@ -1486,6 +1530,89 @@ fn validate_repository(
         }
     }
     Ok(())
+}
+
+fn tracked_paths(root: &Path) -> Result<Vec<String>, String> {
+    Ok(git_stdout_bytes(root, &["ls-files", "-z"])?
+        .split(|byte| *byte == 0)
+        .filter(|bytes| !bytes.is_empty())
+        .map(|bytes| String::from_utf8_lossy(bytes).into_owned())
+        .collect())
+}
+
+/// Every package holding a Kani harness must lie inside the Kani closure.
+///
+/// The planner schedules Kani from that closure's digest, so a harness package
+/// outside it would be verified only after merge. Harnesses are recognised by
+/// the attribute line the harness inventory counts.
+fn validate_kani_closure_coverage(root: &Path, tracked: &[String]) -> Result<(), String> {
+    let mut harness_files = Vec::new();
+    for path in tracked.iter().filter(|path| path.ends_with(".rs")) {
+        let source = fs::read_to_string(root.join(path))
+            .map_err(|error| format!("could not read {path}: {error}"))?;
+        if declares_kani_harness(&source) {
+            harness_files.push(path.as_str());
+        }
+    }
+    let gaps = kani_closure_gaps(&harness_files, tracked);
+    if gaps.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "Kani harness packages have files outside the Kani closure, so a change to them \
+         would not schedule the Kani job; extend FormalClosureKind::Kani in \
+         xtask/ci-plan/src/lib.rs: {}",
+        gaps.join(", ")
+    ))
+}
+
+fn declares_kani_harness(source: &str) -> bool {
+    source
+        .lines()
+        .any(|line| line.trim_start().starts_with("#[kani::proof"))
+}
+
+/// Tracked files that belong to a harness-carrying package but lie outside the
+/// Kani closure. A file belongs to the nearest enclosing directory with a
+/// tracked `Cargo.toml`; a harness outside every package is checked alone.
+fn kani_closure_gaps(harness_files: &[&str], tracked: &[String]) -> Vec<String> {
+    let package_directories: Vec<&str> = tracked
+        .iter()
+        .filter_map(|path| path.strip_suffix("/Cargo.toml"))
+        .collect();
+    let owner = |path: &str| -> Option<&str> {
+        package_directories
+            .iter()
+            .copied()
+            .filter(|directory| {
+                path.len() > directory.len()
+                    && path.starts_with(directory)
+                    && path.as_bytes()[directory.len()] == b'/'
+            })
+            .max_by_key(|directory| directory.len())
+    };
+    let mut harness_packages = BTreeSet::new();
+    let mut gaps = BTreeSet::new();
+    for harness in harness_files {
+        match owner(harness) {
+            Some(package) => {
+                harness_packages.insert(package);
+            }
+            None if !kani_closure_contains(harness) => {
+                gaps.insert((*harness).to_owned());
+            }
+            None => {}
+        }
+    }
+    for path in tracked {
+        if let Some(package) = owner(path)
+            && harness_packages.contains(package)
+            && !kani_closure_contains(path)
+        {
+            gaps.insert(format!("{path} (package {package})"));
+        }
+    }
+    gaps.into_iter().collect()
 }
 
 fn validate_ci_cancellation_policy(source: &str) -> Result<(), String> {
@@ -2597,6 +2724,175 @@ serde = "2"
     }
 
     #[test]
+    fn kani_phase_follows_its_own_closure_when_formal_is_not_required() {
+        let unchanged = plan_kani_phase(
+            false,
+            FormalPlanReason::NotRequired,
+            Some("same".to_owned()),
+            "same".to_owned(),
+        );
+        assert!(!unchanged.required);
+        assert_eq!(unchanged.reason.as_str(), "not_required");
+
+        let changed = plan_kani_phase(
+            false,
+            FormalPlanReason::NotRequired,
+            Some("base".to_owned()),
+            "head".to_owned(),
+        );
+        assert!(changed.required);
+        assert_eq!(changed.reason.as_str(), "kani_closure_changed");
+
+        let no_base = plan_kani_phase(false, FormalPlanReason::NotRequired, None, "head".into());
+        assert!(no_base.required, "an unknown base must fail closed");
+
+        let formal = plan_kani_phase(
+            true,
+            FormalPlanReason::FormalClosureChanged,
+            Some("same".to_owned()),
+            "same".to_owned(),
+        );
+        assert!(formal.required, "every formal run still executes Kani");
+        assert_eq!(formal.reason.as_str(), "formal_closure_changed");
+    }
+
+    #[test]
+    fn stripe_only_change_schedules_kani_without_formal_translation() {
+        let stripe_source = "product/integrations/auths-stripe/src/lib.rs";
+        let repository_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(Path::parent)
+            .expect("ci-plan lives at xtask/ci-plan");
+        let loaded = LoadedManifest::load(&repository_root.join(DEFAULT_MANIFEST))
+            .expect("repository manifest");
+        assert!(
+            loaded
+                .manifest
+                .rules
+                .iter()
+                .filter(|rule| rule.matches(stripe_source))
+                .all(|rule| !rule
+                    .phases
+                    .iter()
+                    .any(|phase| phase == "formal_translation")),
+            "a Stripe-only change must not reach Kani through formal translation"
+        );
+
+        let repository = TemporaryRepository::new("stripe-only");
+        repository.write(stripe_source, "pub const fn harnessed() -> u8 { 0 }\n");
+        repository.write(
+            "core/crates/auths-model/src/lib.rs",
+            "pub fn translated() {}\n",
+        );
+        repository.write("formal/Auths.lean", "-- authored proof\n");
+        repository.write("docs/note.md", "before\n");
+        let base = repository.commit("base");
+        repository.write(stripe_source, "pub const fn harnessed() -> u8 { 1 }\n");
+        let stripe_head = repository.commit("stripe only");
+
+        let changes = diff_changes(repository.path(), &base, &stripe_head).expect("diff");
+        assert_eq!(changes.len(), 1);
+        let plan = build_formal_ci_plan(
+            repository.path(),
+            &base,
+            &stripe_head,
+            false,
+            false,
+            false,
+            &changes,
+        )
+        .expect("formal plan");
+        assert!(plan.kani.required);
+        assert_eq!(plan.kani.reason.as_str(), "kani_closure_changed");
+        assert_ne!(
+            plan.kani.base_digest.as_deref(),
+            Some(plan.kani.head_digest.as_str())
+        );
+        assert!(!plan.translation.required);
+        assert!(!plan.proof.required);
+        assert!(!plan.cold_required);
+
+        repository.write("docs/note.md", "after\n");
+        let docs_head = repository.commit("documentation only");
+        let changes = diff_changes(repository.path(), &stripe_head, &docs_head).expect("diff");
+        let plan = build_formal_ci_plan(
+            repository.path(),
+            &stripe_head,
+            &docs_head,
+            false,
+            false,
+            false,
+            &changes,
+        )
+        .expect("formal plan");
+        assert!(!plan.kani.required, "an unchanged Kani closure skips Kani");
+        assert_eq!(plan.kani.reason.as_str(), "not_required");
+    }
+
+    #[test]
+    fn kani_closure_gaps_name_a_harness_package_outside_the_closure() {
+        let tracked = [
+            "product/integrations/auths-github/Cargo.toml",
+            "product/integrations/auths-github/src/lib.rs",
+            "product/integrations/auths-github/src/proofs.rs",
+            "product/integrations/auths-stripe/Cargo.toml",
+            "product/integrations/auths-stripe/src/lib.rs",
+            "product/policy/auths-bounded-policy/Cargo.toml",
+            "product/policy/auths-bounded-policy/src/kernel.rs",
+            "product/policy/auths-bounded-policy/fuzz/Cargo.toml",
+            "docs/unowned.md",
+        ]
+        .map(str::to_owned);
+
+        let stripe = kani_closure_gaps(&["product/integrations/auths-stripe/src/lib.rs"], &tracked);
+        assert!(stripe.is_empty(), "{stripe:?}");
+
+        let nested = kani_closure_gaps(
+            &["product/policy/auths-bounded-policy/src/kernel.rs"],
+            &tracked,
+        );
+        assert!(nested.is_empty(), "{nested:?}");
+
+        let github = kani_closure_gaps(
+            &["product/integrations/auths-github/src/proofs.rs"],
+            &tracked,
+        );
+        assert_eq!(
+            github,
+            [
+                "product/integrations/auths-github/Cargo.toml (package product/integrations/auths-github)",
+                "product/integrations/auths-github/src/lib.rs (package product/integrations/auths-github)",
+                "product/integrations/auths-github/src/proofs.rs (package product/integrations/auths-github)",
+            ]
+        );
+
+        let loose = kani_closure_gaps(&["scripts/proof.rs"], &tracked);
+        assert_eq!(loose, ["scripts/proof.rs"]);
+    }
+
+    #[test]
+    fn harness_detection_matches_the_inventory_attribute() {
+        assert!(declares_kani_harness(
+            "mod proofs {\n    #[kani::proof]\n    fn p() {}\n}\n"
+        ));
+        assert!(!declares_kani_harness(
+            "let pattern = \"#[kani::proof]\";\n// kani::proof\n"
+        ));
+    }
+
+    #[test]
+    fn repository_kani_harness_packages_are_inside_the_kani_closure() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(Path::parent)
+            .expect("ci-plan lives at xtask/ci-plan");
+        let tracked = tracked_paths(root).expect("tracked repository paths");
+        validate_kani_closure_coverage(root, &tracked).expect("harness packages are planned");
+        assert!(kani_closure_contains("xtask/src/formal.rs"));
+        assert!(!kani_closure_contains("xtask/src/fuzz.rs"));
+    }
+
+    #[test]
     fn formal_control_plane_changes_force_toolchain_or_evidence_closures() {
         assert!(formal_closure_contains(
             "formal/translation-toolchain.lock",
@@ -2986,6 +3282,66 @@ serde = "1"
         }
 
         assert!(phases_for("new-unowned-root/file.txt").is_empty());
+    }
+
+    /// A throwaway git repository with signing and hooks disabled, removed on
+    /// drop.
+    struct TemporaryRepository(PathBuf);
+
+    impl TemporaryRepository {
+        fn new(label: &str) -> Self {
+            use std::sync::atomic::{AtomicUsize, Ordering};
+            static NEXT: AtomicUsize = AtomicUsize::new(0);
+            let path = env::temp_dir().join(format!(
+                "auths-ci-plan-{label}-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir(&path).expect("unique temporary repository");
+            let repository = Self(path);
+            repository.git(&["init", "--quiet"]);
+            repository.git(&["config", "user.name", "ci-plan test"]);
+            repository.git(&["config", "user.email", "ci-plan@example.invalid"]);
+            repository.git(&["config", "commit.gpgsign", "false"]);
+            repository.git(&["config", "core.hooksPath", "/dev/null"]);
+            repository
+        }
+
+        fn path(&self) -> &Path {
+            &self.0
+        }
+
+        fn write(&self, relative: &str, contents: &str) {
+            let path = self.0.join(relative);
+            fs::create_dir_all(path.parent().expect("file has a parent")).expect("parent");
+            fs::write(path, contents).expect("fixture file");
+        }
+
+        fn commit(&self, message: &str) -> String {
+            self.git(&["add", "--all"]);
+            self.git(&["commit", "--quiet", "--message", message]);
+            self.git(&["rev-parse", "HEAD"]).trim().to_owned()
+        }
+
+        fn git(&self, arguments: &[&str]) -> String {
+            let output = ProcessCommand::new("git")
+                .args(arguments)
+                .current_dir(&self.0)
+                .output()
+                .expect("git runs");
+            assert!(
+                output.status.success(),
+                "git {arguments:?}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            String::from_utf8(output.stdout).expect("git output is UTF-8")
+        }
+    }
+
+    impl Drop for TemporaryRepository {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
     }
 
     fn formal_metadata(serde_version: &str, unrelated_version: &str) -> Value {
