@@ -62,6 +62,11 @@ impl CredentialReferenceCommitment {
     pub const fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
+
+    #[cfg(test)]
+    pub(crate) const fn for_tests(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
 }
 
 impl fmt::Debug for CredentialReferenceCommitment {
@@ -103,6 +108,12 @@ impl Drop for StoredSecretLease {
 }
 
 /// Generic secret-store mechanism. It knows identity and generation only.
+///
+/// A stored credential is keyed by the connection generation at which it was
+/// installed or rotated in. Administrative changes that carry no new secret
+/// advance the connection generation without storing anything, so the
+/// credential retained for a generation is the newest stored generation of
+/// that connection that is not newer than it.
 #[async_trait]
 pub trait ConnectionCredentialStore: Send + Sync {
     /// Installs the first credential generation.
@@ -113,14 +124,16 @@ pub trait ConnectionCredentialStore: Send + Sync {
         secret: SecretBytes,
     ) -> Result<CredentialReferenceCommitment, CredentialStoreError>;
 
-    /// Leases the exact secret generation named by a sealed binding.
+    /// Leases the credential retained for the generation named by a sealed
+    /// binding, after matching the binding's credential-reference commitment.
     async fn lease_secret(
         &self,
         binding: &ConnectionBinding,
         deadline: Instant,
     ) -> Result<StoredSecretLease, CredentialStoreError>;
 
-    /// Atomically installs a successor without discarding the old generation.
+    /// Atomically installs a successor at `new_generation` without discarding
+    /// the credential retained for `old_generation`.
     async fn replace(
         &self,
         connection_id: &ConnectionId,
@@ -225,15 +238,12 @@ impl ConnectionCredentialStore for InMemoryCredentialStore {
         binding: &ConnectionBinding,
         deadline: Instant,
     ) -> Result<StoredSecretLease, CredentialStoreError> {
-        let key = (
-            binding.connection_id().as_str().to_owned(),
-            binding.generation().get(),
-        );
         let entries = self
             .entries
             .read()
             .map_err(|_| CredentialStoreError::Unavailable)?;
-        let stored = entries.get(&key).ok_or(CredentialStoreError::Unavailable)?;
+        let (_, stored) = retained_entry(&entries, binding.connection_id(), binding.generation())
+            .ok_or(CredentialStoreError::Unavailable)?;
         if stored.commitment.as_bytes() != binding.credential_reference_commitment() {
             return Err(CredentialStoreError::Substitution);
         }
@@ -258,14 +268,15 @@ impl ConnectionCredentialStore for InMemoryCredentialStore {
         {
             return Err(CredentialStoreError::Conflict);
         }
-        let old_key = (connection_id.as_str().to_owned(), old_generation.get());
         let new_key = (connection_id.as_str().to_owned(), new_generation.get());
         let commitment = credential_commitment(connection_id, new_generation, secret.expose());
         let mut entries = self
             .entries
             .write()
             .map_err(|_| CredentialStoreError::Unavailable)?;
-        if !entries.contains_key(&old_key) || entries.contains_key(&new_key) {
+        if retained_entry(&entries, connection_id, old_generation).is_none()
+            || entries.contains_key(&new_key)
+        {
             return Err(CredentialStoreError::Conflict);
         }
         if entries.len() >= self.maximum_entries
@@ -390,90 +401,162 @@ impl PersistentCredentialStore {
         entries.values().map(|entry| entry.bytes.len()).sum()
     }
 
-    /// Returns the commitment for one retained credential generation without
-    /// exposing or leasing its bytes.
+    /// Returns the commitment of the credential retained for one connection
+    /// generation without exposing or leasing its bytes.
     ///
-    /// Recovery uses this only after authenticating a principal-bound
-    /// operation and matching its sealed connection identity. Missing entries
-    /// remain unavailable, including generations removed by emergency
-    /// provider revocation.
+    /// Reconciliation uses this only after authenticating a principal-bound
+    /// operation and matching its sealed connection identity. Pruning never
+    /// deletes the credential retained for a generation an unresolved
+    /// operation names, so such a lookup never falls back to an older
+    /// credential; after revocation it finds nothing.
     ///
     /// # Errors
     ///
     /// Returns [`CredentialStoreError::Unavailable`] when the store cannot be
-    /// read or the exact retained generation is absent.
+    /// read or no credential is retained for the generation.
     pub fn retained_commitment(
         &self,
         connection_id: &ConnectionId,
         generation: NonZeroU64,
     ) -> Result<CredentialReferenceCommitment, CredentialStoreError> {
-        self.entries
+        let entries = self
+            .entries
             .lock()
-            .map_err(|_| CredentialStoreError::Unavailable)?
-            .get(&(connection_id.as_str().to_owned(), generation.get()))
-            .map(|entry| entry.commitment)
+            .map_err(|_| CredentialStoreError::Unavailable)?;
+        retained_entry(&entries, connection_id, generation)
+            .map(|(_, entry)| entry.commitment)
             .ok_or(CredentialStoreError::Unavailable)
     }
 
-    /// Carries the same protected credential into a generation created by a
-    /// metadata/state authorization change, without exposing its bytes to the
-    /// administration router.
-    ///
-    /// The prior generation is retained for unresolved operations. This is the
-    /// persistent mechanism's internal implementation of an atomic
-    /// `replace` using the existing secret value.
+    /// Returns the stored credential generations of one connection in
+    /// ascending order, without exposing any secret or commitment.
     ///
     /// # Errors
     ///
-    /// Returns [`CredentialStoreError`] when the transition is not the next
-    /// generation, the prior secret is absent, capacity is exhausted, or the
-    /// durable update fails.
-    pub fn advance_generation(
+    /// Returns [`CredentialStoreError::Unavailable`] when the store cannot be
+    /// read.
+    pub fn stored_generations(
         &self,
         connection_id: &ConnectionId,
-        old_generation: NonZeroU64,
-        new_generation: NonZeroU64,
-    ) -> Result<CredentialReferenceCommitment, CredentialStoreError> {
-        if new_generation.get()
-            != old_generation
-                .get()
-                .checked_add(1)
-                .ok_or(CredentialStoreError::Conflict)?
-        {
-            return Err(CredentialStoreError::Conflict);
-        }
-        let old_key = (connection_id.as_str().to_owned(), old_generation.get());
-        let new_key = (connection_id.as_str().to_owned(), new_generation.get());
-        self.mutate(|entries| {
-            let old = entries
-                .get(&old_key)
-                .ok_or(CredentialStoreError::Unavailable)?;
-            let secret = old.bytes.clone();
-            let commitment = credential_commitment(connection_id, new_generation, &secret);
-            if let Some(existing) = entries.get(&new_key) {
-                return if existing.commitment == commitment && existing.bytes == secret {
-                    Ok(commitment)
-                } else {
-                    Err(CredentialStoreError::Conflict)
-                };
-            }
-            if entries.len() >= self.maximum_entries {
-                return Err(CredentialStoreError::Capacity);
-            }
-            let next = StoredSecret {
-                bytes: secret,
-                commitment,
+    ) -> Result<Vec<NonZeroU64>, CredentialStoreError> {
+        let entries = self
+            .entries
+            .lock()
+            .map_err(|_| CredentialStoreError::Unavailable)?;
+        Ok(connection_generations(&entries, connection_id)
+            .filter_map(NonZeroU64::new)
+            .collect())
+    }
+
+    /// Deletes every stored generation of one connection in one persisted
+    /// mutation.
+    ///
+    /// Revocation calls this after the connection record is revoked. It
+    /// copies nothing and only shrinks the store, so it needs no free
+    /// capacity. A connection with nothing stored succeeds without a write,
+    /// which lets a repeated revocation finish a deletion that an earlier
+    /// attempt failed to persist.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CredentialStoreError`] when the store is unreadable or the
+    /// deletion cannot be persisted. The deletion is then not acknowledged
+    /// and must be repeated.
+    pub fn revoke_connection(
+        &self,
+        connection_id: &ConnectionId,
+    ) -> Result<(), CredentialStoreError> {
+        self.delete_generations(connection_id, <[u64]>::to_vec)
+    }
+
+    /// Deletes superseded generations of one connection in one persisted
+    /// mutation, keeping only those still needed.
+    ///
+    /// `needed` lists connection generations whose credential must remain:
+    /// the current record generation and every generation an unresolved
+    /// operation names. The credential retained for each listed generation is
+    /// kept, as is every stored generation newer than the newest of those,
+    /// which a concurrent rotation may be publishing. The caller that owns
+    /// operation state decides what is needed; the store never prunes on its
+    /// own. Nothing is written when nothing is superseded.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CredentialStoreError`] when the store is unreadable or the
+    /// deletion cannot be persisted.
+    pub fn retain_generations(
+        &self,
+        connection_id: &ConnectionId,
+        needed: &[NonZeroU64],
+    ) -> Result<(), CredentialStoreError> {
+        self.delete_generations(connection_id, |generations| {
+            let kept = needed
+                .iter()
+                .filter_map(|generation| {
+                    let count = generations.partition_point(|stored| *stored <= generation.get());
+                    count
+                        .checked_sub(1)
+                        .and_then(|index| generations.get(index))
+                        .copied()
+                })
+                .collect::<std::collections::BTreeSet<u64>>();
+            let Some(&newest_kept) = kept.last() else {
+                return Vec::new();
             };
-            if Self::total_bytes(entries)
-                .checked_add(next.bytes.len())
-                .is_none_or(|value| value > self.maximum_bytes)
-            {
-                return Err(CredentialStoreError::Capacity);
-            }
-            entries.insert(new_key, next);
-            Ok(commitment)
+            generations
+                .iter()
+                .copied()
+                .filter(|stored| *stored < newest_kept && !kept.contains(stored))
+                .collect()
         })
     }
+
+    fn delete_generations(
+        &self,
+        connection_id: &ConnectionId,
+        select: impl FnOnce(&[u64]) -> Vec<u64>,
+    ) -> Result<(), CredentialStoreError> {
+        let mut entries = self
+            .entries
+            .lock()
+            .map_err(|_| CredentialStoreError::Unavailable)?;
+        let stored = connection_generations(&entries, connection_id).collect::<Vec<_>>();
+        let doomed = select(&stored);
+        if doomed.is_empty() {
+            return Ok(());
+        }
+        let mut next = entries.clone();
+        for generation in doomed {
+            next.remove(&(connection_id.as_str().to_owned(), generation));
+        }
+        persist_entries(&self.path, &next, self.maximum_bytes)?;
+        *entries = next;
+        Ok(())
+    }
+}
+
+/// Returns the credential retained for `generation`: the newest stored
+/// generation of the connection that is not newer than it.
+fn retained_entry<'entries>(
+    entries: &'entries BTreeMap<(String, u64), StoredSecret>,
+    connection_id: &ConnectionId,
+    generation: NonZeroU64,
+) -> Option<(u64, &'entries StoredSecret)> {
+    let id = connection_id.as_str();
+    entries
+        .range((id.to_owned(), 1)..=(id.to_owned(), generation.get()))
+        .next_back()
+        .map(|((_, stored), entry)| (*stored, entry))
+}
+
+fn connection_generations<'entries>(
+    entries: &'entries BTreeMap<(String, u64), StoredSecret>,
+    connection_id: &ConnectionId,
+) -> impl Iterator<Item = u64> + 'entries {
+    let id = connection_id.as_str();
+    entries
+        .range((id.to_owned(), 1)..=(id.to_owned(), u64::MAX))
+        .map(|((_, generation), _)| *generation)
 }
 
 #[async_trait]
@@ -517,11 +600,7 @@ impl ConnectionCredentialStore for PersistentCredentialStore {
             .entries
             .lock()
             .map_err(|_| CredentialStoreError::Unavailable)?;
-        let stored = entries
-            .get(&(
-                binding.connection_id().as_str().to_owned(),
-                binding.generation().get(),
-            ))
+        let (_, stored) = retained_entry(&entries, binding.connection_id(), binding.generation())
             .ok_or(CredentialStoreError::Unavailable)?;
         if stored.commitment.as_bytes() != binding.credential_reference_commitment() {
             return Err(CredentialStoreError::Substitution);
@@ -547,11 +626,10 @@ impl ConnectionCredentialStore for PersistentCredentialStore {
         {
             return Err(CredentialStoreError::Conflict);
         }
-        let old_key = (connection_id.as_str().to_owned(), old_generation.get());
         let new_key = (connection_id.as_str().to_owned(), new_generation.get());
         let commitment = credential_commitment(connection_id, new_generation, secret.expose());
         self.mutate(|entries| {
-            if !entries.contains_key(&old_key) {
+            if retained_entry(entries, connection_id, old_generation).is_none() {
                 return Err(CredentialStoreError::Conflict);
             }
             if let Some(existing) = entries.get(&new_key) {
@@ -959,5 +1037,213 @@ mod tests {
             Poll::Ready(value) => value,
             Poll::Pending => panic!("in-memory credential future unexpectedly pending"),
         }
+    }
+}
+
+#[cfg(test)]
+mod generation_tests {
+    use super::*;
+    use crate::model::tests::record;
+
+    const CONNECTION: &str = "conn_AAAAAAAAAAAAAAAAAAAAAA";
+    const OTHER_CONNECTION: &str = "conn_BBBBBBBBBBBBBBBBBBBBBA";
+
+    fn generation(value: u64) -> NonZeroU64 {
+        NonZeroU64::new(value).unwrap()
+    }
+
+    fn secret(bytes: &[u8]) -> SecretBytes {
+        SecretBytes::new(bytes.to_vec()).unwrap()
+    }
+
+    fn ready<F: std::future::Future>(future: F) -> F::Output {
+        use std::{
+            pin::pin,
+            task::{Context, Poll, Waker},
+        };
+        let mut context = Context::from_waker(Waker::noop());
+        match pin!(future).poll(&mut context) {
+            Poll::Ready(value) => value,
+            Poll::Pending => panic!("credential store future unexpectedly pending"),
+        }
+    }
+
+    fn private_store(
+        maximum_entries: usize,
+    ) -> (tempfile::TempDir, PathBuf, PersistentCredentialStore) {
+        let directory = tempfile::tempdir().unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            fs::set_permissions(directory.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        let path = directory.path().join("credentials.cbor");
+        let store =
+            PersistentCredentialStore::open_with_limits(&path, maximum_entries, 65_536).unwrap();
+        (directory, path, store)
+    }
+
+    fn binding_at(value: u64, commitment: CredentialReferenceCommitment) -> ConnectionBinding {
+        let connection = record();
+        ConnectionBinding {
+            provider_kind: connection.provider_kind().clone(),
+            alias: connection.alias().clone(),
+            connection_id: connection.connection_id().clone(),
+            contract: connection.contract().clone(),
+            descriptor_schema: connection.descriptor_schema().clone(),
+            descriptor: connection.descriptor().to_vec(),
+            generation: generation(value),
+            descriptor_commitment: *connection.descriptor_commitment(),
+            account_commitment: *connection.account_commitment(),
+            credential_reference_commitment: *commitment.as_bytes(),
+        }
+    }
+
+    fn lease(
+        store: &PersistentCredentialStore,
+        binding: &ConnectionBinding,
+    ) -> Result<Vec<u8>, CredentialStoreError> {
+        let deadline = Instant::now() + std::time::Duration::from_secs(5);
+        let leased = ready(store.lease_secret(binding, deadline))?;
+        leased.expose(Instant::now()).map(<[u8]>::to_vec)
+    }
+
+    fn stored(store: &PersistentCredentialStore, connection: &str) -> Vec<u64> {
+        store
+            .stored_generations(&ConnectionId::parse(connection).unwrap())
+            .unwrap()
+            .into_iter()
+            .map(NonZeroU64::get)
+            .collect()
+    }
+
+    #[test]
+    fn state_only_generations_lease_the_credential_they_retain() {
+        let (_directory, _path, store) = private_store(8);
+        let id = ConnectionId::parse(CONNECTION).unwrap();
+        let first = ready(store.install(&id, generation(1), secret(b"first-secret"))).unwrap();
+        assert_eq!(
+            lease(&store, &binding_at(3, first)).unwrap(),
+            b"first-secret"
+        );
+        assert_eq!(
+            store.retained_commitment(&id, generation(3)).unwrap(),
+            first
+        );
+        assert_eq!(
+            lease(
+                &store,
+                &binding_at(3, CredentialReferenceCommitment([9; 32]))
+            )
+            .unwrap_err(),
+            CredentialStoreError::Substitution
+        );
+
+        let second =
+            ready(store.replace(&id, generation(3), generation(4), secret(b"second-secret")))
+                .unwrap();
+        assert_eq!(
+            lease(&store, &binding_at(4, second)).unwrap(),
+            b"second-secret"
+        );
+        assert_eq!(
+            lease(&store, &binding_at(6, second)).unwrap(),
+            b"second-secret"
+        );
+        assert_eq!(
+            lease(&store, &binding_at(3, first)).unwrap(),
+            b"first-secret"
+        );
+        assert_eq!(
+            lease(&store, &binding_at(4, first)).unwrap_err(),
+            CredentialStoreError::Substitution,
+            "a superseded credential never serves a later generation"
+        );
+        assert_eq!(stored(&store, CONNECTION), [1, 4]);
+    }
+
+    #[test]
+    fn replacement_needs_a_retained_credential() {
+        let (_directory, _path, store) = private_store(8);
+        let id = ConnectionId::parse(CONNECTION).unwrap();
+        assert_eq!(
+            ready(store.replace(&id, generation(1), generation(2), secret(b"successor")))
+                .unwrap_err(),
+            CredentialStoreError::Conflict
+        );
+        assert!(stored(&store, CONNECTION).is_empty());
+    }
+
+    #[test]
+    fn connection_revocation_deletes_every_generation_of_that_connection_only() {
+        let (_directory, path, store) = private_store(8);
+        let id = ConnectionId::parse(CONNECTION).unwrap();
+        let other = ConnectionId::parse(OTHER_CONNECTION).unwrap();
+        let first = ready(store.install(&id, generation(1), secret(b"first-secret"))).unwrap();
+        ready(store.replace(&id, generation(1), generation(2), secret(b"second-secret"))).unwrap();
+        ready(store.replace(&id, generation(5), generation(6), secret(b"third-secret"))).unwrap();
+        ready(store.install(&other, generation(1), secret(b"other-secret"))).unwrap();
+        assert_eq!(stored(&store, CONNECTION), [1, 2, 6]);
+
+        store.revoke_connection(&id).unwrap();
+        assert!(stored(&store, CONNECTION).is_empty());
+        assert_eq!(stored(&store, OTHER_CONNECTION), [1]);
+        assert_eq!(
+            lease(&store, &binding_at(1, first)).unwrap_err(),
+            CredentialStoreError::Unavailable
+        );
+        store
+            .revoke_connection(&id)
+            .expect("a repeated revocation completes with nothing stored");
+
+        drop(store);
+        let reopened = PersistentCredentialStore::open_with_limits(&path, 8, 65_536).unwrap();
+        assert!(stored(&reopened, CONNECTION).is_empty());
+        assert_eq!(stored(&reopened, OTHER_CONNECTION), [1]);
+    }
+
+    #[test]
+    fn revocation_and_retention_need_no_free_capacity() {
+        let (_directory, _path, store) = private_store(3);
+        let id = ConnectionId::parse(CONNECTION).unwrap();
+        let other = ConnectionId::parse(OTHER_CONNECTION).unwrap();
+        ready(store.install(&id, generation(1), secret(b"first-secret"))).unwrap();
+        ready(store.replace(&id, generation(1), generation(2), secret(b"second-secret"))).unwrap();
+        ready(store.install(&other, generation(1), secret(b"other-secret"))).unwrap();
+        assert_eq!(
+            ready(store.replace(&other, generation(1), generation(2), secret(b"refused")))
+                .unwrap_err(),
+            CredentialStoreError::Capacity
+        );
+
+        store.retain_generations(&id, &[generation(3)]).unwrap();
+        assert_eq!(stored(&store, CONNECTION), [2]);
+        store.revoke_connection(&other).unwrap();
+        assert!(stored(&store, OTHER_CONNECTION).is_empty());
+    }
+
+    #[test]
+    fn retention_keeps_needed_current_and_newer_generations() {
+        let (_directory, _path, store) = private_store(8);
+        let id = ConnectionId::parse(CONNECTION).unwrap();
+        ready(store.install(&id, generation(1), secret(b"secret-1"))).unwrap();
+        ready(store.replace(&id, generation(2), generation(3), secret(b"secret-3"))).unwrap();
+        ready(store.replace(&id, generation(4), generation(5), secret(b"secret-5"))).unwrap();
+        ready(store.replace(&id, generation(6), generation(7), secret(b"secret-7"))).unwrap();
+
+        store
+            .retain_generations(&id, &[generation(8), generation(4), generation(2)])
+            .unwrap();
+        assert_eq!(stored(&store, CONNECTION), [1, 3, 7]);
+
+        // A record read at generation 6 while generation 7 is being published:
+        // a stored generation newer than every needed one is never deleted.
+        store.retain_generations(&id, &[generation(6)]).unwrap();
+        assert_eq!(stored(&store, CONNECTION), [3, 7]);
+
+        store.retain_generations(&id, &[generation(9)]).unwrap();
+        assert_eq!(stored(&store, CONNECTION), [7]);
+        store.retain_generations(&id, &[]).unwrap();
+        assert_eq!(stored(&store, CONNECTION), [7]);
     }
 }
