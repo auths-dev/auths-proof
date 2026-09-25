@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 303,
+  "freezeVersion": 304,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -238,7 +238,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/source-closure.json",
-      "version": 66,
+      "version": 67,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -246,7 +246,7 @@
       "owners": [
         "formal/qualification/aeneas/source-closure.json"
       ],
-      "sha256": "d4943204f62b7009b9d8d55c1c2be2e32b3122bc524efae2fa961496ed40cfd3"
+      "sha256": "f8ca5969e93c3d7d08b8ab9e52f2d6516d6ba6778c7862f71561e3cc8eb28eee"
     },
     {
       "id": "auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json",
@@ -881,7 +881,7 @@
     },
     {
       "id": "auths.product.profile-qualification-launch",
-      "version": 17,
+      "version": 18,
       "classification": "frozen-meaning",
       "categories": [
         "profile-roster-v2",
@@ -900,7 +900,7 @@
         "xtask/src/profile_codegen.rs",
         "xtask/src/profile_qualification.rs"
       ],
-      "sha256": "850787a2d0104077293c5a47d36b4375aa1c346ad6a59227355c1df6fb09b11b"
+      "sha256": "f061ccccfebfd91ef0c862ff68ac6a828e3084fdeeca75dbc15a30727858f1a1"
     },
     {
       "id": "auths.product.public-sdk-contract",
@@ -940,7 +940,7 @@
     },
     {
       "id": "auths.product.release-assurance",
-      "version": 5,
+      "version": 6,
       "classification": "frozen-meaning",
       "categories": [
         "immutable-candidate-binding",
@@ -956,7 +956,7 @@
         "product/spec/v1/assurance-signers.schema.json",
         "release/assurance"
       ],
-      "sha256": "844949a46f3979c1f4baa74e8c8379acc3a3ea6999a763945bbcb5a1d933c8aa"
+      "sha256": "870fbe84dfba099efbc346ddb0eee4f87ceb7b9eeda39edc45f8699f5642e319"
     },
     {
       "id": "auths.product.simplified-waist",
@@ -980,7 +980,7 @@
     },
     {
       "id": "auths.product.vocabulary",
-      "version": 18,
+      "version": 19,
       "classification": "frozen-meaning",
       "categories": [
         "customer-vocabulary",
@@ -998,7 +998,7 @@
         "product/sdk/auths-sdk/Cargo.toml",
         "xtask/src/sdk_vocabulary.rs"
       ],
-      "sha256": "be576db2fe19dc92c1e10436700b928d1efabb786e5615256c5e19d1b019abb0"
+      "sha256": "efaf70352eea37c69eddef7d56b85a910779abb01ba18c4c146fa8d0d898c994"
     },
     {
       "id": "auths.release.benchmark-contract",
@@ -1044,7 +1044,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 303,
+      "version": 304,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1136,7 +1136,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "33c6bd14b707cdb147a2a6c6092f6ff5dfcb438cf639aa62f1eb20bbe8a6e124"
+      "sha256": "c1747be386436c989b69b11f7b98cb321d3240da9697dc0c76461499acd9b2b9"
     }
   ]
 }

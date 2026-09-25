@@ -16,7 +16,8 @@
         "portable-receipt-pair-verifies-in-both-sdks",
         "restart-safe-replay"
       ],
-      "status": "passed"
+      "status": "passed-locally",
+      "evidence": "hand-recorded from a local run; no CI job runs this proof"
     },
     "timings": [
       { "language": "typescript", "recipe": "01", "elapsedMs": 165 },

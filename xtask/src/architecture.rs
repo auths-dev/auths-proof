@@ -938,7 +938,9 @@ pub(crate) fn repository_hygiene() -> Result<(), String> {
                     || path.contains("/__pycache__/")
                     || path.ends_with(".so")
                     || path.starts_with("bindings/typescript/dist/")
-                    || path.starts_with("bindings/typescript/wasm/"))
+                    || path.starts_with("bindings/typescript/wasm/")
+                    || (path.starts_with("bindings/")
+                        && (path.ends_with(".tgz") || path.ends_with(".whl"))))
         })
         .collect();
     if !generated.is_empty() {
