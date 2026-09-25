@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 pub mod connection_admin;
+mod credential_retention;
 pub mod generated;
 mod journal_executor;
 pub mod local_agent;

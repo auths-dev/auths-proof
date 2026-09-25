@@ -1780,6 +1780,30 @@ impl PersistentOperationJournal {
         Ok(records)
     }
 
+    /// Returns every connection generation named by an unresolved operation
+    /// bound to `connection_id`, across all principals.
+    ///
+    /// Credential retention keeps the credential each of these generations
+    /// uses, because such an operation may still need it to reconcile.
+    pub fn unresolved_connection_generations(
+        &self,
+        connection_id: &str,
+    ) -> Result<BTreeSet<u64>, OperationJournalError> {
+        let database = self
+            .database
+            .lock()
+            .map_err(|_| OperationJournalError::Unavailable)?;
+        self.require_available()?;
+        Ok(database
+            .records
+            .values()
+            .filter(|record| !record.projection.is_terminal())
+            .filter_map(|record| record.binding.connection())
+            .filter(|connection| connection.connection_id() == connection_id)
+            .map(auths_lifecycle::ConnectionBindingCommitmentsV1::generation)
+            .collect())
+    }
+
     /// Atomically records one preparation replay after revalidating the exact
     /// request or idempotency binding against store-owned indexes.
     #[cfg(feature = "qualification-evidence")]
@@ -3267,6 +3291,104 @@ mod tests {
             vec![JournalReceiptV1::new("receipt-decision", vec![0xa0]).unwrap()],
         )
         .unwrap()
+    }
+
+    fn connected_record(
+        request: [u8; 16],
+        connection_id: &str,
+        generation: u64,
+    ) -> JournalRecordV1 {
+        let unconnected = record(request, None);
+        let binding = PreparationBindingV1::new(
+            "did:key:workload",
+            profile(),
+            ClientRequestIdV1::from_bytes(request),
+            None,
+            [2; 32],
+            None,
+            None,
+            Some(
+                auths_lifecycle::ConnectionBindingCommitmentsV1::new(
+                    "primary",
+                    connection_id,
+                    generation,
+                    [6; 32],
+                    [7; 32],
+                )
+                .unwrap(),
+            ),
+            [3; 32],
+            [4; 32],
+            [5; 32],
+        )
+        .unwrap();
+        JournalRecordV1::prepared(
+            unconnected.operation_id,
+            binding,
+            unconnected.decision_class,
+            unconnected.receipt_action_commitment,
+            unconnected.receipt_context_commitment,
+            unconnected.projection,
+            1_000,
+            unconnected.recovery_handle,
+            None,
+            unconnected.profile_state,
+            unconnected.receipts,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn unresolved_connection_generations_skip_terminal_operations_and_other_connections() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("operations.db");
+        let journal = PersistentOperationJournal::open(&path, [(profile(), limits())]).unwrap();
+        let mut prepared = Vec::new();
+        for (request, connection, generation) in [
+            ([41; 16], "conn-primary", 2),
+            ([42; 16], "conn-primary", 5),
+            ([43; 16], "conn-other", 1),
+        ] {
+            let PrepareJournalResult::Created(record) = journal
+                .prepare(connected_record(request, connection, generation), 1_000)
+                .unwrap()
+            else {
+                panic!("fresh connected operation replayed");
+            };
+            prepared.push(record);
+        }
+        assert_eq!(
+            journal
+                .unresolved_connection_generations("conn-primary")
+                .unwrap(),
+            BTreeSet::from([2, 5])
+        );
+        assert_eq!(
+            journal
+                .unresolved_connection_generations("conn-other")
+                .unwrap(),
+            BTreeSet::from([1])
+        );
+
+        journal
+            .mutate_operation(
+                "did:key:workload",
+                prepared[0].operation_id(),
+                prepared[0].revision(),
+                OperationMutationV1::ConcludePreEntry {
+                    state: OperationStateV1::NotApplied,
+                    issue: vec![0xa3],
+                    profile_state: vec![0xa1],
+                },
+                1_001,
+            )
+            .unwrap();
+        assert_eq!(
+            journal
+                .unresolved_connection_generations("conn-primary")
+                .unwrap(),
+            BTreeSet::from([5])
+        );
     }
 
     #[test]

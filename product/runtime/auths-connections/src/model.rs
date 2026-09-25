@@ -186,9 +186,11 @@ impl ConnectionProfile {
 pub enum ConnectionState {
     /// New operations and recovery are allowed.
     Active,
-    /// New operations are refused; recovery remains available.
+    /// New operations and provider entries are refused; reconciliation of an
+    /// operation that may already have entered its provider remains available.
     Disabled,
-    /// New credential leases are refused and the record is retained as a tombstone.
+    /// Every credential lease, reconciliation included, is refused and the
+    /// record is retained as a tombstone.
     Revoked,
 }
 
@@ -556,28 +558,50 @@ impl ConnectionRecord {
         self.revoked_at_unix_seconds
     }
 
-    /// Reconstructs the exact sealed binding for an unresolved older
-    /// generation after the caller has authenticated the operation and loaded
-    /// that generation's retained credential commitment.
+    /// Decides whether reconciling an unresolved operation at `generation`
+    /// may lease a credential from this record.
     ///
-    /// This recovery-only projection deliberately does not require the current
-    /// record to be active. Disablement and rotation reject new operations but
-    /// cannot erase the connection identity of an operation that may already
-    /// have entered its provider. The caller must still compare the recorded
-    /// descriptor and account commitments before invoking this method.
+    /// This is the only lease decision that does not require an active record
+    /// at the operation's exact generation, so it is where revocation must
+    /// hold: a revoked record refuses every lease, whatever the credential
+    /// store still contains. Disablement and rotation cannot erase the
+    /// connection identity of an operation that may already have entered its
+    /// provider, so they do not refuse reconciliation. The caller must first
+    /// compare the operation's recorded connection identity, descriptor, and
+    /// account commitments with this record, and must never use this path for
+    /// a first provider entry.
     ///
     /// # Errors
     ///
-    /// Returns [`ConnectionRecordError::InvalidGeneration`] when recovery asks
-    /// for a generation newer than the durable connection record.
+    /// Returns [`ConnectionRecordError::Revoked`] for a revoked record and
+    /// [`ConnectionRecordError::InvalidGeneration`] for a generation newer
+    /// than the durable record.
+    pub fn authorize_recovery_lease(
+        &self,
+        generation: NonZeroU64,
+    ) -> Result<(), ConnectionRecordError> {
+        if self.state == ConnectionState::Revoked {
+            return Err(ConnectionRecordError::Revoked);
+        }
+        if generation > self.generation {
+            return Err(ConnectionRecordError::InvalidGeneration);
+        }
+        Ok(())
+    }
+
+    /// Reconstructs the exact sealed binding for an unresolved older
+    /// generation after the caller has authenticated the operation and loaded
+    /// the commitment of the credential retained for that generation.
+    ///
+    /// # Errors
+    ///
+    /// Returns every refusal of [`Self::authorize_recovery_lease`].
     pub fn binding_for_recovery(
         &self,
         generation: NonZeroU64,
         credential_reference_commitment: CredentialReferenceCommitment,
     ) -> Result<ConnectionBinding, ConnectionRecordError> {
-        if generation > self.generation {
-            return Err(ConnectionRecordError::InvalidGeneration);
-        }
+        self.authorize_recovery_lease(generation)?;
         Ok(ConnectionBinding {
             provider_kind: self.provider_kind.clone(),
             alias: self.alias.clone(),
@@ -596,8 +620,9 @@ impl ConnectionRecord {
     ///
     /// Revoked records are terminal tombstones. Active and disabled records
     /// may transition between those states or to revoked. The original
-    /// connection identity, descriptor, commitments, and allowlists remain
-    /// byte-identical.
+    /// connection identity, descriptor, commitments, credential reference,
+    /// and allowlists remain byte-identical: a state change stores no new
+    /// credential.
     ///
     /// # Errors
     ///
@@ -606,7 +631,6 @@ impl ConnectionRecord {
     pub fn transition_state(
         &self,
         state: ConnectionState,
-        credential_reference_commitment: [u8; 32],
         updated_at_unix_seconds: u64,
     ) -> Result<Self, ConnectionRecordError> {
         if state == self.state
@@ -630,7 +654,7 @@ impl ConnectionRecord {
             self.descriptor_schema.clone(),
             self.descriptor.clone(),
             self.account_commitment,
-            credential_reference_commitment,
+            self.credential_reference_commitment,
             generation,
             state,
             self.allowed_workloads.clone(),
@@ -685,7 +709,9 @@ impl ConnectionRecord {
         )
     }
 
-    /// Creates a generation-incrementing authorization replacement.
+    /// Creates a generation-incrementing authorization replacement. Like a
+    /// state transition, it keeps the credential reference and stores no new
+    /// credential.
     ///
     /// # Errors
     ///
@@ -695,7 +721,6 @@ impl ConnectionRecord {
         &self,
         allowed_workloads: Vec<String>,
         allowed_profiles: Vec<ConnectionProfile>,
-        credential_reference_commitment: [u8; 32],
         updated_at_unix_seconds: u64,
     ) -> Result<Self, ConnectionRecordError> {
         if self.state == ConnectionState::Revoked
@@ -718,7 +743,7 @@ impl ConnectionRecord {
             self.descriptor_schema.clone(),
             self.descriptor.clone(),
             self.account_commitment,
-            credential_reference_commitment,
+            self.credential_reference_commitment,
             generation,
             self.state,
             allowed_workloads,
@@ -832,6 +857,9 @@ pub enum ConnectionRecordError {
     /// State token is unknown.
     #[error("invalid connection state")]
     InvalidState,
+    /// The record is a revoked tombstone, which refuses every credential lease.
+    #[error("connection is revoked")]
+    Revoked,
     /// Workload list is unbounded, malformed, duplicate, or unsorted.
     #[error("invalid workload authorization list")]
     InvalidWorkloads,
@@ -999,6 +1027,71 @@ pub(crate) mod tests {
             ConnectionRecord::from_canonical_cbor(&bytes).unwrap_err(),
             ConnectionRecordError::TrailingBytes
         );
+    }
+
+    #[test]
+    fn state_transitions_keep_the_credential_reference() {
+        let active = record();
+        let disabled = active
+            .transition_state(ConnectionState::Disabled, 11)
+            .unwrap();
+        let enabled = disabled
+            .transition_state(ConnectionState::Active, 12)
+            .unwrap();
+        let revoked = enabled
+            .transition_state(ConnectionState::Revoked, 13)
+            .unwrap();
+        for (next, generation) in [(&disabled, 2), (&enabled, 3), (&revoked, 4)] {
+            assert_eq!(next.generation().get(), generation);
+            assert_eq!(
+                next.credential_reference_commitment(),
+                active.credential_reference_commitment()
+            );
+        }
+        assert_eq!(revoked.revoked_at_unix_seconds(), Some(13));
+        assert_eq!(
+            revoked
+                .transition_state(ConnectionState::Revoked, 14)
+                .unwrap_err(),
+            ConnectionRecordError::InvalidState
+        );
+    }
+
+    #[test]
+    fn only_a_revoked_record_refuses_every_recovery_lease() {
+        let first = NonZeroU64::new(1).unwrap();
+        let commitment = CredentialReferenceCommitment::for_tests([3; 32]);
+        let disabled = record()
+            .transition_state(ConnectionState::Disabled, 11)
+            .unwrap();
+        assert_eq!(disabled.authorize_recovery_lease(first), Ok(()));
+        assert_eq!(
+            disabled
+                .binding_for_recovery(first, commitment)
+                .unwrap()
+                .generation(),
+            first
+        );
+        assert_eq!(
+            disabled.authorize_recovery_lease(NonZeroU64::new(3).unwrap()),
+            Err(ConnectionRecordError::InvalidGeneration)
+        );
+
+        let revoked = disabled
+            .transition_state(ConnectionState::Revoked, 12)
+            .unwrap();
+        for generation in [first, revoked.generation()] {
+            assert_eq!(
+                revoked.authorize_recovery_lease(generation),
+                Err(ConnectionRecordError::Revoked)
+            );
+            assert_eq!(
+                revoked
+                    .binding_for_recovery(generation, commitment)
+                    .unwrap_err(),
+                ConnectionRecordError::Revoked
+            );
+        }
     }
 
     #[test]
