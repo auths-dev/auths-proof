@@ -173,7 +173,7 @@ jobs:
       - name: Run the README journey, hostile cases, and offline audit from npm
         working-directory: examples/stripe-refund-approval/typescript
         run: >-
-          node build/typescript/journey.js
+          node build/journey.js
           --gateway "$GITHUB_WORKSPACE/target/debug/auths-gateway"
           --summary "$GITHUB_WORKSPACE/target/journey-artifacts/journey-npm-summary.json"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
