@@ -51,8 +51,9 @@ held which key, is operator evidence and is not produced by this code.
 ## 2. Production substrate
 
 - **Attempt store.** A production installation keeps logical-operation
-  claims, provider-bound evidence, and outcome stages in the qualified
-  PostgreSQL store, through the reference deployment's secret slots
+  claims, provider-bound evidence, and outcome stages in the multi-host
+  PostgreSQL store (its qualification, AP-SPEC-038 Epic 2, is open), through
+  the reference deployment's secret slots
   `AUTHS_POSTGRES_URL`, `AUTHS_POSTGRES_CA_PEM`, and
   `AUTHS_POSTGRES_SERVER_NAME`. Connections are TLS-only with
   certificate and server-name verification. The schema is
@@ -63,6 +64,10 @@ held which key, is operator evidence and is not produced by this code.
   compare-and-swap on the exact stored record. A second process that loses a
   race records nothing and answers `gateway.attempt.replay`. Gateway claims
   do not take the lifecycle store's singleton contract-row lock.
+- **Connection state is per process.** Each gateway process keeps its own
+  connection and credential state, so a disable, rotate, or revoke made
+  through one process's admin socket applies to that process only. Processes
+  must not share a state directory.
 - **Development** installations keep the single-host file store under
   `<state-dir>/attempts`. It is not a multi-host store.
 - **Observer custody.** A production installation refuses the software

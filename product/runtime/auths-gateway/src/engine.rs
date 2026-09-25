@@ -1,4 +1,6 @@
-//! Native-verified, digest-bound single-host execution coordinator.
+//! Native-verified, digest-bound execution coordinator. Attempts persist in
+//! the single-host file store or the multi-host `PostgreSQL` store; connection
+//! state is per process.
 
 // Explicit matches keep each verification and transport failure mapped to its
 // distinct public stage; `let...else` would obscure those boundary decisions.
@@ -154,7 +156,10 @@ fn refused(code: &'static str) -> GatewayObserveResult {
 }
 
 /// One immutable installed operation and independently provisioned trust.
-/// Connection state and generation are rechecked on every submission.
+/// Connection state and generation are rechecked on every submission against
+/// this process's own copy: a disable, rotate, or revoke made through another
+/// gateway process does not reach it, and processes must not share a state
+/// directory.
 pub struct GatewayEngine {
     recipe: CompiledRecipe,
     trusted_context: TrustedContext,
@@ -1324,7 +1329,7 @@ mod tests {
     }
 
     // One shared conformance suite for every attempt store. The file store
-    // runs it on every test run; the qualified PostgreSQL store runs it
+    // runs it on every test run; the PostgreSQL store runs it
     // against the TLS fixture in the PostgreSQL lifecycle workflow.
 
     /// A logical operation enters the provider exactly once; an identical

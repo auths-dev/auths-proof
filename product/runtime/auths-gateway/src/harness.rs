@@ -665,7 +665,7 @@ impl Harness {
         ))
     }
 
-    /// Keeps attempts in `store`, such as the qualified multi-host store.
+    /// Keeps attempts in `store`, such as the multi-host `PostgreSQL` store.
     pub(crate) fn with_attempts(
         recipe: CompiledRecipe,
         context: TrustedContext,

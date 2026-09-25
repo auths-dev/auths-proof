@@ -1803,19 +1803,18 @@ layer = "product"
 path = "product/stores/auths-stores"
 core_apis = ["auths-model"]
 protocol_versions = ["auths-proof/v1"]
-wire_objects = ["AttestedDecisionReceipt", "AttestedExecutionReceipt", "BudgetState", "LifecycleRecordV1", "ReplayState"]
+wire_objects = ["AttestedDecisionReceipt", "AttestedExecutionReceipt", "LifecycleRecordV1"]
 fixture_suites = ["product/fixtures/v1/lifecycle"]
 principal_families = []
 signature_families = []
 profiles = []
 transports = ["filesystem", "memory", "postgresql-tls"]
 configuration_inputs = ["budget-algebra", "capacity", "lifecycle-capacity-rule", "receipt-policy"]
-security_state = ["budget-ledger", "gateway-attempt-records", "lifecycle-records", "receipt-spool", "replay-ledger"]
+security_state = ["budget-ledger", "gateway-attempt-records", "lifecycle-records", "receipt-spool"]
 
 [packages.auths-stores.claims]
 receipt-producer-consumer = ["product/stores/auths-stores/src/lib.rs#local_spool_policy_persists_attested_receipt_on_primary_failure"]
 stateful-replay-budget-component = [
-  "product/stores/auths-stores/src/lib.rs#persistent_ledgers_survive_reopen",
   "product/stores/auths-stores/src/lifecycle.rs#concurrent_final_capacity_has_one_winner",
   "product/stores/auths-stores/src/lifecycle.rs#persistent_capacity_and_replay_survive_reopen",
   "product/stores/auths-stores/src/lifecycle.rs#crash_matrix_reopens_old_or_new_canonical_state_never_partial_state",
