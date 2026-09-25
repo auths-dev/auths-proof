@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 ac362fdc216c16367d01ce2d5753195c1f0dd1972874bf746393d9051b9a9606
+# declaration-sha256 23647fcf25c89dae5e58c2bec9daad61055df84a123c193f7f60fea8d1907c1d
 .	AuthsError	value+type
 .	AuthsIssue	type
 .	AuthsOperationError	value+type
@@ -51,6 +51,7 @@
 ./verify	Verifier	value+type
 ./self-hosted	arrayField	value
 ./self-hosted	ArrayField	type
+./self-hosted	AssurancePolicy	type
 ./self-hosted	attachObservations	value
 ./self-hosted	AttemptRecord	type
 ./self-hosted	AttemptState	type
@@ -62,12 +63,14 @@
 ./self-hosted	authorMcpProof	value
 ./self-hosted	authorMcpQuorumProof	value
 ./self-hosted	authorProductionMcpProof	value
+./self-hosted	authorRootGrant	value
 ./self-hosted	booleanField	value
 ./self-hosted	BooleanField	type
 ./self-hosted	bytesField	value
 ./self-hosted	BytesField	type
 ./self-hosted	CommandOf	type
 ./self-hosted	CommandResult	type
+./self-hosted	compileTrustedContext	value
 ./self-hosted	enumField	value
 ./self-hosted	EnumField	type
 ./self-hosted	exactMcpTool	value
@@ -95,6 +98,7 @@
 ./self-hosted	SignedObservationAttachment	type
 ./self-hosted	stringField	value
 ./self-hosted	StringField	type
+./self-hosted	TrustAnchor	type
 ./self-hosted	verifyCommand	value
 ./gateway	GatewayClient	value+type
 ./gateway	GatewayEndpoint	value+type
@@ -167,6 +171,8 @@
 ./testkit	ConformanceCaseResult	type
 ./testkit	ConformanceMetadata	type
 ./testkit	ConformanceReport	type
+./testkit	developmentEd25519Key	value
+./testkit	DevelopmentEd25519Key	type
 ./testkit	ephemeralEd25519Signer	value
 ./testkit	fixtures	value
 ./testkit	runSelfHostedAdapterConformance	value

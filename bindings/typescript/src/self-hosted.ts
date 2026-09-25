@@ -882,6 +882,303 @@ export async function authorMcpQuorumProof<Fields extends FieldMap>(input: Reado
   }
 }
 
+/**
+ * One root the operator trusts and the most authority it may exercise or
+ * delegate. `maxDelegationDepth` counts the delegations allowed below the
+ * anchor: 0 means the anchor may only act, 1 lets it grant once. Anchors use
+ * expiry-only status.
+ */
+export interface TrustAnchor {
+  readonly id: string;
+  readonly principal: string;
+  readonly acceptedMethods: readonly string[];
+  readonly profiles: readonly Readonly<{ id: string; version: number }>[];
+  readonly permissions: readonly Readonly<{ capability: string; resource: string }>[];
+  readonly resourceNamespaces: readonly string[];
+  readonly audiences: readonly string[];
+  readonly notBefore: bigint;
+  readonly expiresAt: bigint;
+  readonly maxDelegationDepth: number;
+  readonly assurancePolicy: string;
+}
+
+/** Assurance claims the verifier requires of each participant role. */
+export interface AssurancePolicy {
+  readonly id: string;
+  readonly requirements: readonly Readonly<{
+    role: "root" | "intermediate" | "actor" | "external-issuer";
+    quantifier: "any" | "every";
+    claim: string;
+    maximumAge?: bigint;
+  }>[];
+}
+
+const MAX_UINT64 = (1n << 64n) - 1n;
+
+/**
+ * Compiles an operator's trusted context the way the Rust SDK's trusted-context
+ * builder does for the Python binding, so equal inputs give equal bytes in
+ * both SDKs. `configuration` is the 32-byte verifier configuration the
+ * context pins: pass the one `auths-gateway review` prints to install trust in
+ * that gateway, or omit it to pin this package's own verifier, which the local
+ * check in `authorMcpProof` and `authorMcpQuorumProof` uses. The composition
+ * minimums default to 1. With `request`, the context is bound to one audience,
+ * challenge, and evaluation time, as a gateway installation needs; without it
+ * the unbound template is returned. Throws `TypeError` or `RangeError` for
+ * malformed or unbounded input before native code runs, and the native error
+ * for input the Rust model rejects.
+ */
+export async function compileTrustedContext(input: Readonly<{
+  anchors: readonly TrustAnchor[];
+  assurance: AssurancePolicy;
+  configuration?: Uint8Array;
+  minimumAuthorizedBranches?: number;
+  minimumDistinctActors?: number;
+  minimumDistinctRoots?: number;
+  evidenceTypes?: readonly string[];
+  criticalExtensions?: readonly string[];
+  channelPolicy?: string;
+  request?: Readonly<{ audience: string; challenge: Uint8Array; evaluationTime: bigint }>;
+}>): Promise<Uint8Array> {
+  if (!Array.isArray(input.anchors) || input.anchors.length < 1 || input.anchors.length > 32) {
+    throw new RangeError("trusted context needs 1 to 32 trust anchors");
+  }
+  if (input.configuration !== undefined &&
+      (!(input.configuration instanceof Uint8Array) || input.configuration.length !== 32)) {
+    throw new TypeError("verifier configuration must contain 32 bytes");
+  }
+  const assurance = input.assurance;
+  if (assurance === null || typeof assurance !== "object" || !Array.isArray(assurance.requirements) ||
+      assurance.requirements.length > 32) {
+    throw new TypeError("assurance policy must list at most 32 requirements");
+  }
+  const request = input.request;
+  if (request !== undefined && (!(request.challenge instanceof Uint8Array) ||
+      request.challenge.length !== 32)) {
+    throw new TypeError("request challenge must contain 32 bytes");
+  }
+  const composition = {
+    expectedPlan: null,
+    minimumAuthorizedBranches: checkedU16(input.minimumAuthorizedBranches ?? 1, "authorized branches"),
+    minimumDistinctActors: checkedU16(input.minimumDistinctActors ?? 1, "distinct actors"),
+    minimumDistinctRoots: checkedU16(input.minimumDistinctRoots ?? 1, "distinct roots"),
+  };
+  const anchors = input.anchors.map((anchor) => ({
+    id: checkedText(anchor.id, "anchor ID"),
+    principal: checkedText(anchor.principal, "anchor principal"),
+    acceptedMethods: checkedTexts(anchor.acceptedMethods, "accepted methods", 16),
+    profiles: checkedProfiles(anchor.profiles),
+    permissions: checkedPermissions(anchor.permissions),
+    resourceNamespaces: checkedTexts(anchor.resourceNamespaces, "resource namespaces", 64),
+    audiences: checkedTexts(anchor.audiences, "audiences", 32),
+    notBefore: checkedU64(anchor.notBefore, "anchor validity"),
+    expiresAt: checkedU64(anchor.expiresAt, "anchor validity"),
+    budget: null,
+    maxDelegationDepth: checkedU16(anchor.maxDelegationDepth, "delegation depth"),
+    assurancePolicy: checkedText(anchor.assurancePolicy, "anchor assurance policy"),
+    statusPolicy: { mode: "expiry-only" },
+  }));
+  const policy = {
+    id: checkedText(assurance.id, "assurance policy"),
+    requirements: assurance.requirements.map((requirement) => ({
+      role: checkedText(requirement.role, "assurance role"),
+      quantifier: checkedText(requirement.quantifier, "assurance quantifier"),
+      claimKind: checkedText(requirement.claim, "assurance claim"),
+      maximumAge: requirement.maximumAge === undefined
+        ? null : checkedU64(requirement.maximumAge, "assurance maximum age"),
+    })),
+  };
+  const channelPolicy = input.channelPolicy === undefined
+    ? undefined : checkedText(input.channelPolicy, "channel policy");
+  const evidenceTypes = checkedTexts(input.evidenceTypes ?? [], "evidence types", 64);
+  const criticalExtensions = checkedTexts(input.criticalExtensions ?? [], "critical extensions", 64);
+  const engine = await loadPackagedWorkflowEngine();
+  const compiled = engine.buildTrustedContextTemplateV1(
+    input.configuration?.slice(), composition, anchors, policy, channelPolicy,
+    evidenceTypes, criticalExtensions,
+  ).slice();
+  if (request === undefined) return compiled;
+  return engine.bindTrustedContextRequestV1(
+    compiled, checkedText(request.audience, "request audience"), request.challenge.slice(),
+    checkedU64(request.evaluationTime, "evaluation time"),
+  ).slice();
+}
+
+/**
+ * Asks a trust anchor's custody signer to issue one parentless grant to
+ * `subject` and returns it with the anchor's control evidence, ready to be the
+ * first `GrantEvidence` of the subject's chain. The grant permits any body of
+ * `profile` under `permissions` and `audiences` from `notBefore` through
+ * `expiresAt`, carries no budget ceiling, uses expiry-only status, and carries
+ * each critical extension exactly as given, such as the bounded-policy
+ * commitment a gateway enforces. `remainingDepth` counts the delegations the
+ * subject may make. The custody request expires 300 seconds after
+ * `requestedAt`. A declining signer raises `AuthoringUnsuccessful`; malformed
+ * input raises `TypeError` or `RangeError` before any signature is requested,
+ * and a custody response that does not bind the exact request raises
+ * `TypeError`.
+ */
+export async function authorRootGrant(input: Readonly<{
+  signer: CustodySigner;
+  subject: string;
+  profile: Readonly<{ id: string; version: number }>;
+  permissions: readonly Readonly<{ capability: string; resource: string }>[];
+  audiences: readonly string[];
+  notBefore: bigint;
+  expiresAt: bigint;
+  remainingDepth: number;
+  assuranceFloor: string;
+  criticalExtensions?: readonly Readonly<{ id: string; bytes: Uint8Array }>[];
+  requestedAt: bigint;
+  signal?: AbortSignal;
+}>): Promise<GrantEvidence> {
+  const descriptor = input.signer?.descriptor;
+  if (descriptor?.contract !== "signer-custody/2") {
+    throw new TypeError("signer does not implement the custody contract");
+  }
+  const extensions = input.criticalExtensions ?? [];
+  if (!Array.isArray(extensions) || extensions.length > 8 ||
+      extensions.some((extension) => !(extension?.bytes instanceof Uint8Array) ||
+        extension.bytes.length > 16_384)) {
+    throw new RangeError("a grant carries at most 8 critical extensions of at most 16 KiB each");
+  }
+  const requestedAt = checkedU64(input.requestedAt, "request time");
+  if (requestedAt > MAX_UINT64 - 300n) throw new RangeError("request time is outside bounds");
+  const profile = checkedProfiles([input.profile])[0]!;
+  const fields = {
+    subject: checkedText(input.subject, "grant subject"),
+    profile,
+    permissions: checkedPermissions(input.permissions),
+    notBefore: checkedU64(input.notBefore, "grant validity"),
+    expiresAt: checkedU64(input.expiresAt, "grant validity"),
+    audiences: checkedTexts(input.audiences, "audiences", 32),
+    remainingDepth: checkedU16(input.remainingDepth, "delegation depth"),
+    assuranceFloor: checkedText(input.assuranceFloor, "assurance floor"),
+    criticalExtensions: extensions.map((extension) => ({
+      id: checkedText(extension.id, "critical extension"),
+      bytes: extension.bytes.slice(),
+    })),
+  };
+  const engine = await loadPackagedWorkflowEngine();
+  const statement = engine.rootGrantStatementV1(
+    descriptor.principal, fields.subject, profile.id, profile.version,
+    fields.permissions.map((item) => item.capability),
+    fields.permissions.map((item) => item.resource),
+    fields.notBefore, fields.expiresAt, fields.audiences, fields.remainingDepth,
+    fields.assuranceFloor, fields.criticalExtensions,
+  ).slice();
+  const signature = descriptor.signature;
+  const request = engine.prepareGrantSigningV1(
+    statement, signature.principalMethod, signature.verificationMethod, signature.suite,
+  );
+  const requestId = request.requestId;
+  const objectId = request.objectId.slice();
+  const transactionDigest = request.transactionDigest.slice();
+  let outcome: Awaited<ReturnType<CustodySigner["sign"]>>;
+  try {
+    outcome = await input.signer.sign({
+      requestId,
+      objectKind: "grant",
+      objectId: objectId.slice(),
+      descriptor,
+      transactionDigest: transactionDigest.slice(),
+      signingPreimage: request.signingPreimage.slice(),
+      expiresAtUnixSeconds: requestedAt + 300n,
+      display: Object.freeze([
+        { label: "grant subject", value: fields.subject },
+        { label: "profile", value: `${fields.profile.id}/${fields.profile.version}` },
+        { label: "permissions", value: fields.permissions.map((item) => `${item.capability} ${item.resource}`).join(", ") },
+        { label: "audiences", value: fields.audiences.join(", ") },
+        { label: "valid", value: `${fields.notBefore} to ${fields.expiresAt}` },
+        { label: "further delegations", value: String(fields.remainingDepth) },
+        { label: "critical extensions", value: fields.criticalExtensions.length === 0 ? "none"
+          : fields.criticalExtensions.map((item) => `${item.id} (${item.bytes.length} bytes)`).join(", ") },
+      ]),
+      signal: input.signal ?? new AbortController().signal,
+    });
+  } finally {
+    request.free?.();
+  }
+  if (outcome.kind !== "signed") {
+    throw new AuthoringUnsuccessful(
+      outcome.kind === "rejected" ? "rejected" : "indeterminate", outcome.failure,
+    );
+  }
+  const response = outcome.response;
+  if (response.requestId !== requestId ||
+      !bytesEqual(response.objectId, objectId) ||
+      !bytesEqual(response.transactionDigest, transactionDigest) ||
+      response.principal !== descriptor.principal ||
+      response.providerKeyVersion !== descriptor.keyVersion ||
+      response.descriptor.principalMethod !== signature.principalMethod ||
+      response.descriptor.verificationMethod !== signature.verificationMethod ||
+      response.descriptor.suite !== signature.suite ||
+      response.evidence.length < 1 || response.evidence.length > 32) {
+    throw new TypeError("custody response does not bind the exact signing request");
+  }
+  const signedGrant = engine.completeGrantSigningV1(
+    statement, signature.principalMethod, signature.verificationMethod, signature.suite,
+    response.signature,
+  ).slice();
+  engine.validateRootAuthorityV1(
+    signedGrant, descriptor.principal, fields.subject, fields.profile.id, fields.profile.version,
+  ).free?.();
+  return Object.freeze({
+    signedGrant,
+    evidence: Object.freeze(response.evidence.map((evidence) => Object.freeze({
+      type: evidence.type, mediaType: evidence.mediaType, bytes: evidence.bytes.slice(),
+    }))),
+  });
+}
+
+function checkedText(value: unknown, label: string): string {
+  if (typeof value !== "string" || value.length < 1 || value.length > 1_024) {
+    throw new TypeError(`${label} must be a non-empty bounded string`);
+  }
+  return value;
+}
+
+function checkedTexts(values: unknown, label: string, maximum: number): string[] {
+  if (!Array.isArray(values) || values.length > maximum) {
+    throw new RangeError(`${label} must be a list of at most ${maximum} entries`);
+  }
+  return values.map((value) => checkedText(value, label));
+}
+
+function checkedU16(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0 || value > 0xffff) {
+    throw new RangeError(`${label} must be a whole number from 0 to 65535`);
+  }
+  return value;
+}
+
+function checkedU64(value: unknown, label: string): bigint {
+  if (typeof value !== "bigint" || value < 0n || value > MAX_UINT64) {
+    throw new RangeError(`${label} must be an unsigned 64-bit bigint`);
+  }
+  return value;
+}
+
+function checkedProfiles(values: unknown): Readonly<{ id: string; version: number }>[] {
+  if (!Array.isArray(values) || values.length > 16) {
+    throw new RangeError("profiles must be a list of at most 16 entries");
+  }
+  return values.map((value: Readonly<{ id?: unknown; version?: unknown }> | null) => ({
+    id: checkedText(value?.id, "profile ID"),
+    version: checkedU16(value?.version, "profile version"),
+  }));
+}
+
+function checkedPermissions(values: unknown): Readonly<{ capability: string; resource: string }>[] {
+  if (!Array.isArray(values) || values.length > 64) {
+    throw new RangeError("permissions must be a list of at most 64 entries");
+  }
+  return values.map((value: Readonly<{ capability?: unknown; resource?: unknown }> | null) => ({
+    capability: checkedText(value?.capability, "permission capability"),
+    resource: checkedText(value?.resource, "permission resource"),
+  }));
+}
+
 function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
   if (left.length !== right.length) return false;
   let difference = 0;

@@ -202,12 +202,7 @@ impl DidWebHttpResolver {
         }
         let port = did.port().unwrap_or(443);
         let addresses = resolve_public_addresses(did.host(), port)?;
-        let client = Client::builder()
-            .redirect(redirect::Policy::none())
-            .timeout(self.policy.timeout)
-            .resolve_to_addrs(did.host(), &addresses)
-            .build()
-            .map_err(|_| ResolveError::Transport)?;
+        let client = pinned_client(did.host(), &addresses, self.policy.timeout)?;
         let response = client
             .get(did.resolution_url())
             .header(
@@ -271,6 +266,25 @@ impl DidWebHttpResolver {
             valid_until,
         })
     }
+}
+
+/// A client that connects only to `addresses`, the public addresses already
+/// checked for `host`. Proxy variables are ignored: a proxy would resolve the
+/// host again and bypass both the check and the pin. Plain HTTP and redirects
+/// are refused.
+fn pinned_client(
+    host: &str,
+    addresses: &[SocketAddr],
+    timeout: Duration,
+) -> Result<Client, ResolveError> {
+    Client::builder()
+        .https_only(true)
+        .no_proxy()
+        .redirect(redirect::Policy::none())
+        .timeout(timeout)
+        .resolve_to_addrs(host, addresses)
+        .build()
+        .map_err(|_| ResolveError::Transport)
 }
 
 fn parse_authority(value: &str) -> Result<(String, Option<u16>), ResolveError> {
@@ -438,6 +452,55 @@ mod tests {
         }
         assert!(is_public("8.8.8.8".parse().expect("address")));
         assert!(is_public("2606:4700:4700::1111".parse().expect("address")));
+    }
+
+    /// Child half of `environment_proxies_cannot_bypass_the_pin`. It runs in a
+    /// fresh copy of this test binary whose proxy variables name the parent's
+    /// listener, because a test must not change its own environment.
+    #[test]
+    #[ignore = "started by environment_proxies_cannot_bypass_the_pin"]
+    fn pinned_request_under_environment_proxy() {
+        let closed = std::net::TcpListener::bind("127.0.0.1:0")
+            .and_then(|listener| listener.local_addr())
+            .expect("free loopback port");
+        let error = pinned_client("example.com", &[closed], Duration::from_secs(5))
+            .expect("client")
+            .get("https://example.com/.well-known/did.json")
+            .send()
+            .expect_err("nothing listens on the pinned address");
+        assert!(error.is_connect(), "{error}");
+    }
+
+    #[test]
+    fn environment_proxies_cannot_bypass_the_pin() {
+        let proxy = std::net::TcpListener::bind("127.0.0.1:0").expect("proxy listener");
+        proxy
+            .set_nonblocking(true)
+            .expect("non-blocking proxy listener");
+        let proxy_url = format!("http://{}", proxy.local_addr().expect("proxy address"));
+        let child = std::process::Command::new(std::env::current_exe().expect("test binary"))
+            .args([
+                "--exact",
+                "tests::pinned_request_under_environment_proxy",
+                "--ignored",
+            ])
+            .env("HTTPS_PROXY", &proxy_url)
+            .env("ALL_PROXY", &proxy_url)
+            .env_remove("NO_PROXY")
+            .env_remove("no_proxy")
+            .env_remove("REQUEST_METHOD")
+            .output()
+            .expect("child test");
+        let stdout = String::from_utf8_lossy(&child.stdout);
+        assert!(
+            child.status.success() && stdout.contains("1 passed"),
+            "{stdout}"
+        );
+        assert_eq!(
+            proxy.accept().map(drop).map_err(|error| error.kind()),
+            Err(std::io::ErrorKind::WouldBlock),
+            "the pinned request reached the environment proxy"
+        );
     }
 
     #[test]

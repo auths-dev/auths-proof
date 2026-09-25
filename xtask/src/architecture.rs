@@ -949,51 +949,524 @@ pub(crate) fn repository_hygiene() -> Result<(), String> {
         ));
     }
     check_workflow_action_pins()?;
+    check_workflow_script_expressions()?;
     Ok(())
 }
 
-pub(crate) fn check_workflow_action_pins() -> Result<(), String> {
-    let mut action_sources = Vec::new();
+fn workflow_sources() -> Result<Vec<PathBuf>, String> {
+    let mut sources = Vec::new();
     for directory in [".github/workflows", ".github/actions"] {
         let directory = root().join(directory);
-        action_sources.extend(files_with_extension(&directory, "yml")?);
-        action_sources.extend(files_with_extension(&directory, "yaml")?);
+        sources.extend(files_with_extension(&directory, "yml")?);
+        sources.extend(files_with_extension(&directory, "yaml")?);
     }
-    action_sources.sort();
-    for path in action_sources {
+    sources.sort();
+    Ok(sources)
+}
+
+/// Requires every action and reusable workflow to be pinned: each step's and
+/// each job's `uses` names a local path or a full 40-hex commit. `uses` is
+/// found by the structural step reader, wherever it sits among a step's keys.
+pub(crate) fn check_workflow_action_pins() -> Result<(), String> {
+    for path in workflow_sources()? {
         let source = fs::read_to_string(&path)
             .map_err(|error| format!("could not read {}: {error}", path.display()))?;
-        for (index, line) in source.lines().enumerate() {
-            let Some(reference) = line.trim().strip_prefix("- uses: ") else {
+        check_action_pins(&source).map_err(|error| format!("{}:{error}", path.display()))?;
+    }
+    Ok(())
+}
+
+fn check_action_pins(source: &str) -> Result<(), String> {
+    let lines = workflow_lines(source)?;
+    for job in workflow_jobs(&lines)? {
+        for fields in std::iter::once(&job.fields).chain(&job.steps) {
+            let Some(uses) = unique_entry(fields, "uses")? else {
                 continue;
             };
+            let reference = unquoted(uses.inline);
             if reference.starts_with("./") {
                 continue;
             }
             let revision = reference
-                .split('#')
-                .next()
-                .unwrap_or(reference)
-                .trim()
                 .rsplit_once('@')
                 .map(|(_, revision)| revision)
-                .ok_or_else(|| {
-                    format!(
-                        "{}:{} action has no revision",
-                        path.display(),
-                        index.saturating_add(1)
-                    )
-                })?;
+                .ok_or_else(|| format!("{}: action has no revision", uses.number))?;
             if revision.len() != 40 || !revision.bytes().all(|byte| byte.is_ascii_hexdigit()) {
                 return Err(format!(
-                    "{}:{} action is not pinned to an immutable commit: {reference}",
-                    path.display(),
-                    index.saturating_add(1)
+                    "{}: action is not pinned to an immutable commit: {reference}",
+                    uses.number
                 ));
             }
         }
     }
     Ok(())
+}
+
+/// Property names whose values a contributor, pull-request author or workflow
+/// dispatcher chooses: refs and branch names, titles, bodies, commit messages,
+/// labels and commit authors. A `workflow_ref` ends in the ref the run started
+/// from.
+const UNTRUSTED_EXPRESSION_PROPERTIES: [&str; 15] = [
+    "author",
+    "base_ref",
+    "body",
+    "committer",
+    "default_branch",
+    "display_title",
+    "head_branch",
+    "head_ref",
+    "label",
+    "message",
+    "page_name",
+    "ref",
+    "ref_name",
+    "title",
+    "workflow_ref",
+];
+
+/// Refuses `${{ ... }}` expressions that Actions would splice into step
+/// source. Actions substitutes expressions into a step before it runs, so the
+/// value becomes JavaScript inside an `actions/github-script` `script` and
+/// shell inside a `run` script; values must reach both through the step's
+/// `env`.
+///
+/// A `script` may contain no expression at all. A `run` script may not read a
+/// property named in `UNTRUSTED_EXPRESSION_PROPERTIES` at any depth, or the
+/// whole `github` or `github.event` object. Steps are found structurally
+/// under `jobs.<id>.steps` and `runs.steps`; a workflow outside the
+/// block-style YAML this reader understands is refused, not skipped.
+pub(crate) fn check_workflow_script_expressions() -> Result<(), String> {
+    for path in workflow_sources()? {
+        let source = fs::read_to_string(&path)
+            .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+        check_step_script_expressions(&source)
+            .map_err(|error| format!("{}:{error}", path.display()))?;
+    }
+    Ok(())
+}
+
+/// One workflow line: its 1-based number, indentation and remaining text.
+#[derive(Clone, Copy)]
+struct WorkflowLine<'a> {
+    number: usize,
+    indent: usize,
+    text: &'a str,
+}
+
+impl WorkflowLine<'_> {
+    fn is_trivia(self) -> bool {
+        self.text.is_empty() || self.text.starts_with('#')
+    }
+}
+
+/// One block-mapping entry and every line nested under it.
+struct WorkflowEntry<'s, 'a> {
+    number: usize,
+    key: &'a str,
+    inline: &'a str,
+    body: &'s [WorkflowLine<'a>],
+}
+
+/// The keys of one job, or of a composite action's `runs`, and the keys of
+/// each of its steps.
+struct WorkflowJob<'s, 'a> {
+    fields: Vec<WorkflowEntry<'s, 'a>>,
+    steps: Vec<Vec<WorkflowEntry<'s, 'a>>>,
+}
+
+fn workflow_lines(source: &str) -> Result<Vec<WorkflowLine<'_>>, String> {
+    source
+        .lines()
+        .enumerate()
+        .map(|(index, line)| {
+            let text = line.trim_start_matches(' ');
+            if text.starts_with('\t') {
+                return Err(format!("{}: tab indentation is not supported", index + 1));
+            }
+            Ok(WorkflowLine {
+                number: index + 1,
+                indent: line.len() - text.len(),
+                text: text.trim_end(),
+            })
+        })
+        .collect()
+}
+
+/// Reads jobs from `jobs.<id>` and a composite action's `runs`, and their
+/// steps from `steps`. A shape this reader does not understand is an error,
+/// so a check built on it cannot skip a step.
+fn workflow_jobs<'s, 'a>(
+    lines: &'s [WorkflowLine<'a>],
+) -> Result<Vec<WorkflowJob<'s, 'a>>, String> {
+    let mut jobs = Vec::new();
+    for entry in block_mapping(None, lines)? {
+        let owners = match entry.key {
+            "jobs" => block_mapping(None, nested(&entry)?)?,
+            "runs" => vec![entry],
+            _ => continue,
+        };
+        for owner in owners {
+            let fields = block_mapping(None, nested(&owner)?)?;
+            let mut steps = Vec::new();
+            if let Some(sequence) = unique_entry(&fields, "steps")? {
+                for (head, rest) in block_sequence(nested(sequence)?)? {
+                    steps.push(block_mapping(head, rest)?);
+                }
+            }
+            jobs.push(WorkflowJob { fields, steps });
+        }
+    }
+    Ok(jobs)
+}
+
+fn check_step_script_expressions(source: &str) -> Result<(), String> {
+    let lines = workflow_lines(source)?;
+    for job in workflow_jobs(&lines)? {
+        for step in &job.steps {
+            check_step(step)?;
+        }
+    }
+    Ok(())
+}
+
+fn check_step(fields: &[WorkflowEntry<'_, '_>]) -> Result<(), String> {
+    if let Some(run) = unique_entry(fields, "run")? {
+        check_run_expressions(run)?;
+    }
+    let github_script = unique_entry(fields, "uses")?.is_some_and(|uses| {
+        unquoted(uses.inline)
+            .to_ascii_lowercase()
+            .starts_with("actions/github-script@")
+    });
+    if !github_script {
+        return Ok(());
+    }
+    let step = fields.first().map_or(0, |field| field.number);
+    let missing = || format!("{step}: actions/github-script step has no block `with.script`");
+    let inputs = block_mapping(
+        None,
+        nested(unique_entry(fields, "with")?.ok_or_else(missing)?)?,
+    )?;
+    let script = unique_entry(&inputs, "script")?.ok_or_else(missing)?;
+    if let Some((number, _)) = scalar_lines(script).find(|(_, text)| text.contains("${{")) {
+        return Err(format!(
+            "{number}: actions/github-script source contains a `${{{{ }}}}` expression; \
+             pass the value through the step's env and read process.env"
+        ));
+    }
+    Ok(())
+}
+
+fn check_run_expressions(run: &WorkflowEntry<'_, '_>) -> Result<(), String> {
+    let mut source = String::new();
+    let mut line_starts = Vec::new();
+    for (number, text) in scalar_lines(run) {
+        line_starts.push((source.len(), number));
+        source.push_str(text);
+        source.push('\n');
+    }
+    let line_at = |offset: usize| {
+        line_starts
+            .iter()
+            .rev()
+            .find(|(start, _)| *start <= offset)
+            .map_or(run.number, |(_, number)| *number)
+    };
+    let mut cursor = 0;
+    while let Some(found) = source[cursor..].find("${{") {
+        let open = cursor + found;
+        let close = expression_end(source.as_bytes(), open + 3)
+            .ok_or_else(|| format!("{}: unterminated `${{{{` expression", line_at(open)))?;
+        let expression = &source[open + 3..close];
+        if untrusted_expression(expression) {
+            return Err(format!(
+                "{}: run script interpolates the contributor-controlled expression `{}`; \
+                 pass it through the step's env",
+                line_at(open),
+                expression.trim()
+            ));
+        }
+        cursor = close + 2;
+    }
+    Ok(())
+}
+
+/// The offset of the `}}` that closes an expression whose body starts at
+/// `start`. Single-quoted literals may contain `}}`, so they are skipped.
+fn expression_end(bytes: &[u8], start: usize) -> Option<usize> {
+    let mut index = start;
+    while let Some(byte) = bytes.get(index).copied() {
+        match byte {
+            b'\'' => index = string_literal(bytes, index).1,
+            b'}' if bytes.get(index + 1).copied() == Some(b'}') => return Some(index),
+            _ => index += 1,
+        }
+    }
+    None
+}
+
+fn untrusted_expression(expression: &str) -> bool {
+    expression_property_paths(expression).iter().any(|path| {
+        let whole_context = path.first().is_some_and(|root| root == "github")
+            && (path.len() == 1 || (path.len() == 2 && path[1] == "event"));
+        whole_context
+            || path
+                .iter()
+                .any(|segment| UNTRUSTED_EXPRESSION_PROPERTIES.contains(&segment.as_str()))
+    })
+}
+
+/// Property paths an expression reads, lower-cased because Actions contexts
+/// are case-insensitive: `github.event.commits[0]['message']` reads
+/// `github`, `event`, `commits`, `*`, `message`. Function names and string
+/// literals are not paths.
+fn expression_property_paths(expression: &str) -> Vec<Vec<String>> {
+    let bytes = expression.as_bytes();
+    let mut paths = Vec::new();
+    let mut index = 0;
+    while let Some(byte) = bytes.get(index).copied() {
+        if byte == b'\'' {
+            index = string_literal(bytes, index).1;
+        } else if byte.is_ascii_alphabetic() || byte == b'_' {
+            let (path, end) = property_path(bytes, index);
+            if bytes.get(end).copied() != Some(b'(') {
+                paths.push(path);
+            }
+            index = end;
+        } else if byte.is_ascii_digit() {
+            index = identifier_end(bytes, index);
+        } else {
+            index += 1;
+        }
+    }
+    paths
+}
+
+fn property_path(bytes: &[u8], start: usize) -> (Vec<String>, usize) {
+    let mut end = identifier_end(bytes, start);
+    let mut path = vec![String::from_utf8_lossy(&bytes[start..end]).to_ascii_lowercase()];
+    loop {
+        match (bytes.get(end).copied(), bytes.get(end + 1).copied()) {
+            (Some(b'.'), Some(b'*')) => {
+                path.push("*".to_owned());
+                end += 2;
+            }
+            (Some(b'.'), Some(next)) if next.is_ascii_alphabetic() || next == b'_' => {
+                let segment_end = identifier_end(bytes, end + 1);
+                path.push(
+                    String::from_utf8_lossy(&bytes[end + 1..segment_end]).to_ascii_lowercase(),
+                );
+                end = segment_end;
+            }
+            (Some(b'['), Some(b'\'')) => {
+                let (literal, after) = string_literal(bytes, end + 1);
+                if bytes.get(after).copied() != Some(b']') {
+                    break;
+                }
+                path.push(literal.to_ascii_lowercase());
+                end = after + 1;
+            }
+            (Some(b'['), Some(next)) if next == b'*' || next.is_ascii_digit() => {
+                let Some(close) = bytes[end..].iter().position(|byte| *byte == b']') else {
+                    break;
+                };
+                path.push("*".to_owned());
+                end += close + 1;
+            }
+            _ => break,
+        }
+    }
+    (path, end)
+}
+
+fn identifier_end(bytes: &[u8], start: usize) -> usize {
+    bytes[start..]
+        .iter()
+        .position(|byte| !(byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-')))
+        .map_or(bytes.len(), |length| start + length)
+}
+
+/// Decodes the single-quoted literal opening at `quote` and returns it with
+/// the index after its closing quote.
+fn string_literal(bytes: &[u8], quote: usize) -> (String, usize) {
+    let mut content = Vec::new();
+    let mut index = quote + 1;
+    while let Some(byte) = bytes.get(index).copied() {
+        if byte == b'\'' {
+            if bytes.get(index + 1).copied() != Some(b'\'') {
+                return (String::from_utf8_lossy(&content).into_owned(), index + 1);
+            }
+            index += 1;
+        }
+        content.push(byte);
+        index += 1;
+    }
+    (String::from_utf8_lossy(&content).into_owned(), index)
+}
+
+/// Splits a block mapping whose keys share one indentation. `head` is the
+/// entry written after a sequence item's dash, when there is one.
+fn block_mapping<'s, 'a>(
+    head: Option<WorkflowLine<'a>>,
+    lines: &'s [WorkflowLine<'a>],
+) -> Result<Vec<WorkflowEntry<'s, 'a>>, String> {
+    let Some(indent) = head
+        .or_else(|| lines.iter().copied().find(|line| !line.is_trivia()))
+        .map(|line| line.indent)
+    else {
+        return Ok(Vec::new());
+    };
+    let mut entries = Vec::new();
+    let mut open = head
+        .map(|line| key_value(line).map(|pair| (line.number, pair, 0)))
+        .transpose()?;
+    for (index, line) in lines.iter().copied().enumerate() {
+        if line.is_trivia() || line.indent > indent {
+            continue;
+        }
+        if line.indent < indent {
+            return Err(format!(
+                "{}: indentation does not match its mapping",
+                line.number
+            ));
+        }
+        // A block sequence may sit at its key's own indentation.
+        let sequence_item = line.text == "-" || line.text.starts_with("- ");
+        if sequence_item && open.is_some_and(|(_, (_, inline), _)| inline.is_empty()) {
+            continue;
+        }
+        if let Some((number, (key, inline), start)) = open.take() {
+            entries.push(WorkflowEntry {
+                number,
+                key,
+                inline,
+                body: &lines[start..index],
+            });
+        }
+        open = Some((line.number, key_value(line)?, index + 1));
+    }
+    if let Some((number, (key, inline), start)) = open {
+        entries.push(WorkflowEntry {
+            number,
+            key,
+            inline,
+            body: &lines[start..],
+        });
+    }
+    Ok(entries)
+}
+
+/// The text after an item's dash, as a line at the column where it starts,
+/// and the lines nested under the item.
+type SequenceItem<'s, 'a> = (Option<WorkflowLine<'a>>, &'s [WorkflowLine<'a>]);
+
+/// Splits a block sequence whose dashes share one indentation into items.
+fn block_sequence<'s, 'a>(
+    lines: &'s [WorkflowLine<'a>],
+) -> Result<Vec<SequenceItem<'s, 'a>>, String> {
+    let Some(indent) = lines
+        .iter()
+        .find(|line| !line.is_trivia())
+        .map(|line| line.indent)
+    else {
+        return Ok(Vec::new());
+    };
+    let mut items = Vec::new();
+    let mut open: Option<(Option<WorkflowLine<'a>>, usize)> = None;
+    for (index, line) in lines.iter().copied().enumerate() {
+        if line.is_trivia() || line.indent > indent {
+            continue;
+        }
+        let after_dash = line
+            .text
+            .strip_prefix('-')
+            .filter(|rest| line.indent == indent && (rest.is_empty() || rest.starts_with(' ')))
+            .ok_or_else(|| format!("{}: expected a `- ` sequence item", line.number))?;
+        if let Some((head, start)) = open.take() {
+            items.push((head, &lines[start..index]));
+        }
+        let text = after_dash.trim_start_matches(' ');
+        let head = (!text.is_empty() && !text.starts_with('#')).then_some(WorkflowLine {
+            number: line.number,
+            indent: line.indent + 1 + (after_dash.len() - text.len()),
+            text,
+        });
+        open = Some((head, index + 1));
+    }
+    if let Some((head, start)) = open {
+        items.push((head, &lines[start..]));
+    }
+    Ok(items)
+}
+
+/// Parses `key: value` with a plain key. Anchors, aliases and tags are refused
+/// because they can move a step's real content out of sight.
+fn key_value(line: WorkflowLine<'_>) -> Result<(&str, &str), String> {
+    let unreadable = || format!("{}: expected a plain `key: value` entry", line.number);
+    let (key, rest) = line.text.split_once(':').ok_or_else(unreadable)?;
+    if key.is_empty()
+        || !key
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'))
+        || !(rest.is_empty() || rest.starts_with(' '))
+    {
+        return Err(unreadable());
+    }
+    let inline = rest.trim();
+    let inline = if inline.starts_with('#') { "" } else { inline };
+    if inline.starts_with(['&', '*', '!']) {
+        return Err(format!(
+            "{}: YAML anchors, aliases and tags are not supported",
+            line.number
+        ));
+    }
+    Ok((key, inline))
+}
+
+fn nested<'s, 'a>(entry: &WorkflowEntry<'s, 'a>) -> Result<&'s [WorkflowLine<'a>], String> {
+    if entry.inline.is_empty() {
+        Ok(entry.body)
+    } else {
+        Err(format!(
+            "{}: `{}` must be a block collection, not an inline value",
+            entry.number, entry.key
+        ))
+    }
+}
+
+fn unique_entry<'e, 's, 'a>(
+    entries: &'e [WorkflowEntry<'s, 'a>],
+    key: &str,
+) -> Result<Option<&'e WorkflowEntry<'s, 'a>>, String> {
+    let mut matches = entries.iter().filter(|entry| entry.key == key);
+    let first = matches.next();
+    if let Some(duplicate) = matches.next() {
+        return Err(format!("{}: duplicate `{key}` key", duplicate.number));
+    }
+    Ok(first)
+}
+
+/// An entry's scalar text by line: the inline value, then every nested line.
+fn scalar_lines<'e>(entry: &'e WorkflowEntry<'_, '_>) -> impl Iterator<Item = (usize, &'e str)> {
+    std::iter::once((entry.number, entry.inline))
+        .chain(entry.body.iter().map(|line| (line.number, line.text)))
+}
+
+/// A scalar without its trailing comment or surrounding quotes.
+fn unquoted(inline: &str) -> &str {
+    let value = inline
+        .split_once(" #")
+        .map_or(inline, |(value, _)| value)
+        .trim();
+    value
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+        .or_else(|| {
+            value
+                .strip_prefix('\'')
+                .and_then(|value| value.strip_suffix('\''))
+        })
+        .unwrap_or(value)
 }
 
 pub(crate) fn repository_files(directory: &Path) -> Result<Vec<PathBuf>, String> {
@@ -1129,5 +1602,228 @@ mod dependency_boundary_tests {
             &edges,
         )
         .unwrap();
+    }
+}
+
+#[cfg(test)]
+mod workflow_expression_tests {
+    use super::*;
+
+    fn run_step(expression: &str) -> String {
+        format!(
+            "jobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Build\n        \
+             run: |\n          set -eu\n          echo \"${{{{ {expression} }}}}\"\n"
+        )
+    }
+
+    #[test]
+    fn github_script_source_admits_no_expression() {
+        let interpolated = "\
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start CI on the repaired commit
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              ref: '${{ steps.authorize.outputs.head_ref }}',
+            });
+";
+        let error = check_step_script_expressions(interpolated).unwrap_err();
+        assert!(
+            error.starts_with("10: actions/github-script source"),
+            "{error}"
+        );
+
+        let through_env = "\
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start CI on the repaired commit
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        # Data, not source.
+        env:
+          AUTHS_HEAD_REF: ${{ steps.authorize.outputs.head_ref }}
+        with:
+          script: |
+            const ref = process.env.AUTHS_HEAD_REF ?? '';
+";
+        check_step_script_expressions(through_env).unwrap();
+
+        // Composite actions, sequences at their key's indentation, the
+        // case-insensitive action name and trusted contexts are all covered.
+        let composite = "\
+runs:
+  using: composite
+  steps:
+  - uses: Actions/GitHub-Script@ed597411d8f924073f98dfc5c65a23a2325f34cd
+    with:
+      script: core.info('${{ github.run_id }}')
+";
+        let error = check_step_script_expressions(composite).unwrap_err();
+        assert!(
+            error.starts_with("6: actions/github-script source"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn run_scripts_refuse_contributor_controlled_expressions() {
+        for expression in [
+            "github.head_ref",
+            "GitHub.Head_Ref",
+            "github.ref",
+            "github.ref_name",
+            "github.base_ref",
+            "github.workflow_ref",
+            "steps.authorize.outputs.head_ref",
+            "github.event.pull_request.title",
+            "github.event.pull_request['title']",
+            "github.event.pull_request.head.ref",
+            "github.event.issue.body",
+            "github.event.commits[0].message",
+            "github.event.head_commit.author.email",
+            "github.event.workflow_run.head_branch",
+            "format('{0}', github.event.comment.body)",
+            "format('}}', github.head_ref)",
+            "toJSON(github.event)",
+        ] {
+            let error = check_step_script_expressions(&run_step(expression)).unwrap_err();
+            assert!(
+                error.starts_with("8: run script interpolates"),
+                "{expression}: {error}"
+            );
+        }
+        for expression in [
+            "github.run_id",
+            "github.event_name",
+            "github.ref_type",
+            "github.event.pull_request.head.sha",
+            "steps.build.outputs.digest",
+            "contains(github.event_name, 'body')",
+        ] {
+            check_step_script_expressions(&run_step(expression)).unwrap();
+        }
+        let through_env = "\
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: echo \"$HEAD_REF\"
+";
+        check_step_script_expressions(through_env).unwrap();
+    }
+
+    #[test]
+    fn unreadable_steps_fail_closed() {
+        let script_step = "jobs:\n  a:\n    steps:\n      - uses: actions/github-script@\
+                           ed597411d8f924073f98dfc5c65a23a2325f34cd\n";
+        for (source, reason) in [
+            (
+                format!("{script_step}        with: {{script: x}}\n"),
+                "flow inputs",
+            ),
+            (script_step.to_owned(), "no script"),
+            (
+                format!("{script_step}        with:\n          script: *shared\n"),
+                "alias",
+            ),
+            (
+                format!("{script_step}        with:\n          script: a\n          script: b\n"),
+                "duplicate key",
+            ),
+            (
+                "jobs:\n  a:\n    steps:\n      - run: echo \"${{ github.run_id\"\n".to_owned(),
+                "unterminated expression",
+            ),
+            (
+                "jobs:\n  a:\n    steps:\n      - {run: echo}\n".to_owned(),
+                "flow step",
+            ),
+            (
+                "jobs:\n  a:\n    steps: [{run: echo}]\n".to_owned(),
+                "flow steps",
+            ),
+            ("jobs:\n  a:\n    steps:\n\t- run: echo\n".to_owned(), "tab"),
+        ] {
+            assert!(check_step_script_expressions(&source).is_err(), "{reason}");
+        }
+    }
+
+    #[test]
+    fn repository_workflows_splice_no_untrusted_expression_into_step_source() {
+        check_workflow_script_expressions().unwrap();
+    }
+}
+
+#[cfg(test)]
+mod workflow_action_pin_tests {
+    use super::*;
+
+    const PINNED: &str = "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683";
+
+    #[test]
+    fn every_uses_is_pin_checked_wherever_it_sits() {
+        for (source, line) in [
+            (
+                "jobs:\n  a:\n    steps:\n      - uses: actions/checkout@v4\n",
+                4,
+            ),
+            (
+                "jobs:\n  a:\n    steps:\n      - name: Check out\n        uses: actions/checkout@v4\n",
+                5,
+            ),
+            (
+                "runs:\n  using: composite\n  steps:\n  - name: Cache\n    uses: actions/cache@v4\n",
+                5,
+            ),
+            (
+                "jobs:\n  call:\n    uses: octo-org/example/.github/workflows/build.yml@main\n",
+                3,
+            ),
+        ] {
+            let error = check_action_pins(source).unwrap_err();
+            assert!(
+                error.starts_with(&format!("{line}: action is not pinned")),
+                "{error}"
+            );
+        }
+        let error = check_action_pins(
+            "jobs:\n  a:\n    steps:\n      - name: Check out\n        uses: actions/checkout\n",
+        )
+        .unwrap_err();
+        assert!(error.starts_with("5: action has no revision"), "{error}");
+        // A step the structural reader cannot read is refused, not skipped.
+        check_action_pins("jobs:\n  a:\n    steps:\n      - {uses: actions/checkout@v4}\n")
+            .unwrap_err();
+    }
+
+    #[test]
+    fn pinned_and_local_references_pass() {
+        let source = format!(
+            "\
+jobs:
+  a:
+    steps:
+      - name: Check out
+        uses: {PINNED} # v4.2.2
+      - uses: \"{PINNED}\"
+      - uses: ./.github/actions/setup-rust-cache
+  call:
+    uses: ./.github/workflows/release-builder.yml
+"
+        );
+        check_action_pins(&source).unwrap();
+    }
+
+    #[test]
+    fn repository_workflows_pin_every_action() {
+        check_workflow_action_pins().unwrap();
     }
 }

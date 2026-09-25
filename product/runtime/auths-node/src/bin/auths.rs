@@ -392,6 +392,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
                     "operator_credential_header": credential_header,
                     "maximum_body_bytes": review.maximum_body_bytes(),
                     "has_observation": review.has_observation(),
+                    "sends_idempotency_key": review.sends_idempotency_key(),
                     "echo": review.echo().map(|echo| json!({
                         "write": echo.write(),
                         "observe": echo.observe(),
