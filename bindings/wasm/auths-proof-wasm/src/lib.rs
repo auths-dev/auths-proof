@@ -166,6 +166,12 @@ struct CriticalExtensionInput {
 fn critical_extensions(value: JsValue) -> Result<CriticalExtensions, EngineError> {
     let inputs: Vec<CriticalExtensionInput> = serde_wasm_bindgen::from_value(value)
         .map_err(|_| EngineError::Abi("invalid critical extensions"))?;
+    critical_extensions_from(inputs)
+}
+
+fn critical_extensions_from(
+    inputs: Vec<CriticalExtensionInput>,
+) -> Result<CriticalExtensions, EngineError> {
     CriticalExtensions::new(
         inputs
             .into_iter()
@@ -794,6 +800,14 @@ fn contains_duplicates<T: Ord>(values: &[T]) -> bool {
     values.iter().any(|value| !seen.insert(value))
 }
 
+/// Sorts and removes repeats, as a registry set built from several anchors
+/// needs before the model bounds its size.
+fn sorted_unique<T: Ord>(mut values: Vec<T>) -> Vec<T> {
+    values.sort();
+    values.dedup();
+    values
+}
+
 fn composition(input: CompositionInput) -> Result<CompositionRequirement, EngineError> {
     let expected_plan = input
         .expected_plan
@@ -880,6 +894,304 @@ pub fn compile_trusted_context_v1(
         cbor: auths_codec::encode_verifier_context(&context).map_err(js_error)?,
         verifier_configuration: configuration.to_vec(),
     })
+}
+
+struct TrustedContextTemplateInput {
+    configuration: Option<Vec<u8>>,
+    composition: CompositionInput,
+    trust_anchors: Vec<TrustAnchorInput>,
+    assurance: AssuranceInput,
+    channel_policy: Option<String>,
+    evidence_types: Vec<String>,
+    critical_extensions: Vec<String>,
+}
+
+/// Builds one trusted-context template exactly as the Rust SDK's
+/// `TrustedContextBuilder` does for the Python binding, so equal inputs give
+/// equal bytes in both SDKs.
+///
+/// `configuration` is the verifier configuration the template pins, such as
+/// the one a gateway prints for its own registries; when it is absent the
+/// template pins this package's self-contained verifier. The accepted
+/// registries derive from the anchors, assurance policy, `evidenceTypes`, and
+/// `criticalExtensions`, and a profile is declared budget-free only when the
+/// profile implementation this package ships cannot express a budget. The
+/// template carries empty status snapshots and names no request audience,
+/// challenge, or evaluation time until `bindTrustedContextRequestV1` binds one.
+///
+/// `composition`, `trustAnchors`, and `assurance` take the shapes
+/// `compileTrustedContextV1` reads.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for a configuration that is not 32 bytes,
+/// repeated evidence types or extensions, an empty or invalid anchor set, or
+/// inconsistent composition, assurance, or registry input.
+// wasm-bindgen marshals JavaScript string arrays as owned vectors.
+#[allow(clippy::needless_pass_by_value)]
+#[wasm_bindgen(js_name = buildTrustedContextTemplateV1)]
+pub fn build_trusted_context_template_v1(
+    configuration: Option<Vec<u8>>,
+    composition: JsValue,
+    trust_anchors: JsValue,
+    assurance: JsValue,
+    channel_policy: Option<String>,
+    evidence_types: Vec<String>,
+    critical_extensions: Vec<String>,
+) -> Result<Vec<u8>, JsValue> {
+    let input = TrustedContextTemplateInput {
+        configuration,
+        composition: serde_wasm_bindgen::from_value(composition).map_err(js_error)?,
+        trust_anchors: serde_wasm_bindgen::from_value(trust_anchors).map_err(js_error)?,
+        assurance: serde_wasm_bindgen::from_value(assurance).map_err(js_error)?,
+        channel_policy,
+        evidence_types,
+        critical_extensions,
+    };
+    build_trusted_context_template_native(input).map_err(js_error)
+}
+
+// The Rust SDK builder is not a dependency of this module: it enables the
+// standard-library features of core crates this WASM build keeps without
+// them. `trusted_context_template_matches_the_rust_sdk_builder` holds this
+// assembly to the builder's bytes.
+fn build_trusted_context_template_native(
+    input: TrustedContextTemplateInput,
+) -> Result<Vec<u8>, EngineError> {
+    if contains_duplicates(&input.evidence_types) || contains_duplicates(&input.critical_extensions)
+    {
+        return Err(EngineError::Abi(
+            "trusted context template repeats an evidence type or extension",
+        ));
+    }
+    let configuration = match input.configuration {
+        Some(bytes) => <[u8; 32]>::try_from(bytes.as_slice())
+            .map_err(|_| EngineError::Abi("verifier configuration must contain 32 bytes"))?,
+        None => self_contained_v1_configuration()?,
+    };
+    let anchors = input
+        .trust_anchors
+        .into_iter()
+        .map(trust_anchor)
+        .collect::<Result<Vec<_>, _>>()?;
+    if anchors.is_empty() {
+        return Err(EngineError::Abi(
+            "a trusted context needs at least one trust anchor",
+        ));
+    }
+    let assurance = assurance_policy(input.assurance)?;
+    let registries = template_registries(
+        &anchors,
+        &assurance,
+        &input.evidence_types,
+        &input.critical_extensions,
+    )?;
+    let context = TrustedContext::new(
+        VerifierConfigurationId::new(configuration),
+        composition(input.composition)?,
+        anchors,
+        registries,
+        Audience::parse("auths://request-template")?,
+        Challenge::new([0; 32]),
+        Timestamp::new(0),
+        assurance,
+        PrincipalStatusSnapshot::new(
+            StatusSnapshotId::new([0; 32]),
+            Timestamp::new(0),
+            Timestamp::new(u64::MAX),
+            Vec::new(),
+            Vec::new(),
+        )?,
+        GrantStatusSnapshot::new(
+            StatusSnapshotId::new([1; 32]),
+            Timestamp::new(0),
+            Timestamp::new(u64::MAX),
+            Vec::new(),
+            Vec::new(),
+        )?,
+        ResourceMatcherId::parse(auths_registries::URI_NAMESPACE_V1)?,
+        ProfilePolicyId::parse(auths_registries::EXACT_PROFILE_V1)?,
+        ChannelBindingId::parse(input.channel_policy.as_deref().unwrap_or("none-v1"))?,
+        VerifierLimits::default(),
+    )?;
+    Ok(auths_codec::encode_verifier_context(&context)?)
+}
+
+/// The registries the Rust SDK builder derives: every anchor's methods,
+/// profiles, and status methods, the assurance claims, both mandatory suites,
+/// and the given evidence types and critical extensions.
+fn template_registries(
+    anchors: &[TrustAnchor],
+    assurance: &AssurancePolicy,
+    evidence_types: &[String],
+    critical_extensions: &[String],
+) -> Result<AcceptedRegistries, EngineError> {
+    let principal_methods = sorted_unique(
+        anchors
+            .iter()
+            .flat_map(TrustAnchor::accepted_methods)
+            .cloned()
+            .collect(),
+    );
+    let mut evidence = principal_methods
+        .iter()
+        .map(|method| EvidenceTypeId::parse(method.as_str()))
+        .collect::<Result<Vec<_>, _>>()?;
+    for identifier in evidence_types {
+        evidence.push(EvidenceTypeId::parse(identifier)?);
+    }
+    let profiles = sorted_unique(
+        anchors
+            .iter()
+            .flat_map(TrustAnchor::profiles)
+            .cloned()
+            .collect(),
+    );
+    let budget_free: Vec<ProfileRef> = profiles
+        .iter()
+        .filter(|profile| {
+            shipped_budget_expression(profile) == ProfileBudgetExpression::Inexpressible
+        })
+        .cloned()
+        .collect();
+    Ok(AcceptedRegistries::new(
+        auths_registries::TARGET_V1_REGISTRY_MANIFEST,
+        principal_methods,
+        vec![
+            SignatureSuiteId::parse(auths_signature::ED25519_V1)?,
+            SignatureSuiteId::parse(auths_signature::P256_SHA256_V1)?,
+        ],
+        sorted_unique(evidence),
+        sorted_unique(
+            anchors
+                .iter()
+                .filter_map(|anchor| match anchor.status_policy() {
+                    StatusPolicy::ExpiryOnly => None,
+                    StatusPolicy::SnapshotRequired { method, .. } => Some(method.clone()),
+                })
+                .collect(),
+        ),
+        Vec::new(),
+        sorted_unique(
+            assurance
+                .requirements()
+                .iter()
+                .map(|requirement| requirement.claim_kind().clone())
+                .collect(),
+        ),
+        Vec::new(),
+        vec![ResourceMatcherId::parse(
+            auths_registries::URI_NAMESPACE_V1,
+        )?],
+        vec![BudgetAlgebraId::parse(
+            auths_registries::NUMERIC_CEILING_V1,
+        )?],
+        critical_extensions
+            .iter()
+            .map(|identifier| ExtensionId::parse(identifier))
+            .collect::<Result<Vec<_>, _>>()?,
+        profiles,
+        vec![ProfilePolicyId::parse(auths_registries::EXACT_PROFILE_V1)?],
+    )?
+    .with_budget_free_profiles(budget_free)?)
+}
+
+struct RootGrantInput {
+    issuer: String,
+    subject: String,
+    profile_id: String,
+    profile_version: u16,
+    permission_capabilities: Vec<String>,
+    permission_resources: Vec<String>,
+    not_before: u64,
+    expires_at: u64,
+    audiences: Vec<String>,
+    remaining_depth: u16,
+    assurance_floor: String,
+    critical_extensions: Vec<CriticalExtensionInput>,
+}
+
+/// Encodes one unsigned parentless grant from a trust anchor, `issuer`, to
+/// `subject`, carrying `criticalExtensions` (`{ id, bytes }` entries) exactly
+/// as given.
+///
+/// The grant permits any body of its profile, carries no budget ceiling, and
+/// uses expiry-only status; a critical extension such as a bounded-policy
+/// commitment carries any further bound. Sign the returned statement with
+/// `prepareGrantSigningV1` and `completeGrantSigningV1`.
+///
+/// # Errors
+///
+/// Returns a JavaScript error for malformed identifiers, an invalid validity
+/// window, repeated permissions or audiences, or an invalid extension set.
+#[allow(clippy::too_many_arguments)]
+#[wasm_bindgen(js_name = rootGrantStatementV1)]
+pub fn root_grant_statement_v1(
+    issuer: &str,
+    subject: &str,
+    profile_id: &str,
+    profile_version: u16,
+    permission_capabilities: Vec<String>,
+    permission_resources: Vec<String>,
+    not_before: u64,
+    expires_at: u64,
+    audiences: Vec<String>,
+    remaining_depth: u16,
+    assurance_floor: &str,
+    critical_extensions: JsValue,
+) -> Result<Vec<u8>, JsValue> {
+    let input = RootGrantInput {
+        issuer: issuer.to_owned(),
+        subject: subject.to_owned(),
+        profile_id: profile_id.to_owned(),
+        profile_version,
+        permission_capabilities,
+        permission_resources,
+        not_before,
+        expires_at,
+        audiences,
+        remaining_depth,
+        assurance_floor: assurance_floor.to_owned(),
+        critical_extensions: serde_wasm_bindgen::from_value(critical_extensions)
+            .map_err(|_| js_error(EngineError::Abi("invalid critical extensions")))?,
+    };
+    root_grant_statement_native(input).map_err(js_error)
+}
+
+fn root_grant_statement_native(input: RootGrantInput) -> Result<Vec<u8>, EngineError> {
+    let pairs: Vec<(&String, &String)> = input
+        .permission_capabilities
+        .iter()
+        .zip(&input.permission_resources)
+        .collect();
+    if contains_duplicates(&pairs) || contains_duplicates(&input.audiences) {
+        return Err(EngineError::Abi("root grant contains duplicate entries"));
+    }
+    let statement = auths_model::GrantStatement::new(
+        PrincipalId::parse(&input.issuer)?,
+        PrincipalId::parse(&input.subject)?,
+        ProfileRef::new(ProfileId::parse(&input.profile_id)?, input.profile_version)?,
+        permission_set(input.permission_capabilities, input.permission_resources)?,
+        ValidityWindow::new(
+            Timestamp::new(input.not_before),
+            Timestamp::new(input.expires_at),
+        )?,
+        AudienceSet::new(
+            input
+                .audiences
+                .into_iter()
+                .map(|value| Audience::parse(&value))
+                .collect::<Result<Vec<_>, _>>()?,
+        )?,
+        ActionConstraint::AnyBody,
+        None,
+        input.remaining_depth,
+        None,
+        StatusPolicy::ExpiryOnly,
+        AssurancePolicyId::parse(&input.assurance_floor)?,
+        critical_extensions_from(input.critical_extensions)?,
+    );
+    Ok(auths_codec::encode_grant_statement(&statement)?)
 }
 
 #[derive(Deserialize)]
@@ -6032,5 +6344,280 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    const TEMPLATE_ROOT: &str = "did:web:root.refunds.auths.example";
+    const TEMPLATE_MANAGER: &str = "did:web:manager.refunds.auths.example";
+    const TEMPLATE_AUDIENCE: &str = "mcp://refunds";
+    const TEMPLATE_RESOURCE: &str = "mcp://refunds/tools/create_refund_v1";
+
+    fn template_anchor(id: &str, principal: &str, depth: u16) -> TrustAnchorInput {
+        TrustAnchorInput {
+            id: id.to_owned(),
+            principal: principal.to_owned(),
+            accepted_methods: vec!["raw-key-v1".to_owned()],
+            profiles: vec![ProfileInput {
+                id: "auths.mcp".to_owned(),
+                version: 2,
+            }],
+            permissions: vec![PermissionInput {
+                capability: "tools/call".to_owned(),
+                resource: TEMPLATE_RESOURCE.to_owned(),
+            }],
+            resource_namespaces: vec![TEMPLATE_AUDIENCE.to_owned()],
+            audiences: vec![TEMPLATE_AUDIENCE.to_owned()],
+            not_before: 10,
+            expires_at: 1_000,
+            budget: None,
+            max_delegation_depth: depth,
+            assurance_policy: "raw-key-baseline".to_owned(),
+            status_policy: StatusPolicyInput::ExpiryOnly,
+        }
+    }
+
+    fn template_input(configuration: Option<Vec<u8>>) -> TrustedContextTemplateInput {
+        TrustedContextTemplateInput {
+            configuration,
+            composition: CompositionInput {
+                expected_plan: None,
+                minimum_authorized_branches: 2,
+                minimum_distinct_actors: 2,
+                minimum_distinct_roots: 2,
+            },
+            trust_anchors: vec![
+                template_anchor("root", TEMPLATE_ROOT, 1),
+                template_anchor("manager", TEMPLATE_MANAGER, 0),
+            ],
+            assurance: AssuranceInput {
+                id: "raw-key-baseline".to_owned(),
+                requirements: vec![AssuranceRequirementInput {
+                    role: "actor".to_owned(),
+                    quantifier: "every".to_owned(),
+                    claim_kind: "self-certifying-identifier".to_owned(),
+                    maximum_age: None,
+                }],
+            },
+            channel_policy: Some("none-v1".to_owned()),
+            evidence_types: vec!["raw-key-v1".to_owned()],
+            critical_extensions: vec!["bounded-policy-commitment-v1".to_owned()],
+        }
+    }
+
+    /// The Python binding's path: the Rust SDK builder, with each anchor
+    /// profile the shipped implementation cannot budget declared budget-free.
+    fn builder_template(
+        configuration: [u8; 32],
+        anchors: Vec<TrustAnchorInput>,
+        channel_policy: Option<&str>,
+        evidence_types: &[&str],
+        critical_extensions: &[&str],
+    ) -> Vec<u8> {
+        let anchors: Vec<TrustAnchor> = anchors
+            .into_iter()
+            .map(|anchor| trust_anchor(anchor).unwrap())
+            .collect();
+        let profiles: Vec<ProfileRef> = anchors
+            .iter()
+            .flat_map(TrustAnchor::profiles)
+            .cloned()
+            .collect();
+        let mut builder = auths_sdk::TrustedContextBuilder::new(
+            VerifierConfigurationId::new(configuration),
+            CompositionRequirement::new(None, 2, 2, 2).unwrap(),
+            anchors,
+            AssurancePolicy::new(
+                AssurancePolicyId::parse("raw-key-baseline").unwrap(),
+                vec![AssuranceRequirement::new(
+                    ParticipantRole::Actor,
+                    AssuranceQuantifier::Every,
+                    AssuranceClaimId::parse("self-certifying-identifier").unwrap(),
+                    None,
+                )],
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        for profile in profiles {
+            if shipped_budget_expression(&profile) == ProfileBudgetExpression::Inexpressible {
+                builder = builder.declare_budget_free_profile(profile);
+            }
+        }
+        if let Some(policy) = channel_policy {
+            builder = builder.with_channel_policy(ChannelBindingId::parse(policy).unwrap());
+        }
+        for identifier in evidence_types {
+            builder = builder.accept_evidence_type(EvidenceTypeId::parse(identifier).unwrap());
+        }
+        for identifier in critical_extensions {
+            builder = builder.accept_critical_extension(ExtensionId::parse(identifier).unwrap());
+        }
+        auths_codec::encode_verifier_context(&builder.build().unwrap()).unwrap()
+    }
+
+    #[test]
+    fn trusted_context_template_matches_the_rust_sdk_builder() {
+        let configuration = [7_u8; 32];
+        let built =
+            build_trusted_context_template_native(template_input(Some(configuration.to_vec())))
+                .unwrap();
+        assert_eq!(
+            built,
+            builder_template(
+                configuration,
+                template_input(None).trust_anchors,
+                Some("none-v1"),
+                &["raw-key-v1"],
+                &["bounded-policy-commitment-v1"],
+            )
+        );
+        let decoded = auths_codec::decode_verifier_context(&built).unwrap();
+        assert_eq!(
+            decoded.configuration(),
+            VerifierConfigurationId::new(configuration)
+        );
+        assert!(decoded.accepted_registries().accepts_critical_extension(
+            &ExtensionId::parse("bounded-policy-commitment-v1").unwrap()
+        ));
+
+        // Defaults, a status-checked anchor, and a profile that can express
+        // a budget take the builder's path too.
+        let mut manager = template_anchor("manager", TEMPLATE_MANAGER, 0);
+        manager.status_policy = StatusPolicyInput::SnapshotRequired {
+            method: "status.test-v1".to_owned(),
+            max_age: 60,
+        };
+        manager.profiles.push(ProfileInput {
+            id: "example.budgeted".to_owned(),
+            version: 1,
+        });
+        let mut input = template_input(None);
+        input.trust_anchors = vec![template_anchor("root", TEMPLATE_ROOT, 1), manager];
+        input.channel_policy = None;
+        input.evidence_types.clear();
+        input.critical_extensions.clear();
+        let mut expected_manager = template_anchor("manager", TEMPLATE_MANAGER, 0);
+        expected_manager.status_policy = StatusPolicyInput::SnapshotRequired {
+            method: "status.test-v1".to_owned(),
+            max_age: 60,
+        };
+        expected_manager.profiles.push(ProfileInput {
+            id: "example.budgeted".to_owned(),
+            version: 1,
+        });
+        assert_eq!(
+            build_trusted_context_template_native(input).unwrap(),
+            builder_template(
+                self_contained_v1_configuration().unwrap(),
+                vec![template_anchor("root", TEMPLATE_ROOT, 1), expected_manager],
+                None,
+                &[],
+                &[],
+            )
+        );
+    }
+
+    #[test]
+    fn trusted_context_template_defaults_to_the_packaged_verifier() {
+        let built = build_trusted_context_template_native(template_input(None)).unwrap();
+        assert_eq!(
+            auths_codec::decode_verifier_context(&built)
+                .unwrap()
+                .configuration(),
+            VerifierConfigurationId::new(self_contained_v1_configuration().unwrap())
+        );
+    }
+
+    #[test]
+    fn trusted_context_template_rejects_ambiguous_or_empty_input() {
+        assert!(build_trusted_context_template_native(template_input(Some(vec![7; 31]))).is_err());
+        let mut repeated = template_input(None);
+        repeated
+            .critical_extensions
+            .push("bounded-policy-commitment-v1".to_owned());
+        assert!(build_trusted_context_template_native(repeated).is_err());
+        let mut rootless = template_input(None);
+        rootless.trust_anchors.clear();
+        assert!(build_trusted_context_template_native(rootless).is_err());
+    }
+
+    fn root_grant_input() -> RootGrantInput {
+        RootGrantInput {
+            issuer: TEMPLATE_ROOT.to_owned(),
+            subject: TEMPLATE_MANAGER.to_owned(),
+            profile_id: "auths.mcp".to_owned(),
+            profile_version: 2,
+            permission_capabilities: vec!["tools/call".to_owned()],
+            permission_resources: vec![TEMPLATE_RESOURCE.to_owned()],
+            not_before: 10,
+            expires_at: 1_000,
+            audiences: vec![TEMPLATE_AUDIENCE.to_owned()],
+            remaining_depth: 0,
+            assurance_floor: "raw-key-baseline".to_owned(),
+            critical_extensions: vec![CriticalExtensionInput {
+                id: "exact-marker-v1".to_owned(),
+                bytes: vec![1],
+            }],
+        }
+    }
+
+    #[test]
+    fn root_grant_statement_matches_the_native_model() {
+        let built = root_grant_statement_native(root_grant_input()).unwrap();
+        let expected = auths_model::GrantStatement::new(
+            PrincipalId::parse(TEMPLATE_ROOT).unwrap(),
+            PrincipalId::parse(TEMPLATE_MANAGER).unwrap(),
+            ProfileRef::new(ProfileId::parse("auths.mcp").unwrap(), 2).unwrap(),
+            PermissionSet::new(vec![Permission::new(
+                CapabilityId::parse("tools/call").unwrap(),
+                ResourceId::parse(TEMPLATE_RESOURCE).unwrap(),
+            )])
+            .unwrap(),
+            ValidityWindow::new(Timestamp::new(10), Timestamp::new(1_000)).unwrap(),
+            AudienceSet::new(vec![Audience::parse(TEMPLATE_AUDIENCE).unwrap()]).unwrap(),
+            ActionConstraint::AnyBody,
+            None,
+            0,
+            None,
+            StatusPolicy::ExpiryOnly,
+            AssurancePolicyId::parse("raw-key-baseline").unwrap(),
+            CriticalExtensions::new(vec![
+                CriticalExtension::new(ExtensionId::parse("exact-marker-v1").unwrap(), vec![1])
+                    .unwrap(),
+            ])
+            .unwrap(),
+        );
+        assert_eq!(
+            built,
+            auths_codec::encode_grant_statement(&expected).unwrap()
+        );
+        let decoded =
+            auths_codec::decode_grant_statement(&built, &VerifierLimits::default_deployment())
+                .unwrap();
+        assert_eq!(decoded.parent(), None);
+        assert_eq!(decoded.extensions(), expected.extensions());
+    }
+
+    #[test]
+    fn root_grant_statement_rejects_repeated_or_invalid_fields() {
+        let mut repeated = root_grant_input();
+        repeated.audiences.push(TEMPLATE_AUDIENCE.to_owned());
+        assert!(root_grant_statement_native(repeated).is_err());
+        let mut repeated_permission = root_grant_input();
+        repeated_permission
+            .permission_capabilities
+            .push("tools/call".to_owned());
+        repeated_permission
+            .permission_resources
+            .push(TEMPLATE_RESOURCE.to_owned());
+        assert!(root_grant_statement_native(repeated_permission).is_err());
+        let mut unpaired = root_grant_input();
+        unpaired.permission_resources.clear();
+        assert!(root_grant_statement_native(unpaired).is_err());
+        let mut backwards = root_grant_input();
+        backwards.expires_at = 5;
+        assert!(root_grant_statement_native(backwards).is_err());
+        let mut unnamed = root_grant_input();
+        unnamed.critical_extensions[0].id = "Not An Extension".to_owned();
+        assert!(root_grant_statement_native(unnamed).is_err());
     }
 }

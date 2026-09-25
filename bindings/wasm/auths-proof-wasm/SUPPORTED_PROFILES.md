@@ -78,11 +78,13 @@ set equality in both directions.
 | Manifest | Schema | Exports | Result types |
 |---|---|---|---|
 | [`identity-abi-v1.json`](identity-abi-v1.json) | `auths.identity-wasm-abi/1` | 12 | 3 |
-| [`authoring-abi-v1.json`](authoring-abi-v1.json) | `auths.wasm-authoring-abi/1` | 36 | 12 |
+| [`authoring-abi-v1.json`](authoring-abi-v1.json) | `auths.wasm-authoring-abi/1` | 42 | 14 |
 | [`product-abi-v1.json`](product-abi-v1.json) | `auths.wasm-product-abi/1` | 20 | 2 |
 
-The authoring boundary validates principal identifiers, plans child grants
-through `auths-author`, prepares and completes exact signing envelopes without
+The authoring boundary validates principal identifiers, encodes unsigned
+root grants, plans child grants through `auths-author`, builds trusted-context
+templates with the Rust SDK's `TrustedContextBuilder` for an explicit verifier
+configuration, prepares and completes exact signing envelopes without
 receiving a private key, and binds one request to a canonical trusted-context
 template. Canonical grant, action, and status decoders use
 `VerifierLimits::default_deployment`; malformed, trailing, non-canonical, and
