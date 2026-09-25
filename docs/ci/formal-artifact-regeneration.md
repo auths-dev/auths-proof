@@ -42,13 +42,21 @@ comes from the default branch, and its allowlist comes from
 `.github/ci/formal-generated-paths.json` on that same trusted checkout. Changing the
 policy in a PR therefore cannot expand the bot's authority.
 
-The updater refuses forks, closed or moved PRs, protected/default branches,
-untrusted author associations, duplicate artifacts, unsuccessful
+The updater refuses forks, closed or moved PRs, protected/default branches, head
+branch names with characters other than ASCII letters, digits, `.`, `_`, `-` and
+`/`, untrusted author associations, duplicate artifacts, unsuccessful
 generator jobs, provenance mismatches, traversal, symlinks, executable modes,
 renames, deletions, unexpected files, and bounded-count or bounded-size violations.
 Runs without an update artifact are clean no-ops.
 The final push is never forced, so a concurrent branch update fails closed. A clean
 follow-up run publishes no update artifact, which terminates the loop.
+
+Values the PR author chooses, such as the head branch name, reach the updater's
+scripts only as data through `env`, never as script source. Repository hygiene in
+`xtask` enforces this for every workflow: it rejects any `${{ }}` expression inside
+an `actions/github-script` script, and any expression in a `run` script that reads
+an author-chosen field such as a head branch name, title, body, commit message,
+label, or commit author.
 
 The formal job uses the existing pinned Nix/Cachix and Lean caches plus the bounded
 Rust compiler cache. Correctness does not depend on a cache: every candidate is
