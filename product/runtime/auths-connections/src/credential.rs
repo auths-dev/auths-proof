@@ -1,9 +1,10 @@
 use crate::{ConnectionBinding, ConnectionId};
 use async_trait::async_trait;
-use minicbor::{Decoder, Encoder};
+use minicbor::{Decoder, Encoder, encode::Write as CborWrite};
 use sha2::{Digest as _, Sha256};
 use std::{
     collections::BTreeMap,
+    convert::Infallible,
     fmt,
     fs::{self, File},
     io::Write as _,
@@ -12,15 +13,20 @@ use std::{
     sync::{Mutex, RwLock},
     time::Instant,
 };
+use subtle::ConstantTimeEq as _;
 use tempfile::NamedTempFile;
 use thiserror::Error;
+use zeroize::Zeroizing;
 
 const CREDENTIAL_DATABASE_VERSION: u8 = 1;
 const DEFAULT_MAXIMUM_PERSISTENT_ENTRIES: usize = 10_000;
 const DEFAULT_MAXIMUM_PERSISTENT_BYTES: usize = 268_435_456;
+const MAXIMUM_SECRET_BYTES: usize = 65_536;
 
 /// Privileged secret bytes accepted only by connection administration.
-pub struct SecretBytes(Vec<u8>);
+///
+/// The bytes are zeroized when the value is dropped.
+pub struct SecretBytes(Zeroizing<Vec<u8>>);
 
 impl SecretBytes {
     /// Wraps a bounded non-empty secret.
@@ -28,15 +34,17 @@ impl SecretBytes {
     /// # Errors
     ///
     /// Returns [`CredentialStoreError::InvalidSecret`] outside 1-65,536 bytes.
+    /// Rejected bytes are zeroized before the error is returned.
     pub fn new(bytes: Vec<u8>) -> Result<Self, CredentialStoreError> {
-        if !(1..=65_536).contains(&bytes.len()) {
+        let bytes = Zeroizing::new(bytes);
+        if !valid_secret_length(bytes.len()) {
             return Err(CredentialStoreError::InvalidSecret);
         }
         Ok(Self(bytes))
     }
 
     fn expose(&self) -> &[u8] {
-        &self.0
+        self.0.as_slice()
     }
 }
 
@@ -46,10 +54,8 @@ impl fmt::Debug for SecretBytes {
     }
 }
 
-impl Drop for SecretBytes {
-    fn drop(&mut self) {
-        self.0.fill(0);
-    }
+fn valid_secret_length(length: usize) -> bool {
+    (1..=MAXIMUM_SECRET_BYTES).contains(&length)
 }
 
 /// Commitment to an internal, caller-unresolvable credential reference.
@@ -71,8 +77,10 @@ impl fmt::Debug for CredentialReferenceCommitment {
 }
 
 /// Deadline-bound lease visible only to a provider adapter.
+///
+/// The leased copy is zeroized when the lease is dropped.
 pub struct StoredSecretLease {
-    bytes: Vec<u8>,
+    bytes: Zeroizing<Vec<u8>>,
     deadline: Instant,
 }
 
@@ -86,19 +94,13 @@ impl StoredSecretLease {
         if now > self.deadline {
             return Err(CredentialStoreError::Expired);
         }
-        Ok(&self.bytes)
+        Ok(self.bytes.as_slice())
     }
 }
 
 impl fmt::Debug for StoredSecretLease {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("StoredSecretLease([REDACTED])")
-    }
-}
-
-impl Drop for StoredSecretLease {
-    fn drop(&mut self) {
-        self.bytes.fill(0);
     }
 }
 
@@ -144,23 +146,24 @@ pub struct InMemoryCredentialStore {
     maximum_bytes: usize,
 }
 
+/// One retained generation. Every clone, including the copy-on-write map in
+/// [`PersistentCredentialStore`], zeroizes its bytes when dropped.
+#[derive(Clone)]
 struct StoredSecret {
-    bytes: Vec<u8>,
+    bytes: Zeroizing<Vec<u8>>,
     commitment: CredentialReferenceCommitment,
 }
 
-impl Clone for StoredSecret {
-    fn clone(&self) -> Self {
-        Self {
-            bytes: self.bytes.clone(),
-            commitment: self.commitment,
-        }
-    }
-}
-
-impl Drop for StoredSecret {
-    fn drop(&mut self) {
-        self.bytes.fill(0);
+impl StoredSecret {
+    /// Whether this entry already holds exactly `secret` under `commitment`.
+    ///
+    /// Both comparisons are constant-time and combined without
+    /// short-circuiting, so an idempotent retry reveals only the verdict.
+    fn holds(&self, commitment: &CredentialReferenceCommitment, secret: &[u8]) -> bool {
+        bool::from(
+            self.commitment.as_bytes().ct_eq(commitment.as_bytes())
+                & self.bytes.as_slice().ct_eq(secret),
+        )
     }
 }
 
@@ -213,7 +216,7 @@ impl ConnectionCredentialStore for InMemoryCredentialStore {
         entries.insert(
             key,
             StoredSecret {
-                bytes: secret.expose().to_vec(),
+                bytes: Zeroizing::new(secret.expose().to_vec()),
                 commitment,
             },
         );
@@ -278,7 +281,7 @@ impl ConnectionCredentialStore for InMemoryCredentialStore {
         entries.insert(
             new_key,
             StoredSecret {
-                bytes: secret.expose().to_vec(),
+                bytes: Zeroizing::new(secret.expose().to_vec()),
                 commitment,
             },
         );
@@ -356,7 +359,8 @@ impl PersistentCredentialStore {
         validate_parent(parent)?;
         let entries = if path.exists() {
             validate_secret_file(&path, maximum_bytes)?;
-            let bytes = fs::read(&path).map_err(|_| CredentialStoreError::Unavailable)?;
+            let bytes =
+                Zeroizing::new(fs::read(&path).map_err(|_| CredentialStoreError::Unavailable)?);
             decode_persistent_entries(&bytes, maximum_entries, maximum_bytes)?
         } else {
             BTreeMap::new()
@@ -451,7 +455,7 @@ impl PersistentCredentialStore {
             let secret = old.bytes.clone();
             let commitment = credential_commitment(connection_id, new_generation, &secret);
             if let Some(existing) = entries.get(&new_key) {
-                return if existing.commitment == commitment && existing.bytes == secret {
+                return if existing.holds(&commitment, &secret) {
                     Ok(commitment)
                 } else {
                     Err(CredentialStoreError::Conflict)
@@ -500,7 +504,7 @@ impl ConnectionCredentialStore for PersistentCredentialStore {
             entries.insert(
                 key,
                 StoredSecret {
-                    bytes: secret.expose().to_vec(),
+                    bytes: Zeroizing::new(secret.expose().to_vec()),
                     commitment,
                 },
             );
@@ -555,9 +559,7 @@ impl ConnectionCredentialStore for PersistentCredentialStore {
                 return Err(CredentialStoreError::Conflict);
             }
             if let Some(existing) = entries.get(&new_key) {
-                return if existing.commitment == commitment
-                    && existing.bytes.as_slice() == secret.expose()
-                {
+                return if existing.holds(&commitment, secret.expose()) {
                     Ok(commitment)
                 } else {
                     Err(CredentialStoreError::Conflict)
@@ -573,7 +575,7 @@ impl ConnectionCredentialStore for PersistentCredentialStore {
             entries.insert(
                 new_key,
                 StoredSecret {
-                    bytes: secret.expose().to_vec(),
+                    bytes: Zeroizing::new(secret.expose().to_vec()),
                     commitment,
                 },
             );
@@ -588,10 +590,10 @@ impl ConnectionCredentialStore for PersistentCredentialStore {
     ) -> Result<(), CredentialStoreError> {
         let key = (connection_id.as_str().to_owned(), generation.get());
         self.mutate(|entries| {
-            let mut removed = entries
+            // Dropping the removed entry zeroizes its secret.
+            entries
                 .remove(&key)
                 .ok_or(CredentialStoreError::Unavailable)?;
-            removed.bytes.fill(0);
             Ok(())
         })
     }
@@ -662,10 +664,27 @@ fn persist_entries(
         .map_err(|_| CredentialStoreError::Unavailable)
 }
 
+/// Encodes the database into a buffer sized exactly by a counting pass, so
+/// the buffer never reallocates and strands an unwiped partial copy of the
+/// secrets it already holds.
 fn encode_persistent_entries(
     entries: &BTreeMap<(String, u64), StoredSecret>,
-) -> Result<Vec<u8>, CredentialStoreError> {
-    let mut encoder = Encoder::new(Vec::new());
+) -> Result<Zeroizing<Vec<u8>>, CredentialStoreError> {
+    let mut length = EncodedLength(0);
+    write_persistent_entries(&mut length, entries)?;
+    let mut bytes = Zeroizing::new(Vec::new());
+    bytes
+        .try_reserve_exact(length.0)
+        .map_err(|_| CredentialStoreError::Unavailable)?;
+    write_persistent_entries(&mut *bytes, entries)?;
+    Ok(bytes)
+}
+
+fn write_persistent_entries<W: CborWrite>(
+    writer: W,
+    entries: &BTreeMap<(String, u64), StoredSecret>,
+) -> Result<(), CredentialStoreError> {
+    let mut encoder = Encoder::new(writer);
     encoder
         .map(2)
         .and_then(|value| value.u8(1))
@@ -679,10 +698,22 @@ fn encode_persistent_entries(
             .and_then(|value| value.str(connection_id))
             .and_then(|value| value.u64(*generation))
             .and_then(|value| value.bytes(stored.commitment.as_bytes()))
-            .and_then(|value| value.bytes(&stored.bytes))
+            .and_then(|value| value.bytes(stored.bytes.as_slice()))
             .map_err(|_| CredentialStoreError::Unavailable)?;
     }
-    Ok(encoder.into_writer())
+    Ok(())
+}
+
+/// CBOR sink that counts bytes without retaining them.
+struct EncodedLength(usize);
+
+impl CborWrite for EncodedLength {
+    type Error = Infallible;
+
+    fn write_all(&mut self, bytes: &[u8]) -> Result<(), Self::Error> {
+        self.0 = self.0.saturating_add(bytes.len());
+        Ok(())
+    }
 }
 
 fn decode_persistent_entries(
@@ -746,14 +777,16 @@ fn decode_persistent_entries(
             .map_err(|_| CredentialStoreError::UnsafeStorage)?
             .try_into()
             .map_err(|_| CredentialStoreError::UnsafeStorage)?;
-        let secret = decoder
-            .bytes()
-            .map_err(|_| CredentialStoreError::UnsafeStorage)?
-            .to_vec();
+        let secret = Zeroizing::new(
+            decoder
+                .bytes()
+                .map_err(|_| CredentialStoreError::UnsafeStorage)?
+                .to_vec(),
+        );
         total = total
             .checked_add(secret.len())
             .ok_or(CredentialStoreError::Capacity)?;
-        if total > maximum_bytes || SecretBytes::new(secret.clone()).is_err() {
+        if total > maximum_bytes || !valid_secret_length(secret.len()) {
             return Err(CredentialStoreError::UnsafeStorage);
         }
         let expected = credential_commitment(&id, generation, &secret);
@@ -771,7 +804,8 @@ fn decode_persistent_entries(
             return Err(CredentialStoreError::UnsafeStorage);
         }
     }
-    if decoder.position() != bytes.len() || encode_persistent_entries(&entries)?.as_slice() != bytes
+    if decoder.position() != bytes.len()
+        || !bool::from(encode_persistent_entries(&entries)?.as_slice().ct_eq(bytes))
     {
         return Err(CredentialStoreError::UnsafeStorage);
     }
@@ -944,6 +978,109 @@ mod tests {
                 CredentialStoreError::UnsafeStorage
             );
         }
+    }
+
+    #[test]
+    fn stored_secret_holds_only_the_exact_commitment_and_bytes() {
+        let id = ConnectionId::parse("conn_AAAAAAAAAAAAAAAAAAAAAA").unwrap();
+        let generation = NonZeroU64::new(1).unwrap();
+        let commitment = credential_commitment(&id, generation, b"secret");
+        let stored = StoredSecret {
+            bytes: Zeroizing::new(b"secret".to_vec()),
+            commitment,
+        };
+        assert!(stored.holds(&commitment, b"secret"));
+        assert!(!stored.holds(&commitment, b"secreT"));
+        assert!(!stored.holds(&commitment, b"secret-longer"));
+        let other = credential_commitment(&id, NonZeroU64::new(2).unwrap(), b"secret");
+        assert!(!stored.holds(&other, b"secret"));
+    }
+
+    #[test]
+    fn persistent_replace_is_idempotent_only_for_the_same_secret() {
+        let directory = private_directory();
+        let store =
+            PersistentCredentialStore::open_with_limits(directory.path().join("c.cbor"), 4, 4_096)
+                .unwrap();
+        let id = ConnectionId::parse("conn_AAAAAAAAAAAAAAAAAAAAAA").unwrap();
+        let first = NonZeroU64::new(1).unwrap();
+        let second = NonZeroU64::new(2).unwrap();
+        futures_lite_for_tests(store.install(&id, first, secret(b"secret-one"))).unwrap();
+        let rotated =
+            futures_lite_for_tests(store.replace(&id, first, second, secret(b"secret-two")))
+                .unwrap();
+
+        let repeated =
+            futures_lite_for_tests(store.replace(&id, first, second, secret(b"secret-two")));
+        assert_eq!(repeated.unwrap(), rotated);
+        for conflicting in [b"secret-twO".as_slice(), b"secret-two-longer", b"s"] {
+            let refused =
+                futures_lite_for_tests(store.replace(&id, first, second, secret(conflicting)));
+            assert_eq!(refused.unwrap_err(), CredentialStoreError::Conflict);
+        }
+        assert_eq!(store.retained_commitment(&id, second).unwrap(), rotated);
+    }
+
+    #[test]
+    fn advance_generation_is_idempotent_only_for_the_carried_secret() {
+        let directory = private_directory();
+        let store =
+            PersistentCredentialStore::open_with_limits(directory.path().join("c.cbor"), 4, 4_096)
+                .unwrap();
+        let id = ConnectionId::parse("conn_AAAAAAAAAAAAAAAAAAAAAA").unwrap();
+        let [first, second, third] = [1, 2, 3].map(|value| NonZeroU64::new(value).unwrap());
+        futures_lite_for_tests(store.install(&id, first, secret(b"secret-one"))).unwrap();
+        let carried = store.advance_generation(&id, first, second).unwrap();
+        assert_eq!(
+            store.advance_generation(&id, first, second).unwrap(),
+            carried
+        );
+
+        futures_lite_for_tests(store.replace(&id, second, third, secret(b"secret-three"))).unwrap();
+        assert_eq!(
+            store.advance_generation(&id, second, third).unwrap_err(),
+            CredentialStoreError::Conflict
+        );
+    }
+
+    #[test]
+    fn encoded_database_buffer_is_sized_before_secrets_are_written() {
+        let id = ConnectionId::parse("conn_AAAAAAAAAAAAAAAAAAAAAA").unwrap();
+        let mut entries = BTreeMap::new();
+        // Secret lengths cross each CBOR byte-string header width. The large
+        // secret is encoded first so an unsized buffer would have to grow
+        // after it holds secret bytes.
+        for (generation, length) in [(1, 65_536), (2, 256), (3, 24), (4, 1)] {
+            let generation = NonZeroU64::new(generation).unwrap();
+            let bytes = Zeroizing::new(vec![0x5a; length]);
+            let commitment = credential_commitment(&id, generation, &bytes);
+            entries.insert(
+                (id.as_str().to_owned(), generation.get()),
+                StoredSecret { bytes, commitment },
+            );
+        }
+        let encoded = encode_persistent_entries(&entries).unwrap();
+        assert_eq!(encoded.capacity(), encoded.len());
+        assert_eq!(
+            decode_persistent_entries(&encoded, 4, 1 << 20)
+                .unwrap()
+                .len(),
+            4
+        );
+    }
+
+    fn secret(bytes: &[u8]) -> SecretBytes {
+        SecretBytes::new(bytes.to_vec()).unwrap()
+    }
+
+    fn private_directory() -> tempfile::TempDir {
+        let directory = tempfile::tempdir().unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            fs::set_permissions(directory.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        directory
     }
 
     fn futures_lite_for_tests<F: std::future::Future>(future: F) -> F::Output {

@@ -1500,8 +1500,8 @@ configuration_inputs = ["executed-verifier-configuration", "registry-manifest", 
 security_state = []
 
 [packages.auths-proof-wasm.claims]
-core-wire-consumer = ["bindings/wasm/auths-proof-wasm/src/lib.rs#authoring_abi_planning_matches_the_native_owner", "bindings/wasm/auths-proof-wasm/src/lib.rs#native_mcp_authorization_assembly_matches_profile_and_core_owners", "bindings/wasm/auths-proof-wasm/src/lib.rs#native_wasm_boundary_matches_the_portable_contract"]
-language-binding = ["bindings/typescript/test/integration/approval-quorum.test.js#TypeScript authors the exact gateway quorum bytes", "bindings/typescript/test/integration/approval-quorum.test.js#the TypeScript verifier decides every gateway vector identically", "bindings/typescript/test/unit/portable-receipt-v1.test.js#packaged WASM exposes the canonical portable receipt decoder", "bindings/typescript/test/unit/public-api-v2.test.js#clean-cut modules expose the intended domain-neutral surface"]
+core-wire-consumer = ["bindings/wasm/auths-proof-wasm/src/lib.rs#authoring_abi_planning_matches_the_native_owner", "bindings/wasm/auths-proof-wasm/src/lib.rs#native_mcp_authorization_assembly_matches_profile_and_core_owners", "bindings/wasm/auths-proof-wasm/src/lib.rs#native_wasm_boundary_matches_the_portable_contract", "bindings/wasm/auths-proof-wasm/src/lib.rs#root_grant_statement_matches_the_native_model", "bindings/wasm/auths-proof-wasm/src/lib.rs#trusted_context_template_matches_the_rust_sdk_builder"]
+language-binding = ["bindings/typescript/test/integration/approval-quorum.test.js#TypeScript authors the exact gateway quorum bytes", "bindings/typescript/test/integration/approval-quorum.test.js#the TypeScript verifier decides every gateway vector identically", "bindings/typescript/test/unit/portable-receipt-v1.test.js#packaged WASM exposes the canonical portable receipt decoder", "bindings/typescript/test/unit/public-api-v2.test.js#clean-cut modules expose the intended domain-neutral surface", "bindings/typescript/test/unit/self-hosted-authority.test.js#compileTrustedContext reproduces the Rust SDK builder's quorum template byte for byte", "bindings/typescript/test/unit/self-hosted-authority.test.js#a root grant's critical extension reaches the verifier, which enforces it"]
 
 [packages.auths-openapi-derive-wasm]
 kind = "cargo"
@@ -1656,7 +1656,7 @@ kind = "cargo"
 layer = "product"
 path = "product/runtime/auths-gateway"
 core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-verifier"]
-protocol_versions = ["auths.gateway-installation/2", "auths.lifecycle.transactional-store/4", "auths.gateway-recipe-source/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/2", "auths.gateway-echo/1", "auths.gateway-observe/1", "auths.gateway-outcome/1", "auths.gateway-readback/1", "auths.self-hosted-profile-lock/1", "mcp-arguments-v1", "auths.gateway-bounded-count/1", "auths.gateway-audit-bundle/1", "auths.gateway-audit-report/1", "auths.gateway.argument-ceiling-window-count/1", "bounded-policy-commitment-v1"]
+protocol_versions = ["auths.gateway-installation/2", "auths.lifecycle.transactional-store/4", "auths.gateway-recipe-source/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/2", "auths.gateway-echo/1", "auths.gateway-idempotency-key/1", "auths.gateway-observe/1", "auths.gateway-outcome/1", "auths.gateway-readback/1", "auths.self-hosted-profile-lock/1", "mcp-arguments-v1", "auths.gateway-bounded-count/1", "auths.gateway-audit-bundle/1", "auths.gateway-audit-report/1", "auths.gateway.argument-ceiling-window-count/1", "bounded-policy-commitment-v1"]
 wire_objects = ["CompiledRecipe", "ClosedProviderRequest", "GatewayAttemptSnapshot", "GatewayConnectionDescriptor", "GatewayEvidenceSummary", "GatewayObserveRequest", "GatewayObserveResult", "GatewayProviderEvidence", "GatewaySubmitResult", "SignedObservation", "ArgumentCeilingPolicy", "BoundedPolicyCommitment", "AuditReport"]
 fixture_suites = ["bindings/fixtures/gateway"]
 principal_families = ["raw-key-v1"]
@@ -1673,6 +1673,9 @@ configuration-compiler = [
   "product/runtime/auths-gateway/src/recipe.rs#github_recipe_change_invalidates_old_authorized_arguments",
   "product/runtime/auths-gateway/src/recipe.rs#echo_changes_the_digest_and_is_shown_in_review",
   "product/runtime/auths-gateway/src/recipe.rs#echo_token_is_domain_separated_and_bound_to_every_input",
+  "product/runtime/auths-gateway/src/recipe.rs#idempotency_key_is_domain_separated_and_bound_to_namespace_and_operation",
+  "product/runtime/auths-gateway/src/recipe.rs#idempotency_key_is_opt_in_reviewed_and_digest_bound",
+  "product/runtime/auths-gateway/src/recipe.rs#closed_request_carries_the_derived_key_only_when_declared",
   "product/runtime/auths-gateway/src/recipe.rs#preconditions_are_closed_reviewed_and_digest_bound",
   "product/runtime/auths-gateway/src/recipe.rs#read_back_subject_must_name_exactly_the_observed_record",
   "product/runtime/auths-gateway/src/app.rs#observation_frame_is_closed_and_read_only",
@@ -1711,6 +1714,7 @@ runtime-enforcement-boundary = [
   "product/runtime/auths-gateway/src/bounds_tests.rs#one_bounded_branch_is_admitted_and_counted_against_its_actor",
   "product/runtime/auths-gateway/src/bounds.rs#registry_refuses_unregistered_and_mismatched_evaluators",
   "product/runtime/auths-gateway/src/bounds.rs#decider_accepts_only_a_tighter_bound_on_the_same_argument_and_window",
+  "product/runtime/auths-gateway/src/transport.rs#write_sends_the_derived_idempotency_key_only_when_declared_and_read_back_never_does",
 ]
 stateful-replay-budget-component = [
   "product/runtime/auths-gateway/src/recipe.rs#durable_claim_is_one_use_across_races_and_restart",
@@ -1718,6 +1722,7 @@ stateful-replay-budget-component = [
   "product/runtime/auths-gateway/src/recipe.rs#read_back_links_only_an_exact_token_with_the_verified_value",
   "product/runtime/auths-gateway/src/engine.rs#attempt_scenario_corpus_drives_the_counting_provider",
   "product/runtime/auths-gateway/src/engine.rs#normal_write_reaches_observed_by_provider_with_secret_free_evidence",
+  "product/runtime/auths-gateway/src/engine.rs#a_lost_claim_resends_the_same_idempotency_key",
   "product/runtime/auths-gateway/src/engine.rs#file_store_passes_attempt_store_conformance",
   "product/runtime/auths-gateway/src/engine.rs#postgres_store_passes_attempt_store_conformance",
   "product/runtime/auths-gateway/src/engine.rs#postgres_attempt_scenario_corpus_drives_the_counting_provider",
@@ -1893,7 +1898,7 @@ security_state = ["opaque-recovery-handle", "portable-linked-receipts", "profile
 
 [packages."@auths-dev/sdk".claims]
 core-wire-consumer = ["bindings/typescript/test/unit/portable-receipt-v1.test.js#portable receipt v1 uses the Rust projection and needs no companion input", "bindings/typescript/test/integration/workflow/attach.test.js#attachAgent binds one canonical root authority through native Rust", "bindings/typescript/test/integration/workflow/delegation.test.js#delegate plans reviews approves and signs one attenuated child", "bindings/typescript/test/integration/workflow/client.test.js#transaction binding drives the real Rust WASM authoring ABI"]
-language-binding = ["bindings/typescript/test/unit/public-api-v2.test.js#clean-cut modules expose the intended domain-neutral surface", "bindings/typescript/test/unit/profile-runtime-limits.test.js#generated profile descriptors fail closed on runtime and receipt limits", "bindings/typescript/test/unit/portable-receipt-v1.test.js#portable receipt projection rejects ID and variant contradictions"]
+language-binding = ["bindings/typescript/test/unit/public-api-v2.test.js#clean-cut modules expose the intended domain-neutral surface", "bindings/typescript/test/unit/profile-runtime-limits.test.js#generated profile descriptors fail closed on runtime and receipt limits", "bindings/typescript/test/unit/portable-receipt-v1.test.js#portable receipt projection rejects ID and variant contradictions", "bindings/typescript/test/unit/self-hosted-authority.test.js#malformed trust or grant input is refused before native code or custody", "bindings/typescript/test/unit/self-hosted-authority.test.js#a declining or unbound root custody response issues no grant"]
 
 runtime-enforcement-boundary = [
   "bindings/typescript/test/unit/public-api-v2.test.js#operation errors cannot be forged by application code",

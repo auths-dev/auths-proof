@@ -1,0 +1,17 @@
+{
+  "name": "auths-stripe-refund-journey",
+  "private": true,
+  "type": "module",
+  "description": "The Stripe refund approval journey through the packed @auths-dev/sdk npm package",
+  "scripts": {
+    "build": "cp ../generated.ts generated.ts && tsc -p tsconfig.json",
+    "journey": "node build/journey.js"
+  },
+  "dependencies": {
+    "@auths-dev/sdk": "file:auths-dev-sdk.tgz"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.3",
+    "typescript": "5.9.3"
+  }
+}
