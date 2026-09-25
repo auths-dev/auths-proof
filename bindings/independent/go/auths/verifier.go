@@ -530,12 +530,13 @@ func resolveAndVerifyControl(
 	return controls, nil
 }
 
+// validateCarriedStatus rejects a proof-carried status statement that the
+// snapshot supersedes or does not hold. Rollback is keyed on the statement's
+// subject alone, the principal or the grant, as status selection is.
 func validateCarriedStatus(bundle *proofBundle, context *verifierContext) error {
 	for _, carried := range bundle.principalStatus {
 		for _, current := range context.principalSnapshot.statements {
-			if carried.principal == current.principal &&
-				carried.purpose == current.purpose &&
-				current.sequence > carried.sequence {
+			if carried.principal == current.principal && current.sequence > carried.sequence {
 				return denied("status-sequence-rollback")
 			}
 		}

@@ -25,7 +25,7 @@ use auths_model::{
     ParticipantAssurance, Permission, PermissionSet, PlanId, PortableVerificationResult,
     PrincipalId, PrincipalMethodId, PrincipalState, PrincipalStatusId, PrincipalStatusSnapshot,
     PrincipalStatusStatement, ProfileId, ProfilePolicyId, ProfileRef, ProofBundle, ProofRef,
-    ProtocolVersion, PurposeId, RegistryManifestId, ResourceId, ResourceMatcherId, SignatureBytes,
+    ProtocolVersion, RegistryManifestId, ResourceId, ResourceMatcherId, SignatureBytes,
     SignatureDescriptor, SignatureEnvelope, SignatureSuiteId, SignedAction, SignedGrant,
     SignedGrantStatus, SignedPrincipalStatus, StatementRef, StatusMethodId, StatusPolicy,
     StatusSnapshotId, StatusTrustRule, Timestamp, TrustAnchor, TrustAnchorId, TrustedContext,
@@ -546,7 +546,7 @@ fn principal_status_statement(
     decoder: &mut V1Decoder<'_>,
     limits: &VerifierLimits,
 ) -> Result<PrincipalStatusStatement, CodecError> {
-    map(decoder, 10)?;
+    map(decoder, 9)?;
     key(decoder, 0)?;
     ProtocolVersion::new(decoder.u16().map_err(|_| CodecError::Malformed)?)?;
     key(decoder, 1)?;
@@ -554,28 +554,25 @@ fn principal_status_statement(
     key(decoder, 2)?;
     let principal = parse_text!(decoder, PrincipalId)?;
     key(decoder, 3)?;
-    let purpose = parse_text!(decoder, PurposeId)?;
-    key(decoder, 4)?;
     let state = match decoder.u8().map_err(|_| CodecError::Malformed)? {
         0 => PrincipalState::Active,
         1 => PrincipalState::Revoked,
         2 => PrincipalState::Superseded,
         _ => return Err(CodecError::Malformed),
     };
-    key(decoder, 5)?;
+    key(decoder, 4)?;
     let sequence = decoder.u64().map_err(|_| CodecError::Malformed)?;
-    key(decoder, 6)?;
+    key(decoder, 5)?;
     let observed_at = Timestamp::new(decoder.u64().map_err(|_| CodecError::Malformed)?);
-    key(decoder, 7)?;
+    key(decoder, 6)?;
     let valid_until = Timestamp::new(decoder.u64().map_err(|_| CodecError::Malformed)?);
-    key(decoder, 8)?;
+    key(decoder, 7)?;
     let issuer = parse_text!(decoder, PrincipalId)?;
-    key(decoder, 9)?;
+    key(decoder, 8)?;
     let extensions = extensions(decoder, limits)?;
     PrincipalStatusStatement::new(
         method,
         principal,
-        purpose,
         state,
         sequence,
         observed_at,
@@ -1972,7 +1969,6 @@ mod tests {
         PrincipalStatusStatement::new(
             StatusMethodId::parse("status-test-v1").unwrap(),
             PrincipalId::parse("did:example:actor").unwrap(),
-            PurposeId::parse("signing").unwrap(),
             PrincipalState::Active,
             1,
             Timestamp::new(10),
@@ -2064,6 +2060,53 @@ mod tests {
         signed.push(0);
         assert_eq!(
             decode_signed_grant(&signed, &limits),
+            Err(CodecError::Malformed)
+        );
+    }
+
+    /// Encodes the principal-status fields, optionally with a purpose text at
+    /// key 3 and every later field one key higher, as the retired layout did.
+    fn principal_status_layout(purpose: Option<&str>) -> Vec<u8> {
+        use crate::encode::{finish, key, map, text};
+        let shift = u8::from(purpose.is_some());
+        finish(|encoder| {
+            map(encoder, 9 + u64::from(shift))?;
+            key(encoder, 0)?;
+            encoder.u16(1).map_err(crate::encode::encode_error)?;
+            key(encoder, 1)?;
+            text(encoder, "status-test-v1")?;
+            key(encoder, 2)?;
+            text(encoder, "did:example:actor")?;
+            if let Some(purpose) = purpose {
+                key(encoder, 3)?;
+                text(encoder, purpose)?;
+            }
+            key(encoder, 3 + shift)?;
+            encoder.u8(0).map_err(crate::encode::encode_error)?;
+            key(encoder, 4 + shift)?;
+            encoder.u64(1).map_err(crate::encode::encode_error)?;
+            key(encoder, 5 + shift)?;
+            encoder.u64(10).map_err(crate::encode::encode_error)?;
+            key(encoder, 6 + shift)?;
+            encoder.u64(20).map_err(crate::encode::encode_error)?;
+            key(encoder, 7 + shift)?;
+            text(encoder, "did:example:root")?;
+            key(encoder, 8 + shift)?;
+            encoder.array(0).map_err(crate::encode::encode_error)?;
+            Ok(())
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn principal_status_statement_with_a_purpose_is_rejected() {
+        let limits = VerifierLimits::default_deployment();
+        assert_eq!(
+            decode_principal_status_statement(&principal_status_layout(None), &limits).unwrap(),
+            minimal_principal_status_statement()
+        );
+        assert_eq!(
+            decode_principal_status_statement(&principal_status_layout(Some("signing")), &limits),
             Err(CodecError::Malformed)
         );
     }

@@ -115,7 +115,6 @@ def compromise_attack() -> dict[str, Any]:
     status = record_compromise(
         method="auths.status",
         principal=principal,
-        purpose="authentication",
         issuer=principal,
         sequence=2,
         valid_for=600,
@@ -151,7 +150,6 @@ def rotation_attack(previous: str, current: str) -> dict[str, Any]:
         method="auths.status",
         previous=old,
         current=new,
-        purpose="authentication",
         issuer=old,
         previous_sequence=2,
         current_sequence=1,
@@ -270,7 +268,6 @@ def status_projection(status: Any) -> dict[str, Any]:
     return {
         "method": status.method,
         "principal": status.principal.value,
-        "purpose": status.purpose,
         "state": status.state,
         "sequence": status.sequence,
         "observedAt": status.observed_at,

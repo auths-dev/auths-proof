@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "3d30ba0559757082143cd906467e683733d99cadf17f34c73f286b7cc784af8e",
+  "digest": "2ed1af4288e20354885441a2099c8238954057399ea03927518a6c2ab9210727",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -49,7 +49,7 @@
     },
     {
       "path": "core/crates/auths-model/src/lib.rs",
-      "sha256": "abdf4a5fc1ff039cc953572932d03d619a0d97e1e241aab04ef788858bf2edb1"
+      "sha256": "2d7bb560e2daf598d05a679daf868357300ba5ccf56ce686754ab28c96931dea"
     },
     {
       "path": "core/crates/auths-model/src/observation.rs",

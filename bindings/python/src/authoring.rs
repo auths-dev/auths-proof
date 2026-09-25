@@ -18,8 +18,8 @@ use auths_model::{
     CompositionRequirement, CriticalExtension, CriticalExtensions, Digest, EvidenceId,
     FreshnessLimit, GrantId, GrantState, GrantStatusSnapshot, GrantStatusStatement,
     ParticipantRole, Permission, PermissionSet, PrincipalId, PrincipalMethodId, PrincipalState,
-    PrincipalStatusSnapshot, PrincipalStatusStatement, ProfileId, ProfileRef, ProofRef, PurposeId,
-    ResourceId, SignatureBytes, SignatureDescriptor, SignatureSuiteId, SignedAction, SignedGrant,
+    PrincipalStatusSnapshot, PrincipalStatusStatement, ProfileId, ProfileRef, ProofRef, ResourceId,
+    SignatureBytes, SignatureDescriptor, SignatureSuiteId, SignedAction, SignedGrant,
     SignedGrantStatus, SignedPrincipalStatus, StatusMethodId, StatusPolicy, StatusSnapshotId,
     StatusTrustRule, Timestamp, TrustAnchor, TrustAnchorId, TrustedContext, ValidityWindow,
     VerificationMethod, VerifierConfigurationId, VerifierLimits,
@@ -374,7 +374,6 @@ fn grant_request_from_statement(
 fn principal_status_statement(
     method: &str,
     principal: PyRef<'_, PyPrincipal>,
-    purpose: &str,
     state: &str,
     sequence: u64,
     observed_at: u64,
@@ -385,7 +384,6 @@ fn principal_status_statement(
     let statement = PrincipalStatusStatement::new(
         StatusMethodId::parse(method).map_err(value_error)?,
         principal.inner.clone(),
-        PurposeId::parse(purpose).map_err(value_error)?,
         principal_state(state)?,
         sequence,
         Timestamp::new(observed_at),

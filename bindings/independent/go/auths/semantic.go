@@ -350,7 +350,6 @@ type principalStatus struct {
 	statement  *cborValue
 	method     string
 	principal  string
-	purpose    string
 	state      uint64
 	sequence   uint64
 	observedAt uint64

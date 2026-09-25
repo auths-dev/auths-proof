@@ -106,9 +106,9 @@ In this order:
 8. Two proof attachment descriptors with one digest are
    `duplicate-attachment`.
 9. A proof-carried status statement older than a snapshot statement about the
-   same principal and purpose, or the same grant, is
-   `status-sequence-rollback`; one the snapshot does not hold is
-   `digest-mismatch`.
+   same principal, or the same grant, is `status-sequence-rollback`; one the
+   snapshot does not hold is `digest-mismatch`. Only the subject keys this
+   comparison, as it keys selection; the method and issuer do not.
 
 Produce `ResolvedProof`.
 
@@ -319,6 +319,9 @@ The selected trust anchor's status policy governs all of them. A grant's own
 status policy governs only that grant's status: it never changes which
 principals are checked or how. When the anchor's status policy is
 `ExpiryOnly`, no principal status is evaluated.
+
+A statement names no purpose or role, so the principal is its only key: one
+evaluation below governs the principal in every position it holds.
 
 Under `SnapshotRequired`, evaluate each principal against the context's
 principal-status snapshot:

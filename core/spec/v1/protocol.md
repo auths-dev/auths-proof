@@ -170,6 +170,11 @@ selection is deterministic and revoked dominates active at the same sequence.
 Historical control, current control, statement existence, revocation, and
 freshness are not interchangeable.
 
+A principal-status statement names no purpose or role. The latest statement
+about a principal governs it in every position it holds in a branch, and
+selection and the rollback check on a proof-carried statement both key on
+the principal alone, as they key on the grant for grant status.
+
 Principal status covers every principal in an authority branch: the trust
 anchor and the subject of every grant, which by chain linkage includes every
 issuer and the actor. The selected trust anchor's status policy governs all of

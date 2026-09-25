@@ -209,7 +209,7 @@ type Evidence = { id: Uint8Array; kind: string; mediaType: string; body: Uint8Ar
 type StatementRef = { kind: bigint; id: Uint8Array };
 type Binding = { statement: StatementRef; evidence: Uint8Array[] };
 type PrincipalStatus = {
-  statement: V; method: string; principal: string; purpose: string; state: bigint; sequence: bigint;
+  statement: V; method: string; principal: string; state: bigint; sequence: bigint;
   observedAt: bigint; validUntil: bigint; issuer: string; signature: Signature; id: Uint8Array;
 };
 type GrantStatus = {
@@ -454,19 +454,18 @@ function binding(value: V, maximum: bigint): Binding {
 function principalStatus(value: V): PrincipalStatus {
   exactMap(value, 2);
   const statement = mapAt(value, 0);
-  exactMap(statement, 10);
-  const observedAt = uint(mapAt(statement, 6));
-  const validUntil = uint(mapAt(statement, 7));
+  exactMap(statement, 9);
+  const observedAt = uint(mapAt(statement, 5));
+  const validUntil = uint(mapAt(statement, 6));
   return {
     statement,
     method: text(mapAt(statement, 1)),
     principal: text(mapAt(statement, 2)),
-    purpose: text(mapAt(statement, 3)),
-    state: uint(mapAt(statement, 4)),
-    sequence: uint(mapAt(statement, 5)),
+    state: uint(mapAt(statement, 3)),
+    sequence: uint(mapAt(statement, 4)),
     observedAt,
     validUntil,
-    issuer: text(mapAt(statement, 8)),
+    issuer: text(mapAt(statement, 7)),
     signature: signature(mapAt(value, 1)),
     id: domainHash(5, statement.raw),
   };
@@ -1273,12 +1272,15 @@ function collectLeaves(value: Plan): Uint8Array[] {
     : value.children.flatMap(collectLeaves);
 }
 
+/**
+ * Rejects a proof-carried status statement that the snapshot supersedes or
+ * does not hold. Rollback is keyed on the statement's subject alone, the
+ * principal or the grant, as status selection is.
+ */
 function validateCarriedStatus(value: Bundle, contextValue: Context): void {
   for (const carried of value.principalStatus) {
     if (contextValue.principalSnapshot.statements.some((current) =>
-      carried.principal === current.principal &&
-      carried.purpose === current.purpose &&
-      current.sequence > carried.sequence
+      carried.principal === current.principal && current.sequence > carried.sequence
     )) throw denied("status-sequence-rollback");
     if (!contextValue.principalSnapshot.statements.some((current) =>
       equal(carried.statement.raw, current.statement.raw) &&

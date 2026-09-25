@@ -1795,6 +1795,11 @@ fn reject_duplicate_attachments(bundle: &ProofBundle) -> Result<(), Verification
     }
 }
 
+/// Rejects a proof-carried status statement that the snapshot supersedes or
+/// does not hold.
+///
+/// Rollback is keyed on the statement's subject alone, the principal or the
+/// grant, which is the same key status selection uses.
 fn validate_carried_status(
     bundle: &ProofBundle,
     context: &TrustedContext,
@@ -1806,7 +1811,6 @@ fn validate_carried_status(
             .iter()
             .any(|current| {
                 current.statement().principal() == carried.statement().principal()
-                    && current.statement().purpose() == carried.statement().purpose()
                     && current.statement().sequence() > carried.statement().sequence()
             })
     }) || bundle.grant_status().iter().any(|carried| {

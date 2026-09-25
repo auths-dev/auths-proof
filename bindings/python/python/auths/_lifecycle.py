@@ -64,9 +64,14 @@ class CriticalExtension:
 
 @dataclass(frozen=True)
 class PrincipalStatusRequest:
+    """Fields of one principal-status statement.
+
+    The statement names no purpose: one latest statement governs the principal
+    in every role it holds.
+    """
+
     method: str
     principal: Principal
-    purpose: str
     state: LifecycleState
     sequence: int
     observed_at: int
@@ -162,7 +167,6 @@ class LifecycleAuthor:
         unsigned = native.principal_status_statement(
             request.method,
             request.principal,
-            request.purpose,
             request.state,
             request.sequence,
             request.observed_at,
@@ -300,7 +304,6 @@ def record_compromise(
     *,
     method: str,
     principal: Principal,
-    purpose: str,
     issuer: Principal,
     sequence: int,
     valid_for: int,
@@ -310,7 +313,6 @@ def record_compromise(
     return PrincipalStatusRequest(
         method,
         principal,
-        purpose,
         "revoked",
         sequence,
         observed,
@@ -324,7 +326,6 @@ def rotate_identity(
     method: str,
     previous: Principal,
     current: Principal,
-    purpose: str,
     issuer: Principal,
     previous_sequence: int,
     current_sequence: int,
@@ -337,7 +338,6 @@ def rotate_identity(
         PrincipalStatusRequest(
             method,
             previous,
-            purpose,
             "superseded",
             previous_sequence,
             observed,
@@ -347,7 +347,6 @@ def rotate_identity(
         PrincipalStatusRequest(
             method,
             current,
-            purpose,
             "active",
             current_sequence,
             observed,

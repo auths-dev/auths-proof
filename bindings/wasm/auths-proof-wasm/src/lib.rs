@@ -23,10 +23,10 @@ use auths_model::{
     GrantState, GrantStatusSnapshot, GrantStatusStatement, LimitKind, MediaType, ParticipantRole,
     Permission, PermissionSet, PrincipalId, PrincipalMethodId, PrincipalState,
     PrincipalStatusSnapshot, PrincipalStatusStatement, ProfileBudgetExpression, ProfileId,
-    ProfilePolicyId, ProfileRef, ProofRef, PurposeId, ResourceId, ResourceMatcherId,
-    SignatureBytes, SignatureDescriptor, SignatureSuiteId, StatusMethodId, StatusPolicy,
-    StatusSnapshotId, StatusTrustRule, Timestamp, TrustAnchor, TrustAnchorId, TrustedContext,
-    ValidityWindow, VerificationMethod, VerifierConfigurationId, VerifierLimits,
+    ProfilePolicyId, ProfileRef, ProofRef, ResourceId, ResourceMatcherId, SignatureBytes,
+    SignatureDescriptor, SignatureSuiteId, StatusMethodId, StatusPolicy, StatusSnapshotId,
+    StatusTrustRule, Timestamp, TrustAnchor, TrustAnchorId, TrustedContext, ValidityWindow,
+    VerificationMethod, VerifierConfigurationId, VerifierLimits,
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_production_client::{
@@ -200,6 +200,9 @@ fn grant_state(value: &str) -> Result<GrantState, EngineError> {
 
 /// Constructs canonical unsigned principal-status bytes from typed fields.
 ///
+/// The statement names no purpose: one latest statement governs the principal
+/// in every role.
+///
 /// # Errors
 ///
 /// Returns a JavaScript error when an identifier, state, window, or extension is invalid.
@@ -208,7 +211,6 @@ fn grant_state(value: &str) -> Result<GrantState, EngineError> {
 pub fn encode_principal_status_statement_v1(
     method: &str,
     principal: &str,
-    purpose: &str,
     state: &str,
     sequence: u64,
     observed_at: u64,
@@ -219,7 +221,6 @@ pub fn encode_principal_status_statement_v1(
     let statement = PrincipalStatusStatement::new(
         StatusMethodId::parse(method).map_err(js_error)?,
         PrincipalId::parse(principal).map_err(js_error)?,
-        PurposeId::parse(purpose).map_err(js_error)?,
         principal_state(state).map_err(js_error)?,
         sequence,
         Timestamp::new(observed_at),
