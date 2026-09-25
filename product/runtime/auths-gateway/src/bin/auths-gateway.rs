@@ -1010,9 +1010,13 @@ mod unix {
         if rustix::process::geteuid().as_raw() != 0 {
             return Err("gateway.doctor.privilege-drop-not-checked");
         }
+        // The probe runs as the application UID, which may read its
+        // /proc/<pid>/environ, and the operator's environment can hold store
+        // secrets. It execs this binary by absolute path and needs none.
         let status = std::process::Command::new(
             std::env::current_exe().map_err(|_| "gateway.doctor.binary-unavailable")?,
         )
+        .env_clear()
         .arg("probe")
         .arg("--state-dir")
         .arg(state_dir)
@@ -1032,6 +1036,12 @@ mod unix {
     }
 
     fn probe(state_dir: &Path, app_socket: &Path) -> Result<(), &'static str> {
+        // Doctor starts the probe with an empty environment. On Linux nothing
+        // adds to it, so any variable was inherited and could carry operator
+        // secrets to the application UID. macOS system libraries set their own.
+        if cfg!(target_os = "linux") && std::env::vars_os().next().is_some() {
+            return Err("gateway.doctor.probe-environment-not-empty");
+        }
         if File::open(state_dir.join("credentials.cbor")).is_ok()
             || File::open(state_dir.join(OBSERVER_SEED)).is_ok()
             || std::os::unix::net::UnixStream::connect(state_dir.join("admin.sock")).is_ok()

@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 303,
+  "freezeVersion": 304,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -238,7 +238,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/source-closure.json",
-      "version": 65,
+      "version": 66,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -246,7 +246,7 @@
       "owners": [
         "formal/qualification/aeneas/source-closure.json"
       ],
-      "sha256": "3d88110c3dba01b800b6715043194ef4826d1e2ad3d38162d3eb5c191fb1164f"
+      "sha256": "8927e5192011e77716cbeda6a0e8dde04784275a01d2bd6b90bafaa913c6e8a9"
     },
     {
       "id": "auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json",
@@ -635,7 +635,7 @@
     },
     {
       "id": "auths.product.bounded-domains",
-      "version": 15,
+      "version": 16,
       "classification": "frozen-meaning",
       "categories": [
         "bounded-domain-inventory",
@@ -656,7 +656,7 @@
         "product/integrations/auths-records-api/src",
         "product/integrations/auths-stripe/src"
       ],
-      "sha256": "ced32750afce2691cd2eb9c19360ec0c0513549cff28acc42235db2a8216bcdd"
+      "sha256": "b1277852152ad9b6beff89b68a9d240ab0c86808fbf07af3222fe73b30c9a50f"
     },
     {
       "id": "auths.product.bounded-policy",
@@ -776,7 +776,7 @@
     },
     {
       "id": "auths.product.github-issue-address-v2",
-      "version": 3,
+      "version": 4,
       "classification": "frozen-meaning",
       "categories": [
         "profile-v2",
@@ -790,7 +790,7 @@
         "product/integrations/auths-github/src",
         "protocol/github-issue-address-v2.json"
       ],
-      "sha256": "17998f2ec7ae27a8f17e62481a3f8b7671df727baa97dbe6c182b56973f1591c"
+      "sha256": "12fd94a6486c14607837d96e590966d351a393e65ca2ad256d85c3d59125c951"
     },
     {
       "id": "auths.product.lifecycle",
@@ -1044,7 +1044,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 303,
+      "version": 304,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1136,7 +1136,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "bbb35ed5f646b60d98f806985701c0a21afb3f43003a54de9bc7107be7ec065f"
+      "sha256": "bcf17890c9247d3a706538fa3335487744359979483e0a280cdb1b24b3959ca5"
     }
   ]
 }

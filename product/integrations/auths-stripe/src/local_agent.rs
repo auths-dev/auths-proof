@@ -2537,9 +2537,12 @@ fn classify_testkit_response(
     })
 }
 
+/// The refund-write key goes only to Stripe: proxy variables are ignored, so
+/// no intercepting proxy sees it, and redirects are never followed.
 fn stripe_client() -> Result<Client, ProfileRuntimeError> {
     Client::builder()
         .https_only(true)
+        .no_proxy()
         .redirect(Policy::none())
         .connect_timeout(Duration::from_secs(5))
         .timeout(Duration::from_secs(30))
@@ -2781,5 +2784,70 @@ mod tests {
         assert_eq!(result.api_version, "2025-04-30.basil");
         assert_eq!(result.body, br#"{"id":"re_1"}"#);
         assert!(decode_provider_result(&vec![0; MAX_PROVIDER_RESPONSE_BYTES + 33]).is_err());
+    }
+
+    /// Child half of `credential_bearing_clients_ignore_environment_proxies`.
+    /// It runs in a fresh copy of this test binary whose proxy variables name
+    /// the parent's listener, because a test must not change its own
+    /// environment.
+    #[test]
+    #[ignore = "started by credential_bearing_clients_ignore_environment_proxies"]
+    fn credential_bearing_clients_under_environment_proxy() {
+        let closed = std::net::TcpListener::bind("127.0.0.1:0")
+            .and_then(|listener| listener.local_addr())
+            .expect("free loopback port");
+        let url = format!("https://{closed}/v1/refunds");
+        let onboarding = crate::connection::onboarding::account_client()
+            .expect("onboarding client")
+            .get(&url)
+            .send()
+            .expect_err("nothing listens on the loopback port");
+        assert!(onboarding.is_connect(), "{onboarding}");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let refund = runtime
+            .block_on(async {
+                stripe_client()
+                    .expect("refund client")
+                    .get(&url)
+                    .send()
+                    .await
+            })
+            .expect_err("nothing listens on the loopback port");
+        assert!(refund.is_connect(), "{refund}");
+    }
+
+    #[test]
+    fn credential_bearing_clients_ignore_environment_proxies() {
+        let proxy = std::net::TcpListener::bind("127.0.0.1:0").expect("proxy listener");
+        proxy
+            .set_nonblocking(true)
+            .expect("non-blocking proxy listener");
+        let proxy_url = format!("http://{}", proxy.local_addr().expect("proxy address"));
+        let child = std::process::Command::new(std::env::current_exe().expect("test binary"))
+            .args([
+                "--exact",
+                "local_agent::tests::credential_bearing_clients_under_environment_proxy",
+                "--ignored",
+            ])
+            .env("HTTPS_PROXY", &proxy_url)
+            .env("ALL_PROXY", &proxy_url)
+            .env_remove("NO_PROXY")
+            .env_remove("no_proxy")
+            .env_remove("REQUEST_METHOD")
+            .output()
+            .expect("child test");
+        let stdout = String::from_utf8_lossy(&child.stdout);
+        assert!(
+            child.status.success() && stdout.contains("1 passed"),
+            "{stdout}"
+        );
+        assert_eq!(
+            proxy.accept().map(drop).map_err(|error| error.kind()),
+            Err(std::io::ErrorKind::WouldBlock),
+            "a credential-bearing request reached the environment proxy"
+        );
     }
 }

@@ -1,4 +1,4 @@
-freeze_version = 303
+freeze_version = 304
 
 # Semantic identity counters live outside the xtask source tree deliberately.
 # The formal source closure binds xtask's executable code, while the semantic
@@ -19,7 +19,7 @@ freeze_version = 303
 "auths.frozen-bytes/formal/assurance-manifest-v1.toml" = 34
 "auths.frozen-bytes/formal/qualification/aeneas/generated" = 12
 "auths.frozen-bytes/formal/qualification/aeneas/qualification.toml" = 9
-"auths.frozen-bytes/formal/qualification/aeneas/source-closure.json" = 65
+"auths.frozen-bytes/formal/qualification/aeneas/source-closure.json" = 66
 "auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json" = 1
 "auths.frozen-bytes/product/conformance/v1/simplified-product-waist.json" = 3
 "auths.frozen-bytes/product/fixtures/v1/bounded-policy/manifest.json" = 2
@@ -48,14 +48,14 @@ freeze_version = 303
 "auths.identity.protocol" = 86
 "auths.modular-components" = 16
 "auths.portable-abi-bindings" = 108
-"auths.product.bounded-domains" = 15
+"auths.product.bounded-domains" = 16
 "auths.product.bounded-policy" = 3
 "auths.product.configuration-commitments" = 1
 "auths.product.development-composition" = 13
 "auths.product.error-recovery-contract" = 17
 "auths.product.external-custody" = 4
 "auths.product.facade" = 25
-"auths.product.github-issue-address-v2" = 3
+"auths.product.github-issue-address-v2" = 4
 "auths.product.lifecycle" = 14
 "auths.product.mcp-closed-execution" = 26
 "auths.product.mechanism-profile-conformance" = 12
@@ -68,4 +68,4 @@ freeze_version = 303
 "auths.product.vocabulary" = 18
 "auths.release.benchmark-contract" = 1
 "auths.release.evolution-contract" = 69
-"auths.release.public-surface" = 303
+"auths.release.public-surface" = 304
