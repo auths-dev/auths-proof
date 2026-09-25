@@ -12,6 +12,8 @@ mod audit;
 mod binding;
 mod bounds;
 mod engine;
+#[cfg(unix)]
+pub mod listener;
 mod observer;
 mod recipe;
 mod separation;
