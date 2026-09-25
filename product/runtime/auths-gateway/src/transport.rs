@@ -22,6 +22,7 @@ use zeroize::Zeroizing;
 
 const MAX_WRITE_RESPONSE_BYTES: usize = 65_536;
 const MAX_SECRET_BYTES: usize = 4_096;
+const IDEMPOTENCY_KEY: HeaderName = HeaderName::from_static("idempotency-key");
 
 /// Secret-free transport failure. `Unknown` is possible after network entry.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Error)]
@@ -158,7 +159,8 @@ impl GatewayHttpTransport {
 
     /// Sends one request after a durable claim. Any incomplete response is
     /// conservatively unknown, even when the error occurred before a socket
-    /// connected; it never authorizes a retry.
+    /// connected; it never authorizes a retry. The derived `Idempotency-Key`
+    /// is sent only when the recipe declares it.
     pub(crate) async fn write(
         &self,
         request: &ClosedProviderRequest,
@@ -170,12 +172,16 @@ impl GatewayHttpTransport {
         let headers = credential_headers(&self.requirement, lease)?;
         let method = reqwest::Method::from_bytes(request.method().as_str().as_bytes())
             .map_err(|_| GatewayTransportError::NotEntered)?;
-        let outbound = self
+        let mut outbound = self
             .client
             .request(method, self.target(request.url()))
             .headers(headers)
             .header(ACCEPT, "application/json")
-            .header(CONTENT_TYPE, request.content_type())
+            .header(CONTENT_TYPE, request.content_type());
+        if let Some(key) = request.idempotency_key() {
+            outbound = outbound.header(IDEMPOTENCY_KEY, key);
+        }
+        let outbound = outbound
             .body(request.body().to_vec())
             .build()
             .map_err(|_| GatewayTransportError::NotEntered)?;
@@ -310,6 +316,163 @@ fn public_ipv4(ip: Ipv4Addr) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{LogicalOperationId, idempotency_key};
+    use auths_connections::{
+        ConnectionAlias, ConnectionCredentialStore as _, ConnectionId, ConnectionProfile,
+        ConnectionRecord, ConnectionState, InMemoryCredentialStore, ProviderKind, SecretBytes,
+        SemanticId,
+    };
+    use serde_json::{Value, json};
+    use std::num::NonZeroU64;
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+    use tokio::net::TcpListener;
+
+    /// A lease on a one-generation in-memory credential.
+    async fn test_lease() -> StoredSecretLease {
+        let store = InMemoryCredentialStore::new(1, 64).expect("store");
+        let connection = ConnectionId::generate().expect("connection ID");
+        let secret = SecretBytes::new(b"test-only-not-a-credential".to_vec()).expect("secret");
+        let commitment = store
+            .install(&connection, NonZeroU64::MIN, secret)
+            .await
+            .expect("install");
+        let profile = ConnectionProfile::new(SemanticId::parse("auths.mcp").expect("id"), 2)
+            .expect("profile");
+        let record = ConnectionRecord::new(
+            ProviderKind::parse("airtable").expect("provider"),
+            ConnectionAlias::parse("test").expect("alias"),
+            connection,
+            SemanticId::parse("auths.gateway-operation/1").expect("contract"),
+            SemanticId::parse("auths.gateway-connection-descriptor/1").expect("schema"),
+            b"{}".to_vec(),
+            [0; 32],
+            *commitment.as_bytes(),
+            NonZeroU64::MIN,
+            ConnectionState::Active,
+            vec!["gateway".to_owned()],
+            vec![profile],
+            1,
+            1,
+            None,
+        )
+        .expect("record");
+        let binding = record
+            .binding_for_recovery(NonZeroU64::MIN, commitment)
+            .expect("binding");
+        store
+            .lease_secret(&binding, Instant::now() + Duration::from_secs(30))
+            .await
+            .expect("lease")
+    }
+
+    /// Answers `count` loopback HTTP/1.1 requests with one small JSON record
+    /// and returns each lowercased request head in arrival order.
+    async fn capture_heads(listener: &TcpListener, count: usize) -> Vec<String> {
+        const RECORD: &[u8] = br#"{"id":"recTEST0000000001","fields":{"DemoStatus":"Approved"}}"#;
+        let mut heads = Vec::new();
+        for _ in 0..count {
+            let (mut stream, _) = listener.accept().await.expect("accept");
+            let mut bytes = Vec::new();
+            let mut buffer = [0_u8; 4_096];
+            let end = loop {
+                let read = stream.read(&mut buffer).await.expect("read head");
+                assert!(read > 0, "request head ended early");
+                bytes.extend_from_slice(&buffer[..read]);
+                if let Some(end) = bytes.windows(4).position(|window| window == b"\r\n\r\n") {
+                    break end;
+                }
+            };
+            let head = String::from_utf8(bytes[..end].to_vec())
+                .expect("ASCII head")
+                .to_ascii_lowercase();
+            let length = head
+                .lines()
+                .find_map(|line| line.strip_prefix("content-length:"))
+                .map_or(0, |value| value.trim().parse::<usize>().expect("length"));
+            while bytes.len() < end + 4 + length {
+                let read = stream.read(&mut buffer).await.expect("read body");
+                assert!(read > 0, "request body ended early");
+                bytes.extend_from_slice(&buffer[..read]);
+            }
+            let status = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                RECORD.len()
+            );
+            stream.write_all(status.as_bytes()).await.expect("respond");
+            stream.write_all(RECORD).await.expect("respond");
+            heads.push(head);
+        }
+        heads
+    }
+
+    fn idempotency_values(head: &str) -> Vec<&str> {
+        head.lines()
+            .filter_map(|line| line.strip_prefix("idempotency-key:"))
+            .map(str::trim)
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn write_sends_the_derived_idempotency_key_only_when_declared_and_read_back_never_does() {
+        let lease = test_lease().await;
+        let lock =
+            include_bytes!("../../../../bindings/fixtures/gateway/airtable/profile.lock.json");
+        for declared in [true, false] {
+            let mut source: Value = serde_json::from_slice(include_bytes!(
+                "../../../../bindings/fixtures/gateway/airtable/recipe.json"
+            ))
+            .expect("source");
+            source["write"]["idempotency_key"] = json!(declared);
+            let recipe =
+                CompiledRecipe::compile(&serde_json::to_vec(&source).expect("source"), lock)
+                    .expect("recipe");
+            let arguments = json!({"operation_id": "run-1", "record_id": "recTEST0000000001",
+                "replacement": "Approved", "operator_namespace": recipe.namespace().as_str(),
+                "recipe_digest": recipe.digest_hex()});
+            let request = recipe
+                .closed_request_from_arguments(arguments.as_object().expect("arguments"), [1; 32])
+                .expect("request");
+            let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+                .await
+                .expect("bind");
+            let port = listener.local_addr().expect("address").port();
+            let provider = tokio::spawn(async move { capture_heads(&listener, 2).await });
+            let transport = GatewayHttpTransport {
+                client: Client::builder()
+                    .no_proxy()
+                    .redirect(reqwest::redirect::Policy::none())
+                    .pool_max_idle_per_host(0)
+                    .build()
+                    .expect("client"),
+                origin: recipe.review().origin().to_owned(),
+                target_origin: format!("http://{}:{port}", Ipv4Addr::LOCALHOST),
+                requirement: recipe.review().credential().clone(),
+            };
+            assert!(matches!(
+                transport.write(&request, &lease).await,
+                Ok(WriteTransportOutcome::ResponseRecorded { status: 200, .. })
+            ));
+            let observation = request.observation().expect("observation");
+            assert!(transport.read_back(observation, &lease).await.is_some());
+            let heads = provider.await.expect("provider");
+            assert!(heads[0].starts_with("patch /v0/"), "{}", heads[0]);
+            assert!(heads[1].starts_with("get /v0/"), "{}", heads[1]);
+            let expected = idempotency_key(
+                recipe.namespace(),
+                &LogicalOperationId::parse("run-1").expect("operation"),
+            );
+            let sent = if declared {
+                vec![expected.as_str()]
+            } else {
+                Vec::new()
+            };
+            assert_eq!(idempotency_values(&heads[0]), sent, "declared={declared}");
+            assert!(
+                idempotency_values(&heads[1]).is_empty(),
+                "the read-back never sends the key"
+            );
+        }
+    }
 
     #[tokio::test]
     async fn async_client_drops_on_runtime_worker_without_nested_runtime_panic() {
