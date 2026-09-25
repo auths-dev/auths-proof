@@ -962,36 +962,37 @@ fn workflow_sources() -> Result<Vec<PathBuf>, String> {
     Ok(sources)
 }
 
+/// Requires every action and reusable workflow to be pinned: each step's and
+/// each job's `uses` names a local path or a full 40-hex commit. `uses` is
+/// found by the structural step reader, wherever it sits among a step's keys.
 pub(crate) fn check_workflow_action_pins() -> Result<(), String> {
     for path in workflow_sources()? {
         let source = fs::read_to_string(&path)
             .map_err(|error| format!("could not read {}: {error}", path.display()))?;
-        for (index, line) in source.lines().enumerate() {
-            let Some(reference) = line.trim().strip_prefix("- uses: ") else {
+        check_action_pins(&source).map_err(|error| format!("{}:{error}", path.display()))?;
+    }
+    Ok(())
+}
+
+fn check_action_pins(source: &str) -> Result<(), String> {
+    let lines = workflow_lines(source)?;
+    for job in workflow_jobs(&lines)? {
+        for fields in std::iter::once(&job.fields).chain(&job.steps) {
+            let Some(uses) = unique_entry(fields, "uses")? else {
                 continue;
             };
+            let reference = unquoted(uses.inline);
             if reference.starts_with("./") {
                 continue;
             }
             let revision = reference
-                .split('#')
-                .next()
-                .unwrap_or(reference)
-                .trim()
                 .rsplit_once('@')
                 .map(|(_, revision)| revision)
-                .ok_or_else(|| {
-                    format!(
-                        "{}:{} action has no revision",
-                        path.display(),
-                        index.saturating_add(1)
-                    )
-                })?;
+                .ok_or_else(|| format!("{}: action has no revision", uses.number))?;
             if revision.len() != 40 || !revision.bytes().all(|byte| byte.is_ascii_hexdigit()) {
                 return Err(format!(
-                    "{}:{} action is not pinned to an immutable commit: {reference}",
-                    path.display(),
-                    index.saturating_add(1)
+                    "{}: action is not pinned to an immutable commit: {reference}",
+                    uses.number
                 ));
             }
         }
@@ -999,10 +1000,13 @@ pub(crate) fn check_workflow_action_pins() -> Result<(), String> {
     Ok(())
 }
 
-/// Property names whose values a contributor or pull-request author chooses:
-/// branch names, titles, bodies, commit messages, labels and commit authors.
-const UNTRUSTED_EXPRESSION_PROPERTIES: [&str; 11] = [
+/// Property names whose values a contributor, pull-request author or workflow
+/// dispatcher chooses: refs and branch names, titles, bodies, commit messages,
+/// labels and commit authors. A `workflow_ref` ends in the ref the run started
+/// from.
+const UNTRUSTED_EXPRESSION_PROPERTIES: [&str; 15] = [
     "author",
+    "base_ref",
     "body",
     "committer",
     "default_branch",
@@ -1012,7 +1016,10 @@ const UNTRUSTED_EXPRESSION_PROPERTIES: [&str; 11] = [
     "label",
     "message",
     "page_name",
+    "ref",
+    "ref_name",
     "title",
+    "workflow_ref",
 ];
 
 /// Refuses `${{ ... }}` expressions that Actions would splice into step
@@ -1022,10 +1029,10 @@ const UNTRUSTED_EXPRESSION_PROPERTIES: [&str; 11] = [
 /// `env`.
 ///
 /// A `script` may contain no expression at all. A `run` script may not read a
-/// contributor-controlled property (`UNTRUSTED_EXPRESSION_PROPERTIES`,
-/// `head.ref`) or the whole `github` or `github.event` object. Steps are found
-/// structurally under `jobs.<id>.steps` and `runs.steps`; a workflow outside
-/// the block-style YAML this reader understands is refused, not skipped.
+/// property named in `UNTRUSTED_EXPRESSION_PROPERTIES` at any depth, or the
+/// whole `github` or `github.event` object. Steps are found structurally
+/// under `jobs.<id>.steps` and `runs.steps`; a workflow outside the
+/// block-style YAML this reader understands is refused, not skipped.
 pub(crate) fn check_workflow_script_expressions() -> Result<(), String> {
     for path in workflow_sources()? {
         let source = fs::read_to_string(&path)
@@ -1058,8 +1065,15 @@ struct WorkflowEntry<'s, 'a> {
     body: &'s [WorkflowLine<'a>],
 }
 
-fn check_step_script_expressions(source: &str) -> Result<(), String> {
-    let lines = source
+/// The keys of one job, or of a composite action's `runs`, and the keys of
+/// each of its steps.
+struct WorkflowJob<'s, 'a> {
+    fields: Vec<WorkflowEntry<'s, 'a>>,
+    steps: Vec<Vec<WorkflowEntry<'s, 'a>>>,
+}
+
+fn workflow_lines(source: &str) -> Result<Vec<WorkflowLine<'_>>, String> {
+    source
         .lines()
         .enumerate()
         .map(|(index, line)| {
@@ -1073,8 +1087,17 @@ fn check_step_script_expressions(source: &str) -> Result<(), String> {
                 text: text.trim_end(),
             })
         })
-        .collect::<Result<Vec<_>, _>>()?;
-    for entry in block_mapping(None, &lines)? {
+        .collect()
+}
+
+/// Reads jobs from `jobs.<id>` and a composite action's `runs`, and their
+/// steps from `steps`. A shape this reader does not understand is an error,
+/// so a check built on it cannot skip a step.
+fn workflow_jobs<'s, 'a>(
+    lines: &'s [WorkflowLine<'a>],
+) -> Result<Vec<WorkflowJob<'s, 'a>>, String> {
+    let mut jobs = Vec::new();
+    for entry in block_mapping(None, lines)? {
         let owners = match entry.key {
             "jobs" => block_mapping(None, nested(&entry)?)?,
             "runs" => vec![entry],
@@ -1082,22 +1105,33 @@ fn check_step_script_expressions(source: &str) -> Result<(), String> {
         };
         for owner in owners {
             let fields = block_mapping(None, nested(&owner)?)?;
-            if let Some(steps) = unique_entry(&fields, "steps")? {
-                for (head, rest) in block_sequence(nested(steps)?)? {
-                    check_step(head, rest)?;
+            let mut steps = Vec::new();
+            if let Some(sequence) = unique_entry(&fields, "steps")? {
+                for (head, rest) in block_sequence(nested(sequence)?)? {
+                    steps.push(block_mapping(head, rest)?);
                 }
             }
+            jobs.push(WorkflowJob { fields, steps });
+        }
+    }
+    Ok(jobs)
+}
+
+fn check_step_script_expressions(source: &str) -> Result<(), String> {
+    let lines = workflow_lines(source)?;
+    for job in workflow_jobs(&lines)? {
+        for step in &job.steps {
+            check_step(step)?;
         }
     }
     Ok(())
 }
 
-fn check_step(head: Option<WorkflowLine<'_>>, rest: &[WorkflowLine<'_>]) -> Result<(), String> {
-    let fields = block_mapping(head, rest)?;
-    if let Some(run) = unique_entry(&fields, "run")? {
+fn check_step(fields: &[WorkflowEntry<'_, '_>]) -> Result<(), String> {
+    if let Some(run) = unique_entry(fields, "run")? {
         check_run_expressions(run)?;
     }
-    let github_script = unique_entry(&fields, "uses")?.is_some_and(|uses| {
+    let github_script = unique_entry(fields, "uses")?.is_some_and(|uses| {
         unquoted(uses.inline)
             .to_ascii_lowercase()
             .starts_with("actions/github-script@")
@@ -1109,7 +1143,7 @@ fn check_step(head: Option<WorkflowLine<'_>>, rest: &[WorkflowLine<'_>]) -> Resu
     let missing = || format!("{step}: actions/github-script step has no block `with.script`");
     let inputs = block_mapping(
         None,
-        nested(unique_entry(&fields, "with")?.ok_or_else(missing)?)?,
+        nested(unique_entry(fields, "with")?.ok_or_else(missing)?)?,
     )?;
     let script = unique_entry(&inputs, "script")?.ok_or_else(missing)?;
     if let Some((number, _)) = scalar_lines(script).find(|(_, text)| text.contains("${{")) {
@@ -1177,9 +1211,6 @@ fn untrusted_expression(expression: &str) -> bool {
             || path
                 .iter()
                 .any(|segment| UNTRUSTED_EXPRESSION_PROPERTIES.contains(&segment.as_str()))
-            || path
-                .windows(2)
-                .any(|pair| pair[0] == "head" && pair[1] == "ref")
     })
 }
 
@@ -1642,6 +1673,10 @@ runs:
         for expression in [
             "github.head_ref",
             "GitHub.Head_Ref",
+            "github.ref",
+            "github.ref_name",
+            "github.base_ref",
+            "github.workflow_ref",
             "steps.authorize.outputs.head_ref",
             "github.event.pull_request.title",
             "github.event.pull_request['title']",
@@ -1663,6 +1698,7 @@ runs:
         for expression in [
             "github.run_id",
             "github.event_name",
+            "github.ref_type",
             "github.event.pull_request.head.sha",
             "steps.build.outputs.digest",
             "contains(github.event_name, 'body')",
@@ -1721,5 +1757,71 @@ jobs:
     #[test]
     fn repository_workflows_splice_no_untrusted_expression_into_step_source() {
         check_workflow_script_expressions().unwrap();
+    }
+}
+
+#[cfg(test)]
+mod workflow_action_pin_tests {
+    use super::*;
+
+    const PINNED: &str = "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683";
+
+    #[test]
+    fn every_uses_is_pin_checked_wherever_it_sits() {
+        for (source, line) in [
+            (
+                "jobs:\n  a:\n    steps:\n      - uses: actions/checkout@v4\n",
+                4,
+            ),
+            (
+                "jobs:\n  a:\n    steps:\n      - name: Check out\n        uses: actions/checkout@v4\n",
+                5,
+            ),
+            (
+                "runs:\n  using: composite\n  steps:\n  - name: Cache\n    uses: actions/cache@v4\n",
+                5,
+            ),
+            (
+                "jobs:\n  call:\n    uses: octo-org/example/.github/workflows/build.yml@main\n",
+                3,
+            ),
+        ] {
+            let error = check_action_pins(source).unwrap_err();
+            assert!(
+                error.starts_with(&format!("{line}: action is not pinned")),
+                "{error}"
+            );
+        }
+        let error = check_action_pins(
+            "jobs:\n  a:\n    steps:\n      - name: Check out\n        uses: actions/checkout\n",
+        )
+        .unwrap_err();
+        assert!(error.starts_with("5: action has no revision"), "{error}");
+        // A step the structural reader cannot read is refused, not skipped.
+        check_action_pins("jobs:\n  a:\n    steps:\n      - {uses: actions/checkout@v4}\n")
+            .unwrap_err();
+    }
+
+    #[test]
+    fn pinned_and_local_references_pass() {
+        let source = format!(
+            "\
+jobs:
+  a:
+    steps:
+      - name: Check out
+        uses: {PINNED} # v4.2.2
+      - uses: \"{PINNED}\"
+      - uses: ./.github/actions/setup-rust-cache
+  call:
+    uses: ./.github/workflows/release-builder.yml
+"
+        );
+        check_action_pins(&source).unwrap();
+    }
+
+    #[test]
+    fn repository_workflows_pin_every_action() {
+        check_workflow_action_pins().unwrap();
     }
 }
