@@ -79,9 +79,12 @@ Every edge must narrow or preserve:
 - status and assurance policy; and
 - critical extensions.
 
-The first grant from a trust anchor may establish a critical-extension set.
-Every later child grant MUST preserve that complete canonical set byte for
-byte until an extension-specific attenuation algebra is standardized.
+The first grant from a trust anchor selects its critical extensions freely.
+Across every later edge, each identifier is judged by the attenuation law its
+registered handler declares (`registry.md`, "Attenuation laws"): a parent
+extension must be kept or narrowed under its law, an extension only the child
+carries must be one its law allows adding, and an identifier without a law is
+refused.
 
 Issuer/subject and parent linkage must be exact. Cross-profile delegation
 requires a registered bridge extension.

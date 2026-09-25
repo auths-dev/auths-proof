@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 303,
+  "freezeVersion": 304,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -73,7 +73,7 @@
   "entries": [
     {
       "id": "auths.core.protocol",
-      "version": 30,
+      "version": 31,
       "classification": "frozen-meaning",
       "categories": [
         "protocol-versions",
@@ -90,7 +90,7 @@
         "core/crates/auths-verifier/src",
         "core/spec/v1"
       ],
-      "sha256": "27655a383e30c669ba4227ccb809a055bbe11f52477a97293f0eef96b8579a81"
+      "sha256": "c7c8aca8cc070f0416cf840c6f2554c75981afc63e8f47a6864b7f291d375393"
     },
     {
       "id": "auths.frozen-bytes/architecture/dependency-graph.json",
@@ -166,7 +166,7 @@
     },
     {
       "id": "auths.frozen-bytes/core/fixtures/v1/manifest.json",
-      "version": 13,
+      "version": 14,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -174,7 +174,7 @@
       "owners": [
         "core/fixtures/v1/manifest.json"
       ],
-      "sha256": "c14aae71819a551bab6b77577c208f894a9f51c791f51b8c0487c921d5c3aa60"
+      "sha256": "a0abcdda6735792ddf3828f0eb58f8d956bd67ecb48224e79c98a125d233f958"
     },
     {
       "id": "auths.frozen-bytes/core/formal-vectors/v1/manifest.json",
@@ -1044,7 +1044,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 303,
+      "version": 304,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1136,7 +1136,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "d1dca22f497752ded7b0e27c68d2a466b1b79808182804fba9e7b717fa40850a"
+      "sha256": "22159d3e441f4ae49aff11adff3c31da5358e76f9dd8867003df0d375eceb0e6"
     }
   ]
 }

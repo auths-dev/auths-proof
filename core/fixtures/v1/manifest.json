@@ -13053,6 +13053,116 @@
       },
       "expected_decision": "denied",
       "expected_code": "invalid-signature"
+    },
+    {
+      "name": "observation-child-requirements-over-limit",
+      "class": "denied",
+      "proof": {
+        "path": "denied/observation-child-requirements-over-limit.proof.cbor",
+        "sha256": "56796f9d06fc2f95014bedd79aed6cb93f15aa44af9f1c086a271b7ba846fe5c"
+      },
+      "context": {
+        "path": "denied/observation-child-requirements-over-limit.context.cbor",
+        "sha256": "793a8747df6858f103e47d1dcab7d8e26fc4ff54813acbbd543e45e3bde971f8"
+      },
+      "canonical_action": {
+        "path": "denied/observation-child-requirements-over-limit.action.cbor",
+        "sha256": "40286e8232ff3fb1925f20ac86c9cd99e81073e8860c36ea045982b85d771801",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "denied/observation-child-requirements-over-limit.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "denied/observation-child-requirements-over-limit.result.cbor",
+        "sha256": "3304e455efea1dff264f93dd537b8fcc90ebf3f32deb83a272053a202db3f563",
+        "stage": "authority",
+        "decision": "denied",
+        "code": "observation-requirement-dropped",
+        "proof_digest": "56796f9d06fc2f95014bedd79aed6cb93f15aa44af9f1c086a271b7ba846fe5c",
+        "action_digest": "40286e8232ff3fb1925f20ac86c9cd99e81073e8860c36ea045982b85d771801",
+        "context_digest": "2fe553e740b3878fb2a440349c54fc349dbcba86b7d19c89b3eb64300e618068",
+        "plan_digest": "1cd640af1d9342d67f7ea5a09fe8f489a01106b2dcd1928eb0889b4cb1e0c7e1",
+        "result_digest": "0e0d5965926ea7a91369cc5fbfefa60871a672b13a2d6f74caca19651dc444e4",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 3562,
+          "action_bytes": 623,
+          "context_bytes": 1342,
+          "object_count": 10,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 564
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "denied",
+      "expected_code": "observation-requirement-dropped"
+    },
+    {
+      "name": "observation-child-requirements-over-limit-unconditioned-parent",
+      "class": "denied",
+      "proof": {
+        "path": "denied/observation-child-requirements-over-limit-unconditioned-parent.proof.cbor",
+        "sha256": "bc80a7d9b52da3849d1f7811dccc891583e2870c0e409614cec38c64400a76b5"
+      },
+      "context": {
+        "path": "denied/observation-child-requirements-over-limit-unconditioned-parent.context.cbor",
+        "sha256": "793a8747df6858f103e47d1dcab7d8e26fc4ff54813acbbd543e45e3bde971f8"
+      },
+      "canonical_action": {
+        "path": "denied/observation-child-requirements-over-limit-unconditioned-parent.action.cbor",
+        "sha256": "40286e8232ff3fb1925f20ac86c9cd99e81073e8860c36ea045982b85d771801",
+        "profile": "auths.mcp",
+        "profile_version": 1,
+        "media_type": "application/vnd.auths.mcp-call.v1+cbor",
+        "capability": "tools/call",
+        "resource": "mcp://reports/read",
+        "requested_budget": {
+          "algebra": "numeric-ceiling-v1",
+          "value": 5
+        }
+      },
+      "canonical_body": {
+        "path": "denied/observation-child-requirements-over-limit-unconditioned-parent.body.cbor",
+        "sha256": "5c63cdd40e91c52d8e1e01d76e968cb2cd262c6c0ca0e9674a0975a1118f0a2d"
+      },
+      "expected_result": {
+        "path": "denied/observation-child-requirements-over-limit-unconditioned-parent.result.cbor",
+        "sha256": "4d1cf06da141c7dad864e69b2ac728876266d4acf35dc80c26fdcbfb893ff77f",
+        "stage": "authority",
+        "decision": "denied",
+        "code": "delegation-expanded",
+        "proof_digest": "bc80a7d9b52da3849d1f7811dccc891583e2870c0e409614cec38c64400a76b5",
+        "action_digest": "40286e8232ff3fb1925f20ac86c9cd99e81073e8860c36ea045982b85d771801",
+        "context_digest": "2fe553e740b3878fb2a440349c54fc349dbcba86b7d19c89b3eb64300e618068",
+        "plan_digest": "1cd640af1d9342d67f7ea5a09fe8f489a01106b2dcd1928eb0889b4cb1e0c7e1",
+        "result_digest": "636801158c4cae84c9c5f1b140156ee0eeb99729b65ffd66e089ea1575588be1",
+        "authorized_branches": [],
+        "assurance_satisfactions": 0,
+        "resources": {
+          "proof_bytes": 3416,
+          "action_bytes": 623,
+          "context_bytes": 1342,
+          "object_count": 10,
+          "plan_leaves": 1,
+          "plan_depth": 1,
+          "work_units": 1460
+        },
+        "registry_manifest": "3636363636363636363636363636363636363636363636363636363636363636"
+      },
+      "expected_decision": "denied",
+      "expected_code": "delegation-expanded"
     }
   ]
 }

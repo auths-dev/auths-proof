@@ -249,7 +249,10 @@ pub const CHECK_SITES: &[CheckSite] = &[
     site(
         "branch.requirement-dropped",
         "observation-requirement-dropped",
-        &["observation-requirement-dropped"],
+        &[
+            "observation-requirement-dropped",
+            "observation-child-requirements-over-limit",
+        ],
     ),
     site(
         "branch.delegation-linkage",
@@ -299,7 +302,10 @@ pub const CHECK_SITES: &[CheckSite] = &[
     site(
         "branch.delegation-extensions",
         "delegation-expanded",
-        &["critical-extension-attenuation"],
+        &[
+            "critical-extension-attenuation",
+            "observation-child-requirements-over-limit-unconditioned-parent",
+        ],
     ),
     site(
         "branch.grant-extension",
