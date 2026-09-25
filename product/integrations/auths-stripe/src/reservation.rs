@@ -379,7 +379,7 @@ pub enum ReserveRefundResult {
 #[derive(Debug)]
 pub enum ProviderEntryHold {
     /// The reservation is held for this provider-entry attempt.
-    Held(RefundReservationRecord),
+    Held(Box<RefundReservationRecord>),
     /// The reservation was released or retired, so it holds no capacity and
     /// the attempt must conclude without entering Stripe.
     Withdrawn,
@@ -1530,17 +1530,14 @@ fn reserve_in(
     }
     retire_expired_in(database, request.now);
     let result = reserve_record_in(&mut database.records, request);
-    if let ReserveRefundResult::Reserved { record, .. } = &result {
-        // Admission keeps room for every live record to reach its longest
-        // terminal form, so a later commit or outcome-unknown write never
-        // fails on the state-file bound.
-        match admission_fits_state_bound(database) {
-            Ok(true) => {}
-            Ok(false) | Err(_) => {
-                database.records.remove(record.workflow_id());
-                return ReserveRefundResult::Unavailable;
-            }
-        }
+    // Admission keeps room for every live record to reach its longest
+    // terminal form, so a later commit or outcome-unknown write never fails
+    // on the state-file bound. A sizing failure refuses admission as well.
+    if let ReserveRefundResult::Reserved { record, .. } = &result
+        && !matches!(admission_fits_state_bound(database), Ok(true))
+    {
+        database.records.remove(record.workflow_id());
+        return ReserveRefundResult::Unavailable;
     }
     result
 }
@@ -1838,9 +1835,9 @@ fn hold_for_provider_entry_in(
         RefundReservationState::Reserved => {
             record.state = RefundReservationState::EntryHeld;
             record.updated_at = now.max(record.updated_at);
-            Ok(ProviderEntryHold::Held(record.clone()))
+            Ok(ProviderEntryHold::Held(Box::new(record.clone())))
         }
-        RefundReservationState::EntryHeld => Ok(ProviderEntryHold::Held(record.clone())),
+        RefundReservationState::EntryHeld => Ok(ProviderEntryHold::Held(Box::new(record.clone()))),
         RefundReservationState::Released | RefundReservationState::ReconciledReleased => {
             Ok(ProviderEntryHold::Withdrawn)
         }
