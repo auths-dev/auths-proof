@@ -60,7 +60,7 @@ use auths_receipts::{
     prepare_profile_decision_receipt, verify_attested_decision_bytes,
     verify_attested_execution_bytes, verify_decision_attestation, verify_execution_attestation,
 };
-use auths_registries::ImmutableRegistries;
+use auths_registries::{ImmutableRegistries, TrustedContextTemplate};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sha2::{Digest as _, Sha256};
@@ -800,14 +800,6 @@ fn contains_duplicates<T: Ord>(values: &[T]) -> bool {
     values.iter().any(|value| !seen.insert(value))
 }
 
-/// Sorts and removes repeats, as a registry set built from several anchors
-/// needs before the model bounds its size.
-fn sorted_unique<T: Ord>(mut values: Vec<T>) -> Vec<T> {
-    values.sort();
-    values.dedup();
-    values
-}
-
 fn composition(input: CompositionInput) -> Result<CompositionRequirement, EngineError> {
     let expected_plan = input
         .expected_plan
@@ -953,8 +945,7 @@ pub fn build_trusted_context_template_v1(
 
 // The Rust SDK builder is not a dependency of this module: it enables the
 // standard-library features of core crates this WASM build keeps without
-// them. `trusted_context_template_matches_the_rust_sdk_builder` holds this
-// assembly to the builder's bytes.
+// them. Both compile through `auths_registries::TrustedContextTemplate`.
 fn build_trusted_context_template_native(
     input: TrustedContextTemplateInput,
 ) -> Result<Vec<u8>, EngineError> {
@@ -979,121 +970,39 @@ fn build_trusted_context_template_native(
             "a trusted context needs at least one trust anchor",
         ));
     }
-    let assurance = assurance_policy(input.assurance)?;
-    let registries = template_registries(
-        &anchors,
-        &assurance,
-        &input.evidence_types,
-        &input.critical_extensions,
-    )?;
-    let context = TrustedContext::new(
-        VerifierConfigurationId::new(configuration),
-        composition(input.composition)?,
-        anchors,
-        registries,
-        Audience::parse("auths://request-template")?,
-        Challenge::new([0; 32]),
-        Timestamp::new(0),
-        assurance,
-        PrincipalStatusSnapshot::new(
-            StatusSnapshotId::new([0; 32]),
-            Timestamp::new(0),
-            Timestamp::new(u64::MAX),
-            Vec::new(),
-            Vec::new(),
-        )?,
-        GrantStatusSnapshot::new(
-            StatusSnapshotId::new([1; 32]),
-            Timestamp::new(0),
-            Timestamp::new(u64::MAX),
-            Vec::new(),
-            Vec::new(),
-        )?,
-        ResourceMatcherId::parse(auths_registries::URI_NAMESPACE_V1)?,
-        ProfilePolicyId::parse(auths_registries::EXACT_PROFILE_V1)?,
-        ChannelBindingId::parse(input.channel_policy.as_deref().unwrap_or("none-v1"))?,
-        VerifierLimits::default(),
-    )?;
-    Ok(auths_codec::encode_verifier_context(&context)?)
-}
-
-/// The registries the Rust SDK builder derives: every anchor's methods,
-/// profiles, and status methods, the assurance claims, both mandatory suites,
-/// and the given evidence types and critical extensions.
-fn template_registries(
-    anchors: &[TrustAnchor],
-    assurance: &AssurancePolicy,
-    evidence_types: &[String],
-    critical_extensions: &[String],
-) -> Result<AcceptedRegistries, EngineError> {
-    let principal_methods = sorted_unique(
-        anchors
-            .iter()
-            .flat_map(TrustAnchor::accepted_methods)
-            .cloned()
-            .collect(),
-    );
-    let mut evidence = principal_methods
+    // A profile is budget-free only when the implementation this package
+    // ships cannot express a budget.
+    let budget_free: Vec<ProfileRef> = anchors
         .iter()
-        .map(|method| EvidenceTypeId::parse(method.as_str()))
-        .collect::<Result<Vec<_>, _>>()?;
-    for identifier in evidence_types {
-        evidence.push(EvidenceTypeId::parse(identifier)?);
-    }
-    let profiles = sorted_unique(
-        anchors
-            .iter()
-            .flat_map(TrustAnchor::profiles)
-            .cloned()
-            .collect(),
-    );
-    let budget_free: Vec<ProfileRef> = profiles
-        .iter()
+        .flat_map(TrustAnchor::profiles)
         .filter(|profile| {
             shipped_budget_expression(profile) == ProfileBudgetExpression::Inexpressible
         })
         .cloned()
         .collect();
-    Ok(AcceptedRegistries::new(
-        auths_registries::TARGET_V1_REGISTRY_MANIFEST,
-        principal_methods,
-        vec![
+    let mut template = TrustedContextTemplate::new(
+        VerifierConfigurationId::new(configuration),
+        composition(input.composition)?,
+        anchors,
+        assurance_policy(input.assurance)?,
+        [
             SignatureSuiteId::parse(auths_signature::ED25519_V1)?,
             SignatureSuiteId::parse(auths_signature::P256_SHA256_V1)?,
         ],
-        sorted_unique(evidence),
-        sorted_unique(
-            anchors
-                .iter()
-                .filter_map(|anchor| match anchor.status_policy() {
-                    StatusPolicy::ExpiryOnly => None,
-                    StatusPolicy::SnapshotRequired { method, .. } => Some(method.clone()),
-                })
-                .collect(),
-        ),
-        Vec::new(),
-        sorted_unique(
-            assurance
-                .requirements()
-                .iter()
-                .map(|requirement| requirement.claim_kind().clone())
-                .collect(),
-        ),
-        Vec::new(),
-        vec![ResourceMatcherId::parse(
-            auths_registries::URI_NAMESPACE_V1,
-        )?],
-        vec![BudgetAlgebraId::parse(
-            auths_registries::NUMERIC_CEILING_V1,
-        )?],
-        critical_extensions
-            .iter()
-            .map(|identifier| ExtensionId::parse(identifier))
-            .collect::<Result<Vec<_>, _>>()?,
-        profiles,
-        vec![ProfilePolicyId::parse(auths_registries::EXACT_PROFILE_V1)?],
-    )?
-    .with_budget_free_profiles(budget_free)?)
+    )?;
+    for identifier in &input.evidence_types {
+        template = template.accept_evidence_type(EvidenceTypeId::parse(identifier)?);
+    }
+    for identifier in &input.critical_extensions {
+        template = template.accept_critical_extension(ExtensionId::parse(identifier)?);
+    }
+    for profile in budget_free {
+        template = template.declare_budget_free_profile(profile);
+    }
+    if let Some(policy) = input.channel_policy.as_deref() {
+        template = template.with_channel_policy(ChannelBindingId::parse(policy)?);
+    }
+    Ok(auths_codec::encode_verifier_context(&template.compile()?)?)
 }
 
 struct RootGrantInput {
