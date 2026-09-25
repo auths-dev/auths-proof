@@ -2,7 +2,9 @@
 
 ## Status
 
-Target-state specification. Not yet implemented.
+Target-state specification, partly implemented on `main`: the local
+agent, SDK sessions, and generated profile clients. No provider effect
+profile is qualified.
 
 This document is intentionally self-contained. A new implementation session
 with no conversation history must be able to implement the target by reading
@@ -818,10 +820,32 @@ configuration is:
 [agent]
 authority_root = "/var/lib/auths/authorities"
 
+[agent.receipt_signing.decision]
+algorithm = "Ed25519"
+key_id = "decision-2026-01"
+verification_method = "did:key:auths-receipt-decision#decision-2026-01"
+public_key_base64url = "<32-byte Ed25519 public key, base64url>"
+seed_file = "/var/lib/auths/receipt-decision.key"
+not_before_unix_seconds = 1
+not_after_unix_seconds = 4102444800
+
+[agent.receipt_signing.execution]
+algorithm = "Ed25519"
+key_id = "execution-2026-01"
+verification_method = "did:key:auths-receipt-execution#execution-2026-01"
+public_key_base64url = "<32-byte Ed25519 public key, base64url>"
+seed_file = "/var/lib/auths/receipt-execution.key"
+not_before_unix_seconds = 1
+not_after_unix_seconds = 4102444800
+
 [agent.authority_sources.payments-worker-authority]
 kind = "sealed-file-v1"
 path = "/var/lib/auths/authorities/payments-worker.cbor"
 ```
+
+The `[agent.receipt_signing]` table is required. It names the current
+decision and execution receipt signing keys, and the agent refuses a
+configuration without it.
 
 `authority_root` and `path` are absolute, normalized host paths of 1-1024
 UTF-8 bytes. Every source path must be a strict descendant of the root. The
@@ -1035,12 +1059,32 @@ profile-required credential scope to remain equal. A mismatch before provider
 entry is not applied. A change after possible provider entry never changes the
 original operation's effect classification or recovery identity.
 
-Disabling a connection rejects new operations but preserves recovery.
-Revocation additionally prevents new credential leases. Credential versions
-needed by unresolved operations are retained until those operations become
-terminal, unless an emergency administrator revokes provider access itself;
-in that case recovery that cannot observe the provider remains possible and
-operator-actionable rather than becoming not applied. A record cannot be
+Every first provider entry leases through this reread, including an operation
+resumed from an interrupted pre-entry checkpoint. A resumed operation whose
+pre-entry recheck was recorded before the interruption is released as not
+applied rather than entered on that recheck. Only reconciliation of an
+operation that may already have entered its provider leases the credential
+retained for the operation's recorded generation without requiring the
+current record to be active at that generation.
+
+Disabling a connection rejects new operations and every provider entry,
+including the resumption of an operation that stopped before provider entry,
+but preserves reconciliation of operations that may already have entered.
+Revocation refuses every credential lease, reconciliation included, and
+deletes every stored credential generation of the connection. Before provider
+entry a refused lease ends the operation credential-unavailable; after
+possible entry the operation stays recovery-required with its effect possible
+and operator-actionable rather than becoming not applied.
+
+State and allowlist changes advance the record generation without storing a
+credential; only onboarding and rotation store one. The credential store keeps
+each credential under the generation at which it was installed or rotated in,
+and a later generation uses the newest stored generation not after it. A
+superseded generation is kept while the current record or an unresolved
+operation names a generation it serves. Only the agent, which knows from its
+operation journal which operations are unresolved, deletes one that nothing
+names: when it rotates the connection and when an execute or recover call
+finishes an operation. The store never deletes on its own. A record cannot be
 physically deleted while an operation or unexpired tombstone names it.
 
 #### 7.4.1 Credential-store mechanism
@@ -1086,11 +1130,25 @@ adapter; it is non-serializable, redacted, non-cloneable, deadline-bound, and
 zeroized on drop where the platform permits. The store understands only sealed
 connection identity and generation. It MUST NOT interpret a provider scope,
 refresh token, endpoint, request, or effect. Store failures before provider
-entry project as connection credential unavailability. The mechanism ships
-with a conformance suite covering replacement atomicity, generation
-substitution, revocation, crash recovery, secret redaction, and concurrent
-final capacity. It is internal Rust infrastructure and has no Python or
-TypeScript adapter surface.
+entry project as connection credential unavailability.
+
+`lease_secret` leases the credential retained for the binding's generation,
+the newest stored generation not after it, and only when its commitment equals
+the binding's. The persistent store adds two deletions that also know only
+identity and generation. One deletes every stored generation of a connection
+in one persisted mutation; it copies nothing, needs no free capacity, succeeds
+without a write when nothing is stored, and must be repeated after a reported
+failure. The other deletes, in one persisted mutation, each generation of a
+connection that is neither retained for a generation the caller lists nor
+newer than the newest retained one. A rotation that fails after `replace`
+deletes the successor it stored, and a rotation first discards a successor
+generation that an earlier failed rotation left stored.
+
+The mechanism ships with a conformance suite covering replacement atomicity,
+generation substitution and retention, revocation of every generation,
+revocation and retention at full capacity, crash recovery, secret redaction,
+and concurrent final capacity. It is internal Rust infrastructure and has no
+Python or TypeScript adapter surface.
 
 #### 7.4.2 Provider-specific connection adapter
 
@@ -4000,7 +4058,8 @@ security states were deleted or domain semantics were weakened.
   approval boundaries.
 - `docs/target-state/STRIPE_PROFILE_FAMILY_IMPLEMENTATION_PLAN.md` — concrete
   profile-family separation used by the reference client example.
-- `public_api_chatgpt.md` — the current exact prelaunch public-surface proposal;
+- `docs/target-state/public_api_chatgpt.md` — the current exact prelaunch
+  public-surface proposal;
   implementation of this specification must update its ordinary effectful path,
   inventories, examples, and cutover units atomically rather than leaving two
   conflicting target APIs.

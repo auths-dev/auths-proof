@@ -34,8 +34,16 @@ Install and every `serve` refuse an overlap with one stable code:
 | `gateway.trust.observer-is-root` | An observer anchor, or the gateway's observer key, is a trust anchor |
 | `gateway.trust.observer-not-anchored` | The gateway's observer key is not an observer anchor of the trust |
 
+These checks compare principal identifiers exactly. They refuse the same
+identifier in two roles; they cannot detect one key anchored under two
+principal methods (for example `did:key` and `raw-key-v1`), and
+`--operator-principal` is a declaration the gateway does not authenticate.
+Anchor each key under one principal method, and keep the custody of the
+three principals separate.
+
 The kernel separately refuses, per proof, an observer that appears in the
-proof's authority chain (`observer-in-authority-chain`).
+proof's authority chain (`observer-in-authority-chain`), by the same exact
+identifier comparison.
 
 ### Root M-of-N
 
@@ -51,8 +59,9 @@ held which key, is operator evidence and is not produced by this code.
 ## 2. Production substrate
 
 - **Attempt store.** A production installation keeps logical-operation
-  claims, provider-bound evidence, and outcome stages in the qualified
-  PostgreSQL store, through the reference deployment's secret slots
+  claims, provider-bound evidence, and outcome stages in the multi-host
+  PostgreSQL store (its qualification, AP-SPEC-038 Epic 2, is open), through
+  the reference deployment's secret slots
   `AUTHS_POSTGRES_URL`, `AUTHS_POSTGRES_CA_PEM`, and
   `AUTHS_POSTGRES_SERVER_NAME`. Connections are TLS-only with
   certificate and server-name verification. The schema is
@@ -63,6 +72,10 @@ held which key, is operator evidence and is not produced by this code.
   compare-and-swap on the exact stored record. A second process that loses a
   race records nothing and answers `gateway.attempt.replay`. Gateway claims
   do not take the lifecycle store's singleton contract-row lock.
+- **Connection state is per process.** Each gateway process keeps its own
+  connection and credential state, so a disable, rotate, or revoke made
+  through one process's admin socket applies to that process only. Processes
+  must not share a state directory.
 - **Development** installations keep the single-host file store under
   `<state-dir>/attempts`. It is not a multi-host store.
 - **Observer custody.** A production installation refuses the software

@@ -15,6 +15,16 @@ The testkit provider result and connection credential are synthetic. This is
 not production Stripe evidence and the agent refuses to run as the production
 service binary.
 
+The runner checks these prerequisites before it builds anything:
+
+- `cargo` and `npm` on `PATH`;
+- `maturin` and `uv` on `PATH` (override with `MATURIN` and `UV`);
+- a Python virtual environment at `bindings/python/.venv` (override the
+  interpreter with `PYTHON`);
+- `npm ci` run in `bindings/typescript`;
+- the SDK WASM, built with `wasm-pack` by `npm run build:wasm` in
+  `bindings/typescript`; the packed SDK loads it from `wasm/`.
+
 Run the complete journey from the repository root:
 
 ```bash

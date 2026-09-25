@@ -1,6 +1,6 @@
 # AP-SPEC-048: Existing Adapter Port Migrations
 
-**Status:** Proposed
+**Status:** Implementation merged in PR #116
 **Intended audience:** adapter maintainers, verifier implementers, fixture
 owners, and security reviewers
 **Normative language:** the terms **MUST**, **MUST NOT**, **SHOULD**, and

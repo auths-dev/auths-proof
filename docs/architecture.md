@@ -32,7 +32,7 @@ ambient facts explicitly. It does not resolve identities or evidence.
 | Authoring | `auths-author` | Safe authority planning, diffs, warnings, and keyless signing requests |
 | Shared pure primitive | `auths-multikey` | Closed Ed25519/P-256 Multikey parsing |
 | Adapters | `auths-raw-key`, `auths-did-key`, `auths-did-keri`, `auths-did-web`, `auths-spiffe-x509`, `auths-webauthn`, `auths-hsm-attested` | Exact principal-control and evidence verification |
-| Native resolution | downstream `auths-proof-apps/integrations/auths-resolver-did-web` | Policy-constrained retrieval and trust-record production |
+| Native resolution | product-layer `product/integrations/auths-resolver-did-web` | Policy-constrained retrieval and trust-record production |
 | Signature suites | `auths-signature` | Mandatory Ed25519 and low-S P-256 verification |
 | Conformance | `auths-testkit`, `xtask`, `fuzz` | Corpus, architecture, native/WASM, property, and parser checks |
 
@@ -119,5 +119,5 @@ native HTTP resolver -> document + local trust record
 
 Key custody, live resolution, witness networks, directories, policy engines,
 gateways, budgets, storage, dashboards, and execution are downstream
-application concerns. Exchange/framing belongs to `auths-proof-exchange`;
-profiles and effects belong to `auths-proof-apps`.
+application concerns. Exchange and framing belong to the `exchange/` layer;
+profiles and effects belong to the `product/` layer.

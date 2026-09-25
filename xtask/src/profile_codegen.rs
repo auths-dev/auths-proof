@@ -397,7 +397,7 @@ fn scaffold_at(repository: &Path, arguments: &NewProfileArguments) -> Result<(),
     register_new_domain(repository, arguments)?;
     generate_at(repository, domain, false, false)?;
     println!(
-        "scaffolded {profile_id}/{version}; complete every explicit TODO, register the package, then run cargo xtask profile generate --domain {domain}"
+        "scaffolded {profile_id}/{version}; complete every explicit TODO, add the package's compliance.toml entry (cargo xtask compliance fails until it exists), then run cargo xtask profile generate --domain {domain}"
     );
     Ok(())
 }

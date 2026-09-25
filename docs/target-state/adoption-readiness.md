@@ -1293,7 +1293,6 @@ When the manifest is incomplete, the page must lead with:
 **How to verify it worked**
 
 ```bash
-cargo xtask assurance summarize release/assurance/open-production-candidate-1/manifest.json
 npm --prefix ../auths-docs test
 ```
 

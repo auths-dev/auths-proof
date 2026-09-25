@@ -1,6 +1,6 @@
 # AP-SPEC-049: Model and Identity Type Hardening
 
-**Status:** Proposed
+**Status:** Implementation merged in PR #116
 **Intended audience:** model, codec, identity, binding, and fixture maintainers
 **Normative language:** the terms **MUST**, **MUST NOT**, **SHOULD**, and
 **MAY** are requirements on the direct type cutovers and their conformance
