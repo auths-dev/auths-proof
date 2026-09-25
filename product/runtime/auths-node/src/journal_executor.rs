@@ -4444,7 +4444,10 @@ fn map_journal(error: auths_stores::OperationJournalError) -> LocalAgentFailure 
         | auths_stores::OperationJournalError::InvalidTransition
         | auths_stores::OperationJournalError::Conflict
         | auths_stores::OperationJournalError::InvalidState
-        | auths_stores::OperationJournalError::Unavailable => LocalAgentFailure::Internal,
+        | auths_stores::OperationJournalError::Unavailable
+        | auths_stores::OperationJournalError::PublishedWithoutDirectorySync => {
+            LocalAgentFailure::Internal
+        }
     }
 }
 

@@ -601,11 +601,14 @@ impl JournalRecordV1 {
         mutation: OperationMutationV1,
         now_unix_seconds: u64,
     ) -> Result<Self, OperationJournalError> {
-        if self.projection.is_terminal() || now_unix_seconds < self.updated_at_unix_seconds {
+        if self.projection.is_terminal() {
             return Err(OperationJournalError::InvalidTransition);
         }
         let mut next = self.clone();
-        next.updated_at_unix_seconds = now_unix_seconds;
+        // Record time is monotonic. A wall-clock step backwards must not
+        // discard a transition that has to become durable, such as a provider
+        // result that already crossed the provider boundary.
+        next.updated_at_unix_seconds = now_unix_seconds.max(self.updated_at_unix_seconds);
         next.revision = next
             .revision
             .checked_add(1)
@@ -1946,7 +1949,7 @@ impl PersistentOperationJournal {
         *database = next;
         if persistence == DatabasePersistence::PublishedWithoutDirectorySync {
             self.poisoned.store(true, Ordering::Release);
-            return Err(OperationJournalError::Unavailable);
+            return Err(OperationJournalError::PublishedWithoutDirectorySync);
         }
         Ok(result)
     }
@@ -3201,6 +3204,12 @@ pub enum OperationJournalError {
     /// Lock, randomness, or durable publication is unavailable.
     #[error("operation journal is unavailable")]
     Unavailable,
+    /// The transition replaced the journal file but the parent directory
+    /// could not be synchronized, so it may or may not survive a crash. The
+    /// journal refuses every later call until it is reopened, and callers
+    /// must treat the transition as possibly durable, never as absent.
+    #[error("operation journal transition was published without directory synchronization")]
+    PublishedWithoutDirectorySync,
 }
 
 #[cfg(test)]
@@ -3836,6 +3845,128 @@ mod tests {
             .unwrap();
         assert!(completed.projection().is_terminal());
         assert_eq!(completed.projection().effect(), OperationEffectV1::Applied);
+    }
+
+    #[test]
+    fn backward_clock_step_during_provider_call_keeps_the_provider_result() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("operations.db");
+        let journal = PersistentOperationJournal::open(&path, [(profile(), limits())]).unwrap();
+        let record = record([41; 16], None);
+        let id = record.operation_id.clone();
+        journal.prepare(record, 1_000).unwrap();
+        let mut current = journal
+            .mutate_operation(
+                "did:key:workload",
+                &id,
+                1,
+                OperationMutationV1::SealPreEntry {
+                    profile_state: vec![1],
+                    sealed_command: vec![9],
+                },
+                1_001,
+            )
+            .unwrap();
+        for mutation in [
+            OperationMutationV1::BeginExecution {
+                profile_state: vec![1],
+                sealed_command: vec![9],
+            },
+            OperationMutationV1::RecordPreEntryRecheck {
+                profile_state: vec![1],
+            },
+            OperationMutationV1::MarkProviderEntered,
+        ] {
+            current = journal
+                .mutate_operation("did:key:workload", &id, current.revision(), mutation, 2_000)
+                .unwrap();
+        }
+        assert!(current.provider_entered());
+
+        // The wall clock stepped back while the provider call was in flight.
+        let recorded = journal
+            .mutate_operation(
+                "did:key:workload",
+                &id,
+                current.revision(),
+                OperationMutationV1::RecordProviderResult { bytes: vec![3] },
+                1_500,
+            )
+            .unwrap();
+        assert_eq!(recorded.provider_result(), Some([3].as_slice()));
+        assert_eq!(recorded.updated_at_unix_seconds(), 2_000);
+        let observed = journal
+            .mutate_operation(
+                "did:key:workload",
+                &id,
+                recorded.revision(),
+                OperationMutationV1::RecordObservation { bytes: vec![4] },
+                1_501,
+            )
+            .unwrap();
+        assert_eq!(observed.updated_at_unix_seconds(), 2_000);
+        drop(journal);
+
+        let reopened = PersistentOperationJournal::open(&path, [(profile(), limits())]).unwrap();
+        let Some(JournalStatusV1::Record(durable)) =
+            reopened.status("did:key:workload", &id).unwrap()
+        else {
+            panic!("provider result was not durable");
+        };
+        assert_eq!(durable.provider_result(), Some([3].as_slice()));
+        assert_eq!(durable.observations(), &[vec![4]]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn publication_without_directory_sync_is_reported_distinctly_and_poisons() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("operations.db");
+        let journal = PersistentOperationJournal::open(&path, [(profile(), limits())]).unwrap();
+        let record = record([43; 16], None);
+        let id = record.operation_id.clone();
+        journal.prepare(record, 1_000).unwrap();
+
+        // Write and search permission still admit the temporary file and the
+        // atomic rename; only opening the directory for its sync fails.
+        fs::set_permissions(directory.path(), fs::Permissions::from_mode(0o300)).unwrap();
+        if File::open(directory.path()).is_ok() {
+            // Permission checks do not apply to this user (for example root),
+            // so the directory sync cannot be made to fail here.
+            fs::set_permissions(directory.path(), fs::Permissions::from_mode(0o700)).unwrap();
+            return;
+        }
+        let published = journal.mutate_operation(
+            "did:key:workload",
+            &id,
+            1,
+            OperationMutationV1::SealPreEntry {
+                profile_state: vec![1],
+                sealed_command: vec![9],
+            },
+            1_001,
+        );
+        fs::set_permissions(directory.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        assert_eq!(
+            published,
+            Err(OperationJournalError::PublishedWithoutDirectorySync)
+        );
+        assert_eq!(
+            journal.status("did:key:workload", &id),
+            Err(OperationJournalError::Unavailable)
+        );
+        drop(journal);
+
+        // The published transition is live after a restart.
+        let reopened = PersistentOperationJournal::open(&path, [(profile(), limits())]).unwrap();
+        let Some(JournalStatusV1::Record(sealed)) =
+            reopened.status("did:key:workload", &id).unwrap()
+        else {
+            panic!("published transition is absent after reopen");
+        };
+        assert_eq!(sealed.sealed_command(), Some([9].as_slice()));
     }
 
     #[test]
