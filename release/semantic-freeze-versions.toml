@@ -1,4 +1,4 @@
-freeze_version = 300
+freeze_version = 301
 
 # Semantic identity counters live outside the xtask source tree deliberately.
 # The formal source closure binds xtask's executable code, while the semantic
@@ -16,7 +16,7 @@ freeze_version = 300
 "auths.frozen-bytes/core/fixtures/v1/manifest.json" = 10
 "auths.frozen-bytes/core/formal-vectors/v1/manifest.json" = 1
 "auths.frozen-bytes/demos/benchmarks/profiles/release.toml" = 1
-"auths.frozen-bytes/formal/assurance-manifest-v1.toml" = 33
+"auths.frozen-bytes/formal/assurance-manifest-v1.toml" = 34
 "auths.frozen-bytes/formal/qualification/aeneas/generated" = 12
 "auths.frozen-bytes/formal/qualification/aeneas/qualification.toml" = 9
 "auths.frozen-bytes/formal/qualification/aeneas/source-closure.json" = 65
@@ -68,4 +68,4 @@ freeze_version = 300
 "auths.product.vocabulary" = 18
 "auths.release.benchmark-contract" = 1
 "auths.release.evolution-contract" = 68
-"auths.release.public-surface" = 300
+"auths.release.public-surface" = 301
