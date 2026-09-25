@@ -1780,17 +1780,20 @@ impl JournaledLocalExecutor {
         Ok((Some(binding), Some(lease)))
     }
 
-    /// Loads the credential retained for the generation an unresolved
-    /// operation recorded.
+    /// Leases the credential retained for the generation an unresolved
+    /// operation recorded, to reconcile an operation that may already have
+    /// entered its provider.
     ///
-    /// Unlike ordinary resolution this does not require the current alias to
-    /// be active or at the same generation. It does require immutable
-    /// connection identity, descriptor, and account commitments to match the
-    /// operation, and the record must authorize the recovery lease, which a
-    /// revoked record never does. That check precedes every credential
-    /// source. Without a lease, callers preserve `possible` and return an
-    /// operator-actionable recovery result instead of claiming non-effect.
-    async fn lease_connection_for_recovery(
+    /// A first provider entry never uses this path: it always leases through
+    /// [`Self::lease_connection`], which requires the connection to be active
+    /// at the operation's exact generation. Here the current record may be
+    /// disabled or rotated, but it must still carry the operation's immutable
+    /// connection identity, descriptor, and account commitments, and it must
+    /// authorize the recovery lease, which a revoked record never does. That
+    /// check precedes every credential source. Without a lease, callers keep
+    /// the effect `possible` and return an operator-actionable recovery result
+    /// instead of claiming non-effect.
+    async fn lease_connection_for_reconciliation(
         &self,
         context: &LocalOperationContext,
         operation_id: &OperationIdV1,
@@ -1925,15 +1928,20 @@ impl JournaledLocalExecutor {
     /// Advances a provider call from either the ordinary ready checkpoint or
     /// an interrupted, durably proven pre-entry checkpoint.
     ///
-    /// The latter path is recovery, not blind retry: `MarkProviderEntered` is
-    /// durably ordered before the only provider call, so an
-    /// `executing/not-applied` record proves that no prior call began.
+    /// `MarkProviderEntered` is durably ordered before the only provider call,
+    /// so an `executing/not-applied` record proves that no prior call began.
+    /// Resuming it is still a first provider entry: it reruns the profile
+    /// recheck and leases only through the connection reread, never through
+    /// the reconciliation lease. A recheck recorded before the interruption
+    /// is never reused, because the authority, evidence, or connection it
+    /// checked may have changed while the operation was parked; such an
+    /// operation is released and concluded not applied instead.
     async fn advance_provider_call(
         &self,
         context: &LocalOperationContext,
         bridge: &ProfileRuntime,
         record: JournalRecordV1,
-        recovering_pre_entry: bool,
+        resuming_pre_entry: bool,
         now: u64,
     ) -> Result<JournalRecordV1, LocalAgentFailure> {
         let operation_id = record.operation_id().clone();
@@ -1941,7 +1949,26 @@ impl JournaledLocalExecutor {
             .sealed_command()
             .ok_or(LocalAgentFailure::Internal)?
             .to_vec();
-        let mut executing = if recovering_pre_entry {
+        let mut executing = if resuming_pre_entry {
+            if record.pre_entry_rechecked() {
+                bridge
+                    .release_pre_entry(context, &record)
+                    .map_err(|_| LocalAgentFailure::Internal)?;
+                return self
+                    .journal
+                    .mutate_operation(
+                        &context.principal,
+                        &operation_id,
+                        record.revision(),
+                        OperationMutationV1::ConcludePreEntry {
+                            state: OperationStateV1::NotApplied,
+                            issue: common_issue(CommonIssue::TimedOut, Some(&operation_id))?,
+                            profile_state: record.profile_state().to_vec(),
+                        },
+                        unix_seconds()?,
+                    )
+                    .map_err(map_journal);
+            }
             record
         } else {
             match self.journal.mutate_operation(
@@ -2049,23 +2076,14 @@ impl JournaledLocalExecutor {
                 )
                 .map_err(map_journal);
         }
-        let lease = if recovering_pre_entry {
-            self.lease_connection_for_recovery(
+        let lease = self
+            .lease_connection(
                 context,
                 &operation_id,
                 bridge.connection_requirement(),
                 executing.binding().connection(),
             )
-            .await
-        } else {
-            self.lease_connection(
-                context,
-                &operation_id,
-                bridge.connection_requirement(),
-                executing.binding().connection(),
-            )
-            .await
-        };
+            .await;
         let (_binding, credential) = match lease {
             Ok(value) => value,
             Err(_) => {
@@ -3668,14 +3686,14 @@ impl JournaledLocalExecutor {
                 Some(response_request_id),
             );
         }
-        let recovering_pre_entry = record.projection().state() == OperationStateV1::Executing
+        let resuming_pre_entry = record.projection().state() == OperationStateV1::Executing
             && record.projection().effect() == OperationEffectV1::NotApplied;
-        if record.projection().state() != OperationStateV1::Ready && !recovering_pre_entry {
+        if record.projection().state() != OperationStateV1::Ready && !resuming_pre_entry {
             return self.encode_record_for_request(&record, None, Some(response_request_id));
         }
         let bridge = self.bridge(&context.profile)?;
         let terminal = self
-            .advance_provider_call(&context, &bridge, record, recovering_pre_entry, now)
+            .advance_provider_call(&context, &bridge, record, resuming_pre_entry, now)
             .await?;
         self.retire_superseded_credentials(&bridge, &terminal);
         self.encode_record_for_request(&terminal, None, Some(response_request_id))
@@ -3963,7 +3981,7 @@ impl JournaledLocalExecutor {
             );
         };
         let (_binding, credential) = self
-            .lease_connection_for_recovery(
+            .lease_connection_for_reconciliation(
                 &profile_context,
                 record.operation_id(),
                 bridge.connection_requirement(),
@@ -6518,6 +6536,19 @@ uid = 10001
         assert_eq!(fixture.bridge.pre_entry_releases.load(Ordering::SeqCst), 1);
     }
 
+    #[tokio::test]
+    async fn disabling_stops_a_parked_first_entry() {
+        let directory = tempdir().unwrap();
+        let fixture = postgresql_fixture(directory.path(), false, None);
+        install_postgresql_connection(&fixture).await;
+        let app = admin_app(&fixture, directory.path());
+        let (operation, commitment, _recovery) = parked_operation(&fixture).await;
+
+        assert_eq!(admin(&app, transition("disable", 1)).await, None);
+        let outcome = execute_parked(&fixture, &operation, commitment).await;
+        assert_stopped_before_provider_entry(&fixture, &operation, &outcome);
+    }
+
     enum AdminStep {
         Disable,
         Enable,
@@ -6576,6 +6607,34 @@ uid = 10001
     #[tokio::test]
     async fn disable_enable_then_revoke_stops_a_parked_first_entry() {
         revocation_stops_a_parked_first_entry_after(&[AdminStep::Disable, AdminStep::Enable]).await;
+    }
+
+    #[tokio::test]
+    async fn a_recorded_recheck_is_released_instead_of_reused() {
+        let directory = tempdir().unwrap();
+        let fixture = postgresql_fixture(directory.path(), false, None);
+        install_postgresql_connection(&fixture).await;
+        let ready = fixture
+            .executor
+            .prepare(fixture.context.clone(), prepare_request())
+            .await
+            .unwrap();
+        let (operation, commitment, _recovery) = ready_fields(&ready);
+        let executing = begin_execution(&fixture, &record(&fixture, &operation));
+        mutate(
+            &fixture,
+            &executing,
+            OperationMutationV1::RecordPreEntryRecheck {
+                profile_state: executing.profile_state().to_vec(),
+            },
+        );
+
+        let outcome = execute_parked(&fixture, &operation, commitment).await;
+        assert_eq!(outcome_kind(&outcome), "not-applied");
+        assert_eq!(issue_code(&fixture, &operation), "operation.timed-out");
+        assert!(!record(&fixture, &operation).provider_entered());
+        assert_eq!(fixture.bridge.provider_calls.load(Ordering::SeqCst), 0);
+        assert_eq!(fixture.bridge.pre_entry_releases.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]

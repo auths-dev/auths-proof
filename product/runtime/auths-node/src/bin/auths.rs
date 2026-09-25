@@ -316,13 +316,14 @@ enum ConnectionCommand {
     List,
     /// Inspect one sanitized connection record.
     Inspect { connection: String },
-    /// Refuse new operations while preserving recovery.
+    /// Refuse new operations and provider entries; reconciliation continues.
     Disable { connection: String },
     /// Re-enable an existing non-revoked connection.
     Enable { connection: String },
     /// Install a successor credential generation.
     Rotate(RotateConnection),
-    /// Permanently revoke a connection and its current credential.
+    /// Permanently revoke a connection and delete every stored credential
+    /// generation. Repeat it if it reports a failed deletion.
     Revoke { connection: String },
 }
 
