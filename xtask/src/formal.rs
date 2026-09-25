@@ -874,7 +874,20 @@ fn kani_harness_inventory() -> Result<(), String> {
             unplanned.join(", ")
         ));
     }
-    println!("Kani harness inventory:      PASS ({total} harnesses, all gated)");
+    let packages = KANI_HARNESS_PACKAGES
+        .iter()
+        .map(|entry| (entry.package, root.join(entry.source_root)))
+        .collect::<Vec<_>>();
+    let calling = crate::kani_harness::lint_harness_calls(&packages)?;
+    if calling != total {
+        return Err(format!(
+            "the harness call lint parsed {calling} harnesses but the inventory counts {total}; \
+             a harness the lint cannot parse would go unchecked"
+        ));
+    }
+    println!(
+        "Kani harness inventory:      PASS ({total} harnesses, all gated and calling their crate)"
+    );
     Ok(())
 }
 
@@ -2776,6 +2789,11 @@ mod phase_ordering {
         assert!(lean.contains("clear_repository_lean_outputs("));
         assert!(lean.contains("build_and_audit_formal("));
         assert!(lean.contains("run_formal_semantic_checks(&formal_root, true, false)"));
+    }
+
+    #[test]
+    fn repository_kani_harnesses_are_gated_planned_and_call_their_crate() {
+        kani_harness_inventory().expect("every harness is gated, planned and non-vacuous");
     }
 
     #[test]

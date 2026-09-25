@@ -14,6 +14,7 @@ mod fixtures;
 mod formal;
 mod formal_qualification;
 mod fuzz;
+mod kani_harness;
 mod live_demo;
 mod mcp_session_contract;
 mod mechanism_conformance;

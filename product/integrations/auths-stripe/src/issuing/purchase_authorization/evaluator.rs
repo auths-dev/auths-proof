@@ -149,6 +149,31 @@ fn digest_eq(left: &DigestHex, right: &DigestHex) -> bool {
         .into()
 }
 
+/// Why an aggregate budget cannot reserve an exact purchase.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum BudgetShortfall {
+    /// Held plus requested capacity is not representable.
+    Overflow,
+    /// Held plus requested capacity exceeds the inclusive limit.
+    Exhausted,
+}
+
+/// Capacity a budget holds once it also reserves `amount_minor`.
+///
+/// The addition is checked and the limit is inclusive, so a reservation can
+/// neither wrap back under the limit nor exceed it.
+const fn budget_after_reservation(
+    held_minor: u64,
+    amount_minor: u64,
+    limit_minor: u64,
+) -> Result<u64, BudgetShortfall> {
+    match held_minor.checked_add(amount_minor) {
+        None => Err(BudgetShortfall::Overflow),
+        Some(after) if after > limit_minor => Err(BudgetShortfall::Exhausted),
+        Some(after) => Ok(after),
+    }
+}
+
 /// Evaluates one exact purchase with deny precedence and checked capacity.
 #[must_use]
 #[allow(
@@ -427,18 +452,23 @@ pub fn evaluate_purchase_authorization(
                 .get(&budget.budget_id)
                 .copied()
                 .unwrap_or_default();
-            let Some(after) = held.checked_add(context.action.amount_minor()) else {
+            if let Err(shortfall) =
+                budget_after_reservation(held, context.action.amount_minor(), budget.limit_minor)
+            {
+                let (code, detail) = match shortfall {
+                    BudgetShortfall::Overflow => (
+                        PurchaseAuthorizationDecisionCode::PurchaseAmountExceeded,
+                        "checked aggregate arithmetic overflowed",
+                    ),
+                    BudgetShortfall::Exhausted => (
+                        PurchaseAuthorizationDecisionCode::PurchaseAggregateBudgetExceeded,
+                        "aggregate purchase capacity is exhausted",
+                    ),
+                };
                 return PurchaseAuthorizationDecision::denied(
-                    PurchaseAuthorizationDecisionCode::PurchaseAmountExceeded,
+                    code,
                     PurchaseAuthorizationDecisionStage::AggregateBudget,
-                    "checked aggregate arithmetic overflowed",
-                );
-            };
-            if after > budget.limit_minor {
-                return PurchaseAuthorizationDecision::denied(
-                    PurchaseAuthorizationDecisionCode::PurchaseAggregateBudgetExceeded,
-                    PurchaseAuthorizationDecisionStage::AggregateBudget,
-                    "aggregate purchase capacity is exhausted",
+                    detail,
                 );
             }
             reservations.push(PurchaseReservationIntent {
@@ -472,13 +502,26 @@ pub fn evaluate_purchase_authorization(
 
 #[cfg(kani)]
 mod proofs {
+    use super::{BudgetShortfall, budget_after_reservation};
+
     #[kani::proof]
     fn checked_budget_never_wraps() {
         let held: u64 = kani::any();
         let amount: u64 = kani::any();
-        if let Some(after) = held.checked_add(amount) {
-            assert!(after >= held);
-            assert!(after >= amount);
+        let limit: u64 = kani::any();
+        let total = u128::from(held) + u128::from(amount);
+        // Each outcome holds exactly on its own inputs: a reservation is the
+        // exact unwrapped sum and never exceeds the inclusive limit.
+        match budget_after_reservation(held, amount, limit) {
+            Ok(after) => {
+                assert_eq!(u128::from(after), total);
+                assert!(after <= limit);
+            }
+            Err(BudgetShortfall::Overflow) => assert!(total > u128::from(u64::MAX)),
+            Err(BudgetShortfall::Exhausted) => {
+                assert!(total <= u128::from(u64::MAX));
+                assert!(total > u128::from(limit));
+            }
         }
     }
 }

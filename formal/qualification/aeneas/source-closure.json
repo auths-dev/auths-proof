@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "ba0631c3a4a0bbf1d039d1559c53619d543182eb3fd5329014de35fd6177c342",
+  "digest": "be0ba4927de04dfa009d7ea169e3b710d48853f8cca4b96929c01832b87b706c",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -205,7 +205,7 @@
     },
     {
       "path": "xtask/ci-plan/src/lib.rs",
-      "sha256": "fadc0f4d69f939f80e685f048c52302d695fda281e3a61abb26ff7602c332a36"
+      "sha256": "d5b00c884efb8f05ed9d98a86a8133be0e0eb86a5face86c3237b2668393ee7e"
     },
     {
       "path": "xtask/ci-plan/src/main.rs",
@@ -229,7 +229,7 @@
     },
     {
       "path": "xtask/src/bounded_domains.rs",
-      "sha256": "4bed58f9f2cb5446d56c5a31ad93d8ad2515af28aabb66af01a0b7226aa943aa"
+      "sha256": "58b7da854abb16f04b9b58a222c3c30a0c5c9954d5657f6e51a6b6ddb6f683c5"
     },
     {
       "path": "xtask/src/checks.rs",
@@ -253,11 +253,11 @@
     },
     {
       "path": "xtask/src/fixtures.rs",
-      "sha256": "91c472a7902fd9f723da0792762629fa21c25477776b5d52423852a762a12e2e"
+      "sha256": "e910f4d430e4758bc0b936824454b1810b1ec12794b2fb75169454b3a5b53ab0"
     },
     {
       "path": "xtask/src/formal.rs",
-      "sha256": "da288281b8c40b3580daf858c5ff3de8c538fa1700582eca58c85f78d0069a86"
+      "sha256": "7cae035656396543e0f46990082514198e1cd86fc33a354f3b2e8f0da2237aa8"
     },
     {
       "path": "xtask/src/formal_qualification.rs",
@@ -268,12 +268,16 @@
       "sha256": "818a7375f558c60c5971e38d9bc59aa8bc24b9b10a524742e775be5970364801"
     },
     {
+      "path": "xtask/src/kani_harness.rs",
+      "sha256": "33013cb22709e8ad557b8da626dc35ac455484f5f272d431c0ec151e708c6212"
+    },
+    {
       "path": "xtask/src/live_demo.rs",
       "sha256": "b8601043a29997f729c7c611b785bde151367d7457cc0ce112c0ea72896fa6ed"
     },
     {
       "path": "xtask/src/main.rs",
-      "sha256": "d49ab0e86c03e5742fc5f8df6f80a4b502a4fd8bf2e0aed365b74d1875d451a9"
+      "sha256": "f90b5fc686ccbff309efcd95d580f3b74ca41dfe247f3224b0a1af8f056154b9"
     },
     {
       "path": "xtask/src/mcp_session_contract.rs",

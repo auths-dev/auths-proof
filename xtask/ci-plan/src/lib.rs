@@ -1098,7 +1098,9 @@ fn formal_closure_contains(path: &str, kind: FormalClosureKind) -> bool {
                 || path.starts_with("product/integrations/auths-stripe/")
                 || matches!(
                     path,
-                    "formal/translation-toolchain.lock" | "xtask/src/formal.rs"
+                    "formal/translation-toolchain.lock"
+                        | "xtask/src/formal.rs"
+                        | "xtask/src/kani_harness.rs"
                 )
         }
         FormalClosureKind::Toolchain => matches!(
@@ -2889,6 +2891,7 @@ serde = "2"
         let tracked = tracked_paths(root).expect("tracked repository paths");
         validate_kani_closure_coverage(root, &tracked).expect("harness packages are planned");
         assert!(kani_closure_contains("xtask/src/formal.rs"));
+        assert!(kani_closure_contains("xtask/src/kani_harness.rs"));
         assert!(!kani_closure_contains("xtask/src/fuzz.rs"));
     }
 
