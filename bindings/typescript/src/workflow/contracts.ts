@@ -359,6 +359,29 @@ export interface WorkflowWasmEngine {
     principalStatus: Uint8Array,
     grantStatus: Uint8Array,
   ): WorkflowTrustedContextCompilation;
+  buildTrustedContextTemplateV1(
+    configuration: Uint8Array | undefined,
+    composition: unknown,
+    trustAnchors: unknown,
+    assurance: unknown,
+    channelPolicy: string | undefined,
+    evidenceTypes: readonly string[],
+    criticalExtensions: readonly string[],
+  ): Uint8Array;
+  rootGrantStatementV1(
+    issuer: string,
+    subject: string,
+    profileId: string,
+    profileVersion: number,
+    permissionCapabilities: readonly string[],
+    permissionResources: readonly string[],
+    notBefore: bigint,
+    expiresAt: bigint,
+    audiences: readonly string[],
+    remainingDepth: number,
+    assuranceFloor: string,
+    criticalExtensions: readonly Readonly<{ id: string; bytes: Uint8Array }>[],
+  ): Uint8Array;
   configurationV1(): Uint8Array;
   validateTrustedContextV1(
     trustedContext: Uint8Array,

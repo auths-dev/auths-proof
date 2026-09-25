@@ -1,4 +1,4 @@
-freeze_version = 302
+freeze_version = 303
 
 # Semantic identity counters live outside the xtask source tree deliberately.
 # The formal source closure binds xtask's executable code, while the semantic
@@ -7,7 +7,7 @@ freeze_version = 302
 # converge. This file is a reviewed release input, never an automatic output.
 [entries]
 "auths.core.protocol" = 28
-"auths.frozen-bytes/architecture/dependency-graph.json" = 56
+"auths.frozen-bytes/architecture/dependency-graph.json" = 57
 "auths.frozen-bytes/bindings/wasm/auths-proof-wasm/identity-abi-v1.json" = 4
 "auths.frozen-bytes/bounded-domains.toml" = 2
 "auths.frozen-bytes/core/conformance/v1/manifest.json" = 1
@@ -45,27 +45,27 @@ freeze_version = 302
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-create/v1/manifest.sha256.json" = 1
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-modify/v1/manifest.sha256.json" = 1
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/v1/manifest.sha256.json" = 1
-"auths.identity.protocol" = 85
+"auths.identity.protocol" = 86
 "auths.modular-components" = 16
-"auths.portable-abi-bindings" = 107
+"auths.portable-abi-bindings" = 108
 "auths.product.bounded-domains" = 15
 "auths.product.bounded-policy" = 3
 "auths.product.configuration-commitments" = 1
-"auths.product.development-composition" = 12
+"auths.product.development-composition" = 13
 "auths.product.error-recovery-contract" = 17
 "auths.product.external-custody" = 4
 "auths.product.facade" = 25
 "auths.product.github-issue-address-v2" = 3
 "auths.product.lifecycle" = 14
-"auths.product.mcp-closed-execution" = 25
-"auths.product.mechanism-profile-conformance" = 11
+"auths.product.mcp-closed-execution" = 26
+"auths.product.mechanism-profile-conformance" = 12
 "auths.product.operations" = 5
 "auths.product.profile-qualification-launch" = 16
-"auths.product.public-sdk-contract" = 83
+"auths.product.public-sdk-contract" = 84
 "auths.product.receipts" = 12
 "auths.product.release-assurance" = 5
 "auths.product.simplified-waist" = 17
 "auths.product.vocabulary" = 18
 "auths.release.benchmark-contract" = 1
-"auths.release.evolution-contract" = 68
-"auths.release.public-surface" = 302
+"auths.release.evolution-contract" = 69
+"auths.release.public-surface" = 303

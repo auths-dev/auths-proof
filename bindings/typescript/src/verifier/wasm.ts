@@ -50,6 +50,8 @@ async function loadPackagedWorkflowEngineOnce(): Promise<PackagedWorkflowEngine>
     typeof loaded.parsePrincipalStatusSnapshotV1 !== "function" ||
     typeof loaded.parseGrantStatusSnapshotV1 !== "function" ||
     typeof loaded.compileTrustedContextV1 !== "function" ||
+    typeof loaded.buildTrustedContextTemplateV1 !== "function" ||
+    typeof loaded.rootGrantStatementV1 !== "function" ||
     typeof loaded.configurationV1 !== "function" ||
     typeof loaded.validateTrustedContextV1 !== "function" ||
     typeof loaded.prepareMcpActionV1 !== "function" ||
