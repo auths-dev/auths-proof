@@ -58,6 +58,7 @@ use rustls_pki_types::PrivatePkcs8KeyDer;
 use sha2::{Digest as _, Sha256};
 
 mod bounded_policy;
+mod kernel_checks;
 mod observation;
 
 pub use observation::observation_action_fact_fixture;
@@ -5321,6 +5322,7 @@ fn build_corpus() -> Vec<CorpusFixture> {
     corpus.extend(marker_delegation_vectors());
     corpus.extend(bounded_policy::bounded_policy_vectors());
     corpus.extend(observation::observation_corpus());
+    corpus.extend(kernel_checks::kernel_check_vectors());
     corpus
 }
 
@@ -5336,6 +5338,7 @@ pub fn reviewed_body_digest() -> Digest {
     body_digest(BODY)
 }
 pub mod adversarial;
+pub mod check_sites;
 pub mod conformance;
 pub mod mechanism_conformance;
 pub mod product_waist;

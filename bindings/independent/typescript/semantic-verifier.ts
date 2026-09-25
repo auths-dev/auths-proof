@@ -1571,12 +1571,15 @@ function extensionsAttenuate(child: Extension[], parent: Extension[], accepted: 
 }
 
 function delegate(authority: Authority, grantValue: Grant, accepted: string[]): void {
+  // Linkage is judged before any attenuation dimension: a grant issued by
+  // anyone but the current subject breaks the chain rather than widening it.
+  if (grantValue.issuer !== authority.subject || !equal(grantValue.parent, authority.lastGrant)) {
+    throw denied("broken-grant-chain");
+  }
   const profileAllowed = authority.selectedProfile === undefined
     ? profileContains(authority.allowedProfiles, grantValue.profile)
     : sameProfile(authority.selectedProfile, grantValue.profile);
   if (
-    grantValue.issuer !== authority.subject ||
-    !equal(grantValue.parent, authority.lastGrant) ||
     authority.remainingDepth === 0n ||
     grantValue.remainingDepth >= authority.remainingDepth ||
     !profileAllowed ||
