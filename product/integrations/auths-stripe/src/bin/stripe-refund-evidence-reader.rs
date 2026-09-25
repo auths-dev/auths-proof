@@ -106,8 +106,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         return Err(invalid("non-canonical reader signing seed"));
     }
     let signing_key = SigningKey::from_bytes(&seed);
+    // The read key goes only to Stripe: proxy variables are ignored, so no
+    // intercepting proxy sees it, and redirects are never followed.
     let client = Client::builder()
         .https_only(true)
+        .no_proxy()
         .redirect(Policy::none())
         .connect_timeout(Duration::from_secs(5))
         .timeout(Duration::from_secs(30))

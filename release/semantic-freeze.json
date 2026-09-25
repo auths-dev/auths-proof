@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 300,
+  "freezeVersion": 301,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -635,7 +635,7 @@
     },
     {
       "id": "auths.product.bounded-domains",
-      "version": 15,
+      "version": 16,
       "classification": "frozen-meaning",
       "categories": [
         "bounded-domain-inventory",
@@ -656,7 +656,7 @@
         "product/integrations/auths-records-api/src",
         "product/integrations/auths-stripe/src"
       ],
-      "sha256": "ced32750afce2691cd2eb9c19360ec0c0513549cff28acc42235db2a8216bcdd"
+      "sha256": "b1277852152ad9b6beff89b68a9d240ab0c86808fbf07af3222fe73b30c9a50f"
     },
     {
       "id": "auths.product.bounded-policy",
@@ -776,7 +776,7 @@
     },
     {
       "id": "auths.product.github-issue-address-v2",
-      "version": 3,
+      "version": 4,
       "classification": "frozen-meaning",
       "categories": [
         "profile-v2",
@@ -790,7 +790,7 @@
         "product/integrations/auths-github/src",
         "protocol/github-issue-address-v2.json"
       ],
-      "sha256": "17998f2ec7ae27a8f17e62481a3f8b7671df727baa97dbe6c182b56973f1591c"
+      "sha256": "12fd94a6486c14607837d96e590966d351a393e65ca2ad256d85c3d59125c951"
     },
     {
       "id": "auths.product.lifecycle",
@@ -1044,7 +1044,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 300,
+      "version": 301,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1136,7 +1136,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "b02431ee05193151d04c0c1bbc00c510cd0d89df5c32b149e700d4d29df78f76"
+      "sha256": "e592845676c7c5f8bf53b1c5692ae0b549329fea9ff477598de572bea058f846"
     }
   ]
 }
