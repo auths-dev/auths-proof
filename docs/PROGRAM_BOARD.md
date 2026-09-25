@@ -122,12 +122,26 @@ gates do not shrink.
 - **053 extensions the vendor corpus will demand:** typed query segments,
   omit-when-null bodies. Decide from Epic 4's rejection walls, not before.
   Typed query segments also let 059 resolve an `unknown` create.
-- **Multi-host gateway.** Implemented on `038-production-trust`: attempt,
-  evidence, and outcome state runs on the qualified PostgreSQL store under
-  AP-SPEC-038 §9.1; see §1.
+- **Multi-host gateway.** Merged in PR #143: attempt, evidence, outcome, and
+  window-count state runs on the PostgreSQL store under AP-SPEC-038 §9.1,
+  with two-process conformance in `postgres-lifecycle.yml`. The store's
+  qualification (0038 Epic 2) is open, and connection state is still per
+  process.
 - **Surface-area cost.** Formal, kernel, gateway, bindings, and signing have
   grown faster than adoption. Before each new epic, name what it retires or
   consolidates, and track the per-PR regeneration and freeze overhead.
+- **Review pass 2026-09-24.** Implemented as PRs in priority order on owner
+  direction (§4, 2026-09-25), with no issues filed: hardening #160, cleanup
+  #163 (which also carries the 2026-09-23 pass's small items), connection
+  revocation #164, the Stripe reservation hold #165, admin-socket capacity
+  #166, kernel conformance #167, CI gates #168, and status statements #169
+  (stacked on #167). Still open: the nightly kernel mutation job (2.5 part
+  C); one key counted as two principals (2.7); and, pending the owner's
+  decision on whether the gateway becomes the single provider-write path,
+  the local-agent socket model (2.4), the local-agent
+  error contract (2.8), GitHub recovery, the journal after provider entry,
+  blocking I/O off async workers, and the audit's recorded provider status.
+  Settled findings are in `docs/audit/settled.md`.
 
 ## 4. Decisions log
 
@@ -161,6 +175,7 @@ gates do not shrink.
 | 2026-09-23 | Owner decision (2026-09-23) for 0060 §15, keeping the 30 s default: an SDK-prepared action is valid for `validity_seconds` after its evaluation time. The default is 30 s and the cap is 300 s, both held only in `auths-author`, and the window is cut to the terminal grant's expiry, so live SDK actions verify at a real gateway clock. The window is not a replay defence: the gateway's durable claim per namespace and operation ID is, inside and after the window. The challenge binds the deployment, and observation `max_age` is still judged at the gateway's clock. | 0060 §15.4 reading 7 |
 | 2026-09-24 | PROVISIONAL, taken on owner direction for the §0 north-star journey, each the narrowest reading that makes it work: (1) the gateway admits a composed proof in which exactly one authorized branch carries bounds, keying the count to that branch's actor; two bounded branches stay refused as `gateway.policy.multiple-branches`. (2) "2 of 3 managers" for an agent is installed as three authorized approvals from three distinct roots under anchors {root, manager A, B, C}; the agent's root counts once, so two must be managers. Three managers without the agent also meet it, with no agent bound; the README says so. (3) The CI provider double is reached only through a `loopback-provider` cargo feature that the default gateway build lacks. (4) `auths-gateway audit` evaluates each entry at the gateway-signed outcome time (or the approvals' start without one) and recounts windows in that order; it cannot prove the bundle complete. | 0025 §25 reading 10; `examples/stripe-refund-approval/README.md` |
 | 2026-09-24 | Owner decision: principal status applies to every principal in an authority branch (the trust anchor and every grant subject, which covers issuers and the actor), under the selected trust anchor's status policy. The anchor still needs a statement; for delegates and actors the snapshot is a revocation list: no statement under a fresh snapshot is active, and `revoked` or `superseded` denies. Chosen over requiring a statement for every principal, which would add a second renewed statement per principal on top of the one each grant already needs, and count every principal against the 512-statement limit. The Rust, Go, and TypeScript verifiers and the corpus change in the same PR as this spec text. | `core/spec/v1/verification-algorithm.md` "Principal status"; `core/spec/v1/protocol.md` "Evidence and status"; 0002 §14 |
+| 2026-09-25 | Owner direction: the 2026-09-24 review pass is implemented as PRs in priority order, without filing public issues; a security weakness goes to a private advisory first. Decisions inside that work that the owner has not taken follow rule 8 (narrower reading, logged PROVISIONAL). | §3 "Review pass 2026-09-24"; `docs/audit/settled.md` |
 
 ## 5. Not doing
 
