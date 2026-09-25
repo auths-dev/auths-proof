@@ -66,7 +66,7 @@ func semanticAudit(input manifest, root string) (string, error) {
 			return "", fmt.Errorf("%s canonical action/body mismatch", fixture.Name)
 		}
 		result := verifySemantic(
-			fixture.Name, proofBytes, contextBytes, actionArtifact, *action, input.AdapterContext,
+			fixture.Name, proofBytes, contextBytes, actionArtifact, input.AdapterContext,
 		)
 		if result.decision != fixtureExpectedDecision(fixture) || result.code != fixture.ExpectedCode {
 			return "", fmt.Errorf(
@@ -198,7 +198,6 @@ func verifySemantic(
 	proofBytes []byte,
 	contextBytes []byte,
 	actionBytes []byte,
-	action canonicalAction,
 	adapters adapterContext,
 ) semanticResult {
 	result := semanticResult{
@@ -211,6 +210,12 @@ func verifySemantic(
 	if err != nil {
 		result.decision, result.code = "denied", "malformed-proof"
 		return result
+	}
+	// The canonical action is bounded and decoded before the proof is read,
+	// so a rejected action leaves no plan digest.
+	action, err := decodeBoundedCanonicalAction(actionBytes, context.limits)
+	if err != nil {
+		return failedResult(result, err)
 	}
 	bundle, err := decodeBundle(proofBytes, context.limits)
 	if err != nil {
@@ -225,7 +230,7 @@ func verifySemantic(
 	if err != nil {
 		return failedResult(result, err)
 	}
-	actionIDs, branches, assurance, err := verifyAuthority(bundle, controls, context, action, adapters)
+	actionIDs, branches, assurance, err := verifyAuthority(bundle, controls, context, *action, adapters)
 	if err != nil {
 		return failedResult(result, err)
 	}

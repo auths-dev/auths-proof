@@ -69,6 +69,121 @@ fn every_corpus_vector_returns_its_decision_through_the_portable_abi() {
     });
 }
 
+fn replace_once(source: &[u8], from: &[u8], to: &[u8]) -> Vec<u8> {
+    let positions: Vec<_> = source
+        .windows(from.len())
+        .enumerate()
+        .filter(|(_, window)| *window == from)
+        .map(|(position, _)| position)
+        .collect();
+    assert_eq!(positions.len(), 1, "mutation site must be unique");
+    let mut output = source[..positions[0]].to_vec();
+    output.extend_from_slice(to);
+    output.extend_from_slice(&source[positions[0] + from.len()..]);
+    output
+}
+
+/// Byte-level mutations of the raw-key-chain canonical action and the code
+/// the decoder must return. The Go verifier's tests apply the same mutations.
+fn canonical_action_mutations(action: &[u8]) -> Vec<(&'static str, Vec<u8>, &'static str)> {
+    let attachments = |first: u8, second: u8| {
+        let mut output = vec![0x05, 0x82];
+        for fill in [first, second] {
+            output.extend_from_slice(&[0xa2, 0x00, 0x58, 0x20]);
+            output.extend_from_slice(&[fill; 32]);
+            output.extend_from_slice(&[0x01, 0x41, 0x01]);
+        }
+        output
+    };
+    let body_at = action
+        .windows(3)
+        .position(|window| window == [0x02, 0x58, 0x18])
+        .unwrap();
+    let permission_at = action
+        .windows(2)
+        .position(|window| window == [0x03, 0xa2])
+        .unwrap();
+    let mut empty_body = action[..body_at].to_vec();
+    empty_body.extend_from_slice(&[0x02, 0x40]);
+    empty_body.extend_from_slice(&action[permission_at..]);
+    let mut trailing = action.to_vec();
+    trailing.push(0x00);
+    let mut map_size = vec![0xa5];
+    map_size.extend_from_slice(&action[1..]);
+    let mut non_shortest_key = vec![0xa6, 0x18, 0x00];
+    non_shortest_key.extend_from_slice(&action[2..]);
+    vec![
+        (
+            "truncated",
+            action[..action.len() - 1].to_vec(),
+            "malformed-proof",
+        ),
+        ("trailing byte", trailing, "malformed-proof"),
+        ("map size", map_size, "malformed-proof"),
+        (
+            "key out of order",
+            replace_once(action, &[0x05, 0x80], &[0x06, 0x80]),
+            "non-canonical-proof",
+        ),
+        ("non-shortest key", non_shortest_key, "non-canonical-proof"),
+        (
+            "zero profile version",
+            replace_once(action, b"auths.mcp\x01\x01", b"auths.mcp\x01\x00"),
+            "malformed-proof",
+        ),
+        (
+            "whitespace in media type",
+            replace_once(action, b"auths.mcp-call", b"auths mcp-call"),
+            "malformed-proof",
+        ),
+        (
+            "body as text",
+            replace_once(action, &[0x02, 0x58, 0x18], &[0x02, 0x78, 0x18]),
+            "malformed-proof",
+        ),
+        ("empty body", empty_body, "resource-limit-exceeded"),
+        (
+            "indefinite attachments",
+            replace_once(action, &[0x05, 0x80], &[0x05, 0x9f, 0xff]),
+            "malformed-proof",
+        ),
+        (
+            "attachments out of order",
+            replace_once(action, &[0x05, 0x80], &attachments(0xff, 0x00)),
+            "non-canonical-proof",
+        ),
+        (
+            "duplicate attachments",
+            replace_once(action, &[0x05, 0x80], &attachments(0xaa, 0xaa)),
+            "malformed-proof",
+        ),
+    ]
+}
+
+#[test]
+fn canonical_action_decode_failures_return_stable_codes_before_the_proof() {
+    let fixture = auths_testkit::raw_key_chain();
+    let action = auths_codec::encode_canonical_action(fixture.canonical_action()).unwrap();
+    with_corpus_registries(|registries| {
+        for (name, bytes, code) in canonical_action_mutations(&action) {
+            let result = auths_codec::decode_verification_result(
+                &auths_verifier::verify_v1(
+                    fixture.proof_bytes(),
+                    &bytes,
+                    fixture.context_bytes(),
+                    registries,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            assert_eq!(result.decision(), VerificationDecision::Denied, "{name}");
+            assert_eq!(result.code().code(), code, "{name}");
+            assert_eq!(result.stage(), VerificationStage::Decode, "{name}");
+            assert_eq!(result.plan_id(), None, "{name}");
+        }
+    });
+}
+
 #[test]
 fn every_adversarial_conformance_case_returns_its_exact_code() {
     let manifest =

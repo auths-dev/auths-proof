@@ -28,12 +28,40 @@ The proof cannot add a trust anchor or weaken context.
 
 ### 1. Bounded decode
 
-1. Reject bytes above the configured or protocol maximum.
-2. Strictly decode deterministic CBOR.
-3. Reject invalid map keys, non-minimal forms, invalid UTF-8, duplicate keys,
-   unknown critical fields, unsorted sets, trailing bytes, and collection
-   overflow.
-4. Produce `DecodedProof`.
+The three inputs are decoded in this order. A decode failure is the result
+and carries no plan digest.
+
+1. The trusted context, under the protocol hard maximums. Its deployment
+   limits then bound the other two inputs.
+2. The canonical action, before any proof byte is read:
+   1. `decode.action-bytes`: an input longer than the canonical-action input
+      limit is `resource-limit-exceeded`, before any byte is read.
+   2. Fields are read in key order: profile, media type, body, permission,
+      requested budget, detached attachments. An item that cannot be read as
+      its field's type (including an indefinite length or a tag), an invalid
+      identifier, or a zero profile version is `malformed-proof`. A readable
+      map key other than the next expected key is `non-canonical-proof`.
+   3. Bounds are checked as each field is read, each failing with
+      `resource-limit-exceeded`: an empty body or one longer than the
+      canonical-body limit (`decode.action-body-bytes`); more detached
+      attachments than the attachment-count limit; and an empty detached
+      attachment, one longer than the aggregate detached-attachment limit, or
+      detached attachments that together exceed that limit
+      (`decode.attachment-bytes`).
+   4. Two detached attachments with one digest are `malformed-proof`, and so
+      are bytes after the action.
+   5. An input that reads completely but is not the canonical encoding of the
+      action it decodes to, such as a non-shortest integer or length or
+      detached attachments out of digest order, is `non-canonical-proof`.
+      This is checked last, so it never hides a failure listed above.
+3. The proof bundle. Bytes above the bundle limit are
+   `resource-limit-exceeded` before any byte is read. Then strictly decode
+   deterministic CBOR, and reject invalid map keys, non-minimal forms, invalid
+   UTF-8, duplicate keys, unknown critical fields, unsorted sets, trailing
+   bytes, and collection overflow. Produce `DecodedProof`.
+
+A canonical action constructed in process has no input bytes. For it, only
+the aggregate detached-attachment limit applies, at action binding.
 
 ### 2. Reference resolution
 

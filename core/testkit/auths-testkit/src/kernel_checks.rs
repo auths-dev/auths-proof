@@ -937,3 +937,115 @@ pub(crate) fn kernel_check_vectors() -> Vec<CorpusFixture> {
         ),
     ]
 }
+
+/// `source` under a trusted context whose deployment limits are `limits`.
+fn with_limits(
+    mut source: CorpusFixture,
+    name: &'static str,
+    limits: VerifierLimits,
+    expected: Expected,
+) -> CorpusFixture {
+    let context = decode_context(&source);
+    let replacement = context.with_limits(limits).expect("deployment limits");
+    source.name = name;
+    source.class = match expected {
+        Expected::Authorized => "valid",
+        Expected::Denied(_) | Expected::Indeterminate(_) => "invalid",
+    };
+    source.context_bytes = encode_verifier_context(&replacement).expect("canonical context");
+    source.expected = expected;
+    source
+}
+
+fn lowered(kind: LimitKind, value: usize) -> VerifierLimits {
+    VerifierLimits::default()
+        .with_limit(kind, value)
+        .expect("deployment limit")
+}
+
+fn action_input_bytes_over_limit() -> CorpusFixture {
+    let fixture = raw_key_chain();
+    let length = auths_codec::encode_canonical_action(fixture.canonical_action())
+        .expect("canonical action")
+        .len();
+    with_limits(
+        fixture,
+        "action-input-bytes-over-limit",
+        lowered(LimitKind::ActionBytes, length - 1),
+        Expected::Denied(DenialReason::ResourceLimitExceeded),
+    )
+}
+
+/// The detached-body proof, so the canonical action is the only input that
+/// carries the body.
+fn detached_body_bytes_over_limit() -> CorpusFixture {
+    with_limits(
+        body_carriage(
+            "detached-body-bytes-over-limit",
+            None,
+            BODY,
+            Expected::Authorized,
+        ),
+        "detached-body-bytes-over-limit",
+        lowered(LimitKind::CanonicalBodyBytes, BODY.len() - 1),
+        Expected::Denied(DenialReason::ResourceLimitExceeded),
+    )
+}
+
+fn attachment_bytes_over_limit() -> CorpusFixture {
+    let fixture = attachment_fixture(
+        "attachment-bytes-over-limit",
+        AttachmentVariation::Valid,
+        Expected::Authorized,
+    );
+    let length = fixture.canonical_action().detached_attachments()[0]
+        .bytes()
+        .len();
+    with_limits(
+        fixture,
+        "attachment-bytes-over-limit",
+        lowered(LimitKind::AttachmentBytes, length - 1),
+        Expected::Denied(DenialReason::ResourceLimitExceeded),
+    )
+}
+
+/// Detached bytes larger than the whole proof, under a bundle limit set to
+/// exactly the proof's length: only the attachment limit bounds them.
+fn attachment_larger_than_bundle_limit() -> CorpusFixture {
+    let fixture = attachment_fixture_with_bytes(
+        "attachment-larger-than-bundle-limit",
+        AttachmentVariation::Valid,
+        vec![0x5a; 2048],
+        Expected::Authorized,
+    );
+    let proof_length = fixture.proof_bytes().len();
+    assert!(proof_length < 2048, "the attachment must exceed the proof");
+    with_limits(
+        fixture,
+        "attachment-larger-than-bundle-limit",
+        lowered(LimitKind::BundleBytes, proof_length),
+        Expected::Authorized,
+    )
+}
+
+/// An over-limit canonical-action input beside a proof of an unsupported
+/// protocol version: the canonical action is decoded first.
+fn action_input_before_proof() -> CorpusFixture {
+    let mut fixture = action_input_bytes_over_limit();
+    assert_eq!(fixture.proof_bytes.get(4), Some(&1), "proof header version");
+    fixture.proof_bytes[4] = 2;
+    fixture.name = "two-fault-action-input-and-protocol";
+    fixture
+}
+
+/// Vectors for the input bounds applied while the canonical action is
+/// decoded, before the proof, and for the aggregate attachment bound.
+pub(crate) fn input_bound_vectors() -> Vec<CorpusFixture> {
+    vec![
+        action_input_bytes_over_limit(),
+        detached_body_bytes_over_limit(),
+        attachment_bytes_over_limit(),
+        attachment_larger_than_bundle_limit(),
+        action_input_before_proof(),
+    ]
+}

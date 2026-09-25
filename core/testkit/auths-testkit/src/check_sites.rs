@@ -1,5 +1,6 @@
-//! Inventory of the kernel's action-binding, validity, attenuation, and
-//! composition check sites, each mapped to the corpus vectors that pin it.
+//! Inventory of the kernel's canonical-action input bounds and its
+//! action-binding, validity, attenuation, and composition check sites, each
+//! mapped to the corpus vectors that pin it.
 //!
 //! A result code can be shared by several sites (five binding clauses all
 //! return `action-body-mismatch`), so coverage per code cannot show that a
@@ -41,6 +42,21 @@ const fn site(
 
 /// Every pinned site, in evaluation order.
 pub const CHECK_SITES: &[CheckSite] = &[
+    site(
+        "decode.action-bytes",
+        "resource-limit-exceeded",
+        &["action-input-bytes-over-limit"],
+    ),
+    site(
+        "decode.action-body-bytes",
+        "resource-limit-exceeded",
+        &["detached-body-bytes-over-limit"],
+    ),
+    site(
+        "decode.attachment-bytes",
+        "resource-limit-exceeded",
+        &["attachment-bytes-over-limit"],
+    ),
     site(
         "binding.embedded-body",
         "action-body-mismatch",

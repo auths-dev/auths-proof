@@ -2100,7 +2100,11 @@ fn validate_attachments(
         .ok_or(VerificationFailure::Denied(
             DenialReason::ResourceLimitExceeded,
         ))?;
-    if total > context.limits().get(auths_model::LimitKind::BundleBytes) {
+    if total
+        > context
+            .limits()
+            .get(auths_model::LimitKind::AttachmentBytes)
+    {
         return Err(VerificationFailure::Denied(
             DenialReason::ResourceLimitExceeded,
         ));
@@ -3859,6 +3863,13 @@ mod tests {
         let registries = ImmutableRegistries::new(&methods, &suites).unwrap();
         for fixture in auths_testkit::corpus() {
             let context = auths_codec::decode_verifier_context(fixture.context_bytes()).unwrap();
+            // A vector whose fault is in the canonical-action input bytes has
+            // no in-process form: the portable ABI rejects those bytes before
+            // the proof is read, which the portable conformance test checks.
+            let encoded = auths_codec::encode_canonical_action(fixture.canonical_action()).unwrap();
+            if auths_codec::decode_canonical_action(&encoded, context.limits()).is_err() {
+                continue;
+            }
             let actual = verify(
                 fixture.proof_bytes(),
                 fixture.canonical_action(),
@@ -3881,5 +3892,43 @@ mod tests {
             };
             assert_eq!(actual, expected, "{}", fixture.name());
         }
+    }
+
+    #[test]
+    fn in_process_verification_bounds_detached_attachments_by_the_attachment_limit() {
+        let method = RawKeyMethod::new().unwrap();
+        let suite = Ed25519Suite::new().unwrap();
+        let methods: [&dyn auths_ports::PrincipalMethod; 1] = [&method];
+        let suites: [&dyn auths_ports::SignatureSuite; 1] = [&suite];
+        let registries = ImmutableRegistries::new(&methods, &suites).unwrap();
+        let corpus = auths_testkit::corpus();
+        let run = |name: &str| {
+            let fixture = corpus
+                .iter()
+                .find(|fixture| fixture.name() == name)
+                .unwrap();
+            let context = auths_codec::decode_verifier_context(fixture.context_bytes())
+                .unwrap()
+                .with_configuration(registries.configuration_id())
+                .unwrap();
+            verify(
+                fixture.proof_bytes(),
+                fixture.canonical_action(),
+                &context,
+                &registries,
+            )
+        };
+        // Detached bytes larger than the whole proof may authorize: only the
+        // attachment limit bounds them.
+        assert!(matches!(
+            run("attachment-larger-than-bundle-limit"),
+            VerificationOutcome::Authorized(_)
+        ));
+        // A lowered attachment limit binds an action built in process, which
+        // no decoder has bounded.
+        assert_eq!(
+            run("attachment-bytes-over-limit"),
+            VerificationOutcome::Denied(DenialReason::ResourceLimitExceeded)
+        );
     }
 }
