@@ -1,12 +1,12 @@
 //! Trusted-context templates for the target V1 registries.
 
-use alloc::{collections::BTreeSet, vec, vec::Vec};
+use alloc::{vec, vec::Vec};
 use auths_model::{
-    AcceptedRegistries, AssuranceClaimId, AssurancePolicy, Audience, BudgetAlgebraId, Challenge,
-    ChannelBindingId, CompositionRequirement, EvidenceTypeId, ExtensionId, GrantStatusSnapshot,
-    ModelError, PrincipalMethodId, PrincipalStatusSnapshot, ProfilePolicyId, ProfileRef,
-    ResourceMatcherId, SignatureSuiteId, StatusMethodId, StatusPolicy, StatusSnapshotId, Timestamp,
-    TrustAnchor, TrustedContext, VerifierConfigurationId, VerifierLimits,
+    AcceptedRegistries, AssurancePolicy, Audience, BudgetAlgebraId, Challenge, ChannelBindingId,
+    CompositionRequirement, EvidenceTypeId, ExtensionId, GrantStatusSnapshot, ModelError,
+    PrincipalStatusSnapshot, ProfilePolicyId, ProfileRef, ResourceMatcherId, SignatureSuiteId,
+    StatusPolicy, StatusSnapshotId, Timestamp, TrustAnchor, TrustedContext,
+    VerifierConfigurationId, VerifierLimits,
 };
 
 use crate::{EXACT_PROFILE_V1, NUMERIC_CEILING_V1, TARGET_V1_REGISTRY_MANIFEST, URI_NAMESPACE_V1};
@@ -36,10 +36,10 @@ pub struct TrustedContextTemplate {
     grant_status: GrantStatusSnapshot,
     channel_policy: ChannelBindingId,
     limits: VerifierLimits,
-    signature_suites: BTreeSet<SignatureSuiteId>,
-    evidence_types: BTreeSet<EvidenceTypeId>,
-    critical_extensions: BTreeSet<ExtensionId>,
-    budget_free_profiles: BTreeSet<ProfileRef>,
+    signature_suites: Vec<SignatureSuiteId>,
+    evidence_types: Vec<EvidenceTypeId>,
+    critical_extensions: Vec<ExtensionId>,
+    budget_free_profiles: Vec<ProfileRef>,
 }
 
 impl TrustedContextTemplate {
@@ -66,7 +66,7 @@ impl TrustedContextTemplate {
             .iter()
             .flat_map(TrustAnchor::accepted_methods)
             .map(|method| EvidenceTypeId::parse(method.as_str()))
-            .collect::<Result<BTreeSet<_>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
             configuration,
             composition,
@@ -90,8 +90,8 @@ impl TrustedContextTemplate {
             limits: VerifierLimits::default(),
             signature_suites: signature_suites.into_iter().collect(),
             evidence_types,
-            critical_extensions: BTreeSet::new(),
-            budget_free_profiles: BTreeSet::new(),
+            critical_extensions: Vec::new(),
+            budget_free_profiles: Vec::new(),
         })
     }
 
@@ -126,14 +126,14 @@ impl TrustedContextTemplate {
     /// Accepts one more evidence type. Accepting one twice has no effect.
     #[must_use]
     pub fn accept_evidence_type(mut self, identifier: EvidenceTypeId) -> Self {
-        self.evidence_types.insert(identifier);
+        self.evidence_types.push(identifier);
         self
     }
 
     /// Accepts one critical extension. Accepting one twice has no effect.
     #[must_use]
     pub fn accept_critical_extension(mut self, identifier: ExtensionId) -> Self {
-        self.critical_extensions.insert(identifier);
+        self.critical_extensions.push(identifier);
         self
     }
 
@@ -147,7 +147,7 @@ impl TrustedContextTemplate {
     /// accepts, because the accepted profiles derive from the anchors.
     #[must_use]
     pub fn declare_budget_free_profile(mut self, profile: ProfileRef) -> Self {
-        self.budget_free_profiles.insert(profile);
+        self.budget_free_profiles.push(profile);
         self
     }
 
@@ -158,51 +158,53 @@ impl TrustedContextTemplate {
     /// Returns a model error when the anchors are empty or invalid, or when
     /// the profiles, status policies, registries, or limits disagree.
     pub fn compile(self) -> Result<TrustedContext, ModelError> {
-        let principal_methods: BTreeSet<PrincipalMethodId> = self
-            .trust_anchors
-            .iter()
-            .flat_map(TrustAnchor::accepted_methods)
-            .cloned()
-            .collect();
-        let profiles: BTreeSet<ProfileRef> = self
-            .trust_anchors
-            .iter()
-            .flat_map(TrustAnchor::profiles)
-            .cloned()
-            .collect();
-        let principal_status_methods: BTreeSet<StatusMethodId> = self
-            .trust_anchors
-            .iter()
-            .filter_map(|anchor| match anchor.status_policy() {
-                StatusPolicy::ExpiryOnly => None,
-                StatusPolicy::SnapshotRequired { method, .. } => Some(method.clone()),
-            })
-            .collect();
-        let assurance_claims: BTreeSet<AssuranceClaimId> = self
-            .assurance_policy
-            .requirements()
-            .iter()
-            .map(|requirement| requirement.claim_kind().clone())
-            .collect();
-        let budget_free_profiles: Vec<ProfileRef> = self
-            .budget_free_profiles
-            .iter()
-            .filter(|profile| profiles.contains(*profile))
-            .cloned()
+        let principal_methods = sorted_unique(
+            self.trust_anchors
+                .iter()
+                .flat_map(TrustAnchor::accepted_methods)
+                .cloned()
+                .collect(),
+        );
+        let profiles = sorted_unique(
+            self.trust_anchors
+                .iter()
+                .flat_map(TrustAnchor::profiles)
+                .cloned()
+                .collect(),
+        );
+        let principal_status_methods = sorted_unique(
+            self.trust_anchors
+                .iter()
+                .filter_map(|anchor| match anchor.status_policy() {
+                    StatusPolicy::ExpiryOnly => None,
+                    StatusPolicy::SnapshotRequired { method, .. } => Some(method.clone()),
+                })
+                .collect(),
+        );
+        let assurance_claims = sorted_unique(
+            self.assurance_policy
+                .requirements()
+                .iter()
+                .map(|requirement| requirement.claim_kind().clone())
+                .collect(),
+        );
+        let budget_free_profiles: Vec<ProfileRef> = sorted_unique(self.budget_free_profiles)
+            .into_iter()
+            .filter(|profile| profiles.binary_search(profile).is_ok())
             .collect();
         let accepted = AcceptedRegistries::new(
             TARGET_V1_REGISTRY_MANIFEST,
-            principal_methods.into_iter().collect(),
-            self.signature_suites.into_iter().collect(),
-            self.evidence_types.into_iter().collect(),
-            principal_status_methods.into_iter().collect(),
+            principal_methods,
+            sorted_unique(self.signature_suites),
+            sorted_unique(self.evidence_types),
+            principal_status_methods,
             Vec::new(),
-            assurance_claims.into_iter().collect(),
+            assurance_claims,
             Vec::new(),
             vec![ResourceMatcherId::parse(URI_NAMESPACE_V1)?],
             vec![BudgetAlgebraId::parse(NUMERIC_CEILING_V1)?],
-            self.critical_extensions.into_iter().collect(),
-            profiles.into_iter().collect(),
+            sorted_unique(self.critical_extensions),
+            profiles,
             vec![ProfilePolicyId::parse(EXACT_PROFILE_V1)?],
         )?
         .with_budget_free_profiles(budget_free_profiles)?;
@@ -225,13 +227,24 @@ impl TrustedContextTemplate {
     }
 }
 
+/// Sorts and removes repeats before the model bounds a registry list's
+/// length, so identifiers repeated across anchors count once. The model
+/// canonicalizes these lists with the same sort, which keeps the WASM build
+/// from carrying a second set-based implementation.
+fn sorted_unique<T: Ord>(mut values: Vec<T>) -> Vec<T> {
+    values.sort();
+    values.dedup();
+    values
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use auths_model::{
-        AssurancePolicyId, AssuranceQuantifier, AssuranceRequirement, AudienceSet, CapabilityId,
-        FreshnessLimit, ParticipantRole, Permission, PermissionSet, PrincipalId, ProfileId,
-        ResourceId, TrustAnchorId, ValidityWindow,
+        AssuranceClaimId, AssurancePolicyId, AssuranceQuantifier, AssuranceRequirement,
+        AudienceSet, CapabilityId, FreshnessLimit, ParticipantRole, Permission, PermissionSet,
+        PrincipalId, PrincipalMethodId, ProfileId, ResourceId, StatusMethodId, TrustAnchorId,
+        ValidityWindow,
     };
 
     fn profile(name: &str) -> ProfileRef {
