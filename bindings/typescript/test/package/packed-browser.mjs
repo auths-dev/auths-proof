@@ -62,20 +62,25 @@ try {
         warmTimings.push(performance.now() - before);
       }
       warmTimings.sort((left, right) => left - right);
-      const workerResult = await new Promise((resolve, reject) => {
-        const worker = new Worker('/worker.js', { type: 'module' });
-        worker.onmessage = (event) => { worker.terminate(); resolve(event.data); };
-        worker.onerror = reject;
-      });
       const runtime = await runtimeInfo();
       document.querySelector('#result').textContent = JSON.stringify({
         verified: verified.kind,
-        worker: workerResult.kind,
-        workerColdStartMs: workerResult.coldStartMs,
         warmVerificationP95Ms: warmTimings[Math.floor(warmTimings.length * 0.95)],
         runtime: runtime.host,
         profiles: runtime.profiles.length,
       });
+    </script>`);
+  await writeFile(join(temporary, "worker-harness.html"), `<!doctype html>
+    <meta charset="utf-8">
+    <title>Auths packed browser worker cold start</title>
+    <output id="result">starting</output>
+    <script type="module">
+      const worker = new Worker('/worker.js', { type: 'module' });
+      const outcome = await new Promise((resolve, reject) => {
+        worker.onmessage = (event) => { worker.terminate(); resolve(event.data); };
+        worker.onerror = reject;
+      });
+      document.querySelector('#result').textContent = JSON.stringify(outcome);
     </script>`);
 
   server = createServer(async (request, response) => {
@@ -104,28 +109,67 @@ try {
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   if (address === null || typeof address === "string") throw new Error("browser server did not bind");
+
+  const attachFailureListeners = (page) => {
+    const failures = [];
+    page.on("pageerror", (error) => failures.push(`page error: ${error.message}`));
+    page.on("response", (response) => {
+      if (!response.ok()) failures.push(`HTTP ${response.status()}: ${response.url()}`);
+    });
+    return failures;
+  };
+  const readResult = async (page, failures, label) => {
+    try {
+      await page.waitForFunction(() => document.querySelector("#result")?.textContent !== "starting");
+    } catch (error) {
+      throw new Error(`${label} did not finish: ${failures.join("; ") || "no page error was reported"}`, { cause: error });
+    }
+    return JSON.parse(await page.textContent("#result"));
+  };
+
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
-  const failures = [];
-  page.on("pageerror", (error) => failures.push(`page error: ${error.message}`));
-  page.on("response", (response) => {
-    if (!response.ok()) failures.push(`HTTP ${response.status()}: ${response.url()}`);
-  });
+  const failures = attachFailureListeners(page);
   await page.goto(`http://127.0.0.1:${address.port}/`);
-  try {
-    await page.waitForFunction(() => document.querySelector("#result")?.textContent !== "starting");
-  } catch (error) {
-    throw new Error(`packed browser did not finish: ${failures.join("; ") || "no page error was reported"}`, { cause: error });
-  }
-  const outcome = JSON.parse(await page.textContent("#result"));
+  const outcome = await readResult(page, failures, "packed browser");
   for (const [key, value] of Object.entries({
     verified: "authorized",
-    worker: "authorized",
     runtime: "browser",
     profiles: 0,
   })) {
     if (outcome[key] !== value) throw new Error(`packed browser ${key} drifted: ${outcome[key]}`);
   }
+
+  // A single wall-clock cold start on a shared CI runner is noise, not signal. Each
+  // sample gets its own browser context, not just a new page, because a shared context
+  // lets Chromium reuse an earlier sample's HTTP and V8 code cache and hide the real
+  // cold-start cost.
+  const workerColdStartSampleCount = 5;
+  const coldStartSamples = [];
+  for (let index = 0; index < workerColdStartSampleCount; index += 1) {
+    const context = await browser.newContext();
+    try {
+      const samplePage = await context.newPage();
+      const sampleFailures = attachFailureListeners(samplePage);
+      await samplePage.goto(`http://127.0.0.1:${address.port}/worker-harness.html`);
+      const sample = await readResult(samplePage, sampleFailures, `packed browser worker sample ${index}`);
+      if (sample.kind !== "authorized") {
+        throw new Error(`packed browser worker sample ${index} drifted: ${sample.kind}`);
+      }
+      coldStartSamples.push(sample);
+    } finally {
+      await context.close();
+    }
+  }
+  const coldStartTimingsMs = coldStartSamples.map((sample) => sample.coldStartMs);
+  // The median of independent cold starts resists the single slow outlier that a mean
+  // or a lone sample cannot, and is held to the same budget a lone sample was.
+  const sortedColdStartTimingsMs = [...coldStartTimingsMs].sort((left, right) => left - right);
+  const workerColdStartMedianMs = sortedColdStartTimingsMs[Math.floor(sortedColdStartTimingsMs.length / 2)];
+  outcome.worker = coldStartSamples[0].kind;
+  outcome.workerColdStartSamplesMs = coldStartTimingsMs;
+  outcome.workerColdStartMedianMs = workerColdStartMedianMs;
+
   const baseline = JSON.parse(await readFile(new URL("../../performance-baseline.json", import.meta.url)));
   for (const { name, actual, budget, tolerance } of [
     {
@@ -135,8 +179,8 @@ try {
       tolerance: 1.1,
     },
     {
-      name: "worker cold start",
-      actual: outcome.workerColdStartMs,
+      name: "worker cold start median",
+      actual: outcome.workerColdStartMedianMs,
       budget: baseline.measurements.chromiumWorkerColdStartMs,
       tolerance: 1.25,
     },

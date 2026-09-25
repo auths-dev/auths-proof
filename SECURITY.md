@@ -2,8 +2,8 @@
 
 ## Project status
 
-`auths-proof` `0.1.x` is prelaunch, pre-audit software with no production
-users. Do not rely on it as the sole production authorization control for
+The unreleased `1.0.0-rc.1` workspace is prelaunch, pre-audit software with
+no production users. Do not rely on it as the sole production authorization control for
 high-value actions. No independent security review has been completed.
 
 ## Reporting

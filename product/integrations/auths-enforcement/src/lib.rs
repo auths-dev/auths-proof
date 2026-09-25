@@ -160,17 +160,6 @@ pub enum Execution<T> {
     Indeterminate(Explanation),
 }
 
-/// HTTP middleware entry point.
-pub type HttpMiddleware<P> = Enforcement<P>;
-/// gRPC interceptor entry point.
-pub type GrpcInterceptor<P> = Enforcement<P>;
-/// CI authorization-gate entry point.
-pub type CiGate<P> = Enforcement<P>;
-/// Internal deployment service entry point.
-pub type DeploymentEnforcement<P> = Enforcement<P>;
-/// MCP server entry point.
-pub type McpEnforcement<P> = Enforcement<P>;
-
 /// Enforcement configuration or profile failure.
 #[derive(Debug, Error)]
 pub enum EnforcementError {

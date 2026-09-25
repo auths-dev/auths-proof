@@ -9,10 +9,10 @@ Accepted.
 The pure `auths-did-web` adapter verifies a bundled canonical DID
 document only when its digest is matched by explicit host trust.
 
-Network retrieval lives in the downstream
-`auths-proof-apps/integrations/auths-resolver-did-web` crate. The resolver may
-produce a current trust record after policy-constrained HTTPS retrieval, but
-it cannot authorize an action and is never callable by the proof repository.
+Network retrieval lives in the product-layer
+`product/integrations/auths-resolver-did-web` crate. The resolver may produce
+a current trust record after policy-constrained HTTPS retrieval, but it
+cannot authorize an action, and no core crate may depend on it.
 
 Historical document pins are verifier configuration. Accepting a historical
 key additionally requires evidence that the exact Auths signing bytes existed

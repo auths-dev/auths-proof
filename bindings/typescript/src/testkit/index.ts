@@ -1,6 +1,9 @@
-import type { CustodySigner, ReservationStore } from "../adapters.js";
+import type {
+  CustodySignatureDescriptor, CustodySigner, PublicControlEvidence, ReservationStore,
+} from "../adapters.js";
 import type { BoundedTransport } from "../protocol.js";
 import { CONFORMANCE_CATALOG_V2 } from "../generated/mechanism-conformance-v2.js";
+import { DevelopmentEd25519Key as NativeDevelopmentKey } from "../internal/development.js";
 export {
   ScriptedProvider, runSelfHostedAdapterConformance,
   type SelfHostedScenario,
@@ -30,6 +33,44 @@ export async function ephemeralEd25519Signer(): Promise<CustodySigner> {
     },
     async close() { closed = true; }, async [Symbol.asyncDispose]() { closed = true; },
   };
+}
+
+/**
+ * A development Ed25519 key under the raw-key principal method. Its principal,
+ * signature descriptor, and public control evidence are derived by native Rust.
+ * For tests and examples only: production keys stay in custody.
+ */
+export interface DevelopmentEd25519Key {
+  readonly principal: string;
+  readonly signature: CustodySignatureDescriptor;
+  readonly evidence: PublicControlEvidence;
+  readonly publicKey: Uint8Array;
+  sign(preimage: Uint8Array): Promise<Uint8Array>;
+}
+
+/**
+ * Creates a development Ed25519 key: the same key for the same 32-byte `seed`,
+ * or a fresh one when `seed` is omitted. Throws `TypeError` for any other seed.
+ */
+export async function developmentEd25519Key(seed?: Uint8Array): Promise<DevelopmentEd25519Key> {
+  const key = seed === undefined
+    ? await NativeDevelopmentKey.generate()
+    : await NativeDevelopmentKey.fromSeed(seed);
+  const descriptor = key.descriptor();
+  const signature = Object.freeze({
+    principalMethod: descriptor.principalMethod,
+    verificationMethod: descriptor.verificationMethod,
+    suite: descriptor.suite,
+  });
+  const evidence = { type: key.evidenceType(), mediaType: key.mediaType(), bytes: key.evidence() };
+  const publicKey = key.publicKey();
+  return Object.freeze({
+    principal: descriptor.principal,
+    signature,
+    get evidence() { return Object.freeze({ ...evidence, bytes: evidence.bytes.slice() }); },
+    get publicKey() { return publicKey.slice(); },
+    sign: (preimage: Uint8Array) => key.sign(preimage),
+  });
 }
 
 export const fixtures = Object.freeze({

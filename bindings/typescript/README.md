@@ -99,10 +99,7 @@ The minimum consumer toolchain is TypeScript 5.2 with `ES2022` and
 `ESNext.Disposable`, on Node 20.6.0 or newer. The stateful Unix-socket
 transport is implemented on macOS and Linux, while real provider profiles
 remain qualification-gated. Windows fails closed pending its named-pipe
-security implementation. Run
-`npx --package @auths-dev/sdk auths doctor` to inspect bounded installed
-runtime, ABI, and profile facts. The report never reads application secrets or
-prints protocol payloads.
+security implementation.
 
 ## Capability status
 

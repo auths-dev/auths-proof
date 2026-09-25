@@ -68,7 +68,8 @@ use:
 
 - protocol, canonical formats, verifier, authoring, and formal artifacts;
 - durable lifecycle, replay, capacity, receipt, and recovery semantics;
-- a qualified PostgreSQL adapter and reference deployment;
+- a PostgreSQL adapter and reference deployment (Epic 2 qualification
+  open);
 - custody ports, transaction-bound signing requests, conformance fixtures, and
   maintained reference adapters;
 - Rust, TypeScript, and Python workflow APIs;
@@ -241,7 +242,7 @@ them until the requirements below are satisfied in the completion gate.
 
 | Epic | Added requirement |
 | --- | --- |
-| 2 — PostgreSQL lifecycle store | The gateway's logical-operation claims, provider-bound evidence records, and outcome stages run on the qualified multi-host store. The single-host file store stays the development default. The multi-host fault matrix includes the gateway's replay, fresh-challenge, crash-after-entry, and concurrent re-observation cases. |
+| 2 — PostgreSQL lifecycle store | The gateway's logical-operation claims, provider-bound evidence records, and outcome stages run on the multi-host PostgreSQL store (Epic 2 qualification open). The single-host file store stays the development default. The multi-host fault matrix includes the gateway's replay, fresh-challenge, crash-after-entry, and concurrent re-observation cases. |
 | 4 — External custody | The gateway observer key and Git-signing root keys are held behind `auths-custody` (KMS or PKCS#11), with the same transaction binding and lifecycle conformance as other custody. Each signer reports its custody kind. A trusted context MAY require a custody kind for roots and observers, and a verifier with that requirement MUST refuse any other kind. |
 | 5 — Operations | The operator runbook covers observer key rotation, observer-anchor updates in trust, and Git-signing revocation records. |
 | 9 — Qualification | The candidate's evidence includes a hostile run of observation-conditioned grants and provider-bound evidence against the multi-host deployment. |
@@ -249,7 +250,7 @@ them until the requirements below are satisfied in the completion gate.
 ### 9.2 Trust that does not reduce to one operator
 
 A production deployment separates these principals, and the verifier
-refuses any overlap:
+refuses an overlap between identical principal identifiers:
 
 - **Root.** It issues grants. Production roots are provisioned in a
   reviewed ceremony, recorded with who held which key share, and MAY be
@@ -257,6 +258,12 @@ refuses any overlap:
 - **Operator.** It runs the gateway and holds provider credentials.
 - **Observer.** It signs observations. The kernel already refuses an
   observer that appears in an authority chain.
+
+The separation checks compare principal identifiers exactly. They cannot
+detect one key anchored under two principal methods (for example
+`did:key` and `raw-key-v1`), and the operator principal is a declaration
+given at install (`--operator-principal`) that the gateway does not
+authenticate. Separating custody remains a human gate (§9.3).
 
 **Observer quorum.** A grant MAY require a K-of-N quorum of observers from
 distinct operator domains (AP-SPEC-060 §16), for example the gateway plus a
@@ -273,7 +280,7 @@ read-only observer run by a different party.
 The bounded claim in §7 extends to the gateway, provider evidence, and
 observation-conditioned grants only when the deployment:
 
-- runs them on the qualified store;
+- runs them on the PostgreSQL store once Epic 2 qualifies it;
 - holds the observer and root keys in qualified custody;
 - separates root, operator, and observer principals.
 
@@ -301,13 +308,13 @@ Implemented (engineering only; no production claim):
 
 | Requirement | Where | Evidence |
 | --- | --- | --- |
-| §9.1 Epic 2: claims, provider-bound evidence, and outcome stages on the qualified store | `GatewayAttemptStore` in `auths-gateway`; `PostgresLifecycleStore` rows in schema `auths.lifecycle.postgresql/4` | One conformance suite on both stores: claim exactly once, replay, fresh challenge, unknown and re-observe, `echo-mismatch`, concurrent re-observation, fail-closed reads, and concurrent claims from two gateway processes. The PostgreSQL variants run in the PostgreSQL lifecycle workflow against its TLS fixture. |
+| §9.1 Epic 2: claims, provider-bound evidence, and outcome stages on the multi-host PostgreSQL store (Epic 2 qualification open) | `GatewayAttemptStore` in `auths-gateway`; `PostgresLifecycleStore` rows in schema `auths.lifecycle.postgresql/4` | One conformance suite on both stores: claim exactly once, replay, fresh challenge, unknown and re-observe, `echo-mismatch`, concurrent re-observation, fail-closed reads, and concurrent claims from two gateway processes. The PostgreSQL variants run in the PostgreSQL lifecycle workflow against its TLS fixture. |
 | §9.1 Epic 2 fault matrix: replay, fresh challenge, crash after entry, concurrent re-observation | same | The attempt-scenario corpus and the conformance suite, on both stores. The TLS/pooling/failover/backup parts of the Epic 2 matrix are Epic 2's own open work. |
 | §9.1 Epic 4: observer and Git roots behind `auths-custody` | `GatewayObserver::from_custody`, `CustodyKeySigner`, `CustodyKey` | KMS- and PKCS#11-held keys, through the reference adapters over mock provider APIs, sign observations and grants that verify in the kernel. The shared custody conformance kit runs every `CustodyConformanceCase` and every lifecycle state on both paths. |
 | §9.1 Epic 4: each signer reports its custody kind | `ObserverCustody`, `GitProofSigner::custody` | Unit tests. |
 | §9.1 Epic 5: runbook | [gateway trust and Git-signing runbook](../operations/GATEWAY_TRUST_AND_GIT_SIGNING_RUNBOOK.md) | Observer key rotation, observer-anchor updates, Git revocation records. |
 | §9.1 Epic 9: hostile run against the multi-host store | `observed_tests` and `engine` suites | Observation-conditioned grants and provider-bound evidence, pre-generated fixtures, on both stores. |
-| §9.2 separation | `check_principal_separation` in `auths-gateway`; production install | Stable codes `gateway.trust.operator-is-root`, `operator-is-observer`, `observer-is-root`, `observer-not-anchored`. |
+| §9.2 separation | `check_principal_separation` in `auths-gateway`; production install | Stable codes `gateway.trust.operator-is-root`, `operator-is-observer`, `observer-is-root`, `observer-not-anchored`. The checks compare identifiers exactly; the operator principal is declared, not authenticated. |
 | §9.2 root M-of-N | kernel `KOfN` with a two-distinct-root composition requirement | 2-of-3 root test. |
 
 Readings taken:

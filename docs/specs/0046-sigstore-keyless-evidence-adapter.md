@@ -1,6 +1,7 @@
 # AP-SPEC-046: Sigstore Keyless Evidence Adapter
 
-**Status:** Proposed
+**Status:** Implemented on `main` in PR #129 (AP-SPEC-057 Epic 3), including
+public-good Sigstore (§15); the hosted live run is recorded in that PR.
 **Intended audience:** principal-adapter authors, verifier implementers,
 supply-chain and release engineers, and security reviewers
 **Normative language:** the terms **MUST**, **MUST NOT**, **SHOULD**, and
