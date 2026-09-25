@@ -202,9 +202,24 @@ pub const CHECK_SITES: &[CheckSite] = &[
         &["unsupported-resource-matcher"],
     ),
     site(
+        "branch.grant-namespace",
+        "resource-namespace-mismatch",
+        &["grant-permission-outside-namespace"],
+    ),
+    site(
         "branch.action-namespace",
         "resource-namespace-mismatch",
         &["action-resource-outside-namespace"],
+    ),
+    site(
+        "branch.budget-edge-algebra",
+        "unsupported-budget-algebra",
+        &["budget-edge-algebra-unsupported"],
+    ),
+    site(
+        "branch.budget-edge-mismatch",
+        "local-policy-denied",
+        &["budget-edge-algebra-mismatch"],
     ),
     site(
         "branch.budget-edge",
@@ -212,14 +227,19 @@ pub const CHECK_SITES: &[CheckSite] = &[
         &["budget-widening"],
     ),
     site(
+        "branch.budget-absent",
+        "budget-ceiling-exceeded",
+        &["action-budget-absent"],
+    ),
+    site(
         "branch.budget-algebra",
         "unsupported-budget-algebra",
         &["unsupported-budget-algebra"],
     ),
     site(
-        "branch.budget-absent",
-        "budget-ceiling-exceeded",
-        &["action-budget-absent"],
+        "branch.budget-request-mismatch",
+        "local-policy-denied",
+        &["budget-request-algebra-mismatch"],
     ),
     site(
         "branch.budget-coverage",

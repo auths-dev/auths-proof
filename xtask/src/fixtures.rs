@@ -1878,7 +1878,50 @@ pub(crate) fn spec_sync() -> Result<(), String> {
 /// by two sites. Per-code coverage alone cannot show that a check is wired
 /// in, because several sites share one code.
 pub(crate) fn check_site_coverage(fixtures: &[Value]) -> Result<(), String> {
-    check_sites_against(auths_testkit::check_sites::CHECK_SITES, fixtures)
+    let sites = auths_testkit::check_sites::CHECK_SITES;
+    check_sites_against(sites, fixtures)?;
+    let algorithm = fs::read_to_string(root().join("core/spec/v1/verification-algorithm.md"))
+        .map_err(|error| format!("could not read verification algorithm: {error}"))?;
+    specification_names_sites(sites, &algorithm)
+}
+
+/// Check-site names the specification marks in inline code, such as
+/// `binding.permission`.
+fn specified_check_sites(text: &str) -> BTreeSet<&str> {
+    const STAGES: [&str; 4] = ["decode.", "binding.", "branch.", "composition."];
+    text.split('`')
+        .filter(|token| {
+            STAGES.iter().any(|stage| {
+                token.strip_prefix(stage).is_some_and(|check| {
+                    !check.is_empty()
+                        && !check.starts_with('-')
+                        && !check.ends_with('-')
+                        && check
+                            .bytes()
+                            .all(|byte| byte.is_ascii_lowercase() || byte == b'-')
+                })
+            })
+        })
+        .collect()
+}
+
+/// The specification's check sites and the corpus inventory must name the
+/// same set, so a check the specification adds needs a vector.
+fn specification_names_sites(
+    sites: &[auths_testkit::check_sites::CheckSite],
+    text: &str,
+) -> Result<(), String> {
+    let specified = specified_check_sites(text);
+    let inventoried: BTreeSet<&str> = sites.iter().map(|entry| entry.site).collect();
+    if specified == inventoried {
+        return Ok(());
+    }
+    let unpinned: Vec<_> = specified.difference(&inventoried).collect();
+    let unspecified: Vec<_> = inventoried.difference(&specified).collect();
+    Err(format!(
+        "check sites drifted from verification-algorithm.md; specified without a vector: \
+         {unpinned:?}; inventoried but not specified: {unspecified:?}"
+    ))
 }
 
 fn check_sites_against(
@@ -1980,6 +2023,33 @@ mod tests {
         let fixtures = manifest_entries(&[("mismatched-profile-version", "action-body-mismatch")]);
         let error = check_sites_against(&sites, &fixtures).expect_err("a shared vector must fail");
         assert!(error.contains("claimed by check sites"), "{error}");
+    }
+
+    #[test]
+    fn specified_sites_are_read_from_inline_code_only() {
+        let text = "1. `binding.permission`: the permission must match, \
+                    `action-body-mismatch`. binding.media-type is prose, and \
+                    `branch.` and `branch.-x` are not names.";
+        assert_eq!(
+            specified_check_sites(text),
+            BTreeSet::from(["binding.permission"])
+        );
+    }
+
+    #[test]
+    fn a_specified_site_without_a_vector_fails() {
+        let sites = [CheckSite {
+            site: "binding.permission",
+            code: "action-body-mismatch",
+            vectors: &["action-permission-substituted"],
+        }];
+        let error =
+            specification_names_sites(&sites, "`binding.permission` then `binding.media-type`")
+                .expect_err("an unpinned specified site must fail");
+        assert!(error.contains("binding.media-type"), "{error}");
+        let error = specification_names_sites(&sites, "no sites")
+            .expect_err("an unspecified inventoried site must fail");
+        assert!(error.contains("binding.permission"), "{error}");
     }
 
     #[test]

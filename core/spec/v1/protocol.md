@@ -61,6 +61,8 @@ contains:
 - status policy.
 
 Adding an unrelated trust anchor cannot authorize a chain anchored elsewhere.
+Every resource a chain names, in each grant's permissions and in the action,
+must lie inside one of the anchor's resource namespaces.
 
 ### Grant
 
@@ -222,8 +224,8 @@ future lattice is a protocol-versioned semantic change, not an interpretation
 left to an adapter.
 
 Stable first-failure ordering makes implementations and receipts agree on one
-diagnostic. It is not a timing, cache, power, or other side-channel
-noninterference guarantee.
+diagnostic; `verification-algorithm.md` specifies the order. It is not a
+timing, cache, power, or other side-channel noninterference guarantee.
 
 ## Deterministic encoding
 

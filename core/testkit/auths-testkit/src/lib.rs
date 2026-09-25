@@ -5337,6 +5337,7 @@ fn build_corpus() -> Vec<CorpusFixture> {
     corpus.extend(observation::observation_corpus());
     corpus.extend(kernel_checks::kernel_check_vectors());
     corpus.extend(kernel_checks::input_bound_vectors());
+    corpus.extend(kernel_checks::precedence_vectors());
     corpus
 }
 

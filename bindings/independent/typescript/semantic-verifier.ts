@@ -1301,16 +1301,6 @@ function resolveAndVerifyControl(
   contextValue: Context,
   adapters: any,
 ): VerifiedControl[] {
-  if (!equal(contextValue.registryManifest, new Uint8Array(32).fill(0x36))) {
-    throw denied("registry-manifest-mismatch");
-  }
-  const localConfiguration = typeof adapters.configuration === "string"
-    ? Buffer.from(adapters.configuration, "hex")
-    : new Uint8Array();
-  if (localConfiguration.length !== 32 ||
-      !equal(contextValue.configuration, localConfiguration)) {
-    throw denied("verifier-configuration-mismatch");
-  }
   const planID = domainHash(3, value.plan.raw);
   const grants = new Map<string, Grant>();
   for (const grantValue of value.grants) {
@@ -1383,6 +1373,19 @@ function resolveAndVerifyControl(
     attachmentDigests.add(key);
   }
   validateCarriedStatus(value, contextValue);
+
+  // Principal control starts by requiring the executable registry and
+  // configuration, after every reference has resolved.
+  if (!equal(contextValue.registryManifest, new Uint8Array(32).fill(0x36))) {
+    throw denied("registry-manifest-mismatch");
+  }
+  const localConfiguration = typeof adapters.configuration === "string"
+    ? Buffer.from(adapters.configuration, "hex")
+    : new Uint8Array();
+  if (localConfiguration.length !== 32 ||
+      !equal(contextValue.configuration, localConfiguration)) {
+    throw denied("verifier-configuration-mismatch");
+  }
 
   type SignedInput = {
     statement: StatementRef; principal: string; signature: Signature; profile: Profile;
@@ -1523,6 +1526,34 @@ function requireBudgetAlgebra(value: Budget | undefined, contextValue: Context):
     !contains(contextValue.budgetAlgebras, value.algebra) ||
     value.algebra !== "numeric-ceiling-v1"
   ) throw indeterminate("unsupported-budget-algebra");
+}
+// Compares every bounded ceiling before the delegation walk: each grant under
+// a bounded parent, then the action's request under a bounded terminal
+// ceiling. An algebra is resolved only where a bounded ceiling is compared,
+// and the parent's algebra rejects a value in any other algebra as invalid
+// input, which is local-policy-denied.
+function validateBudgetChain(
+  anchor: Anchor, chain: Grant[], actionValue: Action, contextValue: Context,
+): void {
+  let parent = anchor.budget;
+  for (const grantValue of chain) {
+    const child = grantValue.budget;
+    if (parent !== undefined) {
+      if (child === undefined) throw denied("delegation-expanded");
+      requireBudgetAlgebra(parent, contextValue);
+      if (child.algebra !== parent.algebra) throw denied("local-policy-denied");
+      if (child.value > parent.value) throw denied("delegation-expanded");
+    }
+    parent = child;
+  }
+  if (parent === undefined) return;
+  if (actionValue.budget === undefined) {
+    if (profileContains(contextValue.budgetFreeProfiles, actionValue.profile)) return;
+    throw denied("budget-ceiling-exceeded");
+  }
+  requireBudgetAlgebra(parent, contextValue);
+  if (actionValue.budget.algebra !== parent.algebra) throw denied("local-policy-denied");
+  if (actionValue.budget.value > parent.value) throw denied("budget-ceiling-exceeded");
 }
 function statusAttenuates(child: StatusPolicy, parent: StatusPolicy): boolean {
   return parent.kind === 0n ||
@@ -1794,16 +1825,23 @@ function verifyFromAnchor(
       anchor.status, grantValue.subject, "revocation-list", contextValue, controls,
     );
   }
-  if (!anchor.namespaces.some((namespace) =>
-    actionValue.permission.resource === namespace ||
-    (
-      actionValue.permission.resource.startsWith(namespace) &&
-      (
-        namespace.endsWith("/") ||
-        ["/", "?", "#"].includes(actionValue.permission.resource.slice(namespace.length, namespace.length + 1))
-      )
-    )
-  )) throw denied("resource-namespace-mismatch");
+  if (
+    !contains(contextValue.resourceMatchers, contextValue.resourceMatcher) ||
+    contextValue.resourceMatcher !== "uri-namespace-v1"
+  ) throw indeterminate("unsupported-resource-matcher");
+  // Every grant permission, root to terminal, and then the action's
+  // permission must name a resource inside one of the anchor's namespaces.
+  const insideAnchor = (resource: string): boolean =>
+    anchor.namespaces.some((namespace) => namespaceMatches(namespace, resource));
+  for (const grantValue of chain) {
+    if (!grantValue.permissions.every((granted) => insideAnchor(granted.resource))) {
+      throw denied("resource-namespace-mismatch");
+    }
+  }
+  if (!insideAnchor(actionValue.permission.resource)) {
+    throw denied("resource-namespace-mismatch");
+  }
+  validateBudgetChain(anchor, chain, actionValue, contextValue);
   const authority: Authority = {
     subject: anchor.principal, allowedProfiles: anchor.profiles,
     permissions: anchor.permissions, notBefore: anchor.notBefore, expiresAt: anchor.expiresAt,
@@ -2007,24 +2045,8 @@ function verifyAuthority(
   canonical: CanonicalAction,
   adapters: any,
 ): { actionIDs: Uint8Array[]; branches: Uint8Array[]; assurance: Participant[] } {
-  if (
-    !contains(contextValue.resourceMatchers, contextValue.resourceMatcher) ||
-    contextValue.resourceMatcher !== "uri-namespace-v1"
-  ) throw indeterminate("unsupported-resource-matcher");
-  if (
-    !contains(contextValue.profilePolicies, contextValue.profilePolicy) ||
-    contextValue.profilePolicy !== "exact-v1"
-  ) throw indeterminate("unsupported-profile-policy");
-  for (const anchor of contextValue.anchors) {
-    requireBudgetAlgebra(anchor.budget, contextValue);
-  }
-  for (const grantValue of value.grants) {
-    requireBudgetAlgebra(grantValue.budget, contextValue);
-  }
-  for (const actionValue of value.actions) {
-    requireBudgetAlgebra(actionValue.budget, contextValue);
-  }
-  validateAttachments(value, canonical, contextValue);
+  // Action binding runs once, before any branch: the carried body, each
+  // signed action in proof order, the attachments, then the profile policy.
   if (value.canonicalBody !== undefined && !equal(value.canonicalBody, canonical.body)) {
     throw denied("action-body-mismatch");
   }
@@ -2052,6 +2074,11 @@ function verifyAuthority(
     evaluateCriticalExtensions(actionValue.extensions, contextValue.extensions);
     validateObservationAttachments(actionValue);
   }
+  validateAttachments(value, canonical, contextValue);
+  if (
+    !contains(contextValue.profilePolicies, contextValue.profilePolicy) ||
+    contextValue.profilePolicy !== "exact-v1"
+  ) throw indeterminate("unsupported-profile-policy");
   const actionByRef = new Map(value.actions.map((item) => [keyOf(item.proofRef), item]));
   const grantByID = new Map(value.grants.map((item) => [keyOf(item.id), item]));
   const controlByStatement = new Map(controls.map((item) => [refKey(item.statement), item]));

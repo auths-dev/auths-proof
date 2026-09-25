@@ -264,14 +264,6 @@ func resolveAndVerifyControl(
 	context *verifierContext,
 	adapters adapterContext,
 ) ([]verifiedControl, error) {
-	if !bytes.Equal(context.registryManifest, bytes.Repeat([]byte{0x36}, 32)) {
-		return nil, denied("registry-manifest-mismatch")
-	}
-	localConfiguration, err := hex.DecodeString(adapters.Configuration)
-	if err != nil || len(localConfiguration) != 32 ||
-		!bytes.Equal(context.configuration, localConfiguration) {
-		return nil, denied("verifier-configuration-mismatch")
-	}
 	planID := domainHash(3, bundle.plan.raw)
 	grants := make(map[string]*signedGrant, len(bundle.grants))
 	for _, grant := range bundle.grants {
@@ -386,6 +378,17 @@ func resolveAndVerifyControl(
 	}
 	if err := validateCarriedStatus(bundle, context); err != nil {
 		return nil, err
+	}
+
+	// Principal control starts by requiring the executable registry and
+	// configuration, after every reference has resolved.
+	if !bytes.Equal(context.registryManifest, bytes.Repeat([]byte{0x36}, 32)) {
+		return nil, denied("registry-manifest-mismatch")
+	}
+	localConfiguration, err := hex.DecodeString(adapters.Configuration)
+	if err != nil || len(localConfiguration) != 32 ||
+		!bytes.Equal(context.configuration, localConfiguration) {
+		return nil, denied("verifier-configuration-mismatch")
 	}
 
 	type signedInput struct {
@@ -585,32 +588,8 @@ func verifyAuthority(
 	canonical canonicalAction,
 	adapters adapterContext,
 ) ([][]byte, [][]byte, []participantReport, error) {
-	if !containsText(context.resourceMatchers, context.resourceMatcher) ||
-		context.resourceMatcher != "uri-namespace-v1" {
-		return nil, nil, nil, indeterminate("unsupported-resource-matcher")
-	}
-	if !containsText(context.profilePolicies, context.profilePolicy) ||
-		context.profilePolicy != "exact-v1" {
-		return nil, nil, nil, indeterminate("unsupported-profile-policy")
-	}
-	for _, anchor := range context.anchors {
-		if err := requireBudgetAlgebra(anchor.budget, context); err != nil {
-			return nil, nil, nil, err
-		}
-	}
-	for _, grant := range bundle.grants {
-		if err := requireBudgetAlgebra(grant.budget, context); err != nil {
-			return nil, nil, nil, err
-		}
-	}
-	for _, action := range bundle.actions {
-		if err := requireBudgetAlgebra(action.budget, context); err != nil {
-			return nil, nil, nil, err
-		}
-	}
-	if err := validateAttachments(bundle, canonical, context); err != nil {
-		return nil, nil, nil, err
-	}
+	// Action binding runs once, before any branch: the carried body, each
+	// signed action in proof order, the attachments, then the profile policy.
 	if bundle.canonicalBody != nil && !bytes.Equal(bundle.canonicalBody, canonical.body) {
 		return nil, nil, nil, denied("action-body-mismatch")
 	}
@@ -648,6 +627,13 @@ func verifyAuthority(
 		if err := validateObservationAttachments(action); err != nil {
 			return nil, nil, nil, err
 		}
+	}
+	if err := validateAttachments(bundle, canonical, context); err != nil {
+		return nil, nil, nil, err
+	}
+	if !containsText(context.profilePolicies, context.profilePolicy) ||
+		context.profilePolicy != "exact-v1" {
+		return nil, nil, nil, indeterminate("unsupported-profile-policy")
 	}
 	actionByRef := make(map[string]*signedAction)
 	grantByID := make(map[string]*signedGrant)
@@ -1079,14 +1065,24 @@ func verifyFromAnchor(
 			return nil, err
 		}
 	}
-	resourceAllowed := false
-	for _, namespace := range anchor.namespaces {
-		if uriNamespaceMatches(namespace, action.permission.resource) {
-			resourceAllowed = true
+	if !containsText(context.resourceMatchers, context.resourceMatcher) ||
+		context.resourceMatcher != "uri-namespace-v1" {
+		return nil, indeterminate("unsupported-resource-matcher")
+	}
+	// Every grant permission, root to terminal, and then the action's
+	// permission must name a resource inside one of the anchor's namespaces.
+	for _, grant := range chain {
+		for _, granted := range grant.perms {
+			if !insideAnchorNamespace(anchor, granted.resource) {
+				return nil, denied("resource-namespace-mismatch")
+			}
 		}
 	}
-	if !resourceAllowed {
+	if !insideAnchorNamespace(anchor, action.permission.resource) {
 		return nil, denied("resource-namespace-mismatch")
+	}
+	if err := validateBudgetChain(anchor, chain, action, context); err != nil {
+		return nil, err
 	}
 	authority := effectiveAuthority{
 		subject: anchor.principal, allowedProfiles: anchor.profiles,
@@ -1158,6 +1154,66 @@ func requireBudgetAlgebra(value *budget, context *verifierContext) error {
 	if !containsText(context.budgetAlgebras, value.algebra) ||
 		value.algebra != "numeric-ceiling-v1" {
 		return indeterminate("unsupported-budget-algebra")
+	}
+	return nil
+}
+
+func insideAnchorNamespace(anchor *trustAnchor, resource string) bool {
+	for _, namespace := range anchor.namespaces {
+		if uriNamespaceMatches(namespace, resource) {
+			return true
+		}
+	}
+	return false
+}
+
+// validateBudgetChain compares every bounded ceiling before the delegation
+// walk: each grant under a bounded parent, then the action's request under a
+// bounded terminal ceiling. An algebra is resolved only where a bounded
+// ceiling is compared, and the parent's algebra rejects a value in any other
+// algebra as invalid input, which is local-policy-denied.
+func validateBudgetChain(
+	anchor *trustAnchor,
+	chain []*signedGrant,
+	action *signedAction,
+	context *verifierContext,
+) error {
+	parent := anchor.budget
+	for _, grant := range chain {
+		child := grant.budget
+		if parent != nil {
+			if child == nil {
+				return denied("delegation-expanded")
+			}
+			if err := requireBudgetAlgebra(parent, context); err != nil {
+				return err
+			}
+			if child.algebra != parent.algebra {
+				return denied("local-policy-denied")
+			}
+			if child.value > parent.value {
+				return denied("delegation-expanded")
+			}
+		}
+		parent = child
+	}
+	if parent == nil {
+		return nil
+	}
+	if action.budget == nil {
+		if profileContains(context.budgetFreeProfiles, action.profile) {
+			return nil
+		}
+		return denied("budget-ceiling-exceeded")
+	}
+	if err := requireBudgetAlgebra(parent, context); err != nil {
+		return err
+	}
+	if action.budget.algebra != parent.algebra {
+		return denied("local-policy-denied")
+	}
+	if action.budget.value > parent.value {
+		return denied("budget-ceiling-exceeded")
 	}
 	return nil
 }
