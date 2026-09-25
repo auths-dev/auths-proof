@@ -56,7 +56,8 @@ The board's backlog paragraph says to "derive the provider idempotency key
 from the action commitment." That conflicts with AP-SPEC-053 §3.2, which
 derives the optional `Idempotency-Key` from the namespace and logical
 operation ID so that **a fresh challenge for the same logical operation
-cannot reopen it at the provider**. A key derived from the commitment
+cannot reopen it at a provider that honors the key, within that provider's
+retention window**. A key derived from the commitment
 changes with every challenge and loses that protection whenever gateway
 state is lost.
 
