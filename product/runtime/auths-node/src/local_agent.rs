@@ -47,6 +47,8 @@ use std::{
 use tokio::{io::AsyncReadExt, time::timeout};
 use tokio::{net::UnixListener, sync::RwLock};
 
+#[cfg(unix)]
+use crate::local_listener::{ListenerPolicy, descriptor_soft_limit};
 use crate::{
     journal_executor::JournaledLocalExecutor,
     profile_configuration::ProfileConfigurationSnapshot,
@@ -83,32 +85,6 @@ pub struct PeerCredentials {
     /// construct this field.
     #[cfg(all(target_os = "linux", feature = "qualification-failpoints"))]
     pub qualification_fault: Option<QualificationAdmissionFaultV1>,
-}
-
-#[cfg(unix)]
-impl axum::extract::connect_info::Connected<axum::serve::IncomingStream<'_, UnixListener>>
-    for PeerCredentials
-{
-    fn connect_info(stream: axum::serve::IncomingStream<'_, UnixListener>) -> Self {
-        stream.io().peer_cred().map_or(
-            Self {
-                uid: u32::MAX,
-                gid: u32::MAX,
-                pid: None,
-                #[cfg(all(target_os = "linux", feature = "qualification-failpoints"))]
-                qualification_fault: None,
-            },
-            |credentials| Self {
-                uid: credentials.uid(),
-                gid: credentials.gid(),
-                pid: credentials
-                    .pid()
-                    .and_then(|value| u32::try_from(value).ok()),
-                #[cfg(all(target_os = "linux", feature = "qualification-failpoints"))]
-                qualification_fault: None,
-            },
-        )
-    }
 }
 
 /// Immutable policy for the qualification-only `ClientProxy` bridge.
@@ -1115,16 +1091,41 @@ pub fn local_agent_app(state: LocalAgentState) -> Router {
 }
 
 /// Serves the router on a POSIX local socket with kernel peer credentials.
+///
+/// Connections are admitted up to the application limits this process's
+/// descriptor limit allows, agent-wide and per peer UID; a connection past
+/// either limit is closed at accept. The admin socket's connections never
+/// count against these limits.
+///
+/// # Errors
+/// Returns an error, before accepting anything, only when the descriptor
+/// limit is too low to reserve the admin socket's connections. Accept errors
+/// never end it.
 #[cfg(unix)]
 pub async fn serve_local_agent(
     listener: UnixListener,
     state: LocalAgentState,
 ) -> std::io::Result<()> {
-    axum::serve(
+    let policy =
+        ListenerPolicy::application(descriptor_soft_limit()).map_err(std::io::Error::other)?;
+    serve_local_agent_within(listener, state, policy).await
+}
+
+/// Serves the application socket under an explicit policy.
+#[cfg(unix)]
+pub(crate) async fn serve_local_agent_within(
+    listener: UnixListener,
+    state: LocalAgentState,
+    policy: ListenerPolicy,
+) -> std::io::Result<()> {
+    match crate::local_listener::serve(
         listener,
-        local_agent_app(state).into_make_service_with_connect_info::<PeerCredentials>(),
+        local_agent_app(state),
+        policy,
+        "application",
+        |_| true,
     )
-    .await
+    .await {}
 }
 
 /// Serves the qualification router only after the protected `ClientProxy` has
@@ -2193,5 +2194,305 @@ mod tests {
             .unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
         assert_eq!(executor.0.load(Ordering::SeqCst), 1);
+    }
+
+    /// Sends one `Connection: close` request and reads the whole response.
+    /// `half_close` closes the sending side once the request is written, as
+    /// the operator CLI does; the SDKs keep it open.
+    #[cfg(unix)]
+    async fn exchange(socket: &std::path::Path, request: &[u8], half_close: bool) -> Vec<u8> {
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+        let mut stream = tokio::net::UnixStream::connect(socket).await.unwrap();
+        stream.write_all(request).await.unwrap();
+        if half_close {
+            stream.shutdown().await.unwrap();
+        }
+        let mut response = Vec::new();
+        tokio::time::timeout(Duration::from_secs(5), stream.read_to_end(&mut response))
+            .await
+            .expect("answered")
+            .unwrap();
+        response
+    }
+
+    /// Reads until the agent closes the connection; returns what it wrote.
+    #[cfg(unix)]
+    async fn read_until_closed(stream: &mut tokio::net::UnixStream, within: Duration) -> Vec<u8> {
+        use tokio::io::AsyncReadExt as _;
+
+        let mut response = Vec::new();
+        // A reset closes the connection as surely as an orderly end.
+        let _ = tokio::time::timeout(within, stream.read_to_end(&mut response))
+            .await
+            .expect("the agent closed the connection in time");
+        response
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    #[allow(clippy::too_many_lines)]
+    async fn admin_socket_answers_while_idle_application_connections_hold_the_limit() {
+        use crate::connection_admin::{
+            AdminPeerPolicy, ConnectionAdminState, serve_connection_admin_within,
+        };
+        use crate::local_listener::ListenerPolicy;
+        use auths_connections::{
+            ConnectionAlias, ConnectionCredentialStore as _, ConnectionId, ConnectionProfile,
+            ConnectionRecord, ConnectionState, PersistentCredentialStore, ProviderKind,
+            RegistryLimits, SecretBytes, SemanticId,
+        };
+        use auths_stores::PersistentConnectionStore;
+        use std::os::unix::fs::PermissionsExt as _;
+        use tokio::{io::AsyncWriteExt as _, net::UnixStream};
+
+        let directory = tempfile::tempdir().unwrap();
+        std::fs::set_permissions(directory.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+        let root = directory.path();
+        let authorities = root.join("authorities");
+        std::fs::create_dir(&authorities).unwrap();
+        let config = format!(
+            r#"[agent]
+authority_root = "{}"
+
+[agent.receipt_signing.decision]
+algorithm = "Ed25519"
+key_id = "decision-2026-01"
+verification_method = "did:key:auths-receipt-decision#decision-2026-01"
+public_key_base64url = "1UIH2hlJd9z0atv-wrwudbUtWopCGE_t_cAAJPDj6No"
+seed_file = "/var/lib/auths/receipt-decision.key"
+not_before_unix_seconds = 1
+not_after_unix_seconds = 4102444800
+
+[agent.receipt_signing.execution]
+algorithm = "Ed25519"
+key_id = "execution-2026-01"
+verification_method = "did:key:auths-receipt-execution#execution-2026-01"
+public_key_base64url = "URw0oaLLUh3xa7JGuN6OeZfOI1x-drIqPXUDokgZ3Yo"
+seed_file = "/var/lib/auths/receipt-execution.key"
+not_before_unix_seconds = 1
+not_after_unix_seconds = 4102444800
+
+[agent.authority_sources.payments]
+kind = "sealed-file-v1"
+path = "{}"
+
+[[agent.workloads]]
+id = "payments-worker"
+principal = "did:example:payments-worker"
+authority_source = "payments"
+allowed_profiles = ["auths.postgresql.bounded-update/1"]
+connections = [{{ provider = "postgresql", alias = "database-primary", default = true }}]
+
+[agent.workloads.selector]
+kind = "posix"
+uid = 1000
+"#,
+            authorities.display(),
+            authorities.join("payments.cbor").display()
+        );
+        let agent_config =
+            AgentConfig::from_toml(&config, auths_config::AgentPlatform::Linux).unwrap();
+
+        // One connection for the operator to revoke while the limit is held.
+        let connections = Arc::new(
+            PersistentConnectionStore::open(
+                root.join("connections.cbor"),
+                RegistryLimits::default(),
+            )
+            .unwrap(),
+        );
+        let credentials =
+            Arc::new(PersistentCredentialStore::open(root.join("credentials.cbor")).unwrap());
+        let connection_id = ConnectionId::generate().unwrap();
+        let generation = std::num::NonZeroU64::new(1).unwrap();
+        let reference = credentials
+            .install(
+                &connection_id,
+                generation,
+                SecretBytes::new(b"synthetic-credential".to_vec()).unwrap(),
+            )
+            .await
+            .unwrap();
+        let provider = ProviderKind::parse("postgresql").unwrap();
+        let alias = ConnectionAlias::parse("database-primary").unwrap();
+        connections
+            .insert(
+                ConnectionRecord::new(
+                    provider.clone(),
+                    alias.clone(),
+                    connection_id,
+                    SemanticId::parse("auths.postgresql.connection/1").unwrap(),
+                    SemanticId::parse("auths.postgresql.connection-descriptor/1").unwrap(),
+                    b"{}".to_vec(),
+                    [7; 32],
+                    *reference.as_bytes(),
+                    generation,
+                    ConnectionState::Active,
+                    vec!["payments-worker".to_owned()],
+                    vec![
+                        ConnectionProfile::new(
+                            SemanticId::parse("auths.postgresql.bounded-update").unwrap(),
+                            1,
+                        )
+                        .unwrap(),
+                    ],
+                    1,
+                    1,
+                    None,
+                )
+                .unwrap(),
+            )
+            .unwrap();
+        let operator = rustix::process::geteuid().as_raw();
+        let admin_state = ConnectionAdminState::new(
+            AdminPeerPolicy::new([operator], []).unwrap(),
+            agent_config,
+            Arc::clone(&connections),
+            credentials,
+            root.join("admin-audit.jsonl"),
+        )
+        .unwrap();
+        let local_state = LocalAgentState::new_test(
+            Arc::new(FixedAuthenticator),
+            Arc::new(NoopExecutor),
+            built_in_testkit_local_profiles().unwrap(),
+        )
+        .unwrap();
+
+        let agent_socket = root.join("agent.sock");
+        let admin_socket = root.join("admin.sock");
+        let agent_listener = UnixListener::bind(&agent_socket).unwrap();
+        let admin_listener = UnixListener::bind(&admin_socket).unwrap();
+        std::fs::set_permissions(&admin_socket, std::fs::Permissions::from_mode(0o600)).unwrap();
+        // A small application limit exercises the same path as the
+        // descriptor-derived production limits.
+        let idle = Duration::from_secs(3);
+        let application = ListenerPolicy::new(8, 8, idle, idle).unwrap();
+        let agent = tokio::spawn(serve_local_agent_within(
+            agent_listener,
+            local_state,
+            application,
+        ));
+        let admin = tokio::spawn(serve_connection_admin_within(
+            admin_listener,
+            admin_state,
+            ListenerPolicy::admin(),
+        ));
+
+        // Hold the application limit: silent connections, one that stops
+        // inside its headers, and one that stops inside its body.
+        let held_since = std::time::Instant::now();
+        let mut held = Vec::new();
+        for _ in 0..6 {
+            held.push(UnixStream::connect(&agent_socket).await.unwrap());
+        }
+        let mut partial_headers = UnixStream::connect(&agent_socket).await.unwrap();
+        partial_headers
+            .write_all(b"POST /v1/session HTTP/1.1\r\nHost: auths.local\r\n")
+            .await
+            .unwrap();
+        let mut stalled_body = UnixStream::connect(&agent_socket).await.unwrap();
+        let mut first_byte_of_body = format!(
+            "POST /v1/session HTTP/1.1\r\nHost: auths.local\r\nContent-Type: {LOCAL_AGENT_CONTENT_TYPE}\r\nContent-Length: 64\r\n\r\n"
+        )
+        .into_bytes();
+        first_byte_of_body.push(0xa0);
+        stalled_body.write_all(&first_byte_of_body).await.unwrap();
+        for _ in 0..4 {
+            let mut past_limit = UnixStream::connect(&agent_socket).await.unwrap();
+            assert!(
+                read_until_closed(&mut past_limit, Duration::from_secs(2))
+                    .await
+                    .is_empty(),
+                "a connection past the limit is closed at accept without a response"
+            );
+        }
+
+        // The operator's admin socket still lists and revokes, for a client
+        // that sends its request the way `auths connections` does.
+        let listed = exchange(
+            &admin_socket,
+            format!(
+                "GET /v1/admin/connections HTTP/1.1\r\nHost: auths.local\r\nContent-Type: {LOCAL_AGENT_CONTENT_TYPE}\r\nConnection: close\r\n\r\n"
+            )
+            .as_bytes(),
+            true,
+        )
+        .await;
+        assert!(listed.starts_with(b"HTTP/1.1 200"), "list answered");
+        let mut body = minicbor::Encoder::new(Vec::new());
+        body.map(3)
+            .unwrap()
+            .u8(1)
+            .unwrap()
+            .u8(1)
+            .unwrap()
+            .u8(2)
+            .unwrap()
+            .bytes(&[3; 16])
+            .unwrap()
+            .u8(3)
+            .unwrap()
+            .u64(1)
+            .unwrap();
+        let body = body.into_writer();
+        let mut revoke = format!(
+            "POST /v1/admin/connections/postgresql/database-primary/revoke HTTP/1.1\r\nHost: auths.local\r\nContent-Type: {LOCAL_AGENT_CONTENT_TYPE}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        )
+        .into_bytes();
+        revoke.extend_from_slice(&body);
+        let revoked = exchange(&admin_socket, &revoke, true).await;
+        assert!(revoked.starts_with(b"HTTP/1.1 200"), "revoke answered");
+        assert_eq!(
+            connections
+                .load(&provider, &alias)
+                .unwrap()
+                .unwrap()
+                .state(),
+            ConnectionState::Revoked
+        );
+        let mut still_full = UnixStream::connect(&agent_socket).await.unwrap();
+        assert!(
+            read_until_closed(&mut still_full, Duration::from_secs(2))
+                .await
+                .is_empty(),
+            "the application limit was still held when the admin socket answered"
+        );
+        assert!(held_since.elapsed() < idle);
+
+        // Idle connections are closed by the header-read timeout, without a
+        // response, and a stalled body by the body idle timeout, with a
+        // refusal.
+        for stream in held.iter_mut().chain([&mut partial_headers]) {
+            assert!(
+                read_until_closed(stream, Duration::from_secs(6))
+                    .await
+                    .is_empty()
+            );
+        }
+        assert!(
+            read_until_closed(&mut stalled_body, Duration::from_secs(6))
+                .await
+                .starts_with(b"HTTP/1.1 4")
+        );
+        assert!(held_since.elapsed() >= idle);
+
+        // Their places are free again.
+        let mut malformed_session = format!(
+            "POST /v1/session HTTP/1.1\r\nHost: auths.local\r\nContent-Type: {LOCAL_AGENT_CONTENT_TYPE}\r\nContent-Length: 1\r\nConnection: close\r\n\r\n"
+        )
+        .into_bytes();
+        malformed_session.push(0xa0);
+        let served = exchange(&agent_socket, &malformed_session, false).await;
+        assert!(
+            served.starts_with(b"HTTP/1.1 400"),
+            "malformed session request"
+        );
+        assert!(!agent.is_finished());
+        assert!(!admin.is_finished());
+        agent.abort();
+        admin.abort();
     }
 }

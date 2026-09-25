@@ -1711,6 +1711,9 @@ runtime-enforcement-boundary = [
   "product/runtime/auths-gateway/src/bounds_tests.rs#one_bounded_branch_is_admitted_and_counted_against_its_actor",
   "product/runtime/auths-gateway/src/bounds.rs#registry_refuses_unregistered_and_mismatched_evaluators",
   "product/runtime/auths-gateway/src/bounds.rs#decider_accepts_only_a_tighter_bound_on_the_same_argument_and_window",
+  "product/runtime/auths-gateway/tests/admin_capacity.rs#revoke_answers_while_idle_application_connections_hold_the_capacity",
+  "product/runtime/auths-gateway/tests/admin_capacity.rs#a_failed_accept_does_not_stop_the_gateway",
+  "product/runtime/auths-gateway/src/app.rs#the_deadline_closes_the_connection_but_never_cancels_the_call",
 ]
 stateful-replay-budget-component = [
   "product/runtime/auths-gateway/src/recipe.rs#durable_claim_is_one_use_across_races_and_restart",
@@ -1745,6 +1748,8 @@ runtime-enforcement-boundary = [
   "product/runtime/auths-node/src/journal_executor.rs#provider_result_and_observation_are_distinct_durable_checkpoints",
   "product/runtime/auths-node/src/journal_executor.rs#restart_after_provider_entry_reconciles_without_provider_retry",
   "product/runtime/auths-node/src/local_agent.rs#qualification_bridge_rebinds_only_canonical_live_process_identity",
+  "product/runtime/auths-node/src/local_agent.rs#admin_socket_answers_while_idle_application_connections_hold_the_limit",
+  "product/runtime/auths-node/src/local_listener.rs#accept_errors_back_off_and_the_listener_keeps_serving",
 ]
 
 [packages.auths-runtime]

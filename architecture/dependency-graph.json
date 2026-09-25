@@ -6634,6 +6634,36 @@
     {
       "source": "auths-node",
       "source_layer": "product",
+      "target": "hyper",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "http1",
+        "server"
+      ]
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
+      "target": "hyper-util",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "service",
+        "tokio"
+      ]
+    },
+    {
+      "source": "auths-node",
+      "source_layer": "product",
       "target": "minicbor",
       "target_layer": null,
       "scope": "external",
@@ -6835,7 +6865,7 @@
       "target": "tower",
       "target_layer": null,
       "scope": "external",
-      "kind": "dev",
+      "kind": "normal",
       "target_condition": null,
       "optional": false,
       "default_features": true,
