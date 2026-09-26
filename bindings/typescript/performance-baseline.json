@@ -22,8 +22,8 @@
     "chromiumWarmVerificationP95Ms": 15,
     "chromiumWorkerColdStartMs": 150,
     "residentMemoryBytes": 89000000,
-    "wasmBytes": 2254889,
-    "compressedWasmBytes": 603462,
-    "distBytes": 923668
+    "wasmBytes": 2664184,
+    "compressedWasmBytes": 704772,
+    "distBytes": 1033500
   }
 }
