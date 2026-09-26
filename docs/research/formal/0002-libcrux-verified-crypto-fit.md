@@ -75,8 +75,8 @@ nothing here is implemented.
   - Low-S is enforced in the suite.
   - Keys are decoded with `from_sec1_bytes`. That call also accepts the 65-byte
     uncompressed (`0x04`) and 33-byte `0x05` forms. `core/spec/v1/registry.md`
-    allows only the 33-byte compressed form. This is corrected separately, in
-    the P-256 key-encoding change.
+    allows only the 33-byte compressed form. [PR #176](https://github.com/auths-dev/auths-proof/pull/176)
+    corrects this.
 - **SHA-256** is used for:
   - identifiers: `SHA-256("AUTHS-ID" ‖ u16 major ‖ u16 type ‖ u64 len ‖ bytes)`;
   - `AUTHS-COMMITMENT` commitments;

@@ -200,7 +200,7 @@ a non-canonical key, the result class changes from a verification failure to
 `InvalidKey`. That change MUST land in phase 2 with corpus vectors, and with
 the Go and TypeScript verifiers agreeing. Rule 2 is the registry's key rule.
 The Go and TypeScript verifiers enforce it, and Rust enforces it after the
-P-256 key-encoding change (§10). Under (c), the axioms
+P-256 key-encoding change (PR #176). Under (c), the axioms
 are true only once these rules hold, because RFC 8032 decoding and the
 registry reject inputs that the current libraries accept.
 
@@ -359,4 +359,5 @@ Two read-only investigations were run against `main` at `8b96f2ca`.
 
 The spike also found that P-256 key validation accepted SEC1 forms outside
 `registry.md`'s 33-byte compressed rule, which the Go and TypeScript verifiers
-already rejected. The P-256 key-encoding change corrects this.
+already rejected. [PR #176](https://github.com/auths-dev/auths-proof/pull/176)
+corrects this.
