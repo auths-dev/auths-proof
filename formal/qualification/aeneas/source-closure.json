@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "e2686c422e4a94498a2581533e98ecd16efa16d6085cce13277147e4646e3c0a",
+  "digest": "ab8a52b5cd6b01b3e22dab8529b0046ee06a024799f1c0c4147f65458c2b17f7",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -8,7 +8,7 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "f28c5ef6e2556b3d2e737bc511ebb67c65daa390c84411604a47f86c53ed6c76",
+      "sha256": "6323949391adef02f3e697eff84b60ded827819576ba1ad9961926dbd4f2da28",
       "normalization": "translated-cargo-closure-v1"
     },
     {
@@ -233,7 +233,7 @@
     },
     {
       "path": "xtask/src/checks.rs",
-      "sha256": "4739bb47f55bf406b3be9074022e1f90ea82782fb3938655ff233afd4cc4d0c2"
+      "sha256": "1a6736e321e161bfcefae051a1a22d047d83f5d511490670f37da5d70a44d082"
     },
     {
       "path": "xtask/src/compliance.rs",
@@ -261,7 +261,7 @@
     },
     {
       "path": "xtask/src/formal_qualification.rs",
-      "sha256": "f59d82bdb3ea7b9e7f8751b2c95e9ae0b57edd61a1e06ac3782ac7313995410f"
+      "sha256": "085f9c6dae1beb23e2f0e8500a823fef7a360ea86507601e370a8cf57d375c07"
     },
     {
       "path": "xtask/src/fuzz.rs",
@@ -301,11 +301,11 @@
     },
     {
       "path": "xtask/src/profile_codegen.rs",
-      "sha256": "10c31fb6749595e52b71a4236269bf5e1a13eff4025eaad692e6d33e0ed269f7"
+      "sha256": "e4e5ee42a9f2cdd6fadc5288291382c5f39a417e3704cbad1117e70707f42112"
     },
     {
       "path": "xtask/src/profile_qualification.rs",
-      "sha256": "5e8ecb946f099b53edacfec2caf17ba300140b52f23f49a7d1331060e43d0402"
+      "sha256": "a5e8ec823fcb6ab9bfaaad069dac1c341563393a7f417735338ab2e6f7a53ee6"
     },
     {
       "path": "xtask/src/profile_qualification_adapters.rs",
@@ -321,11 +321,11 @@
     },
     {
       "path": "xtask/src/public_naming.rs",
-      "sha256": "9ae55f318f5852efc70f1d5846cd77736d0ba76a0173c2b1b05a6c15e5d68de7"
+      "sha256": "f076064dbd8a6e76a90d42b5e0a2643a3bac9d9a1d97b649d935f6453e448b8e"
     },
     {
       "path": "xtask/src/release.rs",
-      "sha256": "8713c73c40ce923e48336f82f4e584ac695419469d2d6683e2109cc21e77cb8f"
+      "sha256": "51d7713fd79730568d70b15065b1091de0096e1d398dfe03fe1433a470f7d8a4"
     },
     {
       "path": "xtask/src/release_control.rs",

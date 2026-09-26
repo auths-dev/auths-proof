@@ -10,8 +10,8 @@ Use owner-controlled absolute paths. The current runnable deployment is
 qualified only for Unix-domain sockets.
 
 ```bash
-auths agent validate-config /etc/auths/agent.toml
-auths agent serve \
+auths-node agent validate-config /etc/auths/agent.toml
+auths-node agent serve \
   --config /etc/auths/agent.toml \
   --state-directory /var/lib/auths
 ```
@@ -40,15 +40,15 @@ Prepare a canonical non-secret provider descriptor and an owner-only secret
 file (or pipe the secret on non-terminal stdin):
 
 ```bash
-auths --admin-socket /var/lib/auths/admin.sock connections add stripe \
+auths-node --admin-socket /var/lib/auths/admin.sock connections add stripe \
   --alias billing \
   --descriptor /etc/auths/stripe-billing.json \
   --allow-workload refund-worker \
   --allow-profile auths.stripe.refund/1 \
   --secret-file /run/secrets/stripe-billing
 
-auths --admin-socket /var/lib/auths/admin.sock connections inspect stripe/billing
-auths --admin-socket /var/lib/auths/admin.sock connections list
+auths-node --admin-socket /var/lib/auths/admin.sock connections inspect stripe/billing
+auths-node --admin-socket /var/lib/auths/admin.sock connections list
 ```
 
 Onboarding must contact or query the provider sufficiently to prove that the
@@ -66,11 +66,11 @@ original connection generation.
 ## Rotate, disable, enable, revoke
 
 ```bash
-auths --admin-socket /var/lib/auths/admin.sock connections rotate stripe/billing \
+auths-node --admin-socket /var/lib/auths/admin.sock connections rotate stripe/billing \
   --secret-file /run/secrets/stripe-billing-next
-auths --admin-socket /var/lib/auths/admin.sock connections disable stripe/billing
-auths --admin-socket /var/lib/auths/admin.sock connections enable stripe/billing
-auths --admin-socket /var/lib/auths/admin.sock connections revoke stripe/billing
+auths-node --admin-socket /var/lib/auths/admin.sock connections disable stripe/billing
+auths-node --admin-socket /var/lib/auths/admin.sock connections enable stripe/billing
+auths-node --admin-socket /var/lib/auths/admin.sock connections revoke stripe/billing
 ```
 
 - **Rotate** creates a successor generation with the new secret, and new

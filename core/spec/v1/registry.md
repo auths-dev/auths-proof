@@ -48,6 +48,11 @@ denied. There is no fallback or version negotiation.
 | `ed25519-v1` | 32-byte compressed point | 64 bytes | RFC 8032 verification of exact preimage |
 | `p256-sha256-v1` | 33-byte compressed SEC1 | 64-byte `r || s` | ECDSA/SHA-256, low-S required |
 
+A `p256-sha256-v1` public key is exactly 33 bytes: prefix `0x02` or `0x03`
+followed by the x-coordinate of a point on the curve. The identity (`0x00`),
+uncompressed (`0x04`), compact (`0x05`), and hybrid (`0x06`/`0x07`) SEC1
+forms are rejected.
+
 ## Adapters outside the built-in set
 
 These adapters live in `core/adapters/` but are not part of the built-in

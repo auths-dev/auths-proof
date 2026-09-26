@@ -1,4 +1,4 @@
-"""``auths-profile approve``: the reference approval surface.
+"""``auths approve``: the reference approval surface.
 
 It prints only the review native code returned for the exact request, asks
 before signing, and never approves by default.
@@ -198,7 +198,7 @@ async def _answer(
     try:
         review = open_approval_request(_read_request(args.request))
     except ApprovalRefused as refused:
-        print(f"auths-profile: request refused: {refused.code}; nothing was signed", file=sys.stderr)
+        print(f"auths: request refused: {refused.code}; nothing was signed", file=sys.stderr)
         return 1
     print(_render(review), file=sys.stderr)
     if development:
@@ -208,7 +208,7 @@ async def _answer(
         confirmed = True
     elif not interactive:
         print(
-            "auths-profile: no terminal to confirm on; pass --yes to answer without a prompt."
+            "auths: no terminal to confirm on; pass --yes to answer without a prompt."
             " Nothing was signed.",
             file=sys.stderr,
         )
@@ -225,10 +225,10 @@ async def _answer(
         else:
             response = await approve(review, signer, grants=grants)
     except ApprovalRefused as refused:
-        print(f"auths-profile: refused: {refused.code}; nothing was signed", file=sys.stderr)
+        print(f"auths: refused: {refused.code}; nothing was signed", file=sys.stderr)
         return 1
     except AuthoringUnsuccessful as unsuccessful:
-        print(f"auths-profile: custody {unsuccessful.kind}: {unsuccessful.code}", file=sys.stderr)
+        print(f"auths: custody {unsuccessful.kind}: {unsuccessful.code}", file=sys.stderr)
         return 1
     if args.out is None:
         print(response.text)
@@ -240,7 +240,7 @@ async def _answer(
 
 def approve_main(argv: Sequence[str]) -> int:
     parser = argparse.ArgumentParser(
-        prog="auths-profile approve",
+        prog="auths approve",
         description="Review one approval request and answer it with your own custody.",
     )
     parser.add_argument("request", help="request file, or the auths-ar1- text itself")
@@ -252,5 +252,5 @@ def approve_main(argv: Sequence[str]) -> int:
     try:
         return asyncio.run(_run(args, sys.stdin.isatty()))
     except (OSError, UnicodeError, ValueError, KeyError, ImportError, AttributeError, TypeError) as error:
-        print(f"auths-profile: {error}", file=sys.stderr)
+        print(f"auths: {error}", file=sys.stderr)
         return 1

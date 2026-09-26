@@ -6,9 +6,8 @@
 extern crate alloc;
 
 use alloc::{format, string::String, vec::Vec};
+use auths_signature_core::{validate_ed25519_key, validate_p256_key};
 use core::fmt;
-use ed25519_dalek::VerifyingKey as Ed25519Key;
-use p256::ecdsa::VerifyingKey as P256Key;
 
 const ED25519_MULTICODEC: [u8; 2] = [0xed, 0x01];
 const P256_MULTICODEC: [u8; 2] = [0x80, 0x24];
@@ -134,19 +133,17 @@ impl Multikey {
     }
 }
 
+/// Applies the signature suite's own key rule, so a Multikey accepts exactly the keys its suite
+/// verifies with. The caller has already checked the multicodec's key length.
 fn validate_public_key(key_type: MultikeyType, public_key: &[u8]) -> Result<(), MultikeyError> {
     match key_type {
         MultikeyType::Ed25519 => {
-            let bytes: [u8; 32] = public_key
-                .try_into()
-                .map_err(|_| MultikeyError::InvalidKeyLength)?;
-            Ed25519Key::from_bytes(&bytes).map_err(|_| MultikeyError::InvalidPublicKey)?;
+            validate_ed25519_key(public_key).map_err(|_| MultikeyError::InvalidPublicKey)
         }
         MultikeyType::P256 => {
-            P256Key::from_sec1_bytes(public_key).map_err(|_| MultikeyError::InvalidPublicKey)?;
+            validate_p256_key(public_key).map_err(|_| MultikeyError::InvalidPublicKey)
         }
     }
-    Ok(())
 }
 
 /// Closed Multikey parsing failure.
@@ -207,5 +204,40 @@ mod tests {
             Err(MultikeyError::UnsupportedMulticodec)
         );
         assert!(Multikey::parse("z0OIl").is_err());
+    }
+
+    #[test]
+    fn p256_payload_must_be_a_compressed_point() {
+        let compressed = Multikey::parse("zDnaerx9CtbPJ1q36T5Ln5wYt3MQYeGRG5ehnPAmxcf5mDZpv")
+            .unwrap()
+            .public_key()
+            .to_vec();
+        let encode = |key: &[u8]| {
+            let mut bytes = P256_MULTICODEC.to_vec();
+            bytes.extend_from_slice(key);
+            format!("z{}", bs58::encode(bytes).into_string())
+        };
+        // The official vector's on-curve x-coordinate in the SEC1 compact form.
+        let mut compact = compressed.clone();
+        compact[0] = 0x05;
+        assert_eq!(
+            Multikey::parse(&encode(&compact)),
+            Err(MultikeyError::InvalidPublicKey)
+        );
+        // The same x-coordinate under every other non-compressed tag.
+        for tag in (0..=u8::MAX).filter(|tag| !matches!(tag, 0x02 | 0x03)) {
+            let mut key = compressed.clone();
+            key[0] = tag;
+            assert_eq!(
+                Multikey::parse(&encode(&key)),
+                Err(MultikeyError::InvalidPublicKey),
+                "tag {tag:#04x}"
+            );
+            assert_eq!(
+                Multikey::from_public_key(MultikeyType::P256, key),
+                Err(MultikeyError::InvalidPublicKey),
+                "tag {tag:#04x}"
+            );
+        }
     }
 }

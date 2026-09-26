@@ -8,7 +8,7 @@ const AUTHS_NODE_CHECK_PROFILES: [&[&str]; 5] = [
         "auths-node",
         "--no-default-features",
         "--bin",
-        "auths",
+        "auths-node",
     ],
     &[
         "-p",

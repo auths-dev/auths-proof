@@ -682,7 +682,7 @@ fn build_qualification_release_binaries() -> Result<(), String> {
         "auths-node",
         "--no-default-features",
         "--bin",
-        "auths",
+        "auths-node",
     ])?;
     cargo(&[
         "build",
@@ -737,7 +737,7 @@ fn prepare_qualification_release_artifacts(
 
     let production_archive = directory.join("production-agent/auths-production-agent.tar.zst");
     let production_files = BTreeMap::from([
-        ("target/release/auths".to_owned(), 0o755),
+        ("target/release/auths-node".to_owned(), 0o755),
         (
             "target/release/stripe-refund-evidence-reader".to_owned(),
             0o755,
@@ -2249,7 +2249,7 @@ mod tests {
             }
             let production_entries = vec![
                 (
-                    "target/release/auths".to_owned(),
+                    "target/release/auths-node".to_owned(),
                     b"local-agent-production-binary".to_vec(),
                 ),
                 (
@@ -3341,7 +3341,7 @@ verify({github,context:{repo:{owner:'auths-dev',repo:'auths-proof'}}}).catch((er
             &path,
             &[
                 (
-                    "auths-production-agent/target/release/auths",
+                    "auths-production-agent/target/release/auths-node",
                     b"local-agent-production-binary",
                     tar::EntryType::Regular,
                     false,
@@ -3376,13 +3376,13 @@ verify({github,context:{repo:{owner:'auths-dev',repo:'auths-proof'}}}).catch((er
             &path,
             &[
                 (
-                    "auths-production-agent/target/release/auths",
+                    "auths-production-agent/target/release/auths-node",
                     b"local-agent-production-binary",
                     tar::EntryType::Regular,
                     false,
                 ),
                 (
-                    "auths-production-agent/target/release/auths",
+                    "auths-production-agent/target/release/auths-node",
                     b"local-agent-production-binary",
                     tar::EntryType::Regular,
                     false,
@@ -3410,7 +3410,7 @@ verify({github,context:{repo:{owner:'auths-dev',repo:'auths-proof'}}}).catch((er
         write_hostile_test_archive(
             &path,
             &[(
-                "auths-production-agent/target/release/auths",
+                "auths-production-agent/target/release/auths-node",
                 b"",
                 tar::EntryType::Symlink,
                 false,
@@ -3467,7 +3467,7 @@ verify({github,context:{repo:{owner:'auths-dev',repo:'auths-proof'}}}).catch((er
         let mut forbidden = QualificationReleaseFixture::new();
         forbidden.replace_production_archive(&[
             (
-                "target/release/auths".to_owned(),
+                "target/release/auths-node".to_owned(),
                 b"safe-prefix:/v1/workflows/unsafe".to_vec(),
             ),
             (

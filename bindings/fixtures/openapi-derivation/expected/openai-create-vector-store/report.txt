@@ -6,5 +6,5 @@
   omitted:    file_ids (--omit) description (--omit) expires_after (--omit) chunking_strategy (--omit) metadata (--omit)
   overrides:  --max-bytes name=128 --require name --omit chunking_strategy --omit description --omit expires_after --omit file_ids --omit metadata
   wrote:      profile.toml recipe.json derivation.json
-  next:       auths-profile generate profile.toml && auths gateway recipe check --recipe recipe.json --profile-lock profile.lock.json
+  next:       auths generate profile.toml && auths-node gateway recipe check --recipe recipe.json --profile-lock profile.lock.json
   claim:      derived shape only; provider effect unqualified

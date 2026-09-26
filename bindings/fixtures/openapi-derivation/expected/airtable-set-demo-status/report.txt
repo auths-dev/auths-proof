@@ -7,5 +7,5 @@
   overrides:  --omit returnFieldsByFieldId --omit typecast
   unenforced: record_id minLength (#/paths/~1appTEST0000000001~1tblTEST0000000001~1{record_id}/patch/parameters/0/schema/minLength)
   wrote:      profile.toml recipe.json derivation.json
-  next:       auths-profile generate profile.toml && auths gateway recipe check --recipe recipe.json --profile-lock profile.lock.json
+  next:       auths generate profile.toml && auths-node gateway recipe check --recipe recipe.json --profile-lock profile.lock.json
   claim:      derived shape only; provider effect unqualified

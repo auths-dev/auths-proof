@@ -65,10 +65,11 @@ Before the application starts, a privileged operator:
    aliases; and
 4. verifies socket ownership.
 
-The agent is the `auths` binary of the unpublished `auths-node` package;
-build it from this repository with `cargo build -p auths-node --bin auths`.
-The separately installed Auths identity CLI is also named `auths`, so run the
-agent binary by its path, for example `target/debug/auths agent serve`.
+The agent is the `auths-node` binary of the unpublished `auths-node` package;
+build it from this repository with `cargo build -p auths-node --bin auths-node`
+and run it by its path, for example `target/debug/auths-node agent serve`.
+The `auths` command is the packaged SDK CLI (`auths approve`, `auths init`, and
+the profile commands); it does not run the agent.
 
 Provider secrets enter only the privileged administration flow. They are
 stored behind the configured credential store and never returned to the

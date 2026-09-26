@@ -41,13 +41,13 @@ not an exit criterion; "derive the operations that fit, and say precisely
 why the others do not" is.
 
 AP-SPEC-024 §4 still holds: no OpenAPI document is accepted from a caller at
-runtime. Derivation runs where `auths-profile init` runs, produces files the
+runtime. Derivation runs where `auths init` runs, produces files the
 developer commits, and is finished before any proof is authored.
 
 ## 2. UX
 
 ```text
-$ auths-profile derive \
+$ auths derive \
     --openapi ./vendor/todoist-v2.yaml \
     --operation createTask \
     --service todoist --name create-task \
@@ -64,10 +64,10 @@ $ auths-profile derive \
   overrides:  content.max_bytes=256 description.max_bytes=1024 labels.max_items=8
               project_id.required=true
   wrote:      profile.toml recipe.toml derivation.json
-  next:       auths-profile generate && auths gateway recipe check recipe.toml
+  next:       auths generate && auths-node gateway recipe check recipe.toml
   claim:      derived shape only; provider effect unqualified
 
-$ auths-profile derive --openapi ./vendor/todoist-v2.yaml --operation updateTask ...
+$ auths derive --openapi ./vendor/todoist-v2.yaml --operation updateTask ...
   REJECTED  contract
     parameters[in=query] "reveal_completed": query parameters are not in the
     recipe language (AP-SPEC-053 §3.2)
@@ -180,7 +180,7 @@ later revision of 0053 MAY add a typed query segment; this spec does not.
 | `servers` | the single operator-pinned origin |
 | responses | unused; observation is not derived in this format |
 
-The recipe MUST compile under `auths gateway recipe check` without edits. If
+The recipe MUST compile under `auths-node gateway recipe check` without edits. If
 the compiler's limits (fields, depth, bytes, timeout, redirects) are tighter
 than this spec, the compiler's limits win and derivation reports them.
 
@@ -240,7 +240,7 @@ override; no derivation reads the network or a credential.
 
 ### Epic 2 — Packaged command and round trip
 
-1. Add `auths-profile derive` to the Python and TypeScript CLIs with the
+1. Add `auths derive` to the Python and TypeScript CLIs with the
    flags in §2 and the codes in §4.
 2. Wire `derivation.json` verification into `profile check` and the
    "edited by hand" diagnostic into `profile diff`.
@@ -298,7 +298,7 @@ provider effect remains unqualified.
 | Question | Reading |
 | --- | --- |
 | Where the mapper lives | One Rust crate in the product layer, `product/tools/auths-openapi-derive`. Python calls it as `auths._native.derive_openapi_operation_v1`; TypeScript calls the WASM export `deriveOpenapiOperationV1` from `tools/profile-cli.mjs`. Both return the same JSON result, so outputs match by construction. The mapper also parses the derive flags, so flag grammar cannot differ by language. Each CLI owns only `--openapi`, `--directory`, and `--json`, plus file reading and writing. |
-| Recipe file name | `recipe.json`, not `recipe.toml`. The compiler, the fixtures, and `auths gateway recipe check` all read the `auths.gateway-recipe-source/1` JSON source. The §2 example's `recipe.toml` is read as the recipe file. |
+| Recipe file name | `recipe.json`, not `recipe.toml`. The compiler, the fixtures, and `auths-node gateway recipe check` all read the `auths.gateway-recipe-source/1` JSON source. The §2 example's `recipe.toml` is read as the recipe file. |
 | YAML | Not read. A document whose first non-space byte is not `{` fails with `contract.derive.document-format` and the advice to convert with a safe loader. No YAML dependency was added. JSON is parsed into a bounded tree: at most 32 MiB and 32 levels of nesting, with duplicate keys rejected at every depth. |
 | Gateway binding fields | Derivation writes the three fields the compiler requires ahead of the derived fields. `operator_namespace` is a one-variant enum taken from the new required flag `--operator-namespace`. The tool never guesses a namespace. `operation_id` is a 1–128-byte string, the compiler's full bound. `recipe_digest` is exactly 64 bytes. A document property or parameter with one of these names fails with `contract.derive.name-collision`. The other identity flags are `--operation`, `--service`, and `--name` (required) and `--version` (default 1). |
 | Server base paths | A server URL becomes the origin (`https://host`) plus fixed leading path segments. `https://api.openai.com/v1` becomes the origin and `v1`. One trailing slash is dropped, so `https://api.todoist.com/` becomes the bare origin. `contract.derive.unsafe-server` rejects the rest, with no override: `http`, server variables, ports, user information, a query or fragment, an IP-literal or uppercase host, `localhost`, `.local`, `.internal`, empty inner segments, and segments outside the compiler's fixed-segment characters. Operation servers override path-item servers, which override root servers. `--server` must match a listed URL byte for byte. |

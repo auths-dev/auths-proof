@@ -38,7 +38,7 @@ from typing import Any, Callable, Dict, List, Optional
 HERE = Path(__file__).resolve().parent
 PYTHON = sys.executable
 # The packaged approval CLI installed beside this interpreter with the wheel.
-APPROVE_CLI = str(Path(sys.executable).parent / "auths-profile")
+APPROVE_CLI = str(Path(sys.executable).parent / "auths")
 IDEMPOTENCY_DOMAIN = b"auths.gateway-idempotency-key/1\0"
 
 
@@ -377,7 +377,7 @@ def main() -> int:
             results[operation]["provider_entries"] = len(journey.provider_entries()) - before
 
         # README step 6: the agent writes a request per manager, each manager
-        # answers with `auths-profile approve`, and the gateway submits.
+        # answers with `auths approve`, and the gateway submits.
         journey.step(
             "refund 1: 15.00, agent + manager-a + manager-b (remote approvals)",
             lambda: submit("refund-1", 1_500, "manager-a,manager-b"),

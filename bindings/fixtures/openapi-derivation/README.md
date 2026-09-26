@@ -1,6 +1,6 @@
 # OpenAPI derivation corpus
 
-Expected output of `auths-profile derive` for a fixed set of documents,
+Expected output of `auths derive` for a fixed set of documents,
 operations, and flags. One native mapper
 (`product/tools/auths-openapi-derive`) produces every byte; the Python and
 TypeScript CLIs call it through the Python extension and the WASM package, and

@@ -1,4 +1,4 @@
-"""``auths-profile approve``: interactive, ``--yes``, and refusing runs."""
+"""``auths approve``: interactive, ``--yes``, and refusing runs."""
 
 from __future__ import annotations
 

@@ -896,7 +896,7 @@ active and fails the reload as a whole.
 The product CLI adds an offline deployment command:
 
 ```text
-auths agent authority pack \
+auths-node agent authority pack \
   --principal <principal> \
   --profile <profile-id>/<version> [--profile ...] \
   --proof-file <path> \
@@ -912,7 +912,7 @@ bounds and canonical validation, writes an owner-only temporary file in the
 target directory, flushes it, publishes without overwriting, and flushes the
 directory. Windows applies the required DACL before publication. It never
 creates authority or signs a grant; proof and trusted context still come from
-the existing Rust-owned authority authoring/issuance workflow. `auths agent
+the existing Rust-owned authority authoring/issuance workflow. `auths-node agent
 validate-config` validates the workload map and authority artifacts without
 starting a listener or contacting a provider.
 
@@ -1258,7 +1258,7 @@ POST /v1/admin/providers/<provider>/connections/complete
 
 `start` and `complete` payloads are provider-specific, versioned, bounded CBOR
 defined by that connection contract; they are not an arbitrary map. A
-non-interactive secret is read by `auths connections add` from a protected file
+non-interactive secret is read by `auths-node connections add` from a protected file
 descriptor or standard input with terminal echo disabled, never from argv.
 OAuth completion receives only the provider-specific bounded authorization
 response. The adapter verifies state, PKCE, exact callback, issuer, audience,
@@ -1267,15 +1267,15 @@ account identity, and granted scopes before registry publication.
 The product CLI presents these operations:
 
 ```text
-auths connections add <provider> --alias <alias> \
+auths-node connections add <provider> --alias <alias> \
   --allow-workload <id> [--allow-workload <id> ...] \
   --allow-profile <profile-id>/<version> [--allow-profile ...]
-auths connections list
-auths connections inspect <provider>/<alias>
-auths connections disable <provider>/<alias>
-auths connections enable <provider>/<alias>
-auths connections rotate <provider>/<alias>
-auths connections revoke <provider>/<alias>
+auths-node connections list
+auths-node connections inspect <provider>/<alias>
+auths-node connections disable <provider>/<alias>
+auths-node connections enable <provider>/<alias>
+auths-node connections rotate <provider>/<alias>
+auths-node connections revoke <provider>/<alias>
 ```
 
 The repeated allow flags obey the record bounds and are required on `add`.
@@ -3564,7 +3564,7 @@ contract `auths.<provider>.connection/<connection-version>`, descriptor schema,
 provider adapter/admin router, connection fixtures, and TODOs for exact
 onboarding and credential behavior. For `--connectionless` it writes
 `domain.connection: null` and emits none of those files. Adding another account
-to an implemented provider never runs this command; it runs `auths connections
+to an implemented provider never runs this command; it runs `auths-node connections
 add` against a deployment.
 
 The scaffold updates workspace membership, `architecture.toml`, and draft

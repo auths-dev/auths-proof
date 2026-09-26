@@ -165,8 +165,6 @@ jobs:
       needs.formal-update-gate.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    outputs:
-      update_required: ${{ steps.formal-update.outputs.update_required || 'false' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -588,6 +586,8 @@ jobs:
       needs.ci-plan.outputs.formal_proof_required == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    outputs:
+      update_required: ${{ steps.formal-update.outputs.update_required || 'false' }}
     steps:
       - name: Start formal phase timing
         run: echo "AUTHS_FORMAL_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
@@ -652,6 +652,11 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           compression-level: 9
+      - name: Stop qualification until the assurance update is committed
+        if: steps.formal-update.outputs.update_required == 'true'
+        run: |
+          echo "The assurance manifest drifted; the bounded updater will commit the reviewed artifact set."
+          exit 1
       - name: Preserve authoritative Lean phase result
         if: steps.formal-update.outputs.update_required != 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

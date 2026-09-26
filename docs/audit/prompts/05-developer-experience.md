@@ -1,6 +1,6 @@
 # Prompt: usability and the unfamiliar developer
 
-Scope: `bindings/python`, `bindings/typescript`, `product/sdk`, `docs/product/*` quickstarts, `examples/`, `demos/`, `xtask` profile commands, error registry (`product/errors`), CLI (`auths` binary).
+Scope: `bindings/python`, `bindings/typescript`, `product/sdk`, `docs/product/*` quickstarts, `examples/`, `demos/`, `xtask` profile commands, error registry (`product/errors`), CLIs (the packaged `auths` command and the `auths-node` binary).
 
 Goal: act as a competent developer who has never seen this project. Try to get a real agent to issue one bounded Stripe refund, then add a new provider. Record every point where you would get stuck.
 

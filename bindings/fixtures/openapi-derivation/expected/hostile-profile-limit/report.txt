@@ -1,4 +1,4 @@
 REJECTED  contract
   contract.derive.profile-limit  #/paths/~1profile-limit/post
-    the derived profile.toml is 20456 bytes; the profile generators read at most 16384; no override exists
+    the derived profile.toml is 20448 bytes; the profile generators read at most 16384; no override exists
 nothing written

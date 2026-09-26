@@ -863,7 +863,7 @@ pub fn verify_release_surface(
         MAX_ARTIFACT_BYTES,
     )?;
     let agent = production
-        .get("target/release/auths")
+        .get("target/release/auths-node")
         .ok_or("production bundle has no Auths agent")?;
     for forbidden in [
         b"/v1/authority/".as_slice(),
@@ -996,7 +996,7 @@ fn verify_candidate_build_surface(repository: &Path) -> Result<(), String> {
     {
         return Err("candidate auths-node enables implicit binary targets".into());
     }
-    require_exact_bin(node_bins, "auths", "src/bin/auths-production.rs", &[])?;
+    require_exact_bin(node_bins, "auths-node", "src/bin/auths-production.rs", &[])?;
     require_exact_bin(
         node_bins,
         "auths-qualification-agent",
@@ -1206,9 +1206,9 @@ fn verify_candidate_build_surface(repository: &Path) -> Result<(), String> {
                 "!auths_connections::__QUALIFICATION_BROKER_ENABLED",
                 "!auths_stores::__QUALIFICATION_EVIDENCE_ENABLED",
                 "!auths_stripe::__TESTKIT_AGENT_ENABLED",
-                "production auths cannot enable qualification-broker",
-                "production auths cannot enable qualification-evidence",
-                "production auths cannot enable testkit-agent",
+                "production auths-node cannot enable qualification-broker",
+                "production auths-node cannot enable qualification-evidence",
+                "production auths-node cannot enable testkit-agent",
             ][..],
         ),
         (

@@ -339,6 +339,9 @@ func decodeMultikey(encoded string) ([]byte, string, error) {
 	case decoded[0] == 0xed && decoded[1] == 0x01 && len(decoded) == 34:
 		return decoded[2:], "ed25519-v1", nil
 	case decoded[0] == 0x80 && decoded[1] == 0x24 && len(decoded) == 35:
+		if _, ok := p256PublicKey(decoded[2:]); !ok {
+			return nil, "", errors.New("invalid P-256 multikey")
+		}
 		return decoded[2:], "p256-sha256-v1", nil
 	default:
 		return nil, "", errors.New("unsupported multicodec")
@@ -639,7 +642,10 @@ func decodeKeriKey(value string) ([]byte, string, error) {
 	}
 	if (strings.HasPrefix(value, "1AAJ") || strings.HasPrefix(value, "1AAI")) && len(value) == 48 {
 		decoded, err := base64.RawURLEncoding.DecodeString(value[4:])
-		if err != nil || len(decoded) != 33 {
+		if err != nil {
+			return nil, "", errors.New("invalid KERI P-256 key")
+		}
+		if _, ok := p256PublicKey(decoded); !ok {
 			return nil, "", errors.New("invalid KERI P-256 key")
 		}
 		return decoded, "p256-sha256-v1", nil
