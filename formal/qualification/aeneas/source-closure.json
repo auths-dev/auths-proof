@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "0e664f3680d5c746ccf37bf25fa5297b94a78a1ff23b5c1673bfbf885fbbdf95",
+  "digest": "b0ef4f983eede150945f80f5205afb6fa6b96095197dec20d2ac4557c0309330",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -8,7 +8,7 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "f28c5ef6e2556b3d2e737bc511ebb67c65daa390c84411604a47f86c53ed6c76",
+      "sha256": "6323949391adef02f3e697eff84b60ded827819576ba1ad9961926dbd4f2da28",
       "normalization": "translated-cargo-closure-v1"
     },
     {

@@ -6142,6 +6142,18 @@
     {
       "source": "auths-multikey",
       "source_layer": "core",
+      "target": "auths-signature-core",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-multikey",
+      "source_layer": "core",
       "target": "bs58",
       "target_layer": null,
       "scope": "external",
@@ -6151,37 +6163,6 @@
       "default_features": false,
       "features": [
         "alloc"
-      ]
-    },
-    {
-      "source": "auths-multikey",
-      "source_layer": "core",
-      "target": "ed25519-dalek",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": [
-        "alloc",
-        "zeroize"
-      ]
-    },
-    {
-      "source": "auths-multikey",
-      "source_layer": "core",
-      "target": "p256",
-      "target_layer": null,
-      "scope": "external",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": false,
-      "features": [
-        "alloc",
-        "ecdsa",
-        "pkcs8"
       ]
     },
     {
@@ -18189,6 +18170,21 @@
       "source": "auths-testkit",
       "source_layer": "core",
       "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc",
+        "std"
+      ]
+    },
+    {
+      "source": "auths-testkit",
+      "source_layer": "core",
+      "target": "bs58",
       "target_layer": null,
       "scope": "external",
       "kind": "normal",

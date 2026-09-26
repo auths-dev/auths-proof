@@ -342,6 +342,7 @@ digraph auths_architecture {
   "auths-live-service" -> "auths-proof-wasm" [label="normal"];
   "auths-mcp-demo" -> "auths-apps-testkit" [label="normal"];
   "auths-mcp-demo" -> "auths-proof-exchange-model" [label="normal"];
+  "auths-multikey" -> "auths-signature-core" [label="normal"];
   "auths-node" -> "auths-author" [label="normal"];
   "auths-node" -> "auths-codec" [label="normal"];
   "auths-node" -> "auths-config" [label="normal"];

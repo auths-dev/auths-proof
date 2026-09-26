@@ -1,4 +1,5 @@
 import {
+  type KeyObject,
   X509Certificate,
   createHash,
   createPublicKey,
@@ -816,7 +817,9 @@ function multikey(encoded: string): { key: Uint8Array; suite: string } {
     return { key: decoded.slice(2), suite: "ed25519-v1" };
   }
   if (decoded[0] === 0x80 && decoded[1] === 0x24 && decoded.length === 35) {
-    return { key: decoded.slice(2), suite: "p256-sha256-v1" };
+    const key = decoded.slice(2);
+    if (!p256PublicKey(key)) throw new Error("invalid P-256 multikey");
+    return { key, suite: "p256-sha256-v1" };
   }
   throw new Error("unsupported multicodec");
 }
@@ -954,7 +957,7 @@ function keriKey(encoded: string): { key: Uint8Array; suite: string } {
   }
   if ((encoded.startsWith("1AAJ") || encoded.startsWith("1AAI")) && encoded.length === 48) {
     const decoded = Buffer.from(encoded.slice(4), "base64url");
-    if (decoded.length !== 33) throw new Error("invalid KERI key");
+    if (!p256PublicKey(decoded)) throw new Error("invalid KERI key");
     return { key: decoded, suite: "p256-sha256-v1" };
   }
   throw new Error("unsupported KERI key");
@@ -1220,15 +1223,20 @@ function control(
   }
 }
 
-function publicKey(suite: string, raw: Uint8Array) {
-  if (suite === "ed25519-v1") {
-    return createPublicKey({
-      key: Buffer.concat([Buffer.from("302a300506032b6570032100", "hex"), raw]),
-      format: "der",
-      type: "spki",
-    });
-  }
-  if (suite === "p256-sha256-v1") {
+function ed25519PublicKey(raw: Uint8Array): KeyObject {
+  return createPublicKey({
+    key: Buffer.concat([Buffer.from("302a300506032b6570032100", "hex"), raw]),
+    format: "der",
+    type: "spki",
+  });
+}
+
+// Accepts only the 33-byte compressed SEC1 encoding, tag 0x02 or 0x03, of a
+// point on the curve. The identity, uncompressed, compact, and hybrid forms are
+// rejected, so each key has exactly one accepted encoding.
+function p256PublicKey(raw: Uint8Array): KeyObject | undefined {
+  if (raw.length !== 33 || (raw[0] !== 0x02 && raw[0] !== 0x03)) return undefined;
+  try {
     return createPublicKey({
       key: Buffer.concat([
         Buffer.from("3039301306072a8648ce3d020106082a8648ce3d030107032200", "hex"),
@@ -1237,23 +1245,26 @@ function publicKey(suite: string, raw: Uint8Array) {
       format: "der",
       type: "spki",
     });
+  } catch {
+    return undefined;
   }
-  throw new Error("unsupported signature suite");
 }
 
 function verifySignature(suite: string, key: Uint8Array, message: Uint8Array, signature: Uint8Array): boolean {
   if (suite === "ed25519-v1") {
-    return signature.length === 64 && cryptoVerify(null, message, publicKey(suite, key), signature);
+    return signature.length === 64 && cryptoVerify(null, message, ed25519PublicKey(key), signature);
   }
   if (suite === "p256-sha256-v1") {
     if (signature.length !== 64) return false;
+    const publicKey = p256PublicKey(key);
+    if (!publicKey) return false;
     const s = BigInt(`0x${Buffer.from(signature.slice(32)).toString("hex")}`);
     const order = BigInt("0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551");
     if (s > order / 2n) return false;
     return cryptoVerify(
       "sha256",
       message,
-      { key: publicKey(suite, key), dsaEncoding: "ieee-p1363" },
+      { key: publicKey, dsaEncoding: "ieee-p1363" },
       signature,
     );
   }
