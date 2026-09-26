@@ -2345,11 +2345,19 @@ uid = 1000
             )
             .unwrap();
         let operator = rustix::process::geteuid().as_raw();
+        let journal = Arc::new(
+            auths_stores::PersistentOperationJournal::open(
+                root.join("operations.cbor"),
+                crate::built_in_operation_limits().unwrap(),
+            )
+            .unwrap(),
+        );
         let admin_state = ConnectionAdminState::new(
             AdminPeerPolicy::new([operator], []).unwrap(),
             agent_config,
             Arc::clone(&connections),
             credentials,
+            journal,
             root.join("admin-audit.jsonl"),
         )
         .unwrap();
