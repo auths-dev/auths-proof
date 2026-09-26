@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 310,
+  "freezeVersion": 311,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -238,7 +238,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/source-closure.json",
-      "version": 71,
+      "version": 72,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -246,7 +246,7 @@
       "owners": [
         "formal/qualification/aeneas/source-closure.json"
       ],
-      "sha256": "67036037e07f20f391ab08ea77374c327c7b235f849e52a32a9b866a35521391"
+      "sha256": "2c6c2904456ad1363fc1af7249fc38c8c08b925fbefd626bb97421a2ca5b12ad"
     },
     {
       "id": "auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json",
@@ -274,7 +274,7 @@
     },
     {
       "id": "auths.frozen-bytes/product/fixtures/v1/bounded-policy/manifest.json",
-      "version": 2,
+      "version": 3,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -282,7 +282,7 @@
       "owners": [
         "product/fixtures/v1/bounded-policy/manifest.json"
       ],
-      "sha256": "9161e8b01c06c7dc1d7bdd9ed6f89b7504944604a78c5d7c32ee601b6497462d"
+      "sha256": "cdc0bb7098c65dc88fa66fc8b1f2fccdd49545ed6b442751b2328b3f4cce424f"
     },
     {
       "id": "auths.frozen-bytes/product/fixtures/v1/custody/manifest.json",
@@ -577,7 +577,7 @@
     },
     {
       "id": "auths.modular-components",
-      "version": 17,
+      "version": 18,
       "classification": "frozen-meaning",
       "categories": [
         "published-neutral-ports",
@@ -607,7 +607,7 @@
         "exchange/crates/auths-byte-channel/README.md",
         "xtask/src/fixtures.rs"
       ],
-      "sha256": "381121825f47d342ad8ebeb6612b012953aab4ea496309cf78861a5586f2e523"
+      "sha256": "efc1c71b20b02a8eda9e36877c71257032dcf727d7a3cdb7574302f8f40017dd"
     },
     {
       "id": "auths.portable-abi-bindings",
@@ -635,7 +635,7 @@
     },
     {
       "id": "auths.product.bounded-domains",
-      "version": 17,
+      "version": 18,
       "classification": "frozen-meaning",
       "categories": [
         "bounded-domain-inventory",
@@ -656,11 +656,11 @@
         "product/integrations/auths-records-api/src",
         "product/integrations/auths-stripe/src"
       ],
-      "sha256": "3ba7f91c56d888cdd4b0aadb6e00e4b6892f7d5c5476a7e6e2f03f21cddcadba"
+      "sha256": "3eb9e109af05b0f9e5b1a41dc13d22b0ba437218a8ee388aa07563f960aaac2b"
     },
     {
       "id": "auths.product.bounded-policy",
-      "version": 3,
+      "version": 4,
       "classification": "frozen-meaning",
       "categories": [
         "policy-semantic-ids",
@@ -671,7 +671,7 @@
         "product/fixtures/v1/bounded-policy/registry.toml",
         "product/policy/auths-bounded-policy/src"
       ],
-      "sha256": "8bb704cb3d9f01cbc74c6242a2aad4043b50f3bd1e80d425031f0a548dca7491"
+      "sha256": "599009b541062be305c9fa7970e441455ac384d4d13f417766cbd9eda0e777dc"
     },
     {
       "id": "auths.product.configuration-commitments",
@@ -1019,7 +1019,7 @@
     },
     {
       "id": "auths.release.evolution-contract",
-      "version": 69,
+      "version": 70,
       "classification": "frozen-meaning",
       "categories": [
         "version-axes",
@@ -1040,11 +1040,11 @@
         "release/fixtures/evolution",
         "xtask/src/evolution_policy.rs"
       ],
-      "sha256": "f36605dbd37c4ab71ea5063c89177fee680a36fba6f898413071c65163165b77"
+      "sha256": "1950676165da7f000d885d17f517ff3f84ad44a4068f7c8ec1551c5179a7ea18"
     },
     {
       "id": "auths.release.public-surface",
-      "version": 310,
+      "version": 311,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1136,7 +1136,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "2a5df203c29db9f80b1bc732542939f786a4796fbe0d4e7847512d26d8374fde"
+      "sha256": "c47b07398a65e823c3142d6437b74a6e23d076c41dbaa806c013d2280f8a5699"
     }
   ]
 }

@@ -1,4 +1,4 @@
-freeze_version = 310
+freeze_version = 311
 
 # Semantic identity counters live outside the xtask source tree deliberately.
 # The formal source closure binds xtask's executable code, while the semantic
@@ -19,10 +19,10 @@ freeze_version = 310
 "auths.frozen-bytes/formal/assurance-manifest-v1.toml" = 34
 "auths.frozen-bytes/formal/qualification/aeneas/generated" = 12
 "auths.frozen-bytes/formal/qualification/aeneas/qualification.toml" = 9
-"auths.frozen-bytes/formal/qualification/aeneas/source-closure.json" = 71
+"auths.frozen-bytes/formal/qualification/aeneas/source-closure.json" = 72
 "auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json" = 1
 "auths.frozen-bytes/product/conformance/v1/simplified-product-waist.json" = 3
-"auths.frozen-bytes/product/fixtures/v1/bounded-policy/manifest.json" = 2
+"auths.frozen-bytes/product/fixtures/v1/bounded-policy/manifest.json" = 3
 "auths.frozen-bytes/product/fixtures/v1/custody/manifest.json" = 1
 "auths.frozen-bytes/product/fixtures/v1/errors/manifest.json" = 7
 "auths.frozen-bytes/product/fixtures/v1/github/manifest.json" = 3
@@ -46,10 +46,10 @@ freeze_version = 310
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/subscription-modify/v1/manifest.sha256.json" = 1
 "auths.frozen-bytes/product/integrations/auths-stripe/fixtures/v1/manifest.sha256.json" = 1
 "auths.identity.protocol" = 89
-"auths.modular-components" = 17
+"auths.modular-components" = 18
 "auths.portable-abi-bindings" = 108
-"auths.product.bounded-domains" = 17
-"auths.product.bounded-policy" = 3
+"auths.product.bounded-domains" = 18
+"auths.product.bounded-policy" = 4
 "auths.product.configuration-commitments" = 1
 "auths.product.development-composition" = 13
 "auths.product.error-recovery-contract" = 17
@@ -67,5 +67,5 @@ freeze_version = 310
 "auths.product.simplified-waist" = 17
 "auths.product.vocabulary" = 19
 "auths.release.benchmark-contract" = 1
-"auths.release.evolution-contract" = 69
-"auths.release.public-surface" = 310
+"auths.release.evolution-contract" = 70
+"auths.release.public-surface" = 311

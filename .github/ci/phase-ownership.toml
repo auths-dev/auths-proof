@@ -472,6 +472,12 @@ gate = false
 
 [[workflow_jobs]]
 file = ".github/workflows/ci.yml"
+job = "formal-kani"
+phase = "formal_translation"
+gate = true
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
 job = "formal-lean-authoritative-run"
 phase = "formal_translation"
 gate = false
