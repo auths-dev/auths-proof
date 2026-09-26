@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import pty
 import subprocess
 import sys
 import time
@@ -93,6 +92,8 @@ def _command(directory: Path, request: str, *extra: str) -> list[str]:
 
 
 def _run_on_terminal(command: list[str], answer: bytes) -> subprocess.CompletedProcess[str]:
+    import pty
+
     controller, terminal = pty.openpty()
     try:
         process = subprocess.Popen(
@@ -122,6 +123,10 @@ def _status(proposal: ApprovalProposal[Refund], response: Optional[Path]) -> str
     )
 
 
+_POSIX_TERMINAL = pytest.mark.skipif(sys.platform == "win32", reason="no pseudo-terminal on Windows")
+
+
+@_POSIX_TERMINAL
 def test_an_interactive_yes_approves_and_prints_only_the_review(
     workspace: tuple[Path, ApprovalProposal[Refund]],
 ) -> None:
@@ -140,6 +145,7 @@ def test_an_interactive_yes_approves_and_prints_only_the_review(
     assert _status(proposal, out) == "approved"
 
 
+@_POSIX_TERMINAL
 def test_an_interactive_default_answer_signs_nothing(
     workspace: tuple[Path, ApprovalProposal[Refund]],
 ) -> None:

@@ -23,6 +23,9 @@ sys.stderr.buffer.write(stderr)
 sys.exit(process.returncode)
 `;
 
+// A pseudo-terminal needs POSIX; Windows runs the non-interactive cases.
+const interactive = { skip: process.platform === "win32" ? "no pseudo-terminal on Windows" : false };
+
 let directory;
 let cli;
 let sdk;
@@ -82,7 +85,7 @@ async function statusOf(proposal, manager, responses) {
   return collection.statuses.find((status) => status.approver === manager).status;
 }
 
-test("packed CLI: an interactive yes approves and prints only the review", async () => {
+test("packed CLI: an interactive yes approves and prints only the review", interactive, async () => {
   const { base, proposal, manager } = await workspace("interactive");
   const out = `${base}.response`;
   const result = run(base, `${base}.request`, ["--out", out], { answer: "y\n" });
@@ -97,7 +100,7 @@ test("packed CLI: an interactive yes approves and prints only the review", async
   assert.equal(await statusOf(proposal, manager, [response]), "approved");
 });
 
-test("packed CLI: an interactive default answer signs nothing", async () => {
+test("packed CLI: an interactive default answer signs nothing", interactive, async () => {
   const { base } = await workspace("default");
   const out = `${base}.response`;
   const result = run(base, `${base}.request`, ["--out", out], { answer: "\n" });
