@@ -5,6 +5,10 @@
 
 extern crate alloc;
 
+mod template;
+
+pub use template::TrustedContextTemplate;
+
 use alloc::{string::String, vec, vec::Vec};
 use auths_model::{
     AcceptedRegistries, AdapterConfigurationId, AssuranceClaim, AssuranceClaimId, BudgetAlgebraId,

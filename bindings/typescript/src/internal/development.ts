@@ -11,7 +11,7 @@ import type {
 } from "../profiles/application/index.js";
 import { loadPackagedWorkflowEngine } from "../verifier/wasm.js";
 
-class DevelopmentEd25519Key {
+export class DevelopmentEd25519Key {
   readonly #privateKey: CryptoKey;
   readonly #descriptor: PrincipalDescriptor;
   readonly #evidence: Uint8Array;

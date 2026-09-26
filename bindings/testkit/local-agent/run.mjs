@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import {
   cp, mkdtemp, mkdir, readFile, readdir, rm, writeFile,
 } from "node:fs/promises";
@@ -10,14 +11,15 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "../../..");
+const python = process.env.PYTHON ?? join(root, "bindings/python/.venv/bin/python");
+const maturin = process.env.MATURIN ?? "maturin";
+const uv = process.env.UV ?? "uv";
+await checkPrerequisites();
 const temporary = await mkdtemp(join(tmpdir(), "auths-local-agent-proof-"));
 const artifacts = join(temporary, "artifacts");
 const state = join(temporary, "agent-state");
 const readyPath = join(temporary, "ready.json");
 const expectedPath = join(temporary, "expected.json");
-const python = process.env.PYTHON ?? join(root, "bindings/python/.venv/bin/python");
-const maturin = process.env.MATURIN ?? "maturin";
-const uv = process.env.UV ?? "uv";
 let agent;
 
 try {
@@ -63,6 +65,37 @@ try {
 } finally {
   await stopAgent();
   await rm(temporary, { recursive: true, force: true });
+}
+
+async function checkPrerequisites() {
+  const missing = [];
+  for (const [name, program] of [
+    ["cargo", "cargo"], ["npm", "npm"], ["maturin", maturin], ["uv", uv],
+  ]) {
+    if (!(await runs(program, ["--version"]))) missing.push(`${name} on PATH`);
+  }
+  if (!(await runs(python, ["--version"]))) {
+    missing.push(`a Python interpreter at ${python} (create bindings/python/.venv or set PYTHON)`);
+  }
+  if (!existsSync(join(root, "bindings/typescript/node_modules/typescript"))) {
+    missing.push("npm ci in bindings/typescript");
+  }
+  if (!existsSync(join(root, "bindings/typescript/wasm/auths_proof_wasm_bg.wasm"))) {
+    missing.push((await runs("wasm-pack", ["--version"]))
+      ? "the SDK WASM: run npm run build:wasm in bindings/typescript"
+      : "wasm-pack on PATH, then npm run build:wasm in bindings/typescript");
+  }
+  if (missing.length > 0) {
+    throw new Error(`missing prerequisites:\n- ${missing.join("\n- ")}`);
+  }
+}
+
+function runs(program, arguments_) {
+  return new Promise((accept) => {
+    const child = spawn(program, arguments_, { stdio: "ignore" });
+    child.once("error", () => accept(false));
+    child.once("exit", (code) => accept(code === 0));
+  });
 }
 
 async function buildArtifacts() {

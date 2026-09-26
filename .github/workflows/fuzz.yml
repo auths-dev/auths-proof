@@ -73,74 +73,22 @@ jobs:
           compiler-cache: "false"
       - name: Install pinned cargo-fuzz
         run: cargo install cargo-fuzz --version 0.13.1 --locked
+      # The campaign seeds every target from core/fixtures/v1, runs each
+      # target on the shard even after another fails, and fails the shard on
+      # any crash or on missing execution evidence.
       - name: Run deterministic target shard and prove execution
-        shell: bash
         env:
           AUTHS_FUZZ_SHARD: ${{ matrix.shard }}
-        run: |
-          set -euo pipefail
-          targets=(
-            "target_codec:core/fuzz/Cargo.toml:core/fuzz/corpus"
-            "target_portable_codecs:core/fuzz/Cargo.toml:core/fuzz/corpus"
-            "target_model_state:core/fuzz/Cargo.toml:core/fuzz/corpus"
-            "target_composition:core/fuzz/Cargo.toml:core/fuzz/corpus"
-            "target_registry_handlers:core/fuzz/Cargo.toml:core/fuzz/corpus"
-            "target_principal_parsers:core/fuzz/Cargo.toml:core/fuzz/corpus"
-            "target_portable_abi:core/fuzz/Cargo.toml:core/fuzz/corpus"
-            "target_bounded_policy:product/policy/auths-bounded-policy/fuzz/Cargo.toml:product/policy/auths-bounded-policy/fuzz/corpus"
-          )
-          mkdir -p artifacts logs
-          total_executions=0
-          for index in "${!targets[@]}"; do
-            if (( index % 2 != AUTHS_FUZZ_SHARD )); then
-              continue
-            fi
-            IFS=: read -r target manifest corpus_root <<< "${targets[$index]}"
-            mkdir -p "artifacts/${target}"
-            log="logs/${target}.log"
-            started_at="$(date +%s)"
-            seed_digest="$(tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner -cf - -C "$corpus_root" "$target" | sha256sum | cut -d' ' -f1)"
-            set +e
-            cargo fuzz --manifest-path "$manifest" run "$target" -- \
-              "-max_total_time=${AUTHS_FUZZ_SECONDS}" \
-              "-print_final_stats=1" \
-              "-artifact_prefix=artifacts/${target}/" 2>&1 | tee "$log"
-            status="${PIPESTATUS[0]}"
-            set -e
-            executions="$(sed -n 's/.*stat::number_of_executed_units: *\\([0-9][0-9]*\\).*/\\1/p' "$log" | tail -n 1)"
-            if [[ -z "$executions" || "$executions" == "0" ]]; then
-              echo "::error::${target} produced no nonzero execution evidence."
-              exit 1
-            fi
-            duration="$(( $(date +%s) - started_at ))"
-            {
-              echo "target=${target}"
-              echo "seed_sha256=${seed_digest}"
-              echo "duration_seconds=${duration}"
-              echo "executions=${executions}"
-              echo "artifacts=artifacts/${target}/"
-            } > "logs/${target}-evidence.txt"
-            total_executions="$((total_executions + executions))"
-            if (( status != 0 )); then
-              echo "::error::${target} exited with status ${status}."
-              exit "$status"
-            fi
-          done
-          if (( total_executions == 0 )); then
-            echo "::error::Fuzz shard executed no inputs."
-            exit 1
-          fi
-          echo "Shard ${AUTHS_FUZZ_SHARD} executed ${total_executions} inputs." | tee "logs/shard-${AUTHS_FUZZ_SHARD}-summary.txt"
+        run: cargo xtask fuzz-campaign --shard "$AUTHS_FUZZ_SHARD" --seconds "$AUTHS_FUZZ_SECONDS"
       - name: Preserve logs, crashers, and minimized reproducers
-        if: always()
+        if: always() && hashFiles('target/fuzz-campaign/logs/**') != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: fuzz-shard-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            logs/
-            artifacts/
-            core/fuzz/corpus/
-            product/policy/auths-bounded-policy/fuzz/corpus/
+            target/fuzz-campaign/logs/
+            target/fuzz-campaign/artifacts/
+            target/fuzz-campaign/corpus/
           if-no-files-found: error
           retention-days: 90
 

@@ -83,6 +83,15 @@ kind = "prefix"
 value = "core/fuzz/"
 phases = ["authoritative", "compliance", "secrets", "fuzz"]
 
+# The adversarial-conformance suite runs in the compliance phase through
+# `cargo xtask ci compliance`, and its full-verifier cases also run in the
+# authoritative phase as an auths-verifier test.
+[[rules]]
+id = "adversarial-conformance"
+kind = "prefix"
+value = "core/conformance/"
+phases = ["authoritative", "compliance", "secrets"]
+
 [[rules]]
 id = "formal"
 kind = "prefix"
@@ -352,13 +361,13 @@ phases = ["authoritative", "compliance", "secrets", "release"]
 [[rules]]
 id = "public-api-chatgpt-notes"
 kind = "exact"
-value = "public_api_chatgpt.md"
+value = "docs/target-state/public_api_chatgpt.md"
 phases = ["secrets", "release"]
 
 [[rules]]
 id = "public-api-claude-notes"
 kind = "exact"
-value = "public_api_claude.md"
+value = "docs/target-state/public_api_claude.md"
 phases = ["secrets", "release"]
 
 [[rules]]
@@ -460,6 +469,12 @@ file = ".github/workflows/ci.yml"
 job = "formal-kani-run"
 phase = "formal_translation"
 gate = false
+
+[[workflow_jobs]]
+file = ".github/workflows/ci.yml"
+job = "formal-kani"
+phase = "formal_translation"
+gate = true
 
 [[workflow_jobs]]
 file = ".github/workflows/ci.yml"

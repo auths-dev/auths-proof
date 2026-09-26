@@ -209,12 +209,14 @@ type Evidence = { id: Uint8Array; kind: string; mediaType: string; body: Uint8Ar
 type StatementRef = { kind: bigint; id: Uint8Array };
 type Binding = { statement: StatementRef; evidence: Uint8Array[] };
 type PrincipalStatus = {
-  statement: V; method: string; principal: string; purpose: string; state: bigint; sequence: bigint;
-  observedAt: bigint; validUntil: bigint; issuer: string; signature: Signature; id: Uint8Array;
+  statement: V; method: string; principal: string; state: bigint; sequence: bigint;
+  observedAt: bigint; validUntil: bigint; issuer: string; extensions: Extension[];
+  signature: Signature; id: Uint8Array;
 };
 type GrantStatus = {
   statement: V; method: string; grantID: Uint8Array; state: bigint; sequence: bigint;
-  observedAt: bigint; validUntil: bigint; issuer: string; signature: Signature; id: Uint8Array;
+  observedAt: bigint; validUntil: bigint; issuer: string; extensions: Extension[];
+  signature: Signature; id: Uint8Array;
 };
 type StatusTrust = { method: string; issuer: string; minimumSequence: bigint };
 type Snapshot<T> = {
@@ -451,22 +453,45 @@ function binding(value: V, maximum: bigint): Binding {
   return { statement: statementRef(mapAt(value, 0)), evidence: ids };
 }
 
+/**
+ * Reads the fields a principal-status and a grant-status statement share,
+ * whose keys are the same in both, with the native decoder's checks: the
+ * protocol version, a state of active, revoked, or superseded, a validity
+ * window that is not inverted, the issuer, and the signed critical
+ * extensions.
+ */
+function statusFields(statement: V, kind: string): {
+  state: bigint; sequence: bigint; observedAt: bigint; validUntil: bigint; issuer: string;
+  extensions: Extension[];
+} {
+  if (uint(mapAt(statement, 0)) !== 1n) throw new Error(`unsupported ${kind} protocol`);
+  const state = uint(mapAt(statement, 3));
+  if (state > 2n) throw new Error(`invalid ${kind} state`);
+  const sequence = uint(mapAt(statement, 4));
+  const observedAt = uint(mapAt(statement, 5));
+  const validUntil = uint(mapAt(statement, 6));
+  if (observedAt > validUntil) throw new Error(`invalid ${kind} validity`);
+  return {
+    state,
+    sequence,
+    observedAt,
+    validUntil,
+    issuer: text(mapAt(statement, 7)),
+    extensions: extensions(mapAt(statement, 8)),
+  };
+}
+
 function principalStatus(value: V): PrincipalStatus {
   exactMap(value, 2);
   const statement = mapAt(value, 0);
-  exactMap(statement, 10);
-  const observedAt = uint(mapAt(statement, 6));
-  const validUntil = uint(mapAt(statement, 7));
+  exactMap(statement, 9);
+  const method = text(mapAt(statement, 1));
+  const principal = text(mapAt(statement, 2));
   return {
     statement,
-    method: text(mapAt(statement, 1)),
-    principal: text(mapAt(statement, 2)),
-    purpose: text(mapAt(statement, 3)),
-    state: uint(mapAt(statement, 4)),
-    sequence: uint(mapAt(statement, 5)),
-    observedAt,
-    validUntil,
-    issuer: text(mapAt(statement, 8)),
+    method,
+    principal,
+    ...statusFields(statement, "principal-status"),
     signature: signature(mapAt(value, 1)),
     id: domainHash(5, statement.raw),
   };
@@ -476,15 +501,13 @@ function grantStatus(value: V): GrantStatus {
   exactMap(value, 2);
   const statement = mapAt(value, 0);
   exactMap(statement, 9);
+  const method = text(mapAt(statement, 1));
+  const grantID = bytes(mapAt(statement, 2), 32);
   return {
     statement,
-    method: text(mapAt(statement, 1)),
-    grantID: bytes(mapAt(statement, 2), 32),
-    state: uint(mapAt(statement, 3)),
-    sequence: uint(mapAt(statement, 4)),
-    observedAt: uint(mapAt(statement, 5)),
-    validUntil: uint(mapAt(statement, 6)),
-    issuer: text(mapAt(statement, 7)),
+    method,
+    grantID,
+    ...statusFields(statement, "grant-status"),
     signature: signature(mapAt(value, 1)),
     id: domainHash(6, statement.raw),
   };
@@ -1273,12 +1296,15 @@ function collectLeaves(value: Plan): Uint8Array[] {
     : value.children.flatMap(collectLeaves);
 }
 
+/**
+ * Rejects a proof-carried status statement that the snapshot supersedes or
+ * does not hold. Rollback is keyed on the statement's subject alone, the
+ * principal or the grant, as status selection is.
+ */
 function validateCarriedStatus(value: Bundle, contextValue: Context): void {
   for (const carried of value.principalStatus) {
     if (contextValue.principalSnapshot.statements.some((current) =>
-      carried.principal === current.principal &&
-      carried.purpose === current.purpose &&
-      current.sequence > carried.sequence
+      carried.principal === current.principal && current.sequence > carried.sequence
     )) throw denied("status-sequence-rollback");
     if (!contextValue.principalSnapshot.statements.some((current) =>
       equal(carried.statement.raw, current.statement.raw) &&
@@ -1301,16 +1327,6 @@ function resolveAndVerifyControl(
   contextValue: Context,
   adapters: any,
 ): VerifiedControl[] {
-  if (!equal(contextValue.registryManifest, new Uint8Array(32).fill(0x36))) {
-    throw denied("registry-manifest-mismatch");
-  }
-  const localConfiguration = typeof adapters.configuration === "string"
-    ? Buffer.from(adapters.configuration, "hex")
-    : new Uint8Array();
-  if (localConfiguration.length !== 32 ||
-      !equal(contextValue.configuration, localConfiguration)) {
-    throw denied("verifier-configuration-mismatch");
-  }
   const planID = domainHash(3, value.plan.raw);
   const grants = new Map<string, Grant>();
   for (const grantValue of value.grants) {
@@ -1383,6 +1399,19 @@ function resolveAndVerifyControl(
     attachmentDigests.add(key);
   }
   validateCarriedStatus(value, contextValue);
+
+  // Principal control starts by requiring the executable registry and
+  // configuration, after every reference has resolved.
+  if (!equal(contextValue.registryManifest, new Uint8Array(32).fill(0x36))) {
+    throw denied("registry-manifest-mismatch");
+  }
+  const localConfiguration = typeof adapters.configuration === "string"
+    ? Buffer.from(adapters.configuration, "hex")
+    : new Uint8Array();
+  if (localConfiguration.length !== 32 ||
+      !equal(contextValue.configuration, localConfiguration)) {
+    throw denied("verifier-configuration-mismatch");
+  }
 
   type SignedInput = {
     statement: StatementRef; principal: string; signature: Signature; profile: Profile;
@@ -1524,6 +1553,34 @@ function requireBudgetAlgebra(value: Budget | undefined, contextValue: Context):
     value.algebra !== "numeric-ceiling-v1"
   ) throw indeterminate("unsupported-budget-algebra");
 }
+// Compares every bounded ceiling before the delegation walk: each grant under
+// a bounded parent, then the action's request under a bounded terminal
+// ceiling. An algebra is resolved only where a bounded ceiling is compared,
+// and the parent's algebra rejects a value in any other algebra as invalid
+// input, which is local-policy-denied.
+function validateBudgetChain(
+  anchor: Anchor, chain: Grant[], actionValue: Action, contextValue: Context,
+): void {
+  let parent = anchor.budget;
+  for (const grantValue of chain) {
+    const child = grantValue.budget;
+    if (parent !== undefined) {
+      if (child === undefined) throw denied("delegation-expanded");
+      requireBudgetAlgebra(parent, contextValue);
+      if (child.algebra !== parent.algebra) throw denied("local-policy-denied");
+      if (child.value > parent.value) throw denied("delegation-expanded");
+    }
+    parent = child;
+  }
+  if (parent === undefined) return;
+  if (actionValue.budget === undefined) {
+    if (profileContains(contextValue.budgetFreeProfiles, actionValue.profile)) return;
+    throw denied("budget-ceiling-exceeded");
+  }
+  requireBudgetAlgebra(parent, contextValue);
+  if (actionValue.budget.algebra !== parent.algebra) throw denied("local-policy-denied");
+  if (actionValue.budget.value > parent.value) throw denied("budget-ceiling-exceeded");
+}
 function statusAttenuates(child: StatusPolicy, parent: StatusPolicy): boolean {
   return parent.kind === 0n ||
     (child.kind === 1n && child.method === parent.method && child.maxAge! <= parent.maxAge!);
@@ -1571,12 +1628,15 @@ function extensionsAttenuate(child: Extension[], parent: Extension[], accepted: 
 }
 
 function delegate(authority: Authority, grantValue: Grant, accepted: string[]): void {
+  // Linkage is judged before any attenuation dimension: a grant issued by
+  // anyone but the current subject breaks the chain rather than widening it.
+  if (grantValue.issuer !== authority.subject || !equal(grantValue.parent, authority.lastGrant)) {
+    throw denied("broken-grant-chain");
+  }
   const profileAllowed = authority.selectedProfile === undefined
     ? profileContains(authority.allowedProfiles, grantValue.profile)
     : sameProfile(authority.selectedProfile, grantValue.profile);
   if (
-    grantValue.issuer !== authority.subject ||
-    !equal(grantValue.parent, authority.lastGrant) ||
     authority.remainingDepth === 0n ||
     grantValue.remainingDepth >= authority.remainingDepth ||
     !profileAllowed ||
@@ -1644,6 +1704,20 @@ function statusControl(controls: Map<string, VerifiedControl>, kind: bigint, id:
 }
 
 /**
+ * Applies the accepted-extension rule to one status statement about a
+ * principal or grant being evaluated. No registered critical extension
+ * defines status semantics, and a grant or action handler never evaluates a
+ * status statement, so the first extension decides: one the context does not
+ * accept is unknown, and an accepted one has no status handler.
+ */
+function evaluateStatusExtensions(values: Extension[], accepted: string[]): void {
+  const first = values[0];
+  if (first === undefined) return;
+  if (!contains(accepted, first.id)) throw denied("critical-extension-unknown");
+  throw indeterminate("unsupported-critical-extension");
+}
+
+/**
  * Follows the native exact status method: a trusted statement below its
  * issuer's sequence floor is a rollback, and freshness and state are judged
  * across every trusted statement at the greatest sequence.
@@ -1697,6 +1771,7 @@ function checkPrincipalStatus(
   for (const item of snapshotValue.statements) {
     if (item.principal !== principal) continue;
     statusControl(controls, 2n, item.id);
+    evaluateStatusExtensions(item.extensions, contextValue.extensions);
     candidates.push(item);
   }
   if (snapshotValue.observedAt > contextValue.evaluationTime ||
@@ -1727,6 +1802,7 @@ function checkGrantStatus(
   for (const item of snapshotValue.statements) {
     if (!equal(item.grantID, grantID)) continue;
     statusControl(controls, 3n, item.id);
+    evaluateStatusExtensions(item.extensions, contextValue.extensions);
     candidates.push(item);
   }
   if (snapshotValue.observedAt > contextValue.evaluationTime ||
@@ -1791,16 +1867,23 @@ function verifyFromAnchor(
       anchor.status, grantValue.subject, "revocation-list", contextValue, controls,
     );
   }
-  if (!anchor.namespaces.some((namespace) =>
-    actionValue.permission.resource === namespace ||
-    (
-      actionValue.permission.resource.startsWith(namespace) &&
-      (
-        namespace.endsWith("/") ||
-        ["/", "?", "#"].includes(actionValue.permission.resource.slice(namespace.length, namespace.length + 1))
-      )
-    )
-  )) throw denied("resource-namespace-mismatch");
+  if (
+    !contains(contextValue.resourceMatchers, contextValue.resourceMatcher) ||
+    contextValue.resourceMatcher !== "uri-namespace-v1"
+  ) throw indeterminate("unsupported-resource-matcher");
+  // Every grant permission, root to terminal, and then the action's
+  // permission must name a resource inside one of the anchor's namespaces.
+  const insideAnchor = (resource: string): boolean =>
+    anchor.namespaces.some((namespace) => namespaceMatches(namespace, resource));
+  for (const grantValue of chain) {
+    if (!grantValue.permissions.every((granted) => insideAnchor(granted.resource))) {
+      throw denied("resource-namespace-mismatch");
+    }
+  }
+  if (!insideAnchor(actionValue.permission.resource)) {
+    throw denied("resource-namespace-mismatch");
+  }
+  validateBudgetChain(anchor, chain, actionValue, contextValue);
   const authority: Authority = {
     subject: anchor.principal, allowedProfiles: anchor.profiles,
     permissions: anchor.permissions, notBefore: anchor.notBefore, expiresAt: anchor.expiresAt,
@@ -2004,24 +2087,8 @@ function verifyAuthority(
   canonical: CanonicalAction,
   adapters: any,
 ): { actionIDs: Uint8Array[]; branches: Uint8Array[]; assurance: Participant[] } {
-  if (
-    !contains(contextValue.resourceMatchers, contextValue.resourceMatcher) ||
-    contextValue.resourceMatcher !== "uri-namespace-v1"
-  ) throw indeterminate("unsupported-resource-matcher");
-  if (
-    !contains(contextValue.profilePolicies, contextValue.profilePolicy) ||
-    contextValue.profilePolicy !== "exact-v1"
-  ) throw indeterminate("unsupported-profile-policy");
-  for (const anchor of contextValue.anchors) {
-    requireBudgetAlgebra(anchor.budget, contextValue);
-  }
-  for (const grantValue of value.grants) {
-    requireBudgetAlgebra(grantValue.budget, contextValue);
-  }
-  for (const actionValue of value.actions) {
-    requireBudgetAlgebra(actionValue.budget, contextValue);
-  }
-  validateAttachments(value, canonical, contextValue);
+  // Action binding runs once, before any branch: the carried body, each
+  // signed action in proof order, the attachments, then the profile policy.
   if (value.canonicalBody !== undefined && !equal(value.canonicalBody, canonical.body)) {
     throw denied("action-body-mismatch");
   }
@@ -2049,6 +2116,11 @@ function verifyAuthority(
     evaluateCriticalExtensions(actionValue.extensions, contextValue.extensions);
     validateObservationAttachments(actionValue);
   }
+  validateAttachments(value, canonical, contextValue);
+  if (
+    !contains(contextValue.profilePolicies, contextValue.profilePolicy) ||
+    contextValue.profilePolicy !== "exact-v1"
+  ) throw indeterminate("unsupported-profile-policy");
   const actionByRef = new Map(value.actions.map((item) => [keyOf(item.proofRef), item]));
   const grantByID = new Map(value.grants.map((item) => [keyOf(item.id), item]));
   const controlByStatement = new Map(controls.map((item) => [refKey(item.statement), item]));
@@ -2119,7 +2191,6 @@ function verifySemantic(
   proofBytes: Uint8Array,
   contextBytes: Uint8Array,
   actionBytes: Uint8Array,
-  canonical: CanonicalAction,
   adapters: any,
 ): SemanticResult {
   const result: SemanticResult = {
@@ -2129,6 +2200,9 @@ function verifySemantic(
   };
   try {
     const contextValue = context(contextBytes);
+    // The canonical action is bounded and decoded before the proof is read,
+    // so a rejected action leaves no plan digest.
+    const canonical = boundedCanonicalAction(actionBytes, contextValue.limits);
     const proof = bundle(proofBytes, contextValue.limits);
     result.plan = domainHash(3, proof.plan.raw);
     if (contextValue.composition.expectedPlan !== undefined &&
@@ -2213,6 +2287,223 @@ function decodeCanonicalAction(data: Uint8Array): CanonicalAction {
   };
 }
 
+// The canonical-action input is decoded under the trusted context's
+// deployment limits, before the proof is read. The input length is bounded
+// before any byte is read; fields are read in key order, each bound checked
+// as its field is read; and the unique canonical encoding is required only
+// after the whole input has been read, so a shortest-form violation never
+// hides a structural or bound failure that follows it.
+class ActionReader {
+  private at = 0;
+  private readonly data: Uint8Array;
+
+  constructor(data: Uint8Array) {
+    this.data = data;
+  }
+
+  get complete(): boolean {
+    return this.at === this.data.length;
+  }
+
+  nextIsNull(): boolean {
+    if (this.data[this.at] !== 0xf6) return false;
+    this.at += 1;
+    return true;
+  }
+
+  // The argument need not use the shortest encoding; the final canonical
+  // comparison rejects that.
+  head(): [number, bigint] {
+    if (this.at >= this.data.length) throw denied("malformed-proof");
+    const initial = this.data[this.at++]!;
+    const major = initial >>> 5;
+    const additional = initial & 31;
+    if (additional < 24) return [major, BigInt(additional)];
+    const width = additional === 24 ? 1 : additional === 25 ? 2 : additional === 26 ? 4 : additional === 27 ? 8 : 0;
+    // Indefinite lengths and reserved values are unreadable here.
+    if (width === 0 || this.data.length - this.at < width) throw denied("malformed-proof");
+    let value = 0n;
+    for (const octet of this.data.subarray(this.at, this.at + width)) {
+      value = (value << 8n) | BigInt(octet);
+    }
+    this.at += width;
+    return [major, value];
+  }
+
+  mapOf(entries: number): void {
+    const [major, value] = this.head();
+    if (major !== 5 || value !== BigInt(entries)) throw denied("malformed-proof");
+  }
+
+  // A key that is not a small unsigned integer is unreadable; a readable key
+  // other than the next expected one is a non-canonical key order.
+  key(expected: number): void {
+    const [major, value] = this.head();
+    if (major !== 0 || value > 0xffn) throw denied("malformed-proof");
+    if (value !== BigInt(expected)) throw denied("non-canonical-proof");
+  }
+
+  unsigned(maximum: bigint): bigint {
+    const [major, value] = this.head();
+    if (major !== 0 || value > maximum) throw denied("malformed-proof");
+    return value;
+  }
+
+  private span(expectedMajor: number): Uint8Array {
+    const [major, length] = this.head();
+    if (major !== expectedMajor || length > BigInt(this.data.length - this.at)) {
+      throw denied("malformed-proof");
+    }
+    const value = this.data.slice(this.at, this.at + Number(length));
+    this.at += Number(length);
+    return value;
+  }
+
+  byteString(): Uint8Array {
+    return this.span(2);
+  }
+
+  // A bounded protocol identifier: non-empty, at most `maximum` bytes,
+  // without whitespace or control characters.
+  identifier(maximum: number): string {
+    const raw = this.span(3);
+    let value: string;
+    try {
+      value = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(raw);
+    } catch {
+      throw denied("malformed-proof");
+    }
+    if (raw.length === 0 || raw.length > maximum || /[\p{Cc}\p{White_Space}]/u.test(value)) {
+      throw denied("malformed-proof");
+    }
+    return value;
+  }
+}
+
+function actionHead(major: number, value: bigint): Uint8Array {
+  if (value < 24n) return Uint8Array.of((major << 5) | Number(value));
+  const [marker, width] = value <= 0xffn ? [24, 1] : value <= 0xffffn ? [25, 2] :
+    value <= 0xffffffffn ? [26, 4] : [27, 8];
+  const output = new Uint8Array(1 + width);
+  output[0] = (major << 5) | marker;
+  let remaining = value;
+  for (let index = width; index > 0; index -= 1) {
+    output[index] = Number(remaining & 0xffn);
+    remaining >>= 8n;
+  }
+  return output;
+}
+
+function actionText(value: string): Uint8Array {
+  const encoded = new TextEncoder().encode(value);
+  return Buffer.concat([actionHead(3, BigInt(encoded.length)), encoded]);
+}
+
+function actionByteString(value: Uint8Array): Uint8Array {
+  return Buffer.concat([actionHead(2, BigInt(value.length)), value]);
+}
+
+// The unique canonical encoding of a decoded canonical action, with detached
+// attachments in digest order.
+function encodeCanonicalAction(value: CanonicalAction): Uint8Array {
+  const key = (index: number) => Uint8Array.of(index);
+  const parts: Uint8Array[] = [
+    actionHead(5, 6n),
+    key(0), actionHead(5, 2n), key(0), actionText(value.profile.id),
+    key(1), actionHead(0, value.profile.version),
+    key(1), actionText(value.mediaType),
+    key(2), actionByteString(value.body),
+    key(3), actionHead(5, 2n), key(0), actionText(value.permission.capability),
+    key(1), actionText(value.permission.resource),
+    key(4),
+  ];
+  if (value.budget === undefined) {
+    parts.push(Uint8Array.of(0xf6));
+  } else {
+    parts.push(
+      actionHead(5, 2n), key(0), actionText(value.budget.algebra),
+      key(1), actionHead(0, value.budget.value),
+    );
+  }
+  parts.push(key(5), actionHead(4, BigInt(value.detached.length)));
+  for (const attachment of value.detached) {
+    parts.push(
+      actionHead(5, 2n), key(0), actionByteString(attachment.digest),
+      key(1), actionByteString(attachment.bytes),
+    );
+  }
+  return Buffer.concat(parts);
+}
+
+// Decodes the canonical-action input under the context's limits: input bytes
+// (limit 1), body bytes (limit 23), detached attachment count (limit 13), and
+// each and all detached attachment bytes (limit 14), with the native stable
+// code for every failure.
+function boundedCanonicalAction(data: Uint8Array, limits: bigint[]): CanonicalAction {
+  if (BigInt(data.length) > limits[1]!) throw denied("resource-limit-exceeded");
+  const reader = new ActionReader(data);
+  reader.mapOf(6);
+  reader.key(0);
+  reader.mapOf(2);
+  reader.key(0);
+  const profileID = reader.identifier(128);
+  reader.key(1);
+  const version = reader.unsigned(0xffffn);
+  if (version === 0n) throw denied("malformed-proof");
+  reader.key(1);
+  const mediaType = reader.identifier(128);
+  reader.key(2);
+  const body = reader.byteString();
+  if (body.length === 0 || BigInt(body.length) > limits[23]!) {
+    throw denied("resource-limit-exceeded");
+  }
+  reader.key(3);
+  reader.mapOf(2);
+  reader.key(0);
+  const capability = reader.identifier(128);
+  reader.key(1);
+  const resource = reader.identifier(1024);
+  reader.key(4);
+  let requested: Budget | undefined;
+  if (!reader.nextIsNull()) {
+    reader.mapOf(2);
+    reader.key(0);
+    const algebra = reader.identifier(128);
+    reader.key(1);
+    requested = { algebra, value: reader.unsigned(0xffffffffffffffffn) };
+  }
+  reader.key(5);
+  const [major, count] = reader.head();
+  if (major !== 4) throw denied("malformed-proof");
+  if (count > limits[13]!) throw denied("resource-limit-exceeded");
+  const detached: DetachedAttachment[] = [];
+  let total = 0n;
+  for (let index = 0n; index < count; index += 1n) {
+    reader.mapOf(2);
+    reader.key(0);
+    const digest = reader.byteString();
+    if (digest.length !== 32) throw denied("malformed-proof");
+    reader.key(1);
+    const content = reader.byteString();
+    const size = BigInt(content.length);
+    if (size === 0n || size > limits[14]!) throw denied("resource-limit-exceeded");
+    total += size;
+    if (total > limits[14]!) throw denied("resource-limit-exceeded");
+    detached.push({ digest, bytes: content });
+  }
+  const sorted = [...detached].sort((left, right) => Buffer.compare(left.digest, right.digest));
+  if (sorted.some((value, index) => index > 0 && equal(value.digest, sorted[index - 1]!.digest))) {
+    throw denied("malformed-proof");
+  }
+  if (!reader.complete) throw denied("malformed-proof");
+  const action: CanonicalAction = {
+    body, profile: { id: profileID, version }, mediaType,
+    permission: { capability, resource }, budget: requested, detached: sorted,
+  };
+  if (!equal(encodeCanonicalAction(action), data)) throw denied("non-canonical-proof");
+  return action;
+}
+
 export function semanticAudit(manifestPath: string): string {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as SemanticManifest;
   if (manifest.protocol_major !== 1 || manifest.fixtures.length === 0) {
@@ -2230,9 +2521,7 @@ export function semanticAudit(manifestPath: string): string {
       throw new Error(`${fixture.name} canonical action/body mismatch`);
     }
     const result = verifySemantic(
-      fixture.name, proofBytes, contextBytes, actionBytes,
-      canonical,
-      manifest.adapter_context,
+      fixture.name, proofBytes, contextBytes, actionBytes, manifest.adapter_context,
     );
     if (result.decision !== fixture.expected_decision || result.code !== fixture.expected_code) {
       throw new Error(

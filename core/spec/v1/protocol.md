@@ -61,6 +61,8 @@ contains:
 - status policy.
 
 Adding an unrelated trust anchor cannot authorize a chain anchored elsewhere.
+Every resource a chain names, in each grant's permissions and in the action,
+must lie inside one of the anchor's resource namespaces.
 
 ### Grant
 
@@ -77,9 +79,12 @@ Every edge must narrow or preserve:
 - status and assurance policy; and
 - critical extensions.
 
-The first grant from a trust anchor may establish a critical-extension set.
-Every later child grant MUST preserve that complete canonical set byte for
-byte until an extension-specific attenuation algebra is standardized.
+The first grant from a trust anchor selects its critical extensions freely.
+Across every later edge, each identifier is judged by the attenuation law its
+registered handler declares (`registry.md`, "Attenuation laws"): a parent
+extension must be kept or narrowed under its law, an extension only the child
+carries must be one its law allows adding, and an identifier without a law is
+refused.
 
 Issuer/subject and parent linkage must be exact. Cross-profile delegation
 requires a registered bridge extension.
@@ -159,11 +164,21 @@ binding must exactly equal the evidence IDs reported consumed by the selected
 principal adapter. Extra, ignored, or adapter-invented evidence fails closed.
 
 Principal status and grant status are separate signed facts. Each carries an
-exact method, subject, issuer, sequence, and validity boundary. The trusted
-snapshot supplies accepted issuers and sequence floors; latest-sequence
-selection is deterministic and revoked dominates active at the same sequence.
-Historical control, current control, statement existence, revocation, and
-freshness are not interchangeable.
+exact method, subject, issuer, sequence, validity boundary, and critical
+extensions. The trusted snapshot supplies accepted issuers and sequence
+floors; latest-sequence selection is deterministic and revoked dominates
+active at the same sequence. Historical control, current control, statement
+existence, revocation, and freshness are not interchangeable.
+
+A principal-status statement names no purpose or role. The latest statement
+about a principal governs it in every position it holds in a branch, and
+selection and the rollback check on a proof-carried statement both key on
+the principal alone, as they key on the grant for grant status. No registered
+critical extension gives a status statement meaning. When a verifier
+evaluates the status of a principal or grant, a statement about it that
+carries an extension is refused: `critical-extension-unknown` for an
+identifier the context does not accept, and `unsupported-critical-extension`
+for one it does (`registry.md`, "Status-statement extensions").
 
 Principal status covers every principal in an authority branch: the trust
 anchor and the subject of every grant, which by chain linkage includes every
@@ -222,8 +237,8 @@ future lattice is a protocol-versioned semantic change, not an interpretation
 left to an adapter.
 
 Stable first-failure ordering makes implementations and receipts agree on one
-diagnostic. It is not a timing, cache, power, or other side-channel
-noninterference guarantee.
+diagnostic; `verification-algorithm.md` specifies the order. It is not a
+timing, cache, power, or other side-channel noninterference guarantee.
 
 ## Deterministic encoding
 

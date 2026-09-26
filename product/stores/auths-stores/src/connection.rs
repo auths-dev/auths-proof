@@ -195,14 +195,14 @@ impl PersistentConnectionStore {
         })
     }
 
-    /// Atomically disables, enables, or revokes one expected generation.
+    /// Atomically disables, enables, or revokes one expected generation. The
+    /// credential reference is unchanged: a state change stores no credential.
     pub fn transition_state(
         &self,
         provider: &ProviderKind,
         alias: &ConnectionAlias,
         expected_generation: NonZeroU64,
         state: auths_connections::ConnectionState,
-        credential_reference_commitment: [u8; 32],
         updated_at_unix_seconds: u64,
     ) -> Result<ConnectionRecord, PersistentConnectionStoreError> {
         let current = self
@@ -212,11 +212,7 @@ impl PersistentConnectionStore {
             return Err(PersistentConnectionStoreError::Conflict);
         }
         let replacement = current
-            .transition_state(
-                state,
-                credential_reference_commitment,
-                updated_at_unix_seconds,
-            )
+            .transition_state(state, updated_at_unix_seconds)
             .map_err(|_| PersistentConnectionStoreError::Conflict)?;
         self.replace(expected_generation, replacement.clone())?;
         Ok(replacement)

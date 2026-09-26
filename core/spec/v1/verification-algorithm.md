@@ -26,78 +26,286 @@ The proof cannot add a trust anchor or weaken context.
 
 ## Stages
 
+Verification runs the stages below in order. Within a stage, checks run in
+the order written, and the first check that fails is the result, so every
+conforming implementation reports the same class and primary code for an
+input with more than one fault. Two rules refine this: a signed statement's
+control failure found in stage 3 becomes a result only where stage 5 needs
+that statement, and stage 6 combines the results of every branch, each
+evaluated in this order.
+
+A portable result names its stage: `decode` for stage 1, `resolve` for
+stage 2, `principal-control` for stage 3, `authority` for stages 4 to 6, and
+`complete` when authorized. A stage 1 or stage 2 result carries no plan
+digest.
+
+A name such as `binding.permission` marks a check site. The conformance
+corpus holds, for each one, a vector whose single fault that check rejects
+first.
+
 ### 1. Bounded decode
 
-1. Reject bytes above the configured or protocol maximum.
-2. Strictly decode deterministic CBOR.
-3. Reject invalid map keys, non-minimal forms, invalid UTF-8, duplicate keys,
-   unknown critical fields, unsorted sets, trailing bytes, and collection
-   overflow.
-4. Produce `DecodedProof`.
+The three inputs are decoded in this order. A decode failure is the result
+and carries no plan digest.
+
+1. The trusted context, under the protocol hard maximums. Its deployment
+   limits then bound the other two inputs.
+2. The canonical action, before any proof byte is read:
+   1. `decode.action-bytes`: an input longer than the canonical-action input
+      limit is `resource-limit-exceeded`, before any byte is read.
+   2. Fields are read in key order: profile, media type, body, permission,
+      requested budget, detached attachments. An item that cannot be read as
+      its field's type (including an indefinite length or a tag), an invalid
+      identifier, or a zero profile version is `malformed-proof`. A readable
+      map key other than the next expected key is `non-canonical-proof`.
+   3. Bounds are checked as each field is read, each failing with
+      `resource-limit-exceeded`: an empty body or one longer than the
+      canonical-body limit (`decode.action-body-bytes`); more detached
+      attachments than the attachment-count limit; and an empty detached
+      attachment, one longer than the aggregate detached-attachment limit, or
+      detached attachments that together exceed that limit
+      (`decode.attachment-bytes`).
+   4. Two detached attachments with one digest are `malformed-proof`, and so
+      are bytes after the action.
+   5. An input that reads completely but is not the canonical encoding of the
+      action it decodes to, such as a non-shortest integer or length or
+      detached attachments out of digest order, is `non-canonical-proof`.
+      This is checked last, so it never hides a failure listed above.
+3. The proof bundle. Bytes above the bundle limit are
+   `resource-limit-exceeded` before any byte is read. Then strictly decode
+   deterministic CBOR, and reject invalid map keys, non-minimal forms, invalid
+   UTF-8, duplicate keys, unknown critical fields, unsorted sets, trailing
+   bytes, and collection overflow. Produce `DecodedProof`.
+
+A canonical action constructed in process has no input bytes. For it, only
+the aggregate detached-attachment limit applies, at action binding.
 
 ### 2. Reference resolution
 
-1. Recompute grant, action, plan, evidence, status, and attachment identifiers.
-2. Build bounded digest indexes.
-3. Reject missing, duplicate, cyclic, mismatched, ambiguous, and
-   unused-critical references.
-4. Require a unique signed action for every plan `proof-ref`.
-5. Produce `ResolvedProof`.
+In this order:
+
+1. Recompute the plan identifier. When the trusted context requires an exact
+   plan and the identifier differs, the result is
+   `composition-requirement-not-met`.
+2. Recompute grant identifiers. Two grants with one identifier are
+   `duplicate-object`.
+3. For each action in proof order, an action bound to another plan
+   identifier is `plan-action-mismatch`, and a proof reference an earlier
+   action already used is `duplicate-object`. Then two actions with one
+   identifier are `duplicate-object`.
+4. Every plan `proof-ref` needs exactly one action and every action one
+   leaf: `missing-reference`.
+5. Two evidence objects with one identifier, or two statements with one
+   identifier in either status snapshot, are `duplicate-object`.
+6. For each control binding in proof order, a second binding for the same
+   statement is `duplicate-object`, and a binding that names an absent
+   statement or evidence object is `missing-reference`.
+7. For each action in proof order, follow parent references from its terminal
+   grant: an absent grant is `missing-reference`. A grant that no action's
+   chain reaches is `unused-critical-evidence`.
+8. Two proof attachment descriptors with one digest are
+   `duplicate-attachment`.
+9. A proof-carried status statement older than a snapshot statement about the
+   same principal, or the same grant, is `status-sequence-rollback`; one the
+   snapshot does not hold is `digest-mismatch`. Only the subject keys this
+   comparison, as it keys selection; the method and issuer do not.
+
+Produce `ResolvedProof`.
 
 ### 3. Principal control
 
-First require both the context registry-manifest identifier and exact
-verifier-configuration commitment to match the immutable executable registry.
-For every signed grant, action, and accepted status statement:
+1. The context's registry-manifest identifier must equal the executable
+   registry's: `registry-manifest-mismatch`.
+2. The context's verifier-configuration commitment must equal the executable
+   adapter and registry configuration: `verifier-configuration-mismatch`.
+3. Verify every signed statement, in this order: grants by identifier,
+   actions by identifier, then the principal-status and grant-status
+   statements of the context snapshots in snapshot order. For each:
+   1. select exactly one principal method and signature suite, each accepted
+      and installed: otherwise `unsupported-principal-method` or
+      `unsupported-signature-suite`;
+   2. gather the evidence the statement's control binding names: no binding
+      is `missing-principal-evidence`, and an evidence type the context does
+      not accept is `unsupported-evidence-type`;
+   3. reserve the method's conservative maximum work and the suite's work
+      before either implementation is called;
+   4. verify method-specific principal and control semantics, which return
+      parameterized assurance and the exact evidence identifiers consumed;
+   5. reject an implementation that exceeds its reservation;
+   6. verify the domain-separated signature: `invalid-signature`.
 
-1. select exactly one principal method and signature suite;
-2. reserve the method's conservative maximum work and suite work before either
-   implementation is called;
-3. gather the bounded evidence bound to that statement;
-4. verify the domain-separated signature;
-5. verify method-specific principal/control semantics;
-6. return parameterized assurance and the exact evidence IDs actually
-   consumed;
-7. require those IDs to equal the relevant statement binding exactly;
-8. reject an implementation that exceeds its reservation.
+   A failure is stored on its statement and becomes a result only where
+   stage 5 needs that statement: the root statement of a branch, a grant in
+   the delegation walk, the action, or a status statement. Resource
+   exhaustion is not stored: it ends verification with
+   `resource-limit-exceeded`.
+4. For every statement whose control succeeded, the evidence its binding
+   names must equal the evidence the method consumed:
+   `unused-critical-evidence`.
+5. Every evidence object must be consumed by a binding or a snapshot
+   checkpoint: `unused-critical-evidence`.
 
 Unavailable required capability is `Indeterminate`; invalid supplied evidence
-is `Denied`. A signed-statement failure is stored on the statement/leaf result;
-it does not become a global proof failure unless structural decoding,
-reference resolution, or resource safety failed.
+is `Denied`.
 
 Produce `ControlVerifiedProof`.
 
-### 4. Authority branches
+### 4. Action binding
 
-For each plan leaf:
+Runs once, after principal control and before any authority branch:
 
-1. find the signed action by `proof-ref`;
-2. select a local trust anchor by exact principal and scoped ceilings, and
-   check its principal's status (see Principal status below);
-3. execute the context-selected resource matcher for the action resource and
-   every anchor namespace;
-4. walk the referenced grant chain root to terminal:
-   - issuer equals current subject;
-   - parent is exact;
-   - profile/version remains exact;
-   - permissions, validity, audiences, action constraints, budget, and depth
-     attenuate;
-   - grant status policy is satisfied;
-   - the grant subject's principal status is satisfied under the trust
-     anchor's status policy (see Principal status below);
-   - role-specific assurance floor is satisfied;
-5. require actor equals terminal subject;
-6. require exact permission, audience, body constraint, and time coverage;
-7. resolve and execute exact budget, status, extension, assurance-claim, and
-   implication handlers, reserving their work before invocation;
-8. before applying each child grant, deny with
-   `observation-requirement-dropped` when some observation requirement of
-   its parent grant has no child requirement with the same schema and
-   subject; the authority kernel then applies every critical-extension
-   attenuation law (registry.md) and denies a widened requirement, a changed
-   marker, or an identifier without a law with `delegation-expanded`;
-9. run the observation stage below.
+1. `binding.embedded-body`: when the proof carries a body, it must equal the
+   canonical body: `action-body-mismatch`.
+2. For each signed action, in proof order:
+   1. The envelope must bind the canonical action exactly. In one comparison,
+      its profile (`binding.profile`), body media type (`binding.media-type`),
+      body digest, which is the SHA-256 of the canonical body
+      (`binding.body-digest`), permission (`binding.permission`), and
+      requested budget (`binding.requested-budget`) must equal the canonical
+      action's: `action-body-mismatch`. This comparison is the only tie
+      between the body the proof carries or omits and the signatures.
+   2. `binding.profile-accepted`: the context must accept the profile:
+      `unsupported-profile`.
+   3. `binding.audience`: the audience must equal the expected audience:
+      `audience-mismatch`.
+   4. `binding.challenge`: the challenge must equal the expected challenge:
+      `challenge-mismatch`.
+   5. `binding.evaluation-time`: the evaluation time must lie inside the
+      action's validity window: `action-outside-validity`. Only this check
+      stops an expired action; grant validity bounds the action's window,
+      not the evaluation time.
+   6. `binding.channel`: the channel-binding requirement must equal the
+      context's channel policy: `local-policy-denied`.
+   7. `binding.shared-meaning`: the action must bind the same profile, media
+      type, body digest, permission, requested budget, audience, challenge,
+      validity window, plan, channel binding, attachment descriptors, and
+      critical extensions as the first action: `plan-action-mismatch`.
+   8. Its critical extensions, in order: an identifier the context does not
+      accept is `critical-extension-unknown`
+      (`binding.action-extension-accepted`); one without an installed
+      handler is `unsupported-critical-extension`
+      (`binding.action-extension-handler`); the handler's work is reserved,
+      and a handler that rejects the bytes returns `resource-limit-exceeded`
+      for a bound and `local-policy-denied` otherwise
+      (`binding.action-extension-evaluation`).
+   9. `binding.observation-attachments`: more than 32 descriptors with the
+      observation media type, or one declaring more than 4096 bytes:
+      `resource-limit-exceeded`.
+3. Attachments, against the first action's signed descriptors:
+   1. `binding.attachment-descriptors`: the proof's descriptor list must
+      equal the signed list: `unused-critical-attachment`.
+   2. Duplicate descriptor or detached digests are `duplicate-attachment`;
+      stages 1 and 2 already reject both.
+   3. Detached attachments together must not exceed the aggregate
+      detached-attachment limit: `resource-limit-exceeded`. Stage 1 already
+      bounds a portable input.
+   4. For each descriptor in order: a required one without detached bytes is
+      `attachment-missing` (`binding.attachment-missing`), and an optional one
+      is skipped; the bytes must have the signed length
+      (`binding.attachment-length`): `attachment-length-mismatch`; their
+      SHA-256 must be the signed digest (`binding.attachment-digest`):
+      `attachment-digest-mismatch`; and encrypted bytes whose descriptor
+      requires them to be inspectable are `opaque-attachment-not-allowed`
+      (`binding.attachment-opaque`).
+   5. `binding.attachment-unused`: detached bytes that no descriptor names
+      are `unused-critical-attachment`.
+4. `binding.profile-policy`: the context's profile policy must be accepted
+   and installed: `unsupported-profile-policy`. Its work is reserved, and a
+   policy that rejects the action is `local-policy-denied`.
+
+### 5. Authority branches
+
+Every plan leaf is evaluated in the plan's canonical order (stage 6), whatever
+earlier leaves returned. For one leaf:
+
+1. Find the action by `proof-ref` and its grant chain, root to terminal. The
+   root principal is the first grant's issuer, or the actor when the action
+   names no grant.
+2. `branch.root-control`: a stored control failure of the root statement (the
+   first grant, or the action when it names no grant) is the branch result.
+3. Trust anchors whose principal is the root principal are tried in context
+   order. The first that establishes authority decides the branch; when none
+   does, the first anchor's failure is the result, and with no such anchor it
+   is `untrusted-root` (`branch.untrusted-root`). For one anchor:
+   1. The anchor must accept the principal method of the root statement's
+      signature, and its assurance policy must be the context's:
+      `untrusted-root`.
+   2. Status, as Principal status and Grant status below specify: the anchor
+      principal's status (`branch.anchor-principal-status`); then, for each
+      grant root to terminal, that grant's status under its own status policy
+      (`branch.grant-status`), followed by its subject's principal status
+      (`branch.subject-principal-status`).
+   3. `branch.resource-matcher`: the context's resource matcher must be
+      accepted and installed: `unsupported-resource-matcher`.
+   4. Resource namespaces, under that matcher, reserving its work for each
+      namespace tried: the resource of every permission of every grant, root
+      to terminal and in each grant's permission order
+      (`branch.grant-namespace`), and then the action's resource
+      (`branch.action-namespace`), must each lie inside at least one of the
+      anchor's namespaces: `resource-namespace-mismatch`.
+   5. Budget chain. For each grant root to terminal whose parent ceiling (the
+      anchor's, then the previous grant's) is bounded: a grant with no
+      ceiling is `delegation-expanded`; the parent ceiling's algebra must be
+      accepted and installed (`branch.budget-edge-algebra`):
+      `unsupported-budget-algebra`; its work is reserved; that algebra
+      rejects a grant ceiling in any other algebra as invalid input
+      (`branch.budget-edge-mismatch`): `local-policy-denied`; and a larger
+      ceiling is `delegation-expanded` (`branch.budget-edge`). Then, when the
+      terminal ceiling (the last grant's, or the anchor's when there is no
+      grant) is bounded: an action that requests no budget is
+      `budget-ceiling-exceeded` unless the context declares its profile
+      budget-free (`branch.budget-absent`); the terminal ceiling's algebra
+      must be accepted and installed (`branch.budget-algebra`):
+      `unsupported-budget-algebra`; it rejects a request in any other algebra
+      (`branch.budget-request-mismatch`): `local-policy-denied`; and a larger
+      request is `budget-ceiling-exceeded` (`branch.budget-coverage`). An
+      algebra is resolved only where a bounded ceiling is compared, so a
+      request under unbounded authority names an algebra that is never
+      resolved.
+   6. Delegation walk, for each grant root to terminal:
+      1. For a grant after the first, `branch.requirement-dropped`: when some
+         observation requirement of its parent has no child requirement with
+         the same schema and subject, the result is
+         `observation-requirement-dropped`. Then the extension laws' work is
+         reserved.
+      2. The authority kernel applies the edge. Linkage first
+         (`branch.delegation-linkage`): the issuer must be the current subject
+         and the parent reference the previous grant: `broken-grant-chain`.
+         Then every dimension must narrow or preserve, else
+         `delegation-expanded`: remaining depth (`branch.delegation-depth`),
+         profile (`branch.delegation-profile`), permissions
+         (`branch.delegation-permissions`), validity
+         (`branch.delegation-validity`), audiences
+         (`branch.delegation-audiences`), action constraint
+         (`branch.delegation-action-constraint`), budget, status policy
+         (`branch.delegation-status`), assurance policy
+         (`branch.delegation-assurance`), and critical extensions under each
+         identifier's attenuation law in registry.md
+         (`branch.delegation-extensions`). The budget dimension repeats a
+         comparison the budget chain has already made, so it never decides.
+      3. The grant's stored control failure.
+      4. `branch.grant-extension`: the grant's critical extensions, checked as
+         an action's are in stage 4.
+
+      Then terminal coverage: the actor must be the terminal subject and the
+      action must name the terminal grant (`branch.coverage-linkage`):
+      `broken-grant-chain`; the action's profile must be the one the chain
+      selected, or one of the anchor's profiles when there is no grant
+      (`branch.coverage-profile`): `broken-grant-chain`; the permission must
+      be granted (`branch.coverage-permission`): `permission-not-granted`;
+      the action's validity window must lie inside the authority's
+      (`branch.coverage-validity`): `action-outside-validity`; the audience
+      must be granted (`branch.coverage-audience`): `audience-mismatch`; and
+      the body digest must satisfy the action constraint
+      (`branch.coverage-constraint`): `action-constraint-mismatch`. Budget
+      coverage repeats the budget chain and never decides.
+   7. The action's stored control failure.
+   8. Assurance: every claim of every participant must have an accepted
+      handler (`branch.assurance-claim`): `unsupported-assurance-claim`. Each
+      claim is validated, implications are reserved and applied, and the
+      context's requirements must be met (`branch.assurance-requirement`):
+      `assurance-requirement-not-met`.
+   9. The observation stage below.
 
 Produce one `VerifiedAuthority` per valid branch.
 
@@ -112,14 +320,26 @@ status policy governs only that grant's status: it never changes which
 principals are checked or how. When the anchor's status policy is
 `ExpiryOnly`, no principal status is evaluated.
 
+A statement names no purpose or role, so the principal is its only key: one
+evaluation below governs the principal in every position it holds.
+
 Under `SnapshotRequired`, evaluate each principal against the context's
 principal-status snapshot:
 
 1. The status method named by the policy must be accepted and installed;
    otherwise `unsupported-status-method`.
-2. Every snapshot statement about the principal must have verified control
-   from stage 3. A statement whose control failed fails the check with that
-   failure; it is never ignored.
+2. Each snapshot statement about the principal, in snapshot order, whatever
+   its method or issuer and whether or not selection would pick it:
+   1. It must have verified control from stage 3. A statement whose control
+      failed fails the check with that failure; it is never ignored.
+   2. Its critical extensions, in order: an identifier the context does not
+      accept is `critical-extension-unknown`
+      (`branch.principal-status-extension-accepted`); an accepted one is
+      `unsupported-critical-extension`
+      (`branch.principal-status-extension-handler`), because no registered
+      extension defines status semantics and a grant or action handler never
+      evaluates a status statement (`registry.md`, "Status-statement
+      extensions"). No handler runs and no work is reserved.
 3. Reserve the method's declared maximum work for the snapshot's statement
    count before evaluating.
 4. If the evaluation time is outside the snapshot's own validity window, the
@@ -147,17 +367,44 @@ A revocation must stay in the snapshot until every grant that names the
 principal as subject has expired. While it is stale the result is
 `stale-status`; once it is removed, the principal is active again.
 
-### 4a. Observation stage
+#### Grant status
 
-Runs for each branch after its authority is established and before the
-branch counts as authorized. Collect the distinct requirements carried by the
-`observation-requirement-v1` extensions of every grant in the chain; more
-than 32 is `resource-limit-exceeded`. With none, the stage passes.
+A grant's own status policy governs its status. When the policy is
+`ExpiryOnly`, no grant status is evaluated. Under `SnapshotRequired`, evaluate
+the grant against the context's grant-status snapshot:
+
+1. The status method named by the policy must be accepted and installed;
+   otherwise `unsupported-status-method`.
+2. Each snapshot statement about the grant, in snapshot order, whatever its
+   method or issuer and whether or not selection would pick it:
+   1. It must have verified control from stage 3; a statement whose control
+      failed fails the check with that failure.
+   2. Its critical extensions, in order: an identifier the context does not
+      accept is `critical-extension-unknown`
+      (`branch.grant-status-extension-accepted`); an accepted one is
+      `unsupported-critical-extension`
+      (`branch.grant-status-extension-handler`), for the reason principal
+      status gives.
+3. Reserve the method's declared maximum work for the snapshot's statement
+   count before evaluating.
+4. If the evaluation time is outside the snapshot's own validity window, the
+   result is `stale-status`.
+5. If no statement names the grant, the result is `missing-grant-status`.
+6. Otherwise select as principal status does, where a `revoked` or
+   `superseded` statement gives `grant-revoked`.
+
+### 5a. Observation stage
+
+Runs for each branch after its authority and assurance are established and
+before the branch counts as authorized. Collect the distinct requirements
+carried by the `observation-requirement-v1` extensions of every grant in the
+chain; more than 32 is `resource-limit-exceeded`. With none, the stage
+passes.
 
 1. Resolve each requirement's observer anchor by exact ID in the trusted
    context. If any resolved anchor's principal equals the trust anchor, an
    issuer or subject of a chain grant, or the actor, deny with
-   `observer-in-authority-chain`.
+   `observer-in-authority-chain` (`branch.observer-in-chain`).
 2. Decode every attachment whose signed descriptor carries the observation
    media type. Malformed bytes are `malformed-proof`; an over-limit value is
    `resource-limit-exceeded`.
@@ -166,7 +413,8 @@ than 32 is `resource-limit-exceeded`. With none, the stage passes.
    - resolve the subject (a literal, or a text action fact that parses as a
      resource) and every `eq-action` value through the profile policy's
      `action_fact`, reserving the policy's work per call; an undefined fact
-     is `observation-action-fact-unavailable`;
+     is `observation-action-fact-unavailable`
+     (`branch.observation-action-fact`);
    - reserve `conditions × observations + 1` work units;
    - in attachment-digest order, an observation is eligible when its
      observer equals the anchor principal, its schema equals the
@@ -183,46 +431,31 @@ than 32 is `resource-limit-exceeded`. With none, the stage passes.
      proof denied;
    - the first eligible observation that makes every condition true
      satisfies the requirement. If eligible observations exist and none
-     does, the requirement is `observation-condition-false`; with no
-     eligible observation it is `observation-missing`.
+     does, the requirement is `observation-condition-false`
+     (`branch.observation-condition`); with no eligible observation it is
+     `observation-missing` (`branch.observation-missing`).
 4. Any denied requirement denies the branch; otherwise the first
    indeterminate requirement makes it indeterminate. Denial dominates.
 5. Record, for each requirement, its content identifier and the attachment
    digest of the observation that satisfied it.
 
-### 5. Plan evaluation
+### 6. Plan evaluation and composition
 
-1. Recompute the plan ID and compare every action binding.
-2. Require all branch actions to bind identical canonical action meaning,
-   audience, challenge, and plan.
-3. Evaluate every `Proof`, `AllOf`, `AnyOf`, and `KOfN` child from its local
+1. Evaluate every `Proof`, `AllOf`, `AnyOf`, and `KOfN` child from its local
    authorized, denied, indeterminate, or structurally-invalid result.
-4. A denied child dominates an indeterminate child for `AllOf`; an authorized
+2. A denied child dominates an indeterminate child for `AllOf`; an authorized
    child satisfies `AnyOf`; `KOfN` is indeterminate only when unavailable
    children could still satisfy the threshold. Within a class, the
    lexicographically smallest stable code is primary.
-5. Never skip a branch for resource accounting after another branch succeeds.
-6. Apply plan leaf, depth, branch, signature, and total work limits.
-7. Enforce the trusted context's expected plan, minimum authorized branches,
-   distinct actors, and distinct roots.
-8. Sort authorized branches canonically.
-
-### 6. Action binding
-
-1. Select the exact application profile/version.
-2. Canonicalize or validate the supplied canonical body.
-3. Compare body media type and digest.
-4. Compare capability, resource, requested budget, audience, challenge,
-   validity, actor, terminal grant, plan, and channel-binding requirement.
-5. Deny with `resource-limit-exceeded` an action binding more than 32
-   attachments with the observation media type, or one declaring more than
-   4096 bytes;
-6. Verify the signed attachment descriptor set exactly matches the proof set;
-   check required availability, identifier, SHA-256 digest, byte length,
-   signed media/disposition/encryption flags, opaque-content permission,
-   duplicates, unused detached bytes, and byte limits.
-7. Resolve and execute the verifier-local profile policy.
-8. Construct `VerifiedAction` through a private constructor.
+3. Never skip a branch for resource accounting after another branch succeeds.
+4. Apply plan leaf, depth, branch, signature, and total work limits.
+5. When the plan authorizes, the trusted context's minimums must hold:
+   authorized branches (`composition.authorized-branches`), distinct actors
+   (`composition.distinct-actors`), and distinct roots
+   (`composition.distinct-roots`), else `composition-requirement-not-met`.
+   The expected plan was checked in stage 2.
+6. Sort authorized branches canonically and construct `VerifiedAction`
+   through a private constructor.
 
 The portable entry point is:
 
@@ -270,6 +503,9 @@ implementation produces identical:
 - action and context digests;
 - resource/work totals;
 - canonical portable result bytes and result digest.
+
+Because every check runs in the order the stages specify, an input with
+several faults has one primary code in every conforming implementation.
 
 Replay, transport, storage, and execution results are deliberately outside
 this invariant.

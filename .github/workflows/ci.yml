@@ -1186,6 +1186,25 @@ jobs:
           [[ "$PLANNER" == success ]]
           [[ "$REQUIRED" == true && "$RUN_RESULT" == success ]] || [[ "$REQUIRED" == false && "$RUN_RESULT" == skipped ]]
 
+  # A Kani-closure change can require Kani without formal translation, and then
+  # formal evidence is skipped, so Kani's own result is enforced here.
+  formal-kani:
+    name: formal-kani
+    if: ${{ !cancelled() }}
+    needs: [ci-plan, formal-kani-run]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce planned result
+        env:
+          PLANNER: ${{ needs.ci-plan.result }}
+          REQUIRED: ${{ needs.ci-plan.outputs.formal_kani_required }}
+          REASON: ${{ needs.ci-plan.outputs.formal_kani_reason }}
+          RUN_RESULT: ${{ needs.formal-kani-run.result }}
+        run: |
+          echo "Decision: ${REQUIRED}; implementation: ${RUN_RESULT}; ${REASON}" >> "$GITHUB_STEP_SUMMARY"
+          [[ "$PLANNER" == success ]]
+          [[ "$REQUIRED" == true && "$RUN_RESULT" == success ]] || [[ "$REQUIRED" == false && "$RUN_RESULT" == skipped ]]
+
   compliance:
     name: compliance
     if: ${{ !cancelled() }}
@@ -1294,6 +1313,7 @@ jobs:
     needs:
       - authoritative
       - formal-translation
+      - formal-kani
       - compliance
       - dependencies
       - secrets
@@ -1306,6 +1326,7 @@ jobs:
         env:
           AUTHORITATIVE: ${{ needs.authoritative.result }}
           FORMAL_TRANSLATION: ${{ needs.formal-translation.result }}
+          FORMAL_KANI: ${{ needs.formal-kani.result }}
           COMPLIANCE: ${{ needs.compliance.result }}
           DEPENDENCIES: ${{ needs.dependencies.result }}
           SECRETS: ${{ needs.secrets.result }}
@@ -1319,6 +1340,7 @@ jobs:
             echo "| --- | --- |"
             echo "| authoritative | ${AUTHORITATIVE} |"
             echo "| formal-translation | ${FORMAL_TRANSLATION} |"
+            echo "| formal-kani | ${FORMAL_KANI} |"
             echo "| compliance | ${COMPLIANCE} |"
             echo "| dependencies | ${DEPENDENCIES} |"
             echo "| secrets | ${SECRETS} |"
@@ -1328,6 +1350,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           [[ "$AUTHORITATIVE" == success ]]
           [[ "$FORMAL_TRANSLATION" == success ]]
+          [[ "$FORMAL_KANI" == success ]]
           [[ "$COMPLIANCE" == success ]]
           [[ "$DEPENDENCIES" == success ]]
           [[ "$SECRETS" == success ]]

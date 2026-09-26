@@ -118,22 +118,19 @@ func NewEngine(adapterContextJSON []byte) (*Engine, error) {
 	return &Engine{adapters: context}, nil
 }
 
-// Verify executes the independent bounded V1 verifier without I/O.
+// Verify executes the independent bounded V1 verifier without I/O. The
+// canonical action is bounded by the trusted context's limits and decoded
+// before the proof, with the same stable codes as the native decoder.
 func (engine *Engine) Verify(
 	proofCBOR []byte,
 	canonicalActionCBOR []byte,
 	trustedContextCBOR []byte,
 ) Result {
-	action, err := decodeCanonicalAction(canonicalActionCBOR)
-	if err != nil {
-		return Result{Decision: Denied, Code: "malformed-proof"}
-	}
 	semantic := verifySemantic(
 		"",
 		proofCBOR,
 		trustedContextCBOR,
 		canonicalActionCBOR,
-		*action,
 		engine.adapters,
 	)
 	result := Result{

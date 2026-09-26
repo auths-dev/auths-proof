@@ -1,10 +1,13 @@
 #![forbid(unsafe_code)]
 
 pub mod connection_admin;
+mod credential_retention;
 pub mod generated;
 mod journal_executor;
 pub mod local_agent;
 pub mod local_deployment;
+#[cfg(unix)]
+mod local_listener;
 mod preparation_evidence;
 pub mod profile_configuration;
 mod profile_launch;

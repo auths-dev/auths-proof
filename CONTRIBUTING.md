@@ -4,10 +4,10 @@
 
 Read:
 
-- `AUTHS_PROOF_GREENFIELD_FOUNDATION.md`;
+- `docs/target-state/AUTHS_PROOF_GREENFIELD_FOUNDATION.md`;
 - `docs/architecture.md`;
 - `docs/threat-model.md`;
-- `spec/v1/protocol.md`.
+- `core/spec/v1/protocol.md`.
 
 The main dependency rule is:
 
@@ -66,6 +66,6 @@ Resolvers remain separate from pure verification adapters.
 
 ## Tests
 
-Security regression tests should assert the exact `Decision` and
-`VerdictReason`. Include tampering, truncation, substitution, replay-context,
+Security regression tests should assert the exact `VerificationDecision`
+and stable code (a `DenialReason` or an indeterminate `Requirement`). Include tampering, truncation, substitution, replay-context,
 resource-limit, and non-canonical cases where applicable.

@@ -21,8 +21,8 @@ work cost that is reserved before invocation.
 | Critical extension | `exact-marker-v1` | Requires the exact byte string `h'01'` and otherwise changes no authority. Attenuation law: byte equality; adding it is refused |
 | Critical extension | `observation-requirement-v1` | Bytes are canonical `observation-requirements`; the observation stage evaluates those carried by grants, and one on an action has no effect. Attenuation law: every parent requirement kept byte-identical or strictly narrowed; the child may add requirements, and adding the extension is accepted |
 | Critical extension | `bounded-policy-commitment-v1` | Bytes are a canonical `bounded-policy-commitment` whose policy bytes open to the committed digest; core never reads the policy. Attenuation law: a child keeps a bound only by linking the digest of its parent's exact extension bytes, and adds one to an unbounded parent only without a link |
-| Principal status | `auths-principal-status-v1` | Trusted issuer, method, floor, freshness, and revoked-dominant latest selection |
-| Grant status | `auths-grant-status-v1` | Same selection rules as principal status |
+| Principal status | `auths-principal-status-v1` | Trusted issuer, method, floor, freshness, and revoked-dominant latest selection, keyed on the principal alone |
+| Grant status | `auths-grant-status-v1` | Same selection rules as principal status, keyed on the grant |
 
 Critical-extension, assurance-claim, and assurance-implication lookups are
 also exact executable lookups. An identifier listed by the context without an
@@ -47,6 +47,19 @@ denied. There is no fallback or version negotiation.
 |---|---|---|---|
 | `ed25519-v1` | 32-byte compressed point | 64 bytes | RFC 8032 verification of exact preimage |
 | `p256-sha256-v1` | 33-byte compressed SEC1 | 64-byte `r || s` | ECDSA/SHA-256, low-S required |
+
+## Adapters outside the built-in set
+
+These adapters live in `core/adapters/` but are not part of the built-in
+principal methods and signature suites above. The Git-signing verifier in
+`product/integrations/auths-git-signing` registers them. None has a vector in
+the core corpus (`core/fixtures/v1`) or a Go or TypeScript implementation.
+
+| ID | Kind | Conformance |
+|---|---|---|
+| `oidc-workload-v1` | Principal method | Adapter vectors in `core/conformance/v1/adapters/oidc-workload.json` |
+| `sigstore-keyless-v1` | Principal method | Adapter vectors in `core/conformance/v1/adapters/sigstore-keyless.json` |
+| `rsa-pkcs1-sha256-v1` | Signature suite | No conformance vectors |
 
 ## Status methods
 
@@ -125,6 +138,28 @@ signed-byte validation, work reservation, and portable interoperability.
 Unknown critical extensions are denied. New attenuation or composition
 semantics require a protocol review, an executable model, and a new manifest.
 
+### Status-statement extensions
+
+Principal-status and grant-status statements carry signed critical
+extensions, and V1 registers no handler that gives one status meaning. Every
+registered extension, `exact-marker-v1` included, is defined for grants or
+actions only, and its handler never evaluates a status statement.
+
+When a verifier evaluates the status of a principal or a grant
+(`verification-algorithm.md`, "Principal status" and "Grant status"), it
+checks the extensions of each statement about that subject, in canonical
+order, and the first extension decides: an identifier the context does not
+accept is `critical-extension-unknown`, and an accepted one is
+`unsupported-critical-extension`. This holds for every statement about the
+subject, whatever its method or issuer and whether or not selection would
+pick it, because each takes part in selection. A statement about a principal
+or grant the verifier does not evaluate, such as one outside the branch or
+under an `ExpiryOnly` policy, is not checked.
+
+A status extension, such as one restricting a statement to a role or a
+scope, requires a protocol review, an executable model of how selection
+applies it, and a new manifest.
+
 ### Attenuation laws
 
 Every handler declares an attenuation law over an optional child payload and
@@ -137,10 +172,21 @@ authority kernel requires:
    absent parent payload;
 3. an identifier without an accepted handler to be refused.
 
-Any failure is `delegation-expanded`. The first grant under a trust anchor
-selects its extensions freely. Work is reserved before evaluation as the sum
-of each present payload's handler bound. Each law must be a preorder that
-narrows; the assurance manifest records the proof for each registered law.
+Any failure is `delegation-expanded`, including a child payload the law
+cannot read. The first grant under a trust anchor selects its extensions
+freely. Work is reserved before evaluation as the sum of each present
+payload's handler bound. Each law must be a preorder that narrows; the
+assurance manifest records the proof for each registered law.
+
+For a grant after the first, the observation-requirement drop check runs
+first, then these laws, and only then the handlers evaluate the grant's own
+extensions (`verification-algorithm.md`, stage 5). A malformed or over-limit
+child payload therefore never reaches its handler's failure code. For
+`observation-requirement-v1` it is `observation-requirement-dropped` when the
+parent carries requirements, since the child then addresses none of them, and
+`delegation-expanded` when the parent carries none, since the law refuses to
+add an unreadable requirement set. The handler failure codes below apply to
+the first grant under a trust anchor and to actions.
 
 ### Observation requirements
 
@@ -167,7 +213,9 @@ The handler validates the canonical bytes. It returns a resource-limit
 failure above eight requirements, sixteen conditions, or sixteen membership
 values, and an invalid-input failure for any other malformed or
 non-canonical value, which the verifier reports as `local-policy-denied`,
-as for every critical-extension handler. Evaluation needs the action, the
+as for every critical-extension handler. On a grant after the first, the
+drop check and the attenuation law decide such a payload first, as
+"Attenuation laws" states. Evaluation needs the action, the
 attachments, and the trusted context that a handler never sees, so it runs
 in the verifier's observation stage.
 
@@ -196,7 +244,8 @@ semantic identifier, followed by the canonical policy bytes (1 to 4096) and an
 optional parent link. The handler checks canonical encoding, identifier
 syntax and lengths, a non-zero version, and that the policy bytes open to the
 digest. A byte bound is `resource-limit-exceeded`; any other failure is
-`local-policy-denied`.
+`local-policy-denied`. On a grant after the first, the attenuation law
+decides an unreadable payload first, as `delegation-expanded`.
 
 The kernel's law checks only the parent link. Whether a child's policy is
 tighter than its parent's is decided before eligibility by the registered

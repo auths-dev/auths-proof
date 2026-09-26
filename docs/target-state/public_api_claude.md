@@ -35,7 +35,7 @@ The single structural change: **one noun, one lifecycle, two runtimes, four outc
 
 | | `Auths` | `ServiceClient` | `GitHubAgentClient` |
 |---|---|---|---|
-| Defined | [product.ts:163](bindings/typescript/src/product.ts:163) | [service.ts:179](bindings/typescript/src/service.ts:179) | [github-agent.ts:120](bindings/typescript/src/github-agent.ts:120) |
+| Defined | [product.ts:163](../../bindings/typescript/src/product.ts:163) | [service.ts:179](../../bindings/typescript/src/service.ts:179) | [github-agent.ts:120](../../bindings/typescript/src/github-agent.ts:120) |
 | Action input | `McpAction` (typed) | `Uint8Array` | none — `execute(session)` |
 | Wire | in-process WASM | CBOR `application/auths+cbor` | JSON |
 | Routes | — | `/v1/authority/*`, `/v1/profiles/*` | `/v1/demo/*` |
@@ -49,24 +49,24 @@ The single structural change: **one noun, one lifecycle, two runtimes, four outc
 
 `@auths-dev/sdk` exports `Auths`, `Authority`, `Actor`, `ExecutionResult`, `createAuths`. All of them are MCP.
 
-- [product.ts:42](bindings/typescript/src/product.ts:42) — `export type Authority = McpToolAuthority;`
-- [product.ts:167-176](bindings/typescript/src/product.ts:167) — `execute` takes `McpAction` and `McpClosedProvider`.
-- [product.ts:145](bindings/typescript/src/product.ts:145) — `ExecutionReference.decode` accepts only `/^mcp1\.[0-9a-f]{64}\.[0-9a-f]{64}$/`, length exactly 134.
+- [product.ts:42](../../bindings/typescript/src/product.ts:42) — `export type Authority = McpToolAuthority;`
+- [product.ts:167-176](../../bindings/typescript/src/product.ts:167) — `execute` takes `McpAction` and `McpClosedProvider`.
+- [product.ts:145](../../bindings/typescript/src/product.ts:145) — `ExecutionReference.decode` accepts only `/^mcp1\.[0-9a-f]{64}\.[0-9a-f]{64}$/`, length exactly 134.
 - Four of the five parameter types on `interface Auths` cannot be named from the root; `ProfilePlan` is exported from no public subpath at all.
 
 GitHub, OpenTofu and PostgreSQL — three of the four `qualifiedProfiles` in `bindings/public-topology-v1.json` — cannot reach this object.
 
 ### 1.3 The product-named factory, and the entire production path, are unreachable
 
-`createAuths(configuration)` requires an `AuthsConfiguration` minted by `createAuthsConfiguration`, exported from no entry point ([product.ts:343](bindings/typescript/src/product.ts:343); grep finds exactly one caller, `integrations.ts:156`, which hard-codes `"development"`). The SDK's own test codifies the trap: `assert.throws(() => createAuths({mode:"development",diagnostics:[]}), /not created by an integration/)` (`test/unit/product.test.js:13`).
+`createAuths(configuration)` requires an `AuthsConfiguration` minted by `createAuthsConfiguration`, exported from no entry point ([product.ts:343](../../bindings/typescript/src/product.ts:343); grep finds exactly one caller, `integrations.ts:156`, which hard-codes `"development"`). The SDK's own test codifies the trap: `assert.throws(() => createAuths({mode:"development",diagnostics:[]}), /not created by an integration/)` (`test/unit/product.test.js:13`).
 
-`production.createAuths` ([integrations.ts:136-143](bindings/typescript/src/integrations.ts:136)) demands `configuration.mode === "production"`. No public code path can produce one. The same holds in Python (`_product.py` `_create_auths_configuration` is private, its one caller hard-codes `"development"`), where the guard additionally dereferences `.mode` before validating the argument type and so raises `AttributeError` rather than the documented `TypeError`.
+`production.createAuths` ([integrations.ts:136-143](../../bindings/typescript/src/integrations.ts:136)) demands `configuration.mode === "production"`. No public code path can produce one. The same holds in Python (`_product.py` `_create_auths_configuration` is private, its one caller hard-codes `"development"`), where the guard additionally dereferences `.mode` before validating the argument type and so raises `AttributeError` rather than the documented `TypeError`.
 
 **The documented production composition is dead code in both languages.**
 
 ### 1.4 The "generic five-verb transport" hands the developer raw protocol bytes
 
-Both READMEs claim "No protocol bytes or GitHub credential enter application code." `ServiceClient` is `create(request: Uint8Array)`, `execute(authority, action: Uint8Array)` ([service.ts:180-188](bindings/typescript/src/service.ts:180)). No public helper builds those bytes. Two of its five methods are unusable against the reference node, which answers `core.unauthenticated-principal` for `create` and `delegate` — which is why `importAuthority` had to be added ([service.ts:507-527](bindings/typescript/src/service.ts:507), whose own docstring calls the client "a proof-carrying client that could not carry a proof inward").
+Both READMEs claim "No protocol bytes or GitHub credential enter application code." `ServiceClient` is `create(request: Uint8Array)`, `execute(authority, action: Uint8Array)` ([service.ts:180-188](../../bindings/typescript/src/service.ts:180)). No public helper builds those bytes. Two of its five methods are unusable against the reference node, which answers `core.unauthenticated-principal` for `create` and `delegate` — which is why `importAuthority` had to be added ([service.ts:507-527](../../bindings/typescript/src/service.ts:507), whose own docstring calls the client "a proof-carrying client that could not carry a proof inward").
 
 ### 1.5 One third of the public surface has never been exemplified
 
@@ -89,11 +89,11 @@ Same three outcomes, three disjoint name sets: `{Completed, Denied, Indeterminat
 
 ### 1.8 The error a TypeScript caller actually receives is not exported
 
-`AuthsWorkflowError` is thrown at 177 sites, including from the public `Auths.execute`. It `extends Error`, not `AuthsError`, and is exported from no published subpath. A consumer can only `catch (e)` and regex `e.message`. Its 36 `WorkflowErrorCode`s are checked against `product/errors/v1/registry.json`: **zero of 36 are registered.** Family and retry are derived from `code.startsWith(...)` / `code.endsWith("-failed")` ([workflow/errors.ts:124-138](bindings/typescript/src/workflow/errors.ts:124)). Python fixed its half; TypeScript did not, so the two languages disagree about whether a workflow failure is catchable as `AuthsError`.
+`AuthsWorkflowError` is thrown at 177 sites, including from the public `Auths.execute`. It `extends Error`, not `AuthsError`, and is exported from no published subpath. A consumer can only `catch (e)` and regex `e.message`. Its 36 `WorkflowErrorCode`s are checked against `product/errors/v1/registry.json`: **zero of 36 are registered.** Family and retry are derived from `code.startsWith(...)` / `code.endsWith("-failed")` ([workflow/errors.ts:124-138](../../bindings/typescript/src/workflow/errors.ts:124)). Python fixed its half; TypeScript did not, so the two languages disagree about whether a workflow failure is catchable as `AuthsError`.
 
 ### 1.9 Definite denials are silently converted to "indeterminate" in both languages
 
-`GitHubAgentClient.execute/replay/reconcile` route through one helper that wraps everything in a bare catch ([github-agent.ts:168-184](bindings/typescript/src/github-agent.ts:168)):
+`GitHubAgentClient.execute/replay/reconcile` route through one helper that wraps everything in a bare catch ([github-agent.ts:168-184](../../bindings/typescript/src/github-agent.ts:168)):
 
 ```ts
 try { return projectOutcome(await call(`/v1/demo/sessions/${id}/${operation}`, {method:"POST"})); }
@@ -130,10 +130,10 @@ TypeScript: the actual return types of `Auths.execute` (`SingleExecutionResult`,
 Not everything is broken. These are load-bearing and the redesign preserves all of them:
 
 - **The effect axis.** `EffectState {not-applied, possible, applied}` is derived from the generated registry type in TypeScript (`Definition["outcomes"][number]["effect"]`), so it cannot drift from Rust by construction. That derivation trick is the pattern this proposal generalizes.
-- **Fail-closed classification.** `auths_errors::classify` returns `known:false, retry: Unknown, effect: Possible, recommendedAction: ResumeAndReconcile` for an unrecognized code ([product/errors/auths-errors/src/lib.rs:310-318](product/errors/auths-errors/src/lib.rs:310)) — never downgraded to `NotApplied`, never a fourth value.
+- **Fail-closed classification.** `auths_errors::classify` returns `known:false, retry: Unknown, effect: Possible, recommendedAction: ResumeAndReconcile` for an unrecognized code ([product/errors/auths-errors/src/lib.rs:310-318](../../product/errors/auths-errors/src/lib.rs:310)) — never downgraded to `NotApplied`, never a fourth value.
 - **`RetryClass` vs `NextCall` named by the question each answers.** Different questions, permanently different identifiers.
 - **Transport failure is Rust's decision.** `service.ts:317-324` classifies only what the platform *proved* into a closed 7-member `TransportFailure` and asks Rust what it means.
-- **Required vs executed verifier configuration is compared before a session exists** ([github-agent.ts:198-200](bindings/typescript/src/github-agent.ts:198)).
+- **Required vs executed verifier configuration is compared before a session exists** ([github-agent.ts:198-200](../../bindings/typescript/src/github-agent.ts:198)).
 - **Sealed handles.** `ExecutionReference`, `ServiceAuthority`, `ServiceReceipt` hold bytes in module-private `WeakMap`s with `toJSON(): never`.
 - **The five security nouns and five product verbs**, hard-coded in `xtask/src/sdk_vocabulary.rs:129-136` and `product-errors.ts:31`.
 
@@ -544,7 +544,7 @@ export function decodeReceipt(bytes: Uint8Array): Receipt;
 
 **Verify count: 13 declarations.** Down from 37.
 
-> `verifyProof` takes a **named record**, not three positional `Uint8Array`s. Today `verifier.verify(proof, action, context)` type-checks when transposed and fails only as a runtime denial ([verifier/result.ts:145](bindings/typescript/src/verifier/result.ts:145)); Python's `VerificationInput` is a bare `Tuple[bytes, bytes, bytes]` consumed positionally.
+> `verifyProof` takes a **named record**, not three positional `Uint8Array`s. Today `verifier.verify(proof, action, context)` type-checks when transposed and fails only as a runtime denial ([verifier/result.ts:145](../../bindings/typescript/src/verifier/result.ts:145)); Python's `VerificationInput` is a bare `Tuple[bytes, bytes, bytes]` consumed positionally.
 
 ### 3.4 TypeScript — `@auths-dev/sdk/identity` (component)
 

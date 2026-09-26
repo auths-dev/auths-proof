@@ -158,9 +158,11 @@ pub fn execute_case(case: &str) -> Result<BoundaryExecution, String> {
         "context/raw-key-chain/challenge-bitflip/full-verifier" => {
             Ok(BoundaryExecution::FullVerifier(Box::new(wrong_challenge())))
         }
-        "context/raw-key-chain/time-after-validity/full-verifier" => Ok(
-            BoundaryExecution::FullVerifier(Box::new(time_after_validity())),
-        ),
+        "context/raw-key-chain/time-after-validity/full-verifier" => {
+            Ok(BoundaryExecution::FullVerifier(Box::new(
+                crate::kernel_checks::evaluation_time_after_validity(),
+            )))
+        }
         "context/raw-key-chain/unsupported-assurance/full-verifier" => Ok(
             BoundaryExecution::FullVerifier(Box::new(unsupported_assurance_claim())),
         ),
@@ -272,25 +274,6 @@ fn configuration_bitflip() -> CorpusFixture {
     fixture.context_bytes =
         encode_verifier_context(&replacement).expect("canonical conformance context");
     fixture.expected = Expected::Denied(DenialReason::VerifierConfigurationMismatch);
-    fixture
-}
-
-fn time_after_validity() -> CorpusFixture {
-    let mut fixture = raw_key_chain();
-    let context =
-        decode_verifier_context(fixture.context_bytes()).expect("repository-owned raw-key context");
-    let replacement = context
-        .for_request(
-            context.expected_audience().clone(),
-            context.expected_challenge(),
-            Timestamp::new(61),
-        )
-        .expect("evaluation time remains inside context snapshot bounds");
-    fixture.name = "conformance-time-after-validity";
-    fixture.class = "denied";
-    fixture.context_bytes =
-        encode_verifier_context(&replacement).expect("canonical conformance context");
-    fixture.expected = Expected::Denied(DenialReason::ActionOutsideValidity);
     fixture
 }
 

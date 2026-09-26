@@ -212,8 +212,15 @@ pub(crate) fn target_conformance() -> Result<(), String> {
     let registries = auths_registries::ImmutableRegistries::new(&methods, &suites)
         .map_err(|error| error.to_string())?;
     for fixture in auths_testkit::corpus() {
+        portable_corpus_outcome(&fixture, &registries)?;
         let context = auths_codec::decode_verifier_context(fixture.context_bytes())
             .map_err(|error| format!("{} context: {error}", fixture.name()))?;
+        // An input the portable decoder rejects has no in-process form.
+        let encoded = auths_codec::encode_canonical_action(fixture.canonical_action())
+            .map_err(|error| format!("{} action: {error}", fixture.name()))?;
+        if auths_codec::decode_canonical_action(&encoded, context.limits()).is_err() {
+            continue;
+        }
         let actual = auths_verifier::verify(
             fixture.proof_bytes(),
             fixture.canonical_action(),
@@ -243,14 +250,53 @@ pub(crate) fn target_conformance() -> Result<(), String> {
     Ok(())
 }
 
+/// Runs one corpus vector through the byte-oriented portable ABI, reading
+/// the same three inputs as the Go and TypeScript verifiers, and requires the
+/// expected decision and code.
+fn portable_corpus_outcome(
+    fixture: &auths_testkit::CorpusFixture,
+    registries: &auths_registries::ImmutableRegistries<'_>,
+) -> Result<auths_verifier::SealedVerificationResult, String> {
+    let action_bytes = auths_codec::encode_canonical_action(fixture.canonical_action())
+        .map_err(|error| format!("{} action: {error}", fixture.name()))?;
+    let sealed = auths_verifier::verify_v1_sealed(
+        fixture.proof_bytes(),
+        &action_bytes,
+        fixture.context_bytes(),
+        registries,
+    )
+    .map_err(|error| format!("{} portable ABI: {error}", fixture.name()))?;
+    let (expected_decision, expected_code) = match fixture.expected() {
+        Expected::Authorized => ("authorized", "authorized"),
+        Expected::Denied(reason) => ("denied", reason.code()),
+        Expected::Indeterminate(requirement) => ("indeterminate", requirement.code()),
+    };
+    let decision = decision_name(sealed.portable().decision());
+    let code = sealed.portable().code().code();
+    if decision != expected_decision || code != expected_code {
+        return Err(format!(
+            "{} expected {expected_decision}/{expected_code}, got {decision}/{code}",
+            fixture.name()
+        ));
+    }
+    Ok(sealed)
+}
+
+fn decision_name(decision: auths_model::VerificationDecision) -> &'static str {
+    match decision {
+        auths_model::VerificationDecision::Authorized => "authorized",
+        auths_model::VerificationDecision::Denied => "denied",
+        auths_model::VerificationDecision::Indeterminate => "indeterminate",
+    }
+}
+
 pub(crate) fn semantic_digest() -> Result<(), String> {
     println!("{}", semantic_digest_value()?);
     Ok(())
 }
 
 pub(crate) fn semantic_digest_value() -> Result<String, String> {
-    use auths_model::ParticipantRole;
-    use auths_verifier::VerificationOutcome;
+    use auths_model::{ParticipantRole, VerificationStage};
 
     let raw_key = auths_raw_key::RawKeyMethod::new().map_err(|error| error.to_string())?;
     let did_key = auths_did_key::DidKeyMethod::new().map_err(|error| error.to_string())?;
@@ -278,48 +324,26 @@ pub(crate) fn semantic_digest_value() -> Result<String, String> {
     for fixture in &fixtures {
         let context = auths_codec::decode_verifier_context(fixture.context_bytes())
             .map_err(|error| format!("{} context: {error}", fixture.name()))?;
-        let outcome = auths_verifier::verify(
-            fixture.proof_bytes(),
-            fixture.canonical_action(),
-            &context,
-            &registries,
-        );
-        let (decision, code) = match &outcome {
-            VerificationOutcome::Authorized(_) => ("authorized", "authorized"),
-            VerificationOutcome::Denied(reason) => ("denied", reason.code()),
-            VerificationOutcome::Indeterminate(requirement) => {
-                ("indeterminate", requirement.code())
-            }
-        };
-        let matches = match (fixture.expected(), &outcome) {
-            (Expected::Authorized, VerificationOutcome::Authorized(_)) => true,
-            (Expected::Denied(expected), VerificationOutcome::Denied(actual)) => {
-                expected == *actual
-            }
-            (Expected::Indeterminate(expected), VerificationOutcome::Indeterminate(actual)) => {
-                expected == *actual
-            }
-            _ => false,
-        };
-        if !matches {
-            return Err(format!(
-                "{} expected {:?}, got {outcome:?}",
-                fixture.name(),
-                fixture.expected()
-            ));
-        }
+        let sealed = portable_corpus_outcome(fixture, &registries)?;
+        let result = sealed.portable();
         let proof_digest = Sha256::digest(fixture.proof_bytes());
         let context_digest =
             auths_codec::context_digest(&context).map_err(|error| error.to_string())?;
         let action_bytes = auths_codec::encode_canonical_action(fixture.canonical_action())
             .map_err(|error| error.to_string())?;
         let action_digest = Sha256::digest(action_bytes);
-        let plan = auths_verifier::decode_proof(fixture.proof_bytes(), &context)
-            .ok()
-            .and_then(|decoded| auths_codec::plan_id(decoded.bundle().plan()).ok());
+        // No plan is recorded when an input fails to decode: a rejected
+        // canonical action stops verification before the proof is read.
+        let plan = if result.stage() == VerificationStage::Decode {
+            None
+        } else {
+            auths_verifier::decode_proof(fixture.proof_bytes(), &context)
+                .ok()
+                .and_then(|decoded| auths_codec::plan_id(decoded.bundle().plan()).ok())
+        };
         write_field(&mut summary, fixture.name());
-        write_field(&mut summary, decision);
-        write_field(&mut summary, code);
+        write_field(&mut summary, decision_name(result.decision()));
+        write_field(&mut summary, result.code().code());
         write_bytes(&mut summary, &proof_digest);
         write_bytes(&mut summary, context_digest.as_bytes());
         write_bytes(&mut summary, &action_digest);
@@ -328,7 +352,7 @@ pub(crate) fn semantic_digest_value() -> Result<String, String> {
             plan.as_ref()
                 .map_or(&[][..], |identifier| identifier.as_bytes()),
         );
-        if let VerificationOutcome::Authorized(action) = &outcome {
+        if let Some(action) = sealed.action() {
             for identifier in action.action_ids() {
                 write_bytes(&mut summary, identifier.as_bytes());
             }

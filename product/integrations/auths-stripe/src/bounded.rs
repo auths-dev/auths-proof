@@ -32,7 +32,7 @@ pub const CONFIGURED_POLICY_PROVENANCE: &str = "executor-local-trusted-configura
 const MAX_POLICY_ITEMS: u16 = 64;
 const MAX_AGGREGATE_BUDGETS: usize = 8;
 const MAX_POLICY_LIFETIME_SECONDS: u64 = 366 * 24 * 60 * 60;
-const MAX_WINDOW_SECONDS: u64 = 31 * 24 * 60 * 60;
+pub(crate) const MAX_WINDOW_SECONDS: u64 = 31 * 24 * 60 * 60;
 
 /// Explicit evidence denominator for a basis-point limit.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -868,6 +868,31 @@ pub struct BoundedEvaluationContext<'a> {
 /// Evaluates an exact refund inside an immutable configured Stripe policy.
 #[must_use]
 pub fn evaluate_bounded_refund(context: &BoundedEvaluationContext<'_>) -> BoundedRefundDecision {
+    evaluate_with_window_time(context, context.now)
+}
+
+/// Re-evaluates a decision that was sealed together with its reservation.
+///
+/// Configuration, policy validity, evidence freshness, Stripe context, and
+/// the exact action with its expiry are evaluated at `context.now`. Aggregate
+/// capacity is evaluated against the budget windows resolved at `sealed_at`,
+/// the time at which the sealed decision and its reservation intents were
+/// computed, and against the aggregate snapshot recorded then. A rolling
+/// window therefore addresses the window the reservation holds rather than
+/// one derived from the re-check clock, and an unchanged sealed decision
+/// re-evaluates to an identical value.
+#[must_use]
+pub fn reevaluate_sealed_bounded_refund(
+    context: &BoundedEvaluationContext<'_>,
+    sealed_at: u64,
+) -> BoundedRefundDecision {
+    evaluate_with_window_time(context, sealed_at)
+}
+
+fn evaluate_with_window_time(
+    context: &BoundedEvaluationContext<'_>,
+    window_time: u64,
+) -> BoundedRefundDecision {
     if let Err(decision) = check_bounded_configuration(context) {
         return decision;
     }
@@ -884,7 +909,7 @@ pub fn evaluate_bounded_refund(context: &BoundedEvaluationContext<'_>) -> Bounde
         Ok(limits) => limits,
         Err(decision) => return decision,
     };
-    let reservations = match calculate_reservations(context) {
+    let reservations = match calculate_reservations(context, window_time) {
         Ok(reservations) => reservations,
         Err(decision) => return decision,
     };
@@ -1202,6 +1227,7 @@ fn calculate_limits(
 
 fn calculate_reservations(
     context: &BoundedEvaluationContext<'_>,
+    window_time: u64,
 ) -> Result<Vec<RefundReservationIntent>, BoundedRefundDecision> {
     let amount = context.action.amount().amount_minor();
     let currency = context.action.amount().currency();
@@ -1212,7 +1238,7 @@ fn calculate_reservations(
         .iter()
         .filter(|budget| budget.currency() == currency)
     {
-        let window = budget.window().identity(context.now).map_err(|code| {
+        let window = budget.window().identity(window_time).map_err(|code| {
             BoundedRefundDecision::denied(
                 code,
                 BoundedDecisionStage::AggregateBudget,
@@ -1482,6 +1508,60 @@ mod tests {
         ));
 
         assert_eq!(decision.code, BoundedDecisionCode::AggregateBudgetExceeded);
+    }
+
+    #[test]
+    fn rolling_window_reevaluation_uses_the_sealed_windows() {
+        let evidence = evidence(2_000, 0);
+        let exact = configuration(2_000);
+        let mut input = bounded_policy_input(&evidence);
+        input.aggregate_budgets = vec![
+            AggregateRefundBudget::new(
+                "support-rolling",
+                evidence.currency().clone(),
+                2_500,
+                RefundBudgetWindow::Rolling {
+                    duration_seconds: 3_600,
+                },
+            )
+            .unwrap(),
+        ];
+        let policy = StripeBoundedRefundPolicyV1::new(input).unwrap();
+        let bounded = bounded_configuration(&policy);
+        let action = bounded_action(&exact, &policy, &evidence, 1_000, "bounded-rolling-sealed");
+        let sealed_window = policy.aggregate_budgets()[0]
+            .window()
+            .identity(NOW)
+            .unwrap();
+        let snapshot = AggregateBudgetSnapshot {
+            usages: vec![AggregateBudgetUsage {
+                budget_id: "support-rolling".into(),
+                window: sealed_window,
+                committed_minor: 500,
+                reserved_minor: 0,
+                outcome_unknown_minor: 0,
+            }],
+        };
+        let sealed = evaluate_bounded_refund(&context(
+            &policy, &action, &evidence, &exact, &bounded, &snapshot,
+        ));
+        assert_eq!(sealed.class, BoundedDecisionClass::Eligible);
+
+        for gap in [1, 30] {
+            let mut later = context(&policy, &action, &evidence, &exact, &bounded, &snapshot);
+            later.now = NOW + gap;
+            // Resolving the rolling window from the re-check clock addresses a
+            // window the sealed snapshot does not contain.
+            assert_ne!(evaluate_bounded_refund(&later), sealed);
+            assert_eq!(reevaluate_sealed_bounded_refund(&later, NOW), sealed);
+        }
+
+        // Freshness is still judged at the re-check time.
+        let mut stale = context(&policy, &action, &evidence, &exact, &bounded, &snapshot);
+        stale.now = NOW + 56;
+        let decision = reevaluate_sealed_bounded_refund(&stale, NOW);
+        assert_eq!(decision.class, BoundedDecisionClass::Indeterminate);
+        assert_eq!(decision.code, BoundedDecisionCode::EvidenceStale);
     }
 
     #[test]

@@ -6,10 +6,11 @@ the bounded Auths Proof Protocol V1 kernel.
 Start with the [developer integration guide](docs/developer-integration.md)
 for the Rust, TypeScript/WASM, Python, and pure-Go package surfaces.
 
-This workspace owns application profiles, live evidence acquisition, runtime
-orchestration, replay and budget ports, canonical decision/execution receipts,
-reference applications, and Auths Lab. The proof kernel remains offline in
-`auths-proof`; every transport remains in `auths-proof-exchange`.
+This layer (`product/`) owns application profiles, live evidence acquisition,
+runtime orchestration, replay and budget ports, and canonical
+decision/execution receipts. Reference applications and Auths Lab live in
+`demos/`, the offline proof kernel in `core/`, and every transport in
+`exchange/`.
 
 External custody is transaction-bound and keyless: WebAuthn, workload, KMS,
 HSM, and PKCS#11 clients receive an exact Auths signing intent and cannot
@@ -35,7 +36,7 @@ Auths decision.
 
 Implemented profile contracts:
 
-- `auths.mcp/1`;
+- `auths.mcp/2`;
 - `auths.http/1`;
 - `auths.git/1`;
 - `auths.deploy/1`;
@@ -47,8 +48,7 @@ the release-candidate publication set):
 
 - `auths-sdk`: trusted-context, verification, issuance, and custody
   facade selected for the first public Rust surface;
-- `auths-enforcement`: HTTP, gRPC, CI, MCP, and service-local enforcement
-  entry points;
+- `auths-enforcement`: a transport-neutral in-process enforcement kit;
 - `auths-profile-kit`: deterministic fixtures and hostile-input scaffolding;
 - `@auths-dev/sdk`: precompiled WASM with an idiomatic TypeScript API;
 - `auths`: stable-ABI Python wheels;
@@ -65,11 +65,9 @@ emits immutable content-addressed evidence; it never verifies authority or
 chooses trust.
 
 Declarative configuration compiles into an immutable context binding and
-registry manifest. Persistent reference challenge and budget stores survive
-restart within one service process; deployments with concurrent writers must
-use transactional shared implementations. Readiness probes and runtime events
-use stable, low-cardinality fields and never include proof bytes, principal
-identifiers, resources, tool arguments, or custody data.
+registry manifest. Readiness probes and runtime events use stable,
+low-cardinality fields and never include proof bytes, principal identifiers,
+resources, tool arguments, or custody data.
 
 Auths Lab enumerates the full 7 principal × 2 mandatory suite × 6 transport ×
 6 profile surface (504 nominal points), records cold/warm and path-specific

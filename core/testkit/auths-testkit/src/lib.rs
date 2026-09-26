@@ -27,11 +27,11 @@ use auths_model::{
     GrantStatusSnapshot, GrantStatusStatement, LimitKind, MediaType, Opacity, ParticipantRole,
     Permission, PermissionSet, PlanId, Presence, PrincipalId, PrincipalMethodId, PrincipalState,
     PrincipalStatusSnapshot, PrincipalStatusStatement, ProfileId, ProfilePolicyId, ProfileRef,
-    ProofBundle, ProofRef, PurposeId, RegistryManifestId, Requirement, ResourceId,
-    ResourceMatcherId, SignatureBytes, SignatureDescriptor, SignatureEnvelope, SignatureSuiteId,
-    SignedAction, SignedGrant, SignedGrantStatus, SignedPrincipalStatus, StatementRef,
-    StatusMethodId, StatusPolicy, StatusSnapshotId, Timestamp, TrustAnchor, TrustAnchorId,
-    TrustedContext, ValidityWindow, VerificationMethod, VerifierConfigurationId, VerifierLimits,
+    ProofBundle, ProofRef, RegistryManifestId, Requirement, ResourceId, ResourceMatcherId,
+    SignatureBytes, SignatureDescriptor, SignatureEnvelope, SignatureSuiteId, SignedAction,
+    SignedGrant, SignedGrantStatus, SignedPrincipalStatus, StatementRef, StatusMethodId,
+    StatusPolicy, StatusSnapshotId, Timestamp, TrustAnchor, TrustAnchorId, TrustedContext,
+    ValidityWindow, VerificationMethod, VerifierConfigurationId, VerifierLimits,
 };
 use auths_multikey::{Multikey, MultikeyType};
 use auths_path_webpki::WebPkiPathVerifier;
@@ -58,7 +58,9 @@ use rustls_pki_types::PrivatePkcs8KeyDer;
 use sha2::{Digest as _, Sha256};
 
 mod bounded_policy;
+mod kernel_checks;
 mod observation;
+mod status_extensions;
 
 pub use observation::observation_action_fact_fixture;
 
@@ -2221,7 +2223,6 @@ fn status_fixture(name: &'static str, variation: StatusVariation) -> CorpusFixtu
         let statement = PrincipalStatusStatement::new(
             StatusMethodId::parse(PRINCIPAL_STATUS_METHOD).expect("status method"),
             identities[0].principal.clone(),
-            PurposeId::parse(PRINCIPAL_STATUS_METHOD).expect("purpose"),
             PrincipalState::Revoked,
             1,
             Timestamp::new(40),
@@ -2590,7 +2591,6 @@ fn principal_status_selection_fixture(
     let statement = PrincipalStatusStatement::new(
         StatusMethodId::parse(METHOD).expect("status method"),
         root.principal.clone(),
-        PurposeId::parse(METHOD).expect("purpose"),
         PrincipalState::Active,
         1,
         Timestamp::new(40),
@@ -2791,7 +2791,6 @@ fn delegate_status_fixture(
         let statement = PrincipalStatusStatement::new(
             StatusMethodId::parse(METHOD).expect("status method"),
             subject.principal.clone(),
-            PurposeId::parse(METHOD).expect("purpose"),
             state,
             sequence,
             Timestamp::new(observed_at),
@@ -4986,8 +4985,21 @@ fn attachment_fixture(
     variation: AttachmentVariation,
     expected: Expected,
 ) -> CorpusFixture {
+    attachment_fixture_with_bytes(
+        name,
+        variation,
+        b"offline signed attachment".to_vec(),
+        expected,
+    )
+}
+
+fn attachment_fixture_with_bytes(
+    name: &'static str,
+    variation: AttachmentVariation,
+    bytes: Vec<u8>,
+    expected: Expected,
+) -> CorpusFixture {
     let identity = Identity::ed25519(141);
-    let bytes = b"offline signed attachment".to_vec();
     let correct_digest = attachment_digest(&bytes);
     let declared_digest = if matches!(variation, AttachmentVariation::WrongDigest) {
         AttachmentDigest::new([0xa7; 32])
@@ -5321,6 +5333,11 @@ fn build_corpus() -> Vec<CorpusFixture> {
     corpus.extend(marker_delegation_vectors());
     corpus.extend(bounded_policy::bounded_policy_vectors());
     corpus.extend(observation::observation_corpus());
+    corpus.extend(kernel_checks::kernel_check_vectors());
+    corpus.extend(kernel_checks::input_bound_vectors());
+    corpus.extend(kernel_checks::precedence_vectors());
+    corpus.extend(observation::child_limit_vectors());
+    corpus.extend(status_extensions::status_extension_vectors());
     corpus
 }
 
@@ -5336,6 +5353,7 @@ pub fn reviewed_body_digest() -> Digest {
     body_digest(BODY)
 }
 pub mod adversarial;
+pub mod check_sites;
 pub mod conformance;
 pub mod mechanism_conformance;
 pub mod product_waist;

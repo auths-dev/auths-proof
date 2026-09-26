@@ -144,6 +144,41 @@ fn held(snapshot: &PayoutAggregateSnapshot, id: &str) -> u64 {
         .unwrap_or(0)
 }
 
+/// Why fresh balance cannot fund an exact payout.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PayoutBalanceShortfall {
+    /// Existing local holds already exceed the fresh available balance.
+    HoldsExceedAvailable,
+    /// The balance the holds leave cannot cover the exact payout.
+    PayoutExceedsRemaining,
+    /// The payout would leave less than the retained minimum.
+    BelowRetainedMinimum,
+}
+
+/// Fresh available balance left after existing local holds and the exact
+/// payout.
+///
+/// Holds are deducted before the payout and the retained minimum is compared
+/// after it. Both subtractions are checked, so neither the holds nor the
+/// payout can wrap into apparent headroom.
+const fn retained_balance_after_payout(
+    available_minor: u64,
+    held_minor: u64,
+    payout_minor: u64,
+    minimum_retained_minor: u64,
+) -> Result<u64, PayoutBalanceShortfall> {
+    let Some(after_holds) = available_minor.checked_sub(held_minor) else {
+        return Err(PayoutBalanceShortfall::HoldsExceedAvailable);
+    };
+    let Some(after_payout) = after_holds.checked_sub(payout_minor) else {
+        return Err(PayoutBalanceShortfall::PayoutExceedsRemaining);
+    };
+    if after_payout < minimum_retained_minor {
+        return Err(PayoutBalanceShortfall::BelowRetainedMinimum);
+    }
+    Ok(after_payout)
+}
+
 #[must_use]
 pub fn evaluate_payout(context: &PayoutEvaluationContext<'_>) -> PayoutDecision {
     if context.required_configuration != context.executed_configuration {
@@ -381,31 +416,31 @@ pub fn evaluate_payout(context: &PayoutEvaluationContext<'_>) -> PayoutDecision 
             "destination capacity is exhausted",
         );
     }
-    let Some(after_holds) = context
-        .evidence
-        .available_balance_minor
-        .checked_sub(account_held)
-    else {
-        return PayoutDecision::denied(
-            PayoutDecisionCode::PayoutBalanceInsufficient,
-            PayoutDecisionStage::Balance,
-            "local holds exceed fresh available balance",
-        );
+    let available_after = match retained_balance_after_payout(
+        context.evidence.available_balance_minor,
+        account_held,
+        context.action.amount_minor(),
+        *minimum,
+    ) {
+        Ok(available_after) => available_after,
+        Err(shortfall) => {
+            let (code, detail) = match shortfall {
+                PayoutBalanceShortfall::HoldsExceedAvailable => (
+                    PayoutDecisionCode::PayoutBalanceInsufficient,
+                    "local holds exceed fresh available balance",
+                ),
+                PayoutBalanceShortfall::PayoutExceedsRemaining => (
+                    PayoutDecisionCode::PayoutBalanceInsufficient,
+                    "fresh available balance cannot cover the exact payout",
+                ),
+                PayoutBalanceShortfall::BelowRetainedMinimum => (
+                    PayoutDecisionCode::PayoutMinimumBalanceViolated,
+                    "exact payout would breach the retained minimum balance",
+                ),
+            };
+            return PayoutDecision::denied(code, PayoutDecisionStage::Balance, detail);
+        }
     };
-    let Some(available_after) = after_holds.checked_sub(context.action.amount_minor()) else {
-        return PayoutDecision::denied(
-            PayoutDecisionCode::PayoutBalanceInsufficient,
-            PayoutDecisionStage::Balance,
-            "fresh available balance cannot cover the exact payout",
-        );
-    };
-    if available_after < *minimum {
-        return PayoutDecision::denied(
-            PayoutDecisionCode::PayoutMinimumBalanceViolated,
-            PayoutDecisionStage::Balance,
-            "exact payout would breach the retained minimum balance",
-        );
-    }
     let balance_limit = context
         .evidence
         .available_balance_minor
@@ -489,15 +524,32 @@ pub fn evaluate_payout(context: &PayoutEvaluationContext<'_>) -> PayoutDecision 
 
 #[cfg(kani)]
 mod proofs {
+    use super::{PayoutBalanceShortfall, retained_balance_after_payout};
+
     #[kani::proof]
     fn retained_balance_is_conservative() {
         let available: u64 = kani::any();
         let held: u64 = kani::any();
         let payout: u64 = kani::any();
-        if let Some(after_holds) = available.checked_sub(held)
-            && let Some(after) = after_holds.checked_sub(payout)
-        {
-            assert!(after <= available);
+        let minimum: u64 = kani::any();
+        let spent = u128::from(held) + u128::from(payout);
+        // Each outcome holds exactly on its own inputs, in the evaluator's
+        // order: holds first, then the payout, then the retained minimum.
+        match retained_balance_after_payout(available, held, payout, minimum) {
+            Ok(after) => {
+                // Nothing is created or lost, and the minimum stays retained.
+                assert_eq!(u128::from(after) + spent, u128::from(available));
+                assert!(after >= minimum);
+            }
+            Err(PayoutBalanceShortfall::HoldsExceedAvailable) => assert!(held > available),
+            Err(PayoutBalanceShortfall::PayoutExceedsRemaining) => {
+                assert!(held <= available);
+                assert!(spent > u128::from(available));
+            }
+            Err(PayoutBalanceShortfall::BelowRetainedMinimum) => {
+                assert!(spent <= u128::from(available));
+                assert!(u128::from(available) - spent < u128::from(minimum));
+            }
         }
     }
 }

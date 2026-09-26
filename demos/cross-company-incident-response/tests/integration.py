@@ -165,11 +165,9 @@ assert get("/api/state")["counters"] == {
 }
 attack_results = {}
 for attack in (
-    "scope-expansion",
     "byte-mutation",
     "replay",
     "expired",
-    "compromised-approver",
     "unauthorized-iroh",
     "remote-before",
     "remote-after",

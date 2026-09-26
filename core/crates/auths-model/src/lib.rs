@@ -220,7 +220,6 @@ bounded_string!(ResourceMatcherId, 128, ModelError::InvalidRegistryId);
 bounded_string!(ChannelBindingId, 128, ModelError::InvalidRegistryId);
 bounded_string!(ProfilePolicyId, 128, ModelError::InvalidRegistryId);
 bounded_string!(AssuranceImplicationId, 128, ModelError::InvalidRegistryId);
-bounded_string!(PurposeId, 128, ModelError::InvalidRegistryId);
 bounded_string!(AdapterId, 128, ModelError::InvalidRegistryId);
 bounded_string!(EvidenceSourceId, 128, ModelError::InvalidRegistryId);
 bounded_string!(ClaimParameterId, 128, ModelError::InvalidRegistryId);
@@ -2033,12 +2032,19 @@ pub enum GrantState {
     Superseded,
 }
 
+/// A signed fact about one principal's lifecycle state.
+///
+/// The statement names no purpose or role: one latest statement governs the
+/// principal in every position it holds in an authority branch, which is the
+/// key both status selection and carried-status rollback detection use.
+/// Critical extensions are carried and signed, but no registered extension
+/// gives a status statement meaning, so a verifier that evaluates the
+/// principal refuses a statement that carries one.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PrincipalStatusStatement {
     version: ProtocolVersion,
     method: StatusMethodId,
     principal: PrincipalId,
-    purpose: PurposeId,
     state: PrincipalState,
     sequence: u64,
     observed_at: Timestamp,
@@ -2058,7 +2064,6 @@ impl PrincipalStatusStatement {
     pub fn new(
         method: StatusMethodId,
         principal: PrincipalId,
-        purpose: PurposeId,
         state: PrincipalState,
         sequence: u64,
         observed_at: Timestamp,
@@ -2073,7 +2078,6 @@ impl PrincipalStatusStatement {
             version: ProtocolVersion::V1,
             method,
             principal,
-            purpose,
             state,
             sequence,
             observed_at,
@@ -2095,10 +2099,6 @@ impl PrincipalStatusStatement {
     #[must_use]
     pub const fn principal(&self) -> &PrincipalId {
         &self.principal
-    }
-    #[must_use]
-    pub const fn purpose(&self) -> &PurposeId {
-        &self.purpose
     }
     #[must_use]
     pub const fn state(&self) -> PrincipalState {
@@ -2150,6 +2150,11 @@ impl SignedPrincipalStatus {
     }
 }
 
+/// A signed fact about one grant's lifecycle state.
+///
+/// Critical extensions are carried and signed, but no registered extension
+/// gives a status statement meaning, so a verifier that evaluates the grant
+/// refuses a statement that carries one.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GrantStatusStatement {
     version: ProtocolVersion,
@@ -2315,9 +2320,9 @@ impl PrincipalStatusSnapshot {
     /// # Errors
     ///
     /// Returns [`ModelError::InvalidStatusSnapshot`] when the snapshot window
-    /// is inverted, exceeds protocol collection bounds, contains more than one
-    /// statement for a principal/purpose pair, or includes a statement that
-    /// does not cover the snapshot's complete validity window.
+    /// is inverted, exceeds protocol collection bounds, contains a statement
+    /// identical to its neighbour in canonical order, or includes a statement
+    /// that does not cover the snapshot's complete validity window.
     pub fn new(
         id: StatusSnapshotId,
         observed_at: Timestamp,
@@ -2337,10 +2342,13 @@ impl PrincipalStatusSnapshot {
 
     /// Constructs a canonical snapshot with explicit trusted issuer rules.
     ///
+    /// Statements are ordered by principal, status method, sequence, and
+    /// issuer.
+    ///
     /// # Errors
     ///
     /// Returns [`ModelError::InvalidStatusSnapshot`] for invalid windows,
-    /// duplicate subjects, duplicate trust rules, or excessive collections.
+    /// repeated statements, duplicate trust rules, or excessive collections.
     pub fn with_trust(
         id: StatusSnapshotId,
         observed_at: Timestamp,
@@ -2360,7 +2368,6 @@ impl PrincipalStatusSnapshot {
             left.statement()
                 .principal()
                 .cmp(right.statement().principal())
-                .then_with(|| left.statement().purpose().cmp(right.statement().purpose()))
                 .then_with(|| left.statement().method().cmp(right.statement().method()))
                 .then_with(|| {
                     left.statement()
