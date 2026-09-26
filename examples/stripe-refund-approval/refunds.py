@@ -4,14 +4,20 @@ approvals and inside a per-agent limit, submitted through the Auths gateway.
 Commands, in the order the README runs them:
 
     python refunds.py setup   --state DIR --gateway auths-gateway
-    python refunds.py refund  --state DIR --socket SOCK --operation-id ID \\
-                              --payment-intent PI --amount CENTS --approvers a,b
+    python refunds.py request --state DIR --operation-id ID --payment-intent PI \\
+                              --amount CENTS --approvers a,b --out REQUESTS
+    auths-profile approve REQUESTS/manager-a.request \\
+                              --signer DIR/signers/manager-a.json --out REQUESTS/manager-a.response
+    python refunds.py submit  --state DIR --socket SOCK --operation-id ID --responses REQUESTS
     python refunds.py export  --state DIR --out audit-bundle.json
 
-Everything here uses development keys stored under ``DIR/keys`` so one person
-can play every role. In production the root and each manager sign through
-their own custody adapters, and the agent never holds the managers' keys.
-The Stripe secret key never enters this program: only the gateway holds it.
+The agent writes one approval request per manager; each manager answers with
+``auths-profile approve`` on their own machine, and the agent collects the
+response files. Everything here uses development keys stored under
+``DIR/keys`` so one person can play every role; they are development custody.
+In production the root and each manager sign through their own custody
+adapters, and the agent never holds the managers' keys. The Stripe secret key
+never enters this program: only the gateway holds it.
 """
 
 from __future__ import annotations
@@ -42,10 +48,14 @@ from auths.adapters.custody import (
     SigningResponse,
 )
 from auths.authoring import (
-    AuthoringUnsuccessful,
+    ApprovalMember,
+    ApprovalProposal,
     GrantEvidence,
-    QuorumApprover,
-    author_mcp_quorum_proof,
+    approval_requests,
+    approve,
+    collect_approvals,
+    open_approval_request,
+    propose_mcp_approval,
 )
 from auths.gateway import GatewayClient, GatewayEndpoint, GatewaySignedObservation
 
@@ -181,6 +191,14 @@ def setup(args: argparse.Namespace) -> None:
     )
     for name in ROLES:
         _private_write(state / "keys" / f"{name}.seed", os.urandom(32))
+    # What each manager passes to `auths-profile approve --signer`.
+    for name in MANAGERS:
+        signer = {
+            "schema": "auths.approval-signer/1",
+            "custody": "development-ed25519",
+            "seed_file": f"../keys/{name}.seed",
+        }
+        _private_write(state / "signers" / f"{name}.json", json.dumps(signer, indent=2).encode())
     signers = {name: _signer(state, name) for name in ROLES}
     principals = {name: signer.key.principal for name, signer in signers.items()}
 
@@ -272,56 +290,113 @@ def setup(args: argparse.Namespace) -> None:
     print(json.dumps(summary, indent=2))
 
 
-async def _refund(args: argparse.Namespace) -> Dict[str, Any]:
+def _proposal(state: Path, operation: str) -> ApprovalProposal[CreateRefund]:
+    """Rebuilds the agent's proposal for ``operation`` from its saved inputs;
+    the same inputs always give the same envelopes and requests."""
+    facts = json.loads((state / "setup.json").read_text())
+    pending = json.loads((state / "pending" / f"{operation}.json").read_text())
+    managers = pending["managers"]
+    agent = ApprovalMember(
+        facts["principals"]["agent"], (state / "agent.grant.cbor").read_bytes()
+    )
+    return propose_mcp_approval(
+        contract=CONTRACT,
+        command=CreateRefund(
+            operator_namespace="stripe-refunds",
+            operation_id=operation,
+            recipe_digest=facts["recipe_digest"],
+            payment_intent=pending["payment_intent"],
+            amount=pending["amount"],
+        ),
+        # The agent and every listed manager approve the same exact refund.
+        required=1 + len(managers),
+        approvers=[agent] + [ApprovalMember(facts["principals"][name]) for name in managers],
+        requester=facts["principals"]["agent"],
+        challenge=bytes.fromhex(facts["challenge_hex"]),
+        evaluation_time=pending["evaluation_time"],
+    )
+
+
+def _agent_grants(state: Path) -> tuple[GrantEvidence, ...]:
+    root = _signer(state, "root")
+    return (GrantEvidence((state / "agent.grant.cbor").read_bytes(), (root.evidence,)),)
+
+
+async def _request(args: argparse.Namespace) -> Dict[str, Any]:
     state: Path = args.state
-    setup_facts = json.loads((state / "setup.json").read_text())
+    facts = json.loads((state / "setup.json").read_text())
     managers = [name for name in args.approvers.split(",") if name]
     if not set(managers) <= set(MANAGERS) or len(set(managers)) != len(managers):
         raise SystemExit(f"approvers must be distinct names from {', '.join(MANAGERS)}")
-    command = CreateRefund(
-        operator_namespace="stripe-refunds",
-        operation_id=args.operation_id,
-        recipe_digest=setup_facts["recipe_digest"],
-        payment_intent=args.payment_intent,
-        amount=args.amount,
-    )
-    root = _signer(state, "root")
-    agent = QuorumApprover(
-        _signer(state, "agent"),
-        (GrantEvidence((state / "agent.grant.cbor").read_bytes(), (root.evidence,)),),
-    )
-    approvers = [agent] + [QuorumApprover(_signer(state, name)) for name in managers]
-    local_trust = args.local_trust or state / "trust" / "sdk.context.cbor"
-    now = int(time.time())
-    record: Dict[str, Any] = {"operation_id": args.operation_id, "amount": args.amount}
-    try:
-        # The agent and every listed manager sign the same exact refund.
-        authored = await author_mcp_quorum_proof(
-            contract=CONTRACT,
-            command=command,
-            required=len(approvers),
-            approvers=approvers,
-            trusted_context_template=local_trust.read_bytes(),
-            challenge=bytes.fromhex(setup_facts["challenge_hex"]),
-            evaluation_time=now,
-        )
-    except AuthoringUnsuccessful as refused:
-        record.update(stage="authoring", outcome="refused-locally", code=refused.code)
+    pending = {
+        "managers": managers,
+        "payment_intent": args.payment_intent,
+        "amount": args.amount,
+        "evaluation_time": int(time.time()),
+    }
+    _private_write(state / "pending" / f"{args.operation_id}.json", json.dumps(pending).encode())
+    proposal = _proposal(state, args.operation_id)
+    names = {principal: name for name, principal in facts["principals"].items()}
+    out: Path = args.out
+    out.mkdir(mode=0o700, parents=True, exist_ok=True)
+    written: Dict[str, str] = {}
+    for request in approval_requests(proposal):
+        name = names[request.approver]
+        if name == "agent":
+            # The agent approves its own request like any other approver.
+            reviewed = open_approval_request(request.data)
+            response = await approve(reviewed, _signer(state, "agent"), grants=_agent_grants(state))
+            (out / "agent.response").write_text(response.text + "\n")
+            continue
+        path = out / f"{name}.request"
+        path.write_text(request.text + "\n")
+        written[name] = str(path)
+    return {"operation_id": args.operation_id, "requests": written}
+
+
+async def _submit(args: argparse.Namespace) -> Dict[str, Any]:
+    state: Path = args.state
+    facts = json.loads((state / "setup.json").read_text())
+    names = {principal: name for name, principal in facts["principals"].items()}
+    proposal = _proposal(state, args.operation_id)
+    responses = sorted(args.responses.glob("*.response"))
+    texts = [path.read_text().strip() for path in responses]
+    record: Dict[str, Any] = {"operation_id": args.operation_id, "amount": proposal.command.amount}
+    audit = state / "audit"
+    audit.mkdir(mode=0o700, exist_ok=True)
+    with (audit / "approvals.jsonl").open("a", encoding="utf-8") as handle:
+        for text in texts:
+            line = {"operation_id": args.operation_id, "response": text}
+            handle.write(json.dumps(line, separators=(",", ":")) + "\n")
+    collection = collect_approvals(proposal, texts)
+    statuses = {names.get(item.approver, item.approver): item for item in collection.statuses}
+    declined = sorted(name for name, item in statuses.items() if item.status == "declined")
+    if declined:
+        record.update(stage="collection", outcome="declined", declined=declined)
         return record
+    waiting = {
+        name: item.code or item.status
+        for name, item in statuses.items()
+        if item.status != "approved"
+    }
+    if waiting:
+        record.update(stage="collection", outcome="incomplete", waiting=waiting)
+        return record
+    # Collection checks every envelope byte for byte; the gateway's verifier
+    # checks the signatures and the threshold of its installed trust.
+    proof = collection.assemble()
     gateway = GatewayClient(GatewayEndpoint(args.socket.resolve()))
-    result = await gateway.submit(proof=authored.proof, action=authored.action)
+    result = await gateway.submit(proof=proof, action=proposal.action)
     record.update(dataclasses.asdict(result))
     observation = await gateway.observe_outcome(args.operation_id)
     outcome = observation.observation if isinstance(observation, GatewaySignedObservation) else None
     entry = {
         "operation_id": args.operation_id,
-        "proof_b64": _b64(authored.proof),
-        "action_b64": _b64(authored.action),
+        "proof_b64": _b64(proof),
+        "action_b64": _b64(proposal.action),
         "outcome_b64": _b64(outcome) if outcome is not None else None,
     }
-    log = state / "audit" / "entries.jsonl"
-    log.parent.mkdir(mode=0o700, exist_ok=True)
-    with log.open("a", encoding="utf-8") as handle:
+    with (audit / "entries.jsonl").open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(entry, separators=(",", ":")) + "\n")
     return record
 
@@ -330,15 +405,20 @@ def export(args: argparse.Namespace) -> None:
     state: Path = args.state
     log = state / "audit" / "entries.jsonl"
     entries = [json.loads(line) for line in log.read_text().splitlines() if line]
+    approvals = state / "audit" / "approvals.jsonl"
+    responses = [
+        json.loads(line) for line in approvals.read_text().splitlines() if line
+    ] if approvals.exists() else []
     bundle = {
         "schema": "auths.gateway-audit-bundle/1",
         "recipe_b64": _b64(RECIPE.read_bytes()),
         "profile_lock_b64": _b64(PROFILE_LOCK.read_bytes()),
         "trusted_context_b64": _b64((state / "trust" / "gateway.context.cbor").read_bytes()),
         "entries": entries,
+        "approval_responses": responses,
     }
     args.out.write_text(json.dumps(bundle, indent=1) + "\n")
-    print(f"wrote {args.out} with {len(entries)} submissions")
+    print(f"wrote {args.out} with {len(entries)} submissions and {len(responses)} approval responses")
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -351,26 +431,28 @@ def main(argv: Optional[List[str]] = None) -> int:
     prepare.add_argument("--max-count", type=int, default=2, help="refunds per agent per window")
     prepare.add_argument("--window-seconds", type=int, default=DAY)
     prepare.add_argument("--days", type=int, default=30, help="trust and grant validity")
-    refund = commands.add_parser("refund", help="author, approve, and submit one refund")
-    refund.add_argument("--state", type=Path, required=True)
-    refund.add_argument("--socket", type=Path, required=True)
-    refund.add_argument("--operation-id", required=True)
-    refund.add_argument("--payment-intent", required=True)
-    refund.add_argument("--amount", type=int, required=True, help="cents")
-    refund.add_argument("--approvers", required=True, help="comma-separated manager names")
-    refund.add_argument(
-        "--local-trust",
-        type=Path,
-        help="the agent's own pre-submit check; the gateway's installed trust decides",
-    )
+    request = commands.add_parser("request", help="write one approval request per manager")
+    request.add_argument("--state", type=Path, required=True)
+    request.add_argument("--operation-id", required=True)
+    request.add_argument("--payment-intent", required=True)
+    request.add_argument("--amount", type=int, required=True, help="cents")
+    request.add_argument("--approvers", required=True, help="comma-separated manager names")
+    request.add_argument("--out", type=Path, required=True, help="directory for requests and responses")
+    submit = commands.add_parser("submit", help="collect the responses and submit through the gateway")
+    submit.add_argument("--state", type=Path, required=True)
+    submit.add_argument("--socket", type=Path, required=True)
+    submit.add_argument("--operation-id", required=True)
+    submit.add_argument("--responses", type=Path, required=True, help="directory of *.response files")
     bundle = commands.add_parser("export", help="write the audit bundle")
     bundle.add_argument("--state", type=Path, required=True)
     bundle.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
     if args.command == "setup":
         setup(args)
-    elif args.command == "refund":
-        print(json.dumps(asyncio.run(_refund(args))))
+    elif args.command == "request":
+        print(json.dumps(asyncio.run(_request(args))))
+    elif args.command == "submit":
+        print(json.dumps(asyncio.run(_submit(args))))
     else:
         export(args)
     return 0

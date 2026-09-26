@@ -1117,19 +1117,19 @@ kind = "cargo"
 layer = "product"
 path = "product/sdk/auths-approval-quorum"
 core_apis = ["auths-author", "auths-codec", "auths-model", "auths-raw-key", "auths-signature"]
-protocol_versions = ["auths-proof/v1"]
-wire_objects = ["ActionEnvelope", "AuthorizationPlan", "CompositionRequirement", "ProofBundle", "SignedAction"]
-fixture_suites = ["bindings/fixtures/gateway"]
+protocol_versions = ["auths-proof/v1", "auths.approval-request/1", "auths.approval-response/1"]
+wire_objects = ["ActionEnvelope", "ApprovalRequest", "ApprovalResponse", "AuthorizationPlan", "CanonicalAction", "CompositionRequirement", "ProofBundle", "SignedAction", "SignedDecline", "SignedGrant"]
+fixture_suites = ["bindings/fixtures/approval", "bindings/fixtures/gateway"]
 principal_families = []
 signature_families = []
 profiles = ["caller-defined"]
 transports = []
-configuration_inputs = ["composition-requirement", "trust-anchors"]
+configuration_inputs = ["composition-requirement", "registered-review-profiles", "trust-anchors"]
 security_state = []
 
 [packages.auths-approval-quorum.claims]
 core-api-consumer = ["product/sdk/auths-approval-quorum/src/tests.rs#every_envelope_shares_the_action_and_the_threshold_plan", "product/sdk/auths-approval-quorum/src/tests.rs#quorum_requirement_counts_distinct_actors"]
-proof-author-or-assembler = ["product/sdk/auths-approval-quorum/src/tests.rs#assembly_needs_one_exact_approval_per_listed_approver", "product/sdk/auths-approval-quorum/src/tests.rs#impossible_thresholds_and_duplicate_approvers_are_refused"]
+proof-author-or-assembler = ["product/sdk/auths-approval-quorum/src/tests.rs#assembly_needs_one_exact_approval_per_listed_approver", "product/sdk/auths-approval-quorum/src/tests.rs#impossible_thresholds_and_duplicate_approvers_are_refused", "product/sdk/auths-approval-quorum/src/remote_tests.rs#every_fixture_vector_replays", "product/sdk/auths-approval-quorum/src/remote_tests.rs#remote_approval_fixture_is_current"]
 
 [packages.auths-profile-kit]
 kind = "cargo"
@@ -1468,7 +1468,7 @@ path = "bindings/python"
 core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-identity", "auths-identity-raw-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-signature-core", "auths-signature-ed25519", "auths-verifier"]
 protocol_versions = ["auths-proof/v1", "auths.openapi-derive-result/1", "auths.portable-receipt/1", "auths.profile-client-runtime/1"]
 wire_objects = ["ActionEnvelope", "AuthorizationPlan", "CanonicalAction", "GrantStatement", "GrantStatusSnapshot", "GrantStatusStatement", "PortableReceiptV1", "PortableVerificationResult", "PrincipalStatusSnapshot", "PrincipalStatusStatement", "ProofBundle", "RecoveryHandle", "SignedAction", "SignedGrant", "SignedGrantStatus", "SignedPrincipalStatus", "VerifierContext"]
-fixture_suites = ["bindings/fixtures/gateway", "bindings/fixtures/openapi-derivation", "bindings/python/differential-fixtures-v1.json", "core/fixtures/v1"]
+fixture_suites = ["bindings/fixtures/approval", "bindings/fixtures/gateway", "bindings/fixtures/openapi-derivation", "bindings/python/differential-fixtures-v1.json", "core/fixtures/v1"]
 principal_families = ["self-contained-v1"]
 signature_families = ["ed25519-v1", "p256-sha256-v1"]
 profiles = ["auths.opentofu.saved-plan-apply/1", "auths.postgresql.bounded-update/1", "auths.stripe.refund/1", "core-corpus"]
@@ -1478,7 +1478,7 @@ security_state = ["opaque-recovery-handle", "portable-linked-receipts", "profile
 
 [packages.auths-proof-python.claims]
 core-wire-consumer = ["bindings/python/tests/test_native_boundary_contract.py#test_every_registry_code_classifies_through_the_native_layer", "bindings/python/tests/test_portable_receipt_v1.py#test_portable_receipt_v1_projection_is_self_contained", "bindings/python/tests/test_native_authoring.py#test_child_planning_matches_the_shared_rust_typescript_fixture", "bindings/python/tests/test_workflow.py#test_attach_and_delegate_use_native_authority_without_protocol_bytes"]
-language-binding = ["bindings/python/tests/test_approval_quorum.py#test_python_authors_the_exact_gateway_quorum_bytes", "bindings/python/tests/test_approval_quorum.py#test_python_verifier_decides_every_gateway_vector_identically", "bindings/python/tests/test_openapi_derivation.py#test_native_route_reproduces_the_corpus", "bindings/python/tests/test_openapi_derivation.py#test_derive_generate_check_and_hand_edit", "bindings/python/tests/test_public_api_v2.py#test_exact_public_inventory", "bindings/python/tests/test_profile_runtime_v1.py#test_generated_profile_shape_uses_alias_and_returns_typed_success", "bindings/python/tests/test_profile_runtime_v1.py#test_ambiguous_execute_uses_issued_recovery_handle_without_reentry", "bindings/python/tests/test_portable_receipt_v1.py#test_portable_receipt_v1_rejects_contradictory_projection"]
+language-binding = ["bindings/python/tests/test_remote_approval.py#test_python_issues_the_native_requests", "bindings/python/tests/test_remote_approval.py#test_python_opens_every_request_vector", "bindings/python/tests/test_remote_approval.py#test_python_collects_every_vector", "bindings/python/tests/test_approval_quorum.py#test_python_authors_the_exact_gateway_quorum_bytes", "bindings/python/tests/test_approval_quorum.py#test_python_verifier_decides_every_gateway_vector_identically", "bindings/python/tests/test_openapi_derivation.py#test_native_route_reproduces_the_corpus", "bindings/python/tests/test_openapi_derivation.py#test_derive_generate_check_and_hand_edit", "bindings/python/tests/test_public_api_v2.py#test_exact_public_inventory", "bindings/python/tests/test_profile_runtime_v1.py#test_generated_profile_shape_uses_alias_and_returns_typed_success", "bindings/python/tests/test_profile_runtime_v1.py#test_ambiguous_execute_uses_issued_recovery_handle_without_reentry", "bindings/python/tests/test_portable_receipt_v1.py#test_portable_receipt_v1_rejects_contradictory_projection"]
 runtime-enforcement-boundary = ["bindings/python/tests/test_public_api_v2.py#test_receipts_reject_direct_construction", "bindings/python/tests/test_profile_runtime_v1.py#test_operation_errors_are_not_caller_constructible", "bindings/python/tests/test_profile_runtime_v1.py#test_outcomes_and_error_envelopes_are_closed", "bindings/python/tests/test_native_boundary_contract.py#test_a_python_caller_cannot_mint_a_canonical_action_for_its_own_profile", "bindings/python/tests/test_native_boundary_contract.py#test_no_native_symbol_is_exported_without_being_declared"]
 
 [packages.auths-proof-wasm]
@@ -1488,7 +1488,7 @@ path = "bindings/wasm/auths-proof-wasm"
 core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-identity", "auths-identity-raw-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-signature-core", "auths-signature-ed25519", "auths-testkit", "auths-verifier"]
 protocol_versions = ["auths-identity/v1", "auths-proof/v1"]
 wire_objects = ["ActionEnvelope", "CanonicalAction", "ControlBinding", "EvidenceObject", "GrantStatement", "GrantStatusStatement", "IdentityPacket/PublicIdentityV2", "IdentityPacket/SignedMessageV2", "PortableVerificationResult", "PrincipalStatusStatement", "ProofBundle", "SignedAction", "SignedGrant", "VerifierContext"]
-fixture_suites = ["bindings/fixtures/gateway", "core/fixtures/identity/v1", "core/fixtures/v1"]
+fixture_suites = ["bindings/fixtures/approval", "bindings/fixtures/gateway", "core/fixtures/identity/v1", "core/fixtures/v1"]
 principal_families = ["did-keri-v1", "did-key-v1", "raw-key-v1", "raw-key-v2"]
 signature_families = ["ed25519-v1", "p256-sha256-v1"]
 profiles = ["auths.mcp/1", "core-corpus"]
@@ -1498,7 +1498,7 @@ security_state = []
 
 [packages.auths-proof-wasm.claims]
 core-wire-consumer = ["bindings/wasm/auths-proof-wasm/src/lib.rs#authoring_abi_planning_matches_the_native_owner", "bindings/wasm/auths-proof-wasm/src/lib.rs#native_mcp_authorization_assembly_matches_profile_and_core_owners", "bindings/wasm/auths-proof-wasm/src/lib.rs#native_wasm_boundary_matches_the_portable_contract", "bindings/wasm/auths-proof-wasm/src/lib.rs#root_grant_statement_matches_the_native_model", "bindings/wasm/auths-proof-wasm/src/lib.rs#trusted_context_template_matches_the_rust_sdk_builder"]
-language-binding = ["bindings/typescript/test/integration/approval-quorum.test.js#TypeScript authors the exact gateway quorum bytes", "bindings/typescript/test/integration/approval-quorum.test.js#the TypeScript verifier decides every gateway vector identically", "bindings/typescript/test/unit/portable-receipt-v1.test.js#packaged WASM exposes the canonical portable receipt decoder", "bindings/typescript/test/unit/public-api-v2.test.js#clean-cut modules expose the intended domain-neutral surface", "bindings/typescript/test/unit/self-hosted-authority.test.js#compileTrustedContext reproduces the Rust SDK builder's quorum template byte for byte", "bindings/typescript/test/unit/self-hosted-authority.test.js#a root grant's critical extension reaches the verifier, which enforces it"]
+language-binding = ["bindings/typescript/test/integration/remote-approval.test.js#TypeScript issues the native requests", "bindings/typescript/test/integration/remote-approval.test.js#TypeScript opens every request vector with the native code", "bindings/typescript/test/integration/remote-approval.test.js#TypeScript collects every vector with the native statuses and proof", "bindings/typescript/test/integration/approval-quorum.test.js#TypeScript authors the exact gateway quorum bytes", "bindings/typescript/test/integration/approval-quorum.test.js#the TypeScript verifier decides every gateway vector identically", "bindings/typescript/test/unit/portable-receipt-v1.test.js#packaged WASM exposes the canonical portable receipt decoder", "bindings/typescript/test/unit/public-api-v2.test.js#clean-cut modules expose the intended domain-neutral surface", "bindings/typescript/test/unit/self-hosted-authority.test.js#compileTrustedContext reproduces the Rust SDK builder's quorum template byte for byte", "bindings/typescript/test/unit/self-hosted-authority.test.js#a root grant's critical extension reaches the verifier, which enforces it"]
 
 [packages.auths-openapi-derive-wasm]
 kind = "cargo"
@@ -1653,9 +1653,9 @@ kind = "cargo"
 layer = "product"
 path = "product/runtime/auths-gateway"
 core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-verifier"]
-protocol_versions = ["auths.gateway-installation/2", "auths.lifecycle.transactional-store/4", "auths.gateway-recipe-source/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/2", "auths.gateway-echo/1", "auths.gateway-idempotency-key/1", "auths.gateway-observe/1", "auths.gateway-outcome/1", "auths.gateway-readback/1", "auths.self-hosted-profile-lock/1", "mcp-arguments-v1", "auths.gateway-bounded-count/1", "auths.gateway-audit-bundle/1", "auths.gateway-audit-report/1", "auths.gateway.argument-ceiling-window-count/1", "bounded-policy-commitment-v1"]
+protocol_versions = ["auths.gateway-installation/2", "auths.lifecycle.transactional-store/4", "auths.gateway-recipe-source/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/2", "auths.gateway-echo/1", "auths.gateway-idempotency-key/1", "auths.gateway-observe/1", "auths.gateway-outcome/1", "auths.gateway-readback/1", "auths.self-hosted-profile-lock/1", "mcp-arguments-v1", "auths.gateway-bounded-count/1", "auths.gateway-audit-bundle/1", "auths.gateway-audit-report/1", "auths.gateway.argument-ceiling-window-count/1", "bounded-policy-commitment-v1", "auths.approval-response/1"]
 wire_objects = ["CompiledRecipe", "ClosedProviderRequest", "GatewayAttemptSnapshot", "GatewayConnectionDescriptor", "GatewayEvidenceSummary", "GatewayObserveRequest", "GatewayObserveResult", "GatewayProviderEvidence", "GatewaySubmitResult", "SignedObservation", "ArgumentCeilingPolicy", "BoundedPolicyCommitment", "AuditReport"]
-fixture_suites = ["bindings/fixtures/gateway"]
+fixture_suites = ["bindings/fixtures/approval", "bindings/fixtures/gateway"]
 principal_families = ["raw-key-v1"]
 signature_families = ["ed25519-v1", "p256-sha256-v1"]
 profiles = ["auths.mcp/2"]
@@ -1690,11 +1690,13 @@ principal-evidence-integration = [
   "product/runtime/auths-gateway/src/observed_tests.rs#two_of_three_root_authorizes_only_with_two_distinct_roots",
   "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_reproduces_every_gateway_decision",
   "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_detects_a_tampered_bundle",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_lists_recorded_approval_responses_without_changing_verdicts",
 ]
 runtime-enforcement-boundary = [
   "product/runtime/auths-gateway/src/quorum_tests.rs#approval_quorum_hostile_cases_admit_only_a_two_manager_quorum",
   "product/runtime/auths-gateway/src/quorum_tests.rs#a_proof_carried_plan_cannot_lower_the_installed_threshold",
   "product/runtime/auths-gateway/src/quorum_tests.rs#a_quorum_still_authorizes_23_hours_after_approval_and_only_once",
+  "product/runtime/auths-gateway/src/quorum_tests.rs#remote_approvals_authorize_only_at_the_threshold",
   "product/runtime/auths-gateway/src/quorum_tests.rs#a_quorum_after_its_window_is_refused_before_any_lease",
   "product/runtime/auths-gateway/src/observed_tests.rs#fresh_matching_read_back_authorizes_the_replacement_write",
   "product/runtime/auths-gateway/src/observed_tests.rs#stale_changed_or_missing_expected_is_refused_before_credential_access",

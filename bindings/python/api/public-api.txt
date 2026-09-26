@@ -54,6 +54,14 @@ verify_many
 verify_receipt
 
 [auths.authoring]
+ApprovalCollection
+ApprovalMember
+ApprovalProposal
+ApprovalRefused
+ApprovalRequest
+ApprovalResponse
+ApprovalReview
+ApproverStatus
 AuthoredMcpProof
 AuthoredMcpQuorumProof
 AuthoringUnsuccessful
@@ -61,9 +69,15 @@ GrantEvidence
 ProductionAuthoringInputs
 QuorumApprover
 QuorumPlan
+approval_requests
+approve
 author_mcp_proof
 author_mcp_quorum_proof
 author_production_mcp_proof
+collect_approvals
+decline
+open_approval_request
+propose_mcp_approval
 
 [auths.attempts]
 AttemptRecord

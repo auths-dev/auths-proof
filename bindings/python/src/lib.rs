@@ -35,6 +35,7 @@ compile_error!(
      so pyo3 can convert a panic into a Python exception."
 );
 
+mod approval;
 mod authoring;
 mod development;
 mod errors;
@@ -133,6 +134,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
         module
     )?)?;
     errors::register(module)?;
+    approval::register(module)?;
     authoring::register(module)?;
     development::register(module)?;
     identity::register(module)?;

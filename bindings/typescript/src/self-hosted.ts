@@ -3,7 +3,7 @@
 import { createVerifier, type VerificationResult } from "./verify.js";
 import { loadPackagedWorkflowEngine } from "./verifier/wasm.js";
 import { checkedValidity } from "./internal/action-validity.js";
-import type { CustodySigner, PublicControlEvidence } from "./adapters.js";
+import type { CustodySigner, PublicControlEvidence, SigningRequest } from "./adapters.js";
 
 export interface StringField {
   readonly kind: "string";
@@ -880,6 +880,434 @@ export async function authorMcpQuorumProof<Fields extends FieldMap>(input: Reado
   } finally {
     quorum.free?.();
   }
+}
+
+/** A remote approval operation refused its input with a stable `approval.*` code. */
+export class ApprovalRefused extends Error {
+  readonly code: string;
+
+  constructor(code: string) {
+    super(code);
+    this.name = "ApprovalRefused";
+    this.code = code;
+  }
+}
+
+function refusals<T>(run: () => T): T {
+  try {
+    return run();
+  } catch (error) {
+    if (error instanceof Error && error.name === "ApprovalRefused") {
+      throw new ApprovalRefused(String((error as Error & { code?: unknown }).code));
+    }
+    throw error;
+  }
+}
+
+/**
+ * One approver named in a remote proposal. `terminalGrant` is the canonical
+ * signed grant its authority descends from; omit it for a trust anchor.
+ */
+export interface ApprovalMember {
+  readonly principal: string;
+  readonly terminalGrant?: Uint8Array;
+}
+
+/**
+ * One exact action, its envelopes, and the threshold plan, built by the
+ * requester. `action` is the canonical action the assembled proof carries.
+ */
+export interface ApprovalProposal<Command> {
+  readonly command: Command;
+  readonly action: Uint8Array;
+  readonly requester: string;
+  readonly plan: QuorumPlan;
+}
+
+/** One request, addressed to one approver, as bytes and printable text. */
+export interface ApprovalRequest {
+  readonly approver: string;
+  readonly data: Uint8Array;
+  readonly text: string;
+  readonly requestId: Uint8Array;
+}
+
+/**
+ * A request that passed every native check. `title`, `fields`, and
+ * `displayDigestHex` are the profile's review of the exact canonical action;
+ * render them and nothing else.
+ */
+export interface ApprovalReview {
+  readonly title: string;
+  readonly fields: readonly (readonly [string, string])[];
+  readonly displayDigestHex: string;
+  readonly requester: string;
+  readonly approvers: readonly string[];
+  readonly required: number;
+  readonly approver: string;
+  readonly validFrom: bigint;
+  readonly validUntil: bigint;
+  readonly requestId: Uint8Array;
+}
+
+/** One approver's signed answer, as bytes and printable text. */
+export interface ApprovalResponse {
+  readonly decision: "approve" | "decline";
+  readonly data: Uint8Array;
+  readonly text: string;
+}
+
+export interface ApproverStatus {
+  readonly approver: string;
+  readonly status: "pending" | "approved" | "declined" | "rejected";
+  readonly code?: string;
+  readonly decidedAt?: bigint;
+}
+
+/**
+ * Where each listed approver stands, in proposal order. `unattributed` lists
+ * responses matched to no approver, by input index.
+ */
+export interface ApprovalCollection {
+  readonly statuses: readonly ApproverStatus[];
+  readonly unattributed: readonly (readonly [number, string])[];
+  /** The proof once every listed approver approved; throws `ApprovalRefused` otherwise. */
+  assemble(): Uint8Array;
+}
+
+type Engine = Awaited<ReturnType<typeof loadPackagedWorkflowEngine>>;
+type NativeQuorum = ReturnType<InstanceType<Engine["McpQuorumApproversV1"]>["prepare"]>;
+
+interface ProposalInputs {
+  readonly service: string;
+  readonly name: string;
+  readonly encoded: unknown;
+  readonly approvers: readonly ApprovalMember[];
+  readonly required: number;
+  readonly challenge: Uint8Array;
+  readonly evaluationTime: bigint;
+  readonly validitySeconds: number | undefined;
+}
+
+const proposals = new WeakMap<object, ProposalInputs>();
+const reviews = new WeakMap<object, Readonly<{ data: Uint8Array; now: bigint }>>();
+
+function withQuorum<T>(engine: Engine, inputs: ProposalInputs, use: (quorum: NativeQuorum) => T): T {
+  const set = new engine.McpQuorumApproversV1();
+  let quorum: NativeQuorum;
+  try {
+    for (const approver of inputs.approvers) set.addApprover(approver.principal, approver.terminalGrant);
+    quorum = set.prepare(
+      inputs.service, inputs.name, inputs.encoded, inputs.required,
+      inputs.challenge, inputs.evaluationTime, inputs.validitySeconds,
+    );
+  } finally {
+    set.free?.();
+  }
+  try {
+    return use(quorum);
+  } finally {
+    quorum.free?.();
+  }
+}
+
+function proposalInputs(proposal: object): ProposalInputs {
+  const inputs = proposals.get(proposal);
+  if (inputs === undefined) throw new TypeError("approval proposal was not built by proposeMcpApproval");
+  return inputs;
+}
+
+function message(data: Uint8Array | string): Uint8Array {
+  if (typeof data === "string") return new TextEncoder().encode(data);
+  if (!(data instanceof Uint8Array)) throw new TypeError("approval message must be bytes or text");
+  return data.slice();
+}
+
+function unixNow(): bigint {
+  return BigInt(Math.floor(Date.now() / 1000));
+}
+
+/**
+ * Build a `required`-of-N proposal for approvers on their own devices. Every
+ * listed approver must approve; `requester` is the listed approver building
+ * the proposal. The window follows `authorMcpQuorumProof`.
+ */
+export async function proposeMcpApproval<Fields extends FieldMap>(input: Readonly<{
+  contract: ExactMcpTool<Fields>;
+  command: CommandOf<Fields>;
+  required: number;
+  approvers: readonly ApprovalMember[];
+  requester: string;
+  challenge: Uint8Array;
+  evaluationTime: bigint;
+  validitySeconds?: number;
+}>): Promise<ApprovalProposal<CommandOf<Fields>>> {
+  const engine = await loadPackagedWorkflowEngine();
+  const inputs: ProposalInputs = Object.freeze({
+    service: input.contract.service,
+    name: input.contract.name,
+    encoded: input.contract.encode(input.command),
+    approvers: Object.freeze(input.approvers.map((approver) => Object.freeze({
+      principal: approver.principal,
+      ...(approver.terminalGrant === undefined ? {} : { terminalGrant: approver.terminalGrant.slice() }),
+    }))),
+    required: input.required,
+    challenge: input.challenge.slice(),
+    evaluationTime: input.evaluationTime,
+    validitySeconds: checkedValidity(input.validitySeconds),
+  });
+  const proposal = withQuorum(engine, inputs, (quorum) => {
+    const validity = quorum.validity;
+    const references = quorum.proofReferences;
+    return Object.freeze({
+      command: input.command,
+      action: quorum.canonicalActionCbor.slice(),
+      requester: input.requester,
+      plan: Object.freeze({
+        required: quorum.required,
+        approvers: Object.freeze(Array.from(
+          { length: quorum.approverCount }, (_, index) => quorum.approver(index),
+        )),
+        planId: quorum.planId.slice(),
+        canonicalPlan: quorum.planCbor.slice(),
+        proofReferences: Object.freeze(Array.from(
+          { length: quorum.approverCount },
+          (_, index) => references.slice(index * 32, (index + 1) * 32),
+        )),
+        validFrom: validity[0]!,
+        validUntil: validity[1]!,
+      }),
+    });
+  });
+  proposals.set(proposal, inputs);
+  return proposal;
+}
+
+/** One request per listed approver, in proposal order. */
+export async function approvalRequests<Command>(
+  proposal: ApprovalProposal<Command>,
+): Promise<readonly ApprovalRequest[]> {
+  const engine = await loadPackagedWorkflowEngine();
+  return withQuorum(engine, proposalInputs(proposal), (quorum) => {
+    const issued = refusals(() => engine.approvalRequestsV1(quorum, proposal.requester));
+    try {
+      return Object.freeze(Array.from({ length: issued.count }, (_, index) => Object.freeze({
+        approver: issued.approver(index),
+        data: issued.data(index).slice(),
+        text: issued.text(index),
+        requestId: issued.requestId(index).slice(),
+      })));
+    } finally {
+      issued.free?.();
+    }
+  });
+}
+
+/**
+ * Check one request natively and return the review to show. Throws
+ * `ApprovalRefused` with the first failing check's code.
+ */
+export async function openApprovalRequest(
+  data: Uint8Array | string,
+  options: Readonly<{ now?: bigint }> = {},
+): Promise<ApprovalReview> {
+  const engine = await loadPackagedWorkflowEngine();
+  const bytes = message(data);
+  const now = options.now ?? unixNow();
+  const reviewed = refusals(() => engine.openApprovalRequestV1(bytes, now));
+  try {
+    const window = reviewed.window;
+    const value: ApprovalReview = Object.freeze({
+      title: reviewed.title,
+      fields: Object.freeze(reviewed.fields.map(([label, text]) => Object.freeze([label, text] as const))),
+      displayDigestHex: reviewed.displayDigestHex,
+      requester: reviewed.requester,
+      approvers: Object.freeze([...reviewed.approvers]),
+      required: reviewed.required,
+      approver: reviewed.approver,
+      validFrom: window[0]!,
+      validUntil: window[1]!,
+      requestId: reviewed.requestId.slice(),
+    });
+    reviews.set(value, Object.freeze({ data: bytes, now }));
+    return value;
+  } finally {
+    reviewed.free?.();
+  }
+}
+
+type NativePending = ReturnType<ReturnType<Engine["openApprovalRequestV1"]>["prepareApproval"]>;
+
+async function answer(
+  pending: NativePending,
+  signer: CustodySigner,
+  grants: readonly GrantEvidence[],
+  signal: AbortSignal,
+): Promise<ApprovalResponse> {
+  const descriptor = signer.descriptor;
+  const signature = descriptor.signature;
+  const requestId = pending.requestId;
+  const objectId = pending.objectId.slice();
+  const transactionDigest = pending.transactionDigest.slice();
+  const decision = pending.decision;
+  const outcome = await signer.sign({
+    requestId,
+    objectKind: pending.objectKind as SigningRequest["objectKind"],
+    objectId: objectId.slice(),
+    descriptor,
+    transactionDigest: transactionDigest.slice(),
+    signingPreimage: pending.signingPreimage.slice(),
+    expiresAtUnixSeconds: pending.expiresAt,
+    display: Object.freeze(pending.display.map(([label, value]) => Object.freeze({ label, value }))),
+    signal,
+  });
+  if (outcome.kind !== "signed") {
+    throw new AuthoringUnsuccessful(
+      outcome.kind === "rejected" ? "rejected" : "indeterminate", outcome.failure,
+    );
+  }
+  const response = outcome.response;
+  if (response.requestId !== requestId ||
+      !bytesEqual(response.objectId, objectId) ||
+      !bytesEqual(response.transactionDigest, transactionDigest) ||
+      response.principal !== descriptor.principal ||
+      response.providerKeyVersion !== descriptor.keyVersion ||
+      response.descriptor.principalMethod !== signature.principalMethod ||
+      response.descriptor.verificationMethod !== signature.verificationMethod ||
+      response.descriptor.suite !== signature.suite ||
+      response.evidence.length < 1 || response.evidence.length > 32) {
+    throw new TypeError("custody response does not bind the exact signing request");
+  }
+  for (const grant of grants) {
+    const index = pending.pushGrant(grant.signedGrant);
+    for (const evidence of grant.evidence) {
+      pending.bindGrantEvidence(index, evidence.type, evidence.mediaType, evidence.bytes);
+    }
+  }
+  for (const evidence of response.evidence) {
+    pending.bindActionEvidence(evidence.type, evidence.mediaType, evidence.bytes);
+  }
+  const completed = refusals(() => pending.complete(response.signature));
+  try {
+    return Object.freeze({ decision, data: completed.data.slice(), text: completed.text });
+  } finally {
+    completed.free?.();
+  }
+}
+
+async function respond(
+  reviewed: ApprovalReview,
+  signer: CustodySigner,
+  grants: readonly GrantEvidence[],
+  signal: AbortSignal,
+  prepare: (native: ReturnType<Engine["openApprovalRequestV1"]>) => NativePending,
+): Promise<ApprovalResponse> {
+  if (signer?.descriptor?.contract !== "signer-custody/2") {
+    throw new TypeError("signer does not implement the custody contract");
+  }
+  const opened = reviews.get(reviewed);
+  if (opened === undefined) throw new TypeError("request was not opened by openApprovalRequest");
+  const engine = await loadPackagedWorkflowEngine();
+  const native = refusals(() => engine.openApprovalRequestV1(opened.data, opened.now));
+  let pending: NativePending | undefined;
+  try {
+    pending = refusals(() => prepare(native));
+    return await answer(pending, signer, grants, signal);
+  } finally {
+    pending?.free?.();
+    native.free?.();
+  }
+}
+
+/**
+ * Sign the reviewed envelope with `signer`, whose custody request shows the
+ * same review and expires at the window's end. `grants` is the approver's
+ * grant chain, root first. The signer is not closed.
+ */
+export async function approve(
+  reviewed: ApprovalReview,
+  signer: CustodySigner,
+  options: Readonly<{ grants?: readonly GrantEvidence[]; signal?: AbortSignal }> = {},
+): Promise<ApprovalResponse> {
+  const signature = signer?.descriptor?.signature;
+  return respond(
+    reviewed, signer, options.grants ?? [], options.signal ?? new AbortController().signal,
+    (native) => native.prepareApproval(
+      signer.descriptor.principal, signature.principalMethod,
+      signature.verificationMethod, signature.suite,
+    ),
+  );
+}
+
+/**
+ * Sign a refusal at `now`. A decline carries no authority; it stops the
+ * collector and records who refused.
+ */
+export async function decline(
+  reviewed: ApprovalReview,
+  signer: CustodySigner,
+  options: Readonly<{ now?: bigint; grants?: readonly GrantEvidence[]; signal?: AbortSignal }> = {},
+): Promise<ApprovalResponse> {
+  const signature = signer?.descriptor?.signature;
+  const now = options.now ?? unixNow();
+  return respond(
+    reviewed, signer, options.grants ?? [], options.signal ?? new AbortController().signal,
+    (native) => native.prepareDecline(
+      signer.descriptor.principal, signature.principalMethod,
+      signature.verificationMethod, signature.suite, now,
+    ),
+  );
+}
+
+/**
+ * Match responses to the proposal's requests. Signatures are checked by the
+ * verifier when the assembled proof is used.
+ */
+export async function collectApprovals<Command>(
+  proposal: ApprovalProposal<Command>,
+  responses: readonly (Uint8Array | string)[],
+): Promise<ApprovalCollection> {
+  const engine = await loadPackagedWorkflowEngine();
+  return withQuorum(engine, proposalInputs(proposal), (quorum) => {
+    const collector = new engine.ApprovalCollectorV1();
+    let collection: ReturnType<typeof collector.collect> | undefined;
+    try {
+      for (const response of responses) collector.add(message(response));
+      collection = refusals(() => collector.collect(quorum));
+      const native = collection;
+      const statuses = Object.freeze(Array.from({ length: native.count }, (_, index) => {
+        const status = native.status(index) as ApproverStatus["status"];
+        return Object.freeze({
+          approver: native.approver(index),
+          status,
+          ...(status === "rejected" ? { code: native.code(index) } : {}),
+          ...(status === "declined" ? { decidedAt: native.decidedAt(index) } : {}),
+        });
+      }));
+      const unattributed = Object.freeze(Array.from(
+        { length: native.unattributedCount },
+        (_, index) => Object.freeze([native.unattributedIndex(index), native.unattributedCode(index)] as const),
+      ));
+      let proof: Uint8Array | ApprovalRefused;
+      try {
+        proof = refusals(() => native.assemble()).slice();
+      } catch (error) {
+        if (!(error instanceof ApprovalRefused)) throw error;
+        proof = error;
+      }
+      return Object.freeze({
+        statuses,
+        unattributed,
+        assemble(): Uint8Array {
+          if (proof instanceof ApprovalRefused) throw new ApprovalRefused(proof.code);
+          return proof.slice();
+        },
+      });
+    } finally {
+      collection?.free?.();
+      collector.free?.();
+    }
+  });
 }
 
 /**

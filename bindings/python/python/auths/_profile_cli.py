@@ -765,6 +765,10 @@ def check_profile(path: Path) -> tuple[str, ...]:
 
 def _main_text(argv: Sequence[str] | None = None) -> int:
     values = list(sys.argv[1:] if argv is None else argv)
+    if values[:1] == ["approve"]:
+        from ._approve_cli import approve_main
+
+        return approve_main(values[1:])
     if values[:1] == ["derive"]:
         try:
             return _derive_main(values[1:])
@@ -778,6 +782,7 @@ def _main_text(argv: Sequence[str] | None = None) -> int:
     init.add_argument("--name", required=True)
     init.add_argument("--directory", type=Path, default=Path("."))
     actions.add_parser("derive", help="derive profile.toml and recipe.json from one OpenAPI operation")
+    actions.add_parser("approve", help="review one approval request and answer it with your own custody")
     for name in ("generate", "check", "diff", "doctor", "test"):
         action = actions.add_parser(name)
         action.add_argument("profile", type=Path, nargs="?", default=Path("profile.toml"))

@@ -37,6 +37,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 HERE = Path(__file__).resolve().parent
 PYTHON = sys.executable
+# The packaged approval CLI installed beside this interpreter with the wheel.
+APPROVE_CLI = str(Path(sys.executable).parent / "auths-profile")
 IDEMPOTENCY_DOMAIN = b"auths.gateway-idempotency-key/1\0"
 
 
@@ -114,22 +116,15 @@ class Journey:
             return []
         return [json.loads(line) for line in self.ledger.read_text().splitlines() if line]
 
-    def refund(
-        self,
-        operation: str,
-        amount: int,
-        approvers: str,
-        payment_intent: str,
-        local_trust: Optional[Path] = None,
-    ) -> Dict[str, Any]:
-        command = [
+    def request(self, operation: str, amount: int, approvers: str, payment_intent: str) -> Path:
+        """The agent writes one request per manager (and its own response)."""
+        folder = self.work / "approvals" / operation
+        self.run(
             PYTHON,
             "refunds.py",
-            "refund",
+            "request",
             "--state",
             str(self.state),
-            "--socket",
-            str(self.socket),
             "--operation-id",
             operation,
             "--payment-intent",
@@ -138,10 +133,59 @@ class Journey:
             str(amount),
             "--approvers",
             approvers,
+            "--out",
+            str(folder),
+        )
+        return folder
+
+    def answer(
+        self, folder: Path, manager: str, *, decline: bool = False, request: Optional[Path] = None
+    ) -> subprocess.CompletedProcess[str]:
+        """One manager answers on their own machine with the packaged CLI."""
+        command = [
+            APPROVE_CLI,
+            "approve",
+            str(request or folder / f"{manager}.request"),
+            "--signer",
+            str(self.state / "signers" / f"{manager}.json"),
+            "--yes",
+            "--out",
+            str(folder / f"{manager}.response"),
         ]
-        if local_trust is not None:
-            command += ["--local-trust", str(local_trust)]
+        if decline:
+            command.append("--decline")
+        return self.run(*command, check=False)
+
+    def submit(self, operation: str, folder: Path) -> Dict[str, Any]:
+        command = [
+            PYTHON,
+            "refunds.py",
+            "submit",
+            "--state",
+            str(self.state),
+            "--socket",
+            str(self.socket),
+            "--operation-id",
+            operation,
+            "--responses",
+            str(folder),
+        ]
         return json.loads(self.run(*command).stdout)
+
+    def refund(
+        self,
+        operation: str,
+        amount: int,
+        approvers: str,
+        payment_intent: str,
+        declines: tuple[str, ...] = (),
+    ) -> Dict[str, Any]:
+        folder = self.request(operation, amount, approvers, payment_intent)
+        for manager in approvers.split(","):
+            answered = self.answer(folder, manager, decline=manager in declines)
+            if answered.returncode != 0:
+                raise SystemExit(f"{manager} could not answer: {answered.stderr.strip()}")
+        return self.submit(operation, folder)
 
     def audit(self, bundle: Path, trust: str, observer: str) -> subprocess.CompletedProcess[str]:
         command = [
@@ -165,52 +209,6 @@ class Journey:
 def expect(condition: bool, message: str) -> None:
     if not condition:
         raise SystemExit(f"journey check failed: {message}")
-
-
-def lax_local_trust(journey: Journey) -> Path:
-    """What a careless or compromised agent might use for its own pre-submit
-    check: the same anchors with a one-approval threshold. The gateway's
-    installed trust is unaffected."""
-    sys.path.insert(0, str(HERE))
-    from auths import _native
-
-    import refunds
-
-    facts = json.loads((journey.state / "setup.json").read_text())
-
-    now = int(time.time())
-    audience = facts["audience"]
-    permission = ("tools/call", f"{audience}/tools/create_refund_v1")
-    anchors = [
-        _native.TrustAnchor(
-            name,
-            _native.Principal(facts["principals"][name]),
-            ["raw-key-v1"],
-            [("auths.mcp", 2)],
-            [permission],
-            [audience],
-            [audience],
-            now - 3600,
-            now + 400 * 86_400,
-            None,
-            1 if name == "root" else 0,
-            refunds.ASSURANCE,
-            None,
-        )
-        for name in ("root",) + refunds.MANAGERS
-    ]
-    lax = refunds._trusted_context(
-        bytes(_native.self_contained_configuration()),
-        anchors,
-        audience,
-        bytes.fromhex(facts["challenge_hex"]),
-        now,
-        1,
-        "bounded-policy-commitment-v1",
-    )
-    path = journey.work / "lax-local-trust.cbor"
-    path.write_bytes(lax)
-    return path
 
 
 def resubmit(journey: Journey, operation: str) -> Dict[str, Any]:
@@ -369,21 +367,47 @@ def main() -> int:
         results: Dict[str, Dict[str, Any]] = {}
 
         def submit(
-            operation: str, amount: int, approvers: str, local_trust: Optional[Path] = None
+            operation: str,
+            amount: int,
+            approvers: str,
+            declines: tuple[str, ...] = (),
         ) -> None:
             before = len(journey.provider_entries())
-            results[operation] = journey.refund(operation, amount, approvers, pi, local_trust)
+            results[operation] = journey.refund(operation, amount, approvers, pi, declines)
             results[operation]["provider_entries"] = len(journey.provider_entries()) - before
 
-        # README step 5: agent requests, two managers approve, gateway submits.
+        # README step 6: the agent writes a request per manager, each manager
+        # answers with `auths-profile approve`, and the gateway submits.
         journey.step(
-            "refund 1: 15.00, agent + manager-a + manager-b",
+            "refund 1: 15.00, agent + manager-a + manager-b (remote approvals)",
             lambda: submit("refund-1", 1_500, "manager-a,manager-b"),
         )
-        lax = lax_local_trust(journey)
+        journey.step(
+            "declined: manager-b declines, nothing is submitted",
+            lambda: submit("refund-declined", 2_000, "manager-a,manager-b", declines=("manager-b",)),
+        )
+
+        def tampered_request() -> Dict[str, Any]:
+            folder = journey.request("refund-tampered", 1_500, "manager-a,manager-b", pi)
+            original = (folder / "manager-a.request").read_text().strip()
+            raw = bytearray(unb64(original[len("auths-ar1-"):]))
+            at = bytes(raw).index(b'"amount":1500')
+            raw[at : at + len(b'"amount":1500')] = b'"amount":9500'
+            edited = folder / "manager-a.edited"
+            edited.write_text("auths-ar1-" + base64.urlsafe_b64encode(bytes(raw)).rstrip(b"=").decode())
+            answered = journey.answer(folder, "manager-a", request=edited)
+            return {
+                "exit": answered.returncode,
+                "refused": "approval.action-mismatch" in answered.stderr,
+                "signed": (folder / "manager-a.response").exists(),
+            }
+
+        tampered_run = journey.step(
+            "tampered request: the manager's CLI refuses and signs nothing", tampered_request
+        )
         journey.step(
             "hostile: 1 of 3 approvals",
-            lambda: submit("refund-2-one-approval", 1_200, "manager-a", lax),
+            lambda: submit("refund-2-one-approval", 1_200, "manager-a"),
         )
         journey.step(
             "hostile: over the 50.00 ceiling",
@@ -407,6 +431,17 @@ def main() -> int:
             results["refund-4"]["outcome"] == "response-recorded"
             and results["refund-4"]["status"] == 200,
             f"refund-4: {results['refund-4']}",
+        )
+        declined = results["refund-declined"]
+        expect(
+            declined.get("outcome") == "declined"
+            and declined.get("declined") == ["manager-b"]
+            and declined["provider_entries"] == 0,
+            f"refund-declined: {declined}",
+        )
+        expect(
+            tampered_run == {"exit": 1, "refused": True, "signed": False},
+            f"tampered request: {tampered_run}",
         )
         expected_refusals = {
             "refund-2-one-approval": ("denied", "composition-requirement-not-met"),
@@ -510,6 +545,21 @@ def main() -> int:
             == {facts["principals"][name] for name in ("agent", "manager-a", "manager-b")},
             "refund-1 approvers",
         )
+        recorded = {
+            (item["operation_id"], item["approver"], item["decision"])
+            for item in report["approval_responses"]
+        }
+        principals = facts["principals"]
+        expect(
+            {
+                ("refund-declined", principals["manager-a"], "approve"),
+                ("refund-declined", principals["manager-b"], "decline"),
+                ("refund-1", principals["manager-a"], "approve"),
+                ("refund-1", principals["manager-b"], "approve"),
+            }
+            <= recorded,
+            f"audit approval responses {sorted(recorded)}",
+        )
 
         # Hostile: a tampered bundle is detected.
         bundle = json.loads(bundle_path.read_text())
@@ -577,6 +627,7 @@ def main() -> int:
             "wall_seconds": round(time.monotonic() - journey.started, 2),
             "steps": journey.steps,
             "refunds": results,
+            "tampered_request": tampered_run,
             "provider_entries": None if live else len(journey.provider_entries()),
             "provider_refunds": None
             if live

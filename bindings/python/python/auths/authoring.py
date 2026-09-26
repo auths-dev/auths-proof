@@ -7,11 +7,14 @@ context, and custody signer. This module never creates production trust.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
-from typing import Generic, Literal, Optional, Sequence, TypeVar, Union
+import time
+from contextlib import contextmanager
+from dataclasses import dataclass, field
+from typing import Generic, Iterator, Literal, Optional, Sequence, TypeVar, Union, cast
 
 from . import _native
 from .adapters.custody import (
+    CustodyDescriptor,
     CustodyKeyState,
     CustodyLifecycle,
     CustodyIndeterminate,
@@ -457,6 +460,309 @@ async def author_mcp_quorum_proof(
     )
 
 
+class ApprovalRefused(ValueError):
+    """A remote approval operation refused its input with a stable
+    ``approval.*`` code."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
+@contextmanager
+def _refusals() -> Iterator[None]:
+    try:
+        yield
+    except _native.ApprovalRefusal as refused:
+        raise ApprovalRefused(str(refused.args[0])) from None
+
+
+@dataclass(frozen=True)
+class ApprovalMember:
+    """One approver named in a remote proposal. ``terminal_grant`` is the
+    canonical signed grant its authority descends from; ``None`` when the
+    approver is itself a trust anchor."""
+
+    principal: str
+    terminal_grant: Optional[bytes] = None
+
+
+@dataclass(frozen=True)
+class ApprovalProposal(Generic[CommandT]):
+    """One exact action, its envelopes, and the threshold plan, built by the
+    requester. ``action`` is the canonical action the assembled proof carries."""
+
+    command: CommandT
+    action: bytes
+    requester: str
+    plan: QuorumPlan
+    _quorum: _native.McpQuorum = field(repr=False, compare=False)
+
+
+@dataclass(frozen=True)
+class ApprovalRequest:
+    """One request, addressed to one approver, as bytes and printable text."""
+
+    approver: str
+    data: bytes
+    text: str
+    request_id: bytes
+
+
+@dataclass(frozen=True)
+class ApprovalReview:
+    """A request that passed every native check. The title, fields, and
+    display digest are the profile's review of the exact canonical action;
+    render them and nothing else."""
+
+    title: str
+    fields: tuple[tuple[str, str], ...]
+    display_digest_hex: str
+    requester: str
+    approvers: tuple[str, ...]
+    required: int
+    approver: str
+    valid_from: int
+    valid_until: int
+    request_id: bytes
+    _handle: _native.ReviewedApprovalRequest = field(repr=False, compare=False)
+
+
+@dataclass(frozen=True)
+class ApprovalResponse:
+    """One approver's signed answer, as bytes and printable text."""
+
+    decision: Literal["approve", "decline"]
+    data: bytes
+    text: str
+
+
+@dataclass(frozen=True)
+class ApproverStatus:
+    approver: str
+    status: Literal["pending", "approved", "declined", "rejected"]
+    code: Optional[str]
+    decided_at: Optional[int]
+
+
+@dataclass(frozen=True)
+class ApprovalCollection:
+    """Where each listed approver stands, in proposal order.
+    ``unattributed`` lists responses matched to no approver, by input index."""
+
+    statuses: tuple[ApproverStatus, ...]
+    unattributed: tuple[tuple[int, str], ...]
+    _handle: _native.ApprovalCollection = field(repr=False, compare=False)
+
+    def assemble(self) -> bytes:
+        """Returns the proof once every listed approver approved; raises
+        :class:`ApprovalRefused` with ``approval.incomplete`` otherwise."""
+        with _refusals():
+            return bytes(self._handle.assemble())
+
+
+def _message(data: Union[bytes, str]) -> bytes:
+    if isinstance(data, str):
+        return data.encode("utf-8")
+    return bytes(data)
+
+
+def propose_mcp_approval(
+    *,
+    contract: ExactMcpTool[CommandT],
+    command: CommandT,
+    required: int,
+    approvers: Sequence[ApprovalMember],
+    requester: str,
+    challenge: bytes,
+    evaluation_time: int,
+    validity_seconds: Optional[int] = None,
+) -> ApprovalProposal[CommandT]:
+    """Build a ``required``-of-N proposal for approvers on their own devices.
+
+    Every listed approver must approve; ``requester`` is the listed approver
+    building the proposal. The window follows :func:`author_mcp_quorum_proof`.
+    """
+    if type(command) is not contract.command_type:
+        raise TypeError("command does not belong to this exact tool")
+    if not all(isinstance(approver, ApprovalMember) for approver in approvers):
+        raise TypeError("approvers must be ApprovalMember values")
+    arguments = contract.encode(command)
+    checked = contract.validate_arguments(arguments)
+    quorum = _native.prepare_mcp_quorum(
+        contract.service,
+        contract.name,
+        _canonical_arguments(arguments),
+        [
+            (
+                _native.Principal(approver.principal),
+                None
+                if approver.terminal_grant is None
+                else _native.parse_signed("grant", bytes(approver.terminal_grant)),
+            )
+            for approver in approvers
+        ],
+        required,
+        bytes(challenge),
+        evaluation_time,
+        validity_seconds,
+    )
+    return ApprovalProposal(
+        checked,
+        bytes(quorum.canonical_action),
+        requester,
+        QuorumPlan(
+            quorum.required,
+            tuple(quorum.approvers),
+            bytes(quorum.plan_id),
+            bytes(quorum.canonical_plan),
+            tuple(bytes(reference) for reference in quorum.proof_references),
+            *quorum.validity,
+        ),
+        quorum,
+    )
+
+
+def approval_requests(proposal: ApprovalProposal[CommandT]) -> tuple[ApprovalRequest, ...]:
+    """One request per listed approver, in proposal order."""
+    with _refusals():
+        issued = _native.approval_requests(proposal._quorum, proposal.requester)
+    return tuple(
+        ApprovalRequest(approver, bytes(data), text, bytes(request_id))
+        for approver, data, text, request_id in issued
+    )
+
+
+def open_approval_request(
+    data: Union[bytes, str], *, now: Optional[int] = None
+) -> ApprovalReview:
+    """Check one request natively and return the review to show.
+
+    Raises :class:`ApprovalRefused` with the first failing check's code.
+    """
+    moment = int(time.time()) if now is None else now
+    with _refusals():
+        reviewed = _native.open_approval_request(_message(data), moment)
+    valid_from, valid_until = reviewed.window
+    return ApprovalReview(
+        reviewed.title,
+        tuple(reviewed.fields),
+        reviewed.display_digest_hex,
+        reviewed.requester,
+        tuple(reviewed.approvers),
+        reviewed.required,
+        reviewed.approver,
+        valid_from,
+        valid_until,
+        bytes(reviewed.request_id),
+        reviewed,
+    )
+
+
+async def _answer(
+    pending: _native.PendingApproval,
+    signer: CustodySigner,
+    grants: Sequence[GrantEvidence],
+) -> ApprovalResponse:
+    descriptor = signer.descriptor
+    request = SigningRequest(
+        pending.request_id,
+        SigningObjectKind(pending.object_kind),
+        bytes(pending.object_id),
+        descriptor,
+        bytes(pending.transaction_digest),
+        bytes(pending.signing_preimage),
+        pending.expires_at,
+        tuple(ReviewField(label, value) for label, value in pending.display),
+    )
+    decision: Literal["approve", "decline"] = (
+        "approve" if pending.decision == "approve" else "decline"
+    )
+    response = _signed_response(await signer.sign(request), request)
+    with _refusals():
+        data, text = pending.complete(
+            bytes(response.signature),
+            [_native.parse_signed("grant", grant.signed_grant) for grant in grants],
+            [[_evidence_tuple(item) for item in grant.evidence] for grant in grants],
+            [_evidence_tuple(item) for item in response.evidence],
+        )
+    return ApprovalResponse(decision, bytes(data), text)
+
+
+def _custody(signer: CustodySigner) -> CustodyDescriptor:
+    descriptor = signer.descriptor
+    if descriptor.contract != "signer-custody/2":
+        raise ValueError("signer does not implement the custody contract")
+    return descriptor
+
+
+async def approve(
+    reviewed: ApprovalReview,
+    signer: CustodySigner,
+    *,
+    grants: Sequence[GrantEvidence] = (),
+) -> ApprovalResponse:
+    """Sign the reviewed envelope with ``signer``, whose custody request shows
+    the same review and expires at the window's end. ``grants`` is the
+    approver's grant chain, root first. The signer is not closed."""
+    descriptor = _custody(signer)
+    signature = descriptor.signature
+    with _refusals():
+        pending = reviewed._handle.prepare_approval(
+            descriptor.principal,
+            signature.principal_method,
+            signature.verification_method,
+            signature.suite,
+        )
+    return await _answer(pending, signer, grants)
+
+
+async def decline(
+    reviewed: ApprovalReview,
+    signer: CustodySigner,
+    *,
+    now: Optional[int] = None,
+    grants: Sequence[GrantEvidence] = (),
+) -> ApprovalResponse:
+    """Sign a refusal at ``now``. A decline carries no authority; it stops
+    the collector and records who refused."""
+    descriptor = _custody(signer)
+    signature = descriptor.signature
+    with _refusals():
+        pending = reviewed._handle.prepare_decline(
+            descriptor.principal,
+            signature.principal_method,
+            signature.verification_method,
+            signature.suite,
+            int(time.time()) if now is None else now,
+        )
+    return await _answer(pending, signer, grants)
+
+
+def collect_approvals(
+    proposal: ApprovalProposal[CommandT], responses: Sequence[Union[bytes, str]]
+) -> ApprovalCollection:
+    """Match responses to the proposal's requests. Signatures are checked by
+    the verifier when the assembled proof is used."""
+    with _refusals():
+        collection = _native.collect_approvals(
+            proposal._quorum, [_message(response) for response in responses]
+        )
+    return ApprovalCollection(
+        tuple(
+            ApproverStatus(
+                approver,
+                cast(Literal["pending", "approved", "declined", "rejected"], status),
+                code,
+                decided_at,
+            )
+            for approver, status, code, decided_at in collection.statuses
+        ),
+        tuple((index, code) for index, code in collection.unattributed),
+        collection,
+    )
+
+
 def _signed_response(
     outcome: Union[CustodySigned, CustodyRejected, CustodyIndeterminate],
     request: SigningRequest,
@@ -488,6 +794,14 @@ def _evidence_tuple(value: PublicControlEvidence) -> tuple[str, str, bytes]:
 
 
 __all__ = [
+    "ApprovalCollection",
+    "ApprovalMember",
+    "ApprovalProposal",
+    "ApprovalRefused",
+    "ApprovalRequest",
+    "ApprovalResponse",
+    "ApprovalReview",
+    "ApproverStatus",
     "AuthoredMcpProof",
     "AuthoredMcpQuorumProof",
     "AuthoringUnsuccessful",
@@ -495,7 +809,13 @@ __all__ = [
     "ProductionAuthoringInputs",
     "QuorumApprover",
     "QuorumPlan",
+    "approval_requests",
+    "approve",
     "author_mcp_proof",
     "author_mcp_quorum_proof",
     "author_production_mcp_proof",
+    "collect_approvals",
+    "decline",
+    "open_approval_request",
+    "propose_mcp_approval",
 ]

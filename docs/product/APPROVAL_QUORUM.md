@@ -127,6 +127,55 @@ Each approver's custody signer sees the same review display, including the
 approval quorum and the plan identifier, and signs its own envelope. Signers
 are asked concurrently and are not closed by the SDK.
 
+## Remote approvals: approvers on their own devices
+
+[AP-SPEC-062](../specs/0062-remote-approval-requests.md) separates the
+requester, the approvers, and the collector. The requester builds the
+proposal and writes one request per approver; each approver opens it, sees
+the review native code derives from the exact canonical action, and signs
+with its own custody; the collector matches responses and assembles.
+
+```python
+from auths.authoring import (
+    ApprovalMember, approval_requests, approve, collect_approvals,
+    open_approval_request, propose_mcp_approval,
+)
+
+proposal = propose_mcp_approval(
+    contract=TOOL, command=command, required=3,
+    approvers=[ApprovalMember(agent, agent_grant), ApprovalMember(manager_a),
+               ApprovalMember(manager_b)],
+    requester=agent, challenge=installed_challenge, evaluation_time=now,
+)
+requests = approval_requests(proposal)          # one auths-ar1- text per approver
+# on each approver's device:
+review = open_approval_request(request_text)    # native checks, native review
+response = await approve(review, my_signer)     # or decline(review, my_signer)
+# back at the collector:
+proof = collect_approvals(proposal, responses).assemble()
+```
+
+TypeScript has the same operations (`proposeMcpApproval`, `approvalRequests`,
+`openApprovalRequest`, `approve`, `decline`, `collectApprovals`). Both
+packaged CLIs ship `auths-profile approve <request> --signer <config>`, which
+prints only the returned review and signs only on an explicit yes.
+
+- A request carries no text: the review comes only from the registered
+  profile's `review_display` of its canonical action, and the custody request
+  shows the same fields and expires at the window's end.
+- A request whose display and envelope disagree (for example edited to show
+  15.00 while the envelope signs 1500.00) is refused with
+  `approval.action-mismatch`. A response signed for a different envelope is
+  refused at collection with `approval.response-mismatch`.
+- A decline is signed for the audit and carries no authority. Collection stops
+  and nothing is submitted.
+- The gateway hostile suite assembles every case from remote responses; the
+  proof is byte-identical to the in-process quorum and is authorized only at
+  the threshold.
+
+`bindings/fixtures/approval/remote-approval.json` is the corpus Rust, Python,
+and TypeScript reproduce byte for byte, including every `approval.*` code.
+
 ## Runnable examples
 
 `examples/approval-quorum/python/two_of_three.py` and
