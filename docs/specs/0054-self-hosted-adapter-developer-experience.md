@@ -82,19 +82,19 @@ credential. The generated adapter contains explicit TODOs for all four.
 
 ```text
 +-----------------------------------------------------------------------+
-| auths-profile init --language python --name create-task                |
+| auths init --language python --name create-task                |
 |  profile.toml       exact action identity + bounded argument schema   |
 |  generated.py       immutable CreateTask + CONTRACT                   |
 |  adapter.py         typed credential/invoke/observe skeleton          |
 |  tests/             fake provider + denial/replay/unknown scenarios    |
 |  profile.lock.json  created on first generate after the initial edit     |
 |                                                                       |
-| auths-profile check                                                     |
+| auths check                                                     |
 |  PASS  schema and generated files match                               |
 |  PASS  canonical/hostile vectors match packaged SDK                   |
 |  WARN  provider behavior is application-owned and unqualified         |
 |                                                                       |
-| auths-profile doctor --production                                       |
+| auths doctor --production                                       |
 |  READY signer and authority files are bounded and distinct           |
 |  MISSING provider credential: configure your adapter                  |
 |  NOTE  credential is never read by Auths verification                 |
@@ -341,7 +341,7 @@ authority or reads provider tokens for verification.
 
 ## 7. Local conformance kit
 
-`auths-profile test` runs generated tests against a deterministic fake
+`auths test` runs generated tests against a deterministic fake
 provider, fake credential supplier, controllable attempt store, and explicit
 clock/failure schedule. The developer supplies a typed adapter factory wired
 to the fake provider's transport; the kit drives that factory through the

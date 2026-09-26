@@ -6,5 +6,5 @@
   omitted:    description (--omit) priority (--omit)
   overrides:  --max-bytes content=256 --omit description --omit priority --closed . --security-scheme bearer --tool create_task
   wrote:      profile.toml recipe.json derivation.json
-  next:       auths-profile generate profile.toml && auths gateway recipe check --recipe recipe.json --profile-lock profile.lock.json
+  next:       auths generate profile.toml && auths-node gateway recipe check --recipe recipe.json --profile-lock profile.lock.json
   claim:      derived shape only; provider effect unqualified

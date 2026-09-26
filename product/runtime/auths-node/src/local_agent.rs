@@ -2418,7 +2418,7 @@ uid = 1000
         }
 
         // The operator's admin socket still lists and revokes, for a client
-        // that sends its request the way `auths connections` does.
+        // that sends its request the way `auths-node connections` does.
         let listed = exchange(
             &admin_socket,
             format!(

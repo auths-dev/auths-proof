@@ -6,13 +6,13 @@
  *   node build/refunds.js setup   --state DIR --gateway auths-gateway
  *   node build/refunds.js request --state DIR --operation-id ID --payment-intent PI \
  *                                 --amount CENTS --approvers a,b --out REQUESTS
- *   npx auths-profile approve REQUESTS/manager-a.request \
+ *   npx auths approve REQUESTS/manager-a.request \
  *                                 --signer DIR/signers/manager-a.json --out REQUESTS/manager-a.response
  *   node build/refunds.js submit  --state DIR --socket SOCK --operation-id ID --responses REQUESTS
  *   node build/refunds.js export  --state DIR --out audit-bundle.json
  *
  * The agent writes one approval request per manager; each manager answers with
- * `auths-profile approve` on their own machine, and the agent collects the
+ * `auths approve` on their own machine, and the agent collects the
  * response files. Everything here uses development keys stored under DIR/keys
  * so one person can play every role; they are development custody. In
  * production the root and each manager sign through their own custody
@@ -217,7 +217,7 @@ async function setup(options: Readonly<{
     "--max-count", String(options.maxCount),
   );
   for (const name of ROLES) privateWrite(join(state, "keys", `${name}.seed`), randomBytes(32));
-  // What each manager passes to `auths-profile approve --signer`.
+  // What each manager passes to `auths approve --signer`.
   for (const name of MANAGERS) {
     privateWrite(join(state, "signers", `${name}.json`), JSON.stringify({
       schema: "auths.approval-signer/1", custody: "development-ed25519", seed_file: `../keys/${name}.seed`,

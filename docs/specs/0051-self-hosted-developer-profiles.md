@@ -55,26 +55,26 @@ runtime-installed Auths integration.
 Illustrative terminal flow (command names are normative, output is not):
 
 ```text
-$ auths-profile init --language python --name todoist-create-task
+$ auths init --language python --name todoist-create-task
   profile.toml              exact MCP service/tool and schema identity
   src/.../command.py        generated bounded command type
   src/.../provider.py       application-owned TODOs: credential, request, observe
   tests/...                 denial, mutation, replay, uncertain-result fixtures
 
-$ auths-profile check
+$ auths check
   ✓ schema and canonical action vectors
   ✓ authorized command cannot be projected from denied proof
   ✓ gateway tests: denial before credential lookup
   ! provider effect is developer-owned; no Auths qualification claim
 
-$ auths-profile doctor
+$ auths doctor
   signer: application/operator input, not contacted
   trust files: no provenance established
   provider credential: application-owned, not inspected by Auths
   runnable: yes; qualification: self-hosted only
 ```
 
-The TypeScript CLI (`auths-profile init --language typescript`) MUST produce
+The TypeScript CLI (`auths init --language typescript`) MUST produce
 the same contract and canonical vectors. A developer can implement another
 operation by changing the schema and writing its provider adapter, without
 forking Auths, authoring a Rust fixture binary, or adding a built-in provider
@@ -314,7 +314,7 @@ that would be mistaken for an Auths-qualified execution receipt. A portable
 developer observation record MAY link to the Auths decision commitment if it
 identifies its application issuer and unqualified status.
 
-SDK CI and the generated `auths-profile check` harness MUST cover:
+SDK CI and the generated `auths check` harness MUST cover:
 
 1. canonical and hostile action/proof vectors across Rust, Python, and
    TypeScript, including altered tool/service/arguments/audience/version,
@@ -386,7 +386,7 @@ The branch supplies native exact MCP proof assembly/projection, public Python
 and TypeScript authoring and verification, explicit external-custody inputs,
 the local attempt-store ports, and Airtable/Todoist field-lab consumers.
 The first three tracked implementation items have landed: packaged
-`auths-profile init/check/doctor` flows, the bounded nested/array/bytes/enum
+`auths init/check/doctor` flows, the bounded nested/array/bytes/enum
 schema with hostile vectors and version binding, and packaged Python/npm
 consumer exercises with cross-language and recovery cases. SDK revision
 `0266fdc` passed the [Python package](https://github.com/auths-dev/auths-proof/actions/runs/35663793077),

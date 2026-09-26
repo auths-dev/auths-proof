@@ -852,7 +852,7 @@ registered profile package, with 7 through 70 total rows. A candidate
 provenance report is a mismatch oracle only. Protected-revision code reads the
 immutable candidate Cargo manifests and generated launch projection directly, requires the exact
 qualification feature edges and the byte-sorted unqualified five-profile
-roster. The shipping `auths` target is an explicit production-only wrapper
+roster. The shipping `auths-node` target is an explicit production-only wrapper
 whose unconditional compile-time assertions reject the credential-broker,
 qualification-journal, and testkit feature sentinels exported by their owning
 crates. CI compiles and tests production, qualification, and testkit targets as
@@ -2246,7 +2246,7 @@ It never changes provider truth, permits blind retry, or projects success.
 The privileged command is:
 
 ```text
-auths agent receipt-anchors export --config <agent.toml> --output <path>
+auths-node agent receipt-anchors export --config <agent.toml> --output <path>
 ```
 
 It emits canonical JSON schema `auths.receipt-trust-anchors/1`, at most 64 KiB,
@@ -2450,7 +2450,7 @@ qualification-attestation-signer sign-verified --record <verified-record.json> \
 cargo xtask profile qualification verify --attestation <path>
 cargo xtask profile qualification import --attestation <path>
 cargo xtask profile qualification check [--domain <domain> | --all]
-auths agent receipt-anchors export --config <agent.toml> --output <path>
+auths-node agent receipt-anchors export --config <agent.toml> --output <path>
 ```
 
 All paths are normalized repository-relative or explicit input files. Commands

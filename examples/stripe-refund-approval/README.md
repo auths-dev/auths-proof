@@ -12,7 +12,7 @@ gateway the first time takes a few minutes.
 | Who | Holds | Can do |
 | --- | --- | --- |
 | Root (you, the operator) | root key | issue the agent's grant, with its limit |
-| Managers A, B, C | one key each, on their own machines | review and approve one exact refund with `auths-profile approve` |
+| Managers A, B, C | one key each, on their own machines | review and approve one exact refund with `auths approve` |
 | Agent | its key and grant | request approvals, collect them, submit; never sees the Stripe key or a manager's key |
 | Gateway | the Stripe key | submit a refund only after verifying approvals and limit |
 | Auditor | two pinned values | verify every refund from a file, with no network |
@@ -48,7 +48,7 @@ python refunds.py setup --state "$WORK/state"
 ```
 
 This writes development keys for `root`, `manager-a`, `manager-b`,
-`manager-c`, and `agent`, one `auths-profile approve` signer file per manager
+`manager-c`, and `agent`, one `auths approve` signer file per manager
 under `state/signers/` (development custody over that manager's key), and:
 
 - a trusted context for the gateway: refunds need **three authorized
@@ -67,7 +67,7 @@ It prints `recipe_digest` and `trusted_context_sha256`. Keep both.
 `Idempotency-Key` it derives from the namespace and operation ID
 (`auths-gateway review` shows `"sends_idempotency_key": true`).
 `profile.toml` generated `generated.py` and `profile.lock.json` with
-`auths-profile generate`.
+`auths generate`.
 
 **4. Install the gateway with the Stripe key on stdin.**
 
@@ -110,13 +110,13 @@ python refunds.py request --state "$WORK/state" --operation-id refund-1 \
 Each manager answers on their own machine:
 
 ```sh
-auths-profile approve "$WORK/refund-1/manager-a.request" \
+auths approve "$WORK/refund-1/manager-a.request" \
   --signer "$WORK/state/signers/manager-a.json" --out "$WORK/refund-1/manager-a.response"
-auths-profile approve "$WORK/refund-1/manager-b.request" \
+auths approve "$WORK/refund-1/manager-b.request" \
   --signer "$WORK/state/signers/manager-b.json" --out "$WORK/refund-1/manager-b.response"
 ```
 
-`auths-profile approve` checks the request natively, prints the review that
+`auths approve` checks the request natively, prints the review that
 the SDK derives from the exact refund the manager signs (the arguments, the
 requester, the other approvers, and the approval window), and asks
 `Approve this action? [y/N]`. Only `y` signs; without a terminal it signs only
@@ -139,8 +139,8 @@ ledger has one entry.
 
 | Attempt | Result | Stripe calls |
 | --- | --- | --- |
-| Manager B runs `auths-profile approve … --decline` | `submit` reports `declined` and submits nothing | 0 |
-| A request edited to show another amount | `auths-profile approve` refuses `approval.action-mismatch` and signs nothing | 0 |
+| Manager B runs `auths approve … --decline` | `submit` reports `declined` and submits nothing | 0 |
+| A request edited to show another amount | `auths approve` refuses `approval.action-mismatch` and signs nothing | 0 |
 | 90.00, above the 50.00 ceiling | `not-entered` `gateway.policy.above-ceiling` | 0 |
 | Only manager A approves | `denied` `composition-requirement-not-met` | 0 |
 | A third refund on the same day | `not-entered` `gateway.policy.window-exhausted` | 0 |
@@ -193,7 +193,7 @@ python journey.py --gateway "$(command -v auths-gateway)"
 ```
 
 This runs steps 3–9 with every manager answering through
-`auths-profile approve`, a declined manager, a tampered request, the three
+`auths approve`, a declined manager, a tampered request, the three
 refusals, and the four tampering cases,
 checks every result, including exactly two Stripe calls and the
 `Idempotency-Key` each one carried, and prints timings. It then wipes the
@@ -208,7 +208,7 @@ two refunds. CI runs it from the packed wheel
 The same journey runs from the npm package, `@auths-dev/sdk`, against the
 same recipe, gateway, and Stripe double. `typescript/refunds.ts` and
 `typescript/journey.ts` are the TypeScript `refunds.py` and `journey.py`, and
-`generated.ts` is the command contract the package's `auths-profile generate`
+`generated.ts` is the command contract the package's `auths generate`
 wrote from the same `profile.toml`. You need Node 20.6+ and Rust. From
 `typescript/`:
 
@@ -227,7 +227,7 @@ node build/journey.js --gateway "$(command -v auths-gateway)"
 The last command took 6.0 s on an Apple-silicon laptop once the package and
 gateway were built. Each `python refunds.py …` step above is
 `node build/refunds.js …` with the same flags, each manager runs
-`npx auths-profile approve …` with the same flags, and `journey.js` takes the same
+`npx auths approve …` with the same flags, and `journey.js` takes the same
 `--stripe-test-mode` and `--payment-intent` options as `journey.py`. The
 package installs from the tarball you packed, so this directory keeps no
 lockfile. CI runs it from the packed tarball as job
@@ -265,7 +265,7 @@ on stdin.
 - A request is not confidential: anyone who receives it sees the refund. The
   requester it names is not authenticated by the request; the agent's own
   approval is. The guarantee that a manager signs what they saw holds only for
-  a surface that shows what the SDK returned, as `auths-profile approve` does.
+  a surface that shows what the SDK returned, as `auths approve` does.
 - Three managers acting together, without the agent, also meet the
   threshold. That is the managers' own authority, and no agent limit
   applies to it.

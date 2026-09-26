@@ -9,7 +9,7 @@ publish = false
 autobins = false
 
 [[bin]]
-name = "auths"
+name = "auths-node"
 path = "src/bin/auths-production.rs"
 
 [features]
