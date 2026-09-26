@@ -530,12 +530,13 @@ func resolveAndVerifyControl(
 	return controls, nil
 }
 
+// validateCarriedStatus rejects a proof-carried status statement that the
+// snapshot supersedes or does not hold. Rollback is keyed on the statement's
+// subject alone, the principal or the grant, as status selection is.
 func validateCarriedStatus(bundle *proofBundle, context *verifierContext) error {
 	for _, carried := range bundle.principalStatus {
 		for _, current := range context.principalSnapshot.statements {
-			if carried.principal == current.principal &&
-				carried.purpose == current.purpose &&
-				current.sequence > carried.sequence {
+			if carried.principal == current.principal && current.sequence > carried.sequence {
 				return denied("status-sequence-rollback")
 			}
 		}
@@ -1388,6 +1389,22 @@ type statusEntry struct {
 	validUntil uint64
 }
 
+// evaluateStatusExtensions applies the accepted-extension rule to one status
+// statement about a principal or grant being evaluated. No registered critical
+// extension defines status semantics, and a grant or action handler never
+// evaluates a status statement, so the first extension decides: one the
+// context does not accept is unknown, and an accepted one has no status
+// handler.
+func evaluateStatusExtensions(extensions []criticalExtension, accepted []string) error {
+	if len(extensions) == 0 {
+		return nil
+	}
+	if !containsText(accepted, extensions[0].id) {
+		return denied("critical-extension-unknown")
+	}
+	return indeterminate("unsupported-critical-extension")
+}
+
 func statusControl(controls map[string]verifiedControl, kind uint64, id []byte) error {
 	control, ok := controls[statementReference{kind: kind, id: id}.key()]
 	if !ok {
@@ -1481,6 +1498,9 @@ func checkPrincipalStatus(
 		if err := statusControl(controls, 2, statement.id); err != nil {
 			return err
 		}
+		if err := evaluateStatusExtensions(statement.extensions, context.extensions); err != nil {
+			return err
+		}
 		candidates = append(candidates, statusEntry{
 			method: statement.method, issuer: statement.issuer, state: statement.state,
 			sequence: statement.sequence, observedAt: statement.observedAt,
@@ -1518,6 +1538,9 @@ func checkGrantStatus(
 			continue
 		}
 		if err := statusControl(controls, 3, statement.id); err != nil {
+			return err
+		}
+		if err := evaluateStatusExtensions(statement.extensions, context.extensions); err != nil {
 			return err
 		}
 		candidates = append(candidates, statusEntry{

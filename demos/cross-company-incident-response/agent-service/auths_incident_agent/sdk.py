@@ -117,7 +117,6 @@ def rotation_attack(previous: str, current: str) -> dict[str, Any]:
         method="auths.status",
         previous=old,
         current=new,
-        purpose="authentication",
         issuer=old,
         previous_sequence=2,
         current_sequence=1,
@@ -221,7 +220,6 @@ def status_projection(status: Any) -> dict[str, Any]:
     return {
         "method": status.method,
         "principal": status.principal.value,
-        "purpose": status.purpose,
         "state": status.state,
         "sequence": status.sequence,
         "observedAt": status.observed_at,

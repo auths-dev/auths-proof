@@ -785,7 +785,7 @@ pub(crate) fn encode_principal_status_statement_to(
     encoder: &mut V1Encoder,
     statement: &PrincipalStatusStatement,
 ) -> Result<(), CodecError> {
-    map(encoder, 10)?;
+    map(encoder, 9)?;
     key(encoder, 0)?;
     encoder
         .u16(statement.version().get())
@@ -795,27 +795,25 @@ pub(crate) fn encode_principal_status_statement_to(
     key(encoder, 2)?;
     text(encoder, statement.principal().as_str())?;
     key(encoder, 3)?;
-    text(encoder, statement.purpose().as_str())?;
-    key(encoder, 4)?;
     let state = match statement.state() {
         PrincipalState::Active => 0,
         PrincipalState::Revoked => 1,
         PrincipalState::Superseded => 2,
     };
     encoder.u8(state).map_err(encode_error)?;
-    key(encoder, 5)?;
+    key(encoder, 4)?;
     encoder.u64(statement.sequence()).map_err(encode_error)?;
-    key(encoder, 6)?;
+    key(encoder, 5)?;
     encoder
         .u64(statement.observed_at().get())
         .map_err(encode_error)?;
-    key(encoder, 7)?;
+    key(encoder, 6)?;
     encoder
         .u64(statement.valid_until().get())
         .map_err(encode_error)?;
-    key(encoder, 8)?;
+    key(encoder, 7)?;
     text(encoder, statement.issuer().as_str())?;
-    key(encoder, 9)?;
+    key(encoder, 8)?;
     encode_extensions(encoder, statement.extensions())?;
     Ok(())
 }

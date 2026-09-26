@@ -223,19 +223,23 @@ principal-state-active = 0
 principal-state-revoked = 1
 principal-state-superseded = 2
 
+; A principal-status statement names no purpose or role: the latest statement
+; about a principal governs it in every position it holds in a branch. No
+; registered critical extension gives a status statement meaning (registry.md,
+; "Status-statement extensions"), so an evaluated statement that carries one
+; is refused.
 principal-status-statement = {
   0: protocol-version,
   1: bounded-id,            ; exact status method
   2: principal-id,
-  3: bounded-id,            ; purpose
-  4: principal-state-active /
+  3: principal-state-active /
      principal-state-revoked /
      principal-state-superseded,
-  5: uint,                  ; sequence
-  6: timestamp,             ; observed_at
-  7: timestamp,             ; valid_until
-  8: principal-id,          ; issuer
-  9: critical-extensions,
+  4: uint,                  ; sequence
+  5: timestamp,             ; observed_at
+  6: timestamp,             ; valid_until
+  7: principal-id,          ; issuer
+  8: critical-extensions,
 }
 
 signed-principal-status = {
@@ -247,6 +251,8 @@ grant-state-active = 0
 grant-state-revoked = 1
 grant-state-superseded = 2
 
+; As for principal status, an evaluated statement that carries a critical
+; extension is refused.
 grant-status-statement = {
   0: protocol-version,
   1: bounded-id,            ; exact status method

@@ -11,10 +11,10 @@ func decodePrincipalStatus(value *cborValue) (*principalStatus, error) {
 		return nil, err
 	}
 	statement, _ := mapValue(value, 0)
-	if err := exactMap(statement, 10); err != nil {
+	if err := exactMap(statement, 9); err != nil {
 		return nil, err
 	}
-	values := make([]*cborValue, 10)
+	values := make([]*cborValue, 9)
 	for index := range values {
 		values[index], _ = mapValue(statement, uint64(index))
 	}
@@ -30,31 +30,28 @@ func decodePrincipalStatus(value *cborValue) (*principalStatus, error) {
 	if err != nil {
 		return nil, err
 	}
-	purpose, err := textValue(values[3])
-	if err != nil {
-		return nil, err
-	}
-	state, err := uintValue(values[4])
+	state, err := uintValue(values[3])
 	if err != nil || state > 2 {
 		return nil, errors.New("invalid principal state")
 	}
-	sequence, err := uintValue(values[5])
+	sequence, err := uintValue(values[4])
 	if err != nil {
 		return nil, err
 	}
-	observedAt, err := uintValue(values[6])
+	observedAt, err := uintValue(values[5])
 	if err != nil {
 		return nil, err
 	}
-	validUntil, err := uintValue(values[7])
+	validUntil, err := uintValue(values[6])
 	if err != nil || observedAt > validUntil {
 		return nil, errors.New("invalid principal-status validity")
 	}
-	issuer, err := textValue(values[8])
+	issuer, err := textValue(values[7])
 	if err != nil {
 		return nil, err
 	}
-	if _, err := extensionValues(values[9]); err != nil {
+	extensions, err := extensionValues(values[8])
+	if err != nil {
 		return nil, err
 	}
 	signatureNode, _ := mapValue(value, 1)
@@ -66,12 +63,12 @@ func decodePrincipalStatus(value *cborValue) (*principalStatus, error) {
 		statement:  statement,
 		method:     method,
 		principal:  principal,
-		purpose:    purpose,
 		state:      state,
 		sequence:   sequence,
 		observedAt: observedAt,
 		validUntil: validUntil,
 		issuer:     issuer,
+		extensions: extensions,
 		signature:  signature,
 		id:         domainHash(5, statement.raw),
 	}, nil
@@ -121,7 +118,8 @@ func decodeGrantStatus(value *cborValue) (*grantStatus, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err := extensionValues(values[8]); err != nil {
+	extensions, err := extensionValues(values[8])
+	if err != nil {
 		return nil, err
 	}
 	signatureNode, _ := mapValue(value, 1)
@@ -138,6 +136,7 @@ func decodeGrantStatus(value *cborValue) (*grantStatus, error) {
 		observedAt: observedAt,
 		validUntil: validUntil,
 		issuer:     issuer,
+		extensions: extensions,
 		signature:  signature,
 		id:         domainHash(6, statement.raw),
 	}, nil

@@ -350,12 +350,12 @@ type principalStatus struct {
 	statement  *cborValue
 	method     string
 	principal  string
-	purpose    string
 	state      uint64
 	sequence   uint64
 	observedAt uint64
 	validUntil uint64
 	issuer     string
+	extensions []criticalExtension
 	signature  signatureEnvelope
 	id         []byte
 }
@@ -369,6 +369,7 @@ type grantStatus struct {
 	observedAt uint64
 	validUntil uint64
 	issuer     string
+	extensions []criticalExtension
 	signature  signatureEnvelope
 	id         []byte
 }
