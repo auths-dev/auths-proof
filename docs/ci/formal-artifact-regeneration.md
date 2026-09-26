@@ -13,6 +13,10 @@ Fork pull requests get the same downloadable artifact and diagnostic summary, bu
 never receive automatic writeback. A rejected artifact names the violated boundary
 (for example, an unexpected path, symlink, deletion, stale SHA, or size limit).
 
+[Formal translation evidence](formal-translation-evidence.md) describes when the
+translation job reproduces and when it reuses evidence, and how to recover a
+pull request by dispatching `ci.yml` on its branch.
+
 ## Architecture
 
 ```text

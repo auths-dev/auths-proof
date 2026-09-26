@@ -397,8 +397,48 @@ jobs:
             fi
           done < <(jq -r --arg repo "$GITHUB_REPOSITORY" --argjson pr "$AUTHS_PR_NUMBER" '.workflow_runs | map(select(.name == "CI" and .head_repository.full_name == $repo and any(.pull_requests[]?; .number == $pr))) | .[:10][] | [.id, .run_attempt, .head_sha] | @tsv' <<< "$runs")
           echo 'No applicable successful same-PR translation; using two clean reproductions.' >> "$GITHUB_STEP_SUMMARY"
+      # Protected-base evidence is an optimization, never a precondition. The
+      # base commit's run may have failed in another job, been cancelled by a
+      # newer push, still be running, or have expired; `found` then stays false
+      # and the two clean reproductions below run instead. Located evidence
+      # that does not bind to this checkout still fails the job.
+      - id: protected-base-translation
+        name: Locate protected-base translation evidence
+        if: needs.ci-plan.outputs.formal_cold_required != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUTHS_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'found=false' >> "$GITHUB_OUTPUT"
+          no_evidence() {
+            echo "Translation: no protected-base evidence for base ${AUTHS_BASE_SHA:-unknown} ($1); executing two clean reproductions." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          }
+          [[ "$AUTHS_BASE_SHA" =~ ^[0-9a-f]{40}$ ]] || no_evidence 'no base commit'
+          run_id="$(gh api --method GET "repos/${GITHUB_REPOSITORY}/actions/runs" -f head_sha="$AUTHS_BASE_SHA" -f status=success -f per_page=50 --jq '.workflow_runs | map(select(.name == "CI" and .event == "push" and .head_branch == "main")) | first | .id')" || no_evidence 'run lookup failed'
+          [[ -n "$run_id" && "$run_id" != null ]] || no_evidence 'no successful CI push run on main'
+          artifact_name="$(gh api --method GET "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts" --jq '.artifacts | map(select(.expired == false and (.name | startswith("auths-formal-translation-")))) | first | .name')" || no_evidence "run ${run_id} artifact lookup failed"
+          [[ -n "$artifact_name" && "$artifact_name" != null ]] || no_evidence "run ${run_id} has no unexpired translation artifact"
+          mkdir -p target/reused-formal
+          gh run download "$run_id" --name "$artifact_name" --dir target/reused-formal || no_evidence "artifact ${artifact_name} could not be downloaded"
+          mapfile -t evidence < <(find target/reused-formal -type f -name aeneas-qualification.json)
+          [[ "${#evidence[@]}" == 1 ]] || no_evidence "artifact ${artifact_name} does not hold exactly one evidence file"
+          echo "AUTHS_REUSED_TRANSLATION_EVIDENCE=${evidence[0]}" >> "$GITHUB_ENV"
+          echo 'found=true' >> "$GITHUB_OUTPUT"
+          echo "Translation: protected-base run ${run_id}, artifact ${artifact_name}" >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify and bind protected-base translation evidence
+        if: steps.protected-base-translation.outputs.found == 'true'
+        env:
+          AUTHS_FORMAL_PHASE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_translation_digest }}
+          AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_toolchain_digest }}
+          AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_evidence_digest }}
+        run: cargo xtask ci formal-translation-reuse
+      # Two clean reproductions run unless a reuse step above located evidence:
+      # for a cold plan, a same-PR miss, and absent protected-base evidence.
       - name: Reclaim disk for cold translation
-        if: needs.ci-plan.outputs.formal_cold_required == 'true' && steps.prior-pr-translation.outputs.reused != 'true'
+        if: steps.prior-pr-translation.outputs.reused != 'true' && steps.protected-base-translation.outputs.found != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -406,14 +446,14 @@ jobs:
           sudo docker system prune --all --force
           sudo apt-get clean
       - name: Install pinned Nix with the public Aeneas Cachix substitute
-        if: needs.ci-plan.outputs.formal_cold_required == 'true' && steps.prior-pr-translation.outputs.reused != 'true'
+        if: steps.prior-pr-translation.outputs.reused != 'true' && steps.protected-base-translation.outputs.found != 'true'
         uses: cachix/install-nix-action@ab739621df7a23f52766f9ccc97f38da6b7af14f # v31.10.5
         with:
           extra_nix_config: |
             extra-substituters = https://hacl.cachix.org
             extra-trusted-public-keys = hacl.cachix.org-1:FzsZ2xsByOwKwIWNPII7yMOelJNDZ12mDAj3d1eGX0c=
       - name: Acquire pinned Aeneas and Charon
-        if: needs.ci-plan.outputs.formal_cold_required == 'true' && steps.prior-pr-translation.outputs.reused != 'true'
+        if: steps.prior-pr-translation.outputs.reused != 'true' && steps.protected-base-translation.outputs.found != 'true'
         run: >-
           nix build
           --print-build-logs
@@ -422,7 +462,7 @@ jobs:
           github:AeneasVerif/aeneas/3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0#aeneas
           --out-link target/formal-tools
       - name: Reproduce translation twice
-        if: needs.ci-plan.outputs.formal_cold_required == 'true' && steps.prior-pr-translation.outputs.reused != 'true'
+        if: steps.prior-pr-translation.outputs.reused != 'true' && steps.protected-base-translation.outputs.found != 'true'
         env:
           AUTHS_AENEAS_BIN: ${{ github.workspace }}/target/formal-tools/bin/aeneas
           AUTHS_CHARON_BIN: ${{ github.workspace }}/target/formal-tools/bin/charon
@@ -433,7 +473,7 @@ jobs:
         run: cargo xtask ci formal-translation-reproduce
       - id: formal-update
         name: Package a bounded translation update
-        if: github.event_name == 'pull_request' && needs.ci-plan.outputs.formal_cold_required == 'true' && steps.prior-pr-translation.outputs.reused != 'true'
+        if: github.event_name == 'pull_request' && steps.prior-pr-translation.outputs.reused != 'true' && steps.protected-base-translation.outputs.found != 'true'
         env:
           AUTHS_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
@@ -463,31 +503,6 @@ jobs:
         run: |
           echo "Generated Aeneas output drifted; the bounded updater will commit the reviewed artifact set."
           exit 1
-      - name: Locate protected-base translation evidence
-        if: needs.ci-plan.outputs.formal_cold_required != 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          AUTHS_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          run_id="$(gh api --method GET "repos/${GITHUB_REPOSITORY}/actions/runs" -f head_sha="$AUTHS_BASE_SHA" -f status=success -f per_page=50 --jq '.workflow_runs | map(select(.name == "CI" and .event == "push" and .head_branch == "main")) | first | .id')"
-          [[ -n "$run_id" && "$run_id" != null ]]
-          artifact_name="$(gh api --method GET "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts" --jq '.artifacts | map(select(.expired == false and (.name | startswith("auths-formal-translation-")))) | first | .name')"
-          [[ -n "$artifact_name" && "$artifact_name" != null ]]
-          mkdir -p target/reused-formal
-          gh run download "$run_id" --name "$artifact_name" --dir target/reused-formal
-          mapfile -t evidence < <(find target/reused-formal -type f -name aeneas-qualification.json)
-          [[ "${#evidence[@]}" == 1 ]]
-          echo "AUTHS_REUSED_TRANSLATION_EVIDENCE=${evidence[0]}" >> "$GITHUB_ENV"
-          echo "Translation: protected-base run ${run_id}, artifact ${artifact_name}" >> "$GITHUB_STEP_SUMMARY"
-      - name: Verify and bind protected-base translation evidence
-        if: needs.ci-plan.outputs.formal_cold_required != 'true'
-        env:
-          AUTHS_FORMAL_PHASE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_translation_digest }}
-          AUTHS_FORMAL_TOOLCHAIN_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_toolchain_digest }}
-          AUTHS_FORMAL_EVIDENCE_CLOSURE_SHA256: ${{ needs.ci-plan.outputs.formal_evidence_digest }}
-        run: cargo xtask ci formal-translation-reuse
       - name: Preserve reusable translation evidence
         if: steps.formal-update.outputs.update_required != 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -510,7 +525,7 @@ jobs:
         with:
           phase: translation
           started-at: ${{ env.AUTHS_FORMAL_STARTED_AT }}
-          execution: ${{ steps.prior-pr-translation.outputs.reused == 'true' && 'reused-pr-run' || needs.ci-plan.outputs.formal_cold_required == 'true' && 'executed-cold' || 'reused-protected-base' }}
+          execution: ${{ steps.prior-pr-translation.outputs.reused == 'true' && 'reused-pr-run' || steps.protected-base-translation.outputs.found == 'true' && 'reused-protected-base' || steps.protected-base-translation.outputs.found == 'false' && 'executed-cold-without-base-evidence' || 'executed-cold' }}
 
   formal-kani-run:
     name: formal Kani

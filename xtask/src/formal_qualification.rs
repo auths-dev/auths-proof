@@ -1388,6 +1388,7 @@ fn validate_ci_workflow_gates(ci: &str) -> Result<(), String> {
                 .to_owned(),
         );
     }
+    validate_translation_evidence_selection(formal_job)?;
     for job_name in [
         "authoritative-run",
         "compliance-run",
@@ -1475,6 +1476,70 @@ fn validate_ci_workflow_gates(ci: &str) -> Result<(), String> {
         );
     }
     Ok(())
+}
+
+/// Condition of every step on the two-reproduction path: it runs unless a
+/// reuse step located evidence, so a cold plan, a same-PR miss, and absent
+/// protected-base evidence all reach it.
+const TRANSLATION_REPRODUCTION_CONDITION: &str = "steps.prior-pr-translation.outputs.reused != 'true' && steps.protected-base-translation.outputs.found != 'true'";
+
+/// Protected-base evidence is an optimization, never a precondition. The base
+/// commit's run may have failed in another job, been cancelled by a newer
+/// push, still be running, or have expired; the job then executes the same two
+/// clean reproductions as a cold plan. A pull-request reproduction runs in
+/// update mode and rewrites drifted outputs in place, so the packaging step
+/// must share its condition, or drift would qualify instead of stopping the
+/// job. Located evidence is reused only through the binding step, whose
+/// failure fails the job rather than falling back.
+fn validate_translation_evidence_selection(job: &str) -> Result<(), String> {
+    let locate = workflow_step_source(job, "Locate protected-base translation evidence")?;
+    let bind = workflow_step_source(job, "Verify and bind protected-base translation evidence")?;
+    let reproduce = workflow_step_source(job, "Reproduce translation twice")?;
+    let package = workflow_step_source(job, "Package a bounded translation update")?;
+    if !locate.contains("- id: protected-base-translation\n")
+        || !bind.contains("\n        if: steps.protected-base-translation.outputs.found == 'true'\n")
+        || !reproduce.contains(&format!(
+            "\n        if: {TRANSLATION_REPRODUCTION_CONDITION}\n"
+        ))
+        || !package.contains(&format!(
+            "\n        if: github.event_name == 'pull_request' && {TRANSLATION_REPRODUCTION_CONDITION}\n"
+        ))
+    {
+        return Err(
+            "hosted translation must reuse protected-base evidence only once located and bound, and otherwise execute two clean reproductions that package generated drift"
+                .to_owned(),
+        );
+    }
+    Ok(())
+}
+
+/// One step of a workflow job, from its list marker to the next step's, so a
+/// condition is read from the step it gates rather than from anywhere in the
+/// job.
+fn workflow_step_source<'a>(job: &'a str, step_name: &str) -> Result<&'a str, String> {
+    let name = format!("name: {step_name}");
+    let starts: Vec<_> = job
+        .match_indices("\n      - ")
+        .map(|(index, _)| index)
+        .collect();
+    let ends = starts
+        .iter()
+        .skip(1)
+        .copied()
+        .chain(std::iter::once(job.len()));
+    starts
+        .iter()
+        .copied()
+        .zip(ends)
+        .map(|(start, end)| &job[start..end])
+        .find(|step| {
+            step.lines().any(|line| {
+                line.strip_prefix("      - ")
+                    .or_else(|| line.strip_prefix("        "))
+                    == Some(name.as_str())
+            })
+        })
+        .ok_or_else(|| format!("hosted CI omits the `{step_name}` step"))
 }
 
 fn workflow_job_source<'a>(workflow: &'a str, job_name: &str) -> Result<&'a str, String> {
@@ -2253,12 +2318,24 @@ cargo xtask ci formal-proof-fast
 needs: [ci-plan, formal-update-gate, repository-preflight]
 needs.repository-preflight.result == 'success'
 compiler-cache: "false"
-AUTHS_FORMAL_UPDATE_MODE
-formal-update-artifact create
-Preserve the bounded translation update
-Stop qualification until generated translation is committed
-cargo xtask ci formal-translation-reproduce
-cargo xtask ci formal-translation-reuse
+      - id: protected-base-translation
+        name: Locate protected-base translation evidence
+        if: needs.ci-plan.outputs.formal_cold_required != 'true'
+        run: echo 'found=false' >> "$GITHUB_OUTPUT"
+      - name: Verify and bind protected-base translation evidence
+        if: steps.protected-base-translation.outputs.found == 'true'
+        run: cargo xtask ci formal-translation-reuse
+      - name: Reproduce translation twice
+        if: steps.prior-pr-translation.outputs.reused != 'true' && steps.protected-base-translation.outputs.found != 'true'
+        env:
+          AUTHS_FORMAL_UPDATE_MODE: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
+        run: cargo xtask ci formal-translation-reproduce
+      - id: formal-update
+        name: Package a bounded translation update
+        if: github.event_name == 'pull_request' && steps.prior-pr-translation.outputs.reused != 'true' && steps.protected-base-translation.outputs.found != 'true'
+        run: cargo run --locked -p auths-ci-plan -- formal-update-artifact create
+      - name: Preserve the bounded translation update
+      - name: Stop qualification until generated translation is committed
   formal-kani-run:
 needs: [ci-plan, formal-update-gate, repository-preflight]
 needs.repository-preflight.result == 'success'
@@ -2335,6 +2412,47 @@ needs.formal-kani.result
     #[test]
     fn hosted_ci_uses_the_pinned_lean_setup() {
         validate_ci_workflow_gates(CI_GATES).expect("hosted CI gates must satisfy formal policy");
+    }
+
+    #[test]
+    fn committed_hosted_ci_satisfies_formal_policy() {
+        validate_ci_workflow_gates(include_str!("../../.github/workflows/ci.yml"))
+            .expect("the committed hosted CI workflow must satisfy formal policy");
+    }
+
+    #[test]
+    fn missing_protected_base_evidence_executes_two_clean_reproductions() {
+        let base_run_required = CI_GATES.replace(
+            "name: Reproduce translation twice\n        if: steps.prior-pr-translation.outputs.reused != 'true' && steps.protected-base-translation.outputs.found != 'true'\n",
+            "name: Reproduce translation twice\n        if: needs.ci-plan.outputs.formal_cold_required == 'true' && steps.prior-pr-translation.outputs.reused != 'true'\n",
+        );
+        let error = validate_ci_workflow_gates(&base_run_required).expect_err(
+            "a base commit without successful CI must not fail every pull request on it",
+        );
+        assert!(error.contains("otherwise execute two clean reproductions"));
+    }
+
+    #[test]
+    fn every_update_mode_reproduction_packages_its_drift() {
+        let unpackaged = CI_GATES.replace(
+            "if: github.event_name == 'pull_request' && steps.prior-pr-translation.outputs.reused != 'true' && steps.protected-base-translation.outputs.found != 'true'\n",
+            "if: github.event_name == 'pull_request' && needs.ci-plan.outputs.formal_cold_required == 'true' && steps.prior-pr-translation.outputs.reused != 'true'\n",
+        );
+        let error = validate_ci_workflow_gates(&unpackaged).expect_err(
+            "a fallback reproduction that rewrote drifted outputs must still stop the job",
+        );
+        assert!(error.contains("that package generated drift"));
+    }
+
+    #[test]
+    fn protected_base_reuse_requires_located_evidence() {
+        let unlocated = CI_GATES.replace(
+            "if: steps.protected-base-translation.outputs.found == 'true'\n",
+            "if: needs.ci-plan.outputs.formal_cold_required != 'true'\n",
+        );
+        let error = validate_ci_workflow_gates(&unlocated)
+            .expect_err("binding must not run when no evidence was located");
+        assert!(error.contains("only once located and bound"));
     }
 
     #[test]
