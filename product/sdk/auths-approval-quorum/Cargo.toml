@@ -11,10 +11,13 @@ description = "Authoring of one exact action approved by a threshold of distinct
 auths-author.workspace = true
 auths-codec.workspace = true
 auths-model.workspace = true
+auths-profile-api.workspace = true
+base64ct.workspace = true
+minicbor.workspace = true
+sha2.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-auths-profile-api.workspace = true
 auths-profile-mcp.workspace = true
 serde_json.workspace = true
 auths-raw-key = { workspace = true, features = ["std"] }

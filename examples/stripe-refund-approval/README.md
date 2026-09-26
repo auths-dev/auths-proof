@@ -5,15 +5,15 @@ managers approve that exact refund, and only up to its own limit: at most
 50.00 per refund and two refunds a day. The Stripe key lives only in the
 Auths gateway. An auditor checks every refund afterwards, offline.
 
-**10 steps. The unattended run of all of them (step 10) took 2.6 s on an
+**10 steps. The unattended run of all of them (step 10) took 4.2 s on an
 Apple-silicon laptop once the wheel and gateway were built.** Building the
 gateway the first time takes a few minutes.
 
 | Who | Holds | Can do |
 | --- | --- | --- |
 | Root (you, the operator) | root key | issue the agent's grant, with its limit |
-| Managers A, B, C | one key each | approve one exact refund |
-| Agent | its key and grant | propose refunds; never sees the Stripe key |
+| Managers A, B, C | one key each, on their own machines | review and approve one exact refund with `auths-profile approve` |
+| Agent | its key and grant | request approvals, collect them, submit; never sees the Stripe key or a manager's key |
 | Gateway | the Stripe key | submit a refund only after verifying approvals and limit |
 | Auditor | two pinned values | verify every refund from a file, with no network |
 
@@ -48,13 +48,15 @@ python refunds.py setup --state "$WORK/state"
 ```
 
 This writes development keys for `root`, `manager-a`, `manager-b`,
-`manager-c`, and `agent`, and:
+`manager-c`, and `agent`, one `auths-profile approve` signer file per manager
+under `state/signers/` (development custody over that manager's key), and:
 
 - a trusted context for the gateway: refunds need **three authorized
   approvals from three distinct roots**. The agent's authority descends from
   the root, so it counts once; the other two must be managers. The approvals
-  are the core `k_of_n` plan the approval-quorum SDK builds
-  (`author_mcp_quorum_proof`);
+  are the core `k_of_n` plan the approval-quorum SDK builds, collected from
+  each approver as a remote approval (`propose_mcp_approval`,
+  `approval_requests`, `collect_approvals`);
 - the agent's grant from the root, carrying a bounded-policy commitment:
   `amount` at most 5000 (cents) and at most 2 refunds per 86400 s.
   `--ceiling`, `--max-count`, and `--window-seconds` change it.
@@ -96,30 +98,56 @@ auths-gateway serve --state-dir "$WORK/gateway" --app-socket "$WORK/app.sock" \
 
 **6. The agent asks for a refund; managers A and B approve; the gateway submits.**
 
-```sh
-python refunds.py refund --state "$WORK/state" --socket "$WORK/app.sock" \
-  --operation-id refund-1 --payment-intent pi_123 --amount 1500 --approvers manager-a,manager-b
-```
-
-Each approver sees the exact refund and signs it. The result is
-`{"outcome": "response-recorded", "status": 200}`, and the ledger has one
-entry.
-
-**7. Watch the gateway refuse, before any credential lease.**
+The agent writes one approval request per manager. Each request is a file of
+text (`auths-ar1-…`) you can send any way you like, for example pasted into
+chat; it is not secret, and it carries no text of its own.
 
 ```sh
-python refunds.py refund --state "$WORK/state" --socket "$WORK/app.sock" \
-  --operation-id refund-2 --payment-intent pi_123 --amount 9000 --approvers manager-a,manager-b
+python refunds.py request --state "$WORK/state" --operation-id refund-1 \
+  --payment-intent pi_123 --amount 1500 --approvers manager-a,manager-b --out "$WORK/refund-1"
 ```
 
-| Attempt | Gateway result | Stripe calls |
+Each manager answers on their own machine:
+
+```sh
+auths-profile approve "$WORK/refund-1/manager-a.request" \
+  --signer "$WORK/state/signers/manager-a.json" --out "$WORK/refund-1/manager-a.response"
+auths-profile approve "$WORK/refund-1/manager-b.request" \
+  --signer "$WORK/state/signers/manager-b.json" --out "$WORK/refund-1/manager-b.response"
+```
+
+`auths-profile approve` checks the request natively, prints the review that
+the SDK derives from the exact refund the manager signs (the arguments, the
+requester, the other approvers, and the approval window), and asks
+`Approve this action? [y/N]`. Only `y` signs; without a terminal it signs only
+with `--yes`. `--decline` signs a refusal instead. The signer files that step 3
+wrote are development custody: a seed file on disk, and the command says so.
+In production each manager points `--signer` at their own custody adapter.
+
+The agent approved its own request in the first command. It now collects the
+responses and submits:
+
+```sh
+python refunds.py submit --state "$WORK/state" --socket "$WORK/app.sock" \
+  --operation-id refund-1 --responses "$WORK/refund-1"
+```
+
+The result is `{"outcome": "response-recorded", "status": 200}`, and the
+ledger has one entry.
+
+**7. Watch the refusals, before any credential lease.**
+
+| Attempt | Result | Stripe calls |
 | --- | --- | --- |
+| Manager B runs `auths-profile approve … --decline` | `submit` reports `declined` and submits nothing | 0 |
+| A request edited to show another amount | `auths-profile approve` refuses `approval.action-mismatch` and signs nothing | 0 |
 | 90.00, above the 50.00 ceiling | `not-entered` `gateway.policy.above-ceiling` | 0 |
 | Only manager A approves | `denied` `composition-requirement-not-met` | 0 |
 | A third refund on the same day | `not-entered` `gateway.policy.window-exhausted` | 0 |
 
-The SDK refuses a one-approval refund locally. `journey.py` shows the gateway
-refusing it anyway when an agent skips that check (`--local-trust`).
+The agent's collection checks that every response signs its own request's
+envelope byte for byte; the gateway's verifier checks every signature and the
+threshold of its installed trust.
 
 **8. Export the audit bundle.**
 
@@ -128,7 +156,8 @@ python refunds.py export --state "$WORK/state" --out audit-bundle.json
 ```
 
 It holds every submitted proof and action, the gateway-signed outcome of
-each, and the installed recipe and trusted context.
+each, every approval response the agent collected (declines included), and
+the installed recipe and trusted context.
 
 **9. Audit offline.** With the gateway stopped and the network off:
 
@@ -146,6 +175,10 @@ For every refund it re-verifies, with the gateway's own verifier:
 - the gateway-signed outcome: signed by the pinned observer, for this exact
   action, with its recorded stage.
 
+The report also lists each recorded approval response, so it shows who
+approved and who declined. Responses never change a verdict: only the verified
+proof counts an approval, and a decline carries no authority.
+
 Each entry is `verified` (`audit.verified`), `refused` with the gateway's
 stable code, or `inconsistent` with an `audit.*` finding. The command exits
 non-zero when any entry is inconsistent or the bundle's trusted context is
@@ -159,7 +192,9 @@ a swapped action (`audit.outcome-commitment-mismatch`), a replayed outcome
 python journey.py --gateway "$(command -v auths-gateway)"
 ```
 
-This runs steps 3–9, the three refusals, and the four tampering cases,
+This runs steps 3–9 with every manager answering through
+`auths-profile approve`, a declined manager, a tampered request, the three
+refusals, and the four tampering cases,
 checks every result, including exactly two Stripe calls and the
 `Idempotency-Key` each one carried, and prints timings. It then wipes the
 gateway's attempt store, as restoring an older backup would, and resubmits
@@ -189,9 +224,10 @@ cargo install --locked --path ../../../product/runtime/auths-gateway --features 
 node build/journey.js --gateway "$(command -v auths-gateway)"
 ```
 
-The last command took 1.6 s on an Apple-silicon laptop once the package and
+The last command took 6.0 s on an Apple-silicon laptop once the package and
 gateway were built. Each `python refunds.py …` step above is
-`node build/refunds.js …` with the same flags, and `journey.js` takes the same
+`node build/refunds.js …` with the same flags, each manager runs
+`npx auths-profile approve …` with the same flags, and `journey.js` takes the same
 `--stripe-test-mode` and `--payment-intent` options as `journey.py`. The
 package installs from the tarball you packed, so this directory keeps no
 lockfile. CI runs it from the packed tarball as job
@@ -226,6 +262,10 @@ on stdin.
   manager sign through their own custody adapters.
 - Every listed approver must sign: to replace a manager who declines, start a
   new request (see `docs/product/APPROVAL_QUORUM.md`).
+- A request is not confidential: anyone who receives it sees the refund. The
+  requester it names is not authenticated by the request; the agent's own
+  approval is. The guarantee that a manager signs what they saw holds only for
+  a surface that shows what the SDK returned, as `auths-profile approve` does.
 - Three managers acting together, without the agent, also meet the
   threshold. That is the managers' own authority, and no agent limit
   applies to it.

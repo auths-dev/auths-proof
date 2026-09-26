@@ -1,4 +1,4 @@
-export type SigningObjectKind = "grant" | "action" | "principal-status" | "grant-status";
+export type SigningObjectKind = "grant" | "action" | "principal-status" | "grant-status" | "approval-decline";
 export type CustodyLifecycle = "durable" | "ephemeral";
 export type CustodyKind = "webauthn" | "workload" | "kms" | "hsm" | "pkcs11";
 export type CustodyKeyState = "enrolled" | "ready" | "rotation-pending" | "active-current" | "retiring-previous" | "revoked" | "disabled" | "unavailable" | "indeterminate";

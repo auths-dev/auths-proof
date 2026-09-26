@@ -622,8 +622,188 @@ async function checkProfile(path) {
   return problems;
 }
 
+const signerSchema = "auths.approval-signer/1";
+const requestPrefix = "auths-ar1-";
+
+function configBytes(value) {
+  if (typeof value !== "string") throw new Error("signer configuration base64 values must be strings");
+  return new Uint8Array(Buffer.from(value, "base64url"));
+}
+
+async function approvalSigner(path) {
+  const metadata = await lstat(path);
+  if (metadata.isSymbolicLink() || !metadata.isFile() || metadata.size > 1_048_576) {
+    throw new Error("signer configuration is unavailable or outside bounds");
+  }
+  const config = JSON.parse(await readFile(path, "utf8"));
+  if (config === null || typeof config !== "object" || config.schema !== signerSchema) {
+    throw new Error(`signer configuration must declare schema ${signerSchema}`);
+  }
+  const grantsValue = config.grants ?? [];
+  if (!Array.isArray(grantsValue) || grantsValue.length > 16) {
+    throw new Error("signer grants must be a list of at most 16 grants");
+  }
+  const grants = grantsValue.map((grant) => ({
+    signedGrant: configBytes(grant.signed_grant_b64),
+    evidence: (grant.evidence ?? []).map((item) => ({
+      type: String(item.evidence_type), mediaType: String(item.media_type), bytes: configBytes(item.bytes_b64),
+    })),
+  }));
+  if (config.custody === "development-ed25519") {
+    if (typeof config.seed_file !== "string") throw new Error("development custody needs seed_file");
+    const seed = new Uint8Array(await readFile(resolve(dirname(path), config.seed_file)));
+    if (seed.length !== 32) throw new Error("development seed must contain 32 bytes");
+    const { developmentEd25519Key } = await import(new URL("../dist/testkit/index.js", import.meta.url).href);
+    const key = await developmentEd25519Key(seed);
+    const descriptor = Object.freeze({
+      contract: "signer-custody/2", kind: "workload", adapterId: "auths.development-ed25519",
+      principal: key.principal, signature: key.signature, keyVersion: "development-1",
+      keyState: "active-current", lifecycle: "ephemeral",
+    });
+    const signer = {
+      descriptor,
+      async sign(request) {
+        return {
+          kind: "signed",
+          response: {
+            requestId: request.requestId, objectId: request.objectId, principal: descriptor.principal,
+            descriptor: descriptor.signature, providerKeyVersion: descriptor.keyVersion,
+            transactionDigest: request.transactionDigest,
+            signature: await key.sign(request.signingPreimage), evidence: [key.evidence],
+          },
+        };
+      },
+      async close() {},
+      async [Symbol.asyncDispose]() {},
+    };
+    return { signer, grants, development: true };
+  }
+  if (config.custody === "module") {
+    if (typeof config.node !== "string") throw new Error("module custody needs node = 'path/to/module.mjs'");
+    const loaded = await import(pathToFileURL(resolve(dirname(path), config.node)).href);
+    if (typeof loaded.createSigner !== "function") throw new Error("module custody must export createSigner");
+    const signer = await loaded.createSigner(config);
+    if (signer?.descriptor?.contract !== "signer-custody/2") {
+      throw new Error("module custody factory did not return a custody signer");
+    }
+    return { signer, grants, development: false };
+  }
+  throw new Error("signer custody must be development-ed25519 or module");
+}
+
+function moment(seconds) {
+  return new Date(Number(seconds) * 1000).toISOString().replace(/\.\d{3}Z$/u, "Z");
+}
+
+function renderReview(review) {
+  const lines = [review.title];
+  for (const [label, value] of review.fields) lines.push(`  ${label}: ${value}`);
+  lines.push(`Display digest: ${review.displayDigestHex}`);
+  lines.push(`Requested by: ${review.requester}`);
+  lines.push(`Approvals required: ${review.required} of ${review.approvers.length}`);
+  for (const approver of review.approvers) {
+    lines.push(`  ${approver}${approver === review.approver ? " (you)" : ""}`);
+  }
+  lines.push(`Window: ${moment(review.validFrom)} to ${moment(review.validUntil)} ` +
+    `(${review.validFrom}..${review.validUntil})`);
+  lines.push(`Request: ${Buffer.from(review.requestId).toString("hex")}`);
+  return lines.join("\n");
+}
+
+async function readApprovalRequest(value) {
+  if (value.startsWith(requestPrefix)) return value;
+  const metadata = await lstat(value);
+  if (!metadata.isFile() || metadata.size > 131_072) throw new Error("request file is unavailable or outside bounds");
+  return new Uint8Array(await readFile(value));
+}
+
+async function readAnswer(question) {
+  const { createInterface } = await import("node:readline");
+  const prompt = createInterface({ input: process.stdin, output: process.stderr, terminal: false });
+  process.stderr.write(question);
+  try {
+    const line = await new Promise((done) => {
+      prompt.once("line", done);
+      prompt.once("close", () => done(""));
+    });
+    return /^(y|yes)$/iu.test(String(line).trim());
+  } finally {
+    prompt.close();
+  }
+}
+
+async function approveMain(args) {
+  const usage = "usage: auths-profile approve <request-file-or-text> --signer <custody-config> [--decline] [--yes] [--out <file>]";
+  let request;
+  let signerPath;
+  let out;
+  let declining = false;
+  let yes = false;
+  for (let index = 0; index < args.length; index += 1) {
+    const value = args[index];
+    if (value === "--signer") signerPath = args[++index];
+    else if (value === "--out") out = args[++index];
+    else if (value === "--decline") declining = true;
+    else if (value === "--yes") yes = true;
+    else if (!value.startsWith("--") && request === undefined) request = value;
+    else throw new Error(usage);
+  }
+  if (!request || !signerPath) throw new Error(usage);
+  const sdk = await import(new URL("../dist/self-hosted.js", import.meta.url).href);
+  const { signer, grants, development } = await approvalSigner(signerPath);
+  try {
+    let review;
+    try {
+      review = await sdk.openApprovalRequest(await readApprovalRequest(request));
+    } catch (error) {
+      if (!(error instanceof sdk.ApprovalRefused)) throw error;
+      process.stderr.write(`auths-profile: request refused: ${error.code}; nothing was signed\n`);
+      process.exitCode = 1;
+      return;
+    }
+    process.stderr.write(`${renderReview(review)}\n`);
+    if (development) process.stderr.write("Signer: development custody (a local key file)\n");
+    let confirmed;
+    if (yes) confirmed = true;
+    else if (!process.stdin.isTTY) {
+      process.stderr.write("auths-profile: no terminal to confirm on; pass --yes to answer without a prompt. Nothing was signed.\n");
+      process.exitCode = 2;
+      return;
+    } else {
+      confirmed = await readAnswer(declining ? "Decline this action? [y/N] " : "Approve this action? [y/N] ");
+    }
+    if (!confirmed) {
+      process.stderr.write("Not answered; nothing was signed.\n");
+      process.exitCode = 1;
+      return;
+    }
+    let response;
+    try {
+      response = declining
+        ? await sdk.decline(review, signer, { grants })
+        : await sdk.approve(review, signer, { grants });
+    } catch (error) {
+      if (error instanceof sdk.ApprovalRefused) {
+        process.stderr.write(`auths-profile: refused: ${error.code}; nothing was signed\n`);
+      } else if (error instanceof sdk.AuthoringUnsuccessful) {
+        process.stderr.write(`auths-profile: custody ${error.kind}: ${error.code}\n`);
+      } else throw error;
+      process.exitCode = 1;
+      return;
+    }
+    if (out === undefined) process.stdout.write(`${response.text}\n`);
+    else {
+      await writeFile(out, `${response.text}\n`);
+      process.stderr.write(`${declining ? "Declined" : "Approved"}; wrote ${out}\n`);
+    }
+  } finally {
+    await signer.close?.();
+  }
+}
+
 async function mainText(args) {
   const action = args[0];
+  if (action === "approve") return approveMain(args.slice(1));
   if (action === "derive") return deriveMain(args.slice(1));
   if (action === "init") {
     const languageAt = args.indexOf("--language");

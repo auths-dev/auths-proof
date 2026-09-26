@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 23647fcf25c89dae5e58c2bec9daad61055df84a123c193f7f60fea8d1907c1d
+# declaration-sha256 8903c48a5f3294e8159548643b216cbd756b71fbdca11ca1039911cae458236e
 .	AuthsError	value+type
 .	AuthsIssue	type
 .	AuthsOperationError	value+type
@@ -49,6 +49,16 @@
 ./verify	VerificationStage	type
 ./verify	VerifiedReceipt	type
 ./verify	Verifier	value+type
+./self-hosted	ApprovalCollection	type
+./self-hosted	ApprovalMember	type
+./self-hosted	ApprovalProposal	type
+./self-hosted	ApprovalRefused	value+type
+./self-hosted	ApprovalRequest	type
+./self-hosted	approvalRequests	value
+./self-hosted	ApprovalResponse	type
+./self-hosted	ApprovalReview	type
+./self-hosted	approve	value
+./self-hosted	ApproverStatus	type
 ./self-hosted	arrayField	value
 ./self-hosted	ArrayField	type
 ./self-hosted	AssurancePolicy	type
@@ -68,9 +78,11 @@
 ./self-hosted	BooleanField	type
 ./self-hosted	bytesField	value
 ./self-hosted	BytesField	type
+./self-hosted	collectApprovals	value
 ./self-hosted	CommandOf	type
 ./self-hosted	CommandResult	type
 ./self-hosted	compileTrustedContext	value
+./self-hosted	decline	value
 ./self-hosted	enumField	value
 ./self-hosted	EnumField	type
 ./self-hosted	exactMcpTool	value
@@ -83,11 +95,13 @@
 ./self-hosted	objectField	value
 ./self-hosted	ObjectField	type
 ./self-hosted	Observation	type
+./self-hosted	openApprovalRequest	value
 ./self-hosted	optionalField	value
 ./self-hosted	OptionalField	type
 ./self-hosted	optionalStringField	value
 ./self-hosted	PreparedMcpAction	type
 ./self-hosted	ProductionAuthoringInputs	type
+./self-hosted	proposeMcpApproval	value
 ./self-hosted	ProviderOutcome	type
 ./self-hosted	QuorumApprover	type
 ./self-hosted	QuorumPlan	type

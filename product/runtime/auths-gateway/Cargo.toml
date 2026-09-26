@@ -23,6 +23,7 @@ path = "src/bin/auths-gateway-harness.rs"
 required-features = ["testkit-harness"]
 
 [dependencies]
+auths-approval-quorum.workspace = true
 auths-author.workspace = true
 auths-bounded-policy.workspace = true
 auths-connections.workspace = true
@@ -59,7 +60,6 @@ url.workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]
-auths-approval-quorum.workspace = true
 auths-author.workspace = true
 auths-sdk.workspace = true
 auths-custody = { workspace = true, features = ["conformance"] }

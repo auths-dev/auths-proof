@@ -25,9 +25,11 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { setTimeout as sleep } from "node:timers/promises";
 
-import { EXAMPLE, MANAGERS, anchor, trustedContext, type SetupFacts } from "./refunds.js";
+import { EXAMPLE, type SetupFacts } from "./refunds.js";
 
 const REFUNDS = fileURLToPath(new URL("./refunds.js", import.meta.url));
+// The packaged approval CLI installed with @auths-dev/sdk.
+const APPROVE_CLI = fileURLToPath(new URL("../node_modules/@auths-dev/sdk/tools/profile-cli.mjs", import.meta.url));
 
 type Json = Record<string, unknown>;
 type Step = { step: string; seconds: number };
@@ -95,13 +97,38 @@ class Journey {
       .map((line) => JSON.parse(line) as Json);
   }
 
-  refund(operation: string, amount: number, approvers: string, paymentIntent: string, localTrust?: string): Json {
-    const args = [
-      REFUNDS, "refund", "--state", this.state, "--socket", this.socket, "--operation-id", operation,
+  /** The agent writes one request per manager (and its own response). */
+  request(operation: string, amount: number, approvers: string, paymentIntent: string): string {
+    const folder = join(this.work, "approvals", operation);
+    this.run(process.execPath, [
+      REFUNDS, "request", "--state", this.state, "--operation-id", operation,
       "--payment-intent", paymentIntent, "--amount", String(amount), "--approvers", approvers,
-      ...(localTrust === undefined ? [] : ["--local-trust", localTrust]),
-    ];
-    return JSON.parse(this.run(process.execPath, args).stdout) as Json;
+      "--out", folder,
+    ]);
+    return folder;
+  }
+
+  /** One manager answers on their own machine with the packaged CLI. */
+  answer(folder: string, manager: string, options: Readonly<{ decline?: boolean; request?: string }> = {}):
+    SpawnSyncReturns<string> {
+    return this.run(process.execPath, [
+      APPROVE_CLI, "approve", options.request ?? join(folder, `${manager}.request`),
+      "--signer", join(this.state, "signers", `${manager}.json`), "--yes",
+      "--out", join(folder, `${manager}.response`), ...(options.decline === true ? ["--decline"] : []),
+    ], undefined, false);
+  }
+
+  refund(operation: string, amount: number, approvers: string, paymentIntent: string,
+    declines: readonly string[] = []): Json {
+    const folder = this.request(operation, amount, approvers, paymentIntent);
+    for (const manager of approvers.split(",")) {
+      const answered = this.answer(folder, manager, { decline: declines.includes(manager) });
+      if (answered.status !== 0) throw new Error(`${manager} could not answer: ${answered.stderr.trim()}`);
+    }
+    return JSON.parse(this.run(process.execPath, [
+      REFUNDS, "submit", "--state", this.state, "--socket", this.socket, "--operation-id", operation,
+      "--responses", folder,
+    ]).stdout) as Json;
   }
 
   audit(bundle: string, trust: string, observer: string): SpawnSyncReturns<string> {
@@ -118,28 +145,6 @@ class Journey {
 
 function expect(condition: boolean, message: string): asserts condition {
   if (!condition) throw new Error(`journey check failed: ${message}`);
-}
-
-/**
- * What a careless or compromised agent might use for its own pre-submit
- * check: the same anchors with a one-approval threshold. The gateway's
- * installed trust is unaffected.
- */
-async function laxLocalTrust(journey: Journey): Promise<string> {
-  const facts = JSON.parse(readFileSync(join(journey.state, "setup.json"), "utf8")) as SetupFacts;
-  const now = BigInt(Math.floor(Date.now() / 1000));
-  const audience = facts.audience;
-  const tool = "create_refund_v1";
-  const window = [now - 3_600n, now + 400n * 86_400n] as const;
-  const anchors = (["root", ...MANAGERS] as const).map((name) =>
-    anchor(name, facts.principals[name]!, audience, tool, name === "root" ? 1 : 0, ...window));
-  const lax = await trustedContext({
-    anchors, audience, challenge: new Uint8Array(Buffer.from(facts.challenge_hex, "hex")), now,
-    required: 1, extension: "bounded-policy-commitment-v1",
-  });
-  const path = join(journey.work, "lax-local-trust.cbor");
-  writeFileSync(path, lax);
-  return path;
 }
 
 function tamper(bundle: Json, operation: string, change: (entry: Json) => void): Json {
@@ -229,19 +234,36 @@ async function main(): Promise<void> {
     });
 
     const results: Record<string, Json> = {};
-    const submit = (operation: string, amount: number, approvers: string, localTrust?: string): void => {
+    const submit = (operation: string, amount: number, approvers: string, declines: readonly string[] = []): void => {
       const before = journey.providerEntries().length;
-      results[operation] = journey.refund(operation, amount, approvers, paymentIntent, localTrust);
+      results[operation] = journey.refund(operation, amount, approvers, paymentIntent, declines);
       results[operation]!.provider_entries = journey.providerEntries().length - before;
     };
 
-    // README steps 6 and 7: the agent requests, two managers approve, the
-    // gateway submits; then the three refusals.
-    await journey.step("refund 1: 15.00, agent + manager-a + manager-b",
+    // README steps 6 and 7: the agent writes a request per manager, each
+    // manager answers with `auths-profile approve`, the gateway submits; then
+    // a decline, a tampered request, and the three refusals.
+    await journey.step("refund 1: 15.00, agent + manager-a + manager-b (remote approvals)",
       () => submit("refund-1", 1_500, "manager-a,manager-b"));
-    const lax = await laxLocalTrust(journey);
+    await journey.step("declined: manager-b declines, nothing is submitted",
+      () => submit("refund-declined", 2_000, "manager-a,manager-b", ["manager-b"]));
+    const tamperedRun = await journey.step("tampered request: the manager's CLI refuses and signs nothing", () => {
+      const folder = journey.request("refund-tampered", 1_500, "manager-a,manager-b", paymentIntent);
+      const original = readFileSync(join(folder, "manager-a.request"), "utf8").trim();
+      const raw = Buffer.from(original.slice("auths-ar1-".length), "base64url");
+      const at = raw.indexOf('"amount":1500');
+      raw.write('"amount":9500', at, "latin1");
+      const edited = join(folder, "manager-a.edited");
+      writeFileSync(edited, `auths-ar1-${raw.toString("base64url")}`);
+      const answered = journey.answer(folder, "manager-a", { request: edited });
+      return {
+        exit: answered.status,
+        refused: answered.stderr.includes("approval.action-mismatch"),
+        signed: existsSync(join(folder, "manager-a.response")),
+      };
+    });
     await journey.step("hostile: 1 of 3 approvals",
-      () => submit("refund-2-one-approval", 1_200, "manager-a", lax));
+      () => submit("refund-2-one-approval", 1_200, "manager-a"));
     await journey.step("hostile: over the 50.00 ceiling",
       () => submit("refund-3-over-ceiling", 9_000, "manager-a,manager-b"));
     await journey.step("refund 4: 40.00, agent + manager-b + manager-c",
@@ -253,6 +275,11 @@ async function main(): Promise<void> {
       const got = results[operation]!;
       expect(got.outcome === "response-recorded" && got.status === 200, `${operation}: ${JSON.stringify(got)}`);
     }
+    const declined = results["refund-declined"]!;
+    expect(declined.outcome === "declined" && JSON.stringify(declined.declined) === JSON.stringify(["manager-b"]) &&
+      declined.provider_entries === 0, `refund-declined: ${JSON.stringify(declined)}`);
+    expect(JSON.stringify(tamperedRun) === JSON.stringify({ exit: 1, refused: true, signed: false }),
+      `tampered request: ${JSON.stringify(tamperedRun)}`);
     const expectedRefusals: Record<string, readonly [string, string]> = {
       "refund-2-one-approval": ["denied", "composition-requirement-not-met"],
       "refund-3-over-ceiling": ["not-entered", "gateway.policy.above-ceiling"],
@@ -288,6 +315,7 @@ async function main(): Promise<void> {
     const report = JSON.parse(audited.stdout) as {
       verified: number; refused: number; inconsistent: number;
       entries: { operation_id: string; status: string; code: string; approvals: string[] }[];
+      approval_responses: { operation_id: string; approver: string; decision: string }[];
     };
     const verdicts = Object.fromEntries(report.entries.map((entry) =>
       [entry.operation_id, `${entry.status} ${entry.code}`]));
@@ -303,6 +331,15 @@ async function main(): Promise<void> {
         JSON.stringify(["agent", "manager-a", "manager-b"].map((name) => facts.principals[name]).sort()),
       "refund-1 approvers",
     );
+    const recorded = new Set(report.approval_responses.map((item) =>
+      `${item.operation_id} ${item.approver} ${item.decision}`));
+    for (const [operation, name, decision] of [
+      ["refund-declined", "manager-a", "approve"], ["refund-declined", "manager-b", "decline"],
+      ["refund-1", "manager-a", "approve"], ["refund-1", "manager-b", "approve"],
+    ] as const) {
+      expect(recorded.has(`${operation} ${facts.principals[name]} ${decision}`),
+        `audit approval responses ${JSON.stringify([...recorded])}`);
+    }
 
     // Hostile: a tampered bundle is detected.
     const bundle = JSON.parse(readFileSync(bundlePath, "utf8")) as { entries: Json[] } & Json;
@@ -346,6 +383,7 @@ async function main(): Promise<void> {
       wall_seconds: Math.round(performance.now() - journey.started) / 1000,
       steps: journey.steps,
       refunds: results,
+      tampered_request: tamperedRun,
       provider_entries: live ? null : journey.providerEntries().length,
       audit: { verified: report.verified, refused: report.refused, inconsistent: report.inconsistent },
       tamper_detected: detections,

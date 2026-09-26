@@ -3,21 +3,27 @@
  * approvals and inside a per-agent limit, submitted through the Auths gateway,
  * from the npm package. The commands and state directory match ../refunds.py:
  *
- *   node build/refunds.js setup  --state DIR --gateway auths-gateway
- *   node build/refunds.js refund --state DIR --socket SOCK --operation-id ID \
- *                                           --payment-intent PI --amount CENTS --approvers a,b
- *   node build/refunds.js export --state DIR --out audit-bundle.json
+ *   node build/refunds.js setup   --state DIR --gateway auths-gateway
+ *   node build/refunds.js request --state DIR --operation-id ID --payment-intent PI \
+ *                                 --amount CENTS --approvers a,b --out REQUESTS
+ *   npx auths-profile approve REQUESTS/manager-a.request \
+ *                                 --signer DIR/signers/manager-a.json --out REQUESTS/manager-a.response
+ *   node build/refunds.js submit  --state DIR --socket SOCK --operation-id ID --responses REQUESTS
+ *   node build/refunds.js export  --state DIR --out audit-bundle.json
  *
- * Everything here uses development keys stored under DIR/keys so one person
- * can play every role. In production the root and each manager sign through
- * their own custody adapters, and the agent never holds the managers' keys.
+ * The agent writes one approval request per manager; each manager answers with
+ * `auths-profile approve` on their own machine, and the agent collects the
+ * response files. Everything here uses development keys stored under DIR/keys
+ * so one person can play every role; they are development custody. In
+ * production the root and each manager sign through their own custody
+ * adapters, and the agent never holds the managers' keys.
  * The Stripe secret key never enters this program: only the gateway holds it.
  */
 
 import { execFileSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import {
-  appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync,
+  appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,8 +34,9 @@ import type {
 } from "@auths-dev/sdk/adapters";
 import { GatewayClient, GatewayEndpoint } from "@auths-dev/sdk/gateway";
 import {
-  AuthoringUnsuccessful, authorMcpQuorumProof, authorRootGrant, compileTrustedContext,
-  type AssurancePolicy, type QuorumApprover, type TrustAnchor,
+  approvalRequests, approve, authorRootGrant, collectApprovals, compileTrustedContext,
+  openApprovalRequest, proposeMcpApproval,
+  type ApprovalProposal, type AssurancePolicy, type GrantEvidence, type TrustAnchor,
 } from "@auths-dev/sdk/self-hosted";
 import { developmentEd25519Key, type DevelopmentEd25519Key } from "@auths-dev/sdk/testkit";
 
@@ -210,6 +217,12 @@ async function setup(options: Readonly<{
     "--max-count", String(options.maxCount),
   );
   for (const name of ROLES) privateWrite(join(state, "keys", `${name}.seed`), randomBytes(32));
+  // What each manager passes to `auths-profile approve --signer`.
+  for (const name of MANAGERS) {
+    privateWrite(join(state, "signers", `${name}.json`), JSON.stringify({
+      schema: "auths.approval-signer/1", custody: "development-ed25519", seed_file: `../keys/${name}.seed`,
+    }, null, 2));
+  }
   const keys = new Map(await Promise.all(ROLES.map(async (name) => [name, await roleKey(state, name)] as const)));
   const principals = Object.fromEntries([...keys].map(([name, key]) => [name, key.principal]));
 
@@ -267,9 +280,51 @@ async function setup(options: Readonly<{
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
 }
 
-async function refund(options: Readonly<{
-  state: string; socket: string; operationId: string; paymentIntent: string; amount: number;
-  approvers: string; localTrust: string | undefined;
+interface Pending {
+  readonly managers: readonly string[];
+  readonly payment_intent: string;
+  readonly amount: number;
+  readonly evaluation_time: number;
+}
+
+/**
+ * Rebuilds the agent's proposal for `operation` from its saved inputs; the
+ * same inputs always give the same envelopes and requests.
+ */
+async function proposal(state: string, operation: string): Promise<ApprovalProposal<CreateRefund>> {
+  const facts = JSON.parse(readFileSync(join(state, "setup.json"), "utf8")) as SetupFacts;
+  const pending = JSON.parse(readFileSync(join(state, "pending", `${operation}.json`), "utf8")) as Pending;
+  return proposeMcpApproval({
+    contract: CONTRACT,
+    command: {
+      operator_namespace: "stripe-refunds",
+      operation_id: operation,
+      recipe_digest: facts.recipe_digest,
+      payment_intent: pending.payment_intent,
+      amount: pending.amount,
+    },
+    // The agent and every listed manager approve the same exact refund.
+    required: 1 + pending.managers.length,
+    approvers: [
+      {
+        principal: facts.principals.agent!,
+        terminalGrant: new Uint8Array(readFileSync(join(state, "agent.grant.cbor"))),
+      },
+      ...pending.managers.map((name) => ({ principal: facts.principals[name]! })),
+    ],
+    requester: facts.principals.agent!,
+    challenge: hexBytes(facts.challenge_hex),
+    evaluationTime: BigInt(pending.evaluation_time),
+  });
+}
+
+async function agentGrants(state: string): Promise<GrantEvidence[]> {
+  const root = await roleKey(state, "root");
+  return [{ signedGrant: new Uint8Array(readFileSync(join(state, "agent.grant.cbor"))), evidence: [root.evidence] }];
+}
+
+async function request(options: Readonly<{
+  state: string; operationId: string; paymentIntent: string; amount: number; approvers: string; out: string;
 }>): Promise<Record<string, unknown>> {
   const state = options.state;
   const facts = JSON.parse(readFileSync(join(state, "setup.json"), "utf8")) as SetupFacts;
@@ -278,52 +333,67 @@ async function refund(options: Readonly<{
       new Set(managers).size !== managers.length) {
     fail(`approvers must be distinct names from ${MANAGERS.join(", ")}`);
   }
-  const command: CreateRefund = {
-    operator_namespace: "stripe-refunds",
-    operation_id: options.operationId,
-    recipe_digest: facts.recipe_digest,
-    payment_intent: options.paymentIntent,
-    amount: options.amount,
+  const pending: Pending = {
+    managers, payment_intent: options.paymentIntent, amount: options.amount,
+    evaluation_time: Math.floor(Date.now() / 1000),
   };
-  const root = await roleKey(state, "root");
-  const agent: QuorumApprover = {
-    signer: developmentSigner("agent", await roleKey(state, "agent")),
-    grants: [{
-      signedGrant: new Uint8Array(readFileSync(join(state, "agent.grant.cbor"))),
-      evidence: [root.evidence],
-    }],
-  };
-  const approvers: QuorumApprover[] = [agent];
-  for (const name of managers) approvers.push({ signer: developmentSigner(name, await roleKey(state, name)) });
-  const localTrust = options.localTrust ?? join(state, "trust", "sdk.context.cbor");
-  const record: Record<string, unknown> = { operation_id: options.operationId, amount: options.amount };
-  let authored;
-  try {
-    // The agent and every listed manager sign the same exact refund.
-    authored = await authorMcpQuorumProof({
-      contract: CONTRACT,
-      command,
-      required: approvers.length,
-      approvers,
-      trustedContextTemplate: new Uint8Array(readFileSync(localTrust)),
-      challenge: hexBytes(facts.challenge_hex),
-      evaluationTime: unixNow(),
-    });
-  } catch (error) {
-    if (!(error instanceof AuthoringUnsuccessful)) throw error;
-    return { ...record, stage: "authoring", outcome: "refused-locally", code: error.code };
+  privateWrite(join(state, "pending", `${options.operationId}.json`), JSON.stringify(pending));
+  const names = new Map(Object.entries(facts.principals).map(([name, principal]) => [principal, name]));
+  mkdirSync(options.out, { recursive: true, mode: 0o700 });
+  const written: Record<string, string> = {};
+  for (const item of await approvalRequests(await proposal(state, options.operationId))) {
+    const name = names.get(item.approver)!;
+    if (name === "agent") {
+      // The agent approves its own request like any other approver.
+      const review = await openApprovalRequest(item.data);
+      const response = await approve(review, developmentSigner("agent", await roleKey(state, "agent")), {
+        grants: await agentGrants(state),
+      });
+      writeFileSync(join(options.out, "agent.response"), `${response.text}\n`);
+      continue;
+    }
+    const path = join(options.out, `${name}.request`);
+    writeFileSync(path, `${item.text}\n`);
+    written[name] = path;
   }
+  return { operation_id: options.operationId, requests: written };
+}
+
+async function submit(options: Readonly<{
+  state: string; socket: string; operationId: string; responses: string;
+}>): Promise<Record<string, unknown>> {
+  const state = options.state;
+  const facts = JSON.parse(readFileSync(join(state, "setup.json"), "utf8")) as SetupFacts;
+  const names = new Map(Object.entries(facts.principals).map(([name, principal]) => [principal, name]));
+  const built = await proposal(state, options.operationId);
+  const texts = readdirSync(options.responses).filter((name) => name.endsWith(".response")).sort()
+    .map((name) => readFileSync(join(options.responses, name), "utf8").trim());
+  const record: Record<string, unknown> = { operation_id: options.operationId, amount: built.command.amount };
+  mkdirSync(join(state, "audit"), { recursive: true, mode: 0o700 });
+  for (const text of texts) {
+    appendFileSync(join(state, "audit", "approvals.jsonl"),
+      `${JSON.stringify({ operation_id: options.operationId, response: text })}\n`, { mode: 0o600 });
+  }
+  const collection = await collectApprovals(built, texts);
+  const declined = collection.statuses.filter((item) => item.status === "declined")
+    .map((item) => names.get(item.approver) ?? item.approver).sort();
+  if (declined.length > 0) return { ...record, stage: "collection", outcome: "declined", declined };
+  const waiting = Object.fromEntries(collection.statuses.filter((item) => item.status !== "approved")
+    .map((item) => [names.get(item.approver) ?? item.approver, item.code ?? item.status]));
+  if (Object.keys(waiting).length > 0) return { ...record, stage: "collection", outcome: "incomplete", waiting };
+  // Collection checks every envelope byte for byte; the gateway's verifier
+  // checks the signatures and the threshold of its installed trust.
+  const proof = collection.assemble();
   const gateway = new GatewayClient(new GatewayEndpoint(resolve(options.socket)));
-  Object.assign(record, await gateway.submit({ proof: authored.proof, action: authored.action }));
+  Object.assign(record, await gateway.submit({ proof, action: built.action }));
   const observation = await gateway.observeOutcome(options.operationId);
   const outcome = observation.outcome === "signed" ? observation.observation : null;
   const entry = {
     operation_id: options.operationId,
-    proof_b64: b64(authored.proof),
-    action_b64: b64(authored.action),
+    proof_b64: b64(proof),
+    action_b64: b64(built.action),
     outcome_b64: outcome === null ? null : b64(outcome),
   };
-  mkdirSync(join(state, "audit"), { recursive: true, mode: 0o700 });
   appendFileSync(join(state, "audit", "entries.jsonl"), `${JSON.stringify(entry)}\n`, { mode: 0o600 });
   return record;
 }
@@ -332,15 +402,21 @@ function exportBundle(options: Readonly<{ state: string; out: string }>): void {
   const log = join(options.state, "audit", "entries.jsonl");
   const entries = readFileSync(log, "utf8").split("\n").filter((line) => line.length > 0)
     .map((line) => JSON.parse(line) as unknown);
+  const approvals = join(options.state, "audit", "approvals.jsonl");
+  const responses = existsSync(approvals)
+    ? readFileSync(approvals, "utf8").split("\n").filter((line) => line.length > 0)
+      .map((line) => JSON.parse(line) as unknown)
+    : [];
   const bundle = {
     schema: "auths.gateway-audit-bundle/1",
     recipe_b64: b64(readFileSync(RECIPE)),
     profile_lock_b64: b64(readFileSync(PROFILE_LOCK)),
     trusted_context_b64: b64(readFileSync(join(options.state, "trust", "gateway.context.cbor"))),
     entries,
+    approval_responses: responses,
   };
   writeFileSync(options.out, `${JSON.stringify(bundle, null, 1)}\n`);
-  process.stdout.write(`wrote ${options.out} with ${entries.length} submissions\n`);
+  process.stdout.write(`wrote ${options.out} with ${entries.length} submissions and ${responses.length} approval responses\n`);
 }
 
 function integer(value: string | undefined, name: string, fallback?: number): number {
@@ -370,7 +446,7 @@ async function main(): Promise<void> {
       "payment-intent": { type: "string" },
       amount: { type: "string" },
       approvers: { type: "string" },
-      "local-trust": { type: "string" },
+      responses: { type: "string" },
       out: { type: "string" },
     },
   });
@@ -386,22 +462,29 @@ async function main(): Promise<void> {
         days: integer(values.days, "days", 30),
       });
       break;
-    case "refund":
-      process.stdout.write(`${JSON.stringify(await refund({
+    case "request":
+      process.stdout.write(`${JSON.stringify(await request({
         state,
-        socket: required(values.socket, "socket"),
         operationId: required(values["operation-id"], "operation-id"),
         paymentIntent: required(values["payment-intent"], "payment-intent"),
         amount: integer(values.amount, "amount"),
         approvers: required(values.approvers, "approvers"),
-        localTrust: values["local-trust"],
+        out: resolve(required(values.out, "out")),
+      }))}\n`);
+      break;
+    case "submit":
+      process.stdout.write(`${JSON.stringify(await submit({
+        state,
+        socket: required(values.socket, "socket"),
+        operationId: required(values["operation-id"], "operation-id"),
+        responses: resolve(required(values.responses, "responses")),
       }))}\n`);
       break;
     case "export":
       exportBundle({ state, out: resolve(required(values.out, "out")) });
       break;
     default:
-      fail("usage: refunds.js setup|refund|export --state DIR ...");
+      fail("usage: refunds.js setup|request|submit|export --state DIR ...");
   }
 }
 
