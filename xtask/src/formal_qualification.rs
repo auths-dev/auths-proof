@@ -2309,6 +2309,7 @@ cargo xtask ci formal-lean-authoritative
       - id: formal-update
       - name: Stop qualification until the assurance update is committed
         if: steps.formal-update.outputs.update_required == 'true'
+        run: exit 1
   formal-evidence-run:
 needs.formal-translation-run.result == 'success'
 needs.formal-lean-authoritative-run.result == 'success'
