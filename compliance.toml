@@ -1653,9 +1653,9 @@ kind = "cargo"
 layer = "product"
 path = "product/runtime/auths-gateway"
 core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-verifier"]
-protocol_versions = ["auths.gateway-installation/2", "auths.lifecycle.transactional-store/4", "auths.gateway-recipe-source/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/2", "auths.gateway-echo/1", "auths.gateway-idempotency-key/1", "auths.gateway-observe/1", "auths.gateway-outcome/1", "auths.gateway-readback/1", "auths.self-hosted-profile-lock/1", "mcp-arguments-v1", "auths.gateway-bounded-count/1", "auths.gateway-audit-bundle/1", "auths.gateway-audit-report/1", "auths.gateway.argument-ceiling-window-count/1", "bounded-policy-commitment-v1"]
+protocol_versions = ["auths.gateway-installation/2", "auths.lifecycle.transactional-store/4", "auths.gateway-recipe-source/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/2", "auths.gateway-echo/1", "auths.gateway-idempotency-key/1", "auths.gateway-observe/1", "auths.gateway-outcome/1", "auths.gateway-readback/1", "auths.self-hosted-profile-lock/1", "mcp-arguments-v1", "auths.gateway-bounded-count/1", "auths.gateway-audit-bundle/1", "auths.gateway-audit-report/1", "auths.gateway.argument-ceiling-window-count/1", "bounded-policy-commitment-v1", "auths.approval-response/1"]
 wire_objects = ["CompiledRecipe", "ClosedProviderRequest", "GatewayAttemptSnapshot", "GatewayConnectionDescriptor", "GatewayEvidenceSummary", "GatewayObserveRequest", "GatewayObserveResult", "GatewayProviderEvidence", "GatewaySubmitResult", "SignedObservation", "ArgumentCeilingPolicy", "BoundedPolicyCommitment", "AuditReport"]
-fixture_suites = ["bindings/fixtures/gateway"]
+fixture_suites = ["bindings/fixtures/approval", "bindings/fixtures/gateway"]
 principal_families = ["raw-key-v1"]
 signature_families = ["ed25519-v1", "p256-sha256-v1"]
 profiles = ["auths.mcp/2"]
@@ -1690,6 +1690,7 @@ principal-evidence-integration = [
   "product/runtime/auths-gateway/src/observed_tests.rs#two_of_three_root_authorizes_only_with_two_distinct_roots",
   "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_reproduces_every_gateway_decision",
   "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_detects_a_tampered_bundle",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_lists_recorded_approval_responses_without_changing_verdicts",
 ]
 runtime-enforcement-boundary = [
   "product/runtime/auths-gateway/src/quorum_tests.rs#approval_quorum_hostile_cases_admit_only_a_two_manager_quorum",

@@ -3229,7 +3229,7 @@
       "target": "auths-approval-quorum",
       "target_layer": "product",
       "scope": "internal",
-      "kind": "dev",
+      "kind": "normal",
       "target_condition": null,
       "optional": false,
       "default_features": true,

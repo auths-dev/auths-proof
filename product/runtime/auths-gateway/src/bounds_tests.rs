@@ -780,3 +780,73 @@ async fn offline_audit_detects_a_tampered_bundle() {
         Some("audit.trust-pin-mismatch")
     );
 }
+
+#[tokio::test]
+async fn offline_audit_lists_recorded_approval_responses_without_changing_verdicts() {
+    let corpus: Value = serde_json::from_str(include_str!(
+        "../../../../bindings/fixtures/approval/remote-approval.json"
+    ))
+    .expect("approval corpus");
+    let response = |name: &str| {
+        let bytes = Base64UrlUnpadded::decode_vec(
+            corpus["responses"]
+                .as_array()
+                .expect("responses")
+                .iter()
+                .find(|item| item["name"] == name)
+                .expect("response")["response_b64"]
+                .as_str()
+                .expect("base64"),
+        )
+        .expect("bytes");
+        auths_approval_quorum::decode_response(&bytes)
+            .expect("response")
+            .to_text()
+            .expect("text")
+    };
+    let quorum = RefundQuorum::open(500, 1, 3);
+    let bundle = journey_bundle(&quorum).await;
+    let plain = audit(&bundle, &pins(&quorum));
+    let mut recorded = bundle.clone();
+    recorded["approval_responses"] = json!([
+        {"operation_id": "refund-declined", "response": response("approve-manager-a")},
+        {"operation_id": "refund-declined", "response": response("decline-manager-b")},
+    ]);
+    let report = audit(&recorded, &pins(&quorum));
+    assert_eq!(statuses(&report), statuses(&plain));
+    let listed: Vec<(&str, &str, Option<u64>)> = report
+        .approval_responses
+        .iter()
+        .map(|item| (item.approver.as_str(), item.decision, item.decided_at))
+        .collect();
+    let member = |name: &str| {
+        corpus["members"]
+            .as_array()
+            .expect("members")
+            .iter()
+            .find(|item| item["name"] == name)
+            .expect("member")["principal"]
+            .as_str()
+            .expect("principal")
+            .to_owned()
+    };
+    let (manager_a, manager_b) = (member("manager-a"), member("manager-b"));
+    assert_eq!(
+        listed,
+        vec![
+            (manager_a.as_str(), "approve", None),
+            (manager_b.as_str(), "decline", corpus["decided_at"].as_u64()),
+        ]
+    );
+    let mut malformed = bundle.clone();
+    malformed["approval_responses"] =
+        json!([{"operation_id": "refund-declined", "response": "auths-as1-AAAA"}]);
+    assert_eq!(
+        crate::audit_bundle(
+            &serde_json::to_vec(&malformed).expect("bundle"),
+            &pins(&quorum)
+        )
+        .err(),
+        Some("audit.bundle-malformed")
+    );
+}
