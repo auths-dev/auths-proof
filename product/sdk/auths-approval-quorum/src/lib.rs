@@ -424,7 +424,10 @@ fn quorum_validity() -> Result<ActionValidityPolicy, QuorumError> {
         .map_err(QuorumError::from)
 }
 
-fn member_reference(challenge: &[u8; 32], actor: &PrincipalId) -> Result<ProofRef, QuorumError> {
+pub(crate) fn member_reference(
+    challenge: &[u8; 32],
+    actor: &PrincipalId,
+) -> Result<ProofRef, QuorumError> {
     let mut canonical = Vec::with_capacity(32 + actor.as_str().len());
     canonical.extend_from_slice(challenge);
     canonical.extend_from_slice(actor.as_str().as_bytes());
@@ -459,6 +462,15 @@ fn bind(
     }
     Ok(())
 }
+
+pub mod remote;
+
+pub use remote::{
+    ApprovalCode, ApprovalRequest, ApprovalResponse, ApprovalWindow, ApproverStatus, Collection,
+    PendingApproval, PendingDecline, RegisteredProfile, ResponseBody, ReviewProfile,
+    ReviewedRequest, SignedDecline, collect, decode_request, decode_response, open_request,
+    requests,
+};
 
 #[cfg(test)]
 mod tests;

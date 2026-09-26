@@ -233,8 +233,11 @@ dependencies = [
  "auths-profile-mcp",
  "auths-raw-key",
  "auths-signature",
+ "base64ct",
  "ed25519-dalek 2.2.0",
+ "minicbor",
  "serde_json",
+ "sha2 0.10.9",
  "thiserror 2.0.19",
 ]
 

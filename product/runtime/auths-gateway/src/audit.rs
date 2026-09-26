@@ -19,6 +19,12 @@
 //! entry; and `inconsistent` when the two disagree or the evidence does not
 //! verify. Any inconsistent entry means the bundle was altered or the gateway
 //! entered a provider without authority.
+//!
+//! A bundle may also carry the remote approval responses the application
+//! collected, including declines for operations never submitted. They are
+//! decoded and listed as recorded, so the report shows who approved and who
+//! declined; they never change a verdict. Only the verified proof counts an
+//! approval, and a decline's signature carries no authority.
 
 use crate::engine::{GatewaySubmitResult, verify_detailed};
 use crate::observer::{VerifiedOutcome, operation_subject, verify_outcome};
@@ -38,6 +44,8 @@ pub const AUDIT_REPORT_SCHEMA: &str = "auths.gateway-audit-report/1";
 pub const MAX_AUDIT_BUNDLE_BYTES: usize = 64 * 1024 * 1024;
 /// Largest number of entries one bundle may carry.
 pub const MAX_AUDIT_ENTRIES: usize = 4_096;
+/// Largest number of approval responses one bundle may carry.
+pub const MAX_AUDIT_APPROVAL_RESPONSES: usize = 16 * MAX_AUDIT_ENTRIES;
 
 const MAX_PROOF_BYTES: usize = 4 * 1024 * 1024;
 const MAX_ACTION_BYTES: usize = 64 * 1024;
@@ -86,6 +94,20 @@ pub struct AuditedEntry {
     pub evaluated_at: u64,
 }
 
+/// One recorded approval response, as decoded from the bundle.
+#[derive(Clone, Debug, Serialize)]
+pub struct AuditedApprovalResponse {
+    /// The logical operation ID the bundle names for the response.
+    pub operation_id: String,
+    /// The answering approver.
+    pub approver: String,
+    /// `approve` or `decline`.
+    pub decision: &'static str,
+    /// The decision time a decline records.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decided_at: Option<u64>,
+}
+
 /// A complete offline audit.
 #[derive(Clone, Debug, Serialize)]
 pub struct AuditReport {
@@ -99,6 +121,8 @@ pub struct AuditReport {
     pub observer: String,
     /// Entries in bundle order.
     pub entries: Vec<AuditedEntry>,
+    /// Recorded approval responses in bundle order; they never change a verdict.
+    pub approval_responses: Vec<AuditedApprovalResponse>,
     /// Number of verified entries.
     pub verified: usize,
     /// Number of refused entries.
@@ -115,6 +139,15 @@ struct BundleSource {
     profile_lock_b64: String,
     trusted_context_b64: String,
     entries: Vec<EntrySource>,
+    #[serde(default)]
+    approval_responses: Vec<ResponseSource>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ResponseSource {
+    operation_id: String,
+    response: String,
 }
 
 #[derive(Deserialize)]
@@ -200,9 +233,18 @@ pub fn audit_bundle(bytes: &[u8], pins: &AuditPins) -> Result<AuditReport, &'sta
     }
     let source: BundleSource =
         serde_json::from_slice(bytes).map_err(|_| "audit.bundle-malformed")?;
-    if source.schema != AUDIT_BUNDLE_SCHEMA || source.entries.len() > MAX_AUDIT_ENTRIES {
+    if source.schema != AUDIT_BUNDLE_SCHEMA
+        || source.entries.len() > MAX_AUDIT_ENTRIES
+        || source.approval_responses.len() > MAX_AUDIT_APPROVAL_RESPONSES
+    {
         return Err("audit.bundle-malformed");
     }
+    let approval_responses = source
+        .approval_responses
+        .iter()
+        .map(recorded_response)
+        .collect::<Option<Vec<_>>>()
+        .ok_or("audit.bundle-malformed")?;
     let trust =
         decode(&source.trusted_context_b64, MAX_CONTEXT_BYTES).ok_or("audit.bundle-malformed")?;
     let digest: [u8; 32] = Sha256::digest(&trust).into();
@@ -253,6 +295,24 @@ pub fn audit_bundle(bytes: &[u8], pins: &AuditPins) -> Result<AuditReport, &'sta
         refused: count(AuditStatus::Refused),
         inconsistent: count(AuditStatus::Inconsistent),
         entries,
+        approval_responses,
+    })
+}
+
+fn recorded_response(source: &ResponseSource) -> Option<AuditedApprovalResponse> {
+    LogicalOperationId::parse(&source.operation_id).ok()?;
+    let response = auths_approval_quorum::decode_response(source.response.as_bytes()).ok()?;
+    let (decision, decided_at) = match response.body() {
+        auths_approval_quorum::ResponseBody::Approve(_) => ("approve", None),
+        auths_approval_quorum::ResponseBody::Decline(decline) => {
+            ("decline", Some(decline.decided_at()))
+        }
+    };
+    Some(AuditedApprovalResponse {
+        operation_id: source.operation_id.clone(),
+        approver: response.approver().as_str().to_owned(),
+        decision,
+        decided_at,
     })
 }
 

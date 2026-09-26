@@ -130,7 +130,7 @@ digraph auths_architecture {
   "auths-approval-quorum" -> "auths-author" [label="normal"];
   "auths-approval-quorum" -> "auths-codec" [label="normal"];
   "auths-approval-quorum" -> "auths-model" [label="normal"];
-  "auths-approval-quorum" -> "auths-profile-api" [label="dev"];
+  "auths-approval-quorum" -> "auths-profile-api" [label="normal"];
   "auths-approval-quorum" -> "auths-profile-mcp" [label="dev"];
   "auths-approval-quorum" -> "auths-raw-key" [label="dev"];
   "auths-approval-quorum" -> "auths-signature" [label="dev"];
@@ -236,7 +236,7 @@ digraph auths_architecture {
   "auths-formal-refinement" -> "auths-composition" [label="normal"];
   "auths-formal-refinement" -> "auths-model" [label="normal"];
   "auths-formal-refinement" -> "auths-registries" [label="normal"];
-  "auths-gateway" -> "auths-approval-quorum" [label="dev"];
+  "auths-gateway" -> "auths-approval-quorum" [label="normal"];
   "auths-gateway" -> "auths-author" [label="dev"];
   "auths-gateway" -> "auths-author" [label="normal"];
   "auths-gateway" -> "auths-bounded-policy" [label="normal"];

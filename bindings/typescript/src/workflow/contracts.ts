@@ -604,6 +604,9 @@ export interface WorkflowWasmEngine {
   WorkflowProofBuilderV1: new () => WorkflowProofBuilder;
   McpQuorumApproversV1: new () => WorkflowMcpQuorumApprovers;
   McpQuorumProofBuilderV1: new () => WorkflowMcpQuorumProofBuilder;
+  approvalRequestsV1(quorum: WorkflowMcpQuorum, requester: string): WorkflowApprovalRequests;
+  openApprovalRequestV1(data: Uint8Array, now: bigint): WorkflowReviewedApprovalRequest;
+  ApprovalCollectorV1: new () => WorkflowApprovalCollector;
   commitCanonicalV1(domain: string, canonical: Uint8Array): Uint8Array;
   commitApprovalPolicyV1(
     mode: string,
@@ -879,6 +882,82 @@ export interface WorkflowMcpQuorum {
   readonly displayDigestHex: string;
   readonly validity: BigUint64Array;
   actionEnvelopeCbor(index: number): Uint8Array;
+  free?(): void;
+}
+
+export interface WorkflowApprovalRequests {
+  readonly count: number;
+  approver(index: number): string;
+  data(index: number): Uint8Array;
+  text(index: number): string;
+  requestId(index: number): Uint8Array;
+  free?(): void;
+}
+
+export interface WorkflowReviewedApprovalRequest {
+  readonly title: string;
+  readonly fields: readonly (readonly [string, string])[];
+  readonly displayDigestHex: string;
+  readonly requester: string;
+  readonly approvers: readonly string[];
+  readonly required: number;
+  readonly approver: string;
+  readonly window: BigUint64Array;
+  readonly requestId: Uint8Array;
+  prepareApproval(
+    signer: string,
+    principalMethod: string,
+    verificationMethod: string,
+    suite: string,
+  ): WorkflowPendingApproval;
+  prepareDecline(
+    signer: string,
+    principalMethod: string,
+    verificationMethod: string,
+    suite: string,
+    decidedAt: bigint,
+  ): WorkflowPendingApproval;
+  free?(): void;
+}
+
+export interface WorkflowPendingApproval {
+  readonly decision: "approve" | "decline";
+  readonly objectKind: string;
+  readonly requestId: string;
+  readonly objectId: Uint8Array;
+  readonly transactionDigest: Uint8Array;
+  readonly signingPreimage: Uint8Array;
+  readonly expiresAt: bigint;
+  readonly display: readonly (readonly [string, string])[];
+  pushGrant(signedGrant: Uint8Array): number;
+  bindGrantEvidence(grant: number, evidenceType: string, mediaType: string, bytes: Uint8Array): void;
+  bindActionEvidence(evidenceType: string, mediaType: string, bytes: Uint8Array): void;
+  complete(signature: Uint8Array): WorkflowApprovalResponse;
+  free?(): void;
+}
+
+export interface WorkflowApprovalResponse {
+  readonly data: Uint8Array;
+  readonly text: string;
+  free?(): void;
+}
+
+export interface WorkflowApprovalCollector {
+  add(response: Uint8Array): void;
+  collect(quorum: WorkflowMcpQuorum): WorkflowApprovalCollection;
+  free?(): void;
+}
+
+export interface WorkflowApprovalCollection {
+  readonly count: number;
+  approver(index: number): string;
+  status(index: number): string;
+  code(index: number): string;
+  decidedAt(index: number): bigint;
+  readonly unattributedCount: number;
+  unattributedIndex(index: number): number;
+  unattributedCode(index: number): string;
+  assemble(): Uint8Array;
   free?(): void;
 }
 
