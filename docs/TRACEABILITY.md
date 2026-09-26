@@ -11,8 +11,9 @@ external vector source, not a second call to the same implementation.
 | Signed fields and domains | `domain-separation.md` | `auths-codec::{hash,encode}` | every valid fixture / signature and digest mutation fixtures | independent adapter vectors and signature-suite tests | native + Node/WASM |
 | Identifier derivation | `domain-separation.md` | `auths-codec::hash` | manifest digests / `carried-status-digest-mismatch` | KERI and multikey external vectors | native |
 | Graph/reference rules | `protocol.md` | `auths-verifier::resolve_proof` | delegation chains / missing and duplicate object fixtures | model properties and structured codec fuzz | native + portable ABI |
-| Attenuation | `protocol.md` | `auths-authority` | raw-key chain / permission, validity, audience, budget, and depth widening | transitivity and monotonicity properties | native + portable ABI |
-| Required composition | `protocol.md` | `auths-model::CompositionRequirement`, `auths-verifier` | `threshold-2-of-3` / `composition-requirement-not-met` | independent flat-plan reference model in `target_composition` | result plan ID + branches |
+| Action binding | `verification-algorithm.md` action binding | `auths-verifier::validate_action_binding` | `raw-key-chain`, `detached-body`, `attachment-valid` / `embedded-body-differs`, `mismatched-profile-version`, `action-media-type-substituted`, `embedded-body-swapped`, `detached-body-swapped`, `action-permission-substituted`, `action-budget-substituted`, `unsupported-action-profile`, `wrong-audience`, `wrong-challenge`, `evaluation-time-after-validity`, `action-channel-mismatch`, `plan-actions-differ`, `attachment-descriptor-set-mismatch`, attachment fixtures | one corpus vector per check site (`auths-testkit::check_sites`, required by `spec-sync`); Go and TypeScript verifiers on the same corpus | native + portable ABI |
+| Attenuation | `protocol.md` | `auths-authority` | raw-key chain, `delegated-grant-status-kept` / permission, validity, audience, budget, and depth widening, `delegation-status-relaxed`, `delegation-action-constraint-relaxed`, `delegation-profile-changed`, `delegation-issuer-not-subject`, `action-profile-outside-grant`, `action-audience-outside-grant` | transitivity and monotonicity properties; one corpus vector per check site | native + portable ABI |
+| Required composition | `protocol.md` | `auths-model::CompositionRequirement`, `auths-verifier` | `threshold-2-of-3` / `composition-requirement-not-met`, `composition-branch-minimum`, `composition-same-actor`, `composition-shared-root` | independent flat-plan reference model in `target_composition` | result plan ID + branches |
 | Status | `verification-algorithm.md` | `auths-registries::ExactStatusMethod` | active status / stale, revoked, rollback, conflict, and untrusted issuer fixtures | state-transition corpus | native + portable ABI |
 | Assurance quantifiers | `protocol.md` | `auths-assurance` | adapter chains / unequal-intermediate `Any`/`Every` unit test | explicit per-participant reference assertions | satisfaction array |
 | Evidence consumption | `protocol.md` | `auths-verifier::verify_principal_control` | valid adapter fixtures / `unused-critical-evidence` | exact binding-versus-consumption set equality | assurance evidence IDs |
@@ -21,7 +22,8 @@ external vector source, not a second call to the same implementation.
 | Portable normalization | `auths-proof.cddl` | `auths-verifier::verify_v1` | every `.result.cbor` | decode/encode self-digest checks and native/Node-WASM byte equality | canonical result bytes |
 
 The release gate checks specification synchronization, every stable code's
-corpus coverage, the authoritative fuzz inventory, canonical vectors, native
-conformance, and generated Node/WASM equivalence. Independent protocol and
+corpus coverage, a corpus vector for every inventoried kernel check site, the
+authoritative fuzz inventory, canonical vectors, native conformance, and
+generated Node/WASM equivalence. Independent protocol and
 cryptographic review is still a human launch gate; it is never inferred from
 this matrix.

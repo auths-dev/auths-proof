@@ -78,6 +78,15 @@ held which key, is operator evidence and is not produced by this code.
   must not share a state directory.
 - **Development** installations keep the single-host file store under
   `<state-dir>/attempts`. It is not a multi-host store.
+- **Sockets.** `serve` keeps separate capacity for the app socket and the
+  owner-only `admin.sock`, so `auths-gateway disable`, `revoke`, and `rotate`
+  still connect while the application holds or refills the app socket. A
+  connection past either socket's capacity is closed at accept without a
+  response. An admin change still waits for authorized submissions and
+  read-back observations already in progress, each bounded by the provider
+  transport's timeouts. A failed accept is logged as
+  `gateway.serve.accept-failed` and retried; it does not stop `serve`, but
+  repeated lines mean the process is short of descriptors.
 - **Observer custody.** A production installation refuses the software
   observer seed (`gateway.production.observer-software-custody`), and
   `observer-init` refuses to create one. The engine accepts a custody-held

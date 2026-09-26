@@ -9,7 +9,7 @@ is checked against `ContextBytes` after canonical reconstruction.
 | `LimitKind` / work source | Enforcement point | Boundary evidence |
 |---|---|---|
 | `BundleBytes` | `auths_codec::decode_bundle` before decode | `bundle-byte-limit-exceeded` |
-| `ActionBytes` | `auths_codec::decode_canonical_action` before decode | codec boundary test |
+| `ActionBytes` | `auths_codec::decode_canonical_action` before decode, before the proof is read | `action-input-bytes-over-limit`, `two-fault-action-input-and-protocol` |
 | `ContextBytes` | `auths_codec::decode_verifier_context` before returning | codec boundary test |
 | `Grants` | bundle array decode | generated maximum/malformed vectors |
 | `Actions` | bundle array decode | generated maximum/malformed vectors |
@@ -22,7 +22,7 @@ is checked against `ContextBytes` after canonical reconstruction.
 | `PrincipalStatusStatements` | bundle and snapshot array decode | status corpus |
 | `GrantStatusStatements` | bundle and snapshot array decode | status corpus |
 | `Attachments` | descriptor and detached-input array decode | attachment corpus |
-| `AttachmentBytes` | each and aggregate detached byte decode | codec boundary test |
+| `AttachmentBytes` | each and aggregate detached byte decode; the aggregate again at action binding, for an in-process canonical action | `attachment-bytes-over-limit`, `attachment-larger-than-bundle-limit` |
 | `Signatures` | decoded bundle aggregate before control verification | canonical corpus |
 | `SignatureBytes` | signature byte-string decode | suite adversarial tests |
 | `Permissions` | permission-set decode and context anchor validation | attenuation properties |
@@ -31,7 +31,7 @@ is checked against `ContextBytes` after canonical reconstruction.
 | `CriticalExtensionBytes` | extension bytes before allocation | extension corpus |
 | `AllowedBodyDigests` | action-constraint digest-array decode | attenuation properties |
 | `BindingEvidence` | binding evidence-ID array decode | exact-consumption corpus |
-| `CanonicalBodyBytes` | bundle detached body and canonical-action body decode | action boundary tests |
+| `CanonicalBodyBytes` | bundle detached body and canonical-action body decode | `detached-body-bytes-over-limit` |
 | `RegistryEntries` | every accepted-registry and trust/status rule collection | registry corpus |
 | `TrustAnchors` | context anchor-array decode | context boundary tests |
 | work units | reserved before signature, adapter, status, matcher, policy, extension, implication, and budget handlers | `verification-work-limit-exceeded` |

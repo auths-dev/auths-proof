@@ -12,6 +12,8 @@
     clippy::too_many_lines
 )]
 
+#[cfg(unix)]
+use crate::local_listener::ListenerPolicy;
 use crate::{generated::profile_routes::RegisteredProvider, local_agent::PeerCredentials};
 use auths_config::AgentConfig;
 use auths_connections::{
@@ -168,16 +170,35 @@ pub fn connection_admin_app(state: ConnectionAdminState) -> Router {
 }
 
 /// Serves the privileged router on its distinct POSIX socket.
+///
+/// The socket admits connections from its own budget, which application
+/// connections never count against. A connection from a peer outside the
+/// admin peer policy is closed at accept, before it takes a place. Accept
+/// errors never end it.
 #[cfg(unix)]
 pub async fn serve_connection_admin(
     listener: UnixListener,
     state: ConnectionAdminState,
 ) -> std::io::Result<()> {
-    axum::serve(
+    serve_connection_admin_within(listener, state, ListenerPolicy::admin()).await
+}
+
+/// Serves the admin socket under an explicit policy.
+#[cfg(unix)]
+pub(crate) async fn serve_connection_admin_within(
+    listener: UnixListener,
+    state: ConnectionAdminState,
+    policy: ListenerPolicy,
+) -> std::io::Result<()> {
+    let peers = state.inner.peer_policy.clone();
+    match crate::local_listener::serve(
         listener,
-        connection_admin_app(state).into_make_service_with_connect_info::<PeerCredentials>(),
+        connection_admin_app(state),
+        policy,
+        "admin",
+        move |peer| peers.permits(peer),
     )
-    .await
+    .await {}
 }
 
 /// Builds the two exact onboarding routes for one generated provider arm.

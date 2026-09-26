@@ -149,6 +149,25 @@ disable, rotation, and revocation use the private admin socket; the app socket
 continues to accept proof and action bytes only. A same-UID development run
 demonstrates mechanics but cannot establish credential isolation.
 
+The two sockets draw on separate capacity. The app socket serves at most 64
+connections at once and the owner-only admin socket 4; no application
+connection can take an admin permit, and an admin connection whose peer is
+neither the gateway's effective UID nor root is closed before it takes one.
+A connection that finds its socket full is closed at accept without a
+response. An application session reads its frame within 5 seconds, waits at
+most 90 seconds for its result, and writes its response within 5 seconds, all
+inside one 100-second deadline from accept. An admin session reads each frame
+within 5 seconds, waits at most 45 seconds for its change, and writes within 5
+seconds, inside 60 seconds. A deadline closes the connection but never cancels
+verification, a claim, or a provider call the session has started; that work
+runs to completion and keeps its permit until then. A failed accept on either
+socket is logged (`gateway.serve.accept-failed`) and retried after 100
+milliseconds; it does not stop `serve`. A disable, rotation, or revocation
+still waits for authorized submissions and read-back observations already in
+progress, each bounded by the transport's timeouts. This keeps the admin
+socket reachable by its owner while the application holds or refills the app
+socket; it is not an availability claim for the app socket.
+
 The application socket's bounded JSON envelope and four-byte length prefix
 are unsigned local transport framing, not canonical action encoding. Each SDK
 may serialize that envelope with its platform facilities, but the Rust gateway

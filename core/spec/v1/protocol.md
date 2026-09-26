@@ -61,6 +61,8 @@ contains:
 - status policy.
 
 Adding an unrelated trust anchor cannot authorize a chain anchored elsewhere.
+Every resource a chain names, in each grant's permissions and in the action,
+must lie inside one of the anchor's resource namespaces.
 
 ### Grant
 
@@ -77,9 +79,12 @@ Every edge must narrow or preserve:
 - status and assurance policy; and
 - critical extensions.
 
-The first grant from a trust anchor may establish a critical-extension set.
-Every later child grant MUST preserve that complete canonical set byte for
-byte until an extension-specific attenuation algebra is standardized.
+The first grant from a trust anchor selects its critical extensions freely.
+Across every later edge, each identifier is judged by the attenuation law its
+registered handler declares (`registry.md`, "Attenuation laws"): a parent
+extension must be kept or narrowed under its law, an extension only the child
+carries must be one its law allows adding, and an identifier without a law is
+refused.
 
 Issuer/subject and parent linkage must be exact. Cross-profile delegation
 requires a registered bridge extension.
@@ -222,8 +227,8 @@ future lattice is a protocol-versioned semantic change, not an interpretation
 left to an adapter.
 
 Stable first-failure ordering makes implementations and receipts agree on one
-diagnostic. It is not a timing, cache, power, or other side-channel
-noninterference guarantee.
+diagnostic; `verification-algorithm.md` specifies the order. It is not a
+timing, cache, power, or other side-channel noninterference guarantee.
 
 ## Deterministic encoding
 

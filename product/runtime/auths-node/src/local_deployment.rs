@@ -765,6 +765,7 @@ fn bind_local_control_plane_for(
         deployment.admin_audit,
     )
     .map_err(|_| LocalAgentDeploymentError::InvalidConfiguration)?;
+    ensure_descriptor_budget()?;
     let (agent_listener, agent_cleanup) =
         bind_socket(&deployment.agent_socket, deployment.agent_uid, 0o660)?;
     let (admin_listener, admin_cleanup) =
@@ -790,6 +791,7 @@ pub fn bind_testkit_agent(
     resources: &LocalAgentResources,
     connection_alias: &str,
 ) -> Result<BoundTestkitAgent, LocalAgentDeploymentError> {
+    ensure_descriptor_budget()?;
     let (listener, cleanup) = bind_socket(&deployment.agent_socket, deployment.agent_uid, 0o600)?;
     let authenticator = TestkitWorkloadAuthenticator::new(deployment.agent_uid, connection_alias)
         .map_err(|_| LocalAgentDeploymentError::InvalidConfiguration)?;
@@ -949,6 +951,10 @@ pub enum LocalAgentDeploymentError {
     /// A local socket cannot be bound safely.
     #[error("local-agent socket is unavailable or unsafe")]
     Socket,
+    /// The process descriptor limit cannot hold the admin socket's reserved
+    /// connections next to the application socket's minimum.
+    #[error("process descriptor limit is too low for the local-agent sockets")]
+    DescriptorLimit,
     /// One of the local servers stopped unexpectedly.
     #[error("local-agent server failed")]
     Serve,
@@ -1237,6 +1243,18 @@ fn prepare_profile_state_root(
     _agent_uid: u32,
 ) -> Result<(), LocalAgentDeploymentError> {
     Err(LocalAgentDeploymentError::InvalidConfiguration)
+}
+
+/// Refuses to publish a socket when the process descriptor limit cannot
+/// reserve the admin socket's connections. Serving derives the same limits
+/// again, so this check keeps startup all-or-nothing.
+#[cfg(unix)]
+fn ensure_descriptor_budget() -> Result<(), LocalAgentDeploymentError> {
+    crate::local_listener::ListenerPolicy::application(
+        crate::local_listener::descriptor_soft_limit(),
+    )
+    .map(|_| ())
+    .map_err(|_| LocalAgentDeploymentError::DescriptorLimit)
 }
 
 #[cfg(unix)]
