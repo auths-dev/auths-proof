@@ -31,8 +31,8 @@ use auths_profile_runtime::{
     ProfileConclusion, ProfileDecisionReceiptFacts, ProfileExecutionReceiptFacts,
     ProfileObservation, ProfilePreEntryRecheck, ProfilePreparation, ProfilePreparationKind,
     ProfileReceiptClaimCommitment, ProfileReceiptInspection, ProfileRuntimeError,
-    ReconcileProfileInput, ReleaseProfileCallInput, SealProfileCallInput, SealedProfileCall,
-    profile_receipt_claim_digest,
+    ProviderEntryHoldInput, ReconcileProfileInput, ReleaseProfileCallInput, SealProfileCallInput,
+    SealedProfileCall, profile_receipt_claim_digest,
 };
 
 /// PostgreSQL's current seal functions already persist their protected reread
@@ -59,6 +59,31 @@ fn unchanged_pre_entry_recheck(
     Ok(ProfilePreEntryRecheck {
         profile_state: input.record.profile_state().to_vec(),
     })
+}
+
+/// PostgreSQL takes no profile-owned hold at provider entry. The
+/// prepared-update capability sealed into the command is claimed by its
+/// operation, and an update also re-checks its row versions inside the
+/// database transaction.
+pub fn update_preflights_create_hold_provider_entry(
+    input: ProviderEntryHoldInput<'_>,
+) -> Result<(), ProfileRuntimeError> {
+    sealed_entry_without_hold(&input)
+}
+
+pub fn updates_execute_hold_provider_entry(
+    input: ProviderEntryHoldInput<'_>,
+) -> Result<(), ProfileRuntimeError> {
+    sealed_entry_without_hold(&input)
+}
+
+fn sealed_entry_without_hold(
+    input: &ProviderEntryHoldInput<'_>,
+) -> Result<(), ProfileRuntimeError> {
+    if input.record.sealed_command().is_none() || input.record.provider_entered() {
+        return Err(ProfileRuntimeError::Invalid);
+    }
+    Ok(())
 }
 use auths_receipts::{
     ProfileReceiptClaim, ProfileReceiptClaimPhase, encode_profile_receipt_claims,

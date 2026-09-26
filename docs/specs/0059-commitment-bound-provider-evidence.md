@@ -3,7 +3,7 @@
 - **Status:** Steps 1–4 implemented in `product/runtime/auths-gateway` and
   the gateway clients. Step 5 (live Airtable) is open.
 - **Depends on:** [AP-SPEC-053](0053-declarative-credential-isolated-gateway.md)
-  (gateway, recipe compiler, attempt store, and outcome states on draft
+  (gateway, recipe compiler, attempt store, and outcome states, merged in
   PR #125), [AP-SPEC-057](0057-evidence-program-for-the-exact-action-boundary.md)
 - **Enables:** [AP-SPEC-060](0060-evidence-conditioned-authority.md), which
   consumes the outcomes defined here as signed observations
@@ -56,13 +56,18 @@ The board's backlog paragraph says to "derive the provider idempotency key
 from the action commitment." That conflicts with AP-SPEC-053 §3.2, which
 derives the optional `Idempotency-Key` from the namespace and logical
 operation ID so that **a fresh challenge for the same logical operation
-cannot reopen it at the provider**. A key derived from the commitment
+cannot reopen it at a provider that honors the key, within that provider's
+retention window**. A key derived from the commitment
 changes with every challenge and loses that protection whenever gateway
 state is lost.
 
-Decision: the idempotency key stays as 053 defines it. The commitment is
-carried in a **separate echo field**. For providers that return the
-idempotency key in authenticated events (Stripe events carry
+Decision: the idempotency key stays as 053 §3.2.1 defines it. A recipe opts
+in with `write.idempotency_key`, and the gateway derives the key from the
+namespace and logical operation ID only. It helps only when the gateway's
+claim was lost, and only with a provider that honors it, within that
+provider's retention window. The commitment is carried in a **separate echo
+field**. For providers that
+return the idempotency key in authenticated events (Stripe events carry
 `request.idempotency_key`; this is not checked against the current API),
 that is an additional binding to the logical operation, not a replacement
 for the echo.

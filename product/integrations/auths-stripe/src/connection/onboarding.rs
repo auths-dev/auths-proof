@@ -35,13 +35,7 @@ pub fn validate_onboarding(
     let candidate = CandidateSecret::new(bytes)?;
     let credential = std::str::from_utf8(candidate.expose())
         .map_err(|_| ConnectionAdapterError::CredentialUnavailable)?;
-    let client = Client::builder()
-        .https_only(true)
-        .redirect(Policy::none())
-        .connect_timeout(Duration::from_secs(5))
-        .timeout(Duration::from_secs(10))
-        .build()
-        .map_err(|_| ConnectionAdapterError::PreparationFailed)?;
+    let client = account_client()?;
     let response = client
         .get(STRIPE_ACCOUNT_ENDPOINT)
         .bearer_auth(credential)
@@ -77,6 +71,19 @@ pub fn validate_onboarding(
     }
     verify_account_response(&descriptor, &body)?;
     candidate.into_secret()
+}
+
+/// The candidate key goes only to Stripe: proxy variables are ignored, so no
+/// intercepting proxy sees it, and redirects are never followed.
+pub(crate) fn account_client() -> Result<Client, ConnectionAdapterError> {
+    Client::builder()
+        .https_only(true)
+        .no_proxy()
+        .redirect(Policy::none())
+        .connect_timeout(Duration::from_secs(5))
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|_| ConnectionAdapterError::PreparationFailed)
 }
 
 fn valid_static_secret(bytes: &[u8]) -> bool {

@@ -8,7 +8,7 @@ use std::{
     process::Command,
     sync::Mutex,
     thread,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use base64ct::{Base64, Base64UrlUnpadded, Encoding as _};
@@ -42,6 +42,24 @@ const MAX_RECEIPT_LOG_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_SIGNED_RECEIPT_BYTES: usize = 1024 * 1024;
 const BRANCH_POSTCONDITION_DELAYS_MS: [u64; 5] = [0, 100, 250, 500, 1_000];
 const RECEIPT_SIGNATURE_DOMAIN: &[u8] = b"AUTHS-GITHUB-RECEIPT\x00\x01";
+const HTTP_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+const HTTP_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// The client for every GitHub REST exchange, each of which carries an App JWT
+/// or an installation token. Proxy variables are ignored, so no intercepting
+/// proxy sees the bearer; redirects are surfaced rather than followed, since a
+/// 307 or 308 would replay a write to another path; and both connecting and
+/// the whole exchange are time-bounded.
+fn api_client(api_base: &str) -> reqwest::Result<Client> {
+    Client::builder()
+        .user_agent("auths-github/0.1")
+        .https_only(api_base.starts_with("https://"))
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .connect_timeout(HTTP_CONNECT_TIMEOUT)
+        .timeout(HTTP_REQUEST_TIMEOUT)
+        .build()
+}
 
 impl CandidateInspector for GitCandidateInspector {
     fn inspect(
@@ -258,11 +276,7 @@ impl GitHubAppCredentialProvider {
         let private_key = signature::RsaKeyPair::from_pkcs8(&der)
             .or_else(|_| signature::RsaKeyPair::from_der(&der))
             .map_err(|_| CredentialError::Invalid)?;
-        let client = Client::builder()
-            .user_agent("auths-github/0.1")
-            .https_only(api_base.starts_with("https://"))
-            .build()
-            .map_err(|_| CredentialError::Invalid)?;
+        let client = api_client(&api_base).map_err(|_| CredentialError::Invalid)?;
         Ok(Self {
             app_id,
             installation_id,
@@ -420,11 +434,7 @@ impl GitHubRestClient {
         {
             return Err(GitHubReadError::Malformed);
         }
-        let client = Client::builder()
-            .user_agent("auths-github/0.1")
-            .https_only(api_base.starts_with("https://"))
-            .build()
-            .map_err(|_| GitHubReadError::Malformed)?;
+        let client = api_client(&api_base).map_err(|_| GitHubReadError::Malformed)?;
         Ok(Self {
             repository,
             evidence_credentials,
@@ -809,6 +819,84 @@ fn pull_evidence(pull: PullResponse) -> Result<PullRequestEvidence, GitHubReadEr
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Child half of `api_client_ignores_environment_proxies`. It runs in a
+    /// fresh copy of this test binary whose proxy variables name the parent's
+    /// listener, because a test must not change its own environment.
+    #[test]
+    #[ignore = "started by api_client_ignores_environment_proxies"]
+    fn api_client_under_environment_proxy() {
+        let closed = std::net::TcpListener::bind("127.0.0.1:0")
+            .and_then(|listener| listener.local_addr())
+            .unwrap();
+        let error = api_client("https://api.github.com")
+            .unwrap()
+            .get(format!(
+                "https://{closed}/app/installations/1/access_tokens"
+            ))
+            .send()
+            .expect_err("nothing listens on the loopback port");
+        assert!(error.is_connect(), "{error}");
+    }
+
+    #[test]
+    fn api_client_ignores_environment_proxies() {
+        let proxy = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        proxy.set_nonblocking(true).unwrap();
+        let proxy_url = format!("http://{}", proxy.local_addr().unwrap());
+        let child = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "adapters::tests::api_client_under_environment_proxy",
+                "--ignored",
+            ])
+            .env("HTTPS_PROXY", &proxy_url)
+            .env("ALL_PROXY", &proxy_url)
+            .env_remove("NO_PROXY")
+            .env_remove("no_proxy")
+            .env_remove("REQUEST_METHOD")
+            .output()
+            .unwrap();
+        let stdout = String::from_utf8_lossy(&child.stdout);
+        assert!(
+            child.status.success() && stdout.contains("1 passed"),
+            "{stdout}"
+        );
+        assert_eq!(
+            proxy.accept().map(drop).map_err(|error| error.kind()),
+            Err(std::io::ErrorKind::WouldBlock),
+            "a GitHub request reached the environment proxy"
+        );
+    }
+
+    #[test]
+    fn api_client_surfaces_redirects_instead_of_following_them() {
+        let server = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let base = format!("http://{}", server.local_addr().unwrap());
+        let responder = thread::spawn(move || {
+            let (mut stream, _) = server.accept().unwrap();
+            let mut request = Vec::new();
+            let mut chunk = [0_u8; 512];
+            while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+                let read = std::io::Read::read(&mut stream, &mut chunk).unwrap();
+                assert_ne!(read, 0, "the request ended before its headers");
+                request.extend_from_slice(&chunk[..read]);
+            }
+            std::io::Write::write_all(
+                &mut stream,
+                b"HTTP/1.1 307 Temporary Redirect\r\nLocation: /elsewhere\r\n\
+                  Content-Length: 0\r\nConnection: close\r\n\r\n",
+            )
+            .unwrap();
+        });
+        let response = api_client(&base)
+            .unwrap()
+            .get(format!("{base}/repos/owner/name"))
+            .send()
+            .unwrap();
+        assert_eq!(response.status().as_u16(), 307);
+        responder.join().unwrap();
+    }
 
     #[test]
     fn credential_never_formats_secret() {

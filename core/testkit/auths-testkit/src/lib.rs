@@ -58,6 +58,7 @@ use rustls_pki_types::PrivatePkcs8KeyDer;
 use sha2::{Digest as _, Sha256};
 
 mod bounded_policy;
+mod kernel_checks;
 mod observation;
 
 pub use observation::observation_action_fact_fixture;
@@ -4986,8 +4987,21 @@ fn attachment_fixture(
     variation: AttachmentVariation,
     expected: Expected,
 ) -> CorpusFixture {
+    attachment_fixture_with_bytes(
+        name,
+        variation,
+        b"offline signed attachment".to_vec(),
+        expected,
+    )
+}
+
+fn attachment_fixture_with_bytes(
+    name: &'static str,
+    variation: AttachmentVariation,
+    bytes: Vec<u8>,
+    expected: Expected,
+) -> CorpusFixture {
     let identity = Identity::ed25519(141);
-    let bytes = b"offline signed attachment".to_vec();
     let correct_digest = attachment_digest(&bytes);
     let declared_digest = if matches!(variation, AttachmentVariation::WrongDigest) {
         AttachmentDigest::new([0xa7; 32])
@@ -5321,6 +5335,10 @@ fn build_corpus() -> Vec<CorpusFixture> {
     corpus.extend(marker_delegation_vectors());
     corpus.extend(bounded_policy::bounded_policy_vectors());
     corpus.extend(observation::observation_corpus());
+    corpus.extend(kernel_checks::kernel_check_vectors());
+    corpus.extend(kernel_checks::input_bound_vectors());
+    corpus.extend(kernel_checks::precedence_vectors());
+    corpus.extend(observation::child_limit_vectors());
     corpus
 }
 
@@ -5336,6 +5354,7 @@ pub fn reviewed_body_digest() -> Digest {
     body_digest(BODY)
 }
 pub mod adversarial;
+pub mod check_sites;
 pub mod conformance;
 pub mod mechanism_conformance;
 pub mod product_waist;

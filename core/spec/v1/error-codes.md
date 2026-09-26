@@ -43,7 +43,7 @@ verifier retains three diagnostic classes.
 | `status-issuer-untrusted` | status | A valid status signature was made by an issuer outside snapshot trust |
 | `registry-manifest-mismatch` | control | Context manifest differs from the immutable executable registry |
 | `verifier-configuration-mismatch` | control | Context configuration commitment differs from the exact executable adapter and registry configuration |
-| `resource-namespace-mismatch` | authority | Selected matcher rejects every root namespace |
+| `resource-namespace-mismatch` | authority | The resource of a grant permission or of the action lies outside every namespace of the trust anchor, under the selected matcher |
 | `critical-extension-unknown` | extension | Required extension is not registered |
 | `attachment-missing` | action | Required signed attachment bytes are absent |
 | `attachment-digest-mismatch` | action | Detached bytes do not hash to the signed identifier |
@@ -51,7 +51,7 @@ verifier retains three diagnostic classes.
 | `duplicate-attachment` | resolve/action | An attachment identifier occurs more than once |
 | `unused-critical-attachment` | action | Signed descriptors and supplied detached inputs do not correspond |
 | `opaque-attachment-not-allowed` | action | Encrypted bytes were supplied where opaque verification was not signed as acceptable |
-| `local-policy-denied` | policy | Explicit local policy rejects established facts |
+| `local-policy-denied` | policy | Explicit local policy rejects established facts, or a registered handler (profile policy, critical extension, budget algebra) rejects its input |
 | `observation-condition-false` | observation | A requirement has fresh, authentic, subject-matching observations and each falsifies some condition |
 | `observer-in-authority-chain` | observation | A requirement's observer is also the root, an issuer, a subject, or the actor of the branch |
 | `observation-requirement-dropped` | authority | A child grant drops a parent's observation requirement: none of its requirements has the same schema and subject |

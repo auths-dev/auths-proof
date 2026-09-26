@@ -27,11 +27,12 @@ jobs:
         env:
           ATTESTER_REVISION: ${{ inputs.attester_revision }}
           WORKFLOW_REVISION: ${{ github.sha }}
+          WORKFLOW_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
           [[ "$ATTESTER_REVISION" =~ ^[0-9a-f]{40}$ ]]
           [[ "$ATTESTER_REVISION" == "$WORKFLOW_REVISION" ]]
-          [[ "${{ github.ref }}" == refs/heads/main ]]
+          [[ "$WORKFLOW_REF" == refs/heads/main ]]
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ inputs.attester_revision }}

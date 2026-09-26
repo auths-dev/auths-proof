@@ -1,4 +1,6 @@
-//! Native-verified, digest-bound single-host execution coordinator.
+//! Native-verified, digest-bound execution coordinator. Attempts persist in
+//! the single-host file store or the multi-host `PostgreSQL` store; connection
+//! state is per process.
 
 // Explicit matches keep each verification and transport failure mapped to its
 // distinct public stage; `let...else` would obscure those boundary decisions.
@@ -20,7 +22,8 @@ use crate::{
 };
 use auths_connections::{
     ConnectionAlias, ConnectionBinding, ConnectionCredentialStore, ConnectionProfile,
-    ConnectionState, PersistentCredentialStore, ProviderKind, SecretBytes, StoredSecretLease,
+    ConnectionRecord, ConnectionState, PersistentCredentialStore, ProviderKind, SecretBytes,
+    StoredSecretLease,
 };
 use auths_model::{Timestamp, TrustedContext, VerificationDecision, VerifierConfigurationId};
 use auths_ports::{PrincipalMethod, SignatureSuite};
@@ -154,7 +157,10 @@ fn refused(code: &'static str) -> GatewayObserveResult {
 }
 
 /// One immutable installed operation and independently provisioned trust.
-/// Connection state and generation are rechecked on every submission.
+/// Connection state and generation are rechecked on every submission against
+/// this process's own copy: a disable, rotate, or revoke made through another
+/// gateway process does not reach it, and processes must not share a state
+/// directory.
 pub struct GatewayEngine {
     recipe: CompiledRecipe,
     trusted_context: TrustedContext,
@@ -249,8 +255,10 @@ impl GatewayEngine {
         )
     }
 
-    /// Disables new submissions after all already-entered submissions finish.
-    /// The operator-only service channel must be the sole caller.
+    /// Disables new submissions after all already-entered submissions finish,
+    /// then deletes every credential generation older than the current one.
+    /// Disabling stores no credential, so it needs no free credential-store
+    /// capacity. The operator-only service channel must be the sole caller.
     ///
     /// # Errors
     /// A failed durable transition never reports disabled.
@@ -264,36 +272,28 @@ impl GatewayEngine {
         if current.state() != ConnectionState::Active {
             return Err("gateway.admin.connection-not-active");
         }
-        let next = current
-            .generation()
-            .get()
-            .checked_add(1)
-            .and_then(std::num::NonZeroU64::new)
-            .ok_or("gateway.admin.generation-exhausted")?;
-        let commitment = self
-            .credentials
-            .advance_generation(current.connection_id(), current.generation(), next)
-            .map_err(|_| "gateway.admin.credential-unavailable")?;
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_err(|_| "gateway.admin.clock-unavailable")?
             .as_secs();
-        self.connections
+        let disabled = self
+            .connections
             .transition_state(
                 &self.provider,
                 &self.alias,
                 current.generation(),
                 ConnectionState::Disabled,
-                *commitment.as_bytes(),
                 now,
             )
             .map_err(|_| "gateway.admin.transition-unavailable")?;
+        self.delete_superseded_credentials(&disabled);
         Ok(())
     }
 
-    /// Rotates the operator-held secret to a new generation, retaining the
-    /// previous generation for unresolved attempts. The admin channel must be
-    /// unavailable to the application identity.
+    /// Rotates the operator-held secret to a new generation and deletes every
+    /// older generation. A rotation that fails after storing the successor
+    /// deletes it, leaving the connection on its current secret. The admin
+    /// channel must be unavailable to the application identity.
     ///
     /// # Errors
     /// A failed durable transition never reports rotation complete.
@@ -313,11 +313,35 @@ impl GatewayEngine {
             .checked_add(1)
             .and_then(std::num::NonZeroU64::new)
             .ok_or("gateway.admin.generation-exhausted")?;
+        // Nothing can name a generation the record has not reached, so a
+        // successor left by an earlier failed rotation is discarded, not reused.
+        let _ = self.credentials.revoke(current.connection_id(), next).await;
         let commitment = self
             .credentials
             .replace(current.connection_id(), current.generation(), next, secret)
             .await
             .map_err(|_| "gateway.admin.credential-unavailable")?;
+        match self.publish_rotation(&current, *commitment.as_bytes()) {
+            Ok(rotated) => {
+                self.delete_superseded_credentials(&rotated);
+                Ok(())
+            }
+            Err(code) => {
+                // The record still names its previous secret. If this deletion
+                // fails too, the unpublished successor still cannot be leased:
+                // it fails the credential-reference check at any generation it
+                // would serve, and the next rotation supersedes it.
+                let _ = self.credentials.revoke(current.connection_id(), next).await;
+                Err(code)
+            }
+        }
+    }
+
+    fn publish_rotation(
+        &self,
+        current: &ConnectionRecord,
+        commitment: [u8; 32],
+    ) -> Result<ConnectionRecord, &'static str> {
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_err(|_| "gateway.admin.clock-unavailable")?
@@ -326,20 +350,36 @@ impl GatewayEngine {
             .rotated(
                 current.descriptor().to_vec(),
                 *current.account_commitment(),
-                *commitment.as_bytes(),
+                commitment,
                 timestamp,
             )
             .map_err(|_| "gateway.admin.transition-unavailable")?;
         self.connections
-            .replace(current.generation(), replacement)
-            .map_err(|_| "gateway.admin.transition-unavailable")
+            .replace(current.generation(), replacement.clone())
+            .map_err(|_| "gateway.admin.transition-unavailable")?;
+        Ok(replacement)
+    }
+
+    /// The gateway leases only its current generation, so nothing needs an
+    /// older one. Best effort: a failed deletion is repeated by the next
+    /// rotation, disable, or revoke.
+    fn delete_superseded_credentials(&self, current: &ConnectionRecord) {
+        let _ = self
+            .credentials
+            .retain_generations(current.connection_id(), &[current.generation()]);
     }
 
     /// Revokes new entry after in-flight submissions complete, retaining a
-    /// terminal record and withholding every new credential lease.
+    /// terminal record, withholding every new credential lease, and deleting
+    /// every stored credential generation in one persisted mutation, which
+    /// needs no free credential-store capacity. Revoking an already revoked
+    /// connection finishes a deletion that an earlier revocation failed to
+    /// persist.
     ///
     /// # Errors
-    /// A failed durable transition never reports revocation complete.
+    /// A failed durable transition never reports revocation complete. A
+    /// failed deletion is reported after the record is revoked, which already
+    /// withholds every lease; revoking again finishes the deletion.
     pub async fn revoke_connection(&self) -> Result<(), &'static str> {
         let _guard = self.administrative_gate.write().await;
         let current = self
@@ -347,39 +387,24 @@ impl GatewayEngine {
             .load(&self.provider, &self.alias)
             .map_err(|_| "gateway.admin.connection-unavailable")?
             .ok_or("gateway.admin.connection-unavailable")?;
-        if current.state() == ConnectionState::Revoked {
-            return Err("gateway.admin.connection-revoked");
+        if current.state() != ConnectionState::Revoked {
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|_| "gateway.admin.clock-unavailable")?
+                .as_secs();
+            self.connections
+                .transition_state(
+                    &self.provider,
+                    &self.alias,
+                    current.generation(),
+                    ConnectionState::Revoked,
+                    timestamp,
+                )
+                .map_err(|_| "gateway.admin.transition-unavailable")?;
         }
-        let next = current
-            .generation()
-            .get()
-            .checked_add(1)
-            .and_then(std::num::NonZeroU64::new)
-            .ok_or("gateway.admin.generation-exhausted")?;
-        let commitment = self
-            .credentials
-            .advance_generation(current.connection_id(), current.generation(), next)
-            .map_err(|_| "gateway.admin.credential-unavailable")?;
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(|_| "gateway.admin.clock-unavailable")?
-            .as_secs();
-        self.connections
-            .transition_state(
-                &self.provider,
-                &self.alias,
-                current.generation(),
-                ConnectionState::Revoked,
-                *commitment.as_bytes(),
-                timestamp,
-            )
-            .map_err(|_| "gateway.admin.transition-unavailable")?;
-        let _ = self
-            .credentials
-            .revoke(current.connection_id(), current.generation())
-            .await;
-        let _ = self.credentials.revoke(current.connection_id(), next).await;
-        Ok(())
+        self.credentials
+            .revoke_connection(current.connection_id())
+            .map_err(|_| "gateway.admin.credential-deletion-incomplete")
     }
 
     /// Verifies and attempts one exact action. Only proof and action bytes are
@@ -891,6 +916,7 @@ mod tests {
         reads: AtomicUsize,
         fields: Mutex<Map<String, Value>>,
         last_read: Mutex<Vec<u8>>,
+        idempotency_keys: Mutex<Vec<Option<String>>>,
     }
 
     impl CountingProvider {
@@ -904,6 +930,7 @@ mod tests {
                 reads: AtomicUsize::new(0),
                 fields: Mutex::new(fields),
                 last_read: Mutex::new(Vec::new()),
+                idempotency_keys: Mutex::new(Vec::new()),
             }
         }
 
@@ -922,6 +949,10 @@ mod tests {
             request: &ClosedProviderRequest,
         ) -> Result<WriteTransportOutcome, GatewayTransportError> {
             self.writes.fetch_add(1, Ordering::SeqCst);
+            self.idempotency_keys
+                .lock()
+                .expect("keys")
+                .push(request.idempotency_key().map(str::to_owned));
             if matches!(
                 self.delivery,
                 Delivery::Respond | Delivery::TimeoutAfterApplying
@@ -1323,8 +1354,57 @@ mod tests {
         assert_eq!((provider.writes(), provider.reads()), (1, 1));
     }
 
+    /// While the attempt store is intact, the claim alone stops a fresh
+    /// challenge for the same logical operation. Once the store is lost
+    /// (wiped, or restored from an older backup) the claim is gone and the
+    /// operation enters the provider again; only the repeated derived key
+    /// lets a provider that honors it de-duplicate that second entry.
+    #[tokio::test]
+    async fn a_lost_claim_resends_the_same_idempotency_key() {
+        let mut source: Value = serde_json::from_slice(include_bytes!(
+            "../../../../bindings/fixtures/gateway/airtable/recipe.json"
+        ))
+        .expect("source");
+        source["write"]["idempotency_key"] = json!(true);
+        let recipe = CompiledRecipe::compile(
+            &serde_json::to_vec(&source).expect("source"),
+            include_bytes!("../../../../bindings/fixtures/gateway/airtable/profile.lock.json"),
+        )
+        .expect("recipe");
+        let key = crate::idempotency_key(
+            recipe.namespace(),
+            &LogicalOperationId::parse("run-1").expect("operation"),
+        );
+        let intact = Harness {
+            recipe: recipe.clone(),
+            store: TestAttempts::open(Backend::File),
+        };
+        let provider = CountingProvider::new(Delivery::Respond, Reading::Faithful);
+        let original = intact.airtable(ORIGINAL, "Approved");
+        assert!(matches!(
+            intact.submit(&original, &provider).await,
+            GatewaySubmitResult::ObservedByProvider { .. }
+        ));
+        let fresh = intact.airtable(FRESH, "Approved");
+        assert_eq!(intact.submit(&fresh, &provider).await, replay_refused());
+        assert_eq!(provider.writes(), 1, "the intact claim stops the repeat");
+        let lost = Harness {
+            recipe,
+            store: TestAttempts::open(Backend::File),
+        };
+        assert!(matches!(
+            lost.submit(&fresh, &provider).await,
+            GatewaySubmitResult::ObservedByProvider { .. }
+        ));
+        assert_eq!(provider.writes(), 2, "a lost claim no longer stops it");
+        assert_eq!(
+            *provider.idempotency_keys.lock().expect("keys"),
+            [Some(key.clone()), Some(key)]
+        );
+    }
+
     // One shared conformance suite for every attempt store. The file store
-    // runs it on every test run; the qualified PostgreSQL store runs it
+    // runs it on every test run; the PostgreSQL store runs it
     // against the TLS fixture in the PostgreSQL lifecycle workflow.
 
     /// A logical operation enters the provider exactly once; an identical
@@ -1653,5 +1733,293 @@ mod tests {
         let mut extra = wire;
         extra["evidence"]["evidence_b64"] = json!("e30");
         assert!(serde_json::from_value::<GatewaySubmitResult>(extra).is_err());
+    }
+
+    // Connection administration over the persistent stores an installed
+    // gateway uses. Entry is checked through `prepare_entry`, which every
+    // submission and read-back passes before any claim, lease, or write.
+    #[cfg(unix)]
+    mod administration {
+        use super::*;
+
+        struct Installation {
+            _state: tempfile::TempDir,
+            credentials_directory: std::path::PathBuf,
+            connections_directory: std::path::PathBuf,
+            connection_id: auths_connections::ConnectionId,
+            engine: GatewayEngine,
+        }
+
+        fn private_directory(path: &std::path::Path) {
+            use std::os::unix::fs::PermissionsExt as _;
+            std::fs::create_dir(path).expect("directory");
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700)).expect("mode");
+        }
+
+        fn gateway_secret(value: &str) -> SecretBytes {
+            SecretBytes::new(value.as_bytes().to_vec()).expect("secret")
+        }
+
+        async fn installation(credential_entries: usize) -> Installation {
+            let state = tempfile::tempdir().expect("state");
+            let credentials_directory = state.path().join("credentials");
+            let connections_directory = state.path().join("connections");
+            private_directory(&credentials_directory);
+            private_directory(&connections_directory);
+            let recipe = Harness::open("airtable", Backend::File).recipe;
+            let root = crate::harness::Signer::new(0x11);
+            let observer = crate::harness::Signer::new(0x33);
+            let trust = auths_codec::encode_verifier_context(
+                &crate::harness::context(&root, &observer.principal, None, 1_790_000_000)
+                    .expect("context"),
+            )
+            .expect("trust");
+            let credentials = PersistentCredentialStore::open_with_limits(
+                credentials_directory.join("credentials.cbor"),
+                credential_entries,
+                1 << 20,
+            )
+            .expect("credential store");
+            let connection_id =
+                auths_connections::ConnectionId::parse("conn_AAAAAAAAAAAAAAAAAAAAAA").expect("id");
+            let generation = std::num::NonZeroU64::new(1).expect("generation");
+            let reference = credentials
+                .install(&connection_id, generation, gateway_secret("pat-initial"))
+                .await
+                .expect("install");
+            let profile = ConnectionProfile::new(
+                auths_connections::SemanticId::parse("auths.mcp").expect("profile"),
+                2,
+            )
+            .expect("profile");
+            let record = ConnectionRecord::new(
+                ProviderKind::parse("airtable").expect("provider"),
+                ConnectionAlias::parse("primary").expect("alias"),
+                connection_id.clone(),
+                auths_connections::SemanticId::parse("auths.gateway-operation/1")
+                    .expect("contract"),
+                auths_connections::SemanticId::parse("auths.gateway-connection-descriptor/1")
+                    .expect("schema"),
+                GatewayConnectionDescriptor::approve(&recipe, "Authorization")
+                    .expect("descriptor")
+                    .to_bytes()
+                    .expect("descriptor bytes"),
+                [4; 32],
+                *reference.as_bytes(),
+                generation,
+                ConnectionState::Active,
+                vec!["gateway".to_owned()],
+                vec![profile.clone()],
+                10,
+                10,
+                None,
+            )
+            .expect("record");
+            let connections = PersistentConnectionStore::open(
+                connections_directory.join("connections.cbor"),
+                auths_connections::RegistryLimits::default(),
+            )
+            .expect("connection store");
+            connections.insert(record).expect("insert");
+            let attempts_root = std::fs::canonicalize(state.path())
+                .expect("canonical state")
+                .join("attempts");
+            let attempts = GatewayAttempts::new(std::sync::Arc::new(
+                crate::FileGatewayAttemptStore::open(attempts_root).expect("attempts"),
+            ));
+            let digest = *recipe.digest();
+            let engine = GatewayEngine::new(
+                recipe,
+                digest,
+                &trust,
+                ProviderKind::parse("airtable").expect("provider"),
+                ConnectionAlias::parse("primary").expect("alias"),
+                "gateway".to_owned(),
+                profile,
+                connections,
+                credentials,
+                attempts,
+            )
+            .expect("engine");
+            Installation {
+                _state: state,
+                credentials_directory,
+                connections_directory,
+                connection_id,
+                engine,
+            }
+        }
+
+        impl Installation {
+            fn stored(&self) -> Vec<u64> {
+                self.engine
+                    .credentials
+                    .stored_generations(&self.connection_id)
+                    .expect("stored generations")
+                    .into_iter()
+                    .map(std::num::NonZeroU64::get)
+                    .collect()
+            }
+
+            fn record(&self) -> ConnectionRecord {
+                self.engine
+                    .connections
+                    .load(&self.engine.provider, &self.engine.alias)
+                    .expect("load")
+                    .expect("record")
+            }
+
+            /// The refusal code of a new entry, or `None` when entry may lease.
+            fn entry_refusal(&self) -> Option<String> {
+                match self.engine.prepare_entry() {
+                    Ok(_) => None,
+                    Err(GatewaySubmitResult::NotEntered { code }) => Some(code),
+                    Err(other) => panic!("unexpected entry result {other:?}"),
+                }
+            }
+        }
+
+        #[tokio::test]
+        async fn revocation_after_rotation_and_disable_deletes_every_generation() {
+            let installation = installation(8).await;
+            let (first, _) = installation.engine.prepare_entry().expect("active entry");
+            assert!(installation.engine.lease(&first).await.is_ok());
+
+            installation
+                .engine
+                .rotate_connection(gateway_secret("pat-rotated"))
+                .await
+                .expect("rotate");
+            assert_eq!(
+                installation.stored(),
+                [2],
+                "rotation deletes the old secret"
+            );
+            assert!(installation.engine.lease(&first).await.is_err());
+            assert_eq!(installation.entry_refusal(), None);
+
+            installation
+                .engine
+                .disable_connection()
+                .await
+                .expect("disable");
+            assert_eq!(installation.stored(), [2], "disabling stores no credential");
+            assert_eq!(
+                installation.entry_refusal().as_deref(),
+                Some("gateway.connection.unavailable")
+            );
+
+            installation
+                .engine
+                .revoke_connection()
+                .await
+                .expect("revoke");
+            assert!(installation.stored().is_empty());
+            let revoked = installation.record();
+            assert_eq!(revoked.state(), ConnectionState::Revoked);
+            assert_eq!(revoked.generation().get(), 4);
+            assert_eq!(
+                installation.entry_refusal().as_deref(),
+                Some("gateway.connection.unavailable")
+            );
+        }
+
+        #[tokio::test]
+        async fn a_rotation_failing_after_its_credential_write_is_discarded() {
+            let installation = installation(8).await;
+            // A file where the connection store's directory was makes the record
+            // write fail after the successor credential is stored.
+            let moved = installation.connections_directory.with_extension("moved");
+            std::fs::rename(&installation.connections_directory, &moved).expect("move");
+            std::fs::write(&installation.connections_directory, b"blocked").expect("block");
+            assert_eq!(
+                installation
+                    .engine
+                    .rotate_connection(gateway_secret("pat-rotated"))
+                    .await,
+                Err("gateway.admin.transition-unavailable")
+            );
+            std::fs::remove_file(&installation.connections_directory).expect("unblock");
+            std::fs::rename(&moved, &installation.connections_directory).expect("restore");
+            assert_eq!(
+                installation.stored(),
+                [1],
+                "the unpublished successor is gone"
+            );
+            assert_eq!(installation.record().generation().get(), 1);
+            assert_eq!(installation.entry_refusal(), None);
+
+            installation
+                .engine
+                .revoke_connection()
+                .await
+                .expect("revoke");
+            assert!(installation.stored().is_empty());
+        }
+
+        #[tokio::test]
+        async fn disable_and_revoke_need_no_free_credential_capacity() {
+            let installation = installation(1).await;
+            assert_eq!(
+                installation
+                    .engine
+                    .rotate_connection(gateway_secret("pat-rotated"))
+                    .await,
+                Err("gateway.admin.credential-unavailable"),
+                "the full store has no room for a successor"
+            );
+            installation
+                .engine
+                .disable_connection()
+                .await
+                .expect("disable");
+            installation
+                .engine
+                .revoke_connection()
+                .await
+                .expect("revoke");
+            assert!(installation.stored().is_empty());
+            assert_eq!(installation.record().state(), ConnectionState::Revoked);
+        }
+
+        #[tokio::test]
+        async fn a_repeated_revoke_finishes_the_credential_deletion() {
+            use std::os::unix::fs::PermissionsExt as _;
+            let installation = installation(8).await;
+            // The credential store refuses to write into a directory other users
+            // can read, so the deletion fails after the record is revoked.
+            std::fs::set_permissions(
+                &installation.credentials_directory,
+                std::fs::Permissions::from_mode(0o750),
+            )
+            .expect("mode");
+            assert_eq!(
+                installation.engine.revoke_connection().await,
+                Err("gateway.admin.credential-deletion-incomplete")
+            );
+            std::fs::set_permissions(
+                &installation.credentials_directory,
+                std::fs::Permissions::from_mode(0o700),
+            )
+            .expect("mode");
+            assert_eq!(installation.record().state(), ConnectionState::Revoked);
+            assert_eq!(installation.stored(), [1]);
+            assert_eq!(
+                installation.entry_refusal().as_deref(),
+                Some("gateway.connection.unavailable"),
+                "the revoked record withholds the lease while the secret is stored"
+            );
+
+            installation
+                .engine
+                .revoke_connection()
+                .await
+                .expect("repeated revoke");
+            assert!(installation.stored().is_empty());
+            assert_eq!(
+                installation.engine.disable_connection().await,
+                Err("gateway.admin.connection-not-active")
+            );
+        }
     }
 }

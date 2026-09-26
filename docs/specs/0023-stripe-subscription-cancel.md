@@ -1,6 +1,6 @@
 # 0023: Bounded Stripe subscription cancellation
 
-Status: Implemented
+Status: Specified (the demo returns fixed records; no `SubscriptionCancelGateway` implementation exists)
 Exact action profile: `auths.stripe.exact-subscription-cancel/1`  
 Policy family: `auths.stripe.bounded-subscription-policy/1`  
 Evaluator: `auths.stripe.bounded-subscription-evaluator/1`  

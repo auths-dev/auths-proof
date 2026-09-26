@@ -1,7 +1,7 @@
 # AP-SPEC-025: Closed bounded-authorization policy contract
 
 **Status:** Partially implemented — tranches 1–3 built. Of tranches 4–6,
-exactly the §24.2 parts are implemented on `epic-5-bounds` (AP-SPEC-057 Epic
+exactly the §24.2 parts are implemented on `main` (PR #149, AP-SPEC-057 Epic
 5, step 2): the `bounded-policy-commitment-v1` grant extension (§24.1); a
 closed gateway evaluator registry keyed by evaluator semantic identifier
 (tranche 5); one registered evaluator, a per-principal ceiling on one named

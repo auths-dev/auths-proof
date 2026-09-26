@@ -2,7 +2,9 @@
 
 ## Status
 
-Target-state specification. Not yet implemented.
+Target-state specification, partly implemented on `main`: the local
+agent, SDK sessions, and generated profile clients. No provider effect
+profile is qualified.
 
 This document is intentionally self-contained. A new implementation session
 with no conversation history must be able to implement the target by reading
@@ -818,10 +820,32 @@ configuration is:
 [agent]
 authority_root = "/var/lib/auths/authorities"
 
+[agent.receipt_signing.decision]
+algorithm = "Ed25519"
+key_id = "decision-2026-01"
+verification_method = "did:key:auths-receipt-decision#decision-2026-01"
+public_key_base64url = "<32-byte Ed25519 public key, base64url>"
+seed_file = "/var/lib/auths/receipt-decision.key"
+not_before_unix_seconds = 1
+not_after_unix_seconds = 4102444800
+
+[agent.receipt_signing.execution]
+algorithm = "Ed25519"
+key_id = "execution-2026-01"
+verification_method = "did:key:auths-receipt-execution#execution-2026-01"
+public_key_base64url = "<32-byte Ed25519 public key, base64url>"
+seed_file = "/var/lib/auths/receipt-execution.key"
+not_before_unix_seconds = 1
+not_after_unix_seconds = 4102444800
+
 [agent.authority_sources.payments-worker-authority]
 kind = "sealed-file-v1"
 path = "/var/lib/auths/authorities/payments-worker.cbor"
 ```
+
+The `[agent.receipt_signing]` table is required. It names the current
+decision and execution receipt signing keys, and the agent refuses a
+configuration without it.
 
 `authority_root` and `path` are absolute, normalized host paths of 1-1024
 UTF-8 bytes. Every source path must be a strict descendant of the root. The
@@ -1035,12 +1059,32 @@ profile-required credential scope to remain equal. A mismatch before provider
 entry is not applied. A change after possible provider entry never changes the
 original operation's effect classification or recovery identity.
 
-Disabling a connection rejects new operations but preserves recovery.
-Revocation additionally prevents new credential leases. Credential versions
-needed by unresolved operations are retained until those operations become
-terminal, unless an emergency administrator revokes provider access itself;
-in that case recovery that cannot observe the provider remains possible and
-operator-actionable rather than becoming not applied. A record cannot be
+Every first provider entry leases through this reread, including an operation
+resumed from an interrupted pre-entry checkpoint. A resumed operation whose
+pre-entry recheck was recorded before the interruption is released as not
+applied rather than entered on that recheck. Only reconciliation of an
+operation that may already have entered its provider leases the credential
+retained for the operation's recorded generation without requiring the
+current record to be active at that generation.
+
+Disabling a connection rejects new operations and every provider entry,
+including the resumption of an operation that stopped before provider entry,
+but preserves reconciliation of operations that may already have entered.
+Revocation refuses every credential lease, reconciliation included, and
+deletes every stored credential generation of the connection. Before provider
+entry a refused lease ends the operation credential-unavailable; after
+possible entry the operation stays recovery-required with its effect possible
+and operator-actionable rather than becoming not applied.
+
+State and allowlist changes advance the record generation without storing a
+credential; only onboarding and rotation store one. The credential store keeps
+each credential under the generation at which it was installed or rotated in,
+and a later generation uses the newest stored generation not after it. A
+superseded generation is kept while the current record or an unresolved
+operation names a generation it serves. Only the agent, which knows from its
+operation journal which operations are unresolved, deletes one that nothing
+names: when it rotates the connection and when an execute or recover call
+finishes an operation. The store never deletes on its own. A record cannot be
 physically deleted while an operation or unexpired tombstone names it.
 
 #### 7.4.1 Credential-store mechanism
@@ -1086,11 +1130,25 @@ adapter; it is non-serializable, redacted, non-cloneable, deadline-bound, and
 zeroized on drop where the platform permits. The store understands only sealed
 connection identity and generation. It MUST NOT interpret a provider scope,
 refresh token, endpoint, request, or effect. Store failures before provider
-entry project as connection credential unavailability. The mechanism ships
-with a conformance suite covering replacement atomicity, generation
-substitution, revocation, crash recovery, secret redaction, and concurrent
-final capacity. It is internal Rust infrastructure and has no Python or
-TypeScript adapter surface.
+entry project as connection credential unavailability.
+
+`lease_secret` leases the credential retained for the binding's generation,
+the newest stored generation not after it, and only when its commitment equals
+the binding's. The persistent store adds two deletions that also know only
+identity and generation. One deletes every stored generation of a connection
+in one persisted mutation; it copies nothing, needs no free capacity, succeeds
+without a write when nothing is stored, and must be repeated after a reported
+failure. The other deletes, in one persisted mutation, each generation of a
+connection that is neither retained for a generation the caller lists nor
+newer than the newest retained one. A rotation that fails after `replace`
+deletes the successor it stored, and a rotation first discards a successor
+generation that an earlier failed rotation left stored.
+
+The mechanism ships with a conformance suite covering replacement atomicity,
+generation substitution and retention, revocation of every generation,
+revocation and retention at full capacity, crash recovery, secret redaction,
+and concurrent final capacity. It is internal Rust infrastructure and has no
+Python or TypeScript adapter surface.
 
 #### 7.4.2 Provider-specific connection adapter
 
@@ -1174,8 +1232,11 @@ The listener uses HTTP/1.1 and canonical CBOR but has semantic identity
 `auths.provider-connection-admin/1`. POSIX requires the dedicated agent UID or
 root and an owner/group policy configured for the administrator group. Windows
 requires LocalSystem, Administrators, or an explicitly configured operator
-SID. Workload application identities are denied before request decoding. The
-application `Client` and generated packages expose no administration method.
+SID. Workload application identities are denied before request decoding; on
+POSIX a peer outside the policy is closed at accept, before it counts against
+the listener's connection budget, which application connections never share
+(§13.1). The application `Client` and generated packages expose no
+administration method.
 
 The shared bounded routes are:
 
@@ -2224,7 +2285,8 @@ The complete common admission table is:
 | One header name/value | 128/8,192 bytes |
 | Request/response frame | 33,554,432 / 16,777,216 bytes |
 | Sessions | 4,096 agent-wide; 64 per observed principal |
-| IPC connections | 8,192 agent-wide; 32 per session |
+| IPC connections | 8,192 agent-wide and 2,048 per peer UID, refused at accept; 32 per session |
+| Admin socket connections | 16, separate from IPC connections |
 | In-flight requests | 4,096 agent-wide; 32 per session |
 | SDK queued calls | 256 per client in addition to 32 in flight |
 | Advertised profiles | 256 |
@@ -2244,6 +2306,23 @@ follows section 14.5 instead and preserves the original effect state. Safe
 status/recovery calls use 410 reserved agent-wide request slots; new prepare
 and execute calls may consume only the other 3,686. Effect admission pressure
 therefore cannot make recovery unreachable.
+
+The IPC connection limits are enforced at accept, before any byte is read. The
+application socket admits at most 8,192 connections agent-wide and 2,048 from
+one peer UID (64 sessions of 32 connections), and closes a connection past
+either limit. When the process's soft descriptor limit is too low for 8,192,
+the agent-wide limit is half of what that limit leaves after the admin
+socket's share, so application connections cannot take the descriptors the
+admin socket, the stores, and provider connections need; the agent refuses to
+start when that leaves fewer than 32. The admin socket admits at most 16
+connections of its own, which application connections never count against,
+closes a connection from a peer outside its admin peer policy at accept, and
+answers a client that closes its sending side once its request is written. On
+both sockets, each request's headers, and the idle gap before a later request
+on a kept-alive connection, must arrive within 10 seconds, and a request body
+that stops arriving for 10 seconds is abandoned. A failed accept is logged and
+retried after 100 milliseconds; it stops neither socket. The 32-per-session
+connection limit and the in-flight request limits are not yet enforced.
 
 ### 13.2 Session handshake
 
@@ -2732,6 +2811,7 @@ bounded API input
   -> atomic reservation
   -> verifier-sealed exact command
   -> fresh critical evidence/connection/configuration re-read
+  -> profile-owned provider-entry hold
   -> required/executed connection and configuration equality
   -> least-privilege credential lease for the sealed connection
   -> closed provider command
@@ -2746,6 +2826,28 @@ bounded API input
 
 The durable provider result MUST be written before observation. This ordering
 is crash-tested immediately before and after every arrow.
+
+The provider-entry hold is the profile's last decision before any credential
+exists. Common code calls it under the operation gate on every attempt to
+enter the provider, including an attempt that resumes a durable executing,
+not-applied checkpoint. The profile answers from its own durable store, never
+from the journal's copy of its state: it either holds the state that the
+sealed command consumes, withdraws the attempt (common code then concludes the
+operation not-applied without a credential or provider call), or leaves the
+attempt pending. A profile whose sealed capability needs no separate claim
+states that decision explicitly in its hook.
+
+When common code ends an operation before provider entry it persists the
+pre-entry conclusion first and invokes the profile's release afterwards; the
+release is idempotent and is repeated for terminal pre-entry records by later
+`execute` and `recover` calls, so a crash between the two leaves capacity held
+rather than returned under a live command. A journal write that replaced the
+journal file but could not synchronize its directory is reported as a distinct
+error, poisons the journal until it is reopened, and is treated as possibly
+durable: it never triggers a release. Journal record time never decreases; a
+transition requested with an earlier clock reading keeps the record's last
+time, so a backward clock step cannot discard a transition such as a durable
+provider result.
 
 Connection resolution before canonicalization performs no provider I/O and
 acquires no credential. It supplies only the sealed connection identity and
@@ -3977,7 +4079,8 @@ security states were deleted or domain semantics were weakened.
   approval boundaries.
 - `docs/target-state/STRIPE_PROFILE_FAMILY_IMPLEMENTATION_PLAN.md` — concrete
   profile-family separation used by the reference client example.
-- `public_api_chatgpt.md` — the current exact prelaunch public-surface proposal;
+- `docs/target-state/public_api_chatgpt.md` — the current exact prelaunch
+  public-surface proposal;
   implementation of this specification must update its ordinary effectful path,
   inventories, examples, and cutover units atomically rather than leaving two
   conflicting target APIs.

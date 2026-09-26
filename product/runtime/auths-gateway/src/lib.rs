@@ -12,6 +12,8 @@ mod audit;
 mod binding;
 mod bounds;
 mod engine;
+#[cfg(unix)]
+pub mod listener;
 mod observer;
 mod recipe;
 mod separation;
@@ -50,7 +52,7 @@ pub use observer::{
 pub use recipe::{
     ClosedObservationRequest, ClosedProviderRequest, CompiledRecipe, CredentialRequirement,
     GatewayRecipeError, LogicalOperationId, OperatorNamespace, RecipeEchoReview,
-    RecipePreconditionReview, RecipeReview, WriteMethod, echo_token,
+    RecipePreconditionReview, RecipeReview, WriteMethod, echo_token, idempotency_key,
 };
 pub use separation::{PrincipalSeparationError, check_principal_separation};
 pub use store::{

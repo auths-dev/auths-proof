@@ -1,6 +1,6 @@
 # AP-SPEC-047: Algorithm-Agnostic Verification Foundations
 
-**Status:** Proposed
+**Status:** Implementation merged in PR #116
 **Intended audience:** port and model maintainers, principal-adapter authors,
 signature-suite authors, and security reviewers
 **Normative language:** the terms **MUST**, **MUST NOT**, **SHOULD**, and
