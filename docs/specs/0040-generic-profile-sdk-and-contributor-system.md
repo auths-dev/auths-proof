@@ -1232,8 +1232,11 @@ The listener uses HTTP/1.1 and canonical CBOR but has semantic identity
 `auths.provider-connection-admin/1`. POSIX requires the dedicated agent UID or
 root and an owner/group policy configured for the administrator group. Windows
 requires LocalSystem, Administrators, or an explicitly configured operator
-SID. Workload application identities are denied before request decoding. The
-application `Client` and generated packages expose no administration method.
+SID. Workload application identities are denied before request decoding; on
+POSIX a peer outside the policy is closed at accept, before it counts against
+the listener's connection budget, which application connections never share
+(§13.1). The application `Client` and generated packages expose no
+administration method.
 
 The shared bounded routes are:
 
@@ -2282,7 +2285,8 @@ The complete common admission table is:
 | One header name/value | 128/8,192 bytes |
 | Request/response frame | 33,554,432 / 16,777,216 bytes |
 | Sessions | 4,096 agent-wide; 64 per observed principal |
-| IPC connections | 8,192 agent-wide; 32 per session |
+| IPC connections | 8,192 agent-wide and 2,048 per peer UID, refused at accept; 32 per session |
+| Admin socket connections | 16, separate from IPC connections |
 | In-flight requests | 4,096 agent-wide; 32 per session |
 | SDK queued calls | 256 per client in addition to 32 in flight |
 | Advertised profiles | 256 |
@@ -2302,6 +2306,23 @@ follows section 14.5 instead and preserves the original effect state. Safe
 status/recovery calls use 410 reserved agent-wide request slots; new prepare
 and execute calls may consume only the other 3,686. Effect admission pressure
 therefore cannot make recovery unreachable.
+
+The IPC connection limits are enforced at accept, before any byte is read. The
+application socket admits at most 8,192 connections agent-wide and 2,048 from
+one peer UID (64 sessions of 32 connections), and closes a connection past
+either limit. When the process's soft descriptor limit is too low for 8,192,
+the agent-wide limit is half of what that limit leaves after the admin
+socket's share, so application connections cannot take the descriptors the
+admin socket, the stores, and provider connections need; the agent refuses to
+start when that leaves fewer than 32. The admin socket admits at most 16
+connections of its own, which application connections never count against,
+closes a connection from a peer outside its admin peer policy at accept, and
+answers a client that closes its sending side once its request is written. On
+both sockets, each request's headers, and the idle gap before a later request
+on a kept-alive connection, must arrive within 10 seconds, and a request body
+that stops arriving for 10 seconds is abandoned. A failed accept is logged and
+retried after 100 milliseconds; it stops neither socket. The 32-per-session
+connection limit and the in-flight request limits are not yet enforced.
 
 ### 13.2 Session handshake
 

@@ -18,9 +18,10 @@ mod unix {
         SecretBytes, SemanticId,
     };
     use auths_gateway::app::{
-        APP_OBSERVE_SCHEMA, APP_REQUEST_SCHEMA, AppObservation, AppSubmission, app_session,
-        read_frame, write_frame,
+        APP_OBSERVE_SCHEMA, APP_REQUEST_SCHEMA, AppObservation, AppSubmission, SessionClock,
+        SessionLimits, app_session, read_frame, write_frame,
     };
+    use auths_gateway::listener::{ADMIN_CAPACITY, APP_CAPACITY, serve_listener};
     use auths_gateway::{ArgumentCeilingPolicy, AuditPins, audit_bundle};
     use auths_gateway::{
         CompiledRecipe, FileGatewayAttemptStore, GatewayAttempts, GatewayConnectionDescriptor,
@@ -55,6 +56,17 @@ mod unix {
 
     const MANIFEST_SCHEMA: &str = "auths.gateway-installation/2";
     const OBSERVER_SEED: &str = "observer.seed";
+
+    /// Admin sessions: each frame within 5 seconds, the change within 45
+    /// seconds, and the response within 5 seconds, all inside one 60-second
+    /// session deadline. A change that has not answered by then still
+    /// completes; only its connection closes.
+    const ADMIN_SESSION_LIMITS: SessionLimits = SessionLimits {
+        frame_read: Duration::from_secs(5),
+        result_wait: Duration::from_secs(45),
+        response_write: Duration::from_secs(5),
+        session: Duration::from_mins(1),
+    };
 
     #[derive(Parser)]
     #[command(
@@ -612,73 +624,91 @@ mod unix {
         print_observer(&observer, &recipe)
     }
 
-    async fn admin_session(mut stream: UnixStream, engine: Arc<GatewayEngine>) {
-        let response = match tokio::time::timeout(Duration::from_secs(5), read_frame(&mut stream))
+    /// One admin command, with the secret a rotation carries.
+    enum AdminCommand {
+        Disable,
+        Revoke,
+        Rotate(SecretBytes),
+    }
+
+    /// Reads the command frame and, for a rotation, the secret frame, each
+    /// within the admin frame deadline.
+    async fn read_admin_command(
+        clock: &SessionClock,
+        stream: &mut UnixStream,
+    ) -> Result<AdminCommand, &'static str> {
+        let bytes = clock
+            .read_frame(stream)
             .await
+            .map_err(|_| "gateway.admin.invalid-frame")?;
+        match serde_json::from_slice::<AdminRequest>(&bytes)
+            .map_err(|_| "gateway.admin.invalid-frame")?
         {
-            Ok(Ok(bytes)) => match serde_json::from_slice::<AdminRequest>(&bytes) {
-                Ok(AdminRequest::Disable) => match engine.disable_connection().await {
-                    Ok(()) => AdminResponse {
-                        ok: true,
-                        code: "gateway.admin.disabled",
-                    },
-                    Err(code) => AdminResponse { ok: false, code },
-                },
-                Ok(AdminRequest::Revoke) => match engine.revoke_connection().await {
-                    Ok(()) => AdminResponse {
-                        ok: true,
-                        code: "gateway.admin.revoked",
-                    },
-                    Err(code) => AdminResponse { ok: false, code },
-                },
-                Ok(AdminRequest::Rotate) => {
-                    let secret =
-                        tokio::time::timeout(Duration::from_secs(5), read_frame(&mut stream)).await;
-                    match secret {
-                        Ok(Ok(bytes))
-                            if bytes.len() <= 4_096
-                                && bytes.iter().all(|byte| (0x21..=0x7e).contains(byte)) =>
-                        {
-                            match SecretBytes::new(bytes) {
-                                Ok(secret) => match engine.rotate_connection(secret).await {
-                                    Ok(()) => AdminResponse {
-                                        ok: true,
-                                        code: "gateway.admin.rotated",
-                                    },
-                                    Err(code) => AdminResponse { ok: false, code },
-                                },
-                                Err(_) => AdminResponse {
-                                    ok: false,
-                                    code: "gateway.admin.invalid-credential",
-                                },
-                            }
-                        }
-                        Ok(Ok(mut bytes)) => {
-                            bytes.zeroize();
-                            AdminResponse {
-                                ok: false,
-                                code: "gateway.admin.invalid-credential",
-                            }
-                        }
-                        _ => AdminResponse {
-                            ok: false,
-                            code: "gateway.admin.invalid-credential",
-                        },
-                    }
+            AdminRequest::Disable => Ok(AdminCommand::Disable),
+            AdminRequest::Revoke => Ok(AdminCommand::Revoke),
+            AdminRequest::Rotate => {
+                let mut secret = clock
+                    .read_frame(stream)
+                    .await
+                    .map_err(|_| "gateway.admin.invalid-credential")?;
+                if secret.len() > 4_096 || !secret.iter().all(|byte| (0x21..=0x7e).contains(byte)) {
+                    secret.zeroize();
+                    return Err("gateway.admin.invalid-credential");
                 }
-                Err(_) => AdminResponse {
-                    ok: false,
-                    code: "gateway.admin.invalid-frame",
-                },
-            },
-            _ => AdminResponse {
-                ok: false,
-                code: "gateway.admin.invalid-frame",
-            },
-        };
-        if let Ok(bytes) = serde_json::to_vec(&response) {
-            let _ = write_frame(&mut stream, &bytes).await;
+                SecretBytes::new(secret)
+                    .map(AdminCommand::Rotate)
+                    .map_err(|_| "gateway.admin.invalid-credential")
+            }
         }
+    }
+
+    fn admin_response(result: Result<(), &'static str>, done: &'static str) -> AdminResponse {
+        match result {
+            Ok(()) => AdminResponse {
+                ok: true,
+                code: done,
+            },
+            Err(code) => AdminResponse { ok: false, code },
+        }
+    }
+
+    /// Serves one admin connection within [`ADMIN_SESSION_LIMITS`]. A change
+    /// the engine has started is never cancelled by a deadline.
+    async fn admin_session(mut stream: UnixStream, engine: Arc<GatewayEngine>) {
+        let clock = SessionClock::start(ADMIN_SESSION_LIMITS);
+        let command = read_admin_command(&clock, &mut stream).await;
+        let change = async {
+            match command {
+                Ok(AdminCommand::Disable) => {
+                    admin_response(engine.disable_connection().await, "gateway.admin.disabled")
+                }
+                Ok(AdminCommand::Revoke) => {
+                    admin_response(engine.revoke_connection().await, "gateway.admin.revoked")
+                }
+                Ok(AdminCommand::Rotate(secret)) => admin_response(
+                    engine.rotate_connection(secret).await,
+                    "gateway.admin.rotated",
+                ),
+                Err(code) => AdminResponse { ok: false, code },
+            }
+        };
+        if let Some((mut stream, response)) = clock.complete(stream, change).await
+            && let Ok(bytes) = serde_json::to_vec(&response)
+        {
+            let _ = clock.write_frame(&mut stream, &bytes).await;
+        }
+    }
+
+    /// Admits an admin connection only from the gateway's own effective UID
+    /// or root, before it takes an admin permit.
+    fn admin_peer_admitted(stream: &UnixStream, owner: u32) -> bool {
+        let admitted = stream
+            .peer_cred()
+            .is_ok_and(|peer| peer.uid() == owner || peer.uid() == 0);
+        if !admitted {
+            eprintln!("gateway.admin.peer-refused");
+        }
+        admitted
     }
 
     fn secure_socket_parent(path: &Path, owner_uid: u32) -> bool {
@@ -756,24 +786,39 @@ mod unix {
             "app socket ready; exact recipe {}, no provider-effect qualification",
             engine_recipe_marker(&state_dir)?
         );
-        let capacity = Arc::new(Semaphore::new(64));
-        loop {
-            tokio::select! {
-                accepted = app.accept() => {
-                    let (stream, _) = accepted.map_err(|_| "gateway.serve.app-accept-failed")?;
-                    if let Ok(permit) = Arc::clone(&capacity).try_acquire_owned() {
-                        let engine = Arc::clone(&engine);
-                        tokio::spawn(async move { let _permit = permit; app_session(stream, engine.as_ref()).await; });
-                    }
+        // Separate capacities: the application can fill its own listener but
+        // never take an admin permit.
+        let app_engine = Arc::clone(&engine);
+        let app_listener = serve_listener(
+            app,
+            Arc::new(Semaphore::new(APP_CAPACITY)),
+            "app",
+            |_: &UnixStream| true,
+            move |stream, permit| {
+                let engine = Arc::clone(&app_engine);
+                async move {
+                    let _permit = permit;
+                    app_session(stream, engine.as_ref()).await;
                 }
-                accepted = admin.accept() => {
-                    let (stream, _) = accepted.map_err(|_| "gateway.serve.admin-accept-failed")?;
-                    if let Ok(permit) = Arc::clone(&capacity).try_acquire_owned() {
-                        let engine = Arc::clone(&engine);
-                        tokio::spawn(async move { let _permit = permit; admin_session(stream, engine).await; });
-                    }
+            },
+        );
+        let owner = rustix::process::geteuid().as_raw();
+        let admin_listener = serve_listener(
+            admin,
+            Arc::new(Semaphore::new(ADMIN_CAPACITY)),
+            "admin",
+            move |stream: &UnixStream| admin_peer_admitted(stream, owner),
+            move |stream, permit| {
+                let engine = Arc::clone(&engine);
+                async move {
+                    let _permit = permit;
+                    admin_session(stream, engine).await;
                 }
-            }
+            },
+        );
+        tokio::select! {
+            never = app_listener => match never {},
+            never = admin_listener => match never {},
         }
     }
 
