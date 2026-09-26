@@ -1198,6 +1198,31 @@ pub fn observation_action_fact_fixture(
     })
 }
 
+/// A child grant whose `observation-requirement-v1` payload is over its
+/// requirement bound. The drop check and the attenuation law run before the
+/// handler for a grant after the first, so the handler's
+/// `resource-limit-exceeded` is never reached: the child addresses none of
+/// the parent's requirements, or the law refuses to add an unreadable set.
+pub(crate) fn child_limit_vectors() -> Vec<CorpusFixture> {
+    vec![
+        build(Case {
+            child: Child::With(over_limit_requirements()),
+            ..denied(
+                "observation-child-requirements-over-limit",
+                DenialReason::ObservationRequirementDropped,
+            )
+        }),
+        build(Case {
+            unconditioned_parent: true,
+            child: Child::With(over_limit_requirements()),
+            ..denied(
+                "observation-child-requirements-over-limit-unconditioned-parent",
+                DenialReason::DelegationExpanded,
+            )
+        }),
+    ]
+}
+
 /// Evidence-conditioned authority vectors, in corpus order.
 pub(crate) fn observation_corpus() -> Vec<CorpusFixture> {
     let mut vectors = verdict_vectors();

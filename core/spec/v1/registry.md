@@ -150,10 +150,21 @@ authority kernel requires:
    absent parent payload;
 3. an identifier without an accepted handler to be refused.
 
-Any failure is `delegation-expanded`. The first grant under a trust anchor
-selects its extensions freely. Work is reserved before evaluation as the sum
-of each present payload's handler bound. Each law must be a preorder that
-narrows; the assurance manifest records the proof for each registered law.
+Any failure is `delegation-expanded`, including a child payload the law
+cannot read. The first grant under a trust anchor selects its extensions
+freely. Work is reserved before evaluation as the sum of each present
+payload's handler bound. Each law must be a preorder that narrows; the
+assurance manifest records the proof for each registered law.
+
+For a grant after the first, the observation-requirement drop check runs
+first, then these laws, and only then the handlers evaluate the grant's own
+extensions (`verification-algorithm.md`, stage 5). A malformed or over-limit
+child payload therefore never reaches its handler's failure code. For
+`observation-requirement-v1` it is `observation-requirement-dropped` when the
+parent carries requirements, since the child then addresses none of them, and
+`delegation-expanded` when the parent carries none, since the law refuses to
+add an unreadable requirement set. The handler failure codes below apply to
+the first grant under a trust anchor and to actions.
 
 ### Observation requirements
 
@@ -180,7 +191,9 @@ The handler validates the canonical bytes. It returns a resource-limit
 failure above eight requirements, sixteen conditions, or sixteen membership
 values, and an invalid-input failure for any other malformed or
 non-canonical value, which the verifier reports as `local-policy-denied`,
-as for every critical-extension handler. Evaluation needs the action, the
+as for every critical-extension handler. On a grant after the first, the
+drop check and the attenuation law decide such a payload first, as
+"Attenuation laws" states. Evaluation needs the action, the
 attachments, and the trusted context that a handler never sees, so it runs
 in the verifier's observation stage.
 
@@ -209,7 +222,8 @@ semantic identifier, followed by the canonical policy bytes (1 to 4096) and an
 optional parent link. The handler checks canonical encoding, identifier
 syntax and lengths, a non-zero version, and that the policy bytes open to the
 digest. A byte bound is `resource-limit-exceeded`; any other failure is
-`local-policy-denied`.
+`local-policy-denied`. On a grant after the first, the attenuation law
+decides an unreadable payload first, as `delegation-expanded`.
 
 The kernel's law checks only the parent link. Whether a child's policy is
 tighter than its parent's is decided before eligibility by the registered

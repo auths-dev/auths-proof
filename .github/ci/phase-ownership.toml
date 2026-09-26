@@ -83,6 +83,15 @@ kind = "prefix"
 value = "core/fuzz/"
 phases = ["authoritative", "compliance", "secrets", "fuzz"]
 
+# The adversarial-conformance suite runs in the compliance phase through
+# `cargo xtask ci compliance`, and its full-verifier cases also run in the
+# authoritative phase as an auths-verifier test.
+[[rules]]
+id = "adversarial-conformance"
+kind = "prefix"
+value = "core/conformance/"
+phases = ["authoritative", "compliance", "secrets"]
+
 [[rules]]
 id = "formal"
 kind = "prefix"

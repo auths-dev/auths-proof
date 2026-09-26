@@ -1797,6 +1797,7 @@ pub(crate) fn spec_sync() -> Result<(), String> {
     if !covered.contains("authorized") {
         return Err("authorized V1 result has no committed corpus vector".to_owned());
     }
+    check_site_coverage(fixtures)?;
     let registry = fs::read_to_string(root().join("core/spec/v1/registry.md"))
         .map_err(|error| format!("could not read registry specification: {error}"))?;
     for identifier in [
@@ -1819,6 +1820,7 @@ pub(crate) fn spec_sync() -> Result<(), String> {
         "Signed fields and domains",
         "Identifier derivation",
         "Graph/reference rules",
+        "Action binding",
         "Attenuation",
         "Required composition",
         "Status",
@@ -1869,4 +1871,194 @@ pub(crate) fn spec_sync() -> Result<(), String> {
     }
     println!("specification, registry, and result-code registries are synchronized");
     Ok(())
+}
+
+/// Requires every inventoried kernel check site to be decided by at least one
+/// committed corpus vector with the site's code, and no vector to be claimed
+/// by two sites. Per-code coverage alone cannot show that a check is wired
+/// in, because several sites share one code.
+pub(crate) fn check_site_coverage(fixtures: &[Value]) -> Result<(), String> {
+    let sites = auths_testkit::check_sites::CHECK_SITES;
+    check_sites_against(sites, fixtures)?;
+    let algorithm = fs::read_to_string(root().join("core/spec/v1/verification-algorithm.md"))
+        .map_err(|error| format!("could not read verification algorithm: {error}"))?;
+    specification_names_sites(sites, &algorithm)
+}
+
+/// Check-site names the specification marks in inline code, such as
+/// `binding.permission`.
+fn specified_check_sites(text: &str) -> BTreeSet<&str> {
+    const STAGES: [&str; 4] = ["decode.", "binding.", "branch.", "composition."];
+    text.split('`')
+        .filter(|token| {
+            STAGES.iter().any(|stage| {
+                token.strip_prefix(stage).is_some_and(|check| {
+                    !check.is_empty()
+                        && !check.starts_with('-')
+                        && !check.ends_with('-')
+                        && check
+                            .bytes()
+                            .all(|byte| byte.is_ascii_lowercase() || byte == b'-')
+                })
+            })
+        })
+        .collect()
+}
+
+/// The specification's check sites and the corpus inventory must name the
+/// same set, so a check the specification adds needs a vector.
+fn specification_names_sites(
+    sites: &[auths_testkit::check_sites::CheckSite],
+    text: &str,
+) -> Result<(), String> {
+    let specified = specified_check_sites(text);
+    let inventoried: BTreeSet<&str> = sites.iter().map(|entry| entry.site).collect();
+    if specified == inventoried {
+        return Ok(());
+    }
+    let unpinned: Vec<_> = specified.difference(&inventoried).collect();
+    let unspecified: Vec<_> = inventoried.difference(&specified).collect();
+    Err(format!(
+        "check sites drifted from verification-algorithm.md; specified without a vector: \
+         {unpinned:?}; inventoried but not specified: {unspecified:?}"
+    ))
+}
+
+fn check_sites_against(
+    sites: &[auths_testkit::check_sites::CheckSite],
+    fixtures: &[Value],
+) -> Result<(), String> {
+    let committed: BTreeMap<&str, &str> = fixtures
+        .iter()
+        .filter_map(|fixture| {
+            Some((
+                fixture.get("name")?.as_str()?,
+                fixture.get("expected_code")?.as_str()?,
+            ))
+        })
+        .collect();
+    let mut site_ids = BTreeSet::new();
+    let mut claimed: BTreeMap<&str, &str> = BTreeMap::new();
+    for entry in sites {
+        if !site_ids.insert(entry.site) {
+            return Err(format!("check site {} is listed twice", entry.site));
+        }
+        if entry.vectors.is_empty() {
+            return Err(format!("check site {} has no corpus vector", entry.site));
+        }
+        for vector in entry.vectors {
+            if let Some(other) = claimed.insert(vector, entry.site) {
+                return Err(format!(
+                    "corpus vector {vector} is claimed by check sites {other} and {}",
+                    entry.site
+                ));
+            }
+            let code = committed.get(vector).ok_or_else(|| {
+                format!(
+                    "check site {} names {vector}, which has no committed corpus vector",
+                    entry.site
+                )
+            })?;
+            if *code != entry.code {
+                return Err(format!(
+                    "check site {} expects {}, but corpus vector {vector} expects {code}",
+                    entry.site, entry.code
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use auths_testkit::check_sites::CheckSite;
+
+    fn manifest_entries(entries: &[(&str, &str)]) -> Vec<Value> {
+        entries
+            .iter()
+            .map(|(name, code)| json!({ "name": name, "expected_code": code }))
+            .collect()
+    }
+
+    #[test]
+    fn a_site_without_a_committed_vector_fails() {
+        let sites = [CheckSite {
+            site: "binding.permission",
+            code: "action-body-mismatch",
+            vectors: &["action-permission-substituted"],
+        }];
+        let error = check_sites_against(&sites, &manifest_entries(&[]))
+            .expect_err("an absent vector must fail");
+        assert!(error.contains("no committed corpus vector"), "{error}");
+    }
+
+    #[test]
+    fn a_vector_with_another_code_fails() {
+        let sites = [CheckSite {
+            site: "binding.permission",
+            code: "action-body-mismatch",
+            vectors: &["action-permission-substituted"],
+        }];
+        let fixtures = manifest_entries(&[("action-permission-substituted", "authorized")]);
+        let error = check_sites_against(&sites, &fixtures).expect_err("a different code must fail");
+        assert!(error.contains("expects action-body-mismatch"), "{error}");
+    }
+
+    #[test]
+    fn one_vector_cannot_pin_two_sites() {
+        let sites = [
+            CheckSite {
+                site: "binding.profile",
+                code: "action-body-mismatch",
+                vectors: &["mismatched-profile-version"],
+            },
+            CheckSite {
+                site: "binding.media-type",
+                code: "action-body-mismatch",
+                vectors: &["mismatched-profile-version"],
+            },
+        ];
+        let fixtures = manifest_entries(&[("mismatched-profile-version", "action-body-mismatch")]);
+        let error = check_sites_against(&sites, &fixtures).expect_err("a shared vector must fail");
+        assert!(error.contains("claimed by check sites"), "{error}");
+    }
+
+    #[test]
+    fn specified_sites_are_read_from_inline_code_only() {
+        let text = "1. `binding.permission`: the permission must match, \
+                    `action-body-mismatch`. binding.media-type is prose, and \
+                    `branch.` and `branch.-x` are not names.";
+        assert_eq!(
+            specified_check_sites(text),
+            BTreeSet::from(["binding.permission"])
+        );
+    }
+
+    #[test]
+    fn a_specified_site_without_a_vector_fails() {
+        let sites = [CheckSite {
+            site: "binding.permission",
+            code: "action-body-mismatch",
+            vectors: &["action-permission-substituted"],
+        }];
+        let error =
+            specification_names_sites(&sites, "`binding.permission` then `binding.media-type`")
+                .expect_err("an unpinned specified site must fail");
+        assert!(error.contains("binding.media-type"), "{error}");
+        let error = specification_names_sites(&sites, "no sites")
+            .expect_err("an unspecified inventoried site must fail");
+        assert!(error.contains("binding.permission"), "{error}");
+    }
+
+    #[test]
+    fn the_committed_corpus_pins_every_inventoried_site() {
+        let manifest: Value = serde_json::from_slice(
+            &fs::read(root().join("core/fixtures/v1/manifest.json")).expect("corpus manifest"),
+        )
+        .expect("corpus manifest JSON");
+        let fixtures = manifest["fixtures"].as_array().expect("fixtures array");
+        check_site_coverage(fixtures).expect("every site is pinned");
+    }
 }

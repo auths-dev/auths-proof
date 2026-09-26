@@ -2947,6 +2947,49 @@ serde = "1"
     }
 
     #[test]
+    fn adversarial_conformance_changes_schedule_the_phases_that_run_it() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(Path::parent)
+            .expect("ci-plan lives at xtask/ci-plan");
+        let loaded =
+            LoadedManifest::load(&root.join(DEFAULT_MANIFEST)).expect("repository manifest");
+        let manifest_path = "core/conformance/v1/manifest.json";
+        assert!(
+            loaded
+                .manifest
+                .rules
+                .iter()
+                .any(|rule| rule.id == "adversarial-conformance" && rule.matches(manifest_path)),
+            "the adversarial-conformance manifest needs its own ownership rule"
+        );
+        // The xtask suite runs in compliance; the verifier's full-verifier
+        // test runs in authoritative. Both must follow the manifest, its
+        // recipes, and that test.
+        for path in [
+            manifest_path,
+            "core/testkit/auths-testkit/src/conformance.rs",
+            "core/crates/auths-verifier/tests/portable_conformance.rs",
+        ] {
+            let phases: BTreeSet<_> = loaded
+                .manifest
+                .rules
+                .iter()
+                .filter(|rule| rule.matches(path))
+                .flat_map(|rule| rule.phases.iter().map(String::as_str))
+                .collect();
+            assert!(
+                phases.contains("compliance"),
+                "{path} must schedule compliance"
+            );
+            assert!(
+                phases.contains("authoritative"),
+                "{path} must schedule authoritative"
+            );
+        }
+    }
+
+    #[test]
     fn representative_path_rules_preserve_expected_isolation() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()

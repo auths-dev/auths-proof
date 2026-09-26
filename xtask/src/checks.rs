@@ -597,6 +597,7 @@ pub(crate) fn abi() -> Result<(), String> {
     spec_sync()?;
     wire(false)?;
     target_conformance()?;
+    adversarial_conformance(Vec::new())?;
     cross_language_corpus()
 }
 
