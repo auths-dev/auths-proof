@@ -14,7 +14,7 @@ for this PR's engineering handoff, without treating them as green.
 | --- | --- |
 | Python exports | `bindings/python/api/public-api.txt:64-103` separates attempt storage, execution, and exact command projection; `:185-199` exposes the development conformance kit under `auths.testkit`, not a production gateway. No application-owned provider request or credential is represented as a qualified receipt. |
 | TypeScript exports | `bindings/typescript/api/public-api.txt:52-92` exposes the corresponding self-hosted contracts and runner; `:153-161` keeps synthetic conformance in `./testkit`. There is no generic arbitrary HTTP executor in this surface. |
-| Installed command | `bindings/python/pyproject.toml:27-28` and `bindings/typescript/package.json:6-8` both install `auths-profile`; neither shadows the Rust `auths` command. |
+| Installed command | `bindings/python/pyproject.toml:27-28` and `bindings/typescript/package.json:6-8` both install `auths`; the Rust deployment CLI is the separately named `auths-node` binary, and `cargo xtask public-naming` refuses any second executable named `auths`. |
 | SDK metadata | `bindings/python/sdk-capability.json:25-26` and `bindings/typescript/sdk-capability.json:26-27` explicitly describe application-owned credentials and unqualified effects. Publication and promotion remain blocked in those metadata files. |
 | User-facing boundary | `bindings/python/README.md:77-82`, `bindings/typescript/README.md:52-57`, and `docs/product/SELF_HOSTED_CLAIM_LEDGER.md:12-23` say that app-held tokens can bypass the voluntarily called runner. `bindings/python/python/auths/execution.py:1-5` attributes provider outcomes and observations to the application. |
 

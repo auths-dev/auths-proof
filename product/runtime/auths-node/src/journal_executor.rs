@@ -6739,7 +6739,7 @@ uid = 10001
     }
 
     // Administration below goes through the privileged router, exactly as
-    // `auths connections ...` does, against a PostgreSQL connection whose
+    // `auths-node connections ...` does, against a PostgreSQL connection whose
     // onboarding validation needs no network.
 
     const POSTGRESQL: &str = "postgresql/database-primary";

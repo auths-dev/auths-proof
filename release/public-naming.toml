@@ -232,6 +232,24 @@ state = "continue-with-temporary-aliases"
 compatibility = "Do not rename deployments under this issue. Inventory the preview aliases and stop presenting them as the canonical product URL."
 owner_pr = "AP34-PR3"
 
+[[surfaces]]
+id = "packaged-cli"
+kind = "executable"
+current = "auths"
+target = "auths"
+state = "sole-auths-executable"
+compatibility = "The one command installed by both pypi:auths and npm:@auths-dev/sdk (auths approve, init, derive, and the profile commands). No other shipped executable may be named auths, and the retired command name is forbidden in the tree; cargo xtask public-naming enforces both."
+owner_pr = "CLI-NAMED-AUTHS"
+
+[[surfaces]]
+id = "deployment-cli"
+kind = "executable"
+current = "auths-node"
+target = "auths-node"
+state = "renamed-to-free-auths"
+compatibility = "The privileged deployment and local-agent binary of the unpublished auths-node package, renamed from auths so the packaged CLI owns that name. Prelaunch clean cutover; no alias."
+owner_pr = "CLI-NAMED-AUTHS"
+
 [[release_order]]
 tier = 0
 packages = ["auths-algebra-kernel", "auths-bounded-policy", "auths-byte-channel", "auths-errors", "auths-identity", "auths-model", "auths-multikey", "auths-proof-exchange-model", "auths-signature-core"]
@@ -805,3 +823,18 @@ reason = "The v1.0 API audit quotes release/public-naming.toml's own replace map
 path = "docs/target-state/v1-api-review-findings.md"
 token = "auths-proof-platform/v1"
 reason = "Quoted from release/public-naming.toml's platform-artifact-schema replace mapping in the same audit finding; named only as the superseded coordinate."
+
+[[stale_name_allowances]]
+path = "docs/program-log/2026-09-21-overnight.md"
+token = "command:auths-profile"
+reason = "A dated program log records the console-script name as it was on 2026-09-21; the packaged CLI has since been renamed auths."
+
+[[stale_name_allowances]]
+path = "docs/specs/0057-evidence-program-for-the-exact-action-boundary.md"
+token = "command:auths-profile"
+reason = "The freeze-blocker history names the commit that introduced the retired command name and records its rename back to auths."
+
+[[stale_name_allowances]]
+path = "release/public-naming.toml"
+token = "command:auths-profile"
+reason = "The authoritative exception inventory must name the retired command it forbids."

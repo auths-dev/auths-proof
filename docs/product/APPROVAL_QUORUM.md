@@ -157,7 +157,7 @@ proof = collect_approvals(proposal, responses).assemble()
 
 TypeScript has the same operations (`proposeMcpApproval`, `approvalRequests`,
 `openApprovalRequest`, `approve`, `decline`, `collectApprovals`). Both
-packaged CLIs ship `auths-profile approve <request> --signer <config>`, which
+packaged CLIs ship `auths approve <request> --signer <config>`, which
 prints only the returned review and signs only on an explicit yes.
 
 - A request carries no text: the review comes only from the registered

@@ -4,7 +4,7 @@ use crate::*;
 
 const INVENTORY_PATH: &str = "release/public-naming.toml";
 const INVENTORY_SCHEMA: &str = "auths.public-naming/v1";
-const FORBIDDEN_STALE_NAMES: [&str; 11] = [
+const FORBIDDEN_STALE_NAMES: [&str; 12] = [
     concat!("auths-proof", "-sdk"),
     concat!("@auths-dev", "/proof"),
     concat!("pypi:", "auths-proof"),
@@ -16,7 +16,13 @@ const FORBIDDEN_STALE_NAMES: [&str; 11] = [
     concat!("auths-proof", "-platform/v1"),
     "heading:Auths Proof product",
     "install:legacy-public-coordinate",
+    RETIRED_CLI_TOKEN,
 ];
+const PACKAGED_CLI: &str = "auths";
+const DEPLOYMENT_CLI: &str = "auths-node";
+const PYTHON_CLI_ENTRY: &str = "auths._profile_cli:main";
+const NPM_CLI_ENTRY: &str = "./tools/profile-cli.mjs";
+const RETIRED_CLI_TOKEN: &str = concat!("command:auths-", "profile");
 const PREDECESSOR_CRATES: [&str; 33] = [
     "auths",
     "auths-anchor",
@@ -159,6 +165,7 @@ pub(crate) fn public_naming() -> Result<(), String> {
     validate_predecessors(&inventory)?;
     validate_release_order(&inventory.release_order)?;
     validate_current_coordinates()?;
+    validate_executables()?;
     validate_stale_names(&inventory.stale_name_allowances)?;
     println!(
         "public naming passed ({} surfaces, {} predecessor crates, {} publication tiers)",
@@ -262,6 +269,8 @@ fn validate_surfaces(surfaces: &[NamingSurface]) -> Result<(), String> {
             "deployment-names",
             "auths-* applications with auths.dev/docs.auths.dev as user-facing product links",
         ),
+        ("packaged-cli", PACKAGED_CLI),
+        ("deployment-cli", DEPLOYMENT_CLI),
     ]);
     let mut actual = BTreeMap::new();
     for surface in surfaces {
@@ -602,10 +611,194 @@ fn stale_name_occurs(bytes: &[u8], token: &str) -> bool {
                     .any(|window| window == command.as_bytes())
             })
         }
+        RETIRED_CLI_TOKEN => {
+            // The retired command name, but not crate names that extend it
+            // such as `auths-profile-kit`.
+            let name = concat!("auths-", "profile").as_bytes();
+            bytes
+                .windows(name.len())
+                .enumerate()
+                .any(|(start, window)| {
+                    window == name
+                        && bytes.get(start + name.len()).is_none_or(|next| {
+                            !(next.is_ascii_alphanumeric() || matches!(next, b'-' | b'_'))
+                        })
+                })
+        }
         _ => bytes
             .windows(token.len())
             .any(|window| window == token.as_bytes()),
     }
+}
+
+/// One shipped executable named `auths`, and it is the packaged SDK CLI.
+///
+/// Each entry is `(source, executable name, entry point)`. The Python and npm
+/// packages must each install exactly one command, `auths`, pointing at the
+/// profile CLI; every Rust binary target must have another name; and the
+/// deployment binary must be `auths-node`.
+fn validate_executable_roster(entries: &[(String, String, String)]) -> Result<(), String> {
+    let mut packaged = BTreeMap::new();
+    let mut deployment = 0_usize;
+    for (source, name, entry) in entries {
+        match source.as_str() {
+            "pypi:auths" | "npm:@auths-dev/sdk" => {
+                let expected = if source == "pypi:auths" {
+                    PYTHON_CLI_ENTRY
+                } else {
+                    NPM_CLI_ENTRY
+                };
+                if name != PACKAGED_CLI || entry != expected {
+                    return Err(format!(
+                        "{source} installs {name:?} -> {entry:?}; it must install only \
+                         {PACKAGED_CLI:?} -> {expected:?}"
+                    ));
+                }
+                *packaged.entry(source.as_str()).or_insert(0_usize) += 1;
+            }
+            _ if name == PACKAGED_CLI => {
+                return Err(format!(
+                    "{source} ships an executable named {PACKAGED_CLI:?}; that name belongs \
+                     only to the packaged SDK CLI"
+                ));
+            }
+            _ => {
+                if name == DEPLOYMENT_CLI && source == "cargo:auths-node" {
+                    deployment += 1;
+                }
+            }
+        }
+    }
+    for source in ["pypi:auths", "npm:@auths-dev/sdk"] {
+        if packaged.get(source) != Some(&1) {
+            return Err(format!(
+                "{source} must install exactly one {PACKAGED_CLI:?} command"
+            ));
+        }
+    }
+    if deployment != 1 {
+        return Err(format!(
+            "auths-node must build exactly one {DEPLOYMENT_CLI:?} binary"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_executables() -> Result<(), String> {
+    let mut entries = Vec::new();
+
+    let python_path = root().join("bindings/python/pyproject.toml");
+    let python: toml::Value = toml::from_str(
+        &fs::read_to_string(&python_path)
+            .map_err(|error| format!("could not read {}: {error}", python_path.display()))?,
+    )
+    .map_err(|error| format!("invalid {}: {error}", python_path.display()))?;
+    let scripts = python
+        .get("project")
+        .and_then(|project| project.get("scripts"))
+        .and_then(toml::Value::as_table)
+        .ok_or("Python package declares no console scripts")?;
+    for (name, entry) in scripts {
+        entries.push((
+            "pypi:auths".to_owned(),
+            name.clone(),
+            entry.as_str().unwrap_or_default().to_owned(),
+        ));
+    }
+
+    let typescript_path = root().join("bindings/typescript/package.json");
+    let typescript: Value = serde_json::from_slice(
+        &fs::read(&typescript_path)
+            .map_err(|error| format!("could not read {}: {error}", typescript_path.display()))?,
+    )
+    .map_err(|error| format!("invalid {}: {error}", typescript_path.display()))?;
+    let bins = typescript["bin"]
+        .as_object()
+        .ok_or("TypeScript package declares no bin map")?;
+    for (name, entry) in bins {
+        entries.push((
+            "npm:@auths-dev/sdk".to_owned(),
+            name.clone(),
+            entry.as_str().unwrap_or_default().to_owned(),
+        ));
+    }
+
+    let output = Command::new("cargo")
+        .args(["metadata", "--format-version", "1", "--no-deps", "--locked"])
+        .current_dir(root())
+        .output()
+        .map_err(|error| format!("could not inspect workspace binaries: {error}"))?;
+    if !output.status.success() {
+        return Err("cargo metadata failed while checking executable names".to_owned());
+    }
+    let metadata: Value = serde_json::from_slice(&output.stdout)
+        .map_err(|error| format!("invalid cargo metadata: {error}"))?;
+    for package in metadata["packages"]
+        .as_array()
+        .ok_or("cargo metadata has no packages")?
+    {
+        let package_name = package["name"].as_str().unwrap_or_default();
+        for target in package["targets"].as_array().into_iter().flatten() {
+            let is_bin = target["kind"]
+                .as_array()
+                .is_some_and(|kinds| kinds.iter().any(|kind| kind == "bin"));
+            if is_bin {
+                entries.push((
+                    format!("cargo:{package_name}"),
+                    target["name"].as_str().unwrap_or_default().to_owned(),
+                    target["src_path"].as_str().unwrap_or_default().to_owned(),
+                ));
+            }
+        }
+    }
+
+    for manifest in ["pyproject.toml", "package.json"] {
+        let listed = Command::new("git")
+            .args(["ls-files", "-z", "--", &format!("*{manifest}")])
+            .current_dir(root())
+            .output()
+            .map_err(|error| format!("could not list {manifest} files: {error}"))?;
+        for bytes in listed
+            .stdout
+            .split(|byte| *byte == 0)
+            .filter(|path| !path.is_empty())
+        {
+            let path = String::from_utf8_lossy(bytes).into_owned();
+            if !path.ends_with(manifest)
+                || path == "bindings/python/pyproject.toml"
+                || path == "bindings/typescript/package.json"
+            {
+                continue;
+            }
+            let text = fs::read_to_string(root().join(&path)).unwrap_or_default();
+            let names = if manifest == "package.json" {
+                serde_json::from_str::<Value>(&text)
+                    .ok()
+                    .and_then(|value| {
+                        value["bin"]
+                            .as_object()
+                            .map(|bin| bin.keys().cloned().collect::<Vec<_>>())
+                    })
+                    .unwrap_or_default()
+            } else {
+                toml::from_str::<toml::Value>(&text)
+                    .ok()
+                    .and_then(|value| {
+                        value
+                            .get("project")
+                            .and_then(|project| project.get("scripts"))
+                            .and_then(toml::Value::as_table)
+                            .map(|scripts| scripts.keys().cloned().collect::<Vec<_>>())
+                    })
+                    .unwrap_or_default()
+            };
+            for name in names {
+                entries.push((path.clone(), name, String::new()));
+            }
+        }
+    }
+
+    validate_executable_roster(&entries)
 }
 
 fn validate_current_coordinates() -> Result<(), String> {
@@ -701,12 +894,98 @@ mod tests {
                 "install:legacy-public-coordinate" => {
                     concat!("cargo add ", "auths-proof").as_bytes().to_vec()
                 }
+                RETIRED_CLI_TOKEN => concat!("auths-", "profile approve").as_bytes().to_vec(),
                 _ => token.as_bytes().to_vec(),
             };
             let contents = BTreeMap::from([("README.md".to_owned(), bytes)]);
             let error = validate_stale_contents(&contents, &[]).expect_err("stale name must fail");
             assert!(error.contains("forbidden stale public name"));
         }
+    }
+
+    fn roster(extra: &[(&str, &str, &str)]) -> Vec<(String, String, String)> {
+        [
+            ("pypi:auths", PACKAGED_CLI, PYTHON_CLI_ENTRY),
+            ("npm:@auths-dev/sdk", PACKAGED_CLI, NPM_CLI_ENTRY),
+            (
+                "cargo:auths-node",
+                DEPLOYMENT_CLI,
+                "src/bin/auths-production.rs",
+            ),
+            (
+                "cargo:auths-gateway",
+                "auths-gateway",
+                "src/bin/auths-gateway.rs",
+            ),
+        ]
+        .iter()
+        .chain(extra)
+        .map(|(source, name, entry)| {
+            (
+                (*source).to_owned(),
+                (*name).to_owned(),
+                (*entry).to_owned(),
+            )
+        })
+        .collect()
+    }
+
+    #[test]
+    fn packaged_cli_is_the_only_auths_executable() {
+        validate_executable_roster(&roster(&[])).expect("current roster passes");
+    }
+
+    #[test]
+    fn a_second_auths_executable_fails() {
+        for source in [
+            "cargo:auths-node",
+            "cargo:auths-gateway",
+            "demos/x/package.json",
+        ] {
+            let error = validate_executable_roster(&roster(&[(source, "auths", "main.rs")]))
+                .expect_err("second auths executable must fail");
+            assert!(
+                error.contains("belongs only to the packaged SDK CLI"),
+                "{error}"
+            );
+        }
+    }
+
+    #[test]
+    fn packaged_cli_alias_or_rename_fails() {
+        let alias = concat!("auths-", "profile");
+        assert!(
+            validate_executable_roster(&roster(&[("pypi:auths", alias, PYTHON_CLI_ENTRY)]))
+                .is_err()
+        );
+        let renamed = roster(&[])
+            .into_iter()
+            .map(|(source, name, entry)| {
+                if source == "npm:@auths-dev/sdk" {
+                    (source, alias.to_owned(), entry)
+                } else {
+                    (source, name, entry)
+                }
+            })
+            .collect::<Vec<_>>();
+        assert!(validate_executable_roster(&renamed).is_err());
+        let without_node = roster(&[])
+            .into_iter()
+            .filter(|(source, _, _)| source != "cargo:auths-node")
+            .collect::<Vec<_>>();
+        assert!(validate_executable_roster(&without_node).is_err());
+    }
+
+    #[test]
+    fn retired_cli_name_matches_only_the_command() {
+        let command = concat!("run `auths-", "profile approve`");
+        assert!(stale_name_occurs(command.as_bytes(), RETIRED_CLI_TOKEN));
+        assert!(stale_name_occurs(
+            concat!("auths-", "profile").as_bytes(),
+            RETIRED_CLI_TOKEN
+        ));
+        let crate_name = concat!("auths-", "profile-kit and auths_", "profile");
+        assert!(!stale_name_occurs(crate_name.as_bytes(), RETIRED_CLI_TOKEN));
     }
 
     #[test]

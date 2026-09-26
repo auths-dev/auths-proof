@@ -4078,7 +4078,7 @@ fn run_installed_rust_consumer(archive_path: &Path, temporary: &Path) -> Result<
     let mut archive = tar::Archive::new(decoder);
     let output = temporary.join("auths-installed");
     let expected = [
-        "auths-production-agent/target/release/auths",
+        "auths-production-agent/target/release/auths-node",
         "auths-production-agent/target/release/stripe-refund-evidence-reader",
     ];
     let mut seen = Vec::new();
@@ -4093,7 +4093,7 @@ fn run_installed_rust_consumer(archive_path: &Path, temporary: &Path) -> Result<
             return Err("production agent archive has an unsafe or extra member".into());
         }
         seen.push(path.clone());
-        if path.ends_with("/auths") {
+        if path.ends_with("/auths-node") {
             let mut bytes = Vec::new();
             entry
                 .take(536_870_913)

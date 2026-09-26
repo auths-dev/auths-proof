@@ -9,7 +9,7 @@ journaling, recovery envelopes, and portable linked receipts.
 
 ## Choose the contribution type
 
-- **New account:** run `auths connections add`; no code or regeneration.
+- **New account:** run `auths-node connections add`; no code or regeneration.
 - **New operation for an existing domain:** run `cargo xtask profile new` with
   `--existing-domain`.
 - **New provider kind:** scaffold a connected domain. This adds one closed,
@@ -31,7 +31,7 @@ cargo xtask profile new \
 The command validates identifiers before writing, refuses collisions and path
 escapes, registers the Rust package, emits both generated SDK distributions,
 and leaves every security-sensitive function fail closed with an explicit
-`TODO(auths-profile)`. It also creates bounded valid, malformed, maximum, and
+`TODO(auths)`. It also creates bounded valid, malformed, maximum, and
 maximum-plus-one fixture slots and the qualification evidence skeleton.
 
 For an operation in an existing domain:

@@ -162,7 +162,7 @@ jobs:
       - run: npm install --no-audit --no-fund
         working-directory: examples/stripe-refund-approval/typescript
       # generated.ts must be the packaged generator's output for the shared profile.
-      - run: ./node_modules/.bin/auths-profile check ../profile.toml
+      - run: ./node_modules/.bin/auths check ../profile.toml
         working-directory: examples/stripe-refund-approval/typescript
       - run: npm run build
         working-directory: examples/stripe-refund-approval/typescript

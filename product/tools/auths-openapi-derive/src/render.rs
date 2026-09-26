@@ -82,7 +82,7 @@ fn field_toml(name: &str, schema: &ArgSchema) -> String {
 
 fn profile_toml(request: &Request, mapping: &Mapping, fields: &[(String, ArgSchema)]) -> String {
     let header = format!(
-        "# Derived by auths-profile derive; derivation.json records the source and overrides.\n[profile]\nname = \"{}\"\nversion = {}\nservice = \"{}\"\ntool = \"{}\"\n\n[arguments]\ntype = \"object\"\n",
+        "# Derived by auths derive; derivation.json records the source and overrides.\n[profile]\nname = \"{}\"\nversion = {}\nservice = \"{}\"\ntool = \"{}\"\n\n[arguments]\ntype = \"object\"\n",
         request.name, request.version, request.service, mapping.tool
     );
     fields.iter().fold(header, |out, (name, schema)| {
@@ -340,7 +340,7 @@ fn report(request: &Request, mapping: &Mapping, source: &Source<'_>) -> Vec<Stri
     }
     lines.extend([
         "  wrote:      profile.toml recipe.json derivation.json".to_owned(),
-        "  next:       auths-profile generate profile.toml && auths gateway recipe check --recipe recipe.json --profile-lock profile.lock.json".to_owned(),
+        "  next:       auths generate profile.toml && auths-node gateway recipe check --recipe recipe.json --profile-lock profile.lock.json".to_owned(),
         "  claim:      derived shape only; provider effect unqualified".to_owned(),
     ]);
     lines

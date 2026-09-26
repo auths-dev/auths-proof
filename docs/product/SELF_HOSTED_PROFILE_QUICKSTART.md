@@ -19,7 +19,7 @@ or an Auths-qualified provider integration.
 Install the Python wheel and initialize a profile in your application repo:
 
 ```sh
-auths-profile init --language python --name create-task --directory src/create_task
+auths init --language python --name create-task --directory src/create_task
 ```
 
 Edit `src/create_task/profile.toml`. The closed `[arguments]` schema supports
@@ -31,9 +31,9 @@ its order changes the schema digest. It does not accept arbitrary
 JSON or caller-supplied provider URLs. Then run:
 
 ```sh
-auths-profile diff src/create_task/profile.toml
-auths-profile generate src/create_task/profile.toml
-auths-profile check src/create_task/profile.toml
+auths diff src/create_task/profile.toml
+auths generate src/create_task/profile.toml
+auths check src/create_task/profile.toml
 ```
 
 `generated.py` is the typed command and `CONTRACT`; `adapter.py` is an
@@ -45,7 +45,7 @@ or identity change requires a version bump. Implement the adapter port, then wir
 provider to it in `conformance.py`. Its `run()` function can be invoked with:
 
 ```sh
-auths-profile test src/create_task/profile.toml --suite create_task.conformance:run
+auths test src/create_task/profile.toml --suite create_task.conformance:run
 ```
 
 The suite checks local ordering, denial, replay, uncertain effects, and
@@ -75,10 +75,10 @@ entry is `unknown`: observe or reconcile read-only, never blindly retry.
 With `@auths-dev/sdk` installed in a Node/TypeScript application:
 
 ```sh
-auths-profile init --language typescript --name create-task --directory src/create-task
-auths-profile diff src/create-task/profile.toml
-auths-profile generate src/create-task/profile.toml
-auths-profile check src/create-task/profile.toml
+auths init --language typescript --name create-task --directory src/create-task
+auths diff src/create-task/profile.toml
+auths generate src/create-task/profile.toml
+auths check src/create-task/profile.toml
 ```
 
 The generated `generated.ts` exports a `CommandOf` type and exact `CONTRACT`.
@@ -90,7 +90,7 @@ token stays in your adapter and is not read by Auths verification. Wire a
 synthetic provider in `conformance.ts`, compile it, then run:
 
 ```sh
-auths-profile test src/create-task/profile.toml --suite dist/create-task/conformance.js
+auths test src/create-task/profile.toml --suite dist/create-task/conformance.js
 ```
 
 The TypeScript kit takes explicit local proof/action/context artifacts; the
@@ -124,7 +124,7 @@ Every profile command accepts `--json` for a bounded
 | `profile.contract.derived-edited` | A file written by `derive` no longer matches `derivation.json`; re-derive, or delete `derivation.json` to own the files by hand. |
 | `contract.derive.*` | `derive` rejected the document or a flag; the message names the JSON pointer and the flag that resolves it, if one exists. |
 
-`auths-profile doctor --production` checks the signer identifier and bounded,
+`auths doctor --production` checks the signer identifier and bounded,
 distinct local authority files. Python parses the grant and trusted-context
 bytes; TypeScript checks file presence and bounds but does not parse their
 bytes. Neither can infer trust provenance, signer connectivity, provider-token
@@ -133,17 +133,17 @@ testkit authority.
 
 ## Deriving a gateway operation from OpenAPI
 
-For the credential-isolated gateway path, `auths-profile derive` can write the
+For the credential-isolated gateway path, `auths derive` can write the
 contract and its request recipe from one operation in a local OpenAPI 3.0 or
 3.1 JSON document. It reads no network and no credential:
 
 ```text
-auths-profile derive --openapi ./vendor/api.json --operation create_task \
+auths derive --openapi ./vendor/api.json --operation create_task \
   --service todoist-gateway-demo --name todoist-task-create \
   --operator-namespace todoist-demo --security-scheme bearer --closed . \
   --max-bytes content=256 --omit description --directory ./todoist
-auths-profile generate ./todoist/profile.toml
-auths gateway recipe check --recipe ./todoist/recipe.json --profile-lock ./todoist/profile.lock.json
+auths generate ./todoist/profile.toml
+auths-node gateway recipe check --recipe ./todoist/recipe.json --profile-lock ./todoist/profile.lock.json
 ```
 
 It writes `profile.toml`, `recipe.json`, and `derivation.json`, the last of

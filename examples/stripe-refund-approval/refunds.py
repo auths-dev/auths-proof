@@ -6,13 +6,13 @@ Commands, in the order the README runs them:
     python refunds.py setup   --state DIR --gateway auths-gateway
     python refunds.py request --state DIR --operation-id ID --payment-intent PI \\
                               --amount CENTS --approvers a,b --out REQUESTS
-    auths-profile approve REQUESTS/manager-a.request \\
+    auths approve REQUESTS/manager-a.request \\
                               --signer DIR/signers/manager-a.json --out REQUESTS/manager-a.response
     python refunds.py submit  --state DIR --socket SOCK --operation-id ID --responses REQUESTS
     python refunds.py export  --state DIR --out audit-bundle.json
 
 The agent writes one approval request per manager; each manager answers with
-``auths-profile approve`` on their own machine, and the agent collects the
+``auths approve`` on their own machine, and the agent collects the
 response files. Everything here uses development keys stored under
 ``DIR/keys`` so one person can play every role; they are development custody.
 In production the root and each manager sign through their own custody
@@ -191,7 +191,7 @@ def setup(args: argparse.Namespace) -> None:
     )
     for name in ROLES:
         _private_write(state / "keys" / f"{name}.seed", os.urandom(32))
-    # What each manager passes to `auths-profile approve --signer`.
+    # What each manager passes to `auths approve --signer`.
     for name in MANAGERS:
         signer = {
             "schema": "auths.approval-signer/1",

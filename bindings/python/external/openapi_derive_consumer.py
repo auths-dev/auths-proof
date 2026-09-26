@@ -1,6 +1,6 @@
 """Installed-wheel, source-free derive consumer contract.
 
-Runs the packaged ``auths-profile`` command against the committed derivation
+Runs the packaged ``auths`` command against the committed derivation
 corpus: derive one operation, generate its profile, check it, and prove a hand
 edit is caught. The expected bytes, including the gateway recipe digest the
 Rust compiler recorded for the same recipe, come from the corpus directory
@@ -31,9 +31,9 @@ def run(command: list[str], *, expect: int = 0) -> subprocess.CompletedProcess[s
 
 def main() -> None:
     corpus = Path(sys.argv[1]).resolve()
-    tool = shutil.which("auths-profile")
+    tool = shutil.which("auths")
     if tool is None:
-        raise SystemExit("the installed wheel did not provide auths-profile")
+        raise SystemExit("the installed wheel did not provide auths")
     case = next(
         entry for entry in json.loads((corpus / "cases.json").read_text(encoding="utf-8"))["cases"]
         if entry["id"] == CASE

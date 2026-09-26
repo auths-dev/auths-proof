@@ -71,8 +71,8 @@ by `init`, `compile`, or `check`.
 Current bounded terminal flow (paths and account labels are operator values):
 
 ```text
-$ auths-profile generate profile.toml
-$ auths gateway recipe check --recipe recipe.json --profile-lock profile.lock.json \
+$ auths generate profile.toml
+$ auths-node gateway recipe check --recipe recipe.json --profile-lock profile.lock.json \
     --credential-header <operator-selected-header>
   # Review the exact JSON mapping and immutable digest; no token is loaded.
 
