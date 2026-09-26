@@ -273,7 +273,7 @@ where
                 ));
             }
             Err(error) => {
-                eprintln!("auths agent: {label} socket accept failed: {error}");
+                eprintln!("auths-node agent: {label} socket accept failed: {error}");
                 tokio::time::sleep(ACCEPT_BACKOFF).await;
             }
         }

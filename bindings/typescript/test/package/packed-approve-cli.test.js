@@ -39,6 +39,12 @@ before(async () => {
   testkit = await import(pathToFileURL(join(root, "dist", "testkit", "index.js")).href);
 });
 
+test("packed CLI: the installed auths command runs approve --help", { skip: process.platform === "win32" ? "npm installs a .cmd shim on Windows" : false }, () => {
+  const run = spawnSync(join(directory, "node_modules", ".bin", "auths"), ["approve", "--help"], { encoding: "utf8" });
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stdout, /^usage: auths approve <request-file-or-text> --signer <custody-config>/u);
+});
+
 async function principal(name) {
   return (await testkit.developmentEd25519Key(new Uint8Array(32).fill(seeds[name]))).principal;
 }

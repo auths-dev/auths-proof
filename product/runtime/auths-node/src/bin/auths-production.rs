@@ -9,15 +9,15 @@
 // qualification agent reuses the CLI module without compiling this wrapper.
 const _: () = assert!(
     !auths_connections::__QUALIFICATION_BROKER_ENABLED,
-    "production auths cannot enable qualification-broker",
+    "production auths-node cannot enable qualification-broker",
 );
 const _: () = assert!(
     !auths_stores::__QUALIFICATION_EVIDENCE_ENABLED,
-    "production auths cannot enable qualification-evidence",
+    "production auths-node cannot enable qualification-evidence",
 );
 const _: () = assert!(
     !auths_stripe::__TESTKIT_AGENT_ENABLED,
-    "production auths cannot enable testkit-agent",
+    "production auths-node cannot enable testkit-agent",
 );
 
 #[path = "auths.rs"]

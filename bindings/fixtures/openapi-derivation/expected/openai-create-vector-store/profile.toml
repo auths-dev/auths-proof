@@ -1,4 +1,4 @@
-# Derived by auths-profile derive; derivation.json records the source and overrides.
+# Derived by auths derive; derivation.json records the source and overrides.
 [profile]
 name = "openai-vector-store-create"
 version = 1

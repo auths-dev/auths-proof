@@ -60,7 +60,11 @@ const MAX_DESCRIPTOR_BYTES: usize = 65_536;
 const MAX_SECRET_BYTES: usize = 65_536;
 
 #[derive(Parser)]
-#[command(name = "auths", version, about = "Auths deployment administration")]
+#[command(
+    name = "auths-node",
+    version,
+    about = "Auths deployment administration"
+)]
 struct Cli {
     /// Absolute path to the privileged local administration socket.
     #[arg(long, global = true)]
@@ -358,7 +362,7 @@ pub(crate) async fn main() -> ExitCode {
     match run(Cli::parse()).await {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            eprintln!("auths: {error}");
+            eprintln!("auths-node: {error}");
             ExitCode::from(1)
         }
     }

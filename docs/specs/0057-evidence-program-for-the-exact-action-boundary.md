@@ -110,7 +110,8 @@ Closes review §D, the red state of PR #123, and the commit-title audit.
    pending generated-artifact update, then each remaining failing check by
    its log. Record the root cause of each in the PR description.
 4. Complete the freeze blockers already identified: the `auths` console
-   script collision (landed as `auths-profile` in `ea54a9d`; confirm the
+   script collision (landed as `auths-profile` in `ea54a9d`, renamed back to `auths` on
+   2026-09-26 once the deployment binary became `auths-node`; confirm the
    npm `bin` and every document use the new name); TypeScript
    `doctor --production` parity or honest wording (landed in `ea54a9d`;
    confirm); the field-lab SDK pin advanced to the freeze commit with both

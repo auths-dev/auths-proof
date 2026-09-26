@@ -241,7 +241,7 @@ async function main(): Promise<void> {
     };
 
     // README steps 6 and 7: the agent writes a request per manager, each
-    // manager answers with `auths-profile approve`, the gateway submits; then
+    // manager answers with `auths approve`, the gateway submits; then
     // a decline, a tampered request, and the three refusals.
     await journey.step("refund 1: 15.00, agent + manager-a + manager-b (remote approvals)",
       () => submit("refund-1", 1_500, "manager-a,manager-b"));

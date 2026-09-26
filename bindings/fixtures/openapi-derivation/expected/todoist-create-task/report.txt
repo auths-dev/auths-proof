@@ -6,5 +6,5 @@
   omitted:    description (--omit) project_id (--omit) section_id (--omit) parent_id (--omit) order (--omit) labels (--omit) priority (--omit) assignee_id (--omit) due_string (--omit) due_date (--omit) due_datetime (--omit) due_lang (--omit) duration (--omit) duration_unit (--omit) deadline_date (--omit)
   overrides:  --max-bytes content=256 --omit assignee_id --omit deadline_date --omit description --omit due_date --omit due_datetime --omit due_lang --omit due_string --omit duration --omit duration_unit --omit labels --omit order --omit parent_id --omit priority --omit project_id --omit section_id --closed . --security-scheme bearer --tool create_task
   wrote:      profile.toml recipe.json derivation.json
-  next:       auths-profile generate profile.toml && auths gateway recipe check --recipe recipe.json --profile-lock profile.lock.json
+  next:       auths generate profile.toml && auths-node gateway recipe check --recipe recipe.json --profile-lock profile.lock.json
   claim:      derived shape only; provider effect unqualified

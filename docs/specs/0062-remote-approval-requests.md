@@ -148,10 +148,10 @@ Signatures are checked by the verifier when the proof is used, not by `collect`.
 ## 4. SDK and CLI surfaces
 
 - **Python and TypeScript.** Each operation in §3 gets a thin typed projection: `approval_requests(proposal)`, `open_approval_request(data)`, `approve`, `decline`, and `collect_approvals`. The requester builds the proposal with `propose_mcp_approval` (`proposeMcpApproval`), whose approvers are principals with an optional terminal grant, since the requester holds no approver's signer. Requests and responses are accepted as bytes or the printable form. Refusals surface as `ApprovalRefused` carrying the stable code. The SDKs hold no validation logic, text templates, or constants. Public-API inventories and the WASM and native ABI manifests are updated in the same change.
-- **CLI.** The packaged Python and npm CLIs (`auths-profile`) gain:
+- **CLI.** The packaged Python and npm CLIs, both installed as `auths`, gain:
 
   ```text
-  auths-profile approve <request-file-or-text> --signer <custody-config> [--decline] [--yes] [--out <file>]
+  auths approve <request-file-or-text> --signer <custody-config> [--decline] [--yes] [--out <file>]
   ```
 
   The command:
@@ -192,7 +192,7 @@ All codes use the prefix `approval.`:
 
 ## 7. North-star integration
 
-- **README.** The journey's approval step becomes: the agent writes one request per manager, and each manager runs `auths-profile approve`. Development keys remain development custody, and the README says so.
+- **README.** The journey's approval step becomes: the agent writes one request per manager, and each manager runs `auths approve`. Development keys remain development custody, and the README says so.
 - **Journey tests.** `journey.py` and the npm journey exchange requests and responses as files. They add:
   - a declined manager, where the collector reports it and no refund is submitted;
   - a tampered request, where the approver's CLI refuses it and nothing is signed.
@@ -230,7 +230,7 @@ All codes use the prefix `approval.`:
 | How check 3 is decided | By rebuilding the quorum plan from `approvers`, `required`, and the envelope's challenge, and comparing bytes and identifier. The approval quorum builds member references from the challenge and the approver, so no plan decoder is needed. Duplicate approvers are refused here. |
 | How a decline reaches custody | Through the custody signer contract with a new object kind, `approval-decline`, in both SDKs. The core signing-object kinds are unchanged. |
 | Collection of unattributable and conflicting responses | An unknown `request_id` or an undecodable response is reported as unattributed and never counts. Any second response for one approver rejects that approver with `approval.duplicate-response`, even if the first was an approval. |
-| The CLI's name | `auths-profile approve`. The SDK packages ship one CLI, `auths-profile`; an `auths` executable would shadow the separate `auths` identity CLI and the `auths-node` binary. |
+| The CLI's name | `auths approve`. The SDK packages ship one CLI, named `auths`, so the command is `auths approve`. This reverts the earlier reading, which avoided the name `auths`: on 2026-09-26 the owner chose `auths` as the packaged CLI's name, the deployment binary of `auths-node` was renamed `auths-node` to free it, and the separate identity CLIs that also installed `auths` were retired. `cargo xtask public-naming` refuses any second executable named `auths`. |
 | The CLI's decline and default | `--decline` asks to confirm the decline; without it only `y`/`yes` approves and any other answer signs nothing. Non-interactive runs need `--yes` for either. |
 | Where responses live in the audit bundle | A top-level optional `approval_responses` list, because declined refunds have no entry. The report lists them; verdicts never depend on them. |
 | Whether the SDK exposes the review type as `ReviewedRequest` | The SDK names are `ApprovalReview` (Python and TypeScript), since the TypeScript API gate refuses a prefixed twin of `ApprovalRequest`. The native type keeps `ReviewedRequest`. |

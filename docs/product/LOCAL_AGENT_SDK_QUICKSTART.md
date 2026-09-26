@@ -16,7 +16,7 @@ An operator creates an owner-only state directory and starts the product with:
 
 ```bash
 install -d -m 0700 /run/auths
-auths agent serve \
+auths-node agent serve \
   --config /secure/config/agent.toml \
   --state-directory /run/auths
 ```
@@ -36,7 +36,7 @@ example, after creating the non-secret Stripe descriptor file, the privileged
 CLI flow is:
 
 ```bash
-auths --admin-socket /run/auths/admin.sock connections add stripe \
+auths-node --admin-socket /run/auths/admin.sock connections add stripe \
   --alias billing \
   --descriptor /secure/config/stripe-billing.json \
   --allow-workload refund-worker \

@@ -6,5 +6,5 @@
   omitted:    body (--omit) assignee (--omit) milestone (--omit) labels (--omit) assignees (--omit) issue_field_values (--omit) type (--omit) parent_issue_id (--omit)
   overrides:  --max-bytes owner=64 --max-bytes repo=128 --max-bytes title=256 --omit assignee --omit assignees --omit body --omit issue_field_values --omit labels --omit milestone --omit parent_issue_id --omit type --closed . --pick title=string --security-scheme bearer --tool issues_create
   wrote:      profile.toml recipe.json derivation.json
-  next:       auths-profile generate profile.toml && auths gateway recipe check --recipe recipe.json --profile-lock profile.lock.json
+  next:       auths generate profile.toml && auths-node gateway recipe check --recipe recipe.json --profile-lock profile.lock.json
   claim:      derived shape only; provider effect unqualified
