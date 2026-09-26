@@ -130,7 +130,7 @@ digraph auths_architecture {
   "auths-approval-quorum" -> "auths-author" [label="normal"];
   "auths-approval-quorum" -> "auths-codec" [label="normal"];
   "auths-approval-quorum" -> "auths-model" [label="normal"];
-  "auths-approval-quorum" -> "auths-profile-api" [label="dev"];
+  "auths-approval-quorum" -> "auths-profile-api" [label="normal"];
   "auths-approval-quorum" -> "auths-profile-mcp" [label="dev"];
   "auths-approval-quorum" -> "auths-raw-key" [label="dev"];
   "auths-approval-quorum" -> "auths-signature" [label="dev"];

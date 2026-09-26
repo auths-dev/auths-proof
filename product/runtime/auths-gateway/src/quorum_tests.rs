@@ -15,8 +15,8 @@ use crate::engine::{GatewaySubmitResult, gateway_verifier_configuration, verify_
 use crate::harness::{self, Harness};
 use crate::{CompiledRecipe, GatewayObserver};
 use auths_approval_quorum::{
-    DEFAULT_QUORUM_VALIDITY_SECONDS, QuorumApproval, QuorumApprover, QuorumProposal,
-    quorum_requirement,
+    ApprovalCode, DEFAULT_QUORUM_VALIDITY_SECONDS, QuorumApproval, QuorumApprover, QuorumProposal,
+    RegisteredProfile, collect, open_request, quorum_requirement, requests,
 };
 use auths_codec::{
     action_signing_preimage, body_digest, encode_bundle, encode_canonical_action,
@@ -107,12 +107,16 @@ impl Member {
         object(evidence_id(&object(EvidenceId::new([0; 32]))).expect("evidence ID"))
     }
 
-    fn sign(&self, envelope: &ActionEnvelope) -> SignedAction {
-        let descriptor = SignatureDescriptor::new(
+    fn descriptor(&self) -> SignatureDescriptor {
+        SignatureDescriptor::new(
             PrincipalMethodId::parse(RAW_KEY_V1).expect("method"),
             VerificationMethod::parse(self.principal.as_str()).expect("verification method"),
             SignatureSuiteId::parse(auths_signature::ED25519_V1).expect("suite"),
-        );
+        )
+    }
+
+    fn sign(&self, envelope: &ActionEnvelope) -> SignedAction {
+        let descriptor = self.descriptor();
         let preimage = action_signing_preimage(envelope, &descriptor).expect("preimage");
         let signature =
             SignatureBytes::new(self.key.sign(&preimage).to_bytes().to_vec()).expect("signature");
@@ -804,4 +808,100 @@ async fn a_quorum_after_its_window_is_refused_before_any_lease() {
         }
     );
     assert_eq!(harness.provider.counts(), (0, 0, 0));
+}
+
+/// The quorum assembled from remote responses: each approver opens its own
+/// request (carried as text), approves on its own, and the collector
+/// assembles. It must be byte-identical to the in-process quorum.
+fn remote_bundle(
+    recipe: &CompiledRecipe,
+    operation: &str,
+    required: u16,
+    names: &[&str],
+    decline: Option<&str>,
+) -> Result<ProofBundle, ApprovalCode> {
+    let quorum = proposal(recipe, operation, required, names);
+    let requester = Member::named(names[0]).principal;
+    let mcp = RegisteredProfile::new(
+        call(recipe, operation).profile_ref().expect("profile"),
+        McpProfile,
+    );
+    let responses = requests(&quorum, &requester)?
+        .iter()
+        .zip(names)
+        .map(|(request, name)| {
+            let member = Member::named(name);
+            let text = request.to_text()?;
+            let reviewed = open_request(text.as_bytes(), &[&mcp], AUTHORED_AT + 60)?;
+            let response = if decline == Some(*name) {
+                let pending =
+                    reviewed.prepare_decline(&member.principal, member.descriptor(), NOW)?;
+                let signature = member.key.sign(pending.signing_preimage()).to_bytes();
+                pending.complete(&signature, Vec::new(), vec![member.evidence()])?
+            } else {
+                let pending = reviewed.prepare_approval(&member.principal, member.descriptor())?;
+                let signature = member
+                    .key
+                    .sign(pending.signing().signing_preimage())
+                    .to_bytes();
+                pending.complete(&signature, Vec::new(), vec![member.evidence()])?
+            };
+            response.to_text()
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    collect(&quorum, &responses)?.assemble()
+}
+
+#[tokio::test]
+async fn remote_approvals_authorize_only_at_the_threshold() {
+    let fixture: Value = serde_json::from_str(FIXTURE).expect("fixture JSON");
+    let recipe = recipe();
+    let temp = tempfile::tempdir().expect("temp directory");
+    let harness = fresh_harness(temp.path());
+    let mut entries = 0;
+    for case in CASES.iter().filter(|case| case.authoring == "sdk") {
+        let vector = fixture["cases"]
+            .as_array()
+            .expect("cases")
+            .iter()
+            .find(|vector| vector["id"] == case.id)
+            .expect("vector");
+        let bundle = remote_bundle(&recipe, case.id, case.required, case.approvers, None)
+            .expect("every listed approver approved");
+        let proof = encode_bundle(&bundle).expect("proof");
+        assert_eq!(
+            proof,
+            unb64(&vector["proof_b64"]),
+            "{}: remote and in-process quorums are the same bytes",
+            case.id
+        );
+        let before = harness.provider.counts();
+        let result = harness
+            .submit(&proof, &unb64(&vector["action_b64"]), NOW)
+            .await;
+        let after = harness.provider.counts();
+        let (decision, code) = decision_of(&result);
+        assert_eq!(
+            (decision, code.as_str()),
+            (case.decision, case.code),
+            "{}",
+            case.id
+        );
+        assert_eq!(after.0 - before.0, case.provider_entries, "{}", case.id);
+        assert_eq!(after.2 - before.2, case.provider_entries, "{}", case.id);
+        entries += case.provider_entries;
+    }
+    assert_eq!(
+        remote_bundle(
+            &recipe,
+            "remote-decline",
+            2,
+            &["manager-a", "manager-b"],
+            Some("manager-b"),
+        )
+        .err(),
+        Some(ApprovalCode::Incomplete),
+        "a declined manager leaves nothing to submit"
+    );
+    assert_eq!(harness.provider.counts().0, entries);
 }

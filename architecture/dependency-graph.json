@@ -687,7 +687,7 @@
       "target": "auths-profile-api",
       "target_layer": "product",
       "scope": "internal",
-      "kind": "dev",
+      "kind": "normal",
       "target_condition": null,
       "optional": false,
       "default_features": true,
@@ -736,6 +736,20 @@
     {
       "source": "auths-approval-quorum",
       "source_layer": "product",
+      "target": "base64ct",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
+      ]
+    },
+    {
+      "source": "auths-approval-quorum",
+      "source_layer": "product",
       "target": "ed25519-dalek",
       "target_layer": null,
       "scope": "external",
@@ -746,6 +760,20 @@
       "features": [
         "alloc",
         "zeroize"
+      ]
+    },
+    {
+      "source": "auths-approval-quorum",
+      "source_layer": "product",
+      "target": "minicbor",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "alloc"
       ]
     },
     {
@@ -762,6 +790,18 @@
         "alloc",
         "preserve_order"
       ]
+    },
+    {
+      "source": "auths-approval-quorum",
+      "source_layer": "product",
+      "target": "sha2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
     },
     {
       "source": "auths-approval-quorum",
