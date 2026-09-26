@@ -11,7 +11,9 @@ use auths_did_keri::{
     ADAPTER_ID as DID_KERI_V1, ED25519_SUITE as KERI_ED25519_SUITE,
     EVIDENCE_MEDIA_TYPE as DID_KERI_MEDIA_TYPE, KeriEvidence, test_signing::TestKeriIdentity,
 };
-use auths_did_key::{DID_KEY_MEDIA_TYPE, DID_KEY_V1, DidKeyEvidence};
+use auths_did_key::{
+    DID_KEY_MEDIA_TYPE, DID_KEY_V1, DidKeyEvidence, PRINCIPAL_PREFIX as DID_KEY_PRINCIPAL_PREFIX,
+};
 use auths_did_web::{DID_WEB_MEDIA_TYPE, DID_WEB_V1, DidWebEvidence, DidWebTrustRecord};
 use auths_hsm_attested::{
     Exportability, HSM_ATTESTED_MEDIA_TYPE, HSM_ATTESTED_V1, HsmAttestationEvidence, HsmKeyRecord,
@@ -49,7 +51,9 @@ use auths_webauthn::{
 };
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 use ed25519_dalek::{Signer as _, SigningKey as Ed25519SigningKey, pkcs8::EncodePrivateKey as _};
-use p256::ecdsa::{Signature as P256Signature, SigningKey as P256SigningKey};
+use p256::ecdsa::{
+    Signature as P256Signature, SigningKey as P256SigningKey, VerifyingKey as P256VerifyingKey,
+};
 use rcgen::{
     BasicConstraints, CertificateParams, ExtendedKeyUsagePurpose, IsCa, KeyPair, KeyUsagePurpose,
     PKCS_ED25519, SanType, SerialNumber,
@@ -64,6 +68,10 @@ mod status_extensions;
 
 pub use observation::observation_action_fact_fixture;
 
+/// Varint bytes of the P-256 public-key multicodec `0x1200`.
+const P256_MULTICODEC: [u8; 2] = [0x80, 0x24];
+/// Leading bytes of `did-key-v1` evidence, before the big-endian `u16` Multikey length.
+const DID_KEY_EVIDENCE_DOMAIN: &[u8] = b"AUTHS-DID-KEY\x00\x01";
 const BODY: &[u8] = &[
     0xa2, 0x00, 0x64, b'r', b'e', b'a', b'd', 0x01, 0x6f, b'/', b'r', b'e', b'p', b'o', b'r', b't',
     b's', b'/', b'q', b'3', b'.', b'p', b'd', b'f',
@@ -161,6 +169,12 @@ struct Identity {
 enum PrincipalKind {
     Raw(RawKeyDescriptor),
     DidKey(DidKeyEvidence),
+    /// `did:key` evidence framed around Multikey text that is never validated, so a vector can
+    /// carry key material the adapter must reject; [`DidKeyEvidence`] cannot hold it.
+    UncheckedDidKey {
+        multikey: String,
+        suite: &'static str,
+    },
     DidKeri {
         evidence: KeriEvidence,
         verification_method: VerificationMethod,
@@ -208,6 +222,36 @@ impl Identity {
         Self {
             key: TestKey::P256(key),
             principal_kind: PrincipalKind::Raw(raw),
+            principal,
+        }
+    }
+
+    /// Raw-key P-256 principal whose descriptor carries the SEC1 compact form of its key.
+    fn p256_compact_raw_key(seed: u8) -> Self {
+        let (key, compact) = p256_compact_key(seed);
+        let raw = RawKeyDescriptor::new(RawKeyType::P256, compact).expect("33-byte P-256 key");
+        let principal = raw.principal().expect("derived principal");
+        Self {
+            key: TestKey::P256(key),
+            principal_kind: PrincipalKind::Raw(raw),
+            principal,
+        }
+    }
+
+    /// `did:key` P-256 principal whose Multikey carries the SEC1 compact form of its key.
+    fn did_key_p256_compact(seed: u8) -> Self {
+        let (key, compact) = p256_compact_key(seed);
+        let mut payload = P256_MULTICODEC.to_vec();
+        payload.extend_from_slice(&compact);
+        let multikey = format!("z{}", bs58::encode(payload).into_string());
+        let principal = PrincipalId::parse(&format!("{DID_KEY_PRINCIPAL_PREFIX}{multikey}"))
+            .expect("did:key principal");
+        Self {
+            key: TestKey::P256(key),
+            principal_kind: PrincipalKind::UncheckedDidKey {
+                multikey,
+                suite: P256_SHA256_V1,
+            },
             principal,
         }
     }
@@ -337,7 +381,7 @@ impl Identity {
     fn method_id(&self) -> &'static str {
         match &self.principal_kind {
             PrincipalKind::Raw(_) => RAW_KEY_V1,
-            PrincipalKind::DidKey(_) => DID_KEY_V1,
+            PrincipalKind::DidKey(_) | PrincipalKind::UncheckedDidKey { .. } => DID_KEY_V1,
             PrincipalKind::DidKeri { .. } => DID_KERI_V1,
             PrincipalKind::DidWeb { .. } => DID_WEB_V1,
             PrincipalKind::WebAuthn { .. } => WEBAUTHN_V1,
@@ -350,6 +394,7 @@ impl Identity {
         match &self.principal_kind {
             PrincipalKind::Raw(raw) => raw.suite(),
             PrincipalKind::DidKey(evidence) => evidence.multikey().key_type().suite(),
+            PrincipalKind::UncheckedDidKey { suite, .. } => suite,
             PrincipalKind::DidKeri { .. } => KERI_ED25519_SUITE,
             PrincipalKind::DidWeb { .. }
             | PrincipalKind::Hsm { .. }
@@ -366,6 +411,10 @@ impl Identity {
             PrincipalKind::DidKey(evidence) => evidence
                 .verification_method()
                 .expect("did:key verification method"),
+            PrincipalKind::UncheckedDidKey { multikey, .. } => {
+                VerificationMethod::parse(&format!("{}#{multikey}", self.principal.as_str()))
+                    .expect("did:key verification method")
+            }
             PrincipalKind::DidKeri {
                 verification_method,
                 ..
@@ -431,6 +480,13 @@ impl Identity {
                 DID_KEY_MEDIA_TYPE,
                 evidence.encode().expect("did:key evidence"),
             ),
+            PrincipalKind::UncheckedDidKey { multikey, .. } => {
+                let length = u16::try_from(multikey.len()).expect("bounded Multikey text");
+                let mut bytes = DID_KEY_EVIDENCE_DOMAIN.to_vec();
+                bytes.extend_from_slice(&length.to_be_bytes());
+                bytes.extend_from_slice(multikey.as_bytes());
+                (DID_KEY_V1, DID_KEY_MEDIA_TYPE, bytes)
+            }
             PrincipalKind::DidKeri { evidence, .. } => (
                 DID_KERI_V1,
                 DID_KERI_MEDIA_TYPE,
@@ -475,9 +531,10 @@ impl Identity {
 
     fn assurance_claim(&self) -> &'static str {
         match &self.principal_kind {
-            PrincipalKind::Raw(_) | PrincipalKind::DidKey(_) | PrincipalKind::DidKeri { .. } => {
-                "self-certifying-identifier"
-            }
+            PrincipalKind::Raw(_)
+            | PrincipalKind::DidKey(_)
+            | PrincipalKind::UncheckedDidKey { .. }
+            | PrincipalKind::DidKeri { .. } => "self-certifying-identifier",
             PrincipalKind::DidWeb { .. } => "controller-state-current-at",
             PrincipalKind::WebAuthn { .. } => "user-verified",
             PrincipalKind::Hsm { .. } => "hardware-attested",
@@ -499,6 +556,37 @@ impl Identity {
             .expect("fixed did:web trust"),
         )
     }
+}
+
+/// Returns a fixed P-256 signing key and the SEC1 compact (`0x05`) encoding of its public key.
+///
+/// A compact encoding carries only x and decodes to the point whose y is the smaller of the two
+/// candidates y and p - y. Negating the scalar reflects the point to (x, p - y), so exactly one
+/// of d and n - d has the point that `0x05 || x` decodes to, and that key is returned. Its
+/// signatures are valid for the point a permissive SEC1 decoder produces, so a vector that
+/// denies them isolates the key-encoding rule.
+fn p256_compact_key(seed: u8) -> (P256SigningKey, Vec<u8>) {
+    let mut scalar = [0; 32];
+    scalar[31] = seed.max(1);
+    let key = P256SigningKey::from_bytes((&scalar).into()).expect("fixed P-256 scalar");
+    let mut compact = key
+        .verifying_key()
+        .to_encoded_point(true)
+        .as_bytes()
+        .to_vec();
+    compact[0] = 0x05;
+    let decoded = P256VerifyingKey::from_sec1_bytes(&compact).expect("x-coordinate on the curve");
+    let key = if decoded == *key.verifying_key() {
+        key
+    } else {
+        P256SigningKey::from(-*key.as_nonzero_scalar())
+    };
+    assert_eq!(
+        &decoded,
+        key.verifying_key(),
+        "compact point is the signing key's"
+    );
+    (key, compact)
 }
 
 fn webauthn_credential(seed: u8) -> (P256SigningKey, WebAuthnCredential) {
@@ -3735,6 +3823,56 @@ pub fn p256_high_s_signature() -> CorpusFixture {
     )
 }
 
+/// Raw-key P-256 key in the SEC1 compact (`0x05`) form, signed validly for the point that form
+/// decodes to. The raw-key descriptor checks only the key length; the suite accepts only the
+/// compressed form and fails the signature.
+///
+/// # Panics
+///
+/// Panics only if repository-owned fixture constants violate model invariants.
+#[must_use]
+pub fn raw_key_p256_compact_point() -> CorpusFixture {
+    let proof_ref = ProofRef::new([0x88; 32]);
+    direct_case(
+        &Identity::p256_compact_raw_key(6),
+        DirectCase {
+            name: "raw-key-p256-compact-point",
+            plan: AuthorizationPlan::proof(proof_ref),
+            proof_ref,
+            terminal_grant: None,
+            descriptor: None,
+            extra_registry_identities: Vec::new(),
+            signature: FixtureSignature::Normal,
+            expected: Expected::Denied(DenialReason::InvalidSignature),
+        },
+    )
+}
+
+/// `did:key` P-256 Multikey in the SEC1 compact (`0x05`) form, signed validly for the point
+/// that form decodes to. The adapter validates the key and rejects the evidence before the
+/// signature is checked.
+///
+/// # Panics
+///
+/// Panics only if repository-owned fixture constants violate model invariants.
+#[must_use]
+pub fn did_key_p256_compact_point() -> CorpusFixture {
+    let proof_ref = ProofRef::new([0x89; 32]);
+    direct_case(
+        &Identity::did_key_p256_compact(7),
+        DirectCase {
+            name: "did-key-p256-compact-point",
+            plan: AuthorizationPlan::proof(proof_ref),
+            proof_ref,
+            terminal_grant: None,
+            descriptor: None,
+            extra_registry_identities: Vec::new(),
+            signature: FixtureSignature::Normal,
+            expected: Expected::Denied(DenialReason::PrincipalMethodMismatch),
+        },
+    )
+}
+
 fn decoded_bundle(fixture: &CorpusFixture) -> ProofBundle {
     let context = decode_context(fixture);
     decode_bundle(fixture.proof_bytes(), context.limits()).expect("repository-owned proof")
@@ -5257,6 +5395,8 @@ fn build_corpus() -> Vec<CorpusFixture> {
         plan_action_mismatch(),
         carried_status_digest_mismatch(),
         p256_high_s_signature(),
+        raw_key_p256_compact_point(),
+        did_key_p256_compact_point(),
         bundle_byte_limit_exceeded(),
         verification_work_limit_exceeded(),
         plan_depth_limit_exceeded(),

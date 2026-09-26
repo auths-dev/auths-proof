@@ -252,11 +252,11 @@ owner_pr = "CLI-NAMED-AUTHS"
 
 [[release_order]]
 tier = 0
-packages = ["auths-algebra-kernel", "auths-bounded-policy", "auths-byte-channel", "auths-errors", "auths-identity", "auths-model", "auths-multikey", "auths-proof-exchange-model", "auths-signature-core"]
+packages = ["auths-algebra-kernel", "auths-bounded-policy", "auths-byte-channel", "auths-errors", "auths-identity", "auths-model", "auths-proof-exchange-model", "auths-signature-core"]
 
 [[release_order]]
 tier = 1
-packages = ["auths-assurance", "auths-byte-channel-memory", "auths-codec", "auths-composition", "auths-iroh", "auths-lifecycle", "auths-ports", "auths-proof-exchange-port", "auths-raw-key-core", "auths-signature-ed25519"]
+packages = ["auths-assurance", "auths-byte-channel-memory", "auths-codec", "auths-composition", "auths-iroh", "auths-lifecycle", "auths-multikey", "auths-ports", "auths-proof-exchange-port", "auths-raw-key-core", "auths-signature-ed25519"]
 
 [[release_order]]
 tier = 2

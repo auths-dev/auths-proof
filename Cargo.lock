@@ -935,9 +935,8 @@ dependencies = [
 name = "auths-multikey"
 version = "1.0.0-rc.1"
 dependencies = [
+ "auths-signature-core",
  "bs58",
- "ed25519-dalek 2.2.0",
- "p256",
 ]
 
 [[package]]
@@ -2278,6 +2277,7 @@ dependencies = [
  "auths-spiffe-x509",
  "auths-webauthn",
  "base64ct",
+ "bs58",
  "ed25519-dalek 2.2.0",
  "p256",
  "rcgen",

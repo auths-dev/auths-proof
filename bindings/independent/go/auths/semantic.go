@@ -1219,8 +1219,8 @@ func verifySignature(suite string, key, message, signature []byte) bool {
 		if len(signature) != 64 {
 			return false
 		}
-		x, y := elliptic.UnmarshalCompressed(elliptic.P256(), key)
-		if x == nil {
+		public, ok := p256PublicKey(key)
+		if !ok {
 			return false
 		}
 		r := new(big.Int).SetBytes(signature[:32])
@@ -1230,10 +1230,21 @@ func verifySignature(suite string, key, message, signature []byte) bool {
 			return false
 		}
 		digest := sha256.Sum256(message)
-		return ecdsa.Verify(&ecdsa.PublicKey{Curve: elliptic.P256(), X: x, Y: y}, digest[:], r, s)
+		return ecdsa.Verify(public, digest[:], r, s)
 	default:
 		return false
 	}
+}
+
+// p256PublicKey accepts only the 33-byte compressed SEC1 encoding, tag 0x02 or
+// 0x03, of a point on the curve. The identity, uncompressed, compact, and
+// hybrid forms are rejected, so each key has exactly one accepted encoding.
+func p256PublicKey(key []byte) (*ecdsa.PublicKey, bool) {
+	x, y := elliptic.UnmarshalCompressed(elliptic.P256(), key)
+	if x == nil {
+		return nil, false
+	}
+	return &ecdsa.PublicKey{Curve: elliptic.P256(), X: x, Y: y}, true
 }
 
 func decodeHex(value string) ([]byte, error) {

@@ -26,6 +26,7 @@ auths-signature = { workspace = true, features = ["std"] }
 auths-spiffe-x509 = { workspace = true, features = ["std"] }
 auths-webauthn = { workspace = true, features = ["std"] }
 base64ct = { workspace = true, features = ["std"] }
+bs58 = { workspace = true, features = ["std"] }
 ed25519-dalek = { workspace = true, features = ["std", "pkcs8"] }
 p256 = { workspace = true, features = ["std"] }
 rcgen = "=0.13.2"
