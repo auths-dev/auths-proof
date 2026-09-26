@@ -5,8 +5,9 @@
 Target-state implementation plan for specifications 0013 through 0023.
 
 The machine-readable boundary is the repository-root
-`stripe-profiles.toml`. `cargo xtask stripe-profiles` validates that inventory
-against the specifications and runs in the compliance CI phase. This document
+`stripe-profiles.toml`, which also records the earlier bounded-refund profile
+(0012). `cargo xtask stripe-profiles` validates that inventory against the
+specifications and runs in the compliance CI phase. This document
 explains why those checks exist and how implementations advance through them.
 
 ## Goal

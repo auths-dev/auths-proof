@@ -170,6 +170,15 @@ spent usage. Pending reservations and outcome-unknown records remain charged
 even after the interval advances; they return capacity only through an explicit
 release or reconciliation transition.
 
+A reservation holds capacity in the windows resolved at the time its decision
+was sealed. When the local agent re-checks a sealed decision before provider
+entry, it evaluates aggregate capacity against those same windows and the
+aggregate snapshot recorded at the seal, and it evaluates policy validity,
+evidence freshness, the exact action and its expiry, and configuration
+equality at the re-check time. An unchanged sealed decision therefore
+re-evaluates to an identical value however many seconds separate the seal and
+the re-check, for fixed and rolling windows alike.
+
 For every key:
 
 ```text
@@ -255,14 +264,21 @@ The durable reserve operation repeats all capacity checks atomically.
 The Stripe-local store represents:
 
 ```text
-available -> reserved -> committed
-                      \-> released
-                      \-> outcome-unknown
-                              \-> reconciled-committed
-                              \-> reconciled-released
-                      \-> reconciled-committed  (restart reconciliation)
-                      \-> reconciled-released   (restart reconciliation)
+available -> reserved -> entry-held            (local-agent provider-entry hold)
+reserved | entry-held -> committed
+reserved | entry-held -> released
+reserved | entry-held -> outcome-unknown
+reserved | entry-held | outcome-unknown -> reconciled-committed
+reserved | entry-held | outcome-unknown -> reconciled-released
+released | reconciled-released | committed | reconciled-committed
+          -> retired (record removed; section 25.2)
 ```
+
+`entry-held` holds capacity exactly like `reserved`. It is taken by one
+compare-and-swap from `reserved` when a provider-entry attempt claims the
+reservation (section 11.1); repeating the hold for the same reservation is
+idempotent. `released` and `reconciled-released` can never become
+`entry-held`, so a released reservation can never back a provider call.
 
 The durable state record binds:
 
@@ -273,7 +289,8 @@ The durable state record binds:
 - Stripe account and currency;
 - all budget/window keys and amounts;
 - deterministic Stripe idempotency key commitment;
-- current state and timestamps; and
+- current state, the reservation time, and a last-transition time that never
+  decreases; and
 - provider refund/result commitments when known.
 
 Reservation and replay are atomic under one store lock/transaction. A replay of
@@ -285,16 +302,66 @@ or reservation key with different committed inputs is a conflict.
 The in-memory store provides process-local conformance. The persistent store
 uses canonical bounded state, an exclusive process lock, write-to-temporary,
 `sync_all`, atomic replacement, and parent-directory synchronization. Startup
-rejects malformed, oversized, non-canonical, or invariant-breaking state.
+rejects malformed, oversized, non-canonical, or invariant-breaking state, and
+the store validates every state it writes with the same predicate before
+writing it, so it never persists state that it would refuse to load.
+
+Every transition stamps its record with `max(now, previous last-transition
+time)`. A clock that steps backwards therefore neither rejects a transition
+nor produces a record whose last-transition time precedes its reservation
+time. The common operation journal stamps its records the same way, so a
+backward clock step during a provider call cannot discard the provider result.
 
 Concurrent reservations cannot oversubscribe a budget. A crash after durable
 reservation but before credential acquisition leaves a recoverable reserved
 record. Because a crash may also happen during provider I/O before the next
-state write, restart treats `reserved` as potentially ambiguous. Recovery
-queries Stripe with the exact action and idempotency metadata before
-transitioning to reconciled-committed or reconciled-released.
+state write, restart treats `reserved` and `entry-held` as potentially
+ambiguous. Recovery queries Stripe with the exact action and idempotency
+metadata before transitioning to reconciled-committed or reconciled-released.
 
 `outcome-unknown` likewise retains capacity until reconciliation.
+
+### 11.1 Local-agent journal and reservation store
+
+The local agent keeps the operation journal and the reservation store in two
+durable stores that cannot be written in one transaction. The journal's copy
+of a reservation is therefore never evidence that capacity is still held. The
+agent keeps the two consistent with three rules; each is sufficient to keep a
+released reservation from backing a Stripe call, and together they make the
+state that combines an executable sealed command with a released reservation
+unreachable and harmless:
+
+1. **Conclude before release.** When the agent ends an operation before
+   provider entry (pre-entry denial, configuration or credential failure,
+   caller recovery, or a withdrawn hold), it first persists the journal's
+   pre-entry conclusion and only then releases the reservation. Once the
+   conclusion is durable no sealed command of that operation can be entered.
+   A crash or failure between the two leaves capacity held, and every later
+   `execute` or `recover` of the terminal record repeats the idempotent
+   release.
+2. **Ambiguous seal failures hold.** If the journal write that seals the
+   command fails, the reservation is released only when the write lost a
+   revision conflict to a record that cannot carry a sealed command into
+   Stripe: one without a sealed command, or one already concluded without
+   provider entry. Every other failure may have published the command. In
+   particular, a journal that replaced its file but could not synchronize the
+   parent directory reports that failure distinctly, refuses every later call
+   until it is reopened, and the reservation stays held until recovery
+   concludes and releases it.
+3. **Hold on every entry attempt.** Under the operation gate, after the
+   command-bound re-read and before any credential lease or provider-entry
+   marker, every attempt to enter Stripe (including one that resumes a durable
+   executing, not-applied checkpoint) moves the sealed command's reservation
+   from `reserved` to `entry-held` with a compare-and-swap in the reservation
+   store. If the reservation is `released`, `reconciled-released`, or retired,
+   the attempt concludes not-applied without acquiring a credential or calling
+   Stripe. An unavailable store leaves the attempt pending; any other
+   inconsistency fails closed without provider entry.
+
+Recovery releases an `entry-held` reservation only after the journal durably
+concludes that provider entry never occurred. Once the provider-entry marker is
+durable, only a classified Stripe result or reconciliation moves the
+reservation on.
 
 ## 12. Deterministic idempotency
 
@@ -334,13 +401,37 @@ fresh Stripe evidence
 No denied, indeterminate, unrecorded, unreserved, replay-conflicting, expired,
 or configuration-mismatched request can acquire a mutation credential.
 
+The local agent orders one exact refund as follows:
+
+```text
+fresh protected Stripe evidence
+  -> exact action + Auths proof verification
+  -> pure bounded eligibility
+  -> durable bounded decision receipt
+  -> atomic aggregate reservation (reserved)
+  -> durable sealed command
+  -> command-bound re-read of critical Stripe evidence and re-evaluation of
+     the sealed decision (section 6)
+  -> reservation hold for provider entry (reserved -> entry-held; section 11.1)
+  -> acquire restricted Stripe refund credential
+  -> durable provider-entry marker
+  -> POST exact refund with deterministic idempotency key
+  -> persist provider result
+  -> commit, release, or hold outcome-unknown
+  -> observe or reconcile
+```
+
+A reservation that is released or retired before the hold stops the refund at
+the hold, before the credential. Any pre-entry conclusion is durable before
+the reservation release that follows it.
+
 ## 14. Ambiguous Stripe responses and reconciliation
 
 If request delivery may have reached Stripe, or restart finds a reservation
 whose provider-call boundary cannot be proven:
 
-1. retain `reserved` after a crash or transition a caught ambiguity to
-   `outcome-unknown`;
+1. retain `reserved` or `entry-held` after a crash or transition a caught
+   ambiguity to `outcome-unknown`;
 2. retain every aggregate amount;
 3. persist the attempt and Stripe idempotency commitment;
 4. query Stripe by known refund ID or fixed Auths metadata;
@@ -491,7 +582,14 @@ Required product tests include:
 - available/reserved/spent/unknown conservation;
 - concurrent last-unit reservation;
 - replay and conflict;
-- restart from reserved, committed, released, and outcome-unknown;
+- restart from reserved, entry-held, committed, released, and outcome-unknown;
+- a released reservation refused at the provider-entry hold, including after
+  a crash between release and conclusion and on a resumed checkpoint;
+- a seal published without directory synchronization that keeps its
+  reservation held across restart and retry;
+- a rolling-window budget re-checked seconds after its seal;
+- a full ledger that admits new refunds once earlier actions expire;
+- transitions with a clock earlier than the record's times, then restart;
 - deterministic idempotency and reservation identity;
 - configuration and evaluator mismatch;
 - account, currency, reason, Charge, PaymentIntent, test-mode, API-version,
@@ -660,6 +758,47 @@ vocabulary:
 
 No shared error may imply that Stripe accepted, rejected, or reconciled a
 request. Those conclusions require Stripe-owned evidence.
+
+The persistent reservation store is bounded:
+
+- at most 16,384 reservation records and 16,384 shared lifecycle records,
+  shared by every principal of one deployment;
+- one canonical state file of at most 32 MiB, rewritten whole by every store
+  call;
+- at most eight intents per record, with every identifier, digest, and amount
+  individually bounded; between admission and its longest terminal form a
+  record's canonical form grows by at most 256 bytes (a longer state name, a
+  refund identifier of at most 96 bytes, and a 64-hex result digest).
+
+Admission fails closed as `bounded-reservation-unavailable`, before any
+credential, when the ledger holds 16,384 records or when the state file plus
+256 bytes for every `reserved`, `entry-held`, or `outcome-unknown` record would
+exceed 32 MiB. The reserved headroom means a later hold, commit, release,
+outcome-unknown, or reconciliation of a reservation record never fails on the
+file bound; the local agent's store holds no shared lifecycle records, whose
+own growth is bounded by specification 0026 and still fails closed at the file
+bound. Admission also refuses an exact action that has expired or whose expiry
+lies more than one maximum authorization lifetime (one hour) after the
+reservation time.
+
+Before each admission the store retires every record that can no longer
+matter. A record is retired only when its exact action has expired, which
+admission guarantees once one hour has passed since its reservation time, and
+it holds capacity in no budget window at that or any later time:
+
+- `released` and `reconciled-released` records hold no capacity;
+- a `committed` or `reconciled-committed` record qualifies once every fixed
+  window of its intents has ended and every rolling window of duration `d` has
+  passed its reservation time by `d`, after which no later rolling window can
+  contain it.
+
+`reserved`, `entry-held`, and `outcome-unknown` records are never retired, and
+neither is a record paired with a shared lifecycle record. A full ledger
+therefore admits new refunds once earlier actions expire; in steady state it
+holds the live records, the committed records still inside a window, and the
+records reserved during the last hour. A retired record is removed, not
+archived: the durable journal and the signed receipts remain the operation's
+record.
 
 ### 25.3 Ordering and credential boundary
 

@@ -279,6 +279,31 @@ evaluator; every refused case has zero provider entries and zero leases),
 and Lean theorems for the evaluator's fixed-context tightening and decider
 soundness. No hosted CI result is cited here.
 
+### Derived idempotency key for recipe writes (AP-SPEC-053 §3.2.1, repository-local only)
+
+**Claim.** A recipe that sets `write.idempotency_key` makes the gateway send
+an `Idempotency-Key` header on the write request, derived from the verified
+operator namespace and logical operation ID. The application never supplies
+it, a recipe cannot name any other header, and read-backs never send it. If
+the gateway's durable claim for a logical operation is lost and the same
+operation is submitted again, a provider that honors the header returns the
+first result instead of applying the write twice, within that provider's
+retention window.
+
+**Not a claim.** That the key stops duplicates on a healthy store (the
+durable claim already does), that every provider honors the header, any
+protection after the provider's retention window, or anything about a new
+logical operation, which gets a new key.
+
+Current evidence is the gateway's unit tests (the header is sent exactly
+when the recipe declares it and never on read-back), the hostile recipe
+cases in `bindings/fixtures/gateway/hostile-recipes.json`, and a state-loss
+case in the north-star journey (`examples/stripe-refund-approval/journey.py`)
+against the Stripe-compatible double: after the attempt store is deleted and
+the gateway restarted, a resubmitted refund reaches the double with the same
+key and creates no second refund. The double is not Stripe, and no hosted CI
+result is cited here.
+
 ## Packaged clean-consumer exercise
 
 Exercised at auths-proof commit

@@ -33,8 +33,8 @@ use auths_profile_runtime::{
     ProfileConclusion, ProfileDecisionReceiptFacts, ProfileExecutionReceiptFacts,
     ProfileObservation, ProfilePreEntryRecheck, ProfilePreparation, ProfilePreparationKind,
     ProfileReceiptClaimCommitment, ProfileReceiptInspection, ProfileRuntimeError,
-    ReconcileProfileInput, ReleaseProfileCallInput, SealProfileCallInput, SealedProfileCall,
-    profile_receipt_claim_digest,
+    ProviderEntryHoldInput, ReconcileProfileInput, ReleaseProfileCallInput, SealProfileCallInput,
+    SealedProfileCall, profile_receipt_claim_digest,
 };
 #[cfg(feature = "qualification")]
 use auths_stores::JournalRecordV1;
@@ -52,6 +52,31 @@ pub fn saved_plans_apply_recheck_pre_entry(
     input: PreEntryRecheckInput<'_>,
 ) -> Result<ProfilePreEntryRecheck, ProfileRuntimeError> {
     unchanged_pre_entry_recheck(input)
+}
+
+/// OpenTofu takes no profile-owned hold at provider entry. The prepared-plan
+/// capability sealed into the command is claimed by its operation, and a
+/// saved-plan apply is also refused by the backend's state lineage and serial
+/// checks once the plan's base state has moved.
+pub fn plans_create_hold_provider_entry(
+    input: ProviderEntryHoldInput<'_>,
+) -> Result<(), ProfileRuntimeError> {
+    sealed_entry_without_hold(&input)
+}
+
+pub fn saved_plans_apply_hold_provider_entry(
+    input: ProviderEntryHoldInput<'_>,
+) -> Result<(), ProfileRuntimeError> {
+    sealed_entry_without_hold(&input)
+}
+
+fn sealed_entry_without_hold(
+    input: &ProviderEntryHoldInput<'_>,
+) -> Result<(), ProfileRuntimeError> {
+    if input.record.sealed_command().is_none() || input.record.provider_entered() {
+        return Err(ProfileRuntimeError::Invalid);
+    }
+    Ok(())
 }
 
 fn unchanged_pre_entry_recheck(

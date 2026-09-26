@@ -48,6 +48,19 @@ denied. There is no fallback or version negotiation.
 | `ed25519-v1` | 32-byte compressed point | 64 bytes | RFC 8032 verification of exact preimage |
 | `p256-sha256-v1` | 33-byte compressed SEC1 | 64-byte `r || s` | ECDSA/SHA-256, low-S required |
 
+## Adapters outside the built-in set
+
+These adapters live in `core/adapters/` but are not part of the built-in
+principal methods and signature suites above. The Git-signing verifier in
+`product/integrations/auths-git-signing` registers them. None has a vector in
+the core corpus (`core/fixtures/v1`) or a Go or TypeScript implementation.
+
+| ID | Kind | Conformance |
+|---|---|---|
+| `oidc-workload-v1` | Principal method | Adapter vectors in `core/conformance/v1/adapters/oidc-workload.json` |
+| `sigstore-keyless-v1` | Principal method | Adapter vectors in `core/conformance/v1/adapters/sigstore-keyless.json` |
+| `rsa-pkcs1-sha256-v1` | Signature suite | No conformance vectors |
+
 ## Status methods
 
 | ID | Meaning |

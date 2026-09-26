@@ -143,10 +143,12 @@ use std::{
     os::unix::fs::MetadataExt as _,
     path::Path,
 };
+// Tests reach these through `use super::*`: the production imports above
+// supply them on Linux, and this block supplies them on other targets.
 #[cfg(all(test, not(target_os = "linux")))]
 use std::{
     net::Shutdown,
-    os::unix::net::UnixStream,
+    os::unix::{fs::PermissionsExt as _, net::UnixStream},
     thread,
     time::{Duration, Instant},
 };

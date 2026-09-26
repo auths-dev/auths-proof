@@ -44,7 +44,7 @@ The repository already contains useful foundations:
 | Factorial principal/suite/transport/profile model | [`demos/matrix/auths-lab-matrix/src/lib.rs`](../../demos/matrix/auths-lab-matrix/src/lib.rs) |
 | Deterministic canonical fixtures | [`core/testkit/auths-testkit/src/lib.rs`](../../core/testkit/auths-testkit/src/lib.rs) |
 | Portable result resource counters | [`core/crates/auths-model/src/lib.rs`](../../core/crates/auths-model/src/lib.rs), `VerificationResources` |
-| Staged verifier API | [`core/crates/auths-verifier/src/lib.rs`](../../core/crates/auths-verifier/src/lib.rs), `decode_proof`, `resolve_proof`, `verify_principal_control`, `verify_authority`, and `bind_verified_action` |
+| Staged verifier | [`core/crates/auths-verifier/src/lib.rs`](../../core/crates/auths-verifier/src/lib.rs), the public `decode_proof` and the crate-private stages `resolve_proof`, `verify_principal_control`, `verify_authority_measured`, and `bind_verified_action` |
 | Native facade | [`core/crates/auths-proof/src/lib.rs`](../../core/crates/auths-proof/src/lib.rs) |
 | WASM boundary | [`bindings/wasm/auths-proof-wasm/src/lib.rs`](../../bindings/wasm/auths-proof-wasm/src/lib.rs) |
 | Benchmark build automation | [`xtask/src/main.rs`](../../xtask/src/main.rs), `wasm` and `matrix` |

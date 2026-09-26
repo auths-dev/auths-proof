@@ -320,16 +320,12 @@ class Handler(BaseHTTPRequestHandler):
         if attack == "remote-unknown":
             return self.unknown_outcome_attack()
         before = STORE.snapshot()["counters"]
-        if attack == "scope-expansion":
-            result = sdk.scope_attack()
-        elif attack == "byte-mutation":
+        if attack == "byte-mutation":
             result = sdk.mutation_attack(REPO_ROOT)
         elif attack == "replay":
             result = sdk.replay_attack()
         elif attack == "expired":
             result = sdk.expired_attack()
-        elif attack == "compromised-approver":
-            result = sdk.compromise_attack()
         elif attack == "rotate-key":
             actors = get_json(f"{EDGESHIELD_URL}/api/actors")
             previous = actors["rotation"]["current"]

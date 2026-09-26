@@ -55,7 +55,7 @@ pub use bounded::{
     CONFIGURED_POLICY_PROVENANCE, ConnectScope, RefundBudgetWindow, RefundDenominator,
     RefundReservationIntent, RefundRounding, RefundWindowIdentity, RelativeRefundLimit,
     StripeBoundedEvaluatorConfigurationV1, StripeBoundedRefundPolicyInput,
-    StripeBoundedRefundPolicyV1, evaluate_bounded_refund,
+    StripeBoundedRefundPolicyV1, evaluate_bounded_refund, reevaluate_sealed_bounded_refund,
 };
 pub use bounded_service::{
     BoundedRefundService, BoundedServiceDependencies, BoundedWorkflowOutcome,
@@ -99,11 +99,11 @@ pub use receipts::{
     ObservationReceipt, ReservationReceipt, StripeReceipt,
 };
 pub use reservation::{
-    InMemoryRefundReservationStore, PersistentRefundReservationStore, ReconciledRefundOutcome,
-    RefundLifecycleMutation, RefundLifecycleStore, RefundLifecycleTransaction,
-    RefundReservationLease, RefundReservationRecord, RefundReservationState,
-    RefundReservationStore, ReservationError, ReserveRefundRequest, ReserveRefundResult,
-    read_persistent_refund_snapshot,
+    InMemoryRefundReservationStore, PersistentRefundReservationStore, ProviderEntryHold,
+    ReconciledRefundOutcome, RefundLifecycleMutation, RefundLifecycleStore,
+    RefundLifecycleTransaction, RefundReservationLease, RefundReservationRecord,
+    RefundReservationState, RefundReservationStore, ReservationError, ReserveRefundRequest,
+    ReserveRefundResult, read_persistent_refund_snapshot,
 };
 pub use service::{
     ExecuteRefundRequest, RefundService, ServiceDependencies, ServiceError, WorkflowOutcome,

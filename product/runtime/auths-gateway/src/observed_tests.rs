@@ -1402,7 +1402,7 @@ fn custody_observer_requires_a_raw_key_principal() {
 }
 
 /// Runs every hostile observation-conditioned case against the single-host
-/// file store and, with the TLS fixture, the qualified multi-host store.
+/// file store and, with the TLS fixture, the multi-host `PostgreSQL` store.
 macro_rules! on_both_stores {
     ($($case:ident),* $(,)?) => {
         mod file_store {

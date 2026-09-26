@@ -1,8 +1,17 @@
 # 0023 release evidence · 2026-07-30
 
-Status is `implemented`. The closed profile, canonical fixtures, runnable
-demo, provider experiment, Docker-local gate, public deployment, genuine
-visual-browser execution, and authoritative CI are complete on this revision.
+Status is `specified`, not `implemented`.
+
+Correction (2026-09-25): the demo's cancellation route returns fixed
+records. It verifies no proof and calls neither Stripe nor
+`SubscriptionCancelService`, and no `SubscriptionCancelGateway`
+implementation exists. The credential-request, provider-call, and
+liability figures below are constants the demo reports, not observed
+effects. The Stripe test-mode experiment below was a separate run.
+
+As first recorded, the closed profile, canonical fixtures, runnable demo,
+provider experiment, Docker-local gate, public deployment, visual-browser
+execution, and authoritative CI were complete on this revision.
 
 Implemented boundaries:
 
@@ -72,9 +81,10 @@ Public deployment evidence:
 - The Fly health and readiness routes reported `production`, `ready`, and the
   exact `stripe-subscription-cancel` credential scope.
 - The Vercel API rewrite reached the Fly scenario route. A public period-end
-  request released 2,400 minor units, retained 1,200, and used one credential
-  and provider call. Replaying the same workflow returned zero credential
-  requests and zero provider calls.
+  request returned the demo's fixed record (2,400 minor units released,
+  1,200 retained, one credential request and one provider call reported);
+  no credential was requested and Stripe was not called. Replaying the same
+  workflow returned zero credential requests and zero provider calls.
 
 The in-app browser completed the public period-end, immediate,
 pending-invoice-items denial, replay, and outcome-unknown scenarios. It also

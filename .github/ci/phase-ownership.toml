@@ -361,13 +361,13 @@ phases = ["authoritative", "compliance", "secrets", "release"]
 [[rules]]
 id = "public-api-chatgpt-notes"
 kind = "exact"
-value = "public_api_chatgpt.md"
+value = "docs/target-state/public_api_chatgpt.md"
 phases = ["secrets", "release"]
 
 [[rules]]
 id = "public-api-claude-notes"
 kind = "exact"
-value = "public_api_claude.md"
+value = "docs/target-state/public_api_claude.md"
 phases = ["secrets", "release"]
 
 [[rules]]

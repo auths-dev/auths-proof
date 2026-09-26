@@ -169,10 +169,11 @@ fn dispatch(arguments: impl IntoIterator<Item = String>) -> Result<(), String> {
             platform_artifact(&output)
         }
         "release-check" => release_check(),
-        _ => {
+        "help" | "--help" | "-h" => {
             println!("{USAGE}");
             Ok(())
         }
+        unknown => Err(format!("unknown command {unknown}\n{USAGE}")),
     }
 }
 
@@ -186,6 +187,14 @@ mod tests {
             USAGE,
             "usage: cargo xtask <profile <new|generate|check|qualification> ...|fmt|arch [--update]|semantic-freeze [--update]|evolution-policy [--update]|sdk-experience [--update]|sdk-vocabulary|error-registry [--update]|mcp-session-contract [--update]|mechanism-conformance [--update]|product-waist-conformance [--update]|public-naming|release-contract|release-control <finalize|compare|verify-promotion|assemble-qualification-build|canonicalize-qualification-build|verify-qualification-release-build> ...|binding-semantics|core-boundary|workspace-msrv|abi|core|exchange|product|bindings|demos|package|wire [--update]|spec-sync|conformance|exchange-conformance|product-conformance|stripe-profiles|bounded-domains|compliance|matrix|cross-language|product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|platform-artifact [output]|formal [--skip-kani] [--update]|formal qualify aeneas [--update]|adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|bench <prepare|run|report|compare|verify-artifact|bounded>|ci [preflight|authoritative|formal-proof-fast|formal-translation-reproduce|formal-translation-reuse|formal-lean-authoritative|formal-kani|formal-evidence|compliance]|release-check>"
         );
+    }
+
+    #[test]
+    fn unknown_commands_fail_and_help_succeeds() {
+        let error = dispatch(["assurance".to_owned()]).expect_err("unknown command must fail");
+        assert!(error.starts_with("unknown command assurance\n"));
+        assert!(dispatch(["help".to_owned()]).is_ok());
+        assert!(dispatch(Vec::<String>::new()).is_ok());
     }
 
     #[test]
