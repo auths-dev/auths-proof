@@ -274,6 +274,10 @@ impl McpQuorumV1 {
 }
 
 impl McpQuorumV1 {
+    pub(crate) const fn proposal(&self) -> &QuorumProposal {
+        &self.proposal
+    }
+
     fn envelope(&self, index: u32) -> Result<&auths_model::ActionEnvelope, EngineError> {
         usize::try_from(index)
             .ok()

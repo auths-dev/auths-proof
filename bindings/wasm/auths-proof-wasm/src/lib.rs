@@ -67,7 +67,12 @@ use sha2::{Digest as _, Sha256};
 use std::{collections::BTreeSet, fmt};
 use wasm_bindgen::prelude::*;
 
+mod approval;
 mod quorum;
+pub use approval::{
+    ApprovalCollectionV1, ApprovalCollectorV1, ApprovalRequestsV1, ApprovalResponseV1,
+    PendingApprovalV1, ReviewedApprovalRequestV1, approval_requests_v1, open_approval_request_v1,
+};
 pub use quorum::{McpQuorumApproversV1, McpQuorumProofBuilderV1, McpQuorumV1};
 
 /// Version of the repository-owned authoring ABI exposed by this WASM module.

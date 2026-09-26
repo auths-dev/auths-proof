@@ -30,6 +30,12 @@ pub struct PyMcpQuorum {
     review_fields: Vec<(String, String)>,
 }
 
+impl PyMcpQuorum {
+    pub(crate) const fn proposal(&self) -> &QuorumProposal {
+        &self.proposal
+    }
+}
+
 #[pymethods]
 impl PyMcpQuorum {
     #[getter]
