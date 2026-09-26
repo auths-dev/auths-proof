@@ -1429,6 +1429,28 @@ fn validate_ci_workflow_gates(ci: &str) -> Result<(), String> {
             "authoritative Lean can start without qualified translation and fast proof".to_owned(),
         );
     }
+    // Formal evidence skips aggregation on this output. A `needs` read of an
+    // output the job never declares is an empty string, so the guard would pass
+    // on every run and a pending update would surface only as missing evidence.
+    if workflow_job_output(lean_job, "update_required")
+        != Some("${{ steps.formal-update.outputs.update_required || 'false' }}")
+        || !lean_job.contains("\n      - id: formal-update\n")
+    {
+        return Err(
+            "authoritative Lean does not declare the `update_required` output that formal evidence reads"
+                .to_owned(),
+        );
+    }
+    // As in translation, the job that packaged drift fails itself, so a pending
+    // update never shows as a green authoritative Lean run.
+    if !lean_job.contains(
+        "- name: Stop qualification until the assurance update is committed\n        if: steps.formal-update.outputs.update_required == 'true'\n",
+    ) {
+        return Err(
+            "authoritative Lean must fail while its bounded assurance update is uncommitted"
+                .to_owned(),
+        );
+    }
     let evidence_job = workflow_job_source(ci, "formal-evidence-run")?;
     for required in [
         "needs.formal-translation-run.result == 'success'",
@@ -1491,6 +1513,20 @@ fn workflow_job_source<'a>(workflow: &'a str, job_name: &str) -> Result<&'a str,
             .map(|_| index)
     });
     Ok(next_job.map_or(tail, |index| &tail[..index]))
+}
+
+/// One entry of a job's top-level `outputs:` mapping, the only place a
+/// `needs.<job>.outputs.<name>` read resolves.
+fn workflow_job_output<'a>(job: &'a str, output: &str) -> Option<&'a str> {
+    job.split_once("\n    outputs:\n")?
+        .1
+        .lines()
+        .take_while(|line| line.starts_with("      "))
+        .find_map(|line| {
+            line.strip_prefix("      ")?
+                .strip_prefix(output)?
+                .strip_prefix(": ")
+        })
 }
 
 fn validate_release_workflow_gates(orchestration: &str, builder: &str) -> Result<(), String> {
@@ -2264,10 +2300,15 @@ needs: [ci-plan, formal-update-gate, repository-preflight]
 needs.repository-preflight.result == 'success'
 cargo xtask ci formal-kani
   formal-lean-authoritative-run:
+    outputs:
+      update_required: ${{ steps.formal-update.outputs.update_required || 'false' }}
 needs: [ci-plan, formal-update-gate, repository-preflight, formal-proof-fast, formal-translation-run]
 needs.formal-proof-fast.result == 'success'
 needs.formal-translation-run.result == 'success'
 cargo xtask ci formal-lean-authoritative
+      - id: formal-update
+      - name: Stop qualification until the assurance update is committed
+        if: steps.formal-update.outputs.update_required == 'true'
   formal-evidence-run:
 needs.formal-translation-run.result == 'success'
 needs.formal-lean-authoritative-run.result == 'success'
@@ -2383,6 +2424,36 @@ needs.formal-kani.result
         let error = validate_ci_workflow_gates(&bypass)
             .expect_err("qualification must not proceed past a failed fast proof");
         assert!(error.contains("without qualified translation and fast proof"));
+    }
+
+    #[test]
+    fn formal_evidence_guard_reads_a_declared_lean_output() {
+        let undeclared = CI_GATES.replace(
+            "    outputs:\n      update_required: ${{ steps.formal-update.outputs.update_required || 'false' }}\n",
+            "",
+        );
+        let error = validate_ci_workflow_gates(&undeclared)
+            .expect_err("an undeclared output leaves the evidence guard always true");
+        assert!(error.contains("does not declare the `update_required` output"));
+    }
+
+    #[test]
+    fn lean_update_output_reads_a_step_of_the_lean_job() {
+        let dangling = CI_GATES.replace("      - id: formal-update\n", "");
+        let error = validate_ci_workflow_gates(&dangling)
+            .expect_err("an output bound to no step always takes its default");
+        assert!(error.contains("does not declare the `update_required` output"));
+    }
+
+    #[test]
+    fn authoritative_lean_fails_on_a_pending_assurance_update() {
+        let green = CI_GATES.replace(
+            "      - name: Stop qualification until the assurance update is committed\n",
+            "",
+        );
+        let error = validate_ci_workflow_gates(&green)
+            .expect_err("a pending assurance update must fail the job that packaged it");
+        assert!(error.contains("must fail while its bounded assurance update is uncommitted"));
     }
 
     #[test]
