@@ -178,7 +178,7 @@ impl AgentConfig {
             return Err(AgentConfigError::Limit);
         }
         let document: AgentDocument =
-            toml::from_str(input).map_err(|_| AgentConfigError::Malformed)?;
+            toml::from_str(input).map_err(|error| malformed(input, &error))?;
         document.agent.validate(platform)?;
         Ok(document.agent)
     }
@@ -572,14 +572,16 @@ impl WorkloadSelector {
 }
 
 /// Closed agent workload configuration error.
-#[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum AgentConfigError {
     /// Input is empty or exceeds its hard ceiling.
     #[error("agent configuration exceeds its bound")]
     Limit,
-    /// TOML is malformed or contains unknown fields.
-    #[error("agent configuration is malformed")]
-    Malformed,
+    /// TOML is malformed, omits a required field, or contains an unknown
+    /// field. The detail names the line and the parser's message, which
+    /// names the field.
+    #[error("agent configuration is malformed: {0}")]
+    Malformed(String),
     /// Authority root or source path is malformed.
     #[error("invalid authority path")]
     InvalidPath,
@@ -607,6 +609,35 @@ pub enum AgentConfigError {
     /// Receipt signing keys, roles, validity, or retained trust collide.
     #[error("invalid receipt signing configuration")]
     InvalidReceiptSigning,
+}
+
+/// Keeps the parser's position and message, which names the offending field.
+///
+/// Agent configuration holds paths, identifiers, and public keys, never secret
+/// bytes, so the message is safe to report. It is truncated to a bound.
+fn malformed(input: &str, error: &toml::de::Error) -> AgentConfigError {
+    const MAX_DETAIL_BYTES: usize = 256;
+    let mut detail = match error.span() {
+        Some(span) => {
+            let line = input
+                .as_bytes()
+                .iter()
+                .take(span.start)
+                .filter(|byte| **byte == b'\n')
+                .count()
+                + 1;
+            format!("line {line}: {}", error.message().trim_end())
+        }
+        None => error.message().trim_end().to_owned(),
+    };
+    if detail.len() > MAX_DETAIL_BYTES {
+        let mut end = MAX_DETAIL_BYTES;
+        while !detail.is_char_boundary(end) {
+            end -= 1;
+        }
+        detail.truncate(end);
+    }
+    AgentConfigError::Malformed(detail)
 }
 
 fn normalized_absolute(value: &str) -> Result<&Path, AgentConfigError> {
@@ -770,5 +801,17 @@ linux_cgroup_prefix = "/payments.slice/"
             AgentConfig::from_toml(&escaped, AgentPlatform::Linux).unwrap_err(),
             AgentConfigError::PathEscape
         );
+    }
+
+    #[test]
+    fn malformed_configuration_names_the_missing_field() {
+        let start = CONFIG.find("[agent.receipt_signing.decision]").unwrap();
+        let end = CONFIG
+            .find("[agent.authority_sources.payments-worker-authority]")
+            .unwrap();
+        let missing = format!("{}{}", &CONFIG[..start], &CONFIG[end..]);
+        let error = AgentConfig::from_toml(&missing, AgentPlatform::Linux).unwrap_err();
+        assert!(matches!(error, AgentConfigError::Malformed(_)));
+        assert!(error.to_string().contains("receipt_signing"), "{error}");
     }
 }

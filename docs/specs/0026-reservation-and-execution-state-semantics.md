@@ -1,6 +1,7 @@
 # AP-SPEC-026: Reservation and execution state semantics
 
-**Status:** Specified — implementation requires a separate Milestone 4 PR
+**Status:** Specified; the Milestone 4 reference implementation
+(`product/runtime/auths-lifecycle`) merged in PR #34
 
 **Depends on:** AP-SPEC-025, Closed bounded-authorization policy contract
 

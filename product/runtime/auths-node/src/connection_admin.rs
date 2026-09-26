@@ -21,7 +21,9 @@ use auths_connections::{
     ConnectionRecord, ConnectionState, PersistentCredentialStore, ProviderKind, SemanticId,
 };
 use auths_production_client::LOCAL_AGENT_CONTENT_TYPE;
-use auths_stores::{PersistentConnectionStore, PersistentConnectionStoreError};
+use auths_stores::{
+    PersistentConnectionStore, PersistentConnectionStoreError, PersistentOperationJournal,
+};
 use axum::{
     Router,
     body::Bytes,
@@ -89,7 +91,12 @@ struct ConnectionAdminInner {
     agent_config: AgentConfig,
     connections: Arc<PersistentConnectionStore>,
     credentials: Arc<PersistentCredentialStore>,
+    journal: Arc<PersistentOperationJournal>,
     pending: tokio::sync::Mutex<HashMap<String, PendingConnection>>,
+    /// Serializes changes to existing connections, so a rotation that fails
+    /// can delete its unpublished successor credential without racing
+    /// another rotation that publishes the same generation.
+    mutation: tokio::sync::Mutex<()>,
     audit: AdminAuditLog,
 }
 
@@ -106,12 +113,15 @@ struct PendingConnection {
 
 impl ConnectionAdminState {
     /// Constructs the administration service over persistent registry,
-    /// credential, and audit stores.
+    /// credential, and audit stores. The operation journal decides which
+    /// superseded credential generations an unresolved operation still
+    /// needs.
     pub fn new(
         peer_policy: AdminPeerPolicy,
         agent_config: AgentConfig,
         connections: Arc<PersistentConnectionStore>,
         credentials: Arc<PersistentCredentialStore>,
+        journal: Arc<PersistentOperationJournal>,
         audit_path: impl Into<PathBuf>,
     ) -> Result<Self, ConnectionAdminError> {
         Ok(Self {
@@ -120,7 +130,9 @@ impl ConnectionAdminState {
                 agent_config,
                 connections,
                 credentials,
+                journal,
                 pending: tokio::sync::Mutex::new(HashMap::new()),
+                mutation: tokio::sync::Mutex::new(()),
                 audit: AdminAuditLog::open(audit_path.into())?,
             }),
         })
@@ -494,23 +506,18 @@ async fn transition(
         Ok(value) => value,
         Err(error) => return admin_failure(error),
     };
+    let _mutation = state.inner.mutation.lock().await;
     let record = match state.inner.connections.load(&provider, &alias) {
         Ok(Some(value)) if value.generation() == request.expected_generation => value,
         Ok(_) => return admin_failure(ConnectionAdminError::Conflict),
         Err(error) => return admin_failure(map_store(error)),
     };
-    let next_generation = match NonZeroU64::new(record.generation().get().saturating_add(1)) {
-        Some(value) if value.get() > record.generation().get() => value,
-        _ => return admin_failure(ConnectionAdminError::Conflict),
-    };
-    let credential_commitment = match state.inner.credentials.advance_generation(
-        record.connection_id(),
-        record.generation(),
-        next_generation,
-    ) {
-        Ok(value) => *value.as_bytes(),
-        Err(_) => return admin_failure(ConnectionAdminError::Internal),
-    };
+    // A revoked record is terminal. Revoking it again only finishes deleting
+    // credentials that an earlier revocation failed to delete.
+    let repeated_revocation = record.state() == ConnectionState::Revoked;
+    if repeated_revocation && next_state != ConnectionState::Revoked {
+        return admin_failure(ConnectionAdminError::Conflict);
+    }
     if state
         .inner
         .audit
@@ -525,30 +532,34 @@ async fn transition(
     {
         return admin_failure(ConnectionAdminError::Internal);
     }
-    let replacement = match state.inner.connections.transition_state(
-        &provider,
-        &alias,
-        record.generation(),
-        next_state,
-        credential_commitment,
-        unix_seconds(),
-    ) {
-        Ok(value) => value,
-        Err(error) => return admin_failure(map_store(error)),
+    // A state change stores no credential, so disable, enable, and revoke
+    // never need free credential-store capacity.
+    let current = if repeated_revocation {
+        record
+    } else {
+        match state.inner.connections.transition_state(
+            &provider,
+            &alias,
+            record.generation(),
+            next_state,
+            unix_seconds(),
+        ) {
+            Ok(value) => value,
+            Err(error) => return admin_failure(map_store(error)),
+        }
     };
-    if next_state == ConnectionState::Revoked {
-        let _ = state
+    if next_state == ConnectionState::Revoked
+        && state
             .inner
             .credentials
-            .revoke(record.connection_id(), record.generation())
-            .await;
-        let _ = state
-            .inner
-            .credentials
-            .revoke(record.connection_id(), next_generation)
-            .await;
+            .revoke_connection(current.connection_id())
+            .is_err()
+    {
+        // The revoked record already refuses every lease. The failure is
+        // reported so the operator repeats revoke until nothing is stored.
+        return admin_failure(ConnectionAdminError::Internal);
     }
-    admin_success(encode_record_response(request.request_id, &replacement))
+    admin_success(encode_record_response(request.request_id, &current))
 }
 
 async fn rotate_connection(
@@ -573,10 +584,10 @@ async fn rotate_connection(
         Ok(value) => value,
         Err(error) => return admin_failure(error),
     };
-    let current = match state.inner.connections.load(&provider, &alias) {
-        Ok(Some(value)) if value.generation() == request.expected_generation => value,
-        Ok(_) => return admin_failure(ConnectionAdminError::Conflict),
-        Err(error) => return admin_failure(map_store(error)),
+    let expected_generation = request.expected_generation;
+    let current = match load_rotatable(&state, &provider, &alias, expected_generation) {
+        Ok(value) => value,
+        Err(error) => return admin_failure(error),
     };
     let descriptor = current.descriptor().to_vec();
     let secret = match tokio::task::spawn_blocking(move || {
@@ -589,11 +600,22 @@ async fn rotate_connection(
         Ok(value) => value,
         Err(error) => return admin_failure(error),
     };
+    // Onboarding validation may contact the provider, so it runs unlocked;
+    // the record is reread under the lock before anything is stored.
+    let _mutation = state.inner.mutation.lock().await;
+    let current = match load_rotatable(&state, &provider, &alias, expected_generation) {
+        Ok(value) if value.descriptor() == current.descriptor() => value,
+        Ok(_) => return admin_failure(ConnectionAdminError::Conflict),
+        Err(error) => return admin_failure(error),
+    };
     let next_generation = NonZeroU64::new(current.generation().get().saturating_add(1));
     let Some(next_generation) = next_generation.filter(|value| *value > current.generation())
     else {
         return admin_failure(ConnectionAdminError::Conflict);
     };
+    // Nothing can name a generation the record has not reached, so a
+    // successor left by an earlier failed rotation is discarded, not reused.
+    discard_unpublished_generation(&state, current.connection_id(), next_generation).await;
     let commitment = match state
         .inner
         .credentials
@@ -608,16 +630,63 @@ async fn rotate_connection(
         Ok(value) => *value.as_bytes(),
         Err(_) => return admin_failure(ConnectionAdminError::Internal),
     };
-    let replacement = match current.rotated(
-        current.descriptor().to_vec(),
-        *current.account_commitment(),
-        commitment,
-        unix_seconds(),
-    ) {
-        Ok(value) => value,
-        Err(_) => return admin_failure(ConnectionAdminError::Conflict),
-    };
-    if state
+    match publish_rotation(&state, peer, &provider, &alias, &current, commitment) {
+        Ok(replacement) => {
+            // Best effort: a failed pass leaves superseded generations stored
+            // until the next rotation or operation completion prunes them.
+            let _ = crate::credential_retention::prune_superseded_credentials(
+                &state.inner.journal,
+                &state.inner.connections,
+                &state.inner.credentials,
+                &provider,
+                &alias,
+            );
+            admin_success(encode_record_response(request.request_id, &replacement))
+        }
+        Err(error) => {
+            discard_unpublished_generation(&state, current.connection_id(), next_generation).await;
+            admin_failure(error)
+        }
+    }
+}
+
+fn load_rotatable(
+    state: &ConnectionAdminState,
+    provider: &ProviderKind,
+    alias: &ConnectionAlias,
+    expected_generation: NonZeroU64,
+) -> Result<ConnectionRecord, ConnectionAdminError> {
+    match state.inner.connections.load(provider, alias) {
+        Ok(Some(value))
+            if value.generation() == expected_generation
+                && value.state() != ConnectionState::Revoked =>
+        {
+            Ok(value)
+        }
+        Ok(_) => Err(ConnectionAdminError::Conflict),
+        Err(error) => Err(map_store(error)),
+    }
+}
+
+/// Publishes the rotated record after its successor credential is stored.
+/// Any failure leaves the record naming its previous credential.
+fn publish_rotation(
+    state: &ConnectionAdminState,
+    peer: PeerCredentials,
+    provider: &ProviderKind,
+    alias: &ConnectionAlias,
+    current: &ConnectionRecord,
+    commitment: [u8; 32],
+) -> Result<ConnectionRecord, ConnectionAdminError> {
+    let replacement = current
+        .rotated(
+            current.descriptor().to_vec(),
+            *current.account_commitment(),
+            commitment,
+            unix_seconds(),
+        )
+        .map_err(|_| ConnectionAdminError::Conflict)?;
+    state
         .inner
         .audit
         .append(
@@ -627,18 +696,30 @@ async fn rotate_connection(
             alias.as_str(),
             current.generation(),
         )
-        .is_err()
-    {
-        return admin_failure(ConnectionAdminError::Internal);
-    }
-    match state
+        .map_err(|_| ConnectionAdminError::Internal)?;
+    state
         .inner
         .connections
         .replace(current.generation(), replacement.clone())
-    {
-        Ok(()) => admin_success(encode_record_response(request.request_id, &replacement)),
-        Err(error) => admin_failure(map_store(error)),
-    }
+        .map_err(map_store)?;
+    Ok(replacement)
+}
+
+/// Deletes a successor credential that no published record names. Callers
+/// hold the mutation lock, so no other rotation can publish that generation
+/// meanwhile. If the deletion fails, the stored successor still cannot be
+/// leased: an operation at any generation it would serve fails the
+/// credential-reference check, and the next rotation supersedes it.
+async fn discard_unpublished_generation(
+    state: &ConnectionAdminState,
+    connection_id: &ConnectionId,
+    generation: NonZeroU64,
+) {
+    let _ = state
+        .inner
+        .credentials
+        .revoke(connection_id, generation)
+        .await;
 }
 
 async fn admin_not_found() -> Response {
@@ -1329,9 +1410,9 @@ impl AdminAuditLog {
 
 #[cfg(test)]
 mod tests {
+    use super::test_support::{admin_get, admin_request};
     use super::*;
     use auths_connections::RegistryLimits;
-    use axum::{body::Body, extract::ConnectInfo, http::Request};
     use tower::ServiceExt as _;
 
     #[test]
@@ -1441,11 +1522,19 @@ uid = 1000
         let credentials = Arc::new(
             PersistentCredentialStore::open(directory.path().join("credentials.cbor")).unwrap(),
         );
+        let journal = Arc::new(
+            PersistentOperationJournal::open(
+                directory.path().join("operations.cbor"),
+                crate::built_in_operation_limits().unwrap(),
+            )
+            .unwrap(),
+        );
         let state = ConnectionAdminState::new(
             AdminPeerPolicy::new([1000], []).unwrap(),
             agent,
             Arc::clone(&connections),
             Arc::clone(&credentials),
+            journal,
             directory.path().join("admin-audit.jsonl"),
         )
         .unwrap();
@@ -1545,8 +1634,15 @@ uid = 1000
                 .any(|window| window == b"development-only")
         );
     }
+}
 
-    fn admin_request(path: &str, body: Vec<u8>) -> Request<Body> {
+/// Request builders shared by tests that drive the privileged router.
+#[cfg(test)]
+pub(crate) mod test_support {
+    use super::*;
+    use axum::{body::Body, extract::ConnectInfo, http::Request};
+
+    pub(crate) fn admin_request(path: &str, body: Vec<u8>) -> Request<Body> {
         let mut request = Request::post(path)
             .header(header::CONTENT_TYPE, LOCAL_AGENT_CONTENT_TYPE)
             .header(header::CONTENT_LENGTH, body.len())
@@ -1564,7 +1660,7 @@ uid = 1000
         request
     }
 
-    fn admin_get(path: &str) -> Request<Body> {
+    pub(crate) fn admin_get(path: &str) -> Request<Body> {
         let mut request = Request::get(path)
             .header(header::CONTENT_TYPE, LOCAL_AGENT_CONTENT_TYPE)
             .body(Body::empty())
@@ -1579,5 +1675,51 @@ uid = 1000
                 qualification_fault: None,
             }));
         request
+    }
+
+    /// A disable, enable, or revoke request for `provider/alias`.
+    pub(crate) fn transition_request(
+        connection: &str,
+        operation: &str,
+        expected_generation: u64,
+    ) -> Request<Body> {
+        admin_request(
+            &format!("/v1/admin/connections/{connection}/{operation}"),
+            encode_generation_request(&GenerationRequest {
+                request_id: [1; 16],
+                expected_generation: NonZeroU64::new(expected_generation).unwrap(),
+            }),
+        )
+    }
+
+    /// A rotation request for `provider/alias` carrying the successor secret.
+    pub(crate) fn rotate_request(
+        connection: &str,
+        expected_generation: u64,
+        secret: Vec<u8>,
+    ) -> Request<Body> {
+        admin_request(
+            &format!("/v1/admin/connections/{connection}/rotate"),
+            encode_rotate_request(&RotateRequest {
+                request_id: [2; 16],
+                expected_generation: NonZeroU64::new(expected_generation).unwrap(),
+                secret,
+            }),
+        )
+    }
+
+    /// Returns the closed failure code of a response, or `None` on success.
+    pub(crate) async fn failure_code(response: Response) -> Option<String> {
+        if response.status() == StatusCode::OK {
+            return None;
+        }
+        let bytes = axum::body::to_bytes(response.into_body(), MAX_ADMIN_RESPONSE_BYTES)
+            .await
+            .unwrap();
+        let mut decoder = Decoder::new(&bytes);
+        exact_map(&mut decoder, 2).unwrap();
+        version(&mut decoder).unwrap();
+        key(&mut decoder, 2).unwrap();
+        Some(decoder.str().unwrap().to_owned())
     }
 }

@@ -831,8 +831,35 @@ pub struct PreparationEvidenceAcquisitionInput<'a> {
     pub now_unix_seconds: u64,
 }
 
+/// Borrowed inputs for the profile-owned provider-entry hold.
+///
+/// Common code calls the hold under the operation gate on every attempt to
+/// enter the provider, after the durable pre-entry re-check and before any
+/// credential lease or provider-entry marker, including an attempt that
+/// resumes a durable executing, not-applied checkpoint. The record carries
+/// the sealed command. The profile claims whatever state its command
+/// consumes and answers from its own durable store, never from the journal's
+/// copy of that state:
+///
+/// - `Ok(())`: the state is held for this attempt; repeating the hold for the
+///   same sealed command is idempotent;
+/// - `Err(PreEntry(issue))`: the state no longer backs the command, so common
+///   code concludes the operation not-applied with `issue` without a
+///   credential or provider call;
+/// - `Err(PreEntryPending)`: the store is unavailable; common code keeps the
+///   durable not-entered checkpoint;
+/// - any other error fails closed without provider entry.
+pub struct ProviderEntryHoldInput<'a> {
+    pub context: ProfileOperationContext<'a>,
+    pub record: &'a JournalRecordV1,
+    pub now_unix_seconds: u64,
+}
+
 /// Borrowed inputs for releasing profile-owned state while the common journal
-/// still durably proves that provider entry never occurred.
+/// still durably proves that provider entry never occurred. When common code
+/// concludes an operation before provider entry it persists that conclusion
+/// first and releases afterwards, so the release is repeated for terminal
+/// records and must be idempotent.
 pub struct ReleaseProfileCallInput<'a> {
     pub context: ProfileOperationContext<'a>,
     pub record: &'a JournalRecordV1,

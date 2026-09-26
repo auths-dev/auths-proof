@@ -1,0 +1,3 @@
+# Packed npm tarballs and Python wheels are build outputs.
+*.tgz
+*.whl

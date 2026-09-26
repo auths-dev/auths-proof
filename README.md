@@ -1,46 +1,109 @@
 # Auths
 
-Auths is an open protocol and SDK for proof-carrying, bounded machine
-authority. The `auths-proof` component is its strictly offline reference
-kernel for Auths Proof Protocol V1.
+Auths lets an AI agent act only with authority you can check. An action goes
+through only if it matches exactly what the right people approved and stays
+within the agent's own limits. A gateway holds the provider credential, so the
+agent never sees it. Afterwards, an auditor can re-verify each action offline.
 
-> Auths owns authority. Adapters establish bounded facts.
+This repository is prelaunch and has not had an independent security review.
+See [Status](#status).
 
-## Application SDK
+## See it work
 
-Applications call a generated profile client through one local Auths agent.
-They never receive an Auths access token or provider credential. For example:
+Your agent may refund a Stripe payment only when two of your three managers
+approve that exact refund, and only up to 50.00 per refund and two refunds a
+day. The Stripe key lives only in the gateway, and an auditor checks every
+refund offline. You need Python 3.9+, Rust, and a checkout of this repository.
 
-```python
-import auths
-from auths_profiles.stripe import Stripe
-
-async with auths.connect() as session:
-    stripe = Stripe(session, connection="billing")
-    refund = await stripe.refunds.create(
-        payment_intent="pi_123", amount=2_000, currency="usd"
-    )
+```sh
+cd examples/stripe-refund-approval
+python3 -m venv .venv && . .venv/bin/activate
+pip install maturin
+maturin build --profile python-extension --manifest-path ../../bindings/python/Cargo.toml --out dist
+pip install dist/auths-*.whl
+cargo install --locked --path ../../product/runtime/auths-gateway --features loopback-provider
+python journey.py --gateway "$(command -v auths-gateway)"
 ```
 
-The operator starts `auths agent serve`, maps the observed workload to sealed
-authority, and provisions the non-secret connection alias separately. Real
-Stripe, PostgreSQL, and OpenTofu routes remain unavailable until their exact
-live-provider qualification records are imported; the disposable testkit is
-not production qualification.
+The first build takes a few minutes. The journey then runs in a few seconds
+against a local Stripe double, and never calls Stripe. It checks each of these:
 
-Start with the [production SDK quickstart](docs/product/PRODUCTION_SDK_QUICKSTART.md),
-then use the [local-agent operator guide](docs/product/LOCAL_AGENT_SDK_QUICKSTART.md)
-or [profile authoring guide](docs/product/PROFILE_AUTHORING.md). The offline
-proof kernel described below is the verification subsystem behind that SDK.
+| Attempt | Result | Stripe calls |
+| --- | --- | --- |
+| A 15.00 refund approved by managers A and B, and a 40.00 refund approved by B and C | submitted | 2 |
+| A 90.00 refund, above the agent's 50.00 limit | refused | 0 |
+| A refund only manager A approved | refused | 0 |
+| A third refund on the same day | refused | 0 |
+| Four tampered audit bundles: a flipped proof byte, a swapped action, a replayed outcome, and replaced trust | the offline audit flags each | none |
 
-The workspace contains only the target V1 model, deterministic codec,
-effect-free ports and registries, mandatory Ed25519 and P-256/SHA-256 suites,
-authority attenuation, authorization-plan composition, assurance, status,
-staged verification, keyless authoring, raw-key, `did:key`, `did:keri`,
-bundled `did:web`, SPIFFE/X.509, WebAuthn, and HSM-attested methods, and the
-canonical language-neutral corpus.
+Each refusal happens before the gateway touches the Stripe key. CI runs the
+same journey from the packaged wheel.
 
-The sealed verification pipeline is:
+[The example's README](examples/stripe-refund-approval/README.md) walks through
+the run in 10 steps, and shows how to run it against Stripe test mode with your
+own test key.
+
+## What you get
+
+- **Approval of the exact action.** Approvers sign the exact request (this
+  refund, this amount, this payment), not a permission scope. A plan can
+  require K of N approvers.
+- **Limits per agent.** The agent's grant carries its limits, such as a maximum
+  refund and a number per day, and the gateway enforces them. Delegation can
+  narrow authority but never widen it.
+- **The credential stays in the gateway.** The gateway verifies the proof and
+  checks the limits before it uses the provider credential. The agent never
+  holds the credential.
+- **Offline audit.** `auths-gateway audit` re-verifies each action in an
+  exported bundle, with no network, and flags tampering. It cannot show that no
+  action was left out of the bundle.
+- **Checked independently.** A Rust verifier and independent Go and TypeScript
+  verifiers agree on a shared corpus of test vectors. Lean proofs cover the
+  delegation ordering and the K-of-N approval algebra, not the whole verifier.
+
+## What it does not claim yet
+
+- The example uses development keys and a Stripe double. No provider route is
+  qualified for production; the Stripe test-mode run is one you do yourself.
+- No independent security review has been done.
+- The gateway's default store is single-host. A PostgreSQL store lets several
+  gateways share state, but its production review is not finished.
+
+The [claim ledger](docs/product/SELF_HOSTED_CLAIM_LEDGER.md) states what each
+part establishes and what it does not.
+
+## Other ways in
+
+| To… | Start with |
+| --- | --- |
+| Require approvals from K of N people | [Approval quorum](docs/product/APPROVAL_QUORUM.md) |
+| Verify a proof or authenticate an identity from Python or TypeScript | [Recipes](docs/product/recipes/README.md) |
+| Put another HTTP API behind the gateway | The example's [`recipe.json`](examples/stripe-refund-approval/recipe.json) and the [gateway specification](docs/specs/0053-declarative-credential-isolated-gateway.md) |
+| Derive gateway operations from an OpenAPI document | [OpenAPI-derived operations](docs/specs/0056-openapi-derived-operation-contracts.md) |
+| Protect one action in your own application, without a gateway | [Application-owned adapter](docs/product/SELF_HOSTED_PROFILE_QUICKSTART.md) |
+| Write a profile for a new provider | [Profile authoring](docs/product/PROFILE_AUTHORING.md) |
+| Use the typed application SDK through a local agent (no live provider route is promoted yet) | [SDK contract](docs/product/PRODUCTION_SDK_QUICKSTART.md), then the [local-agent guide](docs/product/LOCAL_AGENT_SDK_QUICKSTART.md) |
+| Sign Git commits under any principal method, or run the gateway with production trust | [Git object signing](docs/specs/0058-git-object-signing-under-any-principal-method.md) and the [trust and signing runbook](docs/operations/GATEWAY_TRUST_AND_GIT_SIGNING_RUNBOOK.md) |
+
+Package documentation: [Python](bindings/python/README.md) and
+[TypeScript](bindings/typescript/README.md).
+
+## How it fits together
+
+This is one monorepo in five layers. A layer may depend only on itself and the
+layers above it in this table; [`architecture.toml`](architecture.toml)
+enforces that.
+
+| Layer | Holds |
+| --- | --- |
+| `core/` | The offline verification kernel: protocol model, canonical encoding, signatures, delegation, verification, and the canonical test corpus |
+| `exchange/` | Moving proofs between parties: formats and transports |
+| `product/` | The gateway, SDK runtimes, stores, custody, and provider integrations |
+| `bindings/` | Python, TypeScript, WASM, and Go surfaces, and the independent verifiers |
+| `demos/` | Demos, test kits, and benchmarks |
+
+The kernel checks a proof in fixed stages, and `VerifiedAction` has no public
+constructor:
 
 ```text
 untrusted bytes
@@ -51,100 +114,39 @@ untrusted bytes
   -> VerifiedAction
 ```
 
-The language-neutral boundary is
-`verify_v1(proof_cbor, canonical_action_cbor, trusted_context_cbor) ->
-verification_result_cbor`. The result includes stable stage/code values,
-self-binding digests, authorized branches, assurance satisfactions, and
-resource/work totals.
-The trusted context also binds the verifier-required composition obligation
-and the exact executable adapter/registry configuration commitment.
+The language-neutral entry point is
+`verify_v1(proof_cbor, canonical_action_cbor, trusted_context_cbor) -> verification_result_cbor`.
+The kernel reads no clock, environment variable, network, filesystem, or key.
+Every trust anchor, evaluation time, status snapshot, policy, and limit is an
+explicit input. To try it, run `cargo run -p auths-proof-offline-example`.
 
-`VerifiedAction` has no public constructor. The kernel reads no clock,
-environment variable, network connection, filesystem, database, replay store,
-budget store, profile implementation, receipt sink, or private key. Every
-trust anchor, accepted executable registry and manifest, evaluation time,
-expected audience/challenge, status snapshot and issuer/floor trust,
-assurance policy, resource matcher, profile/channel policy, detached
-attachment input, and resource limit is an explicit immutable verifier input.
+Identity packets and Iroh transport also work without any authorization layer:
+run `cargo run -p auths-identity-iroh-demo`, then open `http://localhost:8080`.
 
-Target packages:
+## Develop
 
-- `auths`: supported consumer-facing Rust core facade;
-- `auths-sdk`: idiomatic embedded authorization SDK;
-- `auths-proof`: bounded proof-protocol component and actionable results;
-- `auths-proof-wasm`: prebuildable three-input WebAssembly boundary;
-- `auths-model`: validated V1 protocol and context types;
-- `auths-codec`: constrained deterministic CBOR and domain-separated IDs;
-- `auths-ports`: effect-free principal-method and signature-suite ports;
-- `auths-registries`: exact immutable implementations, status handlers, and
-  verifier-configuration commitments;
-- `auths-signature`: mandatory Ed25519 and low-S P-256 suites;
-- `auths-authority`: scoped trust roots and grant attenuation;
-- `auths-composition`: proof, all-of, any-of, and K-of-N plans;
-- `auths-assurance`: role-indexed evidence assurance;
-- `auths-verifier`: the sealed pure pipeline;
-- `auths-author`: external-signing requests with no custody;
-- `auths-multikey`: the closed canonical Ed25519/P-256 Multikey subset;
-- `auths-raw-key`: self-certifying raw-key evidence;
-- `auths-identity`: transport- and algorithm-independent identity packets and
-  extension ports;
-- `auths-identity-raw-key`: optional self-certifying raw-key identity adapter;
-- `auths-signature-ed25519`: optional standalone Ed25519 identity-signature
-  adapter;
-- `auths-iroh`: semantics-free bounded byte exchange over Iroh;
-- `auths-did-key`: self-certifying `did:key` evidence;
-- `auths-did-keri`: bounded offline KEL replay with threshold and rotation
-  commitment verification;
-- `auths-did-web`: locally pinned, bundled `did:web` evidence with distinct
-  current, historical, and statement-existence claims;
-- `auths-webauthn`: challenge-bound WebAuthn assertions with RP, origin,
-  presence, verification, counter, and attestation-policy checks;
-- `auths-hsm-attested`: verifier-pinned attestation profiles with protection,
-  exportability, device-chain, key-handle, and transaction binding;
-- `auths-spiffe-x509`: bounded X.509-SVID path, URI SAN, client-EKU,
-  trust-domain, key-suite, validity, and local status verification;
-- `auths-testkit`: canonical positive and negative corpus construction.
-
-## Identity without authorization
-
-Teams can adopt algorithm-neutral identity packets and Iroh transport without
-loading a grant, capability, approval, policy, lifecycle, store, or product
-runtime. `auths-identity` has zero workspace and cryptographic dependencies;
-callers supply identity-method and signature-suite implementations. The
-repository includes raw-key and Ed25519 adapters only as proofs of that port.
-`auths-iroh` carries arbitrary bounded bytes under an application-selected
-ALPN. Neither component depends on the other or manufactures authorization.
-
-Run the full native backend and browser workbench with:
+Read [`AGENTS.md`](AGENTS.md), the repository contract, before changing code,
+then [`CONTRIBUTING.md`](CONTRIBUTING.md). The
+[program board](docs/PROGRAM_BOARD.md) shows current status and what is next.
 
 ```sh
-cargo run -p auths-identity-iroh-demo
-```
-
-Then open `http://localhost:8080`. Architecture CI pins both the neutral
-identity port and Iroh transport to zero workspace dependencies, while each
-optional identity adapter may depend only on `auths-identity`.
-
-Focused validation:
-
-```sh
-cargo xtask arch
-cargo xtask wire
+cargo xtask arch          # layer and dependency rules
+cargo xtask wire          # the canonical corpus is byte-stable
 cargo xtask conformance
 cargo xtask fuzz-smoke
-cargo run -p auths-proof-offline-example
+cargo xtask ci            # the authoritative gate
 ```
 
-Canonical `.cbor` files are generated only through:
+Canonical `.cbor` fixtures change only through `cargo xtask wire --update`, for
+an intentional, reviewed protocol change.
 
-```sh
-cargo xtask wire --update
-```
+## Status
 
-Networking and transports belong to the `auths-proof-exchange` components.
-Profiles, live resolvers, runtime state, receipts, execution, custody,
-independent implementations, and Auths Lab remain outside the offline proof
-kernel in the workspace's product and demo layers.
+Prelaunch: there are no external users yet, and no independent security review
+has been done. Passing the corpus, fuzz, and WASM-equivalence checks is not
+such a review. Report suspected vulnerabilities privately, as described in
+[`SECURITY.md`](SECURITY.md).
 
-This repository is prelaunch and pre-audit. Passing corpus, fuzz-smoke, and
-WASM equivalence gates is not an independent security review.
+## License
+
+[MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at your option.

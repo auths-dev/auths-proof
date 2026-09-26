@@ -263,7 +263,8 @@ impl ControlVerifiedProof {
     }
 }
 
-/// Authority established for the satisfied authorization-plan branches.
+/// Authority established by an authorizing plan, covering every branch that
+/// authorized, whether or not the plan needed that branch.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerifiedAuthority {
     canonical_action: CanonicalAction,
@@ -281,7 +282,8 @@ pub struct VerifiedAuthority {
 /// Sealed data consumed by downstream profile decoders.
 ///
 /// Fields have no public constructor. Applications can obtain this value only
-/// from [`verify`] or [`bind_verified_action`].
+/// from a complete verification: [`verify`], [`verify_explained`], or
+/// [`verify_v1_sealed`].
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerifiedAction {
     canonical_action: CanonicalAction,
@@ -361,19 +363,21 @@ impl VerifiedAction {
         self.plan_id
     }
 
-    /// Returns action identifiers for satisfied branches in canonical order.
+    /// Returns action identifiers for every authorized branch in canonical
+    /// order.
     #[must_use]
     pub fn action_ids(&self) -> &[ActionId] {
         &self.action_ids
     }
 
-    /// Returns satisfied proof references in deterministic evaluation order.
+    /// Returns the proof reference of every authorized branch, whether or not
+    /// the plan needed it, in ascending order.
     #[must_use]
     pub fn authorized_branches(&self) -> &[ProofRef] {
         &self.authorized_branches
     }
 
-    /// Returns role-indexed assurance reports for satisfied branches.
+    /// Returns role-indexed assurance reports for every authorized branch.
     #[must_use]
     pub fn assurance(&self) -> &[ParticipantAssurance] {
         &self.assurance
@@ -385,7 +389,7 @@ impl VerifiedAction {
         &self.assurance_satisfactions
     }
 
-    /// Returns, for each observation requirement in the satisfied branches,
+    /// Returns, for each observation requirement in every authorized branch,
     /// the signed observation attachment that satisfied it.
     #[must_use]
     pub fn observation_satisfactions(&self) -> &[ObservationSatisfaction] {
@@ -967,7 +971,7 @@ pub fn verify_v1_sealed(
                 VerificationStage::Decode,
                 proof_input_digest,
                 action_input_digest,
-                context_digest(&context).unwrap_or_else(|_| ContextDigest::new([0; 32])),
+                infallible_encoding(context_digest(&context)),
                 None,
                 input_resources,
                 context.accepted_registries().manifest_id(),
@@ -1002,12 +1006,11 @@ fn verify_portable_sealed(
     context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
 ) -> (PortableVerificationResult, Option<Box<VerifiedAction>>) {
-    let action_bytes = encode_canonical_action(canonical_action).unwrap_or_default();
-    let context_bytes = encode_verifier_context(context).unwrap_or_default();
+    let action_bytes = infallible_encoding(encode_canonical_action(canonical_action));
+    let context_bytes = infallible_encoding(encode_verifier_context(context));
     let proof_input_digest = body_digest(proof_bytes);
     let action_digest = body_digest(&action_bytes);
-    let public_context_digest =
-        context_digest(context).unwrap_or_else(|_| ContextDigest::new([0; 32]));
+    let public_context_digest = infallible_encoding(context_digest(context));
     let local_configuration = registries.configuration_id();
     let mut resources = VerificationResources::new(
         u64::try_from(proof_bytes.len()).unwrap_or(u64::MAX),
@@ -1184,6 +1187,15 @@ fn verify_portable_sealed(
     }
 }
 
+/// Unwraps the canonical encoding, or digest, of an already constructed model
+/// value.
+fn infallible_encoding<T>(encoded: Result<T, CodecError>) -> T {
+    // INVARIANT: the V1 encoders write into a `Vec`, whose minicbor writer
+    // cannot fail, and frame only lengths that fit in `u64`, so no
+    // constructed model value makes them return `Err`.
+    encoded.expect("canonical V1 encoding of a constructed model value cannot fail")
+}
+
 fn seal_portable(
     portable: PortableVerificationResult,
     action: Option<Box<VerifiedAction>>,
@@ -1266,7 +1278,7 @@ pub fn decode_proof(
 ///
 /// Returns a stable denial for missing, duplicate, cyclic, mismatched,
 /// ambiguous, or unused critical references.
-pub fn resolve_proof(
+pub(crate) fn resolve_proof(
     decoded: DecodedProof,
     context: &TrustedContext,
 ) -> Result<ResolvedProof, VerificationFailure> {
@@ -1394,7 +1406,7 @@ fn require_expected_plan(
 ///
 /// Returns a stable denial or indeterminate requirement. Work is charged
 /// before the configured maximum can be exceeded.
-pub fn verify_principal_control(
+pub(crate) fn verify_principal_control(
     resolved: ResolvedProof,
     context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
@@ -1554,24 +1566,6 @@ fn verify_status_controls(
 /// # Errors
 ///
 /// Returns a stable denial or indeterminate requirement.
-pub fn verify_authority(
-    controlled: ControlVerifiedProof,
-    canonical_action: &CanonicalAction,
-    context: &TrustedContext,
-    registries: &ImmutableRegistries<'_>,
-) -> Result<VerifiedAuthority, VerificationFailure> {
-    let mut meter = WorkMeter::from_used(context.limits().max_work_units(), controlled.work_units);
-    let mut diagnostics = AuthorityDiagnostics::discard();
-    verify_authority_measured(
-        controlled,
-        canonical_action,
-        context,
-        registries,
-        &mut meter,
-        &mut diagnostics,
-    )
-}
-
 fn verify_authority_measured(
     controlled: ControlVerifiedProof,
     canonical_action: &CanonicalAction,
@@ -1682,7 +1676,7 @@ fn verify_authority_measured(
 
 /// Seals a verified authority result as a downstream-consumable action.
 #[must_use]
-pub fn bind_verified_action(authority: VerifiedAuthority) -> VerifiedAction {
+pub(crate) fn bind_verified_action(authority: VerifiedAuthority) -> VerifiedAction {
     VerifiedAction {
         canonical_action: authority.canonical_action,
         proof_digest: authority.proof_digest,
@@ -2170,7 +2164,7 @@ fn same_shared_action(
         && left.extensions() == right.extensions()
 }
 
-/// Authority established for one satisfied authorization-plan branch.
+/// Authority established for one authorization-plan branch that authorized.
 struct BranchAuthority {
     action_id: ActionId,
     assurance: Vec<ParticipantAssurance>,

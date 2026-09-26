@@ -23,7 +23,7 @@ Read:
 - `product/runtime/auths-lifecycle/src/sealed.rs`;
 - `product/runtime/auths-lifecycle/src/codec.rs`;
 - `product/stores/auths-stores/src/lifecycle.rs`;
-- `product/stores/auths-stores/migrations/postgres_lifecycle_v3.sql`;
+- `product/stores/auths-stores/migrations/postgres_lifecycle_v4.sql`;
 - `product/stores/auths-stores/tests/postgres_lifecycle.rs`;
 - `product/fixtures/v1/lifecycle/`; and
 - `docs/specs/0026-reservation-and-execution-state-semantics.md`.
@@ -34,10 +34,10 @@ Current behavior:
   `StoredTransitionV1`.
 - `execute_store_transaction` validates the adapter acknowledgement before it
   creates a `DurableTransitionV1`.
-- `PostgresLifecycleStore` currently holds one blocking `postgres::Client`
-  behind a process mutex, uses `NoTls`, locks one singleton metadata row,
-  reloads all records, applies the pure transition, writes one canonical row,
-  and acknowledges only after commit.
+- `PostgresLifecycleStore` holds a bounded `r2d2` pool of TLS connections
+  (`sslmode=require`, with certificate and server-name verification), locks
+  one singleton contract row, reloads all records, applies the pure
+  transition, writes one canonical row, and acknowledges only after commit.
 - The current ignored integration test proves final-capacity serialization,
   restart replay/conflict, transaction abort, and atomic multi-intent failure.
 
@@ -179,9 +179,9 @@ are recreated.
 - [ ] Add centrally versioned Rustls-compatible PostgreSQL pooling dependencies
   to the workspace after license/MSRV/advisory review. Use a maintained pool;
   do not implement an ad hoc connection scheduler.
-- [ ] Replace `Mutex<Client>` with a bounded pool whose checkout has a hard
+- [x] Replace `Mutex<Client>` with a bounded pool whose checkout has a hard
   deadline.
-- [ ] Remove the production `NoTls` path. Test-only plaintext helpers, if
+- [x] Remove the production `NoTls` path. Test-only plaintext helpers, if
   unavoidable for unit tests, remain private under `cfg(test)` and are not
   reachable through shipping constructors.
 - [ ] Parse pool and TLS inputs into closed bounded types in `auths-config`.

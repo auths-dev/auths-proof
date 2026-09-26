@@ -12,12 +12,13 @@ use crate::local_configuration::StripeRefundLocalAgentConfigurationV1;
 use crate::{
     AggregateBudgetSnapshot, BoundedDecisionClass, BoundedEvaluationContext, BoundedRefundDecision,
     ExactRefundActionInput, ExactRefundActionV1, Money, PaymentIntentId,
-    PersistentRefundReservationStore, ProtectedRefundEvidenceSnapshotV1, ReconciledRefundOutcome,
-    RefundEvidenceV1, RefundReservationLease, RefundReservationRecord, RefundReservationState,
-    RefundReservationStore, ReserveRefundRequest, ReserveRefundResult,
-    StripeBoundedEvaluatorConfigurationV1, StripeBoundedRefundPolicyV1, StripeRefundEvidencePhase,
-    StripeRefundEvidenceStoreV1, StripeRefundProfile, StripeVerifierConfiguration,
-    evaluate_bounded_refund, read_persistent_refund_snapshot, request_refund_evidence_snapshot,
+    PersistentRefundReservationStore, ProtectedRefundEvidenceSnapshotV1, ProviderEntryHold,
+    ReconciledRefundOutcome, RefundEvidenceV1, RefundReservationLease, RefundReservationRecord,
+    RefundReservationState, RefundReservationStore, ReservationError, ReserveRefundRequest,
+    ReserveRefundResult, StripeBoundedEvaluatorConfigurationV1, StripeBoundedRefundPolicyV1,
+    StripeRefundEvidencePhase, StripeRefundEvidenceStoreV1, StripeRefundProfile,
+    StripeVerifierConfiguration, evaluate_bounded_refund, read_persistent_refund_snapshot,
+    reevaluate_sealed_bounded_refund, request_refund_evidence_snapshot,
 };
 use auths_codec::{decode_verifier_context, encode_canonical_action};
 use auths_connections::ProviderCredentialLease;
@@ -46,7 +47,8 @@ use auths_profile_runtime::{
     ProfileConnectionRequirement, ProfileDecisionReceiptFacts, ProfileExecutionReceiptFacts,
     ProfileObservation, ProfilePreEntryRecheck, ProfilePreparation, ProfilePreparationKind,
     ProfileReceiptClaimCommitment, ProfileReceiptInspection, ProfileRuntimeError,
-    ReconcileProfileInput, ReleaseProfileCallInput, SealProfileCallInput, SealedProfileCall,
+    ProviderEntryHoldInput, ReconcileProfileInput, ReleaseProfileCallInput, SealProfileCallInput,
+    SealedProfileCall,
 };
 use auths_receipts::{
     ProfileReceiptClaim, ProfileReceiptClaimPhase, encode_profile_receipt_claims,
@@ -224,6 +226,7 @@ fn refunds_create_execution_commitments(
                 .as_ref()
                 .is_none_or(|reservation| reservation.reservation_id() != &command.reservation_id)
             || state.pre_entry_snapshot.is_none()
+            || state.sealed_at.is_none()
         {
             return Err(ProfileRuntimeError::Invalid);
         }
@@ -600,6 +603,7 @@ pub fn refunds_create_prepare(
         pre_entry_aggregate_snapshot: None,
         pre_entry_bounded_decision: None,
         reservation: None,
+        sealed_at: None,
     };
     match verify_authority(input.context, &canonical, input.now_unix_seconds)? {
         VerificationClass::Denied => Ok(ProfilePreparation {
@@ -738,6 +742,7 @@ pub async fn refunds_create_seal_provider_call(
         || state.pre_entry_snapshot.is_some()
         || state.pre_entry_evidence.is_some()
         || state.reservation.is_some()
+        || state.sealed_at.is_some()
         || configuration_commitment_from_record(input.context, connection, runtime_connection)
             != *input.record.binding().configuration_commitment()
     {
@@ -864,6 +869,7 @@ pub async fn refunds_create_seal_provider_call(
         amount_minor: state.action.amount().amount_minor(),
         intents: eligibility.reservations.clone(),
         idempotency_key_digest: crate::canonical::sha256(state.action.idempotency_key().as_bytes()),
+        action_expires_at: state.action.expires_at(),
         now: input.now_unix_seconds,
     };
     let store = PersistentRefundReservationStore::open(refund_reservation_store_path(
@@ -894,6 +900,7 @@ pub async fn refunds_create_seal_provider_call(
     state.pre_entry_aggregate_snapshot = Some(pre_entry_aggregate_snapshot);
     state.pre_entry_bounded_decision = Some(pre_entry_bounded_decision);
     state.reservation = Some(reservation);
+    state.sealed_at = Some(input.now_unix_seconds);
     Ok(SealedProfileCall {
         command: canonical_json(&command)?,
         profile_state: canonical_json(&state)?,
@@ -967,29 +974,7 @@ pub fn refunds_create_recheck_pre_entry(
             "stripe-refund-critical-evidence-changed",
         )?));
     }
-    let aggregate = state
-        .pre_entry_aggregate_snapshot
-        .as_ref()
-        .ok_or(ProfileRuntimeError::Invalid)?;
-    let decision = evaluate_bounded_refund(&BoundedEvaluationContext {
-        policy: &state.policy,
-        action: &state.action,
-        evidence: &state.evidence,
-        aggregate_snapshot: aggregate,
-        required_exact_configuration: &state.exact_configuration,
-        executed_exact_configuration: deployment.exact_configuration(),
-        required_bounded_configuration: &state.bounded_configuration,
-        executed_bounded_configuration: deployment.bounded_configuration(),
-        request_audience: deployment.exact_configuration().executor_audience(),
-        now: reread_now,
-    });
-    if decision.class != BoundedDecisionClass::Eligible
-        || state.pre_entry_bounded_decision.as_ref() != Some(&decision)
-    {
-        return Err(ProfileRuntimeError::PreEntry(issue_denied(
-            "stripe-refund-pre-entry-policy",
-        )?));
-    }
+    recheck_sealed_bounded_decision(&state, &deployment, reread_now)?;
     let canonical = StripeRefundProfile
         .canonicalize(
             &state
@@ -1010,6 +995,45 @@ pub fn refunds_create_recheck_pre_entry(
     })
 }
 
+/// Re-evaluates the sealed pre-entry decision at the re-check time. Policy
+/// validity, evidence freshness, the exact action, and configuration equality
+/// are judged at `reread_now`; aggregate capacity is judged against the budget
+/// windows the seal resolved, which are the windows the reservation holds.
+fn recheck_sealed_bounded_decision(
+    state: &BoundedRefundState,
+    deployment: &StripeRefundLocalAgentConfigurationV1,
+    reread_now: u64,
+) -> Result<(), ProfileRuntimeError> {
+    let aggregate = state
+        .pre_entry_aggregate_snapshot
+        .as_ref()
+        .ok_or(ProfileRuntimeError::Invalid)?;
+    let sealed_at = state.sealed_at.ok_or(ProfileRuntimeError::Invalid)?;
+    let decision = reevaluate_sealed_bounded_refund(
+        &BoundedEvaluationContext {
+            policy: &state.policy,
+            action: &state.action,
+            evidence: &state.evidence,
+            aggregate_snapshot: aggregate,
+            required_exact_configuration: &state.exact_configuration,
+            executed_exact_configuration: deployment.exact_configuration(),
+            required_bounded_configuration: &state.bounded_configuration,
+            executed_bounded_configuration: deployment.bounded_configuration(),
+            request_audience: deployment.exact_configuration().executor_audience(),
+            now: reread_now,
+        },
+        sealed_at,
+    );
+    if decision.class != BoundedDecisionClass::Eligible
+        || state.pre_entry_bounded_decision.as_ref() != Some(&decision)
+    {
+        return Err(ProfileRuntimeError::PreEntry(issue_denied(
+            "stripe-refund-pre-entry-policy",
+        )?));
+    }
+    Ok(())
+}
+
 fn trusted_unix_seconds() -> Result<u64, ProfileRuntimeError> {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -1017,10 +1041,79 @@ fn trusted_unix_seconds() -> Result<u64, ProfileRuntimeError> {
         .map_err(|_| ProfileRuntimeError::Invalid)
 }
 
+/// Claims the sealed command's refund reservation for provider entry.
+///
+/// Common code calls this under the operation gate on every attempt, after
+/// the pre-entry re-read and before any credential lease. The reservation
+/// store, not the journal's copy of the reservation, decides: a reserved
+/// record moves to `entry-held` with a compare-and-swap, and a released or
+/// retired record withdraws the attempt with a pre-entry denial, which common
+/// code concludes as not applied without calling Stripe. An unavailable store
+/// leaves the attempt pending; any inconsistency fails closed.
+pub fn refunds_create_hold_provider_entry(
+    input: ProviderEntryHoldInput<'_>,
+) -> Result<(), ProfileRuntimeError> {
+    if input.record.provider_entered() {
+        return Err(ProfileRuntimeError::Invalid);
+    }
+    let command_bytes = input
+        .record
+        .sealed_command()
+        .ok_or(ProfileRuntimeError::Invalid)?;
+    let command: BoundedRefundCommand = canonical_from_slice(command_bytes)?;
+    validate_bounded_command(&command)?;
+    let state: BoundedRefundState = canonical_from_slice(input.record.profile_state())?;
+    let reservation = state
+        .reservation
+        .as_ref()
+        .ok_or(ProfileRuntimeError::Invalid)?;
+    validate_reservation_binding(&state, reservation)?;
+    if command.action != state.action
+        || command.operation_id != input.record.operation_id().as_str()
+        || command.reservation_id != *reservation.reservation_id()
+    {
+        return Err(ProfileRuntimeError::Invalid);
+    }
+    let store = PersistentRefundReservationStore::open(refund_reservation_store_path(
+        input.context.profile_state_root(),
+    ))
+    .map_err(reservation_hold_error)?;
+    hold_reservation_for_provider_entry(&store, reservation, input.now_unix_seconds)
+}
+
+fn hold_reservation_for_provider_entry(
+    store: &dyn RefundReservationStore,
+    reservation: &RefundReservationRecord,
+    now: u64,
+) -> Result<(), ProfileRuntimeError> {
+    match store
+        .hold_for_provider_entry(&RefundReservationLease::from_record(reservation), now)
+        .map_err(reservation_hold_error)?
+    {
+        ProviderEntryHold::Held(_) => Ok(()),
+        ProviderEntryHold::Withdrawn => Err(ProfileRuntimeError::PreEntry(issue_denied(
+            "stripe-refund-reservation-released",
+        )?)),
+    }
+}
+
+fn reservation_hold_error(error: ReservationError) -> ProfileRuntimeError {
+    match error {
+        ReservationError::Unavailable => ProfileRuntimeError::PreEntryPending,
+        ReservationError::Corrupt
+        | ReservationError::Missing
+        | ReservationError::Conflict
+        | ReservationError::InvalidTransition => ProfileRuntimeError::Invalid,
+    }
+}
+
 /// Releases the workflow reservation only while common durable state proves
 /// that provider entry never occurred. This also closes the crash window after
 /// the domain reservation is durable but before the sealed command reaches the
-/// common journal.
+/// common journal. When common code ends an operation before provider entry
+/// it persists that conclusion first, so a reservation held by an entry
+/// attempt that never reached Stripe is released here too; the release is
+/// repeated for terminal records and is idempotent.
 pub fn refunds_create_release_pre_entry(
     input: ReleaseProfileCallInput<'_>,
 ) -> Result<(), ProfileRuntimeError> {
@@ -1047,23 +1140,21 @@ pub fn refunds_create_release_pre_entry(
     }) {
         return Err(ProfileRuntimeError::Invalid);
     }
-    if reservation.state() == RefundReservationState::Reserved {
-        store
-            .release(
-                &RefundReservationLease::from_record(&reservation),
-                input
-                    .record
-                    .updated_at_unix_seconds()
-                    .max(reservation.updated_at())
-                    .saturating_add(1),
-            )
-            .map_err(|_| ProfileRuntimeError::Invalid)?;
-        return Ok(());
+    match reservation.state() {
+        RefundReservationState::Reserved | RefundReservationState::EntryHeld => {
+            store
+                .release(
+                    &RefundReservationLease::from_record(&reservation),
+                    input.record.updated_at_unix_seconds(),
+                )
+                .map_err(|_| ProfileRuntimeError::Invalid)?;
+            Ok(())
+        }
+        RefundReservationState::Released | RefundReservationState::ReconciledReleased => Ok(()),
+        RefundReservationState::Committed
+        | RefundReservationState::ReconciledCommitted
+        | RefundReservationState::OutcomeUnknown => Err(ProfileRuntimeError::Invalid),
     }
-    if reservation.state() == RefundReservationState::Released {
-        return Ok(());
-    }
-    Err(ProfileRuntimeError::Invalid)
 }
 
 /// Releases the synthetic testkit checkpoint. The disposable testkit owns no
@@ -1594,6 +1685,10 @@ struct BoundedRefundState {
     pre_entry_aggregate_snapshot: Option<AggregateBudgetSnapshot>,
     pre_entry_bounded_decision: Option<BoundedRefundDecision>,
     reservation: Option<RefundReservationRecord>,
+    /// Time at which the seal computed the pre-entry decision, its aggregate
+    /// snapshot, and the reservation intents; it resolves the budget windows
+    /// when the pre-entry re-check re-evaluates that decision.
+    sealed_at: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1690,7 +1785,9 @@ pub fn inspect_profile_state_for_qualification(
         {
             Some(QualificationProfileStateObservationV1::ReservationRetained { reservation_sha256 })
         }
-        RefundReservationState::Reserved | RefundReservationState::OutcomeUnknown => None,
+        RefundReservationState::Reserved
+        | RefundReservationState::EntryHeld
+        | RefundReservationState::OutcomeUnknown => None,
     };
     if let Some(observation) = disposition {
         facts.push(QualificationProfileStateFactV1 {
@@ -2336,7 +2433,7 @@ fn mark_reservation_outcome_unknown(
         return Err(ProfileRuntimeError::Invalid);
     }
     match reservation.state() {
-        RefundReservationState::Reserved => store
+        RefundReservationState::Reserved | RefundReservationState::EntryHeld => store
             .mark_outcome_unknown(&RefundReservationLease::from_record(&reservation), now)
             .map_err(|_| ProfileRuntimeError::Invalid),
         RefundReservationState::OutcomeUnknown => Ok(reservation),
@@ -2537,9 +2634,12 @@ fn classify_testkit_response(
     })
 }
 
+/// The refund-write key goes only to Stripe: proxy variables are ignored, so
+/// no intercepting proxy sees it, and redirects are never followed.
 fn stripe_client() -> Result<Client, ProfileRuntimeError> {
     Client::builder()
         .https_only(true)
+        .no_proxy()
         .redirect(Policy::none())
         .connect_timeout(Duration::from_secs(5))
         .timeout(Duration::from_secs(30))
@@ -2772,6 +2872,207 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::{
+        NOW, bounded_action, bounded_configuration, bounded_policy_input, configuration, evidence,
+    };
+    use crate::{
+        AggregateBudgetUsage, AggregateRefundBudget, InMemoryRefundReservationStore,
+        RefundBudgetWindow, canonical::sha256,
+    };
+    use base64ct::{Base64UrlUnpadded, Encoding as _};
+    use ed25519_dalek::SigningKey;
+
+    const WORKFLOW_ID: &str = "wf_1111111111111111111111111111111111111111111111111111111111111111";
+
+    fn rolling_deployment(key: &SigningKey) -> StripeRefundLocalAgentConfigurationV1 {
+        let evidence = evidence(2_000, 0);
+        let mut input = bounded_policy_input(&evidence);
+        input.aggregate_budgets = vec![
+            AggregateRefundBudget::new(
+                "support-rolling",
+                evidence.currency().clone(),
+                2_500,
+                RefundBudgetWindow::Rolling {
+                    duration_seconds: 3_600,
+                },
+            )
+            .unwrap(),
+        ];
+        let policy = StripeBoundedRefundPolicyV1::new(input).unwrap();
+        let exact = configuration(2_000);
+        let bounded = bounded_configuration(&policy);
+        let value = serde_json::json!({
+            "schema": "auths.stripe.refund-verifier-configuration/1",
+            "policy": policy,
+            "requiredExactConfiguration": exact,
+            "executedExactConfiguration": exact,
+            "requiredBoundedConfiguration": bounded,
+            "executedBoundedConfiguration": bounded,
+            "evidenceStore": {
+                "schema": "auths.stripe.refund-evidence-store/1",
+                "brokerSocketPath": "/run/auths/stripe-refund-evidence.sock",
+                "brokerUid": 2_001,
+                "agentUid": 2_002,
+                "storeIdentitySha256": sha256(b"local-agent test evidence store"),
+                "readerKeyId": "stripe-runtime-reader-test-v1",
+                "readerPublicKeyBase64url": Base64UrlUnpadded::encode_string(
+                    &key.verifying_key().to_bytes(),
+                ),
+                "maximumSnapshotBytes": 65_536,
+                "maximumAgeSeconds": 60,
+                "requestTimeoutMilliseconds": 5_000
+            }
+        });
+        StripeRefundLocalAgentConfigurationV1::from_canonical_bytes(
+            &canonical_json(&value).unwrap(),
+        )
+        .unwrap()
+    }
+
+    fn sealed_state(
+        deployment: &StripeRefundLocalAgentConfigurationV1,
+        key: &SigningKey,
+    ) -> BoundedRefundState {
+        let evidence = evidence(2_000, 0);
+        let action = bounded_action(
+            deployment.exact_configuration(),
+            deployment.policy(),
+            &evidence,
+            1_000,
+            WORKFLOW_ID,
+        );
+        let window = deployment.policy().aggregate_budgets()[0]
+            .window()
+            .identity(NOW)
+            .unwrap();
+        let snapshot = AggregateBudgetSnapshot {
+            usages: vec![AggregateBudgetUsage {
+                budget_id: "support-rolling".into(),
+                window,
+                committed_minor: 500,
+                reserved_minor: 0,
+                outcome_unknown_minor: 0,
+            }],
+        };
+        let decision = evaluate_bounded_refund(&BoundedEvaluationContext {
+            policy: deployment.policy(),
+            action: &action,
+            evidence: &evidence,
+            aggregate_snapshot: &snapshot,
+            required_exact_configuration: deployment.exact_configuration(),
+            executed_exact_configuration: deployment.exact_configuration(),
+            required_bounded_configuration: deployment.bounded_configuration(),
+            executed_bounded_configuration: deployment.bounded_configuration(),
+            request_audience: deployment.exact_configuration().executor_audience(),
+            now: NOW,
+        });
+        assert_eq!(decision.class, BoundedDecisionClass::Eligible);
+        let preparation_snapshot = ProtectedRefundEvidenceSnapshotV1::sign(
+            deployment.evidence_store(),
+            WORKFLOW_ID,
+            StripeRefundEvidencePhase::Preparation,
+            None,
+            evidence.clone(),
+            key,
+        )
+        .unwrap();
+        BoundedRefundState {
+            workflow_id: WORKFLOW_ID.into(),
+            action,
+            policy: deployment.policy().clone(),
+            evidence,
+            preparation_snapshot,
+            prepared_at: NOW,
+            aggregate_snapshot: Some(snapshot.clone()),
+            bounded_decision: Some(decision.clone()),
+            exact_configuration: deployment.exact_configuration().clone(),
+            bounded_configuration: deployment.bounded_configuration().clone(),
+            evidence_store: deployment.evidence_store().clone(),
+            pre_entry_snapshot: None,
+            pre_entry_evidence: None,
+            pre_entry_aggregate_snapshot: Some(snapshot),
+            pre_entry_bounded_decision: Some(decision),
+            reservation: None,
+            sealed_at: Some(NOW),
+        }
+    }
+
+    #[test]
+    fn rolling_budget_recheck_passes_when_execute_follows_the_seal_by_seconds() {
+        let key = SigningKey::from_bytes(&[23; 32]);
+        let deployment = rolling_deployment(&key);
+        let state = sealed_state(&deployment, &key);
+        for gap in [1, 2, 30] {
+            recheck_sealed_bounded_decision(&state, &deployment, NOW + gap).unwrap();
+        }
+        // Freshness and policy validity remain judged at the re-check time.
+        assert!(matches!(
+            recheck_sealed_bounded_decision(&state, &deployment, NOW + 56),
+            Err(ProfileRuntimeError::PreEntry(_))
+        ));
+        let mut unsealed = state;
+        unsealed.sealed_at = None;
+        assert_eq!(
+            recheck_sealed_bounded_decision(&unsealed, &deployment, NOW + 1),
+            Err(ProfileRuntimeError::Invalid)
+        );
+    }
+
+    #[test]
+    fn released_reservation_withdraws_the_provider_entry_attempt() {
+        let key = SigningKey::from_bytes(&[29; 32]);
+        let deployment = rolling_deployment(&key);
+        let state = sealed_state(&deployment, &key);
+        let store = InMemoryRefundReservationStore::default();
+        let request = ReserveRefundRequest {
+            workflow_id: WORKFLOW_ID.into(),
+            action_digest: state.action.digest().unwrap(),
+            decision_receipt_digest: sha256(b"decision-receipt"),
+            policy_digest: state.policy.digest().unwrap(),
+            evaluator_semantic_id: state.policy.evaluator_semantic_id().into(),
+            evaluator_semantic_version: state.policy.evaluator_semantic_version(),
+            evidence_digest: state.evidence.digest().unwrap(),
+            required_configuration_digest: state.bounded_configuration.digest().unwrap(),
+            executed_configuration_digest: state.bounded_configuration.digest().unwrap(),
+            stripe_account_id: state.action.stripe_account_id().clone(),
+            currency: state.action.amount().currency().clone(),
+            amount_minor: 1_000,
+            intents: state
+                .pre_entry_bounded_decision
+                .as_ref()
+                .and_then(|decision| decision.eligibility.clone())
+                .unwrap()
+                .reservations,
+            idempotency_key_digest: sha256(state.action.idempotency_key().as_bytes()),
+            action_expires_at: state.action.expires_at(),
+            now: NOW,
+        };
+        let ReserveRefundResult::Reserved { record, .. } = store.reserve(request) else {
+            panic!("reservation expected")
+        };
+
+        hold_reservation_for_provider_entry(&store, &record, NOW + 1).unwrap();
+        assert_eq!(
+            store.get(WORKFLOW_ID).unwrap().unwrap().state(),
+            RefundReservationState::EntryHeld
+        );
+        // A repeated attempt for the same sealed command keeps its hold.
+        hold_reservation_for_provider_entry(&store, &record, NOW + 2).unwrap();
+
+        // The store releases the reservation while the journal still holds the
+        // sealed command, as after a crash between release and conclusion.
+        store
+            .release(&RefundReservationLease::from_record(&record), NOW + 3)
+            .unwrap();
+        assert!(matches!(
+            hold_reservation_for_provider_entry(&store, &record, NOW + 4),
+            Err(ProfileRuntimeError::PreEntry(_))
+        ));
+        assert_eq!(
+            store.get(WORKFLOW_ID).unwrap().unwrap().state(),
+            RefundReservationState::Released
+        );
+    }
 
     #[test]
     fn provider_result_is_canonical_and_bounded() {
@@ -2781,5 +3082,70 @@ mod tests {
         assert_eq!(result.api_version, "2025-04-30.basil");
         assert_eq!(result.body, br#"{"id":"re_1"}"#);
         assert!(decode_provider_result(&vec![0; MAX_PROVIDER_RESPONSE_BYTES + 33]).is_err());
+    }
+
+    /// Child half of `credential_bearing_clients_ignore_environment_proxies`.
+    /// It runs in a fresh copy of this test binary whose proxy variables name
+    /// the parent's listener, because a test must not change its own
+    /// environment.
+    #[test]
+    #[ignore = "started by credential_bearing_clients_ignore_environment_proxies"]
+    fn credential_bearing_clients_under_environment_proxy() {
+        let closed = std::net::TcpListener::bind("127.0.0.1:0")
+            .and_then(|listener| listener.local_addr())
+            .expect("free loopback port");
+        let url = format!("https://{closed}/v1/refunds");
+        let onboarding = crate::connection::onboarding::account_client()
+            .expect("onboarding client")
+            .get(&url)
+            .send()
+            .expect_err("nothing listens on the loopback port");
+        assert!(onboarding.is_connect(), "{onboarding}");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let refund = runtime
+            .block_on(async {
+                stripe_client()
+                    .expect("refund client")
+                    .get(&url)
+                    .send()
+                    .await
+            })
+            .expect_err("nothing listens on the loopback port");
+        assert!(refund.is_connect(), "{refund}");
+    }
+
+    #[test]
+    fn credential_bearing_clients_ignore_environment_proxies() {
+        let proxy = std::net::TcpListener::bind("127.0.0.1:0").expect("proxy listener");
+        proxy
+            .set_nonblocking(true)
+            .expect("non-blocking proxy listener");
+        let proxy_url = format!("http://{}", proxy.local_addr().expect("proxy address"));
+        let child = std::process::Command::new(std::env::current_exe().expect("test binary"))
+            .args([
+                "--exact",
+                "local_agent::tests::credential_bearing_clients_under_environment_proxy",
+                "--ignored",
+            ])
+            .env("HTTPS_PROXY", &proxy_url)
+            .env("ALL_PROXY", &proxy_url)
+            .env_remove("NO_PROXY")
+            .env_remove("no_proxy")
+            .env_remove("REQUEST_METHOD")
+            .output()
+            .expect("child test");
+        let stdout = String::from_utf8_lossy(&child.stdout);
+        assert!(
+            child.status.success() && stdout.contains("1 passed"),
+            "{stdout}"
+        );
+        assert_eq!(
+            proxy.accept().map(drop).map_err(|error| error.kind()),
+            Err(std::io::ErrorKind::WouldBlock),
+            "a credential-bearing request reached the environment proxy"
+        );
     }
 }

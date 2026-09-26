@@ -73,13 +73,29 @@ auths --admin-socket /var/lib/auths/admin.sock connections enable stripe/billing
 auths --admin-socket /var/lib/auths/admin.sock connections revoke stripe/billing
 ```
 
-- **Rotate** creates a successor generation. New operations use it; unresolved
-  operations retain the exact prior generation needed for recovery.
-- **Disable** blocks new operations but preserves recovery material.
-- **Enable** reopens a non-revoked record after operator review.
-- **Revoke** is permanent. New effects stop immediately; retained unresolved
-  recovery state must not be rewritten as `not-applied` merely because the
-  current credential is unavailable.
+- **Rotate** creates a successor generation with the new secret, and new
+  operations use it. The agent keeps the previous secret while an unresolved
+  operation still names its generation. It deletes it once none does,
+  checking at each rotation and whenever an execute or recover call finishes
+  an operation. A rotation that fails after storing the new secret deletes it
+  again, and the connection keeps its current secret.
+- **Disable** blocks new operations and every provider entry, including an
+  operation that stopped before entering the provider. Reconciliation of an
+  operation that may already have entered the provider continues. Disable
+  stores no secret, so it works when the credential store is full.
+- **Enable** reopens a non-revoked record after operator review. Operations
+  prepared before the disable still cannot enter the provider, because their
+  generation is superseded.
+- **Revoke** is permanent. The record refuses every credential lease,
+  reconciliation included, and the agent deletes every stored generation of
+  the connection's secret; revoke also works when the credential store is
+  full. An operation that had not entered the provider ends `unavailable`. One
+  that may have entered stays `recovery-required` with effect `possible`; it
+  is never rewritten as `not-applied`. Close it with provider evidence as the
+  [recovery runbook](PROFILE_RECOVERY_RUNBOOK.md) describes. If revoke reports
+  a failure after the record is revoked, run it again: a repeated revoke
+  finishes deleting the stored secrets. To stop the credential from working
+  anywhere, also revoke it at the provider.
 
 Every mutation is admin-peer authenticated and appended to the redacted audit
 log. Never put credentials, recovery handles, raw descriptors containing

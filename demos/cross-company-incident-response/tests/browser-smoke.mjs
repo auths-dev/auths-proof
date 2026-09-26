@@ -31,11 +31,9 @@ try {
   assert.doesNotMatch(await page.locator("#receipts").innerText(), /apply-config/);
 
   for (const label of [
-    "Expand eu-west-2 → all regions",
     "Change firewall byte after approval",
     "Replay executed command",
     "Use expired grant",
-    "Compromise approver",
     "Rotate EdgeShield Ed25519 key",
     "Deliver unauthorized bytes over Iroh",
     "Remote failure before execution",

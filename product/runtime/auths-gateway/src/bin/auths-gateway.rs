@@ -1,7 +1,8 @@
 //! Customer-operated gateway. The app socket accepts proof and action only;
 //! installation and administration require the operator channel. A
 //! development installation keeps attempts on one host; a production
-//! installation keeps them in the qualified multi-host `PostgreSQL` store.
+//! installation keeps them in the multi-host `PostgreSQL` store, whose
+//! production qualification is still open.
 
 #[cfg(not(unix))]
 fn main() {
@@ -51,6 +52,7 @@ mod unix {
         net::{UnixListener, UnixStream},
         sync::Semaphore,
     };
+    use zeroize::{Zeroize as _, Zeroizing};
 
     const MANIFEST_SCHEMA: &str = "auths.gateway-installation/2";
     const OBSERVER_SEED: &str = "observer.seed";
@@ -102,7 +104,7 @@ mod unix {
             #[arg(long, default_value_t = false)]
             credential_stdin: bool,
             /// `development` keeps attempts in a single-host file store;
-            /// `production` requires the qualified `PostgreSQL` store, a
+            /// `production` requires the `PostgreSQL` store, a
             /// separate operator principal, and no software observer key.
             #[arg(long, value_enum, default_value_t = Deployment::Development)]
             deployment: Deployment,
@@ -306,7 +308,9 @@ mod unix {
     }
 
     fn read_install_credential() -> Result<SecretBytes, &'static str> {
-        let mut bytes = Vec::new();
+        // Pre-sized to the read limit so reading never reallocates and strands
+        // an unwiped partial copy; every exit path zeroizes the buffer.
+        let mut bytes = Zeroizing::new(Vec::with_capacity(4_098));
         std::io::stdin()
             .take(4_098)
             .read_to_end(&mut bytes)
@@ -318,10 +322,10 @@ mod unix {
             || bytes.len() > 4_096
             || !bytes.iter().all(|byte| (0x21..=0x7e).contains(byte))
         {
-            bytes.fill(0);
             return Err("gateway.install.invalid-credential");
         }
-        SecretBytes::new(bytes).map_err(|_| "gateway.install.invalid-credential")
+        SecretBytes::new(std::mem::take(&mut *bytes))
+            .map_err(|_| "gateway.install.invalid-credential")
     }
 
     /// A production installation names an operator principal that is neither
@@ -471,7 +475,7 @@ mod unix {
     }
 
     /// Opens the attempt store the installation names. Production uses the
-    /// qualified `PostgreSQL` store from the reference deployment's secret
+    /// `PostgreSQL` store from the reference deployment's secret
     /// slots; it blocks, so the caller must not be on an async executor.
     fn attempt_store(
         state_dir: &Path,
@@ -648,7 +652,7 @@ mod unix {
                     .await
                     .map_err(|_| "gateway.admin.invalid-credential")?;
                 if secret.len() > 4_096 || !secret.iter().all(|byte| (0x21..=0x7e).contains(byte)) {
-                    secret.fill(0);
+                    secret.zeroize();
                     return Err("gateway.admin.invalid-credential");
                 }
                 SecretBytes::new(secret)
@@ -833,6 +837,7 @@ mod unix {
             "origin": review.origin(),
             "method": review.method().as_str(),
             "path": review.path(),
+            "sends_idempotency_key": review.sends_idempotency_key(),
             "verifier_configuration": hex::encode(gateway_verifier_configuration()?.as_bytes()),
             "profile_policy": auths_profile_mcp::MCP_ARGUMENTS_V1,
             "bounded_policy_extension": auths_registries::BOUNDED_POLICY_COMMITMENT_EXTENSION_V1,
@@ -990,7 +995,9 @@ mod unix {
         if !credential_stdin || std::io::stdin().is_terminal() {
             return Err("gateway.admin.credential-must-be-piped-to-stdin");
         }
-        let mut bytes = Vec::new();
+        // Pre-sized to the read limit so reading never reallocates and strands
+        // an unwiped partial copy; every exit path zeroizes the buffer.
+        let mut bytes = Zeroizing::new(Vec::with_capacity(4_098));
         std::io::stdin()
             .take(4_098)
             .read_to_end(&mut bytes)
@@ -1004,9 +1011,12 @@ mod unix {
         {
             return Err("gateway.admin.invalid-credential");
         }
-        let result = admin_command(state_dir, br#"{"command":"rotate"}"#, Some(&bytes)).await;
-        bytes.fill(0);
-        result
+        admin_command(
+            state_dir,
+            br#"{"command":"rotate"}"#,
+            Some(bytes.as_slice()),
+        )
+        .await
     }
 
     fn doctor(
@@ -1046,9 +1056,13 @@ mod unix {
         if rustix::process::geteuid().as_raw() != 0 {
             return Err("gateway.doctor.privilege-drop-not-checked");
         }
+        // The probe runs as the application UID, which may read its
+        // /proc/<pid>/environ, and the operator's environment can hold store
+        // secrets. It execs this binary by absolute path and needs none.
         let status = std::process::Command::new(
             std::env::current_exe().map_err(|_| "gateway.doctor.binary-unavailable")?,
         )
+        .env_clear()
         .arg("probe")
         .arg("--state-dir")
         .arg(state_dir)
@@ -1068,6 +1082,12 @@ mod unix {
     }
 
     fn probe(state_dir: &Path, app_socket: &Path) -> Result<(), &'static str> {
+        // Doctor starts the probe with an empty environment. On Linux nothing
+        // adds to it, so any variable was inherited and could carry operator
+        // secrets to the application UID. macOS system libraries set their own.
+        if cfg!(target_os = "linux") && std::env::vars_os().next().is_some() {
+            return Err("gateway.doctor.probe-environment-not-empty");
+        }
         if File::open(state_dir.join("credentials.cbor")).is_ok()
             || File::open(state_dir.join(OBSERVER_SEED)).is_ok()
             || std::os::unix::net::UnixStream::connect(state_dir.join("admin.sock")).is_ok()

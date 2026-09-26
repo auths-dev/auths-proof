@@ -559,6 +559,7 @@ digraph auths_architecture {
   "auths-proof-wasm" -> "auths-raw-key" [label="normal"];
   "auths-proof-wasm" -> "auths-receipts" [label="normal"];
   "auths-proof-wasm" -> "auths-registries" [label="normal"];
+  "auths-proof-wasm" -> "auths-sdk" [label="dev"];
   "auths-proof-wasm" -> "auths-signature" [label="normal"];
   "auths-proof-wasm" -> "auths-signature-core" [label="normal"];
   "auths-proof-wasm" -> "auths-signature-ed25519" [label="normal"];
@@ -703,7 +704,6 @@ digraph auths_architecture {
   "auths-stores" -> "auths-lifecycle" [label="dev"];
   "auths-stores" -> "auths-lifecycle" [label="normal"];
   "auths-stores" -> "auths-model" [label="normal"];
-  "auths-stores" -> "auths-proof-exchange-model" [label="normal"];
   "auths-stores" -> "auths-receipts" [label="normal"];
   "auths-stores" -> "auths-runtime" [label="normal"];
   "auths-stripe" -> "auths-author" [label="dev"];

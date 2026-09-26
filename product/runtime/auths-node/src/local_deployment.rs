@@ -761,6 +761,7 @@ fn bind_local_control_plane_for(
         agent_config,
         Arc::clone(&resources.connections),
         Arc::clone(&resources.credentials),
+        Arc::clone(&resources.operations),
         deployment.admin_audit,
     )
     .map_err(|_| LocalAgentDeploymentError::InvalidConfiguration)?;

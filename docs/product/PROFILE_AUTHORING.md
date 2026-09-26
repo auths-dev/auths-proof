@@ -66,11 +66,17 @@ record, as PostgreSQL and OpenTofu do.
 
 ## Generate and qualify
 
+A new provider kind needs its package entry in `compliance.toml`.
+`cargo xtask profile new` registers the workspace member, architecture layer,
+and profile roster entry but does not write that entry, and
+`cargo xtask compliance` fails until it exists.
+
 ```bash
 cargo xtask profile generate --domain mailbox
 cargo xtask profile check --domain mailbox
 cargo xtask error-registry
 cargo xtask spec-sync
+cargo xtask compliance
 cargo xtask profile qualification check --domain mailbox
 ```
 

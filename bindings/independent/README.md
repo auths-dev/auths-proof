@@ -6,7 +6,7 @@ build, or copy expected verdicts from the manifest.
 Each language contains an independent deterministic-CBOR corpus auditor. Both
 auditors:
 
-- read the canonical `auths-proof/fixtures/v1/manifest.json`;
+- read the canonical `core/fixtures/v1/manifest.json`;
 - check every proof, context, and canonical-action SHA-256 digest;
 - independently parse each proof and verifier context as one complete CBOR item;
 - treat profile-canonical action bodies as opaque while still checking their
@@ -18,7 +18,7 @@ auditors:
 Run them with:
 
 ```sh
-cd implementations/go
+cd bindings/independent/go
 go run ./cmd/auths-corpus-check <manifest>
 node --experimental-strip-types \
   ../typescript/auths-corpus-check.ts <manifest>
@@ -31,7 +31,7 @@ assurance, observation-requirement, and composition rules, and derive the
 three-valued result without consulting the expected manifest result:
 
 ```sh
-cd implementations/go
+cd bindings/independent/go
 go run ./cmd/auths-corpus-check --semantic <manifest>
 node --experimental-strip-types \
   ../typescript/auths-corpus-check.ts --semantic <manifest>

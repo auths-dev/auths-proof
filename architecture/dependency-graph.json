@@ -1978,6 +1978,18 @@
     {
       "source": "auths-connections",
       "source_layer": "product",
+      "target": "subtle",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-connections",
+      "source_layer": "product",
       "target": "tempfile",
       "target_layer": null,
       "scope": "external",
@@ -11202,6 +11214,18 @@
     {
       "source": "auths-proof-wasm",
       "source_layer": "bindings",
+      "target": "auths-sdk",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-proof-wasm",
+      "source_layer": "bindings",
       "target": "auths-signature",
       "target_layer": "core",
       "scope": "internal",
@@ -14668,18 +14692,6 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
-      "features": []
-    },
-    {
-      "source": "auths-stores",
-      "source_layer": "product",
-      "target": "auths-proof-exchange-model",
-      "target_layer": "exchange",
-      "scope": "internal",
-      "kind": "normal",
-      "target_condition": null,
-      "optional": false,
-      "default_features": true,
       "features": []
     },
     {

@@ -55,6 +55,7 @@ jobs:
               return;
             }
             if (pull.head.repo.full_name !== `${context.repo.owner}/${context.repo.repo}`) throw new Error('Fork writeback is forbidden.');
+            if (!/^[A-Za-z0-9][A-Za-z0-9._\/-]{0,254}$/.test(pull.head.ref)) throw new Error('Writeback requires a head branch named only with ASCII letters, digits, ".", "_", "-" and "/".');
             if (pull.head.ref === pull.base.ref || pull.head.ref === context.payload.repository.default_branch) throw new Error('Protected/default branch writeback is forbidden.');
             const {data: access} = await github.rest.repos.getCollaboratorPermissionLevel({
               owner: context.repo.owner,
@@ -139,11 +140,17 @@ jobs:
       - name: Start CI on the repaired commit
         if: steps.authorize.outputs.artifact_found == 'true'
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        # The branch name is contributor-chosen: it reaches the script as data
+        # through env, never as script source.
+        env:
+          AUTHS_HEAD_REF: ${{ steps.authorize.outputs.head_ref }}
         with:
           script: |
+            const ref = process.env.AUTHS_HEAD_REF ?? '';
+            if (!/^[A-Za-z0-9][A-Za-z0-9._\/-]{0,254}$/.test(ref)) throw new Error('Refusing to dispatch CI for a head branch outside the writeback name pattern.');
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'ci.yml',
-              ref: '${{ steps.authorize.outputs.head_ref }}',
+              ref,
             });

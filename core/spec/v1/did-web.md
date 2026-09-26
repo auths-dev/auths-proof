@@ -8,7 +8,7 @@
 DNS + HTTPS + host policy
           |
           v
-auths-proof-apps/integrations/auths-resolver-did-web
+product/integrations/auths-resolver-did-web
           |
           +---- canonical document evidence
           +---- explicit host trust record
