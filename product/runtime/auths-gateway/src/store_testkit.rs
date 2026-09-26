@@ -1,6 +1,6 @@
 //! Test-only access to both attempt stores behind one handle, so the same
-//! suites run against the single-host file store and the qualified
-//! multi-host `PostgreSQL` store.
+//! suites run against the single-host file store and the multi-host
+//! `PostgreSQL` store.
 //!
 //! `PostgreSQL` runs need the TLS fixture's three environment slots. Each
 //! handle gets its own schema, so parallel tests never share a logical

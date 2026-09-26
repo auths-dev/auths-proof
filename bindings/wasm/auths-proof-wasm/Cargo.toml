@@ -45,6 +45,7 @@ serde-wasm-bindgen.workspace = true
 wasm-bindgen.workspace = true
 
 [dev-dependencies]
+auths-sdk.workspace = true
 auths-testkit.workspace = true
 
 [lints]

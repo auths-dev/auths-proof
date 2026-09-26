@@ -69,7 +69,7 @@ these URLs as evidence for this implementation.
 flowchart TD
     A["Browser proposes the closed incident request"] --> B["Rust canonicalizes and commits the exact ordered plan"]
     B --> C{"Proof, action, context, identity, and lifecycle are valid?"}
-    C -- "No: mutation, expiry, widening, or compromised identity" --> D["Deny before credentials or provider entry"]
+    C -- "No: mutation or expiry" --> D["Deny before credentials or provider entry"]
     C -- "Yes" --> E{"Northstar and EdgeShield approve the identical transaction?"}
     E -- "No: rejection, mismatch, or withdrawal" --> F["Expose no unapproved command"]
     E -- "Yes" --> G["Native verifier releases opaque, single-use commands"]
@@ -106,13 +106,11 @@ old receipt are never treated as authorization.
 Run every control at the bottom of the control room. The panel reports the
 typed stage/code and concrete evidence:
 
-- all-region child authority: native child planning returns
-  `authority/delegation-expanded` with zero signer calls;
 - changed action byte: Python and TypeScript verifier bindings both deny;
 - replay and concurrent execution: durable reservation permits one owner and
   records no second credential acquisition or provider call;
-- expired grant and compromised approver: runtime/lifecycle gates stop before
-  credentials or provider entry;
+- expired grant: the runtime lifecycle gate stops before credentials or
+  provider entry;
 - EdgeShield key rotation: the old Ed25519 principal becomes `superseded` and
   the new principal becomes `active`;
 - unauthorized Iroh: delivery succeeds under the exact ALPN while Auths denies

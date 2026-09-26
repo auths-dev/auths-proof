@@ -149,6 +149,25 @@ disable, rotation, and revocation use the private admin socket; the app socket
 continues to accept proof and action bytes only. A same-UID development run
 demonstrates mechanics but cannot establish credential isolation.
 
+The two sockets draw on separate capacity. The app socket serves at most 64
+connections at once and the owner-only admin socket 4; no application
+connection can take an admin permit, and an admin connection whose peer is
+neither the gateway's effective UID nor root is closed before it takes one.
+A connection that finds its socket full is closed at accept without a
+response. An application session reads its frame within 5 seconds, waits at
+most 90 seconds for its result, and writes its response within 5 seconds, all
+inside one 100-second deadline from accept. An admin session reads each frame
+within 5 seconds, waits at most 45 seconds for its change, and writes within 5
+seconds, inside 60 seconds. A deadline closes the connection but never cancels
+verification, a claim, or a provider call the session has started; that work
+runs to completion and keeps its permit until then. A failed accept on either
+socket is logged (`gateway.serve.accept-failed`) and retried after 100
+milliseconds; it does not stop `serve`. A disable, rotation, or revocation
+still waits for authorized submissions and read-back observations already in
+progress, each bounded by the transport's timeouts. This keeps the admin
+socket reachable by its owner while the application holds or refills the app
+socket; it is not an availability claim for the app socket.
+
 The application socket's bounded JSON envelope and four-byte length prefix
 are unsigned local transport framing, not canonical action encoding. Each SDK
 may serialize that envelope with its platform facilities, but the Rust gateway
@@ -215,8 +234,9 @@ permits:
 - a path of fixed segments and explicitly typed, percent-encoded segments
   derived only from verified command fields;
 - fixed literal `Accept` and `Content-Type` headers, plus an optional
-  `Idempotency-Key` value derived deterministically from the verified
-  namespace and logical operation ID; these are the entire recipe-header
+  `Idempotency-Key` whose value the gateway derives from the verified
+  namespace and logical operation ID when the recipe sets
+  `write.idempotency_key` (§3.2.1); these are the entire recipe-header
   allowlist in the first version. The gateway alone injects the credential
   header named by the connection binding and protocol-required transport
   headers. A derived recipe records only its credential requirement;
@@ -299,6 +319,45 @@ The canonical Airtable, Todoist, and GitHub sources and hostile mutations are
 under `bindings/fixtures/gateway/`; the [type map](../product/DEVELOPER_GATEWAY_TYPE_MAP.md)
 states ownership and the deliberately different Airtable self-hosted versus
 gateway semantics.
+
+`write` may also set `idempotency_key`, a JSON boolean that defaults to
+`false`. Any other value (for example a literal key, a field reference, a
+number, or `null`), the field anywhere outside `write`, and a recipe
+`headers` entry are rejected as `gateway.recipe.invalid-source`. The
+validated source omits the field when it is `false`, so a recipe that does
+not declare it keeps its digest; declaring it changes the digest and needs a
+new approval. The operator review states whether the write sends the key.
+When the field is `true`, the gateway adds one header to the write, and never
+to the observation:
+
+```text
+Idempotency-Key: "auths-i1-" || lowercase-hex( SHA-256(
+                   "auths.gateway-idempotency-key/1\0" || namespace || "\0" ||
+                   operation_id ) )
+```
+
+The value is 73 ASCII bytes, derived from the verified namespace and logical
+operation ID only. No submit-time input, proof challenge, action commitment,
+or credential generation changes it, and the recipe cannot supply a value.
+Anyone who knows the namespace and operation ID can compute it, so it is
+neither a secret nor a signature. A `header-api-key` credential cannot name
+`Idempotency-Key` (`gateway.recipe.invalid-credential`), so the credential
+and the key never share a header.
+
+What the key protects is narrow. The gateway claims `(namespace,
+logical_operation_id)` durably before any credential lease (§3.1), so while
+its attempt store is intact the guarantee is at most one provider entry per
+logical operation on a single host, and `unknown` needs reconciliation
+(§3.3); the key adds nothing to that. It matters only when the claim is lost,
+for example because gateway state was wiped or restored from an older
+backup, and the same logical operation is submitted again: the repeat
+carries the same key, and a provider that honors the header de-duplicates it
+within the provider's own retention window. The key does not replace the
+claim, does not help after that window or with a provider that ignores the
+header, and does not resolve `unknown`. How a provider treats a repeated key
+on a different request is provider semantics this gateway does not qualify.
+The compiler cannot tell whether a provider honors the header; the recipe
+author declares it and the operator approves it.
 
 ### 3.3 Execution and claim truth
 

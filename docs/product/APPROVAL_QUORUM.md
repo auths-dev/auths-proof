@@ -18,9 +18,14 @@ The plan inside a proof is chosen by whoever assembles it, so it never sets
 the threshold. The operator installs a trusted context that:
 
 - anchors exactly the member principals (a principal that is not anchored
-  produces a denied branch and does not count), and
+  produces a denied branch and does not count), each member's key under one
+  principal method only, and
 - requires `k` authorized branches from `k` distinct actors (two approvals
   signed by one manager count once).
+
+Distinct actors are compared by principal identifier, not by key. One key
+anchored under two principal methods, for example as `did:key` and as
+`raw-key-v1`, is two principals and counts twice.
 
 The gateway verifies natively against that context before it claims the
 operation or leases a credential. The hostile cases in

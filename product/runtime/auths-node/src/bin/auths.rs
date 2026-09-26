@@ -41,6 +41,7 @@ use std::num::NonZeroUsize;
 #[cfg(unix)]
 use std::os::unix::fs::FileTypeExt as _;
 use std::{
+    convert::Infallible,
     env,
     fs::{self, File},
     io::{IsTerminal as _, Read as _, Write as _},
@@ -316,13 +317,14 @@ enum ConnectionCommand {
     List,
     /// Inspect one sanitized connection record.
     Inspect { connection: String },
-    /// Refuse new operations while preserving recovery.
+    /// Refuse new operations and provider entries; reconciliation continues.
     Disable { connection: String },
     /// Re-enable an existing non-revoked connection.
     Enable { connection: String },
     /// Install a successor credential generation.
     Rotate(RotateConnection),
-    /// Permanently revoke a connection and its current credential.
+    /// Permanently revoke a connection and delete every stored credential
+    /// generation. Repeat it if it reports a failed deletion.
     Revoke { connection: String },
 }
 
@@ -391,6 +393,7 @@ async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
                     "operator_credential_header": credential_header,
                     "maximum_body_bytes": review.maximum_body_bytes(),
                     "has_observation": review.has_observation(),
+                    "sends_idempotency_key": review.sends_idempotency_key(),
                     "echo": review.echo().map(|echo| json!({
                         "write": echo.write(),
                         "observe": echo.observe(),
@@ -1181,9 +1184,31 @@ fn parse_http_response(response: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::E
         return Err("malformed administration response body".into());
     }
     if status_code != 200 {
-        return Err(format!("administration request failed with HTTP {status_code}").into());
+        return Err(match admin_error_code(body) {
+            Some(code) => {
+                format!("administration request failed with HTTP {status_code}: {code}")
+            }
+            None => format!("administration request failed with HTTP {status_code}"),
+        }
+        .into());
     }
     Ok(body.to_vec())
+}
+
+/// Reads the closed error code from an administration failure body
+/// (`{1: 1, 2: code}`), accepting only a short lower-case token.
+fn admin_error_code(body: &[u8]) -> Option<&str> {
+    let mut decoder = Decoder::new(body);
+    exact_map(&mut decoder, 2).ok()?;
+    version(&mut decoder).ok()?;
+    key(&mut decoder, 2).ok()?;
+    let code = decoder.str().ok()?;
+    (decoder.position() == body.len()
+        && (1..=64).contains(&code.len())
+        && code
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte == b'-'))
+    .then_some(code)
 }
 
 fn bounded_regular_file(
@@ -1277,9 +1302,9 @@ fn lower_token(value: &str) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn profile_ref(value: &str) -> Result<(String, u16), Box<dyn std::error::Error>> {
-    let (id, version) = value.rsplit_once('/').ok_or("invalid profile reference")?;
-    let version = version.parse::<u16>()?;
-    if version == 0 || version.to_string() != value.rsplit_once('/').unwrap().1 {
+    let (id, version_text) = value.rsplit_once('/').ok_or("invalid profile reference")?;
+    let version = version_text.parse::<u16>()?;
+    if version == 0 || version.to_string() != version_text {
         return Err("invalid profile version".into());
     }
     let mut parts = id.split('.');
@@ -1294,6 +1319,17 @@ fn profile_ref(value: &str) -> Result<(String, u16), Box<dyn std::error::Error>>
     Ok((id.to_owned(), version))
 }
 
+/// Encodes one administration request of primitive CBOR items.
+fn encode_infallible(
+    encode: impl FnOnce(&mut Encoder<Vec<u8>>) -> Result<(), minicbor::encode::Error<Infallible>>,
+) -> Vec<u8> {
+    let mut encoder = Encoder::new(Vec::new());
+    // INVARIANT: `Vec<u8>` is minicbor's infallible writer, and these requests
+    // encode only primitive items, which fail only when the writer does.
+    encode(&mut encoder).expect("encoding primitive CBOR items into a Vec cannot fail");
+    encoder.into_writer()
+}
+
 fn encode_start(
     request_id: [u8; 16],
     alias: &str,
@@ -1301,56 +1337,50 @@ fn encode_start(
     workloads: &[String],
     profiles: &[(String, u16)],
 ) -> Vec<u8> {
-    let mut encoder = Encoder::new(Vec::new());
-    encoder.map(6).unwrap().u8(1).unwrap().u8(1).unwrap();
-    encoder.u8(2).unwrap().bytes(&request_id).unwrap();
-    encoder.u8(3).unwrap().str(alias).unwrap();
-    encoder.u8(4).unwrap().bytes(descriptor).unwrap();
-    encoder
-        .u8(5)
-        .unwrap()
-        .array(workloads.len() as u64)
-        .unwrap();
-    for workload in workloads {
-        encoder.str(workload).unwrap();
-    }
-    encoder.u8(6).unwrap().array(profiles.len() as u64).unwrap();
-    for (id, version) in profiles {
-        encoder
-            .array(2)
-            .unwrap()
-            .str(id)
-            .unwrap()
-            .u16(*version)
-            .unwrap();
-    }
-    encoder.into_writer()
+    encode_infallible(|encoder| {
+        encoder.map(6)?.u8(1)?.u8(1)?;
+        encoder.u8(2)?.bytes(&request_id)?;
+        encoder.u8(3)?.str(alias)?;
+        encoder.u8(4)?.bytes(descriptor)?;
+        encoder.u8(5)?.array(workloads.len() as u64)?;
+        for workload in workloads {
+            encoder.str(workload)?;
+        }
+        encoder.u8(6)?.array(profiles.len() as u64)?;
+        for (id, version) in profiles {
+            encoder.array(2)?.str(id)?.u16(*version)?;
+        }
+        Ok(())
+    })
 }
 
 fn encode_complete(request_id: [u8; 16], onboarding: &str, secret: &[u8]) -> Vec<u8> {
-    let mut encoder = Encoder::new(Vec::new());
-    encoder.map(4).unwrap().u8(1).unwrap().u8(1).unwrap();
-    encoder.u8(2).unwrap().bytes(&request_id).unwrap();
-    encoder.u8(3).unwrap().str(onboarding).unwrap();
-    encoder.u8(4).unwrap().bytes(secret).unwrap();
-    encoder.into_writer()
+    encode_infallible(|encoder| {
+        encoder.map(4)?.u8(1)?.u8(1)?;
+        encoder.u8(2)?.bytes(&request_id)?;
+        encoder.u8(3)?.str(onboarding)?;
+        encoder.u8(4)?.bytes(secret)?;
+        Ok(())
+    })
 }
 
 fn encode_generation(request_id: [u8; 16], generation: NonZeroU64) -> Vec<u8> {
-    let mut encoder = Encoder::new(Vec::new());
-    encoder.map(3).unwrap().u8(1).unwrap().u8(1).unwrap();
-    encoder.u8(2).unwrap().bytes(&request_id).unwrap();
-    encoder.u8(3).unwrap().u64(generation.get()).unwrap();
-    encoder.into_writer()
+    encode_infallible(|encoder| {
+        encoder.map(3)?.u8(1)?.u8(1)?;
+        encoder.u8(2)?.bytes(&request_id)?;
+        encoder.u8(3)?.u64(generation.get())?;
+        Ok(())
+    })
 }
 
 fn encode_rotate(request_id: [u8; 16], generation: NonZeroU64, secret: &[u8]) -> Vec<u8> {
-    let mut encoder = Encoder::new(Vec::new());
-    encoder.map(4).unwrap().u8(1).unwrap().u8(1).unwrap();
-    encoder.u8(2).unwrap().bytes(&request_id).unwrap();
-    encoder.u8(3).unwrap().u64(generation.get()).unwrap();
-    encoder.u8(4).unwrap().bytes(secret).unwrap();
-    encoder.into_writer()
+    encode_infallible(|encoder| {
+        encoder.map(4)?.u8(1)?.u8(1)?;
+        encoder.u8(2)?.bytes(&request_id)?;
+        encoder.u8(3)?.u64(generation.get())?;
+        encoder.u8(4)?.bytes(secret)?;
+        Ok(())
+    })
 }
 
 fn decode_start(bytes: &[u8], request_id: [u8; 16]) -> Result<String, Box<dyn std::error::Error>> {
@@ -1566,5 +1596,24 @@ mod tests {
         let mut decoder = Decoder::new(&body);
         assert_eq!(decoder.map().unwrap(), Some(6));
         assert!(body.len() < 1_024);
+    }
+
+    #[test]
+    fn administration_failure_reports_the_agent_error_code() {
+        let body = encode_infallible(|encoder| {
+            encoder.map(2)?.u8(1)?.u8(1)?.u8(2)?.str("conflict")?;
+            Ok(())
+        });
+        let mut response = format!(
+            "HTTP/1.1 409 Conflict\r\nContent-Type: {LOCAL_AGENT_CONTENT_TYPE}\r\nContent-Length: {}\r\n\r\n",
+            body.len()
+        )
+        .into_bytes();
+        response.extend_from_slice(&body);
+        assert_eq!(
+            parse_http_response(&response).unwrap_err().to_string(),
+            "administration request failed with HTTP 409: conflict"
+        );
+        assert_eq!(admin_error_code(b"not cbor"), None);
     }
 }

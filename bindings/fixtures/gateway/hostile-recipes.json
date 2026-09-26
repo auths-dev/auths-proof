@@ -27,6 +27,15 @@
     {"id": "echo-observes-compared-value", "base": "airtable", "pointer": "/echo/observe", "value": "/fields/DemoStatus", "code": "gateway.recipe.echo-conflict"},
     {"id": "echo-observe-not-pointer", "base": "airtable", "pointer": "/echo/observe", "value": "fields/auths_echo", "code": "gateway.recipe.unsafe-template"},
     {"id": "echo-unknown-key", "base": "airtable", "pointer": "/echo/value", "value": "auths-e1-app-supplied", "code": "gateway.recipe.invalid-source"},
-    {"id": "echo-in-form-body", "base": "todoist", "pointer": "/write/body/fields/extra", "value": {"kind": "echo"}, "code": "gateway.recipe.echo-conflict"}
+    {"id": "echo-in-form-body", "base": "todoist", "pointer": "/write/body/fields/extra", "value": {"kind": "echo"}, "code": "gateway.recipe.echo-conflict"},
+    {"id": "idempotency-key-literal-value", "base": "github", "pointer": "/write/idempotency_key", "value": "auths-i1-app-supplied", "code": "gateway.recipe.invalid-source"},
+    {"id": "idempotency-key-from-argument", "base": "github", "pointer": "/write/idempotency_key", "value": {"kind": "field", "name": "operation_id"}, "code": "gateway.recipe.invalid-source"},
+    {"id": "idempotency-key-string-true", "base": "github", "pointer": "/write/idempotency_key", "value": "true", "code": "gateway.recipe.invalid-source"},
+    {"id": "idempotency-key-integer", "base": "github", "pointer": "/write/idempotency_key", "value": 1, "code": "gateway.recipe.invalid-source"},
+    {"id": "idempotency-key-null", "base": "github", "pointer": "/write/idempotency_key", "value": null, "code": "gateway.recipe.invalid-source"},
+    {"id": "idempotency-key-as-recipe-header", "base": "github", "pointer": "/write/headers", "value": {"Idempotency-Key": "app-chosen"}, "code": "gateway.recipe.invalid-source"},
+    {"id": "idempotency-key-on-observation", "base": "airtable", "pointer": "/observation/idempotency_key", "value": true, "code": "gateway.recipe.invalid-source"},
+    {"id": "idempotency-key-outside-write", "base": "todoist", "pointer": "/idempotency_key", "value": true, "code": "gateway.recipe.invalid-source"},
+    {"id": "credential-header-is-idempotency-key", "base": "todoist", "pointer": "/credential", "value": {"kind": "header-api-key", "header": "Idempotency-Key"}, "code": "gateway.recipe.invalid-credential"}
   ]
 }

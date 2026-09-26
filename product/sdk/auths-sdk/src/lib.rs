@@ -4,15 +4,14 @@
 
 use auths_kernel_runtime::AuthsKernel;
 use auths_model::{
-    AcceptedRegistries, AssuranceClaimId, AssurancePolicy, Audience, BudgetAlgebraId, Challenge,
-    ChannelBindingId, CompositionRequirement, EvidenceTypeId, ExtensionId, GrantStatusSnapshot,
-    PrincipalMethodId, PrincipalStatusSnapshot, ProfilePolicyId, ProfileRef, ResourceMatcherId,
-    SignatureSuiteId, StatusMethodId, StatusPolicy, StatusSnapshotId, Timestamp, TrustAnchor,
-    TrustedContext, VerifierConfigurationId, VerifierLimits,
+    AssurancePolicy, Audience, Challenge, ChannelBindingId, CompositionRequirement, EvidenceTypeId,
+    ExtensionId, GrantStatusSnapshot, PrincipalStatusSnapshot, ProfileRef, SignatureSuiteId,
+    Timestamp, TrustAnchor, TrustedContext, VerifierConfigurationId, VerifierLimits,
 };
 use auths_profile_api::{ActionProfile, ProfileContractError};
+use auths_registries::TrustedContextTemplate;
 use auths_verifier::VerificationOutcome;
-use std::{collections::BTreeSet, sync::Arc};
+use std::sync::Arc;
 use thiserror::Error;
 
 /// Safe grant planning and external signing-request construction.
@@ -74,19 +73,12 @@ impl RequestContext {
 }
 
 /// Builder for an explicit immutable trusted-context template.
+///
+/// The assembly is [`auths_registries::TrustedContextTemplate`], which the WASM
+/// package also compiles through, so both SDKs give equal context bytes for
+/// equal inputs.
 pub struct TrustedContextBuilder {
-    configuration: VerifierConfigurationId,
-    composition: CompositionRequirement,
-    trust_anchors: Vec<TrustAnchor>,
-    assurance_policy: AssurancePolicy,
-    principal_status: PrincipalStatusSnapshot,
-    grant_status: GrantStatusSnapshot,
-    channel_policy: ChannelBindingId,
-    limits: VerifierLimits,
-    signature_suites: BTreeSet<SignatureSuiteId>,
-    evidence_types: BTreeSet<EvidenceTypeId>,
-    critical_extensions: BTreeSet<ExtensionId>,
-    budget_free_profiles: BTreeSet<ProfileRef>,
+    template: TrustedContextTemplate,
 }
 
 impl TrustedContextBuilder {
@@ -109,73 +101,65 @@ impl TrustedContextBuilder {
         if trust_anchors.is_empty() {
             return Err(SdkError::MissingTrustAnchor);
         }
-        let signature_suites = [
-            SignatureSuiteId::parse(auths_signature::ED25519_V1)?,
-            SignatureSuiteId::parse(auths_signature::P256_SHA256_V1)?,
-        ]
-        .into_iter()
-        .collect();
-        let evidence_types = trust_anchors
-            .iter()
-            .flat_map(TrustAnchor::accepted_methods)
-            .map(|method| EvidenceTypeId::parse(method.as_str()))
-            .collect::<Result<BTreeSet<_>, _>>()?;
-        Ok(Self {
+        let template = TrustedContextTemplate::new(
             configuration,
             composition,
             trust_anchors,
             assurance_policy,
-            principal_status: empty_principal_status()?,
-            grant_status: empty_grant_status()?,
-            channel_policy: ChannelBindingId::parse("none-v1")?,
-            limits: VerifierLimits::default(),
-            signature_suites,
-            evidence_types,
-            critical_extensions: BTreeSet::new(),
-            budget_free_profiles: BTreeSet::new(),
-        })
+            [
+                SignatureSuiteId::parse(auths_signature::ED25519_V1)?,
+                SignatureSuiteId::parse(auths_signature::P256_SHA256_V1)?,
+            ],
+        )?;
+        Ok(Self { template })
     }
 
     /// Replaces the explicit principal lifecycle snapshot.
     #[must_use]
-    pub fn with_principal_status(mut self, snapshot: PrincipalStatusSnapshot) -> Self {
-        self.principal_status = snapshot;
-        self
+    pub fn with_principal_status(self, snapshot: PrincipalStatusSnapshot) -> Self {
+        Self {
+            template: self.template.with_principal_status(snapshot),
+        }
     }
 
     /// Replaces the explicit grant lifecycle snapshot.
     #[must_use]
-    pub fn with_grant_status(mut self, snapshot: GrantStatusSnapshot) -> Self {
-        self.grant_status = snapshot;
-        self
+    pub fn with_grant_status(self, snapshot: GrantStatusSnapshot) -> Self {
+        Self {
+            template: self.template.with_grant_status(snapshot),
+        }
     }
 
     /// Selects the exact signed channel-binding policy.
     #[must_use]
-    pub fn with_channel_policy(mut self, policy: ChannelBindingId) -> Self {
-        self.channel_policy = policy;
-        self
+    pub fn with_channel_policy(self, policy: ChannelBindingId) -> Self {
+        Self {
+            template: self.template.with_channel_policy(policy),
+        }
     }
 
     /// Selects bounded verifier limits.
     #[must_use]
-    pub fn with_limits(mut self, limits: VerifierLimits) -> Self {
-        self.limits = limits;
-        self
+    pub fn with_limits(self, limits: VerifierLimits) -> Self {
+        Self {
+            template: self.template.with_limits(limits),
+        }
     }
 
     /// Accepts one additional exact evidence identifier.
     #[must_use]
-    pub fn accept_evidence_type(mut self, identifier: EvidenceTypeId) -> Self {
-        self.evidence_types.insert(identifier);
-        self
+    pub fn accept_evidence_type(self, identifier: EvidenceTypeId) -> Self {
+        Self {
+            template: self.template.accept_evidence_type(identifier),
+        }
     }
 
     /// Accepts one critical extension with an installed implementation.
     #[must_use]
-    pub fn accept_critical_extension(mut self, identifier: ExtensionId) -> Self {
-        self.critical_extensions.insert(identifier);
-        self
+    pub fn accept_critical_extension(self, identifier: ExtensionId) -> Self {
+        Self {
+            template: self.template.accept_critical_extension(identifier),
+        }
     }
 
     /// Declares one profile whose canonical actions cannot express a requested
@@ -188,9 +172,10 @@ impl TrustedContextBuilder {
     /// a profile no trust anchor accepts is dropped rather than rejected, since
     /// the builder derives its accepted-profile set from the anchors.
     #[must_use]
-    pub fn declare_budget_free_profile(mut self, profile: ProfileRef) -> Self {
-        self.budget_free_profiles.insert(profile);
-        self
+    pub fn declare_budget_free_profile(self, profile: ProfileRef) -> Self {
+        Self {
+            template: self.template.declare_budget_free_profile(profile),
+        }
     }
 
     /// Compiles one immutable trusted-context template.
@@ -200,74 +185,7 @@ impl TrustedContextBuilder {
     /// Returns a typed model failure if roots, profiles, status policy,
     /// registries, or limits disagree.
     pub fn build(self) -> Result<TrustedContext, SdkError> {
-        let principal_methods: BTreeSet<PrincipalMethodId> = self
-            .trust_anchors
-            .iter()
-            .flat_map(TrustAnchor::accepted_methods)
-            .cloned()
-            .collect();
-        let profiles: BTreeSet<ProfileRef> = self
-            .trust_anchors
-            .iter()
-            .flat_map(TrustAnchor::profiles)
-            .cloned()
-            .collect();
-        let principal_status_methods: BTreeSet<StatusMethodId> = self
-            .trust_anchors
-            .iter()
-            .filter_map(|anchor| match anchor.status_policy() {
-                StatusPolicy::ExpiryOnly => None,
-                StatusPolicy::SnapshotRequired { method, .. } => Some(method.clone()),
-            })
-            .collect();
-        let assurance_claims: BTreeSet<AssuranceClaimId> = self
-            .assurance_policy
-            .requirements()
-            .iter()
-            .map(|requirement| requirement.claim_kind().clone())
-            .collect();
-        let budget_free_profiles: Vec<ProfileRef> = self
-            .budget_free_profiles
-            .iter()
-            .filter(|profile| profiles.contains(*profile))
-            .cloned()
-            .collect();
-        let accepted = AcceptedRegistries::new(
-            auths_registries::TARGET_V1_REGISTRY_MANIFEST,
-            principal_methods.into_iter().collect(),
-            self.signature_suites.into_iter().collect(),
-            self.evidence_types.into_iter().collect(),
-            principal_status_methods.into_iter().collect(),
-            Vec::new(),
-            assurance_claims.into_iter().collect(),
-            Vec::new(),
-            vec![ResourceMatcherId::parse(
-                auths_registries::URI_NAMESPACE_V1,
-            )?],
-            vec![BudgetAlgebraId::parse(
-                auths_registries::NUMERIC_CEILING_V1,
-            )?],
-            self.critical_extensions.into_iter().collect(),
-            profiles.into_iter().collect(),
-            vec![ProfilePolicyId::parse(auths_registries::EXACT_PROFILE_V1)?],
-        )?
-        .with_budget_free_profiles(budget_free_profiles)?;
-        Ok(TrustedContext::new(
-            self.configuration,
-            self.composition,
-            self.trust_anchors,
-            accepted,
-            Audience::parse("auths://request-template")?,
-            Challenge::new([0; 32]),
-            Timestamp::new(0),
-            self.assurance_policy,
-            self.principal_status,
-            self.grant_status,
-            ResourceMatcherId::parse(auths_registries::URI_NAMESPACE_V1)?,
-            ProfilePolicyId::parse(auths_registries::EXACT_PROFILE_V1)?,
-            self.channel_policy,
-            self.limits,
-        )?)
+        Ok(self.template.compile()?)
     }
 }
 
@@ -427,26 +345,6 @@ impl Explanation {
     pub const fn retryable(self) -> bool {
         self.retryable
     }
-}
-
-fn empty_principal_status() -> Result<PrincipalStatusSnapshot, SdkError> {
-    Ok(PrincipalStatusSnapshot::new(
-        StatusSnapshotId::new([0; 32]),
-        Timestamp::new(0),
-        Timestamp::new(u64::MAX),
-        Vec::new(),
-        Vec::new(),
-    )?)
-}
-
-fn empty_grant_status() -> Result<GrantStatusSnapshot, SdkError> {
-    Ok(GrantStatusSnapshot::new(
-        StatusSnapshotId::new([1; 32]),
-        Timestamp::new(0),
-        Timestamp::new(u64::MAX),
-        Vec::new(),
-        Vec::new(),
-    )?)
 }
 
 /// SDK configuration or profile-contract failure.

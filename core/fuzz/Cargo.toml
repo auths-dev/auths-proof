@@ -6,6 +6,10 @@ license.workspace = true
 rust-version.workspace = true
 publish = false
 
+# cargo-fuzz refuses a fuzz directory whose manifest lacks this marker.
+[package.metadata]
+cargo-fuzz = true
+
 [dependencies]
 auths-model.workspace = true
 auths-codec.workspace = true

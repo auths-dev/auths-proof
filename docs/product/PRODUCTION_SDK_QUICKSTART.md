@@ -63,7 +63,12 @@ Before the application starts, a privileged operator:
 2. provisions a provider connection through the separate admin listener;
 3. maps the observed workload identity to allowed profiles and connection
    aliases; and
-4. verifies socket ownership and runs the bounded doctor command.
+4. verifies socket ownership.
+
+The agent is the `auths` binary of the unpublished `auths-node` package;
+build it from this repository with `cargo build -p auths-node --bin auths`.
+The separately installed Auths identity CLI is also named `auths`, so run the
+agent binary by its path, for example `target/debug/auths agent serve`.
 
 Provider secrets enter only the privileged administration flow. They are
 stored behind the configured credential store and never returned to the

@@ -1451,6 +1451,22 @@ fn validate_ci_workflow_gates(ci: &str) -> Result<(), String> {
             "formal-translation gate does not consume the sole evidence aggregator".to_owned(),
         );
     }
+    // Kani can be planned without formal translation, and then the evidence
+    // aggregator is skipped; its own gate must still reach the final result.
+    let kani_gate = workflow_job_source(ci, "formal-kani")?;
+    if !kani_gate.contains("needs: [ci-plan, formal-kani-run]")
+        || !kani_gate.contains("needs.ci-plan.outputs.formal_kani_required")
+        || !kani_gate.contains("needs.formal-kani-run.result")
+    {
+        return Err("formal-kani gate does not enforce the planned Kani result".to_owned());
+    }
+    let qualified = workflow_job_source(ci, "ci-qualified")?;
+    if !qualified.contains("      - formal-kani\n")
+        || !qualified.contains("needs.formal-kani.result")
+        || !qualified.contains("[[ \"$FORMAL_KANI\" == success ]]")
+    {
+        return Err("CI qualified does not require the formal-kani gate".to_owned());
+    }
     let compliance_job = workflow_job_source(ci, "compliance-run")?;
     if !compliance_job.contains("if: always() && hashFiles('target/compliance/**') != ''") {
         return Err(
@@ -2283,6 +2299,15 @@ needs: [ci-plan, formal-update-gate, repository-preflight]
 needs.repository-preflight.result == 'success'
   formal-translation:
 needs: [ci-plan, formal-evidence-run]
+  formal-kani:
+needs: [ci-plan, formal-kani-run]
+needs.ci-plan.outputs.formal_kani_required
+needs.formal-kani-run.result
+  ci-qualified:
+      - formal-translation
+      - formal-kani
+needs.formal-kani.result
+[[ "$FORMAL_KANI" == success ]]
 "#;
     const BUILDER_GATES: &str = "leanprover/lean-action@\nkani-verifier --version 0.67.0\ncargo xtask release-check\ncargo xtask formal qualify aeneas\n";
 
@@ -2331,6 +2356,25 @@ needs: [ci-plan, formal-evidence-run]
         let error = validate_ci_workflow_gates(&bypass)
             .expect_err("an implementation job must not bypass the shared preflight");
         assert!(error.contains("can start before the repository preflight succeeds"));
+    }
+
+    #[test]
+    fn ci_qualified_requires_the_kani_gate() {
+        let bypass = CI_GATES.replace("      - formal-kani\n", "");
+        let error = validate_ci_workflow_gates(&bypass)
+            .expect_err("a Kani failure must not reach a qualified result");
+        assert!(error.contains("CI qualified does not require the formal-kani gate"));
+    }
+
+    #[test]
+    fn kani_gate_enforces_the_planned_kani_result() {
+        let bypass = CI_GATES.replace(
+            "needs: [ci-plan, formal-kani-run]",
+            "needs: [ci-plan, formal-evidence-run]",
+        );
+        let error = validate_ci_workflow_gates(&bypass)
+            .expect_err("the Kani gate must consume the Kani job itself");
+        assert!(error.contains("formal-kani gate does not enforce the planned Kani result"));
     }
 
     #[test]

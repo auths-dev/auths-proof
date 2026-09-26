@@ -15,11 +15,9 @@ let proposal: Json = {};
 let viewerToken = sessionStorage.getItem("auths.incident.viewer-token") ?? "";
 
 const attacks = [
-  ["scope-expansion", "Expand eu-west-2 → all regions"],
   ["byte-mutation", "Change firewall byte after approval"],
   ["replay", "Replay executed command"],
   ["expired", "Use expired grant"],
-  ["compromised-approver", "Compromise approver"],
   ["rotate-key", "Rotate EdgeShield Ed25519 key"],
   ["unauthorized-iroh", "Deliver unauthorized bytes over Iroh"],
   ["remote-before", "Remote failure before execution"],

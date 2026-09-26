@@ -808,14 +808,32 @@ fn run_kani_harnesses() -> Result<(), String> {
     Ok(())
 }
 
-/// Fails when a `#[kani::proof]` exists that no gated package would run.
+/// Fails when a `#[kani::proof]` exists that no gated package would run, or
+/// that a change would not schedule.
 ///
 /// This runs even under `--skip-kani`: skipping execution is a local
 /// convenience, but an unrunnable harness is a permanent evidence gap and must
-/// be reported either way.
+/// be reported either way. The planner schedules Kani from its Kani closure,
+/// so every gated package and harness file must lie inside that closure.
 fn kani_harness_inventory() -> Result<(), String> {
     let root = root();
+    let unplanned_packages = KANI_HARNESS_PACKAGES
+        .iter()
+        .filter(|entry| {
+            !auths_ci_plan::kani_closure_contains(&format!("{}/Cargo.toml", entry.source_root))
+        })
+        .map(|entry| entry.package)
+        .collect::<Vec<_>>();
+    if !unplanned_packages.is_empty() {
+        return Err(format!(
+            "Kani harness packages lie outside the planner's Kani closure, so a change to \
+             them would not schedule the Kani job; extend FormalClosureKind::Kani in \
+             xtask/ci-plan/src/lib.rs: {}",
+            unplanned_packages.join(", ")
+        ));
+    }
     let mut orphans = Vec::new();
+    let mut unplanned = Vec::new();
     let mut total = 0_usize;
     let mut sources = Vec::new();
     collect_rust_sources(&root, &root, &mut sources)?;
@@ -838,6 +856,9 @@ fn kani_harness_inventory() -> Result<(), String> {
         {
             orphans.push(format!("{display} ({count} harnesses)"));
         }
+        if !auths_ci_plan::kani_closure_contains(&display) {
+            unplanned.push(display);
+        }
     }
     if !orphans.is_empty() {
         return Err(format!(
@@ -846,7 +867,27 @@ fn kani_harness_inventory() -> Result<(), String> {
             orphans.join(", ")
         ));
     }
-    println!("Kani harness inventory:      PASS ({total} harnesses, all gated)");
+    if !unplanned.is_empty() {
+        return Err(format!(
+            "Kani harness files lie outside the planner's Kani closure; extend \
+             FormalClosureKind::Kani in xtask/ci-plan/src/lib.rs: {}",
+            unplanned.join(", ")
+        ));
+    }
+    let packages = KANI_HARNESS_PACKAGES
+        .iter()
+        .map(|entry| (entry.package, root.join(entry.source_root)))
+        .collect::<Vec<_>>();
+    let calling = crate::kani_harness::lint_harness_calls(&packages)?;
+    if calling != total {
+        return Err(format!(
+            "the harness call lint parsed {calling} harnesses but the inventory counts {total}; \
+             a harness the lint cannot parse would go unchecked"
+        ));
+    }
+    println!(
+        "Kani harness inventory:      PASS ({total} harnesses, all gated and calling their crate)"
+    );
     Ok(())
 }
 
@@ -2748,6 +2789,23 @@ mod phase_ordering {
         assert!(lean.contains("clear_repository_lean_outputs("));
         assert!(lean.contains("build_and_audit_formal("));
         assert!(lean.contains("run_formal_semantic_checks(&formal_root, true, false)"));
+    }
+
+    #[test]
+    fn repository_kani_harnesses_are_gated_planned_and_call_their_crate() {
+        kani_harness_inventory().expect("every harness is gated, planned and non-vacuous");
+    }
+
+    #[test]
+    fn gated_kani_packages_are_inside_the_planned_kani_closure() {
+        for entry in KANI_HARNESS_PACKAGES {
+            let manifest = format!("{}/Cargo.toml", entry.source_root);
+            assert!(
+                auths_ci_plan::kani_closure_contains(&manifest),
+                "a change to {} would not schedule its Kani harnesses",
+                entry.package
+            );
+        }
     }
 
     #[test]

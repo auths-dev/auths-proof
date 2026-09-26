@@ -18,6 +18,7 @@
         "payment_intent": {"kind": "field", "name": "payment_intent"},
         "amount": {"kind": "field", "name": "amount"}
       }
-    }
+    },
+    "idempotency_key": true
   }
 }

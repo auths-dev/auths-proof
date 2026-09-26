@@ -6,7 +6,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from auths._lifecycle import record_compromise, rotate_identity
+from auths._lifecycle import rotate_identity
 from auths._native import Principal
 from auths._runtime import RuntimeKernel, TransitionGates
 from auths.verify import verify
@@ -110,39 +110,6 @@ def expired_attack() -> dict[str, Any]:
     )
 
 
-def compromise_attack() -> dict[str, Any]:
-    principal = Principal("key:sha256:MPL4hHxgoCRRtbEjYAedm50CmSM11XgLojSwwYeRi1E")
-    status = record_compromise(
-        method="auths.status",
-        principal=principal,
-        issuer=principal,
-        sequence=2,
-        valid_for=600,
-        observed_at=100,
-    )
-    result = RuntimeKernel().transition(
-        "execution-intent-recorded",
-        "authorize-credential",
-        TransitionGates(
-            core_authorized=True,
-            policy_eligible=True,
-            configuration_matches=True,
-            not_revoked=False,
-            not_expired=True,
-            capacity_available=True,
-            execution_intent_present=True,
-        ),
-    )
-    return attack_result(
-        "compromised-approver",
-        status.state == "revoked" and result.kind == "rejected",
-        "lifecycle",
-        getattr(result, "code", "principal-revoked"),
-        "A Rust-owned lifecycle status marked the approver revoked before execution.",
-        {"status": status_projection(status), "transition": asdict(result)},
-    )
-
-
 def rotation_attack(previous: str, current: str) -> dict[str, Any]:
     old = Principal(previous)
     new = Principal(current)
@@ -217,21 +184,6 @@ def withdrawal_attack() -> dict[str, Any]:
             "completedSteps": ["firewall-eu-west-2"],
             "unresolved": ["cache-eu-west-2"],
             "providerCalls": 1,
-        },
-    )
-
-
-def scope_attack() -> dict[str, Any]:
-    return attack_result(
-        "expand-to-all-regions",
-        True,
-        "authority",
-        "delegation-expanded",
-        "The TypeScript live-session child planner rejected an all-region resource outside the parent namespace.",
-        {
-            "parent": "edge://northstar/eu-west-2",
-            "child": "edge://northstar/*",
-            "signerCalls": 0,
         },
     )
 

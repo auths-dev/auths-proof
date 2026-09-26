@@ -36,8 +36,8 @@ use auths_profile_runtime::{
     PreparationEvidenceAuthorizationInput, PrepareProfileInput, ProfileConnectionRequirement,
     ProfileDecisionReceiptFacts, ProfileExecutionReceiptFacts, ProfileObservation,
     ProfileOperationContext, ProfilePreEntryRecheck, ProfilePreparation, ProfileReceiptInspection,
-    ProfileRuntimeError, ReconcileProfileInput, ReleaseProfileCallInput, SealProfileCallInput,
-    SealedProfileCall,
+    ProfileRuntimeError, ProviderEntryHoldInput, ReconcileProfileInput, ReleaseProfileCallInput,
+    SealProfileCallInput, SealedProfileCall,
 };
 use auths_stores::{JournalRecordV1, OperationJournalLimitsV1};
 use std::time::Instant;
@@ -836,6 +836,63 @@ impl RegisteredProfile {
             Self::StripeRefundsCreate => {
                 auths_stripe::local_agent::refunds_create_release_pre_entry(
                     ReleaseProfileCallInput { context, record },
+                )
+            }
+        }
+    }
+
+    pub(crate) fn hold_provider_entry(
+        self,
+        context: &LocalOperationContext,
+        record: &JournalRecordV1,
+        now_unix_seconds: u64,
+    ) -> Result<(), ProfileRuntimeError> {
+        let profile = self.profile().map_err(|_| ProfileRuntimeError::Invalid)?;
+        let context = self.operation_context(context, &profile);
+        match self {
+            Self::OpentofuPlansCreate => {
+                auths_opentofu::local_agent::plans_create_hold_provider_entry(
+                    ProviderEntryHoldInput {
+                        context,
+                        record,
+                        now_unix_seconds,
+                    },
+                )
+            }
+            Self::OpentofuSavedPlansApply => {
+                auths_opentofu::local_agent::saved_plans_apply_hold_provider_entry(
+                    ProviderEntryHoldInput {
+                        context,
+                        record,
+                        now_unix_seconds,
+                    },
+                )
+            }
+            Self::PostgresqlUpdatesExecute => {
+                auths_postgresql::local_agent::updates_execute_hold_provider_entry(
+                    ProviderEntryHoldInput {
+                        context,
+                        record,
+                        now_unix_seconds,
+                    },
+                )
+            }
+            Self::PostgresqlUpdatePreflightsCreate => {
+                auths_postgresql::local_agent::update_preflights_create_hold_provider_entry(
+                    ProviderEntryHoldInput {
+                        context,
+                        record,
+                        now_unix_seconds,
+                    },
+                )
+            }
+            Self::StripeRefundsCreate => {
+                auths_stripe::local_agent::refunds_create_hold_provider_entry(
+                    ProviderEntryHoldInput {
+                        context,
+                        record,
+                        now_unix_seconds,
+                    },
                 )
             }
         }
