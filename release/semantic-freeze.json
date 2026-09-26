@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 316,
+  "freezeVersion": 317,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -73,7 +73,7 @@
   "entries": [
     {
       "id": "auths.core.protocol",
-      "version": 31,
+      "version": 32,
       "classification": "frozen-meaning",
       "categories": [
         "protocol-versions",
@@ -90,11 +90,11 @@
         "core/crates/auths-verifier/src",
         "core/spec/v1"
       ],
-      "sha256": "326f53568c37429354cde055387f41224c0092cebffe4c5071d2eaced8ab946e"
+      "sha256": "7ba5a98d5b37f4c69ae319cd79420d5924d3d2edfe1870d285a1c8f45b475d1d"
     },
     {
       "id": "auths.frozen-bytes/architecture/dependency-graph.json",
-      "version": 60,
+      "version": 61,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -102,7 +102,7 @@
       "owners": [
         "architecture/dependency-graph.json"
       ],
-      "sha256": "20eac63d3bff4c80d97eaa15d34fd9d42f3329e4252e5b4e46e10ee12dd260de"
+      "sha256": "0b6a22dcb8334683b66583375ace151e849387cbd5581a20efcf0d47f29fe97d"
     },
     {
       "id": "auths.frozen-bytes/bindings/wasm/auths-proof-wasm/identity-abi-v1.json",
@@ -166,7 +166,7 @@
     },
     {
       "id": "auths.frozen-bytes/core/fixtures/v1/manifest.json",
-      "version": 12,
+      "version": 13,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -174,7 +174,7 @@
       "owners": [
         "core/fixtures/v1/manifest.json"
       ],
-      "sha256": "fc61706c94ae131414e7f09dd1cebf53229305c8a85a426dd840c265df9aff1e"
+      "sha256": "9a233cea3f3b2e437afb36e4f881f81ab51c0f99a9ac7a360eae62073e6ca6a2"
     },
     {
       "id": "auths.frozen-bytes/core/formal-vectors/v1/manifest.json",
@@ -202,7 +202,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/assurance-manifest-v1.toml",
-      "version": 35,
+      "version": 36,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -210,7 +210,7 @@
       "owners": [
         "formal/assurance-manifest-v1.toml"
       ],
-      "sha256": "ddc37cb39983cb1b7d260eb076f93299eb262366541fc4b5da22c1a85e6f5bc5"
+      "sha256": "fb69d40d6ad1c11a9373e90d4b8a38db660bf3bbcfd5a7ec0e4f29520065a624"
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/generated",
@@ -238,7 +238,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/source-closure.json",
-      "version": 74,
+      "version": 75,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -246,7 +246,7 @@
       "owners": [
         "formal/qualification/aeneas/source-closure.json"
       ],
-      "sha256": "b88536668e693f7df9cdd928c82fa2c5d6f507563dc45a4784d41026b06c5a3d"
+      "sha256": "5cc602b17aef13cdf14f7662e5302c63ce03338660c9ebb38582cf303a952513"
     },
     {
       "id": "auths.frozen-bytes/product/conformance/v1/mechanism-profile-conformance.json",
@@ -550,7 +550,7 @@
     },
     {
       "id": "auths.identity.protocol",
-      "version": 90,
+      "version": 91,
       "classification": "frozen-meaning",
       "categories": [
         "identity-protocol-versions",
@@ -573,7 +573,7 @@
         "core/fixtures/identity/v1/vectors.json",
         "core/spec/identity/v1"
       ],
-      "sha256": "6f34bc872adf4ff6238b49806ce5cd146c573d53e70e6793ead9cc02d0e6a1c1"
+      "sha256": "fe0925190dbeced81aaf8e7249067b6afa1a64f8301b057886591d32c6be52e2"
     },
     {
       "id": "auths.modular-components",
@@ -1044,7 +1044,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 316,
+      "version": 317,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1136,7 +1136,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "157a4997cf55e28f2f6a0724c1e9d139038ff96deb81e26d1ea439fc39da9603"
+      "sha256": "f0f674a52cf3692c3c786f444e60727e15021cb6c8917786c172a20a443ca78b"
     }
   ]
 }

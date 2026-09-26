@@ -16,7 +16,9 @@ supports only base58btc (`z`) Multikey values containing:
 - Ed25519 multicodec `0xed`, encoded as varint bytes `ed 01`;
 - compressed P-256 multicodec `0x1200`, encoded as varint bytes `80 24`.
 
-The key length and curve point are validated. The adapter performs no
+The key length and curve point are validated; a P-256 key must use the one
+encoding the [registry](registry.md#signature-suites) allows for
+`p256-sha256-v1`, and the adapter rejects any other. The adapter performs no
 algorithm inference or fallback.
 
 ## Evidence
