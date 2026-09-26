@@ -44,7 +44,7 @@ verifier retains three diagnostic classes.
 | `registry-manifest-mismatch` | control | Context manifest differs from the immutable executable registry |
 | `verifier-configuration-mismatch` | control | Context configuration commitment differs from the exact executable adapter and registry configuration |
 | `resource-namespace-mismatch` | authority | The resource of a grant permission or of the action lies outside every namespace of the trust anchor, under the selected matcher |
-| `critical-extension-unknown` | extension | Required extension is not registered |
+| `critical-extension-unknown` | extension | A signed critical extension of an action, a grant, or an evaluated status statement is not accepted by the context |
 | `attachment-missing` | action | Required signed attachment bytes are absent |
 | `attachment-digest-mismatch` | action | Detached bytes do not hash to the signed identifier |
 | `attachment-length-mismatch` | action | Detached byte length differs from the signed length |
@@ -69,7 +69,7 @@ verifier retains three diagnostic classes.
 | `unsupported-profile-policy` | policy | Accepted profile-policy ID has no exact executable handler |
 | `unsupported-resource-matcher` | authority | Accepted resource matcher has no exact executable handler |
 | `unsupported-budget-algebra` | authority | Accepted budget algebra has no exact executable handler |
-| `unsupported-critical-extension` | extension | Accepted critical extension has no exact executable handler |
+| `unsupported-critical-extension` | extension | Accepted critical extension has no exact executable handler for the object carrying it; V1 registers none for status statements |
 | `unsupported-assurance-claim` | assurance | An adapter emitted a claim without an accepted exact handler |
 | `missing-principal-evidence` | control | Required control fact cannot be established |
 | `missing-principal-status` | status | The trust anchor's required principal status is absent (a delegate or actor with no statement is active) |

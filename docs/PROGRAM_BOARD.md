@@ -127,21 +127,32 @@ gates do not shrink.
 - **053 extensions the vendor corpus will demand:** typed query segments,
   omit-when-null bodies. Decide from Epic 4's rejection walls, not before.
   Typed query segments also let 059 resolve an `unknown` create.
-- **Multi-host gateway.** Implemented on `038-production-trust`: attempt,
-  evidence, and outcome state runs on the qualified PostgreSQL store under
-  AP-SPEC-038 §9.1; see §1.
+- **Multi-host gateway.** Merged in PR #143: attempt, evidence, outcome, and
+  window-count state runs on the PostgreSQL store under AP-SPEC-038 §9.1,
+  with two-process conformance in `postgres-lifecycle.yml`. The store's
+  qualification (0038 Epic 2) is open, and connection state is still per
+  process.
 - **Surface-area cost.** Formal, kernel, gateway, bindings, and signing have
   grown faster than adoption. Before each new epic, name what it retires or
   consolidates, and track the per-PR regeneration and freeze overhead.
 - **Review pass 2026-09-23.** Off the north-star path, so Not now: #145 (Stripe
   local-agent refund recovery reads one page and matches on editable
   metadata; its demo releases budget on a miss), #147 (PostgreSQL receipt
-  timestamps and read-back field), the remaining `fill(0)` sites of #148, and
-  small cleanups: make the staged verifier functions crate-private, delete the
-  unused budget and challenge ledgers, add one `encode_infallible` helper, add
-  `exact-refund` to `stripe-profiles.toml`, remove the provider record links
-  from `SELF_HOSTED_ACCEPTANCE_REVIEW.md`, and move the root `public_api_*.md`
-  notes. Settled findings are in `docs/audit/settled.md`.
+  timestamps and read-back field), and the remaining `fill(0)` sites of #148.
+  Its small cleanups landed in #163. Settled findings are in
+  `docs/audit/settled.md`.
+- **Review pass 2026-09-24.** Merged as PRs in priority order on owner
+  direction (§4, 2026-09-25), with no issues filed: hardening #160, cleanup
+  #163 (which also carried the 2026-09-23 pass's small items), connection
+  revocation #164, the Stripe reservation hold #165, admin-socket capacity
+  #166, kernel conformance #167, CI gates #168, and status statements #169.
+  Still open: the nightly kernel mutation job (2.5 part C); one key counted
+  as two principals (2.7); and, pending the owner's decision on whether the
+  gateway becomes the single provider-write path, the local-agent socket
+  model (2.4), the local-agent error contract (2.8), GitHub recovery, the
+  journal after provider entry, blocking I/O off async workers, and the
+  audit's recorded provider status. Settled findings are in
+  `docs/audit/settled.md`.
 
 ## 4. Decisions log
 
@@ -180,7 +191,9 @@ gates do not shrink.
 | 2026-09-24 | PROVISIONAL: advisory GHSA-j863-hjcq-vwj3 names the affected product `auths-dev/auths-proof` (`main` before `8bf2970c`), not the crates.io `auths-verifier` 0.1.x releases, which come from the separate `auths-dev/auths` repository. | the advisory |
 | 2026-09-25 | Owner decision: a trusted-context template has one assembly, `auths_registries::TrustedContextTemplate`. The Rust SDK's `TrustedContextBuilder` wraps it with its public API unchanged, and the WASM package compiles through it, so the npm journey adds no second copy in a binding. | [#158](https://github.com/auths-dev/auths-proof/pull/158); `core/crates/auths-registries/src/template.rs` |
 | 2026-09-25 | Owner directed fixing the packed-Chromium cold-start flake now: the check takes five cold starts, each in a fresh browser context, and holds their median to the unchanged 150 ms × 1.25 budget. | [#159](https://github.com/auths-dev/auths-proof/pull/159); `bindings/typescript/test/package/packed-browser.mjs` |
+| 2026-09-25 | Owner direction: the 2026-09-24 review pass is implemented as PRs in priority order, without filing public issues; a security weakness goes to a private advisory first. Decisions inside that work that the owner has not taken follow rule 8 (narrower reading, logged PROVISIONAL). | §3 "Review pass 2026-09-24"; `docs/audit/settled.md` |
 | 2026-09-25 | PROVISIONAL, taken unattended as the narrower readings for package 2.5 (kernel conformance) of the 2026-09-24 review, whose check-precedence decision the owner delegated: native's current order is codified, and only the attachment-limit line changes in Rust. (1) The canonical action is decoded, with its input, body, and detached-attachment bounds, before the proof, and a failure there carries no plan digest. The Go and TypeScript verifiers decode it the same way and return the native codes: fields read in key order, each bound checked as its field is read, the canonical encoding checked last. (2) Detached attachments are bounded by the aggregate attachment limit, as the spec and CDDL already said; native used the bundle limit, which denied attachments between the two limits and ignored a lowered attachment limit in process. (3) One check precedence, native's: decode (context, canonical action, proof), reference resolution, principal control (registry manifest and configuration first), action binding before any branch, authority branches, then plan and composition. Binding runs the carried body, each action's fields, profile, audience, challenge, evaluation time, channel, shared meaning, extensions, and observation attachments, then attachments, then the profile policy. Each branch runs root control, anchor acceptance, statuses (the anchor, then each grant's status and subject), the resource matcher, namespaces, the budget chain, the delegation walk, terminal coverage, the action's control, assurance, and observation. A statement's control failure is deferred to the branch that needs it. (4) Every grant permission's resource, not only the action's, must lie inside the anchor's namespaces, as native requires. (5) A budget algebra is resolved only where a bounded ceiling is compared, and a value in another algebra is local-policy-denied, the algebra rejecting its input; Go and TypeScript had resolved every algebra up front, including those of unrelated anchors, and returned indeterminate. (6) For a grant after the first, the observation-requirement drop check and the attenuation laws run before any handler evaluates the grant's extensions, so a malformed or over-limit child payload is `observation-requirement-dropped` under a parent with requirements and `delegation-expanded` otherwise, never the handler's code; `protocol.md` now defers to the per-extension laws instead of byte-for-byte preservation. | `core/spec/v1/verification-algorithm.md` "Stages"; `core/spec/v1/registry.md` "Attenuation laws"; `core/spec/v1/protocol.md` "Trust anchor", "Grant"; `core/spec/v1/error-codes.md`; `docs/LIMIT_COVERAGE.md` |
+| 2026-09-25 | PROVISIONAL, taken unattended as the narrower readings for package 2.6 (status statements) of the 2026-09-24 review, whose `purpose` decision the owner left open: (1) `purpose` is removed from principal-status statements rather than given purpose-scoped selection, which would add role semantics no spec defines. The wire loses key 3 and the later keys move down one, one direct cutover with no reader for the old shape (a ten-entry statement is `malformed-proof`); the carried-status rollback check keys on the principal alone, as selection does; the Python and WASM authoring APIs and the TypeScript engine contract drop the argument. (2) The accepted-extension rule covers every statement about a principal or grant whose status a branch evaluates, whatever its method or issuer and whether or not selection would pick it, checked after the statement's control and before selection; statements about subjects the branch does not evaluate are not checked. (3) As for actions and grants, the first extension in canonical order decides: an identifier the context does not accept is `critical-extension-unknown`, an accepted one `unsupported-critical-extension`. (4) No registered extension, `exact-marker-v1` included, has a status handler, so an accepted extension on an evaluated status statement is never evaluated and is always `unsupported-critical-extension`; a status extension needs a protocol review, an executable model, and a new manifest. | `core/spec/v1/protocol.md` "Evidence and status"; `core/spec/v1/verification-algorithm.md` "Principal status", "Grant status"; `core/spec/v1/registry.md` "Status-statement extensions"; `core/spec/v1/auths-proof.cddl` |
 
 ## 5. Not doing
 

@@ -334,7 +334,6 @@ export interface WorkflowWasmEngine {
   encodePrincipalStatusStatementV1(
     method: string,
     principal: string,
-    purpose: string,
     state: string,
     sequence: bigint,
     observedAt: bigint,

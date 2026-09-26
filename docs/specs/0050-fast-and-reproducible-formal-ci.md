@@ -409,6 +409,11 @@ This job runs independently once repository preflight succeeds. It MUST:
 Kani installation MUST NOT delay Lean feedback. It runs in its own job or is
 provided by the pinned formal toolchain artifact.
 
+A Kani-closure change can require this job while formal translation, and
+therefore `formal-evidence`, is not required. The job's planned result is
+consequently also enforced by a `formal-kani` gate that `ci-qualified`
+requires.
+
 ### 5.5 `formal-evidence`
 
 This job is the only formal success aggregator. It MUST verify:

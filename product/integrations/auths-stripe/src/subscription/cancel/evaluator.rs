@@ -140,6 +140,39 @@ impl SubscriptionCancelDecision {
     }
 }
 
+/// Recurring liability a cancellation releases in future, and the liability it
+/// keeps reserved until Stripe's terminal observation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct CancelLiabilitySplit {
+    future_release_minor: u64,
+    retained_until_terminal_minor: u64,
+}
+
+/// Splits a Subscription's remaining term liability for a cancellation mode.
+///
+/// The future release is the remaining term beyond the current period. At
+/// period end the current period stays reserved until the Subscription ends.
+/// An immediate cancellation releases nothing before the terminal
+/// observation, so it retains the complete remaining term. `None` when the
+/// current period exceeds the remaining term.
+const fn cancel_liability_split(
+    mode: SubscriptionCancelMode,
+    remaining_term_minor: u64,
+    current_period_minor: u64,
+) -> Option<CancelLiabilitySplit> {
+    let Some(future_release_minor) = remaining_term_minor.checked_sub(current_period_minor) else {
+        return None;
+    };
+    let retained_until_terminal_minor = match mode {
+        SubscriptionCancelMode::AtPeriodEnd => current_period_minor,
+        SubscriptionCancelMode::Immediate => remaining_term_minor,
+    };
+    Some(CancelLiabilitySplit {
+        future_release_minor,
+        retained_until_terminal_minor,
+    })
+}
+
 pub struct SubscriptionCancelEvaluationContext<'a> {
     pub action: &'a StripeExactSubscriptionCancelV1,
     pub policy: &'a StripeBoundedSubscriptionPolicyV1,
@@ -348,19 +381,16 @@ pub fn evaluate_subscription_cancel(
             "durable recurring liability differs or is not active",
         );
     }
-    let Some(future_release) = evidence
-        .remaining_term_liability_minor
-        .checked_sub(evidence.current_period_liability_minor)
-    else {
+    let Some(split) = cancel_liability_split(
+        action.mode(),
+        evidence.remaining_term_liability_minor,
+        evidence.current_period_liability_minor,
+    ) else {
         return SubscriptionCancelDecision::indeterminate(
             SubscriptionCancelDecisionCode::ArithmeticOverflow,
             SubscriptionCancelDecisionStage::Liability,
             "liability subtraction failed",
         );
-    };
-    let retained = match action.mode() {
-        SubscriptionCancelMode::AtPeriodEnd => evidence.current_period_liability_minor,
-        SubscriptionCancelMode::Immediate => evidence.remaining_term_liability_minor,
     };
     SubscriptionCancelDecision {
         class: SubscriptionCancelDecisionClass::Eligible,
@@ -374,8 +404,8 @@ pub fn evaluate_subscription_cancel(
             mode: action.mode(),
             remaining_term_liability_minor: evidence.remaining_term_liability_minor,
             current_period_liability_minor: evidence.current_period_liability_minor,
-            future_liability_release_minor: future_release,
-            liability_retained_until_terminal_minor: retained,
+            future_liability_release_minor: split.future_release_minor,
+            liability_retained_until_terminal_minor: split.retained_until_terminal_minor,
             release_not_before: match action.mode() {
                 SubscriptionCancelMode::AtPeriodEnd => evidence.current_period_end,
                 SubscriptionCancelMode::Immediate => context.now,
@@ -388,23 +418,42 @@ pub fn evaluate_subscription_cancel(
 
 #[cfg(kani)]
 mod proofs {
+    use super::{SubscriptionCancelMode, cancel_liability_split};
+
     #[kani::proof]
     fn period_end_release_and_retained_liability_conserve_the_original() {
         let remaining = kani::any::<u64>();
         let current = kani::any::<u64>();
-        kani::assume(remaining >= current);
-        let future = remaining - current;
-        assert_eq!(future.checked_add(current), Some(remaining));
+        match cancel_liability_split(SubscriptionCancelMode::AtPeriodEnd, remaining, current) {
+            Some(split) => {
+                // What period end releases plus what stays reserved until the
+                // Subscription ends is exactly the original remaining term.
+                assert_eq!(split.retained_until_terminal_minor, current);
+                assert_eq!(
+                    u128::from(split.future_release_minor)
+                        + u128::from(split.retained_until_terminal_minor),
+                    u128::from(remaining)
+                );
+            }
+            None => assert!(current > remaining),
+        }
     }
 
     #[kani::proof]
     fn immediate_branch_retains_all_liability_before_terminal_observation() {
         let remaining = kani::any::<u64>();
-        let released_before_terminal = 0_u64;
-        let retained_before_terminal = remaining;
-        assert_eq!(
-            released_before_terminal.checked_add(retained_before_terminal),
-            Some(remaining)
-        );
+        let current = kani::any::<u64>();
+        match cancel_liability_split(SubscriptionCancelMode::Immediate, remaining, current) {
+            Some(split) => {
+                // Nothing is released before the terminal observation: the
+                // complete remaining term stays reserved.
+                assert_eq!(split.retained_until_terminal_minor, remaining);
+                assert_eq!(
+                    u128::from(split.future_release_minor) + u128::from(current),
+                    u128::from(remaining)
+                );
+            }
+            None => assert!(current > remaining),
+        }
     }
 }

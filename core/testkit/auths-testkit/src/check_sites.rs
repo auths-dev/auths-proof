@@ -1,6 +1,6 @@
 //! Inventory of the kernel's canonical-action input bounds and its
-//! action-binding, validity, attenuation, and composition check sites, each
-//! mapped to the corpus vectors that pin it.
+//! action-binding, validity, status, attenuation, and composition check
+//! sites, each mapped to the corpus vectors that pin it.
 //!
 //! A result code can be shared by several sites (five binding clauses all
 //! return `action-body-mismatch`), so coverage per code cannot show that a
@@ -182,9 +182,37 @@ pub const CHECK_SITES: &[CheckSite] = &[
         &["untrusted-root"],
     ),
     site(
+        "branch.principal-status-extension-accepted",
+        "critical-extension-unknown",
+        &[
+            "anchor-status-extension-unknown",
+            "delegate-status-extension-unknown",
+            "actor-status-extension-unknown",
+            "delegate-status-extension-beside-newer",
+        ],
+    ),
+    site(
+        "branch.principal-status-extension-handler",
+        "unsupported-critical-extension",
+        &[
+            "anchor-status-extension-without-handler",
+            "delegate-status-extension-without-handler",
+        ],
+    ),
+    site(
         "branch.anchor-principal-status",
         "principal-revoked",
         &["revoked-principal-status"],
+    ),
+    site(
+        "branch.grant-status-extension-accepted",
+        "critical-extension-unknown",
+        &["grant-status-extension-unknown"],
+    ),
+    site(
+        "branch.grant-status-extension-handler",
+        "unsupported-critical-extension",
+        &["grant-status-extension-without-handler"],
     ),
     site(
         "branch.grant-status",

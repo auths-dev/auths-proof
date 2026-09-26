@@ -845,7 +845,6 @@ def grant_request_from_statement(statement: UnsignedObject) -> GrantRequest: ...
 def principal_status_statement(
     method: str,
     principal: Principal,
-    purpose: str,
     state: str,
     sequence: int,
     observed_at: int,

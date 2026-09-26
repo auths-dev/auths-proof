@@ -371,6 +371,7 @@ fn validate_bounded_policy_registry(inventory: &BoundedDomainInventory) -> Resul
         .iter()
         .map(|domain| (domain.id.as_str(), domain))
         .collect();
+    let lean_symbols = lean_claim_symbols()?;
     let mut registered_profiles = BTreeSet::new();
     let mut semantic_ids = BTreeSet::new();
     let mut previous_profile: Option<&str> = None;
@@ -465,12 +466,21 @@ fn validate_bounded_policy_registry(inventory: &BoundedDomainInventory) -> Resul
             "stable_stage_source",
             "hard_limit_source",
             "fixture_manifest",
-            "fuzz_target",
             "property_tests",
         ] {
             require_repository_file(registry_string(table, field)?)?;
         }
         require_repository_directory(registry_string(table, "mutation_corpus")?)?;
+        validate_evaluator_evidence(
+            profile_id,
+            &EvaluatorOwner {
+                package: &domain.package,
+                package_path: &domain.package_path,
+            },
+            rust_symbol,
+            table,
+            &lean_symbols,
+        )?;
 
         for field in [
             "evidence_schema",
@@ -503,6 +513,113 @@ fn registry_string<'a>(
         .and_then(toml::Value::as_str)
         .filter(|value| !value.is_empty())
         .ok_or_else(|| format!("missing non-empty {field}"))
+}
+
+/// Written in an evaluator's evidence field when no artifact exercises that
+/// evaluator.
+const ABSENT_EVIDENCE: &str = "absent";
+
+/// The package that owns a registered evaluator.
+struct EvaluatorOwner<'a> {
+    package: &'a str,
+    package_path: &'a str,
+}
+
+/// Each evidence field names an artifact that exercises this evaluator, or
+/// says it is absent; a shared artifact the evaluator does not own is
+/// rejected.
+///
+/// A Lean artifact must be an assurance claim bound to the evaluator's Rust
+/// symbol, a Kani harness must be declared beside the evaluator's entry point
+/// in its own crate, and a fuzz target must live in the owning package and
+/// call the entry point.
+fn validate_evaluator_evidence(
+    profile_id: &str,
+    owner: &EvaluatorOwner<'_>,
+    rust_symbol: &str,
+    table: &toml::map::Map<String, toml::Value>,
+    lean_symbols: &BTreeMap<String, BTreeSet<String>>,
+) -> Result<(), String> {
+    let entry_point = rust_symbol.rsplit("::").next().unwrap_or(rust_symbol);
+    let lean = registry_string(table, "lean_artifact")?;
+    if lean != ABSENT_EVIDENCE
+        && !lean_symbols
+            .get(lean)
+            .is_some_and(|symbols| symbols.contains(rust_symbol))
+    {
+        return Err(format!(
+            "bounded-policy evaluator {profile_id} cites Lean artifact {lean}, but no assurance \
+             claim binds it to {rust_symbol}; cite the evaluator's own claim or \"{ABSENT_EVIDENCE}\""
+        ));
+    }
+
+    let kani = registry_string(table, "kani_harnesses")?;
+    if kani != ABSENT_EVIDENCE {
+        let crate_prefix = format!("{}::", owner.package.replace('-', "_"));
+        let beside =
+            crate::kani_harness::harnesses_beside(&root().join(owner.package_path), entry_point)?;
+        for harness in kani.split('|') {
+            let owned = harness.starts_with(&crate_prefix)
+                && harness
+                    .rsplit("::")
+                    .next()
+                    .is_some_and(|name| beside.contains(name));
+            if !owned {
+                return Err(format!(
+                    "bounded-policy evaluator {profile_id} cites Kani harness {harness}, which \
+                     {} does not declare beside {entry_point}; cite the evaluator's own \
+                     harnesses or \"{ABSENT_EVIDENCE}\"",
+                    owner.package
+                ));
+            }
+        }
+    }
+
+    let fuzz = registry_string(table, "fuzz_target")?;
+    if fuzz != ABSENT_EVIDENCE {
+        require_repository_file(fuzz)?;
+        let source = fs::read_to_string(root().join(fuzz))
+            .map_err(|error| format!("could not read {fuzz}: {error}"))?;
+        if !fuzz.starts_with(&format!("{}/", owner.package_path)) || !source.contains(entry_point) {
+            return Err(format!(
+                "bounded-policy evaluator {profile_id} cites fuzz target {fuzz}, which is not a \
+                 target of {} that calls {entry_point}; cite the evaluator's own target or \
+                 \"{ABSENT_EVIDENCE}\"",
+                owner.package
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// The Rust symbols each assurance-manifest Lean declaration is bound to.
+fn lean_claim_symbols() -> Result<BTreeMap<String, BTreeSet<String>>, String> {
+    let path = root().join("formal/assurance-manifest-v1.toml");
+    let manifest: toml::Value = toml::from_str(
+        &fs::read_to_string(&path)
+            .map_err(|error| format!("could not read {}: {error}", path.display()))?,
+    )
+    .map_err(|error| format!("invalid {}: {error}", path.display()))?;
+    let mut symbols: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    for claim in manifest
+        .get("claims")
+        .and_then(toml::Value::as_array)
+        .ok_or("the assurance manifest has no claims")?
+    {
+        let Some(declaration) = claim.get("lean_declaration").and_then(toml::Value::as_str) else {
+            continue;
+        };
+        symbols.entry(declaration.to_owned()).or_default().extend(
+            claim
+                .get("rust_symbols")
+                .and_then(toml::Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(toml::Value::as_str)
+                .map(str::to_owned),
+        );
+    }
+    Ok(symbols)
 }
 
 fn validate_closed_contract_artifacts(inventory: &BoundedDomainInventory) -> Result<(), String> {
@@ -990,4 +1107,98 @@ fn checked_repository_path(relative: &str) -> Result<PathBuf, String> {
         ));
     }
     Ok(root().join(path))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn evidence(lean: &str, kani: &str, fuzz: &str) -> toml::map::Map<String, toml::Value> {
+        toml::map::Map::from_iter([
+            ("lean_artifact".to_owned(), toml::Value::from(lean)),
+            ("kani_harnesses".to_owned(), toml::Value::from(kani)),
+            ("fuzz_target".to_owned(), toml::Value::from(fuzz)),
+        ])
+    }
+
+    #[test]
+    fn evaluator_evidence_is_absent_or_owned_by_the_evaluator() {
+        let lean_symbols = BTreeMap::from([
+            (
+                "Auths.Product.fixed_context_tightening".to_owned(),
+                BTreeSet::new(),
+            ),
+            (
+                "Auths.Records.create_refines".to_owned(),
+                BTreeSet::from(["auths_records_api::evaluate_create".to_owned()]),
+            ),
+        ]);
+        let records = EvaluatorOwner {
+            package: "auths-records-api",
+            package_path: "product/integrations/auths-records-api",
+        };
+        let check = |lean: &str, kani: &str, fuzz: &str| {
+            validate_evaluator_evidence(
+                "auths.demo.records.create/1",
+                &records,
+                "auths_records_api::evaluate_create",
+                &evidence(lean, kani, fuzz),
+                &lean_symbols,
+            )
+        };
+        check("absent", "absent", "absent").expect("absent evidence is accurate");
+        check("Auths.Records.create_refines", "absent", "absent")
+            .expect("a claim bound to the evaluator is its evidence");
+        for (lean, kani, fuzz) in [
+            ("Auths.Product.fixed_context_tightening", "absent", "absent"),
+            (
+                "absent",
+                "auths_bounded_policy::kernel::proofs::configuration_match_is_eligible_only_when_every_gate_matches",
+                "absent",
+            ),
+            (
+                "absent",
+                "absent",
+                "product/policy/auths-bounded-policy/fuzz/fuzz_targets/target_bounded_policy.rs",
+            ),
+        ] {
+            assert!(
+                check(lean, kani, fuzz).is_err(),
+                "accepted shared evidence: {lean} | {kani} | {fuzz}"
+            );
+        }
+
+        let stripe = EvaluatorOwner {
+            package: "auths-stripe",
+            package_path: "product/integrations/auths-stripe",
+        };
+        let modify = "auths_stripe::subscription::modify::evaluator::proofs::credits_never_reduce_incremental_term_liability";
+        validate_evaluator_evidence(
+            "auths.stripe.subscription-modify/1",
+            &stripe,
+            "auths_stripe::evaluate_subscription_modify",
+            &evidence("absent", modify, "absent"),
+            &lean_symbols,
+        )
+        .expect("a harness beside the evaluator's entry point is its evidence");
+        assert!(
+            validate_evaluator_evidence(
+                "auths.stripe.exact-refund/1",
+                &stripe,
+                "auths_stripe::evaluate_bounded_refund",
+                &evidence("absent", modify, "absent"),
+                &lean_symbols,
+            )
+            .is_err(),
+            "another evaluator's harness in the same crate is not evidence"
+        );
+    }
+
+    #[test]
+    fn repository_registry_cites_only_owned_evidence() {
+        let source = fs::read_to_string(root().join("bounded-domains.toml")).expect("inventory");
+        let inventory: BoundedDomainInventory = toml::from_str(&source).expect("valid inventory");
+        validate_bounded_policy_registry(&inventory)
+            .expect("evaluator evidence is owned or absent");
+    }
 }
