@@ -113,7 +113,15 @@ gates do not shrink.
 - **061 End-to-end machine-checked verifier.** Spec:
   [AP-SPEC-061](specs/0061-end-to-end-machine-checked-verifier.md) (draft,
   not started). Phased codec → crypto link → control flow, with a claim
-  sentence per phase; ~5–8 months. Phases 0–1 do not depend on 059/060.
+  sentence per phase. The 2026-09-26 feasibility spike
+  ([0001](research/formal/0001-aeneas-translation-feasibility.md),
+  [0002](research/formal/0002-libcrux-verified-crypto-fit.md)) sized it at
+  about 2–3 months at agent speed.
+  - Today the pinned Aeneas translates none of `verify_v1`. There are nine
+    blocker classes, and 061 §3.4's extraction rules fix them.
+  - libcrux fits as the verified crypto link. It needs an owner-approved
+    RUSTSEC-2026-0173 exception, decided when phase 2 starts.
+  - Phases 0–1 can start now.
 - **Reads through the gateway.** Read recipes, response projection
   (`allowed_fields`, `maximum_response_bytes` as in 0024 §10), disclosure
   receipts. Confidentiality additionally needs hermetic agent egress.
