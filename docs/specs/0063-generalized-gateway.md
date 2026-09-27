@@ -6,8 +6,10 @@
   not start an epic, and the WIP limit (program board rule 1) still governs
   implementation. §13's readings are PROVISIONAL until the owner reviews
   them. On 2026-09-27 the owner chose §12 option A: the gateway becomes the
-  single provider-write path. This change adds this file and its program
-  board entries.
+  single provider-write path. On the same day the owner decided that
+  production keeps the `auths-stripe` vertical's five checks, as the
+  provider-neutral capabilities of §5.6–§5.9 and §6.10. This change adds this
+  file and its program board entries.
 - **Depends on:** [AP-SPEC-053](0053-declarative-credential-isolated-gateway.md)
   (gateway, recipe language, stages),
   [AP-SPEC-056](0056-openapi-derived-operation-contracts.md) (derivation),
@@ -36,7 +38,8 @@
   domain; attempt record `/2`; outcome `/1`; observe request `/1`; audit
   bundle and report `/1`; installation manifest `/2`; PostgreSQL schema
   `auths.lifecycle.postgresql/4`; evaluator
-  `auths.gateway.argument-ceiling-window-count/1`; connection record
+  `auths.gateway.argument-ceiling-window-count/1` and policy type
+  `auths.gateway.argument-ceiling-policy/1`; connection record
   `auths.provider-connection/1`; declared operator principals; and, under
   §12's decision, the five local-agent effect
   profiles.
@@ -61,7 +64,10 @@ response into an effect. It found five gaps.
 - A recipe cannot say what it can prove after an ambiguous write.
 - The north-star Stripe refund recipe lacks what the `auths-stripe` vertical
   proved necessary: a pinned API version, a test-mode guard, a fresh evidence
-  re-read, and a provider-held link to the action.
+  re-read, and a provider-held link to the action. Under §12's decision it
+  would also lose five checks the vertical makes: a ceiling relative to
+  payment evidence, the account binding at every lease, a check on the key's
+  permissions, the Connect account scope, and amount-sum budgets.
 - Window counts are kept per actor, so delegation multiplies a parent's count.
 - The operator plane needs admin mutations that never wait on provider calls,
   connection state that holds in every process sharing a store, separation
@@ -79,8 +85,8 @@ approves by digest (053 §3.1).
 | # | Change area | Section |
 | --- | --- | --- |
 | 1 | Recovery capability per recipe | §4 |
-| 2 | Capabilities the Stripe vertical proved necessary | §5 |
-| 3 | One spend limit | §6 |
+| 2 | Capabilities the Stripe vertical proved necessary, including the relative ceiling, the lease-time account binding, denied reads, and account-scope headers | §5 |
+| 3 | One spend limit: a count and a sum budget that delegation cannot multiply | §6 |
 | 4 | An operator plane the application cannot interfere with | §7 |
 | 5 | Evidence and assurance | §8 |
 
@@ -99,14 +105,23 @@ All five share one recipe revision (§3) and one store contract (§9).
 - Within one namespace and one store, a bounded grant's count bounds every
   action of its subject and its delegates together in each fixed window, and
   the bound's ceiling times its count bounds the sum of the bounded argument
-  over those actions.
+  over those actions. A grant that also carries a sum limit bounds that sum
+  directly, per declared partition value, and the grant lists every partition
+  value it allows.
+- For a recipe that declares them, the gateway sends no write unless, after
+  the lease: the credential still resolves to the connection's account; each
+  declared denied read was refused with a declared status; and the bounded
+  argument is at most the declared basis points of the integer just read from
+  the provider. An account-scope header carries only a value the grant lists,
+  and a recipe that declares none never sends one.
 - Admin mutations commit without waiting for provider calls and reach every
   process sharing the store at that process's next reload.
 - The offline audit shows the provider result beside `verified`, which still
   means authorized and entered.
-- The admission order, recovery transitions, credential-generation rule, and
-  request construction are machine-checked against Lean models over every
-  trace, under §11.6's residual assumptions.
+- The admission order, the relative ceiling, the count and sum bounds,
+  recovery transitions, the credential-generation rule, and request
+  construction are machine-checked against Lean models over every trace,
+  under §11.7's residual assumptions.
 
 **Not a claim.**
 
@@ -114,8 +129,13 @@ All five share one recipe revision (§3) and one store contract (§9).
 - Authorship. The echo is unkeyed and shows consistency, not who wrote a
   record (059 §1).
 - Observer honesty. Observer trust is operator trust.
-- A conditional write. A pre-entry re-read narrows the window; it does not
-  close it.
+- A conditional write. A pre-entry re-read or a relative-ceiling read narrows
+  the window; it does not close it.
+- That a credential lacks any permission beyond the refusals observed. A
+  denied read shows only that the declared requests were refused at that
+  lease.
+- That the provider's basis value or account identity is still current at
+  the write.
 - That a provider honors a declared idempotency mechanism or keeps it for the
   declared retention.
 - A rolling limit. Fixed windows admit up to twice a count across a boundary.
@@ -140,25 +160,33 @@ digest-bound field of the recipe AST or a gateway runtime mechanism.
 | Response locator (§4.1) | One bounded value from the recorded response in one path segment | 012 §14; case 0007 | The meaning of a read-back match |
 | Form echo (§5.4) | 059's token in one new form key | `echo_token` (`product/runtime/auths-gateway/src/recipe.rs`); Stripe metadata tagging in `local_agent.rs` | Authorship (none) |
 | Pre-entry re-read (§5.3) | Reuse of 060 requirements and predicates | 012 §13; the plan's Phase 2 order; `product/runtime/auths-gateway/src/observed_tests.rs` | Which conditions apply; conditional writes |
+| Relative ceiling (§5.6) | One integer read at one pointer, optionally minus a second, and one exact integer comparison | 012 §5; `RelativeRefundLimit` and the basis-point check in `product/integrations/auths-stripe/src/bounded.rs` | Which record and pointer are the basis, and what the ratio means |
+| Account binding at every lease (§5.7) | One JSON string read, hashed under the install's account domain and compared in constant time | `verify_account_response` (`onboarding.rs`); the `account_commitment` lookup in `lease_credential` (`credentials.rs`) | What an account is |
+| Denied reads (§5.8) | Up to four safe requests whose status must be in a declared set | 012 §13's restricted credential; the vertical checks only the `rk_test_` prefix (`valid_static_secret`) | Which permissions a key should lack |
+| Account-scope headers (§5.9) | A second registry class whose value is a grant-listed verified field | 012 §7; `ConnectScope` (`bounded.rs`); `MerchantConnectAccount` (`product/integrations/auths-stripe/src/merchant/policy.rs`) | What the account context means |
 | Recovery capability (§4) | Derived from the declarations | 059 §3.3; the claim ledger's Todoist limit | — |
-| Aggregate counts (§6) | New evaluator identifier (025 §6) | 025 §24–§25; 012 §6 | Amount-sum budgets |
+| Aggregate counts and sums (§6, §6.10) | New evaluator identifier and policy type (025 §6) | 025 §24–§25; 012 §6; `AggregateRefundBudget` (`bounded.rs`) | Release on proven non-effect; rolling windows |
 | Operator plane (§7) | Runtime mechanism | `serve`, `admin_session` (`product/runtime/auths-gateway/src/bin/auths-gateway.rs`); `separation.rs`; 038 §9.2 | — |
 | Outcome and audit `/2` (§8) | Evidence record, not a qualified receipt (053 §3.3) | Board §0 step 2; `audit.rs` | Settlement meaning |
 
-The six recipe capabilities each rest on fewer than three merged consumers
-across two domains, so each is a smaller promotion that needs an ADR (plan,
-"Domain to shared product"). Epic 1 writes ADR 0013, which amends ADR 0012 for
-all six and adds each comparison to case 0007. A reviewer may reject any one
-of them without blocking the others.
+The ten recipe capabilities each rest on fewer than three merged consumers
+across two domains; the four of §5.6–§5.9 rest on `auths-stripe` alone. Each
+is therefore a smaller promotion that needs an ADR (plan, "Domain to shared
+product"). Epic 1 writes ADR 0013, which amends ADR 0012 for all ten and for
+§6.10's sum budget, and adds each comparison to case 0007. A reviewer may
+reject any one of them without blocking the others; rejecting one of the five
+Stripe checks reopens §12's row for it.
 
 ## 3. Recipe source `/2`
 
 ### 3.1 Shape
 
-The north-star Stripe recipe after Epic 7 shows most new fields. The header
-value, probe endpoint, and retention are examples the author confirms against
-the provider's documentation; this repository makes no provider calls. The
-recipe declares no `pre_entry`, for the reason in §5.3.
+The north-star Stripe recipe after Epic 7 shows most new fields, including
+the five Stripe checks (§5.6–§5.9, §6.10). The header values, probe and read
+endpoints, pointers, refused statuses, ratio, and retention are examples the
+author confirms against the provider's documentation; this repository makes
+no provider calls. The recipe declares no `pre_entry`, for the reason in
+§5.3. Its profile gains the fields `connect_account` and `currency`.
 
 ```json
 {
@@ -170,17 +198,40 @@ recipe declares no `pre_entry`, for the reason in §5.3.
   "credential": {
     "kind": "bearer",
     "guard": {
-      "prefixes": ["rk_test_", "sk_test_"],
+      "prefixes": ["rk_test_"],
       "probe": {
         "path": [{"kind": "fixed", "value": "v1"}, {"kind": "fixed", "value": "balance"}],
         "json_pointer": "/livemode",
         "equals": false,
         "maximum_response_bytes": 16384
-      }
+      },
+      "account": {
+        "path": [{"kind": "fixed", "value": "v1"}, {"kind": "fixed", "value": "account"}],
+        "json_pointer": "/id",
+        "maximum_response_bytes": 65536
+      },
+      "denied_reads": [
+        {"method": "GET", "path": [{"kind": "fixed", "value": "v1"}, {"kind": "fixed", "value": "customers"}], "refused_status": [403]},
+        {"method": "GET", "path": [{"kind": "fixed", "value": "v1"}, {"kind": "fixed", "value": "payouts"}], "refused_status": [403]}
+      ]
     }
   },
   "origin": "https://api.stripe.com",
   "provider_headers": {"Stripe-Version": "<pinned version>"},
+  "account_scope": {"header": "Stripe-Account", "field": "connect_account"},
+  "bounds": {"sum": {"argument": "amount", "partition": "currency"}},
+  "relative_ceiling": {
+    "argument": "amount",
+    "basis_points": 5000,
+    "path": [
+      {"kind": "fixed", "value": "v1"},
+      {"kind": "fixed", "value": "payment_intents"},
+      {"kind": "field", "name": "payment_intent"}
+    ],
+    "json_pointer": "/amount_received",
+    "bind": [{"pointer": "/currency", "field": "currency"}],
+    "maximum_response_bytes": 65536
+  },
   "write": {
     "method": "POST",
     "path": [{"kind": "fixed", "value": "v1"}, {"kind": "fixed", "value": "refunds"}],
@@ -219,10 +270,15 @@ rules with the listed code. Rules not listed are 053 §3.2.1 and 059 §3.2.
 | Field | Required | Rule | Code |
 | --- | --- | --- | --- |
 | `schema` | yes | Exactly `auths.gateway-recipe-source/2`; `/1` is refused | `gateway.recipe.invalid-source` |
-| `credential` | yes | As `/1`; a `header-api-key` header may not be `Idempotency-Key` or a registered version header | `gateway.recipe.invalid-credential` |
+| `credential` | yes | As `/1`; a `header-api-key` header may not be `Idempotency-Key` or any name in §5.1's registry | `gateway.recipe.invalid-credential` |
 | `credential.guard.prefixes` | with `guard` | 1–4 unique strings of 1–32 bytes in `0x21..=0x7e` | `gateway.recipe.invalid-credential-guard` |
 | `credential.guard.probe` | no | `path` of 1–16 `fixed` segments; `json_pointer` under the observation pointer rules; `equals` a JSON string of at most 256 bytes, an integer of magnitude at most 2^53 − 1, or a boolean; `maximum_response_bytes` 1–65 536 | `gateway.recipe.invalid-credential-guard` |
-| `provider_headers` | no | At most 2 entries, each name and value as §5.1's registry allows | `gateway.recipe.invalid-provider-header` |
+| `credential.guard.account` | no | `path` of 1–16 `fixed` segments; `json_pointer` under the observation pointer rules; `maximum_response_bytes` 1–65 536 (§5.7) | `gateway.recipe.invalid-credential-guard` |
+| `credential.guard.denied_reads` | no | 1–4 entries; `method` exactly `GET` or `HEAD`; `path` of 1–16 `fixed` segments, unique among the entries and unequal to the probe path, the account path, and every declared path made only of `fixed` segments; `refused_status` 1–3 unique integers in 400–499 other than 408 and 429 (§5.8) | `gateway.recipe.invalid-credential-guard` |
+| `provider_headers` | no | At most 2 entries, each a `version`-class name of §5.1's registry with a value its grammar allows; an `account-scope` name is refused here | `gateway.recipe.invalid-provider-header` |
+| `account_scope` | no | `header` an `account-scope`-class name of §5.1's registry; `field` a top-level string field of the profile schema that no body, path, or other header consumes (§5.9) | `gateway.recipe.invalid-account-scope` |
+| `bounds.sum` | no | `argument` a top-level integer field that the write body consumes; optional `partition` a top-level string field, unequal to `argument`, that the write body or the account-scope header consumes or a `relative_ceiling.bind` entry names (§6.10) | `gateway.recipe.invalid-bounds`, `gateway.recipe.unbound-partition` |
+| `relative_ceiling` | no | `argument` a top-level integer field that the write body consumes; `basis_points` an integer in 1–10 000; `path` of 1–16 `fixed` or `field` segments under the write path's rules; `json_pointer` and optional `subtract_pointer`, distinct, under the observation pointer rules; `bind` of 0–2 entries with distinct pointers under the same rules, each naming a top-level profile field other than `argument`; `maximum_response_bytes` 1–65 536 (§5.6) | `gateway.recipe.invalid-relative-ceiling`, `gateway.recipe.unsafe-path` |
 | `write.path` | yes | As `/1`; no `response-field` segment | `gateway.recipe.response-locator-conflict` |
 | `write.idempotency` | no | §4.1; `retention_seconds` 1–2 592 000; an `operation-id-field` location must resolve to a field reference to `operation_id` | `gateway.recipe.invalid-idempotency` |
 | `observation.path` | with `observation` | As `/1`, plus at most 2 `response-field` segments, each with an observation pointer and `max_bytes` 1–255 | `gateway.recipe.response-locator-conflict` |
@@ -231,7 +287,8 @@ rules with the listed code. Rules not listed are 053 §3.2.1 and 059 §3.2.
 | `preconditions.read_back_subject` | no | As `/1`; refused when the observation path has a `response-field` segment | `gateway.recipe.precondition-conflict` |
 
 Every profile field is still consumed, now by the write, the observation, the
-pre-entry path, or the preconditions (`gateway.recipe.unsafe-template`
+pre-entry path, the preconditions, the account-scope header, or a
+relative-ceiling path or `bind` entry (`gateway.recipe.unsafe-template`
 otherwise). The 64 KiB source bound, the 16 KiB body bound, and every other
 `/1` limit stay.
 
@@ -259,6 +316,12 @@ regenerated in the same change. `product/tools/auths-openapi-derive` writes
 - the echo placement, with 059's disclosure;
 - the pre-entry subjects, with "read after the credential lease and before
   the write; the write is not conditional";
+- the account read and denied reads, with "run at onboarding and at every
+  lease; a denied read shows only the refusals observed";
+- the account-scope header and its field, with "sent only with a value the
+  grant lists";
+- the relative ceiling as `argument ≤ floor(basis × basis_points / 10 000)`,
+  its basis and bind pointers, and the sum requirement with its partition;
 - the recovery capability of §4.2 and `write_is_conditional: false`.
 
 ## 4. Recovery capability per recipe
@@ -343,12 +406,12 @@ format. `auths.gateway-attempt/3` replaces `/2`; a `/2` record is `Corrupt`.
 | `evaluated_at` | The gateway clock when native verification ran; used for the window index and the entry deadline |
 | `stage` | See the transitions below |
 | `refusal` | The stable code, exactly when `stage` is `not-entered` |
-| `counters` | The sorted `{counter, slot}` pairs reserved with the claim (§6.3) |
+| `counters` | The sorted `{kind, counter, slot}` entries reserved with the claim, `kind` `count` or `sum` (§6.3, §6.10) |
 | `response_status`, `response_digest` | As `/2` |
 | `response_locator` | For a `response-locator` recipe after a qualifying response: pointer → value |
 | `observation_plan` | Resolved segments, unresolved `response-field` pointers, the canonical expected value, and the echo flag; fixed at claim |
 | `observation_match`, `observation_fact`, `provider_evidence` | As `/2` |
-| `pre_entry` | Up to four signed pre-entry observations and their digest (§5.3) |
+| `pre_entry` | Up to four signed pre-entry observations and their digest (§5.3), and the relative-ceiling basis `{value, response_digest, read_at}` when one was read (§5.6) |
 
 A record whose fields contradict its stage is `Corrupt`, as
 `stage_fields_consistent` enforces for `/2`. The worst case is about 136 KB
@@ -361,7 +424,7 @@ exhaustively by Kani (§8.5):
 
 | From | To | Condition |
 | --- | --- | --- |
-| `attempting` | `attempting` | Once, before transport entry, adding only `pre_entry` |
+| `attempting` | `attempting` | Once, before transport entry, adding only `pre_entry` (observations and basis together) |
 | `attempting` | `not-entered` | Before transport entry, with a "recorded" code of §10; may add `pre_entry` |
 | `attempting` | `unknown` | Transport may have been entered; no complete response |
 | `attempting` | `response-recorded` | A complete bounded response |
@@ -427,24 +490,46 @@ can do.
 
 ## 5. Capabilities the Stripe vertical proved necessary
 
-### 5.1 Provider version headers
+§5.1–§5.4 carry the vertical's request mechanisms. §5.6–§5.9, with §6.10's
+sum budget, keep in production the five checks that §12 option A would
+otherwise remove (012 §5–§7). Each check is recipe data that the author
+writes, the compiler bounds (§3.2), the review shows (§3.4), and the operator
+approves by digest. The gateway compares bytes, integers, and HTTP statuses,
+and interprets no provider field. §5.5 places every check in the submission
+order.
+
+Requests are of two kinds. **Credential reads** (the probe, the account read,
+and denied reads) test the credential and carry no action value. **Action
+reads** (the pre-entry read, the relative-ceiling read, and the observation)
+and the write carry verified action values. With every capability declared, a
+submission makes at most seven reads before its write, and each later
+read-back lease adds up to five credential reads (§5.7, §5.8).
+
+### 5.1 Provider headers
 
 The recipe-header allowlist of 053 §3.2 gains a closed registry,
-`PROVIDER_VERSION_HEADERS` in `recipe.rs`:
+`PROVIDER_HEADERS` in `recipe.rs`, with two classes:
 
-| Name | Value grammar | Response rule | Vertical |
-| --- | --- | --- | --- |
-| `Stripe-Version` | 10–64 bytes of `[A-Za-z0-9.-]`, first byte a digit (`valid_api_version` in `product/integrations/auths-stripe/src/merchant.rs`) | Required: a response without the header, or with another value, has a version mismatch | `auths-stripe` |
-| `X-GitHub-Api-Version` | Exactly 10 bytes, `YYYY-MM-DD` | None: responses are not checked | `auths-github` |
+| Name | Class | Value grammar | Response rule | Vertical |
+| --- | --- | --- | --- | --- |
+| `Stripe-Version` | `version` | 10–64 bytes of `[A-Za-z0-9.-]`, first byte a digit (`valid_api_version` in `product/integrations/auths-stripe/src/merchant.rs`) | Required: a response without the header, or with another value, has a version mismatch | `auths-stripe` |
+| `X-GitHub-Api-Version` | `version` | Exactly 10 bytes, `YYYY-MM-DD` | None: responses are not checked | `auths-github` |
+| `Stripe-Account` | `account-scope` | `acct_` then 8–59 bytes of `[A-Za-z0-9_]` (`valid_account` in `product/integrations/auths-stripe/src/types.rs`) | None: responses are not checked | `auths-stripe` |
 
-The gateway sends each declared header on every request to the origin (the
-write, the observation, the pre-entry read, and the credential probe) and
-nowhere else. A read with a version mismatch is unavailable: it is not
-compared, signed, or recorded, and a pre-entry read with one refuses the
-submission (§5.3). A write is recorded as usual, because the gateway never
-interprets a write body; a mismatch only suppresses locator extraction.
-Operator approval cannot widen the registry. A new entry needs an amendment
-naming its vertical evidence and response rule, plus hostile fixtures.
+A `version` header has a fixed value in `provider_headers`. The gateway sends
+it on every request to the origin (the write, every action read, and every
+credential read) and nowhere else. An `account-scope` header takes its value
+from a verified action field under §5.9's rules, and is sent on the write and
+every action read and never on a credential read.
+
+A read with a version mismatch is unavailable: it is not compared, signed, or
+recorded. A pre-entry read, a relative-ceiling read, or a lease-time
+credential read with one refuses the submission (§5.3, §5.6–§5.8); a denied
+read is no exception, although only its status is compared. A write is
+recorded as usual, because the gateway never interprets a write body; a
+mismatch only suppresses locator extraction. Operator approval cannot widen the registry. A new entry needs an amendment
+naming its class, vertical evidence, and response rule, plus hostile
+fixtures.
 
 ### 5.2 Credential-mode guard
 
@@ -454,7 +539,14 @@ like.
 | Check | When | Failure |
 | --- | --- | --- |
 | Prefix: the secret starts with a declared prefix | At onboarding (`install`, `install --join`, admin `rotate`) before the secret is stored; at every lease before any header is built | Onboarding refused (`gateway.install.credential-guard`, `gateway.admin.credential-guard`); after a claim, recorded `not-entered` with `gateway.credential.mode-guard`; an observation request refused with `gateway.observer.credential-guard` |
-| Probe: one GET with the candidate secret over the pinned transport with the provider headers, passing on a complete 2xx JSON response within `maximum_response_bytes` whose pointer holds `equals` | At onboarding, after the prefix check, under a 20-second deadline | Onboarding refused with nothing stored (`gateway.install.credential-probe`, `gateway.admin.credential-probe`) |
+| Probe: one GET with the candidate secret over the pinned transport with the provider headers, passing on a complete 2xx JSON response within `maximum_response_bytes` whose pointer holds `equals` | At onboarding, after the prefix check | Onboarding refused with nothing stored (`gateway.install.credential-probe`, `gateway.admin.credential-probe`) |
+| Account (§5.7) | At onboarding, after the probe; at every lease, after the prefix | Onboarding refused (`gateway.install.credential-account`, `gateway.admin.credential-account`); after a claim, recorded `not-entered` (§5.7) |
+| Denied reads (§5.8) | At onboarding, after the account read; at every lease, after the account read | Onboarding refused (`gateway.install.credential-capability`, `gateway.admin.credential-capability`); after a claim, recorded `not-entered` (§5.8) |
+
+Every onboarding read shares one 20-second deadline. Every lease-time check
+also runs for a read-back, `reobserve`, or observation request lease: a
+failure there makes the read unavailable, records nothing, and refuses an
+observation request with `gateway.observer.credential-guard`.
 
 The guard reads the lease through #155's zeroizing types and never logs or
 returns the secret. What a prefix or a probe field means is the provider's
@@ -516,9 +608,10 @@ with `gateway.pre-entry.condition-false`: one lease, one read, zero writes.
 
 **Why the Stripe recipe leaves it out.** The north-star profile carries no
 approved expected state to compare, and the useful check (the refund amount
-does not exceed the remaining refundable amount) compares two numbers, which
-060's conditions cannot do (060 §2). It also could not run in production
-without an observer key.
+does not exceed a share of the payment) compares two numbers, which 060's
+conditions cannot do (060 §2). It also could not run in production without an
+observer key. §5.6's relative ceiling makes that comparison as a gateway
+refusal rule, without an observer key.
 
 ### 5.4 A provider link for form bodies
 
@@ -542,22 +635,181 @@ follows this order. The last column names the epic that adds each new step.
 | --- | --- | --- | --- |
 | 1 | Read the gateway clock as `evaluated_at` | Indeterminate | today |
 | 2 | Check input bounds; verify natively at `evaluated_at` (`verify_v1_sealed` in `verify_detailed`) | Denied or indeterminate | today |
-| 3 | Admit: bounded policy (§6.1); projection; retention rule (§4.5); pre-entry selection (§5.3); per-proof observer check (§7.5) | `not-entered`, nothing stored | 4; today; 3; 3; 5 |
+| 3 | Admit: bounded policy (§6.1), with the sum requirement and partition (§6.10) and the account-scope binding (§5.9); projection; retention rule (§4.5); pre-entry selection (§5.3); per-proof observer check (§7.5) | `not-entered`, nothing stored | 4; today; 3; 3; 5 |
 | 4 | Load the shared connection record; require this host to hold its current credential (§7.3) | `not-entered`, nothing stored | 5 |
 | 5 | Prepare the pinned transport | `not-entered`, nothing stored | today |
-| 6 | Claim atomically with every count slot (§6.3); a replay goes to §4.4 | Exhausted: recorded `not-entered`; store unavailable: nothing stored | 3; slots 4 |
+| 6 | Claim atomically with every count and sum slot (§6.3, §6.10); a replay goes to §4.4 | Exhausted: recorded `not-entered`; store unavailable: nothing stored | 3; slots 4 |
 | 7 | Continue in a task the application connection cannot cancel; it holds the capacity permit until the final stage (§7.1) | — | today (#166) |
 | 8 | Reload the shared record and require it unchanged: the re-read AP-SPEC-040 §7.4 requires immediately before credential acquisition | Recorded `not-entered`, `gateway.connection.changed` | 5 |
-| 9 | Lease the credential (30-second deadline); apply the prefix guard (§5.2) | Recorded `not-entered` | today; guard 3 |
-| 10 | Run the pre-entry re-read when declared (§5.3) | Recorded `not-entered` | 3 |
+| 9 | Lease the credential (30-second deadline); apply the prefix guard (§5.2); when declared, the account read (§5.7), then each denied read in order (§5.8) | Recorded `not-entered` | today; guard, account, and denied reads 3 |
+| 10 | When declared, run the pre-entry re-read (§5.3), then the relative-ceiling read and check (§5.6); record their observations and basis in one `attempting → attempting` | Recorded `not-entered`, keeping what was read | 3 |
 | 11 | Increment the in-flight count; reload the shared record; require it unchanged | Recorded `not-entered`, `gateway.connection.changed` | 5 |
 | 12 | Refuse entry after `evaluated_at + 60` seconds, on the gateway clock or the monotonic deadline started at step 1 | Recorded `not-entered`, `gateway.attempt.entry-deadline` | 3 |
-| 13 | Send the one write, with provider headers, the key or declared field, and the echo | Before network entry: recorded `not-entered`, `gateway.transport.not-entered` | today; additions 3 |
+| 13 | Send the one write, with provider headers, the account-scope header, the key or declared field, and the echo | Before network entry: recorded `not-entered`, `gateway.transport.not-entered` | today; account scope 2; other additions 3 |
 | 14 | Record the response (status, digest, locator), or `unknown` | — | today; locator 3 |
 | 15 | Decrement the in-flight count; perform at most one read-back | — | 5; today |
 
 Until Epic 5 lands, steps 4, 8, and 11 read today's per-process connection
 store (`prepare_entry` and `reread_before_lease` in `engine.rs`).
+
+### 5.6 Relative ceiling
+
+`relative_ceiling` bounds the verified argument by a declared ratio of one
+integer the gateway reads from the provider after the lease. It keeps 012
+§5's relative limit in production, with the ratio in the recipe (§13,
+reading 23).
+
+- **Read.** At step 10, after any pre-entry re-read, one GET to `path`, built
+  from `fixed` segments and verified fields as the write path is (`build_path`
+  in `recipe.rs`), with the version headers and the account-scope header,
+  under the transport's bounds and `maximum_response_bytes`. It reuses
+  §5.3's read mechanics (pinned transport, version response rule, pointer
+  resolution) but not its requirement selection or observer signing, so it
+  runs without an observer key (§13, reading 21).
+- **Basis.** The value at `json_pointer` must be a JSON integer in
+  0..=2^53 − 1, with no fraction or exponent. With `subtract_pointer`, the
+  second value must meet the same rule, and the basis is the first minus the
+  second. A negative difference is unavailable, never zero. The leaf
+  `relative_basis(value: u64, subtrahend: Option<u64>) -> Option<u64>`, in a
+  new pure module `product/runtime/auths-gateway/src/ratio.rs`, computes it.
+- **Bind.** Each `bind` pointer must hold a JSON string byte-equal to the
+  verified field's string, or a JSON integer equal to its integer. A bind
+  ties the basis record to the action, such as its currency to §6.10's
+  partition field.
+- **Check.** `relative_ceiling_admits(argument: u64, basis: u64,
+  basis_points: u16) -> bool` in `ratio.rs` returns
+  `argument × 10 000 ≤ basis × basis_points`, computed in `u128`. Both
+  products are below 2^67, so nothing overflows. The test equals
+  `argument ≤ floor(basis × basis_points / 10 000)`: the ceiling rounds toward
+  zero, the boundary is inclusive, and a zero basis admits only a zero
+  argument (012 §5).
+
+| Result | Stage and code |
+| --- | --- |
+| Every value valid, every bind equal, and the check passes | Basis recorded with any pre-entry observations (`attempting → attempting`); continue |
+| Every value valid and a bind unequal | `not-entered`, `gateway.relative-ceiling.binding-mismatch`; basis recorded |
+| Every value valid and every bind equal, and the check fails | `not-entered`, `gateway.relative-ceiling.above`; basis recorded |
+| Transport failure, non-2xx, version mismatch, oversize, non-JSON, an absent pointer, a value outside the rules, or a negative difference | `not-entered`, `gateway.relative-ceiling.unavailable`; only the code recorded |
+
+The basis record is `{value, response_digest, read_at}`: the basis, the
+SHA-256 of the response body, and the gateway clock at the read. A signed
+outcome carries the first two as `relative-basis` and
+`relative-basis-digest` (§8.1). The check runs after the claim because the
+read needs a lease, and a lease needs the claim (§11.2). A refused action
+therefore consumes its operation ID and its count and sum slots (§13,
+readings 2, 13, and 17). **Cost:** one read per submission.
+
+012 §5's `captured-amount` denominator maps to the PaymentIntent's
+`/amount_received`, which §3.1 uses. `remaining-refundable-amount` maps to a
+Charge's `/amount_captured` with `subtract_pointer` `/amount_refunded`, which
+needs a charge field in the profile.
+
+**Non-claims.** The basis is what the provider returned at `read_at`, and the
+write is not conditional on it. The ratio and what the basis means are the
+author's, approved by the operator. The gateway records the basis itself; it
+is not a 060 observation and satisfies no grant condition.
+
+### 5.7 Account binding at every lease
+
+`credential.guard.account` reads the credential's own account identity and
+compares it with the connection record's `account_commitment`
+(`ConnectionRecord::account_commitment` in
+`product/runtime/auths-connections/src/model.rs`). It keeps the vertical's
+lease-time account check (`lease_credential` in `credentials.rs`), and makes
+it stronger by asking the provider at every lease.
+
+- **Commitment.** `install` already sets `account_commitment` to the SHA-256
+  of `auths.gateway-account/1`, a NUL byte, and `--account-label` (`install`
+  in `product/runtime/auths-gateway/src/bin/auths-gateway.rs`). The account
+  read hashes the value it reads the same way and compares the two 32-byte
+  values in constant time.
+- **Read.** One GET to `path` with the leased or candidate secret, the version
+  headers, and no account-scope header. The value at `json_pointer` must be a
+  JSON string of 1–256 bytes, the account label's bound.
+- **When.** At onboarding, after the probe: `install` requires the read value
+  to equal `--account-label`, and `install --join` and `rotate` require its
+  hash to equal the record's commitment. At every lease (step 9), after the
+  prefix guard and before any denied read (§13, reading 14).
+
+| Result at a submission lease | Stage and code |
+| --- | --- |
+| Equal commitments | Continue |
+| A complete 2xx JSON response holding a valid string whose hash differs | `not-entered`, `gateway.credential.account-mismatch` |
+| Anything else | `not-entered`, `gateway.credential.account-unavailable` |
+
+Only the code is recorded; a credential read never enters the attempt record.
+**Cost:** one read per lease, so one per write and one per read-back.
+
+**Non-claims.** It shows which account the provider reported for the
+credential at that read, not at the write, and not that the identifier names
+one legal entity.
+
+### 5.8 Denied reads
+
+Neither the vertical nor the gateway can read a key's permissions:
+`valid_static_secret` (`onboarding.rs`) and `lease_credential`
+(`credentials.rs`) check only the `rk_test_` prefix, and HTTP has no
+provider-neutral permission introspection. `credential.guard.denied_reads`
+instead declares up to four safe requests that the provider must refuse. It
+replaces 012's restricted-key requirement with an observed check.
+
+- **Requests.** One `GET` or `HEAD` per entry, to a path of `fixed` segments
+  only, so no action value or agent input reaches it. It carries the
+  credential and the version headers, and no account-scope header, body, or
+  idempotency key. A response body is read and discarded up to 16 384 bytes
+  (more is oversize) and never recorded.
+- **Pass.** A complete response whose status is in `refused_status`, with no
+  version mismatch (§5.1).
+- **When.** At onboarding after the account read, and at every lease (step 9)
+  after the account read (§13, readings 15 and 16). Entries run in
+  declaration order and stop at the first failure.
+
+| Result at a submission lease | Stage and code |
+| --- | --- |
+| Every entry refused with a declared status | Continue |
+| An entry answered 2xx | `not-entered`, `gateway.credential.capability-excess` |
+| Anything else: another status, a 3xx (never followed), transport failure, oversize, or version mismatch | `not-entered`, `gateway.credential.capability-unavailable` |
+
+The compiler refuses 408 and 429, because a timeout or throttling status
+would pass without any permission refusal. Only the code is recorded.
+**Cost:** up to four reads per lease.
+
+**Non-claims.** A pass shows only that the declared requests were refused
+when made. It does not show that the key lacks any other permission, that a
+refusal had a permission reason rather than another the provider maps to the
+same status, or that the key's permissions did not change before the write.
+
+### 5.9 Account-scope headers
+
+`account_scope` names an `account-scope` header of §5.1 and the profile field
+that supplies its value. It keeps 012 §7's Connect scope in production.
+
+- **Binding.** The value comes only from the verified action field. At step
+  3, the action MUST have a bounded branch (§6.1) in which every link's
+  policy carries a `scope` whose argument is that field, and the verified
+  value MUST be in every link's scope values (§6.10). Otherwise it is refused
+  before the claim: `gateway.account-scope.unbound` when there is no bounded
+  branch or a link carries no such scope, and `gateway.policy.scope-denied`
+  when a link's values exclude the value (§13, reading 22).
+- **Grammar.** The value must match the header's registry grammar
+  (`gateway.account-scope.invalid-value`, before the claim), so it cannot
+  add a header line.
+- **Sending.** The header, with exactly that value, goes on the write and
+  every action read, and never on a credential read, which tests the
+  credential's own account (§5.7).
+- **Absence.** A recipe without `account_scope` sends no `account-scope`
+  header on any request, and no recipe can place one in `provider_headers`,
+  the credential header, or a body (§3.2). §11.5 proves both.
+- **One scope kind per recipe.** A recipe with `account_scope` always sends
+  the header. A write the provider scopes by the header's absence, such as a
+  Stripe platform-account refund, needs a recipe without it (§13, reading
+  19).
+
+Until Epic 4 supplies policy `/2`, no link can carry a scope, so every action
+of an `account_scope` recipe is refused with `gateway.account-scope.unbound`.
+
+**Non-claims.** The gateway shows that the header carried a value the grant
+lists. What the provider does with the header is the provider's.
 
 ## 6. One spend limit
 
@@ -578,9 +830,18 @@ its subject and its decoded policy. The action is admitted when:
 - every linked pair passes the unchanged decider (`gateway.policy.expanded`);
 - the verified argument is within every ceiling
   (`gateway.policy.above-ceiling`, `gateway.policy.argument-unavailable`);
+- every scope and partition a link carries lists the verified value of its
+  argument (`gateway.policy.scope-denied`, `gateway.policy.partition-denied`;
+  a missing or malformed value is `gateway.policy.argument-unavailable`);
+- when the chain carries sum limits, the verified argument is at most the
+  smallest (`gateway.policy.above-sum-limit`); a recipe that declares
+  `bounds.sum` also requires every link to carry a sum limit with the
+  recipe's argument and partition (`gateway.policy.sum-required`, also for
+  an action with no bounded branch) (§6.10);
 - one slot is reserved, all or none and with the claim, in the counter of
-  every distinct link subject (§6.3). A counter shared by several links of one
-  chain takes the smallest of their counts as its capacity.
+  every distinct link subject (§6.3), and one sum slot in every distinct sum
+  counter (§6.10). A counter shared by several links of one chain takes the
+  smallest of their counts, or sum limits, as its capacity.
 
 A link's counter therefore counts every admitted action of its subject and of
 every delegate below it. Siblings, and delegation to the parent's own key
@@ -592,8 +853,11 @@ counters are keyed by namespace (§6.2) and live in one store, so a namespace
 served from two stores, or a store that loses its records, counts separately.
 
 Count meaning changes, so the evaluator identifier becomes `/2` (025 §6, rule
-7). The policy type and bytes stay. A grant naming `/1` is refused as
-unregistered, and `auths-gateway bound-extension` prints `/2`.
+7). Its policy type becomes `auths.gateway.argument-ceiling-policy/2`, whose
+bytes keep `/1`'s four members and add §6.10's optional sum, partition, and
+scope. A grant naming evaluator `/1` is refused as unregistered, and one whose
+policy type is `/1` as mismatched. `auths-gateway bound-extension` prints `/2`
+and gains `--sum-limit`, `--partition`, and `--scope`.
 
 ### 6.2 Counters and slots
 
@@ -615,22 +879,30 @@ One store operation, `insert_all` (§9.2), replaces `BoundedCountStore` and the
 separate `reserve_window` step in `product/runtime/auths-gateway/src/bounds.rs`.
 
 1. For each distinct counter, find the lowest free slot below its capacity by
-   binary search over the occupied prefix, as `reserve_window` does.
+   binary search over the occupied prefix, as `reserve_window` does. For each
+   distinct sum counter (§6.10), find its lowest free slot `n` the same way
+   and load slot `n − 1`'s `cumulative` (0 when `n` is 0); the sum counter is
+   full when that plus the verified argument exceeds its capacity.
 2. If a counter is full, insert the claim alone as `not-entered` with
-   `gateway.policy.window-exhausted`; the operation ID is consumed, as today.
+   `gateway.policy.window-exhausted`, or with `gateway.policy.sum-exhausted`
+   when only sum counters are full; the operation ID is consumed, as today.
    An existing claim key goes to §4.4's replay path.
 3. Otherwise, insert the claim (`attempting`, with `counters`) and one slot
-   record per counter in one `insert_all`.
+   record per counter and sum counter in one `insert_all`. Each sum slot's
+   `cumulative` is the loaded value plus the argument.
 4. If the claim key exists, take the replay path. If slot `s` of counter `c`
-   exists, advance `c` to `s + 1`, return to step 2 if that reaches capacity,
-   and retry step 3. After 32 rounds, store nothing and return `not-entered`
-   with `gateway.policy.count-unavailable`.
+   exists, advance `c` to `s + 1`; for a sum counter, load that slot's
+   `cumulative` too. Return to step 2 if that reaches capacity, and retry
+   step 3. After 32 rounds, store nothing and return `not-entered` with
+   `gateway.policy.count-unavailable`.
 
 Slots are inserted only at an observed frontier and are not deleted inside
 their window, so a counter's slots form a prefix, and a search that reaches
-capacity proves it full. Work is one binary search per counter plus at most 32
-inserts. Slots are never released (§13, reading 2), and a replay consumes
-nothing.
+capacity proves it full. A sum slot's `cumulative` is fixed once inserted, and
+slot `n` can be inserted only once, over the loaded slot `n − 1`, so the last
+slot's `cumulative` is the window's exact sum. Work is one binary search per
+counter, one load per sum counter, and at most 32 inserts. Slots are never
+released (§13, readings 2 and 17), and a replay consumes nothing.
 
 ### 6.4 Fixed windows
 
@@ -650,9 +922,9 @@ epoch-aligned. Epic 4 updates each one:
 
 ### 6.5 Collection
 
-- **Count slots.** A slot's `expires_at` is `window_end + window_seconds`, so
-  it outlives its window by one full window. `serve` deletes expired slots on
-  a 60-second tick, at most 1 024 per tick. A process whose clock lags by more
+- **Count and sum slots.** A slot's `expires_at` is
+  `window_end + window_seconds`, so it outlives its window by one full
+  window. `serve` deletes expired slots on a 60-second tick, at most 1 024 per tick. A process whose clock lags by more
   than one window could admit an action its deleted counter no longer
   charges; that falls under the unauthenticated-clock non-claim (§1).
 - **Claims.** Never collected, because deleting a claim reopens its logical
@@ -665,32 +937,49 @@ epoch-aligned. Epic 4 updates each one:
 `formal/Auths/Product/CeilingCount.lean` changes as follows.
 
 - `Context.count : Nat → Nat` (the actor's count per window length) becomes
-  `count : CounterKey → Nat` over `CounterKey := (subject, window)`. With
-  `Link := (subject, Policy)`, `linkAdmits` is today's `admits` at the link's
-  counter, and `chainAdmits` requires every link, each shared counter taking
-  the smallest count.
-- `reserve : List Link → (CounterKey → Nat) → Option (CounterKey → Nat)`
-  increments every distinct key of an admitted chain once, and returns `none`
+  `count : CounterKey → Nat` over `CounterKey := count (subject, window) |
+  sum (subject, window, partition)`, where a `sum` key holds the window's
+  running sum. `Policy` gains §6.10's optional sum limit, partition, and
+  scope. With `Link := (subject, Policy)`, `linkAdmits` is today's `admits`
+  at the link's counter plus the scope, partition, and sum conditions, and
+  `chainAdmits` requires every link, each shared key taking the smallest
+  capacity.
+- `reserve : List Link → Nat → (CounterKey → Nat) → Option (CounterKey → Nat)`
+  takes the argument, raises every distinct `count` key of an admitted chain
+  by one and every distinct `sum` key by the argument, and returns `none`
   otherwise.
 - New theorems:
-  - `reserve_all_or_none`: either every count is unchanged, or each distinct
-    key rises by exactly one and every other key is unchanged.
+  - `reserve_all_or_none`: either every value is unchanged, or each distinct
+    `count` key rises by exactly one, each distinct `sum` key by exactly the
+    argument, and every other key is unchanged.
   - `aggregate_count_bound`: for every arrival order in one window, the
     admitted chains containing a link number at most its count.
   - `aggregate_spend_bound`: their argument sum is at most the link's ceiling
     times its count.
-  - `delegation_never_multiplies`: the corollary for a root link.
+  - `aggregate_sum_bound`: for every arrival order in one window, the
+    argument sum of the admitted chains containing a link with a sum limit,
+    for one partition value, is at most that limit.
+  - `delegation_never_multiplies` and `sum_delegation_never_multiplies`: the
+    corollaries for a root link.
+  - `scope_admits_only_listed`: an admitted chain's scope and partition
+    values are in every list its links carry.
 - `decider_sound`, `tightening_never_admits_more`, and
-  `bounded_policy_law_lawful` are re-proved with unchanged statements.
+  `bounded_policy_law_lawful` are re-proved over the extended `Policy`, with
+  statements otherwise unchanged.
 
 The decider does not change: `ceiling_count_tightens` still requires the same
-argument and window, and a ceiling and count no larger than the parent's. It
-no longer carries the aggregate bound, which the parent's counter now
-enforces, but it keeps each child's own bound no wider than its parent's (025
-§15), and one shared window keeps a chain's counters on the same boundaries. A
-new pure leaf `chain_counts_admit(counts: &[u64], capacities: &[u64]) -> bool`
-in `kernel.rs` is translated through the pinned Aeneas route, with a
-refinement theorem to the count part of `chainAdmits`. The atomicity of
+argument and window, and a ceiling and count no larger than the parent's. A
+new leaf `argument_policy_tightens` calls it and adds §6.10's sum, partition,
+and scope rules. The decider no longer carries the aggregate bound, which the
+parent's counters now enforce, but it keeps each child's own bound no wider
+than its parent's (025 §15), and one shared window keeps a chain's counters
+on the same boundaries. Three new pure leaves in `kernel.rs` are translated
+through the pinned Aeneas route, each with a refinement theorem:
+`chain_counts_admit(counts: &[u64], capacities: &[u64]) -> bool` to the count
+part of `chainAdmits`; `chain_sums_admit(sums: &[u64], argument: u64,
+capacities: &[u64]) -> bool`, whose additions are checked and whose overflow
+refuses, to its sum part; and `argument_policy_tightens` to the extended
+`tightens`. The atomicity of
 `insert_all` stays a residual assumption (025 §23), tested by conformance and
 not proved.
 
@@ -711,10 +1000,18 @@ counters at that time.
   necessary and sufficient for some arrival order to have produced E, so the
   check never flags a valid bundle and flags every over-admission among the
   bundle's entries.
-- **Exhaustion.** An entry refused with `gateway.policy.window-exhausted` is
-  `refused` with that code. When the bundle shows, for each of its counters,
-  fewer entered entries than its capacity, `provider_result.recount` is
-  `not-shown-by-bundle`, because a bundle may be incomplete.
+- **Sum.** For each sum counter and window, let E be the entered entries that
+  charge it, a_e each entry's verified argument, and m_e its capacity for it.
+  Some arrival order admits E exactly when, for every capacity value k among
+  them, the a_e of the entries with m_e ≤ k sum to at most k: ordering by
+  capacity is optimal, as for deadlines. At the smallest failing k, every
+  entry with m_e ≤ k is `inconsistent` (`audit.sum-exceeded`).
+- **Exhaustion.** An entry refused with `gateway.policy.window-exhausted` or
+  `gateway.policy.sum-exhausted` is `refused` with that code. When the
+  bundle shows, for each of its counters, fewer entered entries than its
+  capacity, or for a sum counter a sum that leaves room for the refused
+  argument, `provider_result.recount` is `not-shown-by-bundle`, because a
+  bundle may be incomplete.
 
 ### 6.8 Fixtures
 
@@ -731,7 +1028,27 @@ counters at that time.
 - two PostgreSQL processes racing for the last slots, admitting exactly the
   capacity;
 - an audit bundle with one capacity-3 and two capacity-1 entries on one
-  counter, flagged.
+  counter, flagged;
+- siblings whose combined arguments exceed the parent's sum limit, refused
+  with `gateway.policy.sum-exhausted` at the first argument that does not
+  fit, although each sibling's own sum has room;
+- an argument equal to the remaining sum, admitted, and one unit more,
+  refused;
+- two partition values of one link counted separately, and a partition value
+  the grant does not list, refused before the claim;
+- a child that drops its parent's sum, changes its partition, widens its
+  partition or scope list, or raises its sum limit, each refused as expanded;
+- an exhausted ancestor sum refusing without consuming the descendant's count
+  or sum slot;
+- an argument above the smallest sum limit, refused before the claim with
+  zero slots;
+- a `bounds.sum` recipe with an unbounded action, and with a link lacking a
+  sum, both refused with `gateway.policy.sum-required`;
+- two PostgreSQL processes racing for the last units of one sum, admitting
+  at most the limit;
+- an audit bundle whose entries' arguments fit each capacity alone but not
+  together, flagged with `audit.sum-exceeded`, and every reordering of a valid
+  bundle passing.
 
 `bounds-hostile.json` keeps its eight cases under evaluator `/2`; "sub-agent
 narrower inside" now also consumes its parent's slot. Every refused case has
@@ -739,16 +1056,96 @@ zero provider entries and zero leases.
 
 ### 6.9 Relationship to Stripe profile budgets
 
-`auths-stripe` keeps its own budgets (012 §6): per-currency amount sums over
-fixed or rolling windows, released on proven non-effect and held while the
-outcome is unknown. They need provider-specific recovery evidence, so the
-gateway does not import them (§16), and the two limits never count each
-other's effects. Under §12's decision (option A), the gateway bound is the
-only production spend limit, and the vertical's evaluator is a test-only
-reference and a demo. Until epic 8 lands, a Stripe account reachable through
-both paths has two unrelated limits. The runbook and the claim ledger MUST
-say so, and an operator MUST NOT rely on either limit to bound the other
-path.
+Under §12's decision (option A), §6.10's sum budget replaces `auths-stripe`'s
+budgets (012 §6) in production, and the vertical's evaluator is a test-only
+reference and a demo. The gateway budget keeps their per-currency sum
+(through a partition bound to the provider record) and their holding of
+capacity while an outcome is unknown. It differs in three ways, each
+narrower:
+
+- windows are fixed and epoch-aligned only (§6.4, §13 reading 11);
+- capacity is never released, even on `not-entered` or proven non-effect
+  (§13, reading 17), because release needs provider-specific recovery
+  evidence the gateway does not qualify (§16);
+- a link's sum bounds its subject and every delegate together (§6.10), where
+  012's budgets are per policy.
+
+The two limits never count each other's effects. Until epic 8 lands, a Stripe
+account reachable through both paths has two unrelated limits. The runbook
+and the claim ledger MUST say so, and an operator MUST NOT rely on either
+limit to bound the other path.
+
+### 6.10 Sum budgets, partitions, and scopes
+
+Policy `auths.gateway.argument-ceiling-policy/2` is canonical CBOR:
+
+| Key | Member | Rule |
+| --- | --- | --- |
+| 0–3 | argument, ceiling, window seconds, maximum count | As `/1` (025 §25 reading 5) |
+| 4 | sum limit | Optional; an integer in 1..=2^53 − 1 |
+| 5 | partition | Optional, only with 4: `{0: argument, 1: values}` |
+| 6 | scope | Optional: `{0: argument, 1: values}` |
+
+Each `values` is 1–16 sorted, unique strings of 1–64 bytes in `0x21..=0x7e`.
+A partition or scope argument is a top-level verified MCP argument other than
+member 0, read through `mcp-arguments-v1` as a string. The partition and scope
+may name the same argument. Anything else is a malformed policy
+(`gateway.policy.evaluator-mismatch`). The largest policy stays well below
+025's 4 096-byte bound.
+
+**Admission** (§6.1). The scope value must be in every scope's list, and the
+partition value in every partition's list. The argument must be at most the
+smallest sum limit the chain carries. A recipe's `bounds.sum` requires every
+link to carry a sum limit whose member 0 is the recipe's `argument` and whose
+partition argument is the recipe's `partition`, both present or both absent.
+
+**Tightening.** `argument_policy_tightens(child, parent)` holds exactly when
+`ceiling_count_tightens` holds and:
+
+- if the parent has a sum limit, the child has one no larger, with the same
+  partition argument (or none when the parent has none) and a value list that
+  is a subset of the parent's;
+- if the parent has a scope, the child has one on the same argument with a
+  subset of its values.
+
+A parent without a sum or scope accepts a child that adds one, which only
+narrows. A child that fails is `gateway.policy.expanded`.
+
+**Sum counters.**
+
+| Item | Definition |
+| --- | --- |
+| Sum counter key | SHA-256 of `auths.gateway-bounded-sum/1`, NUL, then namespace, link subject identifier, evaluator identifier, and partition value (empty when unpartitioned; a listed value is never empty), each with an eight-byte big-endian length prefix, then eight-byte big-endian `window_seconds` and window index |
+| Sum slot key | SHA-256 of `auths.gateway-bounded-sum-slot/1`, NUL, the sum counter key, and the eight-byte big-endian slot number |
+| Sum slot record `auths.gateway-bounded-sum/1` | `counter`, `slot`, `amount`, `cumulative`, `window_seconds`, `window_index`, `window_end`, `namespace`, `operation_id`, and the claim key |
+
+Each link that carries a sum limit contributes one sum counter for the
+action's partition value. A sum counter shared by several links of one chain
+takes the smallest limit as its capacity. Every action that charges a sum
+counter also charges its link's count counter, so a sum counter holds at most
+the link's count of slots in a window, and the binary search of §6.3 stays
+bounded. Reservation is §6.3's, atomic with the claim. The window is the
+policy's.
+
+**Why delegation cannot multiply it.** A link's sum counter is keyed by its
+subject, not by the actor, and every action under the link charges it. The
+argument sum over a window of all actions of the link's subject and its
+delegates, for one partition value, is therefore at most that link's limit,
+and the root link's limit bounds the whole tree per partition value
+(`aggregate_sum_bound`, §11.1). Across partition values the bound is the
+limit times the number of values the root lists.
+
+**Why a partition must be bound.** An unconstrained partition would let an
+agent spread one budget over labels of its choosing. A grant therefore lists
+the values it allows (§13, reading 18), and the compiler requires the
+partition field to reach the provider in the write body or the account-scope
+header, or to be checked against the provider record by a
+`relative_ceiling.bind` (§3.2). The Stripe recipe binds `currency` to the
+PaymentIntent's `/currency` (§3.1).
+
+**Non-claims.** The sum is of verified arguments, not provider amounts
+settled. Capacity is never released. A bind shows the record's partition
+value at `read_at`, not at the write.
 
 ## 7. Operator plane
 
@@ -959,16 +1356,19 @@ opaque, so the core CDDL, codec, registry, and corpus stay (060 §3.1).
 | `stage` | text | Always: `not-entered`, `unknown` (also for a stored `attempting`, as 060 §14 reading 4), `response-recorded`, `observed`, or `observed-by-provider` |
 | `evaluated-at` | uint | Always |
 | `recipe-digest` | text, 64 lowercase hex | Always |
-| `counters-digest` | bytes (32) | At least one counter was reserved |
+| `counters-digest` | bytes (32) | At least one count or sum counter was reserved |
 | `refusal` | text, at most 128 bytes | `not-entered` |
 | `http-status` | uint, 100–599 | A complete response was recorded |
 | `response-digest` | bytes (32) | With `http-status` |
 | `observation` | text: `match`, `mismatch`, `echo-mismatch` | `observed` |
 | `evidence-digest` | bytes (32) | `observed-by-provider` |
 | `pre-entry-digest` | bytes (32) | Pre-entry observations were recorded |
+| `relative-basis` | uint, at most 2^53 − 1 | A relative-ceiling basis was recorded (§5.6) |
+| `relative-basis-digest` | bytes (32) | With `relative-basis`: the basis response's SHA-256 |
 
 `counters-digest` is the SHA-256 of `auths.gateway-counter-set/1`, a NUL byte,
-and the sorted counter keys. At most 11 of an observation's 16 facts are used.
+and the sorted count and sum counter keys, whose distinct domains keep them
+apart. At most 13 of an observation's 16 facts are used.
 `observed_at` stays the signing time, which 060 freshness needs.
 `evaluated-at` is the time the audit re-verifies at, so an outcome requested in
 a later window no longer moves its entry into that window. A chained step's
@@ -1012,7 +1412,8 @@ header and a `provider_result` to each entry:
 "provider_result": {
   "stage": "response-recorded", "http_status": 400, "response_digest": "<hex>",
   "observation": null, "evidence_digest": null, "refusal": null,
-  "pre_entry": {"observations": 1, "verified": true}, "recount": null
+  "pre_entry": {"observations": 1, "verified": true}, "relative_basis": null,
+  "recount": null
 }
 ```
 
@@ -1030,7 +1431,14 @@ plan's UX contract forbids. The audit also:
   `[evaluated-at, evaluated-at + 60]`, and satisfy the selected requirements
   through the same predicates (`audit.pre-entry-missing`,
   `audit.pre-entry-invalid`, `audit.pre-entry-unsatisfied`, all
-  `inconsistent`).
+  `inconsistent`);
+- for a `relative_ceiling` recipe, requires each entered entry's outcome to
+  carry `relative-basis`, and `relative_ceiling_admits` to hold on the
+  re-derived argument, that basis, and the recipe's basis points
+  (`audit.relative-ceiling-missing`, `audit.relative-ceiling-exceeded`, both
+  `inconsistent`). The basis is the gateway's assertion under observer
+  trust; an auditor with provider access can re-read the record, which may
+  have changed since.
 
 ### 8.4 Offline echo verification
 
@@ -1065,7 +1473,7 @@ first (Epic 6 step 1, merged in #168).
 | Target | Property |
 | --- | --- |
 | `target_gateway_recipe` | `compile` never panics; an accepted digest equals the digest of the re-serialized canonical source; `review` and `recovery_capability` are total |
-| `target_gateway_request` | On the fixture recipes and arbitrary arguments, `closed_request_from_arguments` never panics; accepted URLs stay in the origin with no query or fragment and the recipe's segment count; bodies stay in bound; form keys are the recipe's plus the echo; the token and the key match their derivations |
+| `target_gateway_request` | On the fixture recipes and arbitrary arguments, `closed_request_from_arguments` never panics; accepted URLs stay in the origin with no query or fragment and the recipe's segment count; bodies stay in bound; form keys are the recipe's plus the echo; the token and the key match their derivations; an account-scope header appears exactly when declared, with the verified value, and never on a credential read |
 | `target_gateway_attempt` | Decoding and `snapshot` never panic; `valid_transition` agrees with §4.3 on any two records |
 | `target_gateway_outcome` | `verify_outcome` never panics, accepts only canonical bytes from the pinned test observer, and every accepted fact set matches §8.1 |
 | `target_gateway_app_frame` | Application and admin frame parsing never panic and accept only the closed schemas |
@@ -1081,13 +1489,22 @@ first (Epic 6 step 1, merged in #168).
   pure model: at most one write per logical operation, terminal stages never
   change, and `not-entered` never follows a write;
 - random delegation trees submitted by two engines on one store never exceed a
-  link's count and leave no slot behind a refusal;
+  link's count or, per partition value, its sum, and leave no slot behind a
+  refusal;
+- `relative_ceiling_admits` agrees with `argument ≤ floor(basis ×
+  basis_points / 10 000)` around every exact multiple;
+- §6.7's sum condition agrees with a brute-force search over arrival orders
+  for up to six entries;
 - every reachable record's outcome facts round-trip through signing and
   verification.
 
 **Kani** harnesses, exhaustive over their finite domains, cover
-`stage_transition_allowed`, `recovery_capability`, the §8.1 presence rule, and
-`chain_counts_admit` for up to four counters. They join the Kani closure, so
+`stage_transition_allowed`, `recovery_capability`, the §8.1 presence rule,
+`chain_counts_admit` and `chain_sums_admit` for up to four counters, and
+`argument_policy_tightens` for value lists of up to three. Symbolic harnesses
+over every `u64` input check `relative_ceiling_admits` against the
+floor-division form for every basis point in 1–10 000, and `relative_basis`
+against checked subtraction. They join the Kani closure, so
 the planner schedules them when it changes.
 
 ### 8.6 Codes and identities
@@ -1105,8 +1522,8 @@ entry, with its test evidence, in the change that introduces it:
 | Kind | Identities |
 | --- | --- |
 | Recipe | `auths.gateway-recipe-source/2`, `auths.gateway-compiled-recipe/2`, `auths.gateway-recipe-review/2`, `auths.gateway-recovery-capability/1` |
-| Store | `auths.gateway-attempt/3`, `auths.gateway-bounded-count/2`, `auths.gateway-connection/1`, `auths.lifecycle.postgresql/5` |
-| Policy | `auths.gateway.argument-ceiling-window-count/2`, `auths.gateway-counter-set/1` |
+| Store | `auths.gateway-attempt/3`, `auths.gateway-bounded-count/2`, `auths.gateway-bounded-sum/1`, `auths.gateway-connection/1`, `auths.lifecycle.postgresql/5` |
+| Policy | `auths.gateway.argument-ceiling-window-count/2`, `auths.gateway.argument-ceiling-policy/2`, `auths.gateway-counter-set/1` |
 | Evidence | `auths.gateway-pre-entry/1`, `auths.gateway-outcome/2`, `auths.gateway-observe/2`, `auths.gateway-audit-bundle/2`, `auths.gateway-audit-report/2`, `auths.gateway-echo-verification/1`, `auths.gateway-codes/1` |
 | Operator | `auths.gateway-operator-attestation/1`, `auths.gateway-installation/3`, `auths.gateway-admin-request/1`, `auths.gateway-admin-response/1` |
 
@@ -1121,6 +1538,7 @@ format.
 | --- | --- | --- |
 | `attempt` | `auths.gateway-logical-operation/1`, NUL, namespace, NUL, operation ID (unchanged) | `auths.gateway-attempt/3` |
 | `count-slot` | §6.2 | `auths.gateway-bounded-count/2` |
+| `sum-slot` | §6.10 | `auths.gateway-bounded-sum/1` |
 | `connection` | §7.3 | `auths.provider-connection/2` |
 
 Every record is at most 262 144 bytes, the connection record's maximum under
@@ -1132,19 +1550,20 @@ AP-SPEC-040 §7.4. `MAX_GATEWAY_ATTEMPT_BYTES` in
 `GatewayAttemptStore` keeps `load` and `replace`, and gains:
 
 - `insert(kind, key, record, expires_at)`, with `expires_at` present exactly
-  for `count-slot`;
+  for `count-slot` and `sum-slot`;
 - `insert_all(entries) -> Inserted | Exists { index }` over entries of the
   same four values, all or none;
-- `sweep_expired(now, limit) -> deleted`, for `count-slot` only.
+- `sweep_expired(now, limit) -> deleted`, for `count-slot` and `sum-slot`
+  only.
 
 Every method fails closed and never reports unreadable state as absent.
 
 ### 9.3 File store
 
-`FileGatewayAttemptStore` names files by kind (`claim-`, `slot-`, `conn-`,
-then the hex key and `.json`). Mutations hold the existing host-wide exclusive
-`flock` on `.replace.lock`, and loads hold it shared. Under the exclusive
-lock, `insert_all`:
+`FileGatewayAttemptStore` names files by kind (`claim-`, `slot-`, `sum-`,
+`conn-`, then the hex key and `.json`). Mutations hold the existing host-wide
+exclusive `flock` on `.replace.lock`, and loads hold it shared. Under the
+exclusive lock, `insert_all`:
 
 1. checks that no target exists;
 2. writes `.batch.json`, listing each target and its bytes, and syncs it and
@@ -1169,14 +1588,14 @@ migrated. `auths_gateway_attempts` is replaced by:
 ```sql
 CREATE TABLE auths_gateway_records (
     record_key BYTEA PRIMARY KEY CHECK (octet_length(record_key) = 32),
-    record_kind TEXT NOT NULL CHECK (record_kind IN ('attempt', 'count-slot', 'connection')),
+    record_kind TEXT NOT NULL CHECK (record_kind IN ('attempt', 'count-slot', 'sum-slot', 'connection')),
     expires_at BIGINT NULL,
     record_bytes BYTEA NOT NULL CHECK (octet_length(record_bytes) BETWEEN 1 AND 262144),
     record_sha256 BYTEA NOT NULL CHECK (octet_length(record_sha256) = 32),
-    CHECK ((record_kind = 'count-slot') = (expires_at IS NOT NULL))
+    CHECK ((record_kind IN ('count-slot', 'sum-slot')) = (expires_at IS NOT NULL))
 );
 CREATE INDEX auths_gateway_records_expiry
-    ON auths_gateway_records (expires_at) WHERE record_kind = 'count-slot';
+    ON auths_gateway_records (expires_at) WHERE record_kind IN ('count-slot', 'sum-slot');
 ```
 
 `insert_all` is one transaction that inserts in ascending key order, each row
@@ -1191,7 +1610,8 @@ index. The pool and statement timeout are the lifecycle store's
 The suite both stores already run (`file_store_passes_attempt_store_conformance`
 and `postgres_store_passes_attempt_store_conformance` in `engine.rs`) adds:
 
-- `insert_all` all or none under two racing processes;
+- `insert_all` all or none under two racing processes, including a claim with
+  count and sum slots;
 - a crash at every step of the file batch;
 - sweep bounds;
 - shared-connection-record visibility across two processes.
@@ -1205,17 +1625,20 @@ Codes marked "recorded" appear as an attempt's `refusal`; codes marked
 
 | Code | Where |
 | --- | --- |
-| `gateway.recipe.invalid-provider-header`, `.invalid-credential-guard`, `.invalid-idempotency`, `.response-locator-conflict`, `.invalid-pre-entry` | compile |
+| `gateway.recipe.invalid-provider-header`, `.invalid-credential-guard`, `.invalid-idempotency`, `.response-locator-conflict`, `.invalid-pre-entry`, `.invalid-relative-ceiling`, `.invalid-account-scope`, `.invalid-bounds`, `.unbound-partition` | compile |
 | `gateway.idempotency.window-exceeds-retention`, `gateway.policy.too-many-bounds`, `gateway.pre-entry.requirement-missing`, `gateway.pre-entry.observer-unavailable`, `gateway.connection.credential-generation-missing`, `gateway.trust.observer-key-in-authority-chain` | before claim |
+| `gateway.policy.sum-required`, `.above-sum-limit`, `.scope-denied`, `.partition-denied`; `gateway.account-scope.unbound`, `.invalid-value` | before claim (§5.9, §6.10) |
 | `gateway.policy.count-unavailable` | before claim, after 32 contended rounds |
-| `gateway.policy.window-exhausted` | recorded, atomically with the claim |
+| `gateway.policy.window-exhausted`, `gateway.policy.sum-exhausted` | recorded, atomically with the claim |
 | `gateway.pre-entry.condition-false`, `gateway.pre-entry.unavailable`, `gateway.credential.mode-guard`, `gateway.attempt.entry-deadline`, `gateway.transport.not-entered` | recorded |
+| `gateway.credential.account-mismatch`, `.account-unavailable`, `.capability-excess`, `.capability-unavailable` | recorded, at step 9 (§5.7, §5.8) |
+| `gateway.relative-ceiling.above`, `.binding-mismatch`, `.unavailable` | recorded, at step 10 (§5.6) |
 | `gateway.trust.key-aliased` | install and serve |
-| `gateway.install.operator-attestation-required`, `.operator-attestation-invalid`, `.credential-guard`, `.credential-probe`, `.connection-exists`, `.join-record-missing`, `.join-commitment-mismatch` | install |
+| `gateway.install.operator-attestation-required`, `.operator-attestation-invalid`, `.credential-guard`, `.credential-probe`, `.credential-account`, `.credential-capability`, `.connection-exists`, `.join-record-missing`, `.join-commitment-mismatch` | install |
 | `gateway.serve.descriptor-limit`, `gateway.serve.accept-failed` (logged, since #166) | serve |
-| `gateway.admin.peer-refused` (logged, since #166), `.status`, `.reobserved`, `.generation-conflict`, `.credential-guard`, `.credential-probe`; `gateway.reobserve.not-observable` | admin |
+| `gateway.admin.peer-refused` (logged, since #166), `.status`, `.reobserved`, `.generation-conflict`, `.credential-guard`, `.credential-probe`, `.credential-account`, `.credential-capability`; `gateway.reobserve.not-observable` | admin |
 | `gateway.observer.credential-guard` | observe |
-| `audit.counters-mismatch`, `.bound-exceeded`, `.pre-entry-missing`, `.pre-entry-invalid`, `.pre-entry-unsatisfied` | audit |
+| `audit.counters-mismatch`, `.bound-exceeded`, `.sum-exceeded`, `.pre-entry-missing`, `.pre-entry-invalid`, `.pre-entry-unsatisfied`, `.relative-ceiling-missing`, `.relative-ceiling-exceeded` | audit |
 | `gateway.echo-verify.match`, `.mismatch`, `.absent`, `.record-invalid`, `.action-invalid`, `.pointer-invalid` | echo-verify |
 
 Four existing codes change meaning:
@@ -1244,9 +1667,11 @@ commit.
 
 ### 11.1 Spend limit (epic 4)
 
-§6.6's model changes and theorems, with claim text that says "fixed window"
-and "a link's count bounds its subject and delegates". The leaf is
-`chain_counts_admit`.
+§6.6's model changes and theorems, with claim text that says "fixed window",
+"a link's count bounds its subject and delegates", and "a link's sum limit
+bounds the sum of the bounded argument over its subject and delegates, per
+listed partition value". The leaves are `chain_counts_admit`,
+`chain_sums_admit`, and `argument_policy_tightens`.
 
 ### 11.2 Admission order (epic 3)
 
@@ -1258,11 +1683,20 @@ its own to diverge from. Model: `formal/Auths/Product/SubmitOrder.lean`.
 Theorems over every event trace:
 
 - `lease_requires_verified_claim`: a credential lease happens only after
-  native verification succeeded, the claim committed with every count slot,
-  and the step 8 reload found the record unchanged.
+  native verification succeeded, the claim committed with every count and
+  sum slot, and the step 8 reload found the record unchanged.
 - `send_requires_lease_and_deadline`: the write is sent only after a lease,
   the pre-entry re-read when declared, the step 11 reload, and the step 12
   deadline check.
+- `send_requires_credential_checks`: when declared, the write is sent only
+  after the step 9 account read found equal commitments and every denied
+  read was refused with a declared status.
+- `send_requires_relative_ceiling`: when declared, the write is sent only
+  after the step 10 relative-ceiling read produced a basis, every bind was
+  equal, and `relative_ceiling_admits` held on the verified argument.
+- `account_scope_requires_binding`: for a recipe with `account_scope`, the
+  claim happens only after step 3 found every link's scope listing the
+  verified value.
 - `at_most_one_send`: each claim sends at most one write, including under
   replay and re-observation.
 - `pre_claim_refusal_stores_nothing` and
@@ -1328,18 +1762,42 @@ recipe and every argument map:
   segment or the percent-encoded value of a declared field reference, and no
   argument can add, remove, or reorder segments.
 - `headers_within_declaration`: the header set is contained in the declared
-  headers, the credential header, the derived `Idempotency-Key`, and the
-  registered version headers.
+  headers, the credential header, the derived `Idempotency-Key`, the declared
+  version headers, and the declared account-scope header.
+- `account_scope_header_exact`: the write and every action read carry the
+  declared account-scope header with exactly the verified field's value; no
+  credential read carries one; and a recipe without `account_scope` sends no
+  `account-scope` header on any request.
+- `credential_reads_fixed`: every denied read is a `GET` or `HEAD` whose path
+  is its declared `fixed` segments, independent of every argument.
 - `body_bounded`: the body is at most 16 KiB and consumes only declared
   fields.
 
-### 11.6 Kani and residual assumptions
+### 11.6 Relative ceiling (epic 3)
 
-- **Kani.** The four harnesses of §8.5.
+The leaves are `relative_ceiling_admits` and `relative_basis` (§5.6). Model:
+`formal/Auths/Product/RelativeCeiling.lean`. Theorems:
+
+- `relative_ceiling_exact`: for every argument, basis, and basis point in
+  1–10 000, the leaf admits exactly when `argument ≤ (basis × basis_points)
+  / 10 000` in natural-number floor division.
+- `relative_ceiling_never_exceeds_ratio`: an admitted argument times 10 000
+  is at most the basis times the basis points.
+- `relative_ceiling_monotone`: a larger basis or more basis points never
+  admits less, and a zero basis admits only a zero argument.
+- `relative_basis_never_negative`: the basis is the difference when the
+  subtrahend is at most the value, and absent otherwise.
+
+`send_requires_relative_ceiling` (§11.2) connects these to the order.
+
+### 11.7 Kani and residual assumptions
+
+- **Kani.** The harnesses of §8.5.
 - **Residual assumptions,** recorded in the manifest and the claim ledger:
   - store atomicity and linearizability;
   - the unauthenticated gateway clock;
-  - provider behavior;
+  - provider behavior, including what a basis value, an account identifier,
+    a refusal status, or an account-scope header means;
   - the fidelity of the Charon/Aeneas translation (AP-SPEC-061 §1);
   - that `GatewayEngine::submit`'s I/O follows `next_step`'s decisions, which
     holds by construction and is tested by the scenario corpus but not proved
@@ -1350,8 +1808,9 @@ recipe and every argument map:
 **Decided 2026-09-27: option A.** The gateway becomes the single
 provider-write path, and epic 8 retires the hand-built local-agent effect
 profiles. The table keeps option B as the record of what was not chosen. Its
-A column is the list of what production gives up, and every other section
-stands as written.
+A column lists what production gives up and what it keeps. On the same day
+the owner decided that production keeps the five Stripe checks as recipe
+capabilities (§5.6–§5.9, §6.10); every other section stands as written.
 
 The local agent (`product/runtime/auths-node`) serves five effect profiles,
 all `unqualified` in
@@ -1373,10 +1832,10 @@ vertical is qualified, so consolidating loses no qualified claim.
 | Local-agent effect profiles | All five removed in one cutover (routes, the journal executor's effect path, their generated clients, and their connection administration), with no switch | Kept. Each mechanism this spec centralizes (recovery records, hardened clients, shared connection state, §7's operator plane, key-identity separation) MUST reach the local agent before any profile is qualified |
 | Domain crates | Pure evaluators, fixtures, Kani harnesses, and demos stay as test-only references (plan, "Phase 1" and "Domain to shared product") | Unchanged |
 | PostgreSQL and OpenTofu | Not HTTP, so no gateway equivalent. Their production paths end, and with them the PostgreSQL serializable row-version write and OpenTofu's stale-plan refusal | Unchanged |
-| Stripe checks | Production loses or only partly keeps: relative ceilings (012 §5 basis points over payment evidence; the gateway has absolute ceilings, and 060 has no arithmetic); account-substitution checks (the vertical binds the account at onboarding and at every lease; a recipe probe compares one field at onboarding only); the restricted-key guard (a recipe prefix can require `rk_test_`, but nothing checks the key's scopes); Connect scope (012 §7; the header registry has no `Stripe-Account`); amount-sum budgets (§6.9) | Kept in the vertical |
+| Stripe checks | Production keeps all five, as provider-neutral recipe capabilities that the Stripe recipe declares (§3.1): relative ceilings (§5.6, a declared ratio of a basis read after the lease); account binding at onboarding and every lease (§5.7); negative probes in place of the restricted-key guard (§5.8; neither path can read a key's scopes, and the vertical checks only the `rk_test_` prefix); Connect scope (§5.9, a grant-listed `Stripe-Account` value); amount-sum budgets (§6.10). §6.9 and §14 list where each is narrower than the vertical | Kept in the vertical |
 | Architecture documents | The boundary plan's vertical-package rule and its ADR 0012 paragraph, and ADR 0012's decision and consequences, are rewritten: production writes become data-only recipes; verticals stay the source of reviewed semantics and evidence but not the production executor; and ADR 0013 states whether and how a recipe earns a qualified claim. AP-SPEC-040 is superseded for provider writes, and AP-SPEC-041–044 and AP-SPEC-038 Epic 6 move to gateway recipes | Unchanged |
 | Authoring paths | Two (self-hosted adapter, gateway recipe), compared in the developer docs | Three, compared on one page by credential isolation, schema, recovery, and qualification |
-| Spend limits | The gateway bound only | Independent per path (§6.9) |
+| Spend limits | The gateway count and sum budgets only | Independent per path (§6.9) |
 
 ## 13. Readings and decisions (PROVISIONAL)
 
@@ -1397,6 +1856,18 @@ decision (option A, 2026-09-27) and is not listed.
 | 9 | What a response locator stores | (a) the value; (b) the response body | (a) |
 | 10 | Recipe source schema | (a) `/2` with re-approval; (b) optional fields in `/1`, as #156 did | (a): the idempotency field and the echo rule change the grammar |
 | 11 | Fixed or rolling windows (the owner delegated the pick) | (a) fixed, epoch-aligned; (b) rolling | (a): it matches the code, `window_index`, the Lean model, and settled.md, makes the smaller claim, and lets slots expire at a known time |
+| 12 | Relative-ceiling rounding | (a) floor, tested as `argument × 10 000 ≤ basis × basis_points`; (b) nearest | (a): 012 §5's `floor-minor-unit`; never admits above the exact ratio |
+| 13 | When the relative ceiling runs | (a) at step 10, after the lease, recorded `not-entered` and consuming the operation ID and slots; (b) before the claim | (a): the read needs a credential, and a lease before the claim would break `lease_requires_verified_claim` |
+| 14 | When the account read runs | (a) at onboarding and every lease, read-backs included; (b) at submission leases only | (a) |
+| 15 | When denied reads run | (a) at onboarding and every lease; (b) at onboarding and a declared interval | (a): an interval leaves time in which a widened key writes; it costs up to four reads per lease |
+| 16 | Denied reads and the version response rule | (a) the rule applies; (b) only the status counts | (a): if the provider's refusals omit a required version header, the recipe cannot declare denied reads, which Epic 7 checks against the provider's documentation |
+| 17 | Sum capacity after `not-entered` | (a) never released; (b) released | (a): release widens, as in reading 2 |
+| 18 | Partition values | (a) listed in the grant, with the partition field bound to the provider; (b) any value | (a): (b) lets an agent multiply its budget with new labels |
+| 19 | A platform write and an account-scoped write in one recipe | (a) a recipe with `account_scope` always sends the header; (b) a sentinel value that omits it | (a): a sentinel would put provider semantics in gateway code |
+| 20 | The account-scope header on credential reads | (a) never; (b) on every request | (a): with the header, the account read would test the scoped account, not the credential's own |
+| 21 | The relative-ceiling basis without an observer key | (a) read and recorded by the gateway, signed only inside the outcome; (b) required to be a 060 observation, as `pre_entry` is | (a), not the narrower reading: (b) refuses every production action until AP-SPEC-038 Epic 4, which the owner's decision to keep the check rules out; (a) claims nothing from the basis beyond the gateway's own refusal |
+| 22 | Where account-scope values live | (a) the grant's bounded policy, narrowing under delegation; (b) a fixed recipe value | (a): the owner requires a grant-constrained field, and different grants may allow different accounts |
+| 23 | Where the relative ratio lives | (a) the recipe, one ratio per approved installation; (b) each grant, as 012's policy | (a): the owner's direction; no grant issuer can widen it |
 
 ## 14. Conflicts with committed documents
 
@@ -1404,15 +1875,20 @@ Each amendment lands with the code that causes it.
 
 | Document | Conflict | Resolution |
 | --- | --- | --- |
-| 053 §1 | First scope: one write plus an optional read-only observation per operation | `/2` adds at most one pre-entry read per submission and one probe per onboarding, both read-only and gateway-performed |
-| 053 §3 | The first installation may run offline | A recipe with a probe needs egress at `install`, `install --join`, and `rotate`, and a join reads the shared store; recipes without a probe keep the offline first install |
+| 053 §1 | First scope: one write plus an optional read-only observation per operation | `/2` adds, per submission, at most one pre-entry read, one relative-ceiling read, one account read, and four denied reads, and per onboarding the probe, the account read, and the denied reads; all are read-only (`GET` or `HEAD`) and gateway-performed, and each read-back lease repeats the account read and denied reads |
+| 053 §3 | The first installation may run offline | A recipe with a probe, an account read, or denied reads needs egress at `install`, `install --join`, and `rotate`, and a join reads the shared store; recipes without them keep the offline first install |
 | 053 §3, the socket paragraph #166 added | A fixed 64 application connections; an admin session waits at most 45 seconds for its change, which waits for submissions and read-backs already in progress | `--app-capacity` and §7.1's admin deadlines; admin mutations commit without waiting, then drain (§7.2) |
-| 053 §3.2 | Path segments only from verified fields; a fixed header allowlist | `response-field` segments from the recorded response (§4.1); the version-header registry (§5.1) |
-| 053 §3.3 and its Epic 3 acceptance | The ordered path claim → credential → transport, and its acceptance cases | The path becomes §5.5, with the reloads, the atomic slots, and a pre-entry read between credential and transport. Epic 3's acceptance gains the pre-entry, guard, and shared-record cases. `unknown` still resolves only through provider evidence |
+| 053 §3.2 | Path segments only from verified fields; a fixed header allowlist | `response-field` segments from the recorded response (§4.1); the provider-header registry with its `version` and `account-scope` classes (§5.1) |
+| 053 §3.3 and its Epic 3 acceptance | The ordered path claim → credential → transport, and its acceptance cases | The path becomes §5.5, with the reloads, the atomic slots, and the credential checks, pre-entry read, and relative-ceiling read between credential and transport. Epic 3's acceptance gains the pre-entry, guard, account, denied-read, relative-ceiling, and shared-record cases. `unknown` still resolves only through provider evidence |
 | 059 §3.2 | JSON-only echo | Form placement (§5.4); the echo stays the only added body value |
 | 059 §7.1 | Re-observation only by replay, from a locator fixed at claim; a stored `attempting` record never re-observed | Also by admin `reobserve`; response locators fixed at response time; `attempting` re-observable for `linked` recipes (§4.3) |
 | 060 §14 reading 4 | Outcome facts `commitment` and `stage` | §8.1 |
-| 025 §25 readings 5, 7, and 10 | The count per actor, reserved after the claim, keyed to the bounded branch's actor | Superseded by §6 |
+| 025 §25 readings 5, 7, and 10 | The count per actor, reserved after the claim, keyed to the bounded branch's actor; policy bytes of four members | Superseded by §6; policy `/2` adds §6.10's members |
+| 012 §5 | Basis points and a closed denominator enum in each policy; an `arithmetic-overflow` denial | The ratio is recipe data (§13, reading 23); the denominator is a declared pointer, optionally minus one more; `u128` arithmetic cannot overflow, so the code has no gateway equivalent. 012 stays the test-only reference |
+| 012 §6 | Budgets per policy over fixed or rolling windows, released on proven non-effect or reconciliation | §6.10: per link and partition value, fixed windows only, never released (§6.9) |
+| 012 §7 | Connect scope `platform \| acct_…` in the exact action, with every read and the mutation in that account context | §5.9: a grant-listed field in the `Stripe-Account` header of the write and every action read; a platform write needs a recipe without `account_scope` (§13, reading 19) |
+| 012 §13 | Evidence read before verification and re-read after the seal, before the credential; a "restricted" credential | The relative-ceiling basis is read once, after the lease (§13, reading 13); restriction is shown by denied reads (§5.8), which the vertical does not make |
+| 012 connection onboarding and lease | The account is checked with the provider at onboarding and against the local descriptor at every lease | §5.7 asks the provider at every lease, at one read per lease |
 | Board §4, 2026-09-24, readings 1 and 4 | (1) The count keyed to the bounded branch's actor; (4) the audit evaluated at the outcome's signing time and recounted in that order | (1) Keyed to each link's subject; (4) evaluated at `evaluated-at`, with §6.7's order-free test |
 | #156 | The boolean `write.idempotency_key`; its state-loss journey | The object form of §4.1. The journey stays valid, since a wiped store forgets claims and counts (§1), once its approval window fits §4.5's retention rule |
 | settled.md | "Stripe metadata doesn't carry an action-derived echo"; single-host connection state | Scoped to `auths-stripe`, because the gateway recipe gains a form echo with the same non-claims; connection state is shared through the store |
@@ -1427,13 +1903,13 @@ on the exact revision, or a commit whose diff holds the evidence.
 
 | Epic | Work | Done |
 | --- | --- | --- |
-| 1. Case file and fixtures | ADR 0013 and the case 0007 comparisons (§2); hostile recipe cases for every new construct; attempt scenarios `/3`, including `pre-entry-replaced-after-observation`; `bounds-aggregate.json`, `outcome-v2.json`, `key-identity.json`, and `codes.json` | The vectors exist and fail against current code; the ADR and case file are reviewed |
-| 2. Recipe `/2` | The compiler, `recovery_capability`, and review `/2` in both CLIs; derivation emits `/2`; the fixtures, north-star recipe, and derivation corpus are regenerated | Every fixture compiles to its documented class; every hostile case fails with its code; both packaged CLIs pass the corpus; §11.3's capability theorems and §11.5 are proved and registered, with `cargo xtask formal` green |
-| 3. Store and engine | §9 (kinds, `insert_all`, sweep, the file batch, schema 5, record `/3`); the §5.5 steps marked 3; re-observation of `attempting` | Conformance passes on both stores (PostgreSQL in its workflow); the scenario corpus drives the counting provider; every hostile suite has zero unauthorized entries, and every pre-claim refusal zero leases; §11.2 and §11.3's transition theorems are proved and registered, with `cargo xtask formal` green |
-| 4. One spend limit | Formal first (the Lean model, theorems, and translated leaf, with `cargo xtask formal` green); then evaluator `/2`, the slot part of §5.5 step 6, §6.5's sweep, §6.7, and every §6.4 description | `bounds-aggregate.json` passes on both stores, including the race; no slot leaks; the audit flags the capacity-3 and capacity-1 bundle and passes every valid one |
+| 1. Case file and fixtures | ADR 0013 and the case 0007 comparisons (§2), for all ten recipe capabilities and the sum budget; hostile recipe cases for every new construct, including basis points 0 and 10 001, a `POST` or `field`-segment denied read, a refused status of 429, five denied reads, `Stripe-Account` in `provider_headers`, an unregistered account-scope header, and an unbound partition; attempt scenarios `/3`, including `pre-entry-replaced-after-observation`, `relative-ceiling-above`, `relative-ceiling-exact-boundary`, `relative-basis-unavailable`, `relative-binding-mismatch`, `account-substituted-at-lease`, `denied-read-answered`, `account-scope-outside-grant`, `account-scope-unbound`, and `account-scope-only-on-action-requests`; §6.8's count and sum cases in `bounds-aggregate.json`; `outcome-v2.json`, `key-identity.json`, and `codes.json` | The vectors exist and fail against current code; the ADR and case file are reviewed |
+| 2. Recipe `/2` | The compiler, including §3.2's rows for the credential account and denied reads, `account_scope`, `bounds`, and `relative_ceiling`, and §5.1's registry classes; `recovery_capability`, and review `/2` in both CLIs; account-scope headers in request construction; derivation emits `/2`; the fixtures, north-star recipe, and derivation corpus are regenerated | Every fixture compiles to its documented class; every hostile case fails with its code; both packaged CLIs pass the corpus; §11.3's capability theorems and §11.5, including `account_scope_header_exact` and `credential_reads_fixed`, are proved and registered, with `cargo xtask formal` green |
+| 3. Store and engine | §9 (kinds, `insert_all`, sweep, the file batch, schema 5, record `/3`); the §5.5 steps marked 3, including the account read and denied reads at onboarding and every lease (§5.7, §5.8) and the relative ceiling (§5.6, `ratio.rs`); re-observation of `attempting` | Conformance passes on both stores (PostgreSQL in its workflow); the scenario corpus drives the counting provider; every hostile suite has zero unauthorized entries, and every pre-claim refusal zero leases; each relative-ceiling, account, and denied-read scenario records `not-entered` with its code, one lease, and zero writes; §11.2, §11.3's transition theorems, and §11.6 are proved and registered, with `cargo xtask formal` green |
+| 4. One spend limit | Formal first (the Lean model, theorems, and the three translated leaves, with `cargo xtask formal` green); then evaluator `/2` with policy `/2` (§6.10), the account-scope binding (§5.9), the count and sum slots of §5.5 step 6, §6.5's sweep, §6.7, and every §6.4 description | `bounds-aggregate.json` passes on both stores, including both races; no count or sum slot leaks; the audit flags the capacity-3 and capacity-1 bundle and the sum bundle and passes every valid one; `account-scope-outside-grant` and `account-scope-unbound` refuse with zero leases |
 | 5. Operator plane | §7, including connection record `/2` (§7.3), and the §5.5 steps marked 5 | With the application at full capacity, every admin command answers within its deadline; a disable or revoke through process A stops new entries in process B at B's next reload, on PostgreSQL; a second host joins only with the matching secret, including after a disable and enable, and a cross-process `rotate` followed by a disable and enable still leases on every host; `did:key` and `raw-key-v1` aliasing is refused at install and per proof; an invalid attestation is refused; §11.4 is proved and registered, with `cargo xtask formal` green |
-| 6. Evidence and assurance | Step 1, repairing the scheduled Fuzz job (`.github/workflows/fuzz.yml`) so a scheduled campaign can pass, with a unit test on a captured libFuzzer log, merged in #168; scheduled runs pass from 2026-09-27. Then §8: outcome `/2` and its consumers, observe `/2`, audit `/2`, `echo-verify`, the SDK projections, the fuzz crate, property tests, Kani harnesses, and the code inventory | A scheduled Fuzz run is green with the gateway targets; Rust, Python, and TypeScript agree on `outcome-v2.json`; the north-star audit shows `http_status` for every entered refund, including a rejected one |
-| 7. North-star recipe | The Stripe recipe moves to §3.1 with an approval window of at most 86 340 seconds; the counting double returns refunds with metadata, requires `Stripe-Version`, and honors the key; `journey.py` checks `observed-by-provider` and the guard refusing a non-test key; the README non-claims and the claim ledger are updated; the test-mode command stays the developer's own step (board §0 step 4) | `stripe-refund-journey` is green from the packed wheel; the ledger entry uses §1's claim and non-claim wording |
+| 6. Evidence and assurance | Step 1, repairing the scheduled Fuzz job (`.github/workflows/fuzz.yml`) so a scheduled campaign can pass, with a unit test on a captured libFuzzer log, merged in #168; scheduled runs pass from 2026-09-27. Then §8: outcome `/2` and its consumers (including `relative-basis`), observe `/2`, audit `/2` (including the relative-ceiling and sum checks), `echo-verify`, the SDK projections, the fuzz crate, property tests, Kani harnesses, and the code inventory | A scheduled Fuzz run is green with the gateway targets; Rust, Python, and TypeScript agree on `outcome-v2.json`; the north-star audit shows `http_status` for every entered refund, including a rejected one, and flags a bundle whose basis does not admit its argument |
+| 7. North-star recipe | The Stripe recipe moves to §3.1, declaring all five Stripe checks, with an approval window of at most 86 340 seconds; its grants carry policy `/2` with a sum limit partitioned by currency and a scope listing the test connected account; the counting double returns refunds with metadata, serves PaymentIntents, the account, and 403 refusals, requires `Stripe-Version`, honors `Stripe-Account`, and honors the key; `journey.py` checks `observed-by-provider`, the guard refusing a non-test key, and one hostile case per check: a refund above the ratio of `/amount_received`, a currency that does not match the PaymentIntent, the double reporting another account at the lease, the double answering a denied read with 200, a `connect_account` outside the grant, and a refund that exceeds the currency's remaining sum; the README non-claims and the claim ledger are updated; the test-mode command stays the developer's own step (board §0 step 4) | `stripe-refund-journey` is green from the packed wheel, and each hostile case records its code with zero writes; the ledger entry uses §1's claim and non-claim wording |
 | 8. Consolidation | §12 A's removals and rewrites in one pull request | The profiles and routes are gone; the specs, ADRs, and plan are amended, and `AGENTS.md`'s summary of the boundary plan is checked against the rewrite; the board is updated; CI is green |
 
 ## 16. Non-goals
@@ -1444,7 +1920,9 @@ on the exact revision, or a commit whose diff holds the evidence.
 | Automatic retry or re-entry after `unknown`, even within a declared retention | Safe retry is provider semantics (053 §7; plan, "What must not be shared early") |
 | Recording an operator's resolution of `unknown` | An out-of-band finding is an assertion the gateway cannot check, and recording it beside provider evidence in the signed outcome would blur the two. Outside `linked`, `unknown` is the honest terminal answer (053 §3.3) |
 | Fencing or detecting a lost or restored store | Reinstalling under a new namespace voids every earlier action (§4.5); the count reset is a stated non-claim |
-| Amount-sum budgets in the gateway | Release on proven non-effect needs provider-specific recovery evidence the gateway does not qualify; ceiling times count already caps spend per link and window |
+| Releasing sum capacity on proven non-effect or reconciliation | Release needs provider-specific recovery evidence the gateway does not qualify; §6.10's budget is never released |
+| Provider permission introspection | HTTP has no provider-neutral form; §5.8's denied reads show observed refusals only |
+| Arithmetic beyond §5.6's one subtraction and one ratio | 060 conditions stay comparison-only (060 §2); a wider expression language is a new mechanism needing its own ADR |
 | Rolling windows | They need timestamped slots counted under a per-counter lock, a new evaluator, and a new Lean model |
 | A non-HTTP transport (the PostgreSQL wire protocol, process execution) | A different mechanism, needing its own ADR and case file |
 | Webhook ingress | A new credential and deployment surface (059 §3.5) |
@@ -1465,4 +1943,10 @@ asserts no outcome. Until Epic 6 is green, no document may say the audit shows
 the provider's response. Until Epic 4 is green, no document may say a parent's
 count bounds its delegates. Until Epic 5 is green, no document may say admin
 changes reach every process. Until Epic 7's ledger entry exists, no document
-may say refunds made through the gateway carry a provider link.
+may say refunds made through the gateway carry a provider link. Until Epic 3
+is green, no document may say the gateway enforces a relative ceiling or
+checks the account or denied reads at every lease. Until Epic 4 is green, no
+document may say a sum budget bounds a link's delegates or that an
+account-scope header carries only a grant-listed value. Until Epic 7's ledger
+entry exists, no document may say production keeps the vertical's five Stripe
+checks.
