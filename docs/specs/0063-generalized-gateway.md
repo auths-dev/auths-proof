@@ -3,8 +3,9 @@
 - **Status:** Draft, written on owner direction on 2026-09-25 before its epic
   starts. Nothing here is implemented. Writing it does not start an epic, and
   the WIP limit (program board rule 1) still governs implementation. §13's
-  readings are PROVISIONAL until the owner reviews them. This change adds this
-  file and its program board entries.
+  readings are PROVISIONAL until the owner reviews them. On 2026-09-27 the
+  owner chose §12 option A: the gateway becomes the single provider-write
+  path. This change adds this file and its program board entries.
 - **Depends on:** [AP-SPEC-053](0053-declarative-credential-isolated-gateway.md)
   (gateway, recipe language, stages),
   [AP-SPEC-056](0056-openapi-derived-operation-contracts.md) (derivation),
@@ -27,14 +28,15 @@
   provider HTTP clients).
 - **Enables:** board §0 step 2 with the provider result for every entry, and
   provider-held evidence for the Stripe recipe; a cross-process admin
-  guarantee the owner may add to AP-SPEC-038 §9's done gate; the owner
-  decision in §12.
+  guarantee the owner may add to AP-SPEC-038 §9's done gate; and §12's
+  consolidation onto one provider-write path.
 - **Retires:** per-actor window counts; recipe source `/1` and its digest
   domain; attempt record `/2`; outcome `/1`; observe request `/1`; audit
   bundle and report `/1`; installation manifest `/2`; PostgreSQL schema
   `auths.lifecycle.postgresql/4`; evaluator
   `auths.gateway.argument-ceiling-window-count/1`; declared operator
-  principals. Under §12 option A, also the local-agent effect profiles.
+  principals; and, under §12's decision, the five local-agent effect
+  profiles.
 - **Scope:** product layer only: `product/runtime/auths-gateway`,
   `product/stores/auths-stores`, `product/policy/auths-bounded-policy`,
   `product/tools/auths-openapi-derive`, `auths-node gateway recipe check` in
@@ -733,11 +735,12 @@ zero provider entries and zero leases.
 fixed or rolling windows, released on proven non-effect and held while the
 outcome is unknown. They need provider-specific recovery evidence, so the
 gateway does not import them (§16), and the two limits never count each
-other's effects. Under §12 option A, the gateway bound is the only production
-spend limit and the vertical's evaluator is a test-only reference and a demo.
-Under option B, a Stripe account reachable through both paths has two
-unrelated limits. The runbook and the claim ledger MUST say so, and an
-operator MUST NOT rely on either limit to bound the other path.
+other's effects. Under §12's decision (option A), the gateway bound is the
+only production spend limit, and the vertical's evaluator is a test-only
+reference and a demo. Until epic 8 lands, a Stripe account reachable through
+both paths has two unrelated limits. The runbook and the claim ledger MUST
+say so, and an operator MUST NOT rely on either limit to bound the other
+path.
 
 ## 7. Operator plane
 
@@ -1205,10 +1208,11 @@ Four existing codes change meaning:
 
 ## 12. Owner decision: the single provider-write path
 
-The owner decides whether the gateway becomes the single provider-write path,
-retiring the hand-built local-agent effect profiles, or both paths remain.
-This spec recommends consolidation and makes no choice; every other section
-stands under either option.
+**Decided 2026-09-27: option A.** The gateway becomes the single
+provider-write path, and epic 8 retires the hand-built local-agent effect
+profiles. The table keeps option B as the record of what was not chosen. Its
+A column is the list of what production gives up, and every other section
+stands as written.
 
 The local agent (`product/runtime/auths-node`) serves five effect profiles,
 all `unqualified` in
@@ -1238,8 +1242,8 @@ vertical is qualified, so consolidating loses no qualified claim.
 ## 13. Readings and decisions (PROVISIONAL)
 
 Board rule 8: each pick is the narrower reading (fail closed, smaller claim)
-unless noted, and none widens a claim or a credential scope. §12's decision
-belongs to the owner and is not listed.
+unless noted, and none widens a claim or a credential scope. §12 is an owner
+decision (option A, 2026-09-27) and is not listed.
 
 | # | Question | Readings | Pick |
 | --- | --- | --- | --- |
@@ -1272,13 +1276,13 @@ Each amendment lands with the code that causes it.
 | Board §4, 2026-09-24, readings 1 and 4 | (1) The count keyed to the bounded branch's actor; (4) the audit evaluated at the outcome's signing time and recounted in that order | (1) Keyed to each link's subject; (4) evaluated at `evaluated-at`, with §6.7's order-free test |
 | #156 | The boolean `write.idempotency_key`; its state-loss journey | The object form of §4.1. The journey stays valid, since a wiped store forgets claims and counts (§1), once its approval window fits §4.5's retention rule |
 | settled.md | "Stripe metadata doesn't carry an action-derived echo"; single-host connection state | Scoped to `auths-stripe`, because the gateway recipe gains a form echo with the same non-claims; connection state is shared through the store |
-| ADR 0012 and the boundary plan | — | Rewritten under option A only (§12) |
+| ADR 0012 and the boundary plan | — | Rewritten in epic 8, under §12's decision (option A) |
 | Board rule 3 | Specs are written when an epic starts | The owner directed this one ahead, as with 059–061 (board §4, 2026-09-22) |
 
 ## 15. Epics and done gates
 
-Order: 1, 2, 3, then 4 and 5 in either order, then 6, then 7; 8 only under
-option A. Board rules 1, 2, 7, and 10 apply. Done means an artifact: hosted CI
+Order: 1, 2, 3, then 4 and 5 in either order, then 6, then 7, then 8 (§12
+option A). Board rules 1, 2, 7, and 10 apply. Done means an artifact: hosted CI
 on the exact revision, or a commit whose diff holds the evidence.
 
 | Epic | Work | Done |
@@ -1290,7 +1294,7 @@ on the exact revision, or a commit whose diff holds the evidence.
 | 5. Operator plane | §7, and the §5.5 steps marked 5 | With the application at full capacity, every admin command answers within its deadline; a disable or revoke through process A stops new entries in process B at B's next reload, on PostgreSQL; a second host joins only with the matching secret; `did:key` and `raw-key-v1` aliasing is refused at install and per proof; an invalid attestation is refused |
 | 6. Evidence and assurance | Step 1: repair the scheduled Fuzz job (`.github/workflows/fuzz.yml`) so a scheduled campaign can pass, with a unit test on a captured libFuzzer log. Then §8: outcome `/2` and its consumers, observe `/2`, audit `/2`, `echo-verify`, the SDK projections, the fuzz crate, property tests, Kani harnesses, and the code inventory | A scheduled Fuzz run is green with the gateway targets; Rust, Python, and TypeScript agree on `outcome-v2.json`; the north-star audit shows `http_status` for every entered refund, including a rejected one |
 | 7. North-star recipe | The Stripe recipe moves to §3.1 with an approval window of at most 86 340 seconds; the counting double returns refunds with metadata, requires `Stripe-Version`, and honors the key; `journey.py` checks `observed-by-provider` and the guard refusing a non-test key; the README non-claims and the claim ledger are updated; the test-mode command stays the developer's own step (board §0 step 4) | `stripe-refund-journey` is green from the packed wheel; the ledger entry uses §1's claim and non-claim wording |
-| 8. Consolidation (option A only) | §12 A's removals and rewrites in one pull request | The profiles and routes are gone; the specs, ADRs, and plan are amended; the board is updated; CI is green |
+| 8. Consolidation | §12 A's removals and rewrites in one pull request | The profiles and routes are gone; the specs, ADRs, and plan are amended, and `AGENTS.md`'s summary of the boundary plan is checked against the rewrite; the board is updated; CI is green |
 
 ## 16. Non-goals
 
