@@ -1,11 +1,13 @@
 # AP-SPEC-063: The generalized gateway: recovery capability, provider capabilities, one spend limit, operator plane, and evidence
 
 - **Status:** Draft, written on owner direction on 2026-09-25 before its epic
-  starts. Nothing here is implemented. Writing it does not start an epic, and
-  the WIP limit (program board rule 1) still governs implementation. §13's
-  readings are PROVISIONAL until the owner reviews them. On 2026-09-27 the
-  owner chose §12 option A: the gateway becomes the single provider-write
-  path. This change adds this file and its program board entries.
+  starts. Nothing here is implemented except what #166 and #168 merged on
+  2026-09-26: §5.5 step 7, part of §7.1, and Epic 6 step 1. Writing it does
+  not start an epic, and the WIP limit (program board rule 1) still governs
+  implementation. §13's readings are PROVISIONAL until the owner reviews
+  them. On 2026-09-27 the owner chose §12 option A: the gateway becomes the
+  single provider-write path. This change adds this file and its program
+  board entries.
 - **Depends on:** [AP-SPEC-053](0053-declarative-credential-isolated-gateway.md)
   (gateway, recipe language, stages),
   [AP-SPEC-056](0056-openapi-derived-operation-contracts.md) (derivation),
@@ -58,10 +60,10 @@ response into an effect. It found five gaps.
   proved necessary: a pinned API version, a test-mode guard, a fresh evidence
   re-read, and a provider-held link to the action.
 - Window counts are kept per actor, so delegation multiplies a parent's count.
-- The operator plane needs its own capacity and deadlines, admin mutations
-  that never wait on provider calls, connection state that holds in every
-  process sharing a store, separation checks that compare keys, and an
-  authenticated operator.
+- The operator plane needs admin mutations that never wait on provider calls,
+  connection state that holds in every process sharing a store, separation
+  checks that compare keys, and an authenticated operator. Its own capacity
+  and deadlines, which the review also found missing, merged in #166 (§7.1).
 - The signed outcome and the offline audit omit the provider's response, and
   the gateway has no fuzz, Kani, or property coverage.
 
@@ -538,7 +540,7 @@ follows this order. The last column names the epic that adds each new step.
 | 4 | Load the shared connection record; require this host to hold its current credential (§7.3) | `not-entered`, nothing stored | 5 |
 | 5 | Prepare the pinned transport | `not-entered`, nothing stored | today |
 | 6 | Claim atomically with every count slot (§6.3); a replay goes to §4.4 | Exhausted: recorded `not-entered`; store unavailable: nothing stored | 3; slots 4 |
-| 7 | Continue in a task the application connection cannot cancel; it holds the capacity permit until the final stage (§7.1) | — | 5 |
+| 7 | Continue in a task the application connection cannot cancel; it holds the capacity permit until the final stage (§7.1) | — | today (#166) |
 | 8 | Reload the shared record and require it unchanged: the re-read AP-SPEC-040 §7.4 requires immediately before credential acquisition | Recorded `not-entered`, `gateway.connection.changed` | 5 |
 | 9 | Lease the credential (30-second deadline); apply the prefix guard (§5.2) | Recorded `not-entered` | today; guard 3 |
 | 10 | Run the pre-entry re-read when declared (§5.3) | Recorded `not-entered` | 3 |
@@ -747,7 +749,11 @@ path.
 ### 7.1 Listeners, capacity, and deadlines
 
 `serve` (`product/runtime/auths-gateway/src/bin/auths-gateway.rs`) runs two
-listeners with separate capacity.
+listeners with separate capacity. #166 implemented the two listeners with
+fixed capacities of 64 and 4, the admin peer check, the application
+deadlines, and the accept back-off (`listener.rs`, `app.rs`, and
+`admin_peer_admitted`). This section adds `--app-capacity`, the admin row's
+probe, commit, and drain bounds, and the descriptor check.
 
 | Listener | Capacity | Deadlines |
 | --- | --- | --- |
@@ -1024,9 +1030,10 @@ shape-only check.
 
 **Fuzz.** A new crate `product/runtime/auths-gateway/fuzz`
 (`auths-gateway-fuzz`) is registered as `auths-bounded-policy-fuzz` is: in
-`architecture.toml`, in `PRODUCT_FUZZ_TARGETS` (`xtask/src/fuzz.rs`), and in
-the scheduled matrix, seeded from `bindings/fixtures/gateway/`. It depends on
-the scheduled Fuzz job passing first (Epic 6 step 1).
+`architecture.toml`, and in `PRODUCT_FUZZ_TARGETS` and the scheduled
+campaign's `CAMPAIGN_TARGETS` (`xtask/src/fuzz.rs`), seeded from
+`bindings/fixtures/gateway/`. It depends on the scheduled Fuzz job passing
+first (Epic 6 step 1, merged in #168).
 
 | Target | Property |
 | --- | --- |
@@ -1178,8 +1185,8 @@ Codes marked "recorded" appear as an attempt's `refusal`; codes marked
 | `gateway.pre-entry.condition-false`, `gateway.pre-entry.unavailable`, `gateway.credential.mode-guard`, `gateway.attempt.entry-deadline`, `gateway.transport.not-entered` | recorded |
 | `gateway.trust.key-aliased` | install and serve |
 | `gateway.install.operator-attestation-required`, `.operator-attestation-invalid`, `.credential-guard`, `.credential-probe`, `.connection-exists`, `.join-record-missing`, `.join-commitment-mismatch` | install |
-| `gateway.serve.descriptor-limit`, `gateway.serve.accept-failed` (logged) | serve |
-| `gateway.admin.peer-refused` (logged), `.status`, `.reobserved`, `.generation-conflict`, `.credential-guard`, `.credential-probe`; `gateway.reobserve.not-observable` | admin |
+| `gateway.serve.descriptor-limit`, `gateway.serve.accept-failed` (logged, since #166) | serve |
+| `gateway.admin.peer-refused` (logged, since #166), `.status`, `.reobserved`, `.generation-conflict`, `.credential-guard`, `.credential-probe`; `gateway.reobserve.not-observable` | admin |
 | `gateway.observer.credential-guard` | observe |
 | `audit.counters-mismatch`, `.bound-exceeded`, `.pre-entry-missing`, `.pre-entry-invalid`, `.pre-entry-unsatisfied` | audit |
 | `gateway.echo-verify.match`, `.mismatch`, `.absent`, `.record-invalid`, `.action-invalid`, `.pointer-invalid` | echo-verify |
@@ -1224,8 +1231,8 @@ none runs in production: `auths.stripe.refund/1`,
 **Why consolidation is recommended.** The public record shows defects
 clustering in mechanisms each vertical re-implements and the gateway
 centralizes: #145 (Stripe refund recovery), #147 (receipt clocks in the
-PostgreSQL and OpenTofu verticals), and #160 (provider clients' proxy and
-redirect settings). The north star already runs on the gateway, and no
+PostgreSQL vertical), and #160 (provider clients' proxy and redirect
+settings). The north star already runs on the gateway, and no
 vertical is qualified, so consolidating loses no qualified claim.
 
 | Topic | A: consolidate | B: keep both |
@@ -1267,6 +1274,7 @@ Each amendment lands with the code that causes it.
 | --- | --- | --- |
 | 053 §1 | First scope: one write plus an optional read-only observation per operation | `/2` adds at most one pre-entry read per submission and one probe per onboarding, both read-only and gateway-performed |
 | 053 §3 | The first installation may run offline | A recipe with a probe needs egress at `install`, `install --join`, and `rotate`, and a join reads the shared store; recipes without a probe keep the offline first install |
+| 053 §3, the socket paragraph #166 added | A fixed 64 application connections; an admin session waits at most 45 seconds for its change, which waits for submissions and read-backs already in progress | `--app-capacity` and §7.1's admin deadlines; admin mutations commit without waiting, then drain (§7.2) |
 | 053 §3.2 | Path segments only from verified fields; a fixed header allowlist | `response-field` segments from the recorded response (§4.1); the version-header registry (§5.1) |
 | 053 §3.3 and its Epic 3 acceptance | The ordered path claim → credential → transport, and its acceptance cases | The path becomes §5.5, with the reloads, the atomic slots, and a pre-entry read between credential and transport. Epic 3's acceptance gains the pre-entry, guard, and shared-record cases. `unknown` still resolves only through provider evidence |
 | 059 §3.2 | JSON-only echo | Form placement (§5.4); the echo stays the only added body value |
@@ -1292,7 +1300,7 @@ on the exact revision, or a commit whose diff holds the evidence.
 | 3. Store and engine | §9 (kinds, `insert_all`, sweep, the file batch, schema 5, record `/3`); the §5.5 steps marked 3; re-observation of `attempting` | Conformance passes on both stores (PostgreSQL in its workflow); the scenario corpus drives the counting provider; every hostile suite has zero unauthorized entries, and every pre-claim refusal zero leases |
 | 4. One spend limit | Formal first (the Lean model, theorems, and translated leaf, with `cargo xtask formal` green); then evaluator `/2`, the slot part of §5.5 step 6, §6.5's sweep, §6.7, and every §6.4 description | `bounds-aggregate.json` passes on both stores, including the race; no slot leaks; the audit flags the capacity-3 and capacity-1 bundle and passes every valid one |
 | 5. Operator plane | §7, and the §5.5 steps marked 5 | With the application at full capacity, every admin command answers within its deadline; a disable or revoke through process A stops new entries in process B at B's next reload, on PostgreSQL; a second host joins only with the matching secret; `did:key` and `raw-key-v1` aliasing is refused at install and per proof; an invalid attestation is refused |
-| 6. Evidence and assurance | Step 1: repair the scheduled Fuzz job (`.github/workflows/fuzz.yml`) so a scheduled campaign can pass, with a unit test on a captured libFuzzer log. Then §8: outcome `/2` and its consumers, observe `/2`, audit `/2`, `echo-verify`, the SDK projections, the fuzz crate, property tests, Kani harnesses, and the code inventory | A scheduled Fuzz run is green with the gateway targets; Rust, Python, and TypeScript agree on `outcome-v2.json`; the north-star audit shows `http_status` for every entered refund, including a rejected one |
+| 6. Evidence and assurance | Step 1, repairing the scheduled Fuzz job (`.github/workflows/fuzz.yml`) so a scheduled campaign can pass, with a unit test on a captured libFuzzer log, merged in #168; scheduled runs pass from 2026-09-27. Then §8: outcome `/2` and its consumers, observe `/2`, audit `/2`, `echo-verify`, the SDK projections, the fuzz crate, property tests, Kani harnesses, and the code inventory | A scheduled Fuzz run is green with the gateway targets; Rust, Python, and TypeScript agree on `outcome-v2.json`; the north-star audit shows `http_status` for every entered refund, including a rejected one |
 | 7. North-star recipe | The Stripe recipe moves to §3.1 with an approval window of at most 86 340 seconds; the counting double returns refunds with metadata, requires `Stripe-Version`, and honors the key; `journey.py` checks `observed-by-provider` and the guard refusing a non-test key; the README non-claims and the claim ledger are updated; the test-mode command stays the developer's own step (board §0 step 4) | `stripe-refund-journey` is green from the packed wheel; the ledger entry uses §1's claim and non-claim wording |
 | 8. Consolidation | §12 A's removals and rewrites in one pull request | The profiles and routes are gone; the specs, ADRs, and plan are amended, and `AGENTS.md`'s summary of the boundary plan is checked against the rewrite; the board is updated; CI is green |
 
