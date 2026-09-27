@@ -1,0 +1,2857 @@
+{
+  "schema": "auths.gateway-bounds-aggregate/1",
+  "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+  "policy_type": "auths.gateway.argument-ceiling-policy/2",
+  "stores": [
+    "file",
+    "postgresql"
+  ],
+  "recipes": "hostile-recipes-v2.json",
+  "window_seconds": 86400,
+  "evaluated_at": 1790000000,
+  "window_index": 20717,
+  "window_end": 1790035200,
+  "principals": {
+    "root": {
+      "seed_byte": 97,
+      "method": "raw-key-v1",
+      "principal": "key:sha256:DYBSEdY-BAG-Qj6o5siFLonmu-GnFTrRDm64R-x-Nz8"
+    },
+    "parent": {
+      "seed_byte": 98,
+      "method": "raw-key-v1",
+      "principal": "key:sha256:AqC02ooXTCTJmu8PLgbKT-6eg2AkMzr78tHk7Y6qAAI"
+    },
+    "child-a": {
+      "seed_byte": 99,
+      "method": "raw-key-v1",
+      "principal": "key:sha256:jssHSPI-rgPKzKf_Rv3bwnpfouUK9s9bJ-1gXHslgCw"
+    },
+    "child-b": {
+      "seed_byte": 100,
+      "method": "raw-key-v1",
+      "principal": "key:sha256:DIO_-WpOxDKfLOcnvLIDBvdARhDyi7AQ-ZZjHZHGL2E"
+    },
+    "parent-did-key": {
+      "seed_byte": 98,
+      "method": "did-key-v1",
+      "multibase": "z6MkhYasewQspBQwiSFpYgMZV9W8UdZGavchGz2Uz1fAZneZ"
+    },
+    "agent-01": {
+      "seed_byte": 113,
+      "method": "raw-key-v1",
+      "principal": "key:sha256:BNRiougtZEiSZk2C7XNe3rjE1Xh8LnKhndyt0ga3DFo"
+    },
+    "agent-02": {
+      "seed_byte": 114,
+      "method": "raw-key-v1",
+      "principal": "key:sha256:gqgF0vnD2Szknk3m7Y2JMl70PinlJYaZFOTaqec59AI"
+    },
+    "agent-03": {
+      "seed_byte": 115,
+      "method": "raw-key-v1",
+      "principal": "key:sha256:yFCYKFueoJCaQCsc-6c79oq2AffGtQ5oz2UwAbq4IW0"
+    },
+    "agent-04": {
+      "seed_byte": 116,
+      "method": "raw-key-v1",
+      "principal": "key:sha256:MjEFCbrSgiZxDqteop3vVRmaf8Yp3hKSt5iDiryMtG4"
+    },
+    "agent-05": {
+      "seed_byte": 117,
+      "method": "raw-key-v1",
+      "principal": "key:sha256:uCCs-7n5rh3MK1ni66XknztGYr8oTTyHpFZO2F-3h8U"
+    },
+    "agent-06": {
+      "seed_byte": 118,
+      "method": "raw-key-v1",
+      "principal": "key:sha256:gP0wx2ZvTzhLAvg7J_e3EVCB98YVQOb2G9B4fXtQtMc"
+    },
+    "agent-07": {
+      "seed_byte": 119,
+      "method": "raw-key-v1",
+      "principal": "key:sha256:OsJrX2kqdhVFrOmz4lHbzMhiHeOokiZ6Boll2ClNg3s"
+    },
+    "agent-08": {
+      "seed_byte": 120,
+      "method": "raw-key-v1",
+      "principal": "key:sha256:ixz9Fpuw_ywEBHQn258iP_-a71W866iL94I-8WdR9vs"
+    },
+    "agent-09": {
+      "seed_byte": 121,
+      "method": "raw-key-v1",
+      "principal": "key:sha256:LrQcuO219Diax4DT0GkQ8_fpCrfR2iKxjK5RVFFbsqM"
+    },
+    "agent-10": {
+      "seed_byte": 122,
+      "method": "raw-key-v1",
+      "principal": "key:sha256:nYCf7yF97eXCPJcJaOSLcl5IL3rhcHNwbCca449Kex4"
+    },
+    "agent-11": {
+      "seed_byte": 123,
+      "method": "raw-key-v1",
+      "principal": "key:sha256:Nbp9n0wFtm7mDfuO_mmeEDo_OMdPTVn3t1nbwe4JNvM"
+    },
+    "agent-12": {
+      "seed_byte": 124,
+      "method": "raw-key-v1",
+      "principal": "key:sha256:Sd94p9yJ_Eyu9G4fJfN8PVe6sCrm8dsoqdM38Psa2gg"
+    },
+    "agent-13": {
+      "seed_byte": 125,
+      "method": "raw-key-v1",
+      "principal": "key:sha256:L5gDvYtknzytFj_tDBrAdPW2YmOkeSZvEM03LKdT60I"
+    },
+    "agent-14": {
+      "seed_byte": 126,
+      "method": "raw-key-v1",
+      "principal": "key:sha256:3U8LG9BPoNZz29Q_gNdMzSyg_6gnsQRZcX1lAV-ccgE"
+    },
+    "agent-15": {
+      "seed_byte": 127,
+      "method": "raw-key-v1",
+      "principal": "key:sha256:4MFAwwiepwLTsjnEuyof4o4xbRx_0Om4-QLgiysW0-E"
+    },
+    "agent-16": {
+      "seed_byte": 128,
+      "method": "raw-key-v1",
+      "principal": "key:sha256:jLfBNWZKLbeMyWy1USKr44chsBFLUJ6oAPl9waBLc5U"
+    },
+    "agent-17": {
+      "seed_byte": 129,
+      "method": "raw-key-v1",
+      "principal": "key:sha256:xqOscg6_27ci3D2p6g-v3vKXV2ciJxdYsQL5TnlKRIs"
+    }
+  },
+  "did_key_principal": "did:key:<multibase>",
+  "operation_ids": "<case id>-<submission index>, counting from 0",
+  "default_arguments": {
+    "stripe-plain": {
+      "payment_intent": "pi_TEST0000000001"
+    },
+    "stripe-platform": {
+      "payment_intent": "pi_TEST0000000001",
+      "currency": "usd"
+    },
+    "stripe": {
+      "payment_intent": "pi_TEST0000000001",
+      "currency": "usd",
+      "connect_account": "acct_TESTACCOUNT01"
+    }
+  },
+  "provider": {
+    "answers": "the defaults of attempt-scenarios-v3.json for recipe stripe",
+    "payment_intents": [
+      {
+        "id": "pi_TEST0000000001",
+        "currency": "usd",
+        "amount_received": 1000000
+      },
+      {
+        "id": "pi_TEST0000000002",
+        "currency": "eur",
+        "amount_received": 1000000
+      }
+    ]
+  },
+  "cases": [
+    {
+      "id": "siblings-exceed-parent-count",
+      "recipe": "stripe-plain",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 2
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800302"
+        },
+        {
+          "id": "g-a",
+          "issuer": "parent",
+          "subject": "child-a",
+          "parent": "g-parent",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 2
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800302"
+        },
+        {
+          "id": "g-b",
+          "issuer": "parent",
+          "subject": "child-b",
+          "parent": "g-parent",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 2
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800302"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-a",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "entered",
+          "code": null,
+          "stored": true
+        },
+        {
+          "grant": "g-b",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "entered",
+          "code": null,
+          "stored": true
+        },
+        {
+          "grant": "g-a",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "not-entered",
+          "code": "gateway.policy.window-exhausted",
+          "stored": true
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 2
+        },
+        {
+          "subject": "child-a",
+          "window_index": 20717,
+          "slots": 1
+        },
+        {
+          "subject": "child-b",
+          "window_index": 20717,
+          "slots": 1
+        }
+      ],
+      "sum_slots": [],
+      "provider_entries": 2
+    },
+    {
+      "id": "parent-and-child-share-counter",
+      "recipe": "stripe-plain",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 2
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800302"
+        },
+        {
+          "id": "g-a",
+          "issuer": "parent",
+          "subject": "child-a",
+          "parent": "g-parent",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-parent",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "entered",
+          "code": null,
+          "stored": true
+        },
+        {
+          "grant": "g-a",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "entered",
+          "code": null,
+          "stored": true
+        },
+        {
+          "grant": "g-parent",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "not-entered",
+          "code": "gateway.policy.window-exhausted",
+          "stored": true
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 2
+        },
+        {
+          "subject": "child-a",
+          "window_index": 20717,
+          "slots": 1
+        }
+      ],
+      "sum_slots": [],
+      "provider_entries": 2
+    },
+    {
+      "id": "self-delegation-other-method",
+      "recipe": "stripe-plain",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 1
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800301"
+        },
+        {
+          "id": "g-self",
+          "issuer": "parent",
+          "subject": "parent-did-key",
+          "parent": "g-parent",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-self",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "entered",
+          "code": null,
+          "stored": true
+        },
+        {
+          "grant": "g-self",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "not-entered",
+          "code": "gateway.policy.window-exhausted",
+          "stored": true
+        },
+        {
+          "grant": "g-parent",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "not-entered",
+          "code": "gateway.policy.window-exhausted",
+          "stored": true
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 1
+        },
+        {
+          "subject": "parent-did-key",
+          "window_index": 20717,
+          "slots": 1
+        }
+      ],
+      "sum_slots": [],
+      "provider_entries": 1
+    },
+    {
+      "id": "exhausted-ancestor-consumes-no-descendant-slot",
+      "recipe": "stripe-plain",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 1
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800301"
+        },
+        {
+          "id": "g-a",
+          "issuer": "parent",
+          "subject": "child-a",
+          "parent": "g-parent",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-parent",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "entered",
+          "code": null,
+          "stored": true
+        },
+        {
+          "grant": "g-a",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "not-entered",
+          "code": "gateway.policy.window-exhausted",
+          "stored": true
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 1
+        },
+        {
+          "subject": "child-a",
+          "window_index": 20717,
+          "slots": 0
+        }
+      ],
+      "sum_slots": [],
+      "provider_entries": 1
+    },
+    {
+      "id": "burst-across-window-boundary",
+      "recipe": "stripe-plain",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 2
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800302"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-parent",
+          "at": 1790035198,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "entered",
+          "code": null,
+          "stored": true
+        },
+        {
+          "grant": "g-parent",
+          "at": 1790035199,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "entered",
+          "code": null,
+          "stored": true
+        },
+        {
+          "grant": "g-parent",
+          "at": 1790035200,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "entered",
+          "code": null,
+          "stored": true
+        },
+        {
+          "grant": "g-parent",
+          "at": 1790035201,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "entered",
+          "code": null,
+          "stored": true
+        },
+        {
+          "grant": "g-parent",
+          "at": 1790035202,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "not-entered",
+          "code": "gateway.policy.window-exhausted",
+          "stored": true
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 2
+        },
+        {
+          "subject": "parent",
+          "window_index": 20718,
+          "slots": 2
+        }
+      ],
+      "sum_slots": [],
+      "provider_entries": 4
+    },
+    {
+      "id": "evaluator-v1-refused",
+      "recipe": "stripe-plain",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/1",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 2
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800302"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-parent",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "not-entered",
+          "code": "gateway.policy.evaluator-unregistered",
+          "stored": false
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 0
+        }
+      ],
+      "sum_slots": [],
+      "provider_entries": 0
+    },
+    {
+      "id": "policy-type-v1-refused",
+      "recipe": "stripe-plain",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/1",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 2
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800302"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-parent",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "not-entered",
+          "code": "gateway.policy.evaluator-mismatch",
+          "stored": false
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 0
+        }
+      ],
+      "sum_slots": [],
+      "provider_entries": 0
+    },
+    {
+      "id": "sixteen-links-admitted",
+      "recipe": "stripe-plain",
+      "grants": [
+        {
+          "id": "g-01",
+          "issuer": "root",
+          "subject": "agent-01",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-02",
+          "issuer": "agent-01",
+          "subject": "agent-02",
+          "parent": "g-01",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-03",
+          "issuer": "agent-02",
+          "subject": "agent-03",
+          "parent": "g-02",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-04",
+          "issuer": "agent-03",
+          "subject": "agent-04",
+          "parent": "g-03",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-05",
+          "issuer": "agent-04",
+          "subject": "agent-05",
+          "parent": "g-04",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-06",
+          "issuer": "agent-05",
+          "subject": "agent-06",
+          "parent": "g-05",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-07",
+          "issuer": "agent-06",
+          "subject": "agent-07",
+          "parent": "g-06",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-08",
+          "issuer": "agent-07",
+          "subject": "agent-08",
+          "parent": "g-07",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-09",
+          "issuer": "agent-08",
+          "subject": "agent-09",
+          "parent": "g-08",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-10",
+          "issuer": "agent-09",
+          "subject": "agent-10",
+          "parent": "g-09",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-11",
+          "issuer": "agent-10",
+          "subject": "agent-11",
+          "parent": "g-10",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-12",
+          "issuer": "agent-11",
+          "subject": "agent-12",
+          "parent": "g-11",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-13",
+          "issuer": "agent-12",
+          "subject": "agent-13",
+          "parent": "g-12",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-14",
+          "issuer": "agent-13",
+          "subject": "agent-14",
+          "parent": "g-13",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-15",
+          "issuer": "agent-14",
+          "subject": "agent-15",
+          "parent": "g-14",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-16",
+          "issuer": "agent-15",
+          "subject": "agent-16",
+          "parent": "g-15",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-16",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "entered",
+          "code": null,
+          "stored": true
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "agent-01",
+          "window_index": 20717,
+          "slots": 1
+        },
+        {
+          "subject": "agent-02",
+          "window_index": 20717,
+          "slots": 1
+        },
+        {
+          "subject": "agent-03",
+          "window_index": 20717,
+          "slots": 1
+        },
+        {
+          "subject": "agent-04",
+          "window_index": 20717,
+          "slots": 1
+        },
+        {
+          "subject": "agent-05",
+          "window_index": 20717,
+          "slots": 1
+        },
+        {
+          "subject": "agent-06",
+          "window_index": 20717,
+          "slots": 1
+        },
+        {
+          "subject": "agent-07",
+          "window_index": 20717,
+          "slots": 1
+        },
+        {
+          "subject": "agent-08",
+          "window_index": 20717,
+          "slots": 1
+        },
+        {
+          "subject": "agent-09",
+          "window_index": 20717,
+          "slots": 1
+        },
+        {
+          "subject": "agent-10",
+          "window_index": 20717,
+          "slots": 1
+        },
+        {
+          "subject": "agent-11",
+          "window_index": 20717,
+          "slots": 1
+        },
+        {
+          "subject": "agent-12",
+          "window_index": 20717,
+          "slots": 1
+        },
+        {
+          "subject": "agent-13",
+          "window_index": 20717,
+          "slots": 1
+        },
+        {
+          "subject": "agent-14",
+          "window_index": 20717,
+          "slots": 1
+        },
+        {
+          "subject": "agent-15",
+          "window_index": 20717,
+          "slots": 1
+        },
+        {
+          "subject": "agent-16",
+          "window_index": 20717,
+          "slots": 1
+        }
+      ],
+      "sum_slots": [],
+      "provider_entries": 1
+    },
+    {
+      "id": "seventeen-links-refused",
+      "recipe": "stripe-plain",
+      "grants": [
+        {
+          "id": "g-01",
+          "issuer": "root",
+          "subject": "agent-01",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-02",
+          "issuer": "agent-01",
+          "subject": "agent-02",
+          "parent": "g-01",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-03",
+          "issuer": "agent-02",
+          "subject": "agent-03",
+          "parent": "g-02",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-04",
+          "issuer": "agent-03",
+          "subject": "agent-04",
+          "parent": "g-03",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-05",
+          "issuer": "agent-04",
+          "subject": "agent-05",
+          "parent": "g-04",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-06",
+          "issuer": "agent-05",
+          "subject": "agent-06",
+          "parent": "g-05",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-07",
+          "issuer": "agent-06",
+          "subject": "agent-07",
+          "parent": "g-06",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-08",
+          "issuer": "agent-07",
+          "subject": "agent-08",
+          "parent": "g-07",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-09",
+          "issuer": "agent-08",
+          "subject": "agent-09",
+          "parent": "g-08",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-10",
+          "issuer": "agent-09",
+          "subject": "agent-10",
+          "parent": "g-09",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-11",
+          "issuer": "agent-10",
+          "subject": "agent-11",
+          "parent": "g-10",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-12",
+          "issuer": "agent-11",
+          "subject": "agent-12",
+          "parent": "g-11",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-13",
+          "issuer": "agent-12",
+          "subject": "agent-13",
+          "parent": "g-12",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-14",
+          "issuer": "agent-13",
+          "subject": "agent-14",
+          "parent": "g-13",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-15",
+          "issuer": "agent-14",
+          "subject": "agent-15",
+          "parent": "g-14",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-16",
+          "issuer": "agent-15",
+          "subject": "agent-16",
+          "parent": "g-15",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        },
+        {
+          "id": "g-17",
+          "issuer": "agent-16",
+          "subject": "agent-17",
+          "parent": "g-16",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 5
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-17",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "not-entered",
+          "code": "gateway.policy.too-many-bounds",
+          "stored": false
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "agent-01",
+          "window_index": 20717,
+          "slots": 0
+        },
+        {
+          "subject": "agent-02",
+          "window_index": 20717,
+          "slots": 0
+        },
+        {
+          "subject": "agent-03",
+          "window_index": 20717,
+          "slots": 0
+        },
+        {
+          "subject": "agent-04",
+          "window_index": 20717,
+          "slots": 0
+        },
+        {
+          "subject": "agent-05",
+          "window_index": 20717,
+          "slots": 0
+        },
+        {
+          "subject": "agent-06",
+          "window_index": 20717,
+          "slots": 0
+        },
+        {
+          "subject": "agent-07",
+          "window_index": 20717,
+          "slots": 0
+        },
+        {
+          "subject": "agent-08",
+          "window_index": 20717,
+          "slots": 0
+        },
+        {
+          "subject": "agent-09",
+          "window_index": 20717,
+          "slots": 0
+        },
+        {
+          "subject": "agent-10",
+          "window_index": 20717,
+          "slots": 0
+        },
+        {
+          "subject": "agent-11",
+          "window_index": 20717,
+          "slots": 0
+        },
+        {
+          "subject": "agent-12",
+          "window_index": 20717,
+          "slots": 0
+        },
+        {
+          "subject": "agent-13",
+          "window_index": 20717,
+          "slots": 0
+        },
+        {
+          "subject": "agent-14",
+          "window_index": 20717,
+          "slots": 0
+        },
+        {
+          "subject": "agent-15",
+          "window_index": 20717,
+          "slots": 0
+        },
+        {
+          "subject": "agent-16",
+          "window_index": 20717,
+          "slots": 0
+        },
+        {
+          "subject": "agent-17",
+          "window_index": 20717,
+          "slots": 0
+        }
+      ],
+      "sum_slots": [],
+      "provider_entries": 0
+    },
+    {
+      "id": "siblings-exceed-parent-sum",
+      "recipe": "stripe-platform",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10,
+            "sum_limit": 1000,
+            "partition": {
+              "argument": "currency",
+              "values": [
+                "usd"
+              ]
+            }
+          },
+          "policy_cbor_hex": "a60066616d6f756e74011903e8021a00015180030a041903e805a2006863757272656e6379018163757364"
+        },
+        {
+          "id": "g-a",
+          "issuer": "parent",
+          "subject": "child-a",
+          "parent": "g-parent",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10,
+            "sum_limit": 800,
+            "partition": {
+              "argument": "currency",
+              "values": [
+                "usd"
+              ]
+            }
+          },
+          "policy_cbor_hex": "a60066616d6f756e74011903e8021a00015180030a0419032005a2006863757272656e6379018163757364"
+        },
+        {
+          "id": "g-b",
+          "issuer": "parent",
+          "subject": "child-b",
+          "parent": "g-parent",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10,
+            "sum_limit": 800,
+            "partition": {
+              "argument": "currency",
+              "values": [
+                "usd"
+              ]
+            }
+          },
+          "policy_cbor_hex": "a60066616d6f756e74011903e8021a00015180030a0419032005a2006863757272656e6379018163757364"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-a",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 600,
+            "currency": "usd",
+            "payment_intent": "pi_TEST0000000001"
+          },
+          "decision": "entered",
+          "code": null,
+          "stored": true
+        },
+        {
+          "grant": "g-b",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 500,
+            "currency": "usd",
+            "payment_intent": "pi_TEST0000000001"
+          },
+          "decision": "not-entered",
+          "code": "gateway.policy.sum-exhausted",
+          "stored": true
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 1
+        },
+        {
+          "subject": "child-a",
+          "window_index": 20717,
+          "slots": 1
+        },
+        {
+          "subject": "child-b",
+          "window_index": 20717,
+          "slots": 0
+        }
+      ],
+      "sum_slots": [
+        {
+          "subject": "parent",
+          "partition": "usd",
+          "window_index": 20717,
+          "cumulative": 600
+        },
+        {
+          "subject": "child-a",
+          "partition": "usd",
+          "window_index": 20717,
+          "cumulative": 600
+        },
+        {
+          "subject": "child-b",
+          "partition": "usd",
+          "window_index": 20717,
+          "cumulative": 0
+        }
+      ],
+      "provider_entries": 1
+    },
+    {
+      "id": "sum-argument-equals-remaining",
+      "recipe": "stripe-platform",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10,
+            "sum_limit": 1000,
+            "partition": {
+              "argument": "currency",
+              "values": [
+                "usd"
+              ]
+            }
+          },
+          "policy_cbor_hex": "a60066616d6f756e74011903e8021a00015180030a041903e805a2006863757272656e6379018163757364"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-parent",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 400,
+            "currency": "usd",
+            "payment_intent": "pi_TEST0000000001"
+          },
+          "decision": "entered",
+          "code": null,
+          "stored": true
+        },
+        {
+          "grant": "g-parent",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 601,
+            "currency": "usd",
+            "payment_intent": "pi_TEST0000000001"
+          },
+          "decision": "not-entered",
+          "code": "gateway.policy.sum-exhausted",
+          "stored": true
+        },
+        {
+          "grant": "g-parent",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 600,
+            "currency": "usd",
+            "payment_intent": "pi_TEST0000000001"
+          },
+          "decision": "entered",
+          "code": null,
+          "stored": true
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 2
+        }
+      ],
+      "sum_slots": [
+        {
+          "subject": "parent",
+          "partition": "usd",
+          "window_index": 20717,
+          "cumulative": 1000
+        }
+      ],
+      "provider_entries": 2
+    },
+    {
+      "id": "partition-values-counted-separately",
+      "recipe": "stripe-platform",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10,
+            "sum_limit": 1000,
+            "partition": {
+              "argument": "currency",
+              "values": [
+                "eur",
+                "usd"
+              ]
+            }
+          },
+          "policy_cbor_hex": "a60066616d6f756e74011903e8021a00015180030a041903e805a2006863757272656e637901826365757263757364"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-parent",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 1000,
+            "currency": "usd",
+            "payment_intent": "pi_TEST0000000001"
+          },
+          "decision": "entered",
+          "code": null,
+          "stored": true
+        },
+        {
+          "grant": "g-parent",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 1000,
+            "currency": "eur",
+            "payment_intent": "pi_TEST0000000002"
+          },
+          "decision": "entered",
+          "code": null,
+          "stored": true
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 2
+        }
+      ],
+      "sum_slots": [
+        {
+          "subject": "parent",
+          "partition": "eur",
+          "window_index": 20717,
+          "cumulative": 1000
+        },
+        {
+          "subject": "parent",
+          "partition": "usd",
+          "window_index": 20717,
+          "cumulative": 1000
+        }
+      ],
+      "provider_entries": 2
+    },
+    {
+      "id": "partition-value-not-listed",
+      "recipe": "stripe-platform",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10,
+            "sum_limit": 1000,
+            "partition": {
+              "argument": "currency",
+              "values": [
+                "eur",
+                "usd"
+              ]
+            }
+          },
+          "policy_cbor_hex": "a60066616d6f756e74011903e8021a00015180030a041903e805a2006863757272656e637901826365757263757364"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-parent",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100,
+            "currency": "gbp",
+            "payment_intent": "pi_TEST0000000001"
+          },
+          "decision": "not-entered",
+          "code": "gateway.policy.partition-denied",
+          "stored": false
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 0
+        }
+      ],
+      "sum_slots": [],
+      "provider_entries": 0
+    },
+    {
+      "id": "exhausted-ancestor-sum-consumes-no-descendant-slot",
+      "recipe": "stripe-platform",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10,
+            "sum_limit": 500,
+            "partition": {
+              "argument": "currency",
+              "values": [
+                "usd"
+              ]
+            }
+          },
+          "policy_cbor_hex": "a60066616d6f756e74011903e8021a00015180030a041901f405a2006863757272656e6379018163757364"
+        },
+        {
+          "id": "g-a",
+          "issuer": "parent",
+          "subject": "child-a",
+          "parent": "g-parent",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10,
+            "sum_limit": 500,
+            "partition": {
+              "argument": "currency",
+              "values": [
+                "usd"
+              ]
+            }
+          },
+          "policy_cbor_hex": "a60066616d6f756e74011903e8021a00015180030a041901f405a2006863757272656e6379018163757364"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-parent",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 500,
+            "currency": "usd",
+            "payment_intent": "pi_TEST0000000001"
+          },
+          "decision": "entered",
+          "code": null,
+          "stored": true
+        },
+        {
+          "grant": "g-a",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100,
+            "currency": "usd",
+            "payment_intent": "pi_TEST0000000001"
+          },
+          "decision": "not-entered",
+          "code": "gateway.policy.sum-exhausted",
+          "stored": true
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 1
+        },
+        {
+          "subject": "child-a",
+          "window_index": 20717,
+          "slots": 0
+        }
+      ],
+      "sum_slots": [
+        {
+          "subject": "parent",
+          "partition": "usd",
+          "window_index": 20717,
+          "cumulative": 500
+        },
+        {
+          "subject": "child-a",
+          "partition": "usd",
+          "window_index": 20717,
+          "cumulative": 0
+        }
+      ],
+      "provider_entries": 1
+    },
+    {
+      "id": "argument-above-smallest-sum-limit",
+      "recipe": "stripe-platform",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10,
+            "sum_limit": 1000,
+            "partition": {
+              "argument": "currency",
+              "values": [
+                "usd"
+              ]
+            }
+          },
+          "policy_cbor_hex": "a60066616d6f756e74011903e8021a00015180030a041903e805a2006863757272656e6379018163757364"
+        },
+        {
+          "id": "g-a",
+          "issuer": "parent",
+          "subject": "child-a",
+          "parent": "g-parent",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10,
+            "sum_limit": 300,
+            "partition": {
+              "argument": "currency",
+              "values": [
+                "usd"
+              ]
+            }
+          },
+          "policy_cbor_hex": "a60066616d6f756e74011903e8021a00015180030a0419012c05a2006863757272656e6379018163757364"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-a",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 301,
+            "currency": "usd",
+            "payment_intent": "pi_TEST0000000001"
+          },
+          "decision": "not-entered",
+          "code": "gateway.policy.above-sum-limit",
+          "stored": false
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 0
+        },
+        {
+          "subject": "child-a",
+          "window_index": 20717,
+          "slots": 0
+        }
+      ],
+      "sum_slots": [
+        {
+          "subject": "parent",
+          "partition": "usd",
+          "window_index": 20717,
+          "cumulative": 0
+        },
+        {
+          "subject": "child-a",
+          "partition": "usd",
+          "window_index": 20717,
+          "cumulative": 0
+        }
+      ],
+      "provider_entries": 0
+    },
+    {
+      "id": "child-drops-parent-sum",
+      "recipe": "stripe-plain",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10,
+            "sum_limit": 1000
+          },
+          "policy_cbor_hex": "a50066616d6f756e74011903e8021a00015180030a041903e8"
+        },
+        {
+          "id": "g-a",
+          "issuer": "parent",
+          "subject": "child-a",
+          "parent": "g-parent",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a00015180030a"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-a",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "not-entered",
+          "code": "gateway.policy.expanded",
+          "stored": false
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 0
+        },
+        {
+          "subject": "child-a",
+          "window_index": 20717,
+          "slots": 0
+        }
+      ],
+      "sum_slots": [],
+      "provider_entries": 0
+    },
+    {
+      "id": "child-changes-partition",
+      "recipe": "stripe-plain",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10,
+            "sum_limit": 1000,
+            "partition": {
+              "argument": "payment_intent",
+              "values": [
+                "pi_TEST0000000001"
+              ]
+            }
+          },
+          "policy_cbor_hex": "a60066616d6f756e74011903e8021a00015180030a041903e805a2006e7061796d656e745f696e74656e7401817170695f5445535430303030303030303031"
+        },
+        {
+          "id": "g-a",
+          "issuer": "parent",
+          "subject": "child-a",
+          "parent": "g-parent",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10,
+            "sum_limit": 1000,
+            "partition": {
+              "argument": "operation_id",
+              "values": [
+                "refund-1"
+              ]
+            }
+          },
+          "policy_cbor_hex": "a60066616d6f756e74011903e8021a00015180030a041903e805a2006c6f7065726174696f6e5f6964018168726566756e642d31"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-a",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "not-entered",
+          "code": "gateway.policy.expanded",
+          "stored": false
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 0
+        },
+        {
+          "subject": "child-a",
+          "window_index": 20717,
+          "slots": 0
+        }
+      ],
+      "sum_slots": [],
+      "provider_entries": 0
+    },
+    {
+      "id": "child-widens-partition-list",
+      "recipe": "stripe-platform",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10,
+            "sum_limit": 1000,
+            "partition": {
+              "argument": "currency",
+              "values": [
+                "usd"
+              ]
+            }
+          },
+          "policy_cbor_hex": "a60066616d6f756e74011903e8021a00015180030a041903e805a2006863757272656e6379018163757364"
+        },
+        {
+          "id": "g-a",
+          "issuer": "parent",
+          "subject": "child-a",
+          "parent": "g-parent",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10,
+            "sum_limit": 1000,
+            "partition": {
+              "argument": "currency",
+              "values": [
+                "eur",
+                "usd"
+              ]
+            }
+          },
+          "policy_cbor_hex": "a60066616d6f756e74011903e8021a00015180030a041903e805a2006863757272656e637901826365757263757364"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-a",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100,
+            "currency": "usd",
+            "payment_intent": "pi_TEST0000000001"
+          },
+          "decision": "not-entered",
+          "code": "gateway.policy.expanded",
+          "stored": false
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 0
+        },
+        {
+          "subject": "child-a",
+          "window_index": 20717,
+          "slots": 0
+        }
+      ],
+      "sum_slots": [],
+      "provider_entries": 0
+    },
+    {
+      "id": "child-widens-scope-list",
+      "recipe": "stripe",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10,
+            "sum_limit": 1000,
+            "partition": {
+              "argument": "currency",
+              "values": [
+                "usd"
+              ]
+            },
+            "scope": {
+              "argument": "connect_account",
+              "values": [
+                "acct_TESTACCOUNT01"
+              ]
+            }
+          },
+          "policy_cbor_hex": "a70066616d6f756e74011903e8021a00015180030a041903e805a2006863757272656e637901816375736406a2006f636f6e6e6563745f6163636f756e74018172616363745f544553544143434f554e543031"
+        },
+        {
+          "id": "g-a",
+          "issuer": "parent",
+          "subject": "child-a",
+          "parent": "g-parent",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10,
+            "sum_limit": 1000,
+            "partition": {
+              "argument": "currency",
+              "values": [
+                "usd"
+              ]
+            },
+            "scope": {
+              "argument": "connect_account",
+              "values": [
+                "acct_TESTACCOUNT01",
+                "acct_TESTACCOUNT02"
+              ]
+            }
+          },
+          "policy_cbor_hex": "a70066616d6f756e74011903e8021a00015180030a041903e805a2006863757272656e637901816375736406a2006f636f6e6e6563745f6163636f756e74018272616363745f544553544143434f554e54303172616363745f544553544143434f554e543032"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-a",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100,
+            "currency": "usd",
+            "payment_intent": "pi_TEST0000000001",
+            "connect_account": "acct_TESTACCOUNT01"
+          },
+          "decision": "not-entered",
+          "code": "gateway.policy.expanded",
+          "stored": false
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 0
+        },
+        {
+          "subject": "child-a",
+          "window_index": 20717,
+          "slots": 0
+        }
+      ],
+      "sum_slots": [],
+      "provider_entries": 0
+    },
+    {
+      "id": "child-raises-sum-limit",
+      "recipe": "stripe-platform",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10,
+            "sum_limit": 1000,
+            "partition": {
+              "argument": "currency",
+              "values": [
+                "usd"
+              ]
+            }
+          },
+          "policy_cbor_hex": "a60066616d6f756e74011903e8021a00015180030a041903e805a2006863757272656e6379018163757364"
+        },
+        {
+          "id": "g-a",
+          "issuer": "parent",
+          "subject": "child-a",
+          "parent": "g-parent",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10,
+            "sum_limit": 2000,
+            "partition": {
+              "argument": "currency",
+              "values": [
+                "usd"
+              ]
+            }
+          },
+          "policy_cbor_hex": "a60066616d6f756e74011903e8021a00015180030a041907d005a2006863757272656e6379018163757364"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-a",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100,
+            "currency": "usd",
+            "payment_intent": "pi_TEST0000000001"
+          },
+          "decision": "not-entered",
+          "code": "gateway.policy.expanded",
+          "stored": false
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 0
+        },
+        {
+          "subject": "child-a",
+          "window_index": 20717,
+          "slots": 0
+        }
+      ],
+      "sum_slots": [],
+      "provider_entries": 0
+    },
+    {
+      "id": "child-adds-sum-under-parent-without",
+      "recipe": "stripe-plain",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a00015180030a"
+        },
+        {
+          "id": "g-a",
+          "issuer": "parent",
+          "subject": "child-a",
+          "parent": "g-parent",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10,
+            "sum_limit": 500
+          },
+          "policy_cbor_hex": "a50066616d6f756e74011903e8021a00015180030a041901f4"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-a",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "entered",
+          "code": null,
+          "stored": true
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 1
+        },
+        {
+          "subject": "child-a",
+          "window_index": 20717,
+          "slots": 1
+        }
+      ],
+      "sum_slots": [
+        {
+          "subject": "child-a",
+          "partition": null,
+          "window_index": 20717,
+          "cumulative": 100
+        }
+      ],
+      "provider_entries": 1
+    },
+    {
+      "id": "sum-required-unbounded-action",
+      "recipe": "stripe-platform",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "policy": null
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-parent",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100,
+            "currency": "usd",
+            "payment_intent": "pi_TEST0000000001"
+          },
+          "decision": "not-entered",
+          "code": "gateway.policy.sum-required",
+          "stored": false
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 0
+        }
+      ],
+      "sum_slots": [],
+      "provider_entries": 0
+    },
+    {
+      "id": "sum-required-link-lacks-sum",
+      "recipe": "stripe-platform",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a00015180030a"
+        },
+        {
+          "id": "g-a",
+          "issuer": "parent",
+          "subject": "child-a",
+          "parent": "g-parent",
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10,
+            "sum_limit": 500,
+            "partition": {
+              "argument": "currency",
+              "values": [
+                "usd"
+              ]
+            }
+          },
+          "policy_cbor_hex": "a60066616d6f756e74011903e8021a00015180030a041901f405a2006863757272656e6379018163757364"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-a",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100,
+            "currency": "usd",
+            "payment_intent": "pi_TEST0000000001"
+          },
+          "decision": "not-entered",
+          "code": "gateway.policy.sum-required",
+          "stored": false
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 0
+        },
+        {
+          "subject": "child-a",
+          "window_index": 20717,
+          "slots": 0
+        }
+      ],
+      "sum_slots": [],
+      "provider_entries": 0
+    },
+    {
+      "id": "sum-required-partition-absent",
+      "recipe": "stripe-platform",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 10,
+            "sum_limit": 1000
+          },
+          "policy_cbor_hex": "a50066616d6f756e74011903e8021a00015180030a041903e8"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-parent",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100,
+            "currency": "usd",
+            "payment_intent": "pi_TEST0000000001"
+          },
+          "decision": "not-entered",
+          "code": "gateway.policy.sum-required",
+          "stored": false
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 0
+        }
+      ],
+      "sum_slots": [],
+      "provider_entries": 0
+    },
+    {
+      "id": "race-last-count-slots",
+      "recipe": "stripe-plain",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 3
+          },
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800303"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-parent",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 100
+          },
+          "decision": "entered",
+          "code": null,
+          "stored": true
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 3
+        }
+      ],
+      "sum_slots": [],
+      "provider_entries": 3,
+      "race": {
+        "store": "postgresql",
+        "processes": 2,
+        "concurrent": [
+          {
+            "process": 0,
+            "grant": "g-parent",
+            "arguments": {
+              "amount": 100
+            }
+          },
+          {
+            "process": 0,
+            "grant": "g-parent",
+            "arguments": {
+              "amount": 100
+            }
+          },
+          {
+            "process": 1,
+            "grant": "g-parent",
+            "arguments": {
+              "amount": 100
+            }
+          },
+          {
+            "process": 1,
+            "grant": "g-parent",
+            "arguments": {
+              "amount": 100
+            }
+          }
+        ],
+        "admitted": 2,
+        "refused": {
+          "count": 2,
+          "code": "gateway.policy.window-exhausted"
+        }
+      }
+    },
+    {
+      "id": "race-last-sum-units",
+      "recipe": "stripe-platform",
+      "grants": [
+        {
+          "id": "g-parent",
+          "issuer": "root",
+          "subject": "parent",
+          "parent": null,
+          "evaluator": "auths.gateway.argument-ceiling-window-count/2",
+          "policy_type": "auths.gateway.argument-ceiling-policy/2",
+          "policy": {
+            "argument": "amount",
+            "ceiling": 1000,
+            "window_seconds": 86400,
+            "max_count": 20,
+            "sum_limit": 1000,
+            "partition": {
+              "argument": "currency",
+              "values": [
+                "usd"
+              ]
+            }
+          },
+          "policy_cbor_hex": "a60066616d6f756e74011903e8021a000151800314041903e805a2006863757272656e6379018163757364"
+        }
+      ],
+      "submissions": [
+        {
+          "grant": "g-parent",
+          "at": 1790000000,
+          "arguments": {
+            "amount": 800,
+            "currency": "usd",
+            "payment_intent": "pi_TEST0000000001"
+          },
+          "decision": "entered",
+          "code": null,
+          "stored": true
+        }
+      ],
+      "count_slots": [
+        {
+          "subject": "parent",
+          "window_index": 20717,
+          "slots": 3
+        }
+      ],
+      "sum_slots": [
+        {
+          "subject": "parent",
+          "partition": "usd",
+          "window_index": 20717,
+          "cumulative": 1000
+        }
+      ],
+      "provider_entries": 3,
+      "race": {
+        "store": "postgresql",
+        "processes": 2,
+        "concurrent": [
+          {
+            "process": 0,
+            "grant": "g-parent",
+            "arguments": {
+              "amount": 100,
+              "currency": "usd",
+              "payment_intent": "pi_TEST0000000001"
+            }
+          },
+          {
+            "process": 0,
+            "grant": "g-parent",
+            "arguments": {
+              "amount": 100,
+              "currency": "usd",
+              "payment_intent": "pi_TEST0000000001"
+            }
+          },
+          {
+            "process": 1,
+            "grant": "g-parent",
+            "arguments": {
+              "amount": 100,
+              "currency": "usd",
+              "payment_intent": "pi_TEST0000000001"
+            }
+          },
+          {
+            "process": 1,
+            "grant": "g-parent",
+            "arguments": {
+              "amount": 100,
+              "currency": "usd",
+              "payment_intent": "pi_TEST0000000001"
+            }
+          }
+        ],
+        "admitted": 2,
+        "refused": {
+          "count": 2,
+          "code": "gateway.policy.sum-exhausted"
+        }
+      }
+    },
+    {
+      "id": "audit-count-capacity-three-and-one",
+      "audit": {
+        "counter": "count",
+        "entries": [
+          {
+            "id": "e1",
+            "capacity": 3
+          },
+          {
+            "id": "e2",
+            "capacity": 1
+          },
+          {
+            "id": "e3",
+            "capacity": 1
+          }
+        ],
+        "verdicts": [
+          {
+            "id": "e1",
+            "status": "verified",
+            "code": null
+          },
+          {
+            "id": "e2",
+            "status": "inconsistent",
+            "code": "audit.bound-exceeded"
+          },
+          {
+            "id": "e3",
+            "status": "inconsistent",
+            "code": "audit.bound-exceeded"
+          }
+        ],
+        "orders": "every permutation of the entries yields the same verdicts"
+      }
+    },
+    {
+      "id": "audit-count-valid-every-order",
+      "audit": {
+        "counter": "count",
+        "entries": [
+          {
+            "id": "e1",
+            "capacity": 3
+          },
+          {
+            "id": "e2",
+            "capacity": 3
+          },
+          {
+            "id": "e3",
+            "capacity": 1
+          }
+        ],
+        "verdicts": [
+          {
+            "id": "e1",
+            "status": "verified",
+            "code": null
+          },
+          {
+            "id": "e2",
+            "status": "verified",
+            "code": null
+          },
+          {
+            "id": "e3",
+            "status": "verified",
+            "code": null
+          }
+        ],
+        "orders": "every permutation of the entries yields the same verdicts"
+      }
+    },
+    {
+      "id": "audit-sum-exceeded",
+      "audit": {
+        "counter": "sum",
+        "entries": [
+          {
+            "id": "e1",
+            "capacity": 500,
+            "argument": 400
+          },
+          {
+            "id": "e2",
+            "capacity": 500,
+            "argument": 300
+          }
+        ],
+        "verdicts": [
+          {
+            "id": "e1",
+            "status": "inconsistent",
+            "code": "audit.sum-exceeded"
+          },
+          {
+            "id": "e2",
+            "status": "inconsistent",
+            "code": "audit.sum-exceeded"
+          }
+        ],
+        "orders": "every permutation of the entries yields the same verdicts"
+      }
+    },
+    {
+      "id": "audit-sum-valid-every-order",
+      "audit": {
+        "counter": "sum",
+        "entries": [
+          {
+            "id": "e1",
+            "capacity": 1000,
+            "argument": 400
+          },
+          {
+            "id": "e2",
+            "capacity": 600,
+            "argument": 300
+          },
+          {
+            "id": "e3",
+            "capacity": 1000,
+            "argument": 300
+          }
+        ],
+        "verdicts": [
+          {
+            "id": "e1",
+            "status": "verified",
+            "code": null
+          },
+          {
+            "id": "e2",
+            "status": "verified",
+            "code": null
+          },
+          {
+            "id": "e3",
+            "status": "verified",
+            "code": null
+          }
+        ],
+        "orders": "every permutation of the entries yields the same verdicts"
+      }
+    }
+  ]
+}

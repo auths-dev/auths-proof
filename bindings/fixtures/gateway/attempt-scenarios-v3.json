@@ -1,0 +1,792 @@
+{
+  "schema": "auths.gateway-attempt-scenarios/3",
+  "attempt_schema": "auths.gateway-attempt/3",
+  "recipes": "hostile-recipes-v2.json",
+  "evaluated_at": 1790000000,
+  "defaults": {
+    "stripe": {
+      "account_label": "acct_TESTPLATFORM1",
+      "validity_seconds": 3600,
+      "arguments": {
+        "operation_id": "refund-1",
+        "payment_intent": "pi_TEST0000000001",
+        "amount": 500,
+        "currency": "usd",
+        "connect_account": "acct_TESTACCOUNT01"
+      },
+      "grant_policy": {
+        "argument": "amount",
+        "ceiling": 100000,
+        "window_seconds": 86400,
+        "max_count": 10,
+        "sum_limit": 100000,
+        "partition": {
+          "argument": "currency",
+          "values": [
+            "usd"
+          ]
+        },
+        "scope": {
+          "argument": "connect_account",
+          "values": [
+            "acct_TESTACCOUNT01"
+          ]
+        }
+      },
+      "responses": {
+        "GET /v1/account": {
+          "status": 200,
+          "headers": {
+            "Stripe-Version": "2025-03-31.basil"
+          },
+          "body": {
+            "id": "acct_TESTPLATFORM1",
+            "object": "account"
+          }
+        },
+        "GET /v1/customers": {
+          "status": 403,
+          "headers": {
+            "Stripe-Version": "2025-03-31.basil"
+          },
+          "body": null
+        },
+        "GET /v1/payouts": {
+          "status": 403,
+          "headers": {
+            "Stripe-Version": "2025-03-31.basil"
+          },
+          "body": null
+        },
+        "GET /v1/payment_intents/pi_TEST0000000001": {
+          "status": 200,
+          "headers": {
+            "Stripe-Version": "2025-03-31.basil"
+          },
+          "body": {
+            "id": "pi_TEST0000000001",
+            "amount_received": 1001,
+            "currency": "usd"
+          }
+        },
+        "POST /v1/refunds": {
+          "status": 200,
+          "headers": {
+            "Stripe-Version": "2025-03-31.basil"
+          },
+          "body": {
+            "id": "re_TEST0000000001",
+            "amount": "<written amount>",
+            "metadata": {
+              "auths_echo": "<written echo>"
+            }
+          }
+        },
+        "GET /v1/refunds/re_TEST0000000001": {
+          "status": 200,
+          "headers": {
+            "Stripe-Version": "2025-03-31.basil"
+          },
+          "body": {
+            "id": "re_TEST0000000001",
+            "amount": "<written amount>",
+            "metadata": {
+              "auths_echo": "<written echo>"
+            }
+          }
+        }
+      }
+    },
+    "airtable-pre-entry": {
+      "validity_seconds": 3600,
+      "arguments": {
+        "operation_id": "update-1",
+        "record_id": "recTEST0000000001",
+        "replacement": "Approved",
+        "expected": "Pending",
+        "record_uri": "https://api.airtable.com/v0/appTEST0000000001/tblTEST0000000001/recTEST0000000001#/fields/DemoStatus"
+      },
+      "grant_requirement": {
+        "schema": "auths.gateway-readback/1",
+        "subject": {
+          "action_fact": "record_uri"
+        },
+        "conditions": [
+          {
+            "eq-action": [
+              "value",
+              "expected"
+            ]
+          }
+        ],
+        "maximum_age_seconds": 300
+      },
+      "attached_read_back": {
+        "value": "Pending",
+        "observed_at": 1789999990
+      },
+      "observer_provisioned": true,
+      "responses": {
+        "GET /v0/appTEST0000000001/tblTEST0000000001/recTEST0000000001": {
+          "status": 200,
+          "headers": {},
+          "body": {
+            "fields": {
+              "DemoStatus": "Pending"
+            }
+          }
+        },
+        "PATCH /v0/appTEST0000000001/tblTEST0000000001/recTEST0000000001": {
+          "status": 200,
+          "headers": {},
+          "body": {
+            "fields": {
+              "DemoStatus": "Approved"
+            }
+          }
+        }
+      }
+    },
+    "airtable": {
+      "validity_seconds": 3600,
+      "arguments": {
+        "operation_id": "update-1",
+        "record_id": "recTEST0000000001",
+        "replacement": "Approved"
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "pre-entry-replaced-after-observation",
+      "recipe": "airtable-pre-entry",
+      "setup": {
+        "responses": {
+          "GET /v0/appTEST0000000001/tblTEST0000000001/recTEST0000000001": {
+            "status": 200,
+            "headers": {},
+            "body": {
+              "fields": {
+                "DemoStatus": "Approved"
+              }
+            }
+          }
+        }
+      },
+      "stages": [
+        "attempting",
+        "not-entered"
+      ],
+      "code": "gateway.pre-entry.condition-false",
+      "leases": 1,
+      "credential_reads": 0,
+      "action_reads": 1,
+      "provider_entries": 0,
+      "pre_entry_observations": 1
+    },
+    {
+      "id": "pre-entry-still-matches",
+      "recipe": "airtable-pre-entry",
+      "setup": {},
+      "stages": [
+        "attempting",
+        "attempting",
+        "response-recorded",
+        "observed-by-provider"
+      ],
+      "code": null,
+      "leases": 2,
+      "credential_reads": 0,
+      "action_reads": 2,
+      "provider_entries": 1,
+      "pre_entry_observations": 1
+    },
+    {
+      "id": "pre-entry-unavailable",
+      "recipe": "airtable-pre-entry",
+      "setup": {
+        "responses": {
+          "GET /v0/appTEST0000000001/tblTEST0000000001/recTEST0000000001": {
+            "status": 404,
+            "headers": {},
+            "body": null
+          }
+        }
+      },
+      "stages": [
+        "attempting",
+        "not-entered"
+      ],
+      "code": "gateway.pre-entry.unavailable",
+      "leases": 1,
+      "credential_reads": 0,
+      "action_reads": 1,
+      "provider_entries": 0
+    },
+    {
+      "id": "pre-entry-requirement-missing",
+      "recipe": "airtable-pre-entry",
+      "setup": {
+        "grant_requirement": null
+      },
+      "stages": [],
+      "code": "gateway.pre-entry.requirement-missing",
+      "leases": 0,
+      "credential_reads": 0,
+      "action_reads": 0,
+      "provider_entries": 0
+    },
+    {
+      "id": "pre-entry-observer-unavailable",
+      "recipe": "airtable-pre-entry",
+      "setup": {
+        "observer_provisioned": false
+      },
+      "stages": [],
+      "code": "gateway.pre-entry.observer-unavailable",
+      "leases": 0,
+      "credential_reads": 0,
+      "action_reads": 0,
+      "provider_entries": 0
+    },
+    {
+      "id": "relative-ceiling-above",
+      "recipe": "stripe",
+      "setup": {
+        "arguments": {
+          "amount": 501
+        }
+      },
+      "stages": [
+        "attempting",
+        "not-entered"
+      ],
+      "code": "gateway.relative-ceiling.above",
+      "leases": 1,
+      "credential_reads": 3,
+      "action_reads": 1,
+      "provider_entries": 0,
+      "basis": 1001
+    },
+    {
+      "id": "relative-ceiling-exact-boundary",
+      "recipe": "stripe",
+      "setup": {},
+      "stages": [
+        "attempting",
+        "attempting",
+        "response-recorded",
+        "observed-by-provider"
+      ],
+      "code": null,
+      "leases": 2,
+      "credential_reads": 6,
+      "action_reads": 2,
+      "provider_entries": 1,
+      "basis": 1001
+    },
+    {
+      "id": "relative-basis-unavailable",
+      "recipe": "stripe",
+      "setup": {
+        "responses": {
+          "GET /v1/payment_intents/pi_TEST0000000001": {
+            "status": 200,
+            "headers": {
+              "Stripe-Version": "2025-03-31.basil"
+            },
+            "body": {
+              "id": "pi_TEST0000000001",
+              "currency": "usd"
+            }
+          }
+        }
+      },
+      "stages": [
+        "attempting",
+        "not-entered"
+      ],
+      "code": "gateway.relative-ceiling.unavailable",
+      "leases": 1,
+      "credential_reads": 3,
+      "action_reads": 1,
+      "provider_entries": 0
+    },
+    {
+      "id": "relative-basis-not-an-integer",
+      "recipe": "stripe",
+      "setup": {
+        "responses": {
+          "GET /v1/payment_intents/pi_TEST0000000001": {
+            "status": 200,
+            "headers": {
+              "Stripe-Version": "2025-03-31.basil"
+            },
+            "body": {
+              "id": "pi_TEST0000000001",
+              "amount_received": 1001.5,
+              "currency": "usd"
+            }
+          }
+        }
+      },
+      "stages": [
+        "attempting",
+        "not-entered"
+      ],
+      "code": "gateway.relative-ceiling.unavailable",
+      "leases": 1,
+      "credential_reads": 3,
+      "action_reads": 1,
+      "provider_entries": 0
+    },
+    {
+      "id": "relative-basis-version-mismatch",
+      "recipe": "stripe",
+      "setup": {
+        "responses": {
+          "GET /v1/payment_intents/pi_TEST0000000001": {
+            "status": 200,
+            "headers": {},
+            "body": {
+              "id": "pi_TEST0000000001",
+              "amount_received": 1001,
+              "currency": "usd"
+            }
+          }
+        }
+      },
+      "stages": [
+        "attempting",
+        "not-entered"
+      ],
+      "code": "gateway.relative-ceiling.unavailable",
+      "leases": 1,
+      "credential_reads": 3,
+      "action_reads": 1,
+      "provider_entries": 0
+    },
+    {
+      "id": "relative-binding-mismatch",
+      "recipe": "stripe",
+      "setup": {
+        "responses": {
+          "GET /v1/payment_intents/pi_TEST0000000001": {
+            "status": 200,
+            "headers": {
+              "Stripe-Version": "2025-03-31.basil"
+            },
+            "body": {
+              "id": "pi_TEST0000000001",
+              "amount_received": 1001,
+              "currency": "eur"
+            }
+          }
+        }
+      },
+      "stages": [
+        "attempting",
+        "not-entered"
+      ],
+      "code": "gateway.relative-ceiling.binding-mismatch",
+      "leases": 1,
+      "credential_reads": 3,
+      "action_reads": 1,
+      "provider_entries": 0,
+      "basis": 1001
+    },
+    {
+      "id": "credential-mode-guard-at-lease",
+      "recipe": "stripe",
+      "setup": {
+        "leased_secret_prefix": "sk_test_"
+      },
+      "stages": [
+        "attempting",
+        "not-entered"
+      ],
+      "code": "gateway.credential.mode-guard",
+      "leases": 1,
+      "credential_reads": 0,
+      "action_reads": 0,
+      "provider_entries": 0
+    },
+    {
+      "id": "account-substituted-at-lease",
+      "recipe": "stripe",
+      "setup": {
+        "responses": {
+          "GET /v1/account": {
+            "status": 200,
+            "headers": {
+              "Stripe-Version": "2025-03-31.basil"
+            },
+            "body": {
+              "id": "acct_TESTOTHER0001",
+              "object": "account"
+            }
+          }
+        }
+      },
+      "stages": [
+        "attempting",
+        "not-entered"
+      ],
+      "code": "gateway.credential.account-mismatch",
+      "leases": 1,
+      "credential_reads": 1,
+      "action_reads": 0,
+      "provider_entries": 0
+    },
+    {
+      "id": "account-unavailable-at-lease",
+      "recipe": "stripe",
+      "setup": {
+        "responses": {
+          "GET /v1/account": {
+            "status": 500,
+            "headers": {
+              "Stripe-Version": "2025-03-31.basil"
+            },
+            "body": null
+          }
+        }
+      },
+      "stages": [
+        "attempting",
+        "not-entered"
+      ],
+      "code": "gateway.credential.account-unavailable",
+      "leases": 1,
+      "credential_reads": 1,
+      "action_reads": 0,
+      "provider_entries": 0
+    },
+    {
+      "id": "denied-read-answered",
+      "recipe": "stripe",
+      "setup": {
+        "responses": {
+          "GET /v1/customers": {
+            "status": 200,
+            "headers": {
+              "Stripe-Version": "2025-03-31.basil"
+            },
+            "body": {
+              "data": []
+            }
+          }
+        }
+      },
+      "stages": [
+        "attempting",
+        "not-entered"
+      ],
+      "code": "gateway.credential.capability-excess",
+      "leases": 1,
+      "credential_reads": 2,
+      "action_reads": 0,
+      "provider_entries": 0
+    },
+    {
+      "id": "denied-read-unexpected-status",
+      "recipe": "stripe",
+      "setup": {
+        "responses": {
+          "GET /v1/payouts": {
+            "status": 404,
+            "headers": {
+              "Stripe-Version": "2025-03-31.basil"
+            },
+            "body": null
+          }
+        }
+      },
+      "stages": [
+        "attempting",
+        "not-entered"
+      ],
+      "code": "gateway.credential.capability-unavailable",
+      "leases": 1,
+      "credential_reads": 3,
+      "action_reads": 0,
+      "provider_entries": 0
+    },
+    {
+      "id": "denied-read-version-mismatch",
+      "recipe": "stripe",
+      "setup": {
+        "responses": {
+          "GET /v1/customers": {
+            "status": 403,
+            "headers": {},
+            "body": null
+          }
+        }
+      },
+      "stages": [
+        "attempting",
+        "not-entered"
+      ],
+      "code": "gateway.credential.capability-unavailable",
+      "leases": 1,
+      "credential_reads": 2,
+      "action_reads": 0,
+      "provider_entries": 0
+    },
+    {
+      "id": "account-scope-outside-grant",
+      "recipe": "stripe",
+      "setup": {
+        "grant_policy": {
+          "scope": {
+            "argument": "connect_account",
+            "values": [
+              "acct_TESTACCOUNT01"
+            ]
+          }
+        },
+        "arguments": {
+          "connect_account": "acct_TESTACCOUNT02"
+        }
+      },
+      "stages": [],
+      "code": "gateway.policy.scope-denied",
+      "leases": 0,
+      "credential_reads": 0,
+      "action_reads": 0,
+      "provider_entries": 0
+    },
+    {
+      "id": "account-scope-unbound",
+      "recipe": "stripe",
+      "setup": {
+        "grant_policy": {
+          "scope": null
+        }
+      },
+      "stages": [],
+      "code": "gateway.account-scope.unbound",
+      "leases": 0,
+      "credential_reads": 0,
+      "action_reads": 0,
+      "provider_entries": 0
+    },
+    {
+      "id": "account-scope-invalid-value",
+      "recipe": "stripe",
+      "setup": {
+        "grant_policy": {
+          "scope": {
+            "argument": "connect_account",
+            "values": [
+              "acct-TESTACCOUNT01"
+            ]
+          }
+        },
+        "arguments": {
+          "connect_account": "acct-TESTACCOUNT01"
+        }
+      },
+      "stages": [],
+      "code": "gateway.account-scope.invalid-value",
+      "leases": 0,
+      "credential_reads": 0,
+      "action_reads": 0,
+      "provider_entries": 0
+    },
+    {
+      "id": "account-scope-only-on-action-requests",
+      "recipe": "stripe",
+      "setup": {},
+      "stages": [
+        "attempting",
+        "attempting",
+        "response-recorded",
+        "observed-by-provider"
+      ],
+      "code": null,
+      "leases": 2,
+      "credential_reads": 6,
+      "action_reads": 2,
+      "provider_entries": 1,
+      "requests": [
+        {
+          "method": "GET",
+          "path": "/v1/account",
+          "stripe_version": "2025-03-31.basil",
+          "stripe_account": null,
+          "idempotency_key": false,
+          "credential": true
+        },
+        {
+          "method": "GET",
+          "path": "/v1/customers",
+          "stripe_version": "2025-03-31.basil",
+          "stripe_account": null,
+          "idempotency_key": false,
+          "credential": true
+        },
+        {
+          "method": "GET",
+          "path": "/v1/payouts",
+          "stripe_version": "2025-03-31.basil",
+          "stripe_account": null,
+          "idempotency_key": false,
+          "credential": true
+        },
+        {
+          "method": "GET",
+          "path": "/v1/payment_intents/pi_TEST0000000001",
+          "stripe_version": "2025-03-31.basil",
+          "stripe_account": "acct_TESTACCOUNT01",
+          "idempotency_key": false,
+          "credential": true
+        },
+        {
+          "method": "POST",
+          "path": "/v1/refunds",
+          "stripe_version": "2025-03-31.basil",
+          "stripe_account": "acct_TESTACCOUNT01",
+          "idempotency_key": true,
+          "credential": true
+        },
+        {
+          "method": "GET",
+          "path": "/v1/account",
+          "stripe_version": "2025-03-31.basil",
+          "stripe_account": null,
+          "idempotency_key": false,
+          "credential": true
+        },
+        {
+          "method": "GET",
+          "path": "/v1/customers",
+          "stripe_version": "2025-03-31.basil",
+          "stripe_account": null,
+          "idempotency_key": false,
+          "credential": true
+        },
+        {
+          "method": "GET",
+          "path": "/v1/payouts",
+          "stripe_version": "2025-03-31.basil",
+          "stripe_account": null,
+          "idempotency_key": false,
+          "credential": true
+        },
+        {
+          "method": "GET",
+          "path": "/v1/refunds/re_TEST0000000001",
+          "stripe_version": "2025-03-31.basil",
+          "stripe_account": "acct_TESTACCOUNT01",
+          "idempotency_key": false,
+          "credential": true
+        }
+      ]
+    },
+    {
+      "id": "idempotency-window-exceeds-retention",
+      "recipe": "stripe",
+      "setup": {
+        "validity_seconds": 86400
+      },
+      "stages": [],
+      "code": "gateway.idempotency.window-exceeds-retention",
+      "leases": 0,
+      "credential_reads": 0,
+      "action_reads": 0,
+      "provider_entries": 0
+    },
+    {
+      "id": "idempotency-window-at-retention",
+      "recipe": "stripe",
+      "setup": {
+        "validity_seconds": 86340
+      },
+      "stages": [
+        "attempting",
+        "attempting",
+        "response-recorded",
+        "observed-by-provider"
+      ],
+      "code": null,
+      "leases": 2,
+      "credential_reads": 6,
+      "action_reads": 2,
+      "provider_entries": 1
+    },
+    {
+      "id": "entry-deadline-exceeded",
+      "recipe": "stripe",
+      "setup": {
+        "gateway_clock_advance": {
+          "after_step": 10,
+          "seconds": 61
+        }
+      },
+      "stages": [
+        "attempting",
+        "attempting",
+        "not-entered"
+      ],
+      "code": "gateway.attempt.entry-deadline",
+      "leases": 1,
+      "credential_reads": 3,
+      "action_reads": 1,
+      "provider_entries": 0
+    },
+    {
+      "id": "transport-not-entered",
+      "recipe": "stripe",
+      "setup": {
+        "write_transport": "refused-before-send"
+      },
+      "stages": [
+        "attempting",
+        "attempting",
+        "not-entered"
+      ],
+      "code": "gateway.transport.not-entered",
+      "leases": 1,
+      "credential_reads": 3,
+      "action_reads": 1,
+      "provider_entries": 0
+    },
+    {
+      "id": "response-locator-unknown-stays-unknown",
+      "recipe": "stripe",
+      "setup": {
+        "write_transport": "timeout-after-send",
+        "replay": "fresh-proof"
+      },
+      "stages": [
+        "attempting",
+        "attempting",
+        "unknown"
+      ],
+      "code": null,
+      "leases": 1,
+      "credential_reads": 3,
+      "action_reads": 1,
+      "provider_entries": 1
+    },
+    {
+      "id": "linked-attempting-reobserved",
+      "recipe": "airtable",
+      "setup": {
+        "crash": "after-write-before-response",
+        "replay": "fresh-proof"
+      },
+      "stages": [
+        "attempting",
+        "observed-by-provider"
+      ],
+      "code": null,
+      "leases": 2,
+      "credential_reads": 0,
+      "action_reads": 1,
+      "provider_entries": 1
+    }
+  ]
+}

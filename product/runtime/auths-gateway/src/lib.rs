@@ -25,6 +25,8 @@ pub mod harness;
 #[cfg(test)]
 mod observed_tests;
 #[cfg(test)]
+mod pending_vectors;
+#[cfg(test)]
 mod quorum_tests;
 #[cfg(test)]
 mod store_testkit;

@@ -123,7 +123,14 @@ gates do not shrink.
     RUSTSEC-2026-0173 exception, decided when phase 2 starts.
   - Phases 0–1 can start now.
 - **063 Generalized gateway.** Spec:
-  [AP-SPEC-063](specs/0063-generalized-gateway.md) (draft, not started).
+  [AP-SPEC-063](specs/0063-generalized-gateway.md) (draft).
+  - Epic 1 (case file and fixtures) is on branch
+    `audit-2026-09-24-gateway-epic1`, awaiting owner review:
+    [ADR 0013](adr/0013-recipe-capabilities-and-sum-budget.md) (proposed),
+    the comparisons in case 0007, and six vectors under
+    `bindings/fixtures/gateway/`. The tests in
+    `product/runtime/auths-gateway/src/pending_vectors/` show that current
+    code does not satisfy them. Epics 2–8 have not started.
   - It covers five things: per-recipe recovery capability, the provider
     capabilities the Stripe vertical proved necessary, one spend limit, an
     operator plane the application cannot interfere with, and evidence and
