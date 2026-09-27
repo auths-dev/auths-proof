@@ -36,13 +36,16 @@
   domain; attempt record `/2`; outcome `/1`; observe request `/1`; audit
   bundle and report `/1`; installation manifest `/2`; PostgreSQL schema
   `auths.lifecycle.postgresql/4`; evaluator
-  `auths.gateway.argument-ceiling-window-count/1`; declared operator
-  principals; and, under §12's decision, the five local-agent effect
+  `auths.gateway.argument-ceiling-window-count/1`; connection record
+  `auths.provider-connection/1`; declared operator principals; and, under
+  §12's decision, the five local-agent effect
   profiles.
 - **Scope:** product layer only: `product/runtime/auths-gateway`,
   `product/stores/auths-stores`, `product/policy/auths-bounded-policy`,
   `product/tools/auths-openapi-derive`, `auths-node gateway recipe check` in
-  `product/runtime/auths-node`, the Python and TypeScript gateway clients,
+  `product/runtime/auths-node`, the connection record in
+  `product/runtime/auths-connections` (§7.3), the Python and TypeScript
+  gateway clients,
   `formal/Auths/Product/`, and `examples/stripe-refund-approval`. No core
   change.
 - **Normative language:** **MUST**, **MUST NOT**, **SHOULD**, and **MAY** specify
@@ -784,7 +787,7 @@ This relies on both stores returning a committed write to every later read.
 ### 7.3 Connection state across processes
 
 The connection record moves into the shared store as record kind `connection`
-(§9.1): the canonical `auths.provider-connection/1` bytes that
+(§9.1): the canonical `auths.provider-connection/2` bytes that
 `auths-connections` defines, keyed by SHA-256 of `auths.gateway-connection/1`,
 NUL, provider, NUL, alias. Admin mutations replace it by compare-and-swap
 through `auths-connections`' own transition functions, so its format and
@@ -795,17 +798,38 @@ leases and entries in every process at its next reload. The per-process
 directory.
 
 Credential bytes stay in each host's local credential store
-(`credentials.cbor`), and nothing secret enters the shared store. A process
-leases only the generation the shared record names, and only if its local
-store holds a secret whose reference commitment equals the record's.
-Otherwise it refuses before the claim
+(`credentials.cbor`), and nothing secret enters the shared store.
+
+**Why the record changes to `/2`.** A stored secret is keyed by the
+generation at which it was installed or rotated in. A state change (disable
+or enable) advances the record's `generation` without storing a secret. So
+the reference commitment, `credential_commitment(connection ID, generation,
+secret)`, is bound to the credential's own generation, not to the record's
+current one.
+
+`/1` does not carry the credential's generation, so after any disable and
+enable, a joining or rotating host cannot recompute the commitment.
+
+**`auths.provider-connection/2`** adds one field, `credential_generation`:
+- It is the generation of the last install or rotate, and never exceeds
+  `generation`.
+- Install and rotate set it equal to the new `generation`.
+- State changes leave it unchanged.
+- `/1` is retired, and a store holding `/1` bytes is refused as obsolete
+  state.
+
+**Leasing.** A process leases the secret its local store retains for the
+record's `generation`. Under `auths-connections`' retained-entry rule, that
+is the newest stored generation not above it. The lease proceeds only if that
+stored generation equals `credential_generation` and its reference commitment
+equals the record's. Otherwise the process refuses before the claim
 (`gateway.connection.credential-generation-missing`).
 
 | Operation | Behavior |
 | --- | --- |
 | `install` (first host) | Inserts the record once (`gateway.install.connection-exists` if present) and stores the secret locally |
-| `install --join` (each further host, with the same recipe, trust, lock, provider, alias, deployment, and store) | Loads the record (`gateway.install.join-record-missing` if absent); applies the credential guard; computes the reference commitment the local store would record for the secret under the record's connection ID and generation; compares it with the record's in constant time; stores the secret only on a match (`gateway.install.join-commitment-mismatch` otherwise) |
-| `rotate` | Committed to the record through one process; each other process then accepts the same secret through its own `rotate` only when the secret's commitment equals the record's (`gateway.admin.generation-conflict` otherwise) |
+| `install --join` (each further host, with the same recipe, trust, lock, provider, alias, deployment, and store) | Loads the record (`gateway.install.join-record-missing` if absent); applies the credential guard; computes the reference commitment the local store would record for the secret under the record's connection ID and `credential_generation`; compares it with the record's in constant time; stores the secret at `credential_generation` only on a match (`gateway.install.join-commitment-mismatch` otherwise) |
+| `rotate` | Committed to the record through one process, which sets `generation` and `credential_generation` to the new generation. Each other process then accepts the same secret through its own `rotate` only when the secret's commitment, computed under `credential_generation`, equals the record's (`gateway.admin.generation-conflict` otherwise). A later disable or enable leaves both checks valid. |
 
 A process that cannot confirm the record's current state refuses new entries.
 
@@ -1094,7 +1118,7 @@ format.
 | --- | --- | --- |
 | `attempt` | `auths.gateway-logical-operation/1`, NUL, namespace, NUL, operation ID (unchanged) | `auths.gateway-attempt/3` |
 | `count-slot` | §6.2 | `auths.gateway-bounded-count/2` |
-| `connection` | §7.3 | `auths.provider-connection/1` |
+| `connection` | §7.3 | `auths.provider-connection/2` |
 
 Every record is at most 262 144 bytes, the connection record's maximum under
 AP-SPEC-040 §7.4. `MAX_GATEWAY_ATTEMPT_BYTES` in
@@ -1299,7 +1323,7 @@ on the exact revision, or a commit whose diff holds the evidence.
 | 2. Recipe `/2` | The compiler, `recovery_capability`, and review `/2` in both CLIs; derivation emits `/2`; the fixtures, north-star recipe, and derivation corpus are regenerated | Every fixture compiles to its documented class; every hostile case fails with its code; both packaged CLIs pass the corpus |
 | 3. Store and engine | §9 (kinds, `insert_all`, sweep, the file batch, schema 5, record `/3`); the §5.5 steps marked 3; re-observation of `attempting` | Conformance passes on both stores (PostgreSQL in its workflow); the scenario corpus drives the counting provider; every hostile suite has zero unauthorized entries, and every pre-claim refusal zero leases |
 | 4. One spend limit | Formal first (the Lean model, theorems, and translated leaf, with `cargo xtask formal` green); then evaluator `/2`, the slot part of §5.5 step 6, §6.5's sweep, §6.7, and every §6.4 description | `bounds-aggregate.json` passes on both stores, including the race; no slot leaks; the audit flags the capacity-3 and capacity-1 bundle and passes every valid one |
-| 5. Operator plane | §7, and the §5.5 steps marked 5 | With the application at full capacity, every admin command answers within its deadline; a disable or revoke through process A stops new entries in process B at B's next reload, on PostgreSQL; a second host joins only with the matching secret; `did:key` and `raw-key-v1` aliasing is refused at install and per proof; an invalid attestation is refused |
+| 5. Operator plane | §7, including connection record `/2` (§7.3), and the §5.5 steps marked 5 | With the application at full capacity, every admin command answers within its deadline; a disable or revoke through process A stops new entries in process B at B's next reload, on PostgreSQL; a second host joins only with the matching secret, including after a disable and enable, and a cross-process `rotate` followed by a disable and enable still leases on every host; `did:key` and `raw-key-v1` aliasing is refused at install and per proof; an invalid attestation is refused |
 | 6. Evidence and assurance | Step 1, repairing the scheduled Fuzz job (`.github/workflows/fuzz.yml`) so a scheduled campaign can pass, with a unit test on a captured libFuzzer log, merged in #168; scheduled runs pass from 2026-09-27. Then §8: outcome `/2` and its consumers, observe `/2`, audit `/2`, `echo-verify`, the SDK projections, the fuzz crate, property tests, Kani harnesses, and the code inventory | A scheduled Fuzz run is green with the gateway targets; Rust, Python, and TypeScript agree on `outcome-v2.json`; the north-star audit shows `http_status` for every entered refund, including a rejected one |
 | 7. North-star recipe | The Stripe recipe moves to §3.1 with an approval window of at most 86 340 seconds; the counting double returns refunds with metadata, requires `Stripe-Version`, and honors the key; `journey.py` checks `observed-by-provider` and the guard refusing a non-test key; the README non-claims and the claim ledger are updated; the test-mode command stays the developer's own step (board §0 step 4) | `stripe-refund-journey` is green from the packed wheel; the ledger entry uses §1's claim and non-claim wording |
 | 8. Consolidation | §12 A's removals and rewrites in one pull request | The profiles and routes are gone; the specs, ADRs, and plan are amended, and `AGENTS.md`'s summary of the boundary plan is checked against the rewrite; the board is updated; CI is green |
