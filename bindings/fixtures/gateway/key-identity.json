@@ -1,0 +1,174 @@
+{
+  "schema": "auths.gateway-key-identity/1",
+  "identity_rule": "SHA-256 of the canonical raw-key-v1 descriptor of the one key the identifier names",
+  "did_key_principal": "did:key:<multibase>",
+  "keys": [
+    {
+      "id": "ed25519-a",
+      "key_type": "ed25519",
+      "seed_byte": 17,
+      "public_key_hex": "d04ab232742bb4ab3a1368bd4615e4e6d0224ab71a016baf8520a332c9778737",
+      "descriptor_hex": "41555448532d5241572d4b45590001010020d04ab232742bb4ab3a1368bd4615e4e6d0224ab71a016baf8520a332c9778737",
+      "key_identity_hex": "f0625d96f080adfc85f1b6c818bbd3df0315806ea7786a8c56a74ba36ec9bddb",
+      "principals": [
+        {
+          "method": "raw-key-v1",
+          "principal": "key:sha256:8GJdlvCArfyF8bbIGLvT3wMVgG6neGqMVqdLo27Jvds"
+        },
+        {
+          "method": "did-key-v1",
+          "multibase": "z6MktULudTtAsAhRegYPiZ6631RV3viv12qd4GQF8z1xB22S"
+        }
+      ]
+    },
+    {
+      "id": "ed25519-b",
+      "key_type": "ed25519",
+      "seed_byte": 68,
+      "public_key_hex": "d759793bbc13a2819a827c76adb6fba8a49aee007f49f2d0992d99b825ad2c48",
+      "descriptor_hex": "41555448532d5241572d4b45590001010020d759793bbc13a2819a827c76adb6fba8a49aee007f49f2d0992d99b825ad2c48",
+      "key_identity_hex": "915285bbdfae4a045e64338e8533b9ddc6a6a0b79ae82bb3902f2282cd9f4c81",
+      "principals": [
+        {
+          "method": "raw-key-v1",
+          "principal": "key:sha256:kVKFu9-uSgReZDOOhTO53camoLea6CuzkC8igs2fTIE"
+        },
+        {
+          "method": "did-key-v1",
+          "multibase": "z6MktwtqAzuD5F77tAMBMwNs1KybZeff61EehV9xB1ZpXQG7"
+        }
+      ]
+    },
+    {
+      "id": "p256-a",
+      "key_type": "p256",
+      "seed_byte": 33,
+      "public_key_hex": "03462dba1ae4fc1a968b4dacf20cdd6dbe1fae34aa971514a63d3405c3d1cfd383",
+      "descriptor_hex": "41555448532d5241572d4b4559000102002103462dba1ae4fc1a968b4dacf20cdd6dbe1fae34aa971514a63d3405c3d1cfd383",
+      "key_identity_hex": "ba8dc2a47ba06dd14a6e6677175d531b307a3620f2d4b5c35fff2f8c1d585b16",
+      "principals": [
+        {
+          "method": "raw-key-v1",
+          "principal": "key:sha256:uo3CpHugbdFKbmZ3F11TGzB6NiDy1LXDX_8vjB1YWxY"
+        },
+        {
+          "method": "did-key-v1",
+          "multibase": "zDnaenPEPy9mfSyz4fP1XaCwHen2fSCQ7Kj5USGUvoEnDGZ7p"
+        }
+      ]
+    },
+    {
+      "id": "p256-b",
+      "key_type": "p256",
+      "seed_byte": 82,
+      "public_key_hex": "024dd4f4d64c803bbacbeb82db4ae9323e4516895321fda186290ceb299b61f1c8",
+      "descriptor_hex": "41555448532d5241572d4b45590001020021024dd4f4d64c803bbacbeb82db4ae9323e4516895321fda186290ceb299b61f1c8",
+      "key_identity_hex": "1aae2241cd20b41747f76231fe6f7b05db2f9012005ce39530eaafdecff40088",
+      "principals": [
+        {
+          "method": "raw-key-v1",
+          "principal": "key:sha256:Gq4iQc0gtBdH92Ix_m97BdsvkBIAXOOVMOqv3s_0AIg"
+        },
+        {
+          "method": "did-key-v1",
+          "multibase": "zDnaeVfnn7YiYg2mdWYtniopmkeR5wfi5yrpcWvg8tz6GCR9H"
+        }
+      ]
+    }
+  ],
+  "no_key_identity": [
+    {
+      "method": "raw-key-v2",
+      "principal": "key:sha256-v2:ld2GxqouepgNajRDOJ-C9BL-P1YPzJAsJ-MWHaAu3Vs",
+      "key_identity": null
+    },
+    {
+      "method": "did-keri-v1",
+      "principal": "did:keri:EAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "key_identity": null
+    },
+    {
+      "method": "did-web",
+      "principal": "did:web:gateway.example",
+      "key_identity": null
+    }
+  ],
+  "overlaps": [
+    {
+      "left": {
+        "id": "ed25519-a",
+        "method": "raw-key-v1"
+      },
+      "right": {
+        "id": "ed25519-a",
+        "method": "did-key-v1"
+      },
+      "overlap": "key-identity"
+    },
+    {
+      "left": {
+        "id": "p256-a",
+        "method": "raw-key-v1"
+      },
+      "right": {
+        "id": "p256-a",
+        "method": "did-key-v1"
+      },
+      "overlap": "key-identity"
+    },
+    {
+      "left": {
+        "id": "ed25519-a",
+        "method": "raw-key-v1"
+      },
+      "right": {
+        "id": "ed25519-a",
+        "method": "raw-key-v1"
+      },
+      "overlap": "identifier"
+    },
+    {
+      "left": {
+        "id": "ed25519-a",
+        "method": "did-key-v1"
+      },
+      "right": {
+        "id": "ed25519-b",
+        "method": "did-key-v1"
+      },
+      "overlap": "none"
+    },
+    {
+      "left": {
+        "id": "ed25519-a",
+        "method": "raw-key-v1"
+      },
+      "right": {
+        "id": "ed25519-b",
+        "method": "raw-key-v1"
+      },
+      "overlap": "none"
+    },
+    {
+      "left": {
+        "id": "ed25519-a",
+        "method": "raw-key-v1"
+      },
+      "right": {
+        "principal": "key:sha256-v2:ld2GxqouepgNajRDOJ-C9BL-P1YPzJAsJ-MWHaAu3Vs"
+      },
+      "overlap": "none"
+    },
+    {
+      "left": {
+        "id": "p256-a",
+        "method": "did-key-v1"
+      },
+      "right": {
+        "id": "p256-b",
+        "method": "raw-key-v1"
+      },
+      "overlap": "none"
+    }
+  ]
+}

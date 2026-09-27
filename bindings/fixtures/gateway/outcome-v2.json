@@ -1,0 +1,779 @@
+{
+  "schema": "auths.gateway-outcome-vectors/1",
+  "outcome_schema": "auths.gateway-outcome/2",
+  "observer": {
+    "seed_byte": 90,
+    "principal": "key:sha256:WzB6O--wtA9LLP9FZ5qqA0S3Jhnzxy2P_mGmxcJce98"
+  },
+  "observed_at": 1790000005,
+  "accepted": [
+    {
+      "id": "not-entered-exhausted",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://stripe-refunds/operations/not-entered-exhausted",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "not-entered"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "refusal": {
+          "text": "gateway.policy.window-exhausted"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3g/YXV0aHMtZ2F0ZXdheTovL3N0cmlwZS1yZWZ1bmRzL29wZXJhdGlvbnMvbm90LWVudGVyZWQtZXhoYXVzdGVkBBpqsTuFBYWiAGpjb21taXRtZW50AXhAMjE0MDU0NGNiYjU0MDAxNzdkYzEzMjY5Y2NlYTFlZTRmNDAxMzNlYWQzZGFiNzI5NjQwMDk2MDViZjYzYjJiNaIAbGV2YWx1YXRlZC1hdAEaarE7gKIAbXJlY2lwZS1kaWdlc3QBeEBjM2EyODg3YTJhZTBkZDRmOTY2NWQwNWJlMTRiYzk0ODhiMTQzNzkzYTViMjIwOThhYTJkZWJjYzQyZGQwMjBhogBncmVmdXNhbAF4H2dhdGV3YXkucG9saWN5LndpbmRvdy1leGhhdXN0ZWSiAGVzdGFnZQFrbm90LWVudGVyZWQBogCjAGpyYXcta2V5LXYxAXg2a2V5OnNoYTI1NjpXekI2Ty0td3RBOUxMUDlGWjVxcUEwUzNKaG56eHkyUF9tR214Y0pjZTk4AmplZDI1NTE5LXYxAVhA1X5q3FIuZ38arYEUmG7S0WO85OidKSO0Nx0g5MGCtmkDbq+ZfwCWBlCdG5588cxIMgo3aFgg8Qk2rncadsKxDgKBpABYIKoUiNqTBXgQtsQuPv8P8IUXzq+dQJ33VK/g9PzE8vzfAWpyYXcta2V5LXYxAnggYXBwbGljYXRpb24vdm5kLmF1dGhzLnJhdy1rZXkudjEDWDJBVVRIUy1SQVctS0VZAAEBACANdVB1TggApdI37vWCYDV2a5s+WhWGipQKsomVh4jjsA=="
+    },
+    {
+      "id": "not-entered-after-claim",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://stripe-refunds/operations/not-entered-after-claim",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "not-entered"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "counters-digest": {
+          "bytes_hex": "8acde68b8f457c2712faad9bda1d0b6edc3b70c22e62eedff48c1e5eac7f8a00"
+        },
+        "refusal": {
+          "text": "gateway.credential.account-mismatch"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3hBYXV0aHMtZ2F0ZXdheTovL3N0cmlwZS1yZWZ1bmRzL29wZXJhdGlvbnMvbm90LWVudGVyZWQtYWZ0ZXItY2xhaW0EGmqxO4UFhqIAamNvbW1pdG1lbnQBeEAyMTQwNTQ0Y2JiNTQwMDE3N2RjMTMyNjljY2VhMWVlNGY0MDEzM2VhZDNkYWI3Mjk2NDAwOTYwNWJmNjNiMmI1ogBvY291bnRlcnMtZGlnZXN0AVggis3mi49FfCcS+q2b2h0Lbtw7cMIuYu7f9IweXqx/igCiAGxldmFsdWF0ZWQtYXQBGmqxO4CiAG1yZWNpcGUtZGlnZXN0AXhAYzNhMjg4N2EyYWUwZGQ0Zjk2NjVkMDViZTE0YmM5NDg4YjE0Mzc5M2E1YjIyMDk4YWEyZGViY2M0MmRkMDIwYaIAZ3JlZnVzYWwBeCNnYXRld2F5LmNyZWRlbnRpYWwuYWNjb3VudC1taXNtYXRjaKIAZXN0YWdlAWtub3QtZW50ZXJlZAGiAKMAanJhdy1rZXktdjEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCamVkMjU1MTktdjEBWEDmtJoVYYXQ2cDQ9QSKq7eC1MVOjUXj3RHLs7wVyQShM78RWPrWBYJJgw+s/tma9L3x6M/6qYhjCEMFADzjmCUJAoGkAFggqhSI2pMFeBC2xC4+/w/whRfOr51AnfdUr+D0/MTy/N8BanJhdy1rZXktdjECeCBhcHBsaWNhdGlvbi92bmQuYXV0aHMucmF3LWtleS52MQNYMkFVVEhTLVJBVy1LRVkAAQEAIA11UHVOCACl0jfu9YJgNXZrmz5aFYaKlAqyiZWHiOOw"
+    },
+    {
+      "id": "not-entered-relative-ceiling-above",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://stripe-refunds/operations/not-entered-relative-ceiling-above",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "not-entered"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "counters-digest": {
+          "bytes_hex": "8acde68b8f457c2712faad9bda1d0b6edc3b70c22e62eedff48c1e5eac7f8a00"
+        },
+        "refusal": {
+          "text": "gateway.relative-ceiling.above"
+        },
+        "relative-basis": {
+          "uint": 1001
+        },
+        "relative-basis-digest": {
+          "bytes_hex": "bab340fb646bcf08ddc7ae7c26e69272e86dab1a7e5f04a2e4127ca8009c0798"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3hMYXV0aHMtZ2F0ZXdheTovL3N0cmlwZS1yZWZ1bmRzL29wZXJhdGlvbnMvbm90LWVudGVyZWQtcmVsYXRpdmUtY2VpbGluZy1hYm92ZQQaarE7hQWIogBqY29tbWl0bWVudAF4QDIxNDA1NDRjYmI1NDAwMTc3ZGMxMzI2OWNjZWExZWU0ZjQwMTMzZWFkM2RhYjcyOTY0MDA5NjA1YmY2M2IyYjWiAG9jb3VudGVycy1kaWdlc3QBWCCKzeaLj0V8JxL6rZvaHQtu3Dtwwi5i7t/0jB5erH+KAKIAbGV2YWx1YXRlZC1hdAEaarE7gKIAbXJlY2lwZS1kaWdlc3QBeEBjM2EyODg3YTJhZTBkZDRmOTY2NWQwNWJlMTRiYzk0ODhiMTQzNzkzYTViMjIwOThhYTJkZWJjYzQyZGQwMjBhogBncmVmdXNhbAF4HmdhdGV3YXkucmVsYXRpdmUtY2VpbGluZy5hYm92ZaIAbnJlbGF0aXZlLWJhc2lzARkD6aIAdXJlbGF0aXZlLWJhc2lzLWRpZ2VzdAFYILqzQPtka88I3ceufCbmknLobasafl8EouQSfKgAnAeYogBlc3RhZ2UBa25vdC1lbnRlcmVkAaIAowBqcmF3LWtleS12MQF4NmtleTpzaGEyNTY6V3pCNk8tLXd0QTlMTFA5Rlo1cXFBMFMzSmhuenh5MlBfbUdteGNKY2U5OAJqZWQyNTUxOS12MQFYQC02kdD33WDdoEG1vPLcNYppIwgNkFdZV/Ky4jI1lKBqqtnr43YUChJ/BQVhmBK2atQLgrHLC1qFZCXuCQGaigMCgaQAWCCqFIjakwV4ELbELj7/D/CFF86vnUCd91Sv4PT8xPL83wFqcmF3LWtleS12MQJ4IGFwcGxpY2F0aW9uL3ZuZC5hdXRocy5yYXcta2V5LnYxA1gyQVVUSFMtUkFXLUtFWQABAQAgDXVQdU4IAKXSN+71gmA1dmubPloVhoqUCrKJlYeI47A="
+    },
+    {
+      "id": "not-entered-pre-entry-condition-false",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://airtable-demo/operations/not-entered-pre-entry-condition-false",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "not-entered"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "pre-entry-digest": {
+          "bytes_hex": "8f357cf1700de8dbdea8512ceb40438748e972112517522a55e271b097f9cb5c"
+        },
+        "refusal": {
+          "text": "gateway.pre-entry.condition-false"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3hOYXV0aHMtZ2F0ZXdheTovL2FpcnRhYmxlLWRlbW8vb3BlcmF0aW9ucy9ub3QtZW50ZXJlZC1wcmUtZW50cnktY29uZGl0aW9uLWZhbHNlBBpqsTuFBYaiAGpjb21taXRtZW50AXhAMjE0MDU0NGNiYjU0MDAxNzdkYzEzMjY5Y2NlYTFlZTRmNDAxMzNlYWQzZGFiNzI5NjQwMDk2MDViZjYzYjJiNaIAbGV2YWx1YXRlZC1hdAEaarE7gKIAcHByZS1lbnRyeS1kaWdlc3QBWCCPNXzxcA3o296oUSzrQEOHSOlyESUXUipV4nGwl/nLXKIAbXJlY2lwZS1kaWdlc3QBeEBjM2EyODg3YTJhZTBkZDRmOTY2NWQwNWJlMTRiYzk0ODhiMTQzNzkzYTViMjIwOThhYTJkZWJjYzQyZGQwMjBhogBncmVmdXNhbAF4IWdhdGV3YXkucHJlLWVudHJ5LmNvbmRpdGlvbi1mYWxzZaIAZXN0YWdlAWtub3QtZW50ZXJlZAGiAKMAanJhdy1rZXktdjEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCamVkMjU1MTktdjEBWECjcHwIJ7r68HeNR2izaG/fVA+hqzYr9hHZIpqJnMj1HO3p0H4Ldnj+dloBO7IKs0Crr8fcn8YIEybdNmv9ZJgLAoGkAFggqhSI2pMFeBC2xC4+/w/whRfOr51AnfdUr+D0/MTy/N8BanJhdy1rZXktdjECeCBhcHBsaWNhdGlvbi92bmQuYXV0aHMucmF3LWtleS52MQNYMkFVVEhTLVJBVy1LRVkAAQEAIA11UHVOCACl0jfu9YJgNXZrmz5aFYaKlAqyiZWHiOOw"
+    },
+    {
+      "id": "unknown",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://stripe-refunds/operations/unknown",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "unknown"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "counters-digest": {
+          "bytes_hex": "8acde68b8f457c2712faad9bda1d0b6edc3b70c22e62eedff48c1e5eac7f8a00"
+        },
+        "relative-basis": {
+          "uint": 1001
+        },
+        "relative-basis-digest": {
+          "bytes_hex": "bab340fb646bcf08ddc7ae7c26e69272e86dab1a7e5f04a2e4127ca8009c0798"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3gxYXV0aHMtZ2F0ZXdheTovL3N0cmlwZS1yZWZ1bmRzL29wZXJhdGlvbnMvdW5rbm93bgQaarE7hQWHogBqY29tbWl0bWVudAF4QDIxNDA1NDRjYmI1NDAwMTc3ZGMxMzI2OWNjZWExZWU0ZjQwMTMzZWFkM2RhYjcyOTY0MDA5NjA1YmY2M2IyYjWiAG9jb3VudGVycy1kaWdlc3QBWCCKzeaLj0V8JxL6rZvaHQtu3Dtwwi5i7t/0jB5erH+KAKIAbGV2YWx1YXRlZC1hdAEaarE7gKIAbXJlY2lwZS1kaWdlc3QBeEBjM2EyODg3YTJhZTBkZDRmOTY2NWQwNWJlMTRiYzk0ODhiMTQzNzkzYTViMjIwOThhYTJkZWJjYzQyZGQwMjBhogBucmVsYXRpdmUtYmFzaXMBGQPpogB1cmVsYXRpdmUtYmFzaXMtZGlnZXN0AVggurNA+2Rrzwjdx658JuaScuhtqxp+XwSi5BJ8qACcB5iiAGVzdGFnZQFndW5rbm93bgGiAKMAanJhdy1rZXktdjEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCamVkMjU1MTktdjEBWEASxOaof7EQccAHKCyzemrYTFZYggrjFwA24ZVn6Hes8fw4kgBIRGR2gmNaqBAMTyALwB3ivuKhouX6oK6PdPMBAoGkAFggqhSI2pMFeBC2xC4+/w/whRfOr51AnfdUr+D0/MTy/N8BanJhdy1rZXktdjECeCBhcHBsaWNhdGlvbi92bmQuYXV0aHMucmF3LWtleS52MQNYMkFVVEhTLVJBVy1LRVkAAQEAIA11UHVOCACl0jfu9YJgNXZrmz5aFYaKlAqyiZWHiOOw"
+    },
+    {
+      "id": "unknown-without-counters",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://airtable-demo/operations/unknown-without-counters",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "unknown"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3hBYXV0aHMtZ2F0ZXdheTovL2FpcnRhYmxlLWRlbW8vb3BlcmF0aW9ucy91bmtub3duLXdpdGhvdXQtY291bnRlcnMEGmqxO4UFhKIAamNvbW1pdG1lbnQBeEAyMTQwNTQ0Y2JiNTQwMDE3N2RjMTMyNjljY2VhMWVlNGY0MDEzM2VhZDNkYWI3Mjk2NDAwOTYwNWJmNjNiMmI1ogBsZXZhbHVhdGVkLWF0ARpqsTuAogBtcmVjaXBlLWRpZ2VzdAF4QGMzYTI4ODdhMmFlMGRkNGY5NjY1ZDA1YmUxNGJjOTQ4OGIxNDM3OTNhNWIyMjA5OGFhMmRlYmNjNDJkZDAyMGGiAGVzdGFnZQFndW5rbm93bgGiAKMAanJhdy1rZXktdjEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCamVkMjU1MTktdjEBWEAGKoFUN98qnQalSdZFVoynSIlGyYC060nUtHeXaoB6ktn3yiuuwlGjPtJErUAP00od6Ku571/P0WKuPqKYkNoGAoGkAFggqhSI2pMFeBC2xC4+/w/whRfOr51AnfdUr+D0/MTy/N8BanJhdy1rZXktdjECeCBhcHBsaWNhdGlvbi92bmQuYXV0aHMucmF3LWtleS52MQNYMkFVVEhTLVJBVy1LRVkAAQEAIA11UHVOCACl0jfu9YJgNXZrmz5aFYaKlAqyiZWHiOOw"
+    },
+    {
+      "id": "response-recorded",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://stripe-refunds/operations/response-recorded",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "response-recorded"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "counters-digest": {
+          "bytes_hex": "8acde68b8f457c2712faad9bda1d0b6edc3b70c22e62eedff48c1e5eac7f8a00"
+        },
+        "http-status": {
+          "uint": 200
+        },
+        "response-digest": {
+          "bytes_hex": "e15948e4ee018aa4afeb3647810059608f0681cc9be9e9efbd7324cf901dd19a"
+        },
+        "relative-basis": {
+          "uint": 1001
+        },
+        "relative-basis-digest": {
+          "bytes_hex": "bab340fb646bcf08ddc7ae7c26e69272e86dab1a7e5f04a2e4127ca8009c0798"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3g7YXV0aHMtZ2F0ZXdheTovL3N0cmlwZS1yZWZ1bmRzL29wZXJhdGlvbnMvcmVzcG9uc2UtcmVjb3JkZWQEGmqxO4UFiaIAamNvbW1pdG1lbnQBeEAyMTQwNTQ0Y2JiNTQwMDE3N2RjMTMyNjljY2VhMWVlNGY0MDEzM2VhZDNkYWI3Mjk2NDAwOTYwNWJmNjNiMmI1ogBvY291bnRlcnMtZGlnZXN0AVggis3mi49FfCcS+q2b2h0Lbtw7cMIuYu7f9IweXqx/igCiAGxldmFsdWF0ZWQtYXQBGmqxO4CiAGtodHRwLXN0YXR1cwEYyKIAbXJlY2lwZS1kaWdlc3QBeEBjM2EyODg3YTJhZTBkZDRmOTY2NWQwNWJlMTRiYzk0ODhiMTQzNzkzYTViMjIwOThhYTJkZWJjYzQyZGQwMjBhogBucmVsYXRpdmUtYmFzaXMBGQPpogB1cmVsYXRpdmUtYmFzaXMtZGlnZXN0AVggurNA+2Rrzwjdx658JuaScuhtqxp+XwSi5BJ8qACcB5iiAG9yZXNwb25zZS1kaWdlc3QBWCDhWUjk7gGKpK/rNkeBAFlgjwaBzJvp6e+9cyTPkB3RmqIAZXN0YWdlAXFyZXNwb25zZS1yZWNvcmRlZAGiAKMAanJhdy1rZXktdjEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCamVkMjU1MTktdjEBWED8I/Lwh0x6Nuq1O5epKYyD3JkWxQX7l9YtaP92/9y49iTBNE34c26Z8lu7jbWt5i9z64m6c7ujtVFd4/sjRbgOAoGkAFggqhSI2pMFeBC2xC4+/w/whRfOr51AnfdUr+D0/MTy/N8BanJhdy1rZXktdjECeCBhcHBsaWNhdGlvbi92bmQuYXV0aHMucmF3LWtleS52MQNYMkFVVEhTLVJBVy1LRVkAAQEAIA11UHVOCACl0jfu9YJgNXZrmz5aFYaKlAqyiZWHiOOw"
+    },
+    {
+      "id": "response-recorded-provider-rejected",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://stripe-refunds/operations/response-recorded-provider-rejected",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "response-recorded"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "counters-digest": {
+          "bytes_hex": "8acde68b8f457c2712faad9bda1d0b6edc3b70c22e62eedff48c1e5eac7f8a00"
+        },
+        "http-status": {
+          "uint": 400
+        },
+        "response-digest": {
+          "bytes_hex": "e15948e4ee018aa4afeb3647810059608f0681cc9be9e9efbd7324cf901dd19a"
+        },
+        "relative-basis": {
+          "uint": 1001
+        },
+        "relative-basis-digest": {
+          "bytes_hex": "bab340fb646bcf08ddc7ae7c26e69272e86dab1a7e5f04a2e4127ca8009c0798"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3hNYXV0aHMtZ2F0ZXdheTovL3N0cmlwZS1yZWZ1bmRzL29wZXJhdGlvbnMvcmVzcG9uc2UtcmVjb3JkZWQtcHJvdmlkZXItcmVqZWN0ZWQEGmqxO4UFiaIAamNvbW1pdG1lbnQBeEAyMTQwNTQ0Y2JiNTQwMDE3N2RjMTMyNjljY2VhMWVlNGY0MDEzM2VhZDNkYWI3Mjk2NDAwOTYwNWJmNjNiMmI1ogBvY291bnRlcnMtZGlnZXN0AVggis3mi49FfCcS+q2b2h0Lbtw7cMIuYu7f9IweXqx/igCiAGxldmFsdWF0ZWQtYXQBGmqxO4CiAGtodHRwLXN0YXR1cwEZAZCiAG1yZWNpcGUtZGlnZXN0AXhAYzNhMjg4N2EyYWUwZGQ0Zjk2NjVkMDViZTE0YmM5NDg4YjE0Mzc5M2E1YjIyMDk4YWEyZGViY2M0MmRkMDIwYaIAbnJlbGF0aXZlLWJhc2lzARkD6aIAdXJlbGF0aXZlLWJhc2lzLWRpZ2VzdAFYILqzQPtka88I3ceufCbmknLobasafl8EouQSfKgAnAeYogBvcmVzcG9uc2UtZGlnZXN0AVgg4VlI5O4BiqSv6zZHgQBZYI8Ggcyb6envvXMkz5Ad0ZqiAGVzdGFnZQFxcmVzcG9uc2UtcmVjb3JkZWQBogCjAGpyYXcta2V5LXYxAXg2a2V5OnNoYTI1NjpXekI2Ty0td3RBOUxMUDlGWjVxcUEwUzNKaG56eHkyUF9tR214Y0pjZTk4AmplZDI1NTE5LXYxAVhA2V+y1+7xhZQeEUcdT3LemGfktcwI2jUy+FTLE1rwnDFN1IANy5n58sDP5Kk/J+zlAWGKBFBeyMT41w7R+QlAAQKBpABYIKoUiNqTBXgQtsQuPv8P8IUXzq+dQJ33VK/g9PzE8vzfAWpyYXcta2V5LXYxAnggYXBwbGljYXRpb24vdm5kLmF1dGhzLnJhdy1rZXkudjEDWDJBVVRIUy1SQVctS0VZAAEBACANdVB1TggApdI37vWCYDV2a5s+WhWGipQKsomVh4jjsA=="
+    },
+    {
+      "id": "observed-match",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://airtable-demo/operations/observed-match",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "observed"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "http-status": {
+          "uint": 200
+        },
+        "response-digest": {
+          "bytes_hex": "e15948e4ee018aa4afeb3647810059608f0681cc9be9e9efbd7324cf901dd19a"
+        },
+        "observation": {
+          "text": "match"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3g3YXV0aHMtZ2F0ZXdheTovL2FpcnRhYmxlLWRlbW8vb3BlcmF0aW9ucy9vYnNlcnZlZC1tYXRjaAQaarE7hQWHogBqY29tbWl0bWVudAF4QDIxNDA1NDRjYmI1NDAwMTc3ZGMxMzI2OWNjZWExZWU0ZjQwMTMzZWFkM2RhYjcyOTY0MDA5NjA1YmY2M2IyYjWiAGxldmFsdWF0ZWQtYXQBGmqxO4CiAGtodHRwLXN0YXR1cwEYyKIAa29ic2VydmF0aW9uAWVtYXRjaKIAbXJlY2lwZS1kaWdlc3QBeEBjM2EyODg3YTJhZTBkZDRmOTY2NWQwNWJlMTRiYzk0ODhiMTQzNzkzYTViMjIwOThhYTJkZWJjYzQyZGQwMjBhogBvcmVzcG9uc2UtZGlnZXN0AVgg4VlI5O4BiqSv6zZHgQBZYI8Ggcyb6envvXMkz5Ad0ZqiAGVzdGFnZQFob2JzZXJ2ZWQBogCjAGpyYXcta2V5LXYxAXg2a2V5OnNoYTI1NjpXekI2Ty0td3RBOUxMUDlGWjVxcUEwUzNKaG56eHkyUF9tR214Y0pjZTk4AmplZDI1NTE5LXYxAVhAcBeY9L69SYPrgqrsLSrea8vEzx/bqUSzs+yAW1LmuRPoaA9vp6HCYDj2/oXrpvJiKIFgZDVFB4Xeh53P8hKJBAKBpABYIKoUiNqTBXgQtsQuPv8P8IUXzq+dQJ33VK/g9PzE8vzfAWpyYXcta2V5LXYxAnggYXBwbGljYXRpb24vdm5kLmF1dGhzLnJhdy1rZXkudjEDWDJBVVRIUy1SQVctS0VZAAEBACANdVB1TggApdI37vWCYDV2a5s+WhWGipQKsomVh4jjsA=="
+    },
+    {
+      "id": "observed-mismatch",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://airtable-demo/operations/observed-mismatch",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "observed"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "http-status": {
+          "uint": 200
+        },
+        "response-digest": {
+          "bytes_hex": "e15948e4ee018aa4afeb3647810059608f0681cc9be9e9efbd7324cf901dd19a"
+        },
+        "observation": {
+          "text": "mismatch"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3g6YXV0aHMtZ2F0ZXdheTovL2FpcnRhYmxlLWRlbW8vb3BlcmF0aW9ucy9vYnNlcnZlZC1taXNtYXRjaAQaarE7hQWHogBqY29tbWl0bWVudAF4QDIxNDA1NDRjYmI1NDAwMTc3ZGMxMzI2OWNjZWExZWU0ZjQwMTMzZWFkM2RhYjcyOTY0MDA5NjA1YmY2M2IyYjWiAGxldmFsdWF0ZWQtYXQBGmqxO4CiAGtodHRwLXN0YXR1cwEYyKIAa29ic2VydmF0aW9uAWhtaXNtYXRjaKIAbXJlY2lwZS1kaWdlc3QBeEBjM2EyODg3YTJhZTBkZDRmOTY2NWQwNWJlMTRiYzk0ODhiMTQzNzkzYTViMjIwOThhYTJkZWJjYzQyZGQwMjBhogBvcmVzcG9uc2UtZGlnZXN0AVgg4VlI5O4BiqSv6zZHgQBZYI8Ggcyb6envvXMkz5Ad0ZqiAGVzdGFnZQFob2JzZXJ2ZWQBogCjAGpyYXcta2V5LXYxAXg2a2V5OnNoYTI1NjpXekI2Ty0td3RBOUxMUDlGWjVxcUEwUzNKaG56eHkyUF9tR214Y0pjZTk4AmplZDI1NTE5LXYxAVhAfHyn6HLMASqX7/vkRYJon+T2FyrX+jsRU9kL6QpDdgVQmJJbvcARldBRx9FAjlkIgeUt3sPZBiD6Q2yMxHAJDQKBpABYIKoUiNqTBXgQtsQuPv8P8IUXzq+dQJ33VK/g9PzE8vzfAWpyYXcta2V5LXYxAnggYXBwbGljYXRpb24vdm5kLmF1dGhzLnJhdy1rZXkudjEDWDJBVVRIUy1SQVctS0VZAAEBACANdVB1TggApdI37vWCYDV2a5s+WhWGipQKsomVh4jjsA=="
+    },
+    {
+      "id": "observed-echo-mismatch",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://airtable-demo/operations/observed-echo-mismatch",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "observed"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "http-status": {
+          "uint": 200
+        },
+        "response-digest": {
+          "bytes_hex": "e15948e4ee018aa4afeb3647810059608f0681cc9be9e9efbd7324cf901dd19a"
+        },
+        "observation": {
+          "text": "echo-mismatch"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3g/YXV0aHMtZ2F0ZXdheTovL2FpcnRhYmxlLWRlbW8vb3BlcmF0aW9ucy9vYnNlcnZlZC1lY2hvLW1pc21hdGNoBBpqsTuFBYeiAGpjb21taXRtZW50AXhAMjE0MDU0NGNiYjU0MDAxNzdkYzEzMjY5Y2NlYTFlZTRmNDAxMzNlYWQzZGFiNzI5NjQwMDk2MDViZjYzYjJiNaIAbGV2YWx1YXRlZC1hdAEaarE7gKIAa2h0dHAtc3RhdHVzARjIogBrb2JzZXJ2YXRpb24BbWVjaG8tbWlzbWF0Y2iiAG1yZWNpcGUtZGlnZXN0AXhAYzNhMjg4N2EyYWUwZGQ0Zjk2NjVkMDViZTE0YmM5NDg4YjE0Mzc5M2E1YjIyMDk4YWEyZGViY2M0MmRkMDIwYaIAb3Jlc3BvbnNlLWRpZ2VzdAFYIOFZSOTuAYqkr+s2R4EAWWCPBoHMm+np771zJM+QHdGaogBlc3RhZ2UBaG9ic2VydmVkAaIAowBqcmF3LWtleS12MQF4NmtleTpzaGEyNTY6V3pCNk8tLXd0QTlMTFA5Rlo1cXFBMFMzSmhuenh5MlBfbUdteGNKY2U5OAJqZWQyNTUxOS12MQFYQDN/nfIKgDkcfD+LlGMPQaBRwelOnDUuqU06LBsoMdyDcZ0/h8baPWmvnNxcVtW38oCjC45uXUvvK0wIyFi9pAcCgaQAWCCqFIjakwV4ELbELj7/D/CFF86vnUCd91Sv4PT8xPL83wFqcmF3LWtleS12MQJ4IGFwcGxpY2F0aW9uL3ZuZC5hdXRocy5yYXcta2V5LnYxA1gyQVVUSFMtUkFXLUtFWQABAQAgDXVQdU4IAKXSN+71gmA1dmubPloVhoqUCrKJlYeI47A="
+    },
+    {
+      "id": "observed-by-provider-after-response",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://stripe-refunds/operations/observed-by-provider-after-response",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "observed-by-provider"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "counters-digest": {
+          "bytes_hex": "8acde68b8f457c2712faad9bda1d0b6edc3b70c22e62eedff48c1e5eac7f8a00"
+        },
+        "http-status": {
+          "uint": 200
+        },
+        "response-digest": {
+          "bytes_hex": "e15948e4ee018aa4afeb3647810059608f0681cc9be9e9efbd7324cf901dd19a"
+        },
+        "evidence-digest": {
+          "bytes_hex": "b7eb6aa43446d60d0a08908a47425150522e8292504df62ca39ef1ab53f3709a"
+        },
+        "relative-basis": {
+          "uint": 1001
+        },
+        "relative-basis-digest": {
+          "bytes_hex": "bab340fb646bcf08ddc7ae7c26e69272e86dab1a7e5f04a2e4127ca8009c0798"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3hNYXV0aHMtZ2F0ZXdheTovL3N0cmlwZS1yZWZ1bmRzL29wZXJhdGlvbnMvb2JzZXJ2ZWQtYnktcHJvdmlkZXItYWZ0ZXItcmVzcG9uc2UEGmqxO4UFiqIAamNvbW1pdG1lbnQBeEAyMTQwNTQ0Y2JiNTQwMDE3N2RjMTMyNjljY2VhMWVlNGY0MDEzM2VhZDNkYWI3Mjk2NDAwOTYwNWJmNjNiMmI1ogBvY291bnRlcnMtZGlnZXN0AVggis3mi49FfCcS+q2b2h0Lbtw7cMIuYu7f9IweXqx/igCiAGxldmFsdWF0ZWQtYXQBGmqxO4CiAG9ldmlkZW5jZS1kaWdlc3QBWCC362qkNEbWDQoIkIpHQlFQUi6CklBN9iyjnvGrU/NwmqIAa2h0dHAtc3RhdHVzARjIogBtcmVjaXBlLWRpZ2VzdAF4QGMzYTI4ODdhMmFlMGRkNGY5NjY1ZDA1YmUxNGJjOTQ4OGIxNDM3OTNhNWIyMjA5OGFhMmRlYmNjNDJkZDAyMGGiAG5yZWxhdGl2ZS1iYXNpcwEZA+miAHVyZWxhdGl2ZS1iYXNpcy1kaWdlc3QBWCC6s0D7ZGvPCN3Hrnwm5pJy6G2rGn5fBKLkEnyoAJwHmKIAb3Jlc3BvbnNlLWRpZ2VzdAFYIOFZSOTuAYqkr+s2R4EAWWCPBoHMm+np771zJM+QHdGaogBlc3RhZ2UBdG9ic2VydmVkLWJ5LXByb3ZpZGVyAaIAowBqcmF3LWtleS12MQF4NmtleTpzaGEyNTY6V3pCNk8tLXd0QTlMTFA5Rlo1cXFBMFMzSmhuenh5MlBfbUdteGNKY2U5OAJqZWQyNTUxOS12MQFYQK/HaALNKWRoPoWRvIE/eluGliIg/Qa+Gr0+FnrPEw7ELYi9w7t3dcEz9qK/fM2gl2lqD7up7Py9LTwQafdL+gECgaQAWCCqFIjakwV4ELbELj7/D/CFF86vnUCd91Sv4PT8xPL83wFqcmF3LWtleS12MQJ4IGFwcGxpY2F0aW9uL3ZuZC5hdXRocy5yYXcta2V5LnYxA1gyQVVUSFMtUkFXLUtFWQABAQAgDXVQdU4IAKXSN+71gmA1dmubPloVhoqUCrKJlYeI47A="
+    },
+    {
+      "id": "observed-by-provider-after-unknown",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://airtable-demo/operations/observed-by-provider-after-unknown",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "observed-by-provider"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "evidence-digest": {
+          "bytes_hex": "b7eb6aa43446d60d0a08908a47425150522e8292504df62ca39ef1ab53f3709a"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3hLYXV0aHMtZ2F0ZXdheTovL2FpcnRhYmxlLWRlbW8vb3BlcmF0aW9ucy9vYnNlcnZlZC1ieS1wcm92aWRlci1hZnRlci11bmtub3duBBpqsTuFBYWiAGpjb21taXRtZW50AXhAMjE0MDU0NGNiYjU0MDAxNzdkYzEzMjY5Y2NlYTFlZTRmNDAxMzNlYWQzZGFiNzI5NjQwMDk2MDViZjYzYjJiNaIAbGV2YWx1YXRlZC1hdAEaarE7gKIAb2V2aWRlbmNlLWRpZ2VzdAFYILfraqQ0RtYNCgiQikdCUVBSLoKSUE32LKOe8atT83CaogBtcmVjaXBlLWRpZ2VzdAF4QGMzYTI4ODdhMmFlMGRkNGY5NjY1ZDA1YmUxNGJjOTQ4OGIxNDM3OTNhNWIyMjA5OGFhMmRlYmNjNDJkZDAyMGGiAGVzdGFnZQF0b2JzZXJ2ZWQtYnktcHJvdmlkZXIBogCjAGpyYXcta2V5LXYxAXg2a2V5OnNoYTI1NjpXekI2Ty0td3RBOUxMUDlGWjVxcUEwUzNKaG56eHkyUF9tR214Y0pjZTk4AmplZDI1NTE5LXYxAVhA4oejy1Q+CjIQ/FRLmrMe0QpdmZz5wNOdqZh4FsuWD6CGSmNlxvh1zI1V/GIrmVNnOvLFgtGsAlGOr2BwkmrtDgKBpABYIKoUiNqTBXgQtsQuPv8P8IUXzq+dQJ33VK/g9PzE8vzfAWpyYXcta2V5LXYxAnggYXBwbGljYXRpb24vdm5kLmF1dGhzLnJhdy1rZXkudjEDWDJBVVRIUy1SQVctS0VZAAEBACANdVB1TggApdI37vWCYDV2a5s+WhWGipQKsomVh4jjsA=="
+    },
+    {
+      "id": "observed-by-provider-with-pre-entry",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://airtable-demo/operations/observed-by-provider-with-pre-entry",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "observed-by-provider"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "http-status": {
+          "uint": 200
+        },
+        "response-digest": {
+          "bytes_hex": "e15948e4ee018aa4afeb3647810059608f0681cc9be9e9efbd7324cf901dd19a"
+        },
+        "evidence-digest": {
+          "bytes_hex": "b7eb6aa43446d60d0a08908a47425150522e8292504df62ca39ef1ab53f3709a"
+        },
+        "pre-entry-digest": {
+          "bytes_hex": "8f357cf1700de8dbdea8512ceb40438748e972112517522a55e271b097f9cb5c"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3hMYXV0aHMtZ2F0ZXdheTovL2FpcnRhYmxlLWRlbW8vb3BlcmF0aW9ucy9vYnNlcnZlZC1ieS1wcm92aWRlci13aXRoLXByZS1lbnRyeQQaarE7hQWIogBqY29tbWl0bWVudAF4QDIxNDA1NDRjYmI1NDAwMTc3ZGMxMzI2OWNjZWExZWU0ZjQwMTMzZWFkM2RhYjcyOTY0MDA5NjA1YmY2M2IyYjWiAGxldmFsdWF0ZWQtYXQBGmqxO4CiAG9ldmlkZW5jZS1kaWdlc3QBWCC362qkNEbWDQoIkIpHQlFQUi6CklBN9iyjnvGrU/NwmqIAa2h0dHAtc3RhdHVzARjIogBwcHJlLWVudHJ5LWRpZ2VzdAFYII81fPFwDejb3qhRLOtAQ4dI6XIRJRdSKlXicbCX+ctcogBtcmVjaXBlLWRpZ2VzdAF4QGMzYTI4ODdhMmFlMGRkNGY5NjY1ZDA1YmUxNGJjOTQ4OGIxNDM3OTNhNWIyMjA5OGFhMmRlYmNjNDJkZDAyMGGiAG9yZXNwb25zZS1kaWdlc3QBWCDhWUjk7gGKpK/rNkeBAFlgjwaBzJvp6e+9cyTPkB3RmqIAZXN0YWdlAXRvYnNlcnZlZC1ieS1wcm92aWRlcgGiAKMAanJhdy1rZXktdjEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCamVkMjU1MTktdjEBWED6ejDho/Gjd4luhFw/VJbT0S1bah9DImuAqv4PeAGJ5kEbrMuKI+UXhQWDMr0S6AkkG+i1TOB0aKUVIGZ1UcAMAoGkAFggqhSI2pMFeBC2xC4+/w/whRfOr51AnfdUr+D0/MTy/N8BanJhdy1rZXktdjECeCBhcHBsaWNhdGlvbi92bmQuYXV0aHMucmF3LWtleS52MQNYMkFVVEhTLVJBVy1LRVkAAQEAIA11UHVOCACl0jfu9YJgNXZrmz5aFYaKlAqyiZWHiOOw"
+    }
+  ],
+  "refused": [
+    {
+      "id": "outcome-v1-schema",
+      "schema": "auths.gateway-outcome/1",
+      "subject": "auths-gateway://stripe-refunds/operations/outcome-v1-schema",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "response-recorded"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "http-status": {
+          "uint": 200
+        },
+        "response-digest": {
+          "bytes_hex": "e15948e4ee018aa4afeb3647810059608f0681cc9be9e9efbd7324cf901dd19a"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8xA3g7YXV0aHMtZ2F0ZXdheTovL3N0cmlwZS1yZWZ1bmRzL29wZXJhdGlvbnMvb3V0Y29tZS12MS1zY2hlbWEEGmqxO4UFhqIAamNvbW1pdG1lbnQBeEAyMTQwNTQ0Y2JiNTQwMDE3N2RjMTMyNjljY2VhMWVlNGY0MDEzM2VhZDNkYWI3Mjk2NDAwOTYwNWJmNjNiMmI1ogBsZXZhbHVhdGVkLWF0ARpqsTuAogBraHR0cC1zdGF0dXMBGMiiAG1yZWNpcGUtZGlnZXN0AXhAYzNhMjg4N2EyYWUwZGQ0Zjk2NjVkMDViZTE0YmM5NDg4YjE0Mzc5M2E1YjIyMDk4YWEyZGViY2M0MmRkMDIwYaIAb3Jlc3BvbnNlLWRpZ2VzdAFYIOFZSOTuAYqkr+s2R4EAWWCPBoHMm+np771zJM+QHdGaogBlc3RhZ2UBcXJlc3BvbnNlLXJlY29yZGVkAaIAowBqcmF3LWtleS12MQF4NmtleTpzaGEyNTY6V3pCNk8tLXd0QTlMTFA5Rlo1cXFBMFMzSmhuenh5MlBfbUdteGNKY2U5OAJqZWQyNTUxOS12MQFYQPj63BfEvSVSSSk9YtlKqWpb1bVkCDX4k9qBS0djtO8K+31798TSakACKEBZA2OgpY3YIQmZ/mLBeRLdFo0uRQkCgaQAWCCqFIjakwV4ELbELj7/D/CFF86vnUCd91Sv4PT8xPL83wFqcmF3LWtleS12MQJ4IGFwcGxpY2F0aW9uL3ZuZC5hdXRocy5yYXcta2V5LnYxA1gyQVVUSFMtUkFXLUtFWQABAQAgDXVQdU4IAKXSN+71gmA1dmubPloVhoqUCrKJlYeI47A=",
+      "code": "audit.outcome-invalid"
+    },
+    {
+      "id": "http-status-without-response-digest",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://stripe-refunds/operations/http-status-without-response-digest",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "response-recorded"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "http-status": {
+          "uint": 200
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3hNYXV0aHMtZ2F0ZXdheTovL3N0cmlwZS1yZWZ1bmRzL29wZXJhdGlvbnMvaHR0cC1zdGF0dXMtd2l0aG91dC1yZXNwb25zZS1kaWdlc3QEGmqxO4UFhaIAamNvbW1pdG1lbnQBeEAyMTQwNTQ0Y2JiNTQwMDE3N2RjMTMyNjljY2VhMWVlNGY0MDEzM2VhZDNkYWI3Mjk2NDAwOTYwNWJmNjNiMmI1ogBsZXZhbHVhdGVkLWF0ARpqsTuAogBraHR0cC1zdGF0dXMBGMiiAG1yZWNpcGUtZGlnZXN0AXhAYzNhMjg4N2EyYWUwZGQ0Zjk2NjVkMDViZTE0YmM5NDg4YjE0Mzc5M2E1YjIyMDk4YWEyZGViY2M0MmRkMDIwYaIAZXN0YWdlAXFyZXNwb25zZS1yZWNvcmRlZAGiAKMAanJhdy1rZXktdjEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCamVkMjU1MTktdjEBWEBD5j1c4+tXRHoPY2abDQXnCO6CePs8F6WKTLRuJdD8lILRWV8UQoxCFHxiHJTW5CB444yFqbidIgzkuT5TprUKAoGkAFggqhSI2pMFeBC2xC4+/w/whRfOr51AnfdUr+D0/MTy/N8BanJhdy1rZXktdjECeCBhcHBsaWNhdGlvbi92bmQuYXV0aHMucmF3LWtleS52MQNYMkFVVEhTLVJBVy1LRVkAAQEAIA11UHVOCACl0jfu9YJgNXZrmz5aFYaKlAqyiZWHiOOw",
+      "code": "audit.outcome-invalid"
+    },
+    {
+      "id": "refusal-on-response-recorded",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://stripe-refunds/operations/refusal-on-response-recorded",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "response-recorded"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "http-status": {
+          "uint": 200
+        },
+        "response-digest": {
+          "bytes_hex": "e15948e4ee018aa4afeb3647810059608f0681cc9be9e9efbd7324cf901dd19a"
+        },
+        "refusal": {
+          "text": "gateway.transport.not-entered"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3hGYXV0aHMtZ2F0ZXdheTovL3N0cmlwZS1yZWZ1bmRzL29wZXJhdGlvbnMvcmVmdXNhbC1vbi1yZXNwb25zZS1yZWNvcmRlZAQaarE7hQWHogBqY29tbWl0bWVudAF4QDIxNDA1NDRjYmI1NDAwMTc3ZGMxMzI2OWNjZWExZWU0ZjQwMTMzZWFkM2RhYjcyOTY0MDA5NjA1YmY2M2IyYjWiAGxldmFsdWF0ZWQtYXQBGmqxO4CiAGtodHRwLXN0YXR1cwEYyKIAbXJlY2lwZS1kaWdlc3QBeEBjM2EyODg3YTJhZTBkZDRmOTY2NWQwNWJlMTRiYzk0ODhiMTQzNzkzYTViMjIwOThhYTJkZWJjYzQyZGQwMjBhogBncmVmdXNhbAF4HWdhdGV3YXkudHJhbnNwb3J0Lm5vdC1lbnRlcmVkogBvcmVzcG9uc2UtZGlnZXN0AVgg4VlI5O4BiqSv6zZHgQBZYI8Ggcyb6envvXMkz5Ad0ZqiAGVzdGFnZQFxcmVzcG9uc2UtcmVjb3JkZWQBogCjAGpyYXcta2V5LXYxAXg2a2V5OnNoYTI1NjpXekI2Ty0td3RBOUxMUDlGWjVxcUEwUzNKaG56eHkyUF9tR214Y0pjZTk4AmplZDI1NTE5LXYxAVhAYz//mpr4sHhXSaT7YmUTr7E9ka5evn/PRlaGgAwIDXyft5LpiSIaYTDEBevOEnEELf1V4O6wQfF55WevYVSnAwKBpABYIKoUiNqTBXgQtsQuPv8P8IUXzq+dQJ33VK/g9PzE8vzfAWpyYXcta2V5LXYxAnggYXBwbGljYXRpb24vdm5kLmF1dGhzLnJhdy1rZXkudjEDWDJBVVRIUy1SQVctS0VZAAEBACANdVB1TggApdI37vWCYDV2a5s+WhWGipQKsomVh4jjsA==",
+      "code": "audit.outcome-invalid"
+    },
+    {
+      "id": "not-entered-without-refusal",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://stripe-refunds/operations/not-entered-without-refusal",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "not-entered"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3hFYXV0aHMtZ2F0ZXdheTovL3N0cmlwZS1yZWZ1bmRzL29wZXJhdGlvbnMvbm90LWVudGVyZWQtd2l0aG91dC1yZWZ1c2FsBBpqsTuFBYSiAGpjb21taXRtZW50AXhAMjE0MDU0NGNiYjU0MDAxNzdkYzEzMjY5Y2NlYTFlZTRmNDAxMzNlYWQzZGFiNzI5NjQwMDk2MDViZjYzYjJiNaIAbGV2YWx1YXRlZC1hdAEaarE7gKIAbXJlY2lwZS1kaWdlc3QBeEBjM2EyODg3YTJhZTBkZDRmOTY2NWQwNWJlMTRiYzk0ODhiMTQzNzkzYTViMjIwOThhYTJkZWJjYzQyZGQwMjBhogBlc3RhZ2UBa25vdC1lbnRlcmVkAaIAowBqcmF3LWtleS12MQF4NmtleTpzaGEyNTY6V3pCNk8tLXd0QTlMTFA5Rlo1cXFBMFMzSmhuenh5MlBfbUdteGNKY2U5OAJqZWQyNTUxOS12MQFYQLKtmf8KV/JuXsPL2ccbAYzCdm3Qj9lkRy9ySZIn6DjdVBBzDeXvpfHv6zEz1cWKAEoIA4e8FypaMBfYgTpRmwMCgaQAWCCqFIjakwV4ELbELj7/D/CFF86vnUCd91Sv4PT8xPL83wFqcmF3LWtleS12MQJ4IGFwcGxpY2F0aW9uL3ZuZC5hdXRocy5yYXcta2V5LnYxA1gyQVVUSFMtUkFXLUtFWQABAQAgDXVQdU4IAKXSN+71gmA1dmubPloVhoqUCrKJlYeI47A=",
+      "code": "audit.outcome-invalid"
+    },
+    {
+      "id": "observation-on-response-recorded",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://stripe-refunds/operations/observation-on-response-recorded",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "response-recorded"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "http-status": {
+          "uint": 200
+        },
+        "response-digest": {
+          "bytes_hex": "e15948e4ee018aa4afeb3647810059608f0681cc9be9e9efbd7324cf901dd19a"
+        },
+        "observation": {
+          "text": "match"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3hKYXV0aHMtZ2F0ZXdheTovL3N0cmlwZS1yZWZ1bmRzL29wZXJhdGlvbnMvb2JzZXJ2YXRpb24tb24tcmVzcG9uc2UtcmVjb3JkZWQEGmqxO4UFh6IAamNvbW1pdG1lbnQBeEAyMTQwNTQ0Y2JiNTQwMDE3N2RjMTMyNjljY2VhMWVlNGY0MDEzM2VhZDNkYWI3Mjk2NDAwOTYwNWJmNjNiMmI1ogBsZXZhbHVhdGVkLWF0ARpqsTuAogBraHR0cC1zdGF0dXMBGMiiAGtvYnNlcnZhdGlvbgFlbWF0Y2iiAG1yZWNpcGUtZGlnZXN0AXhAYzNhMjg4N2EyYWUwZGQ0Zjk2NjVkMDViZTE0YmM5NDg4YjE0Mzc5M2E1YjIyMDk4YWEyZGViY2M0MmRkMDIwYaIAb3Jlc3BvbnNlLWRpZ2VzdAFYIOFZSOTuAYqkr+s2R4EAWWCPBoHMm+np771zJM+QHdGaogBlc3RhZ2UBcXJlc3BvbnNlLXJlY29yZGVkAaIAowBqcmF3LWtleS12MQF4NmtleTpzaGEyNTY6V3pCNk8tLXd0QTlMTFA5Rlo1cXFBMFMzSmhuenh5MlBfbUdteGNKY2U5OAJqZWQyNTUxOS12MQFYQL6WFGTg9c3GmjGdCqP8bS5aFFylnHBohvaxC2Qt2Hw5VKfFb9Fg1b9qNEAa5g4oyzrNesdhbfSxW65LTiirugsCgaQAWCCqFIjakwV4ELbELj7/D/CFF86vnUCd91Sv4PT8xPL83wFqcmF3LWtleS12MQJ4IGFwcGxpY2F0aW9uL3ZuZC5hdXRocy5yYXcta2V5LnYxA1gyQVVUSFMtUkFXLUtFWQABAQAgDXVQdU4IAKXSN+71gmA1dmubPloVhoqUCrKJlYeI47A=",
+      "code": "audit.outcome-invalid"
+    },
+    {
+      "id": "observed-without-observation",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://stripe-refunds/operations/observed-without-observation",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "observed"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "http-status": {
+          "uint": 200
+        },
+        "response-digest": {
+          "bytes_hex": "e15948e4ee018aa4afeb3647810059608f0681cc9be9e9efbd7324cf901dd19a"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3hGYXV0aHMtZ2F0ZXdheTovL3N0cmlwZS1yZWZ1bmRzL29wZXJhdGlvbnMvb2JzZXJ2ZWQtd2l0aG91dC1vYnNlcnZhdGlvbgQaarE7hQWGogBqY29tbWl0bWVudAF4QDIxNDA1NDRjYmI1NDAwMTc3ZGMxMzI2OWNjZWExZWU0ZjQwMTMzZWFkM2RhYjcyOTY0MDA5NjA1YmY2M2IyYjWiAGxldmFsdWF0ZWQtYXQBGmqxO4CiAGtodHRwLXN0YXR1cwEYyKIAbXJlY2lwZS1kaWdlc3QBeEBjM2EyODg3YTJhZTBkZDRmOTY2NWQwNWJlMTRiYzk0ODhiMTQzNzkzYTViMjIwOThhYTJkZWJjYzQyZGQwMjBhogBvcmVzcG9uc2UtZGlnZXN0AVgg4VlI5O4BiqSv6zZHgQBZYI8Ggcyb6envvXMkz5Ad0ZqiAGVzdGFnZQFob2JzZXJ2ZWQBogCjAGpyYXcta2V5LXYxAXg2a2V5OnNoYTI1NjpXekI2Ty0td3RBOUxMUDlGWjVxcUEwUzNKaG56eHkyUF9tR214Y0pjZTk4AmplZDI1NTE5LXYxAVhAAOYDgyhCfEUnzGNcISLBBQ/ot76yD/sBtqEZeJ8U3/mmVvS+hS0AHSBgry7rH2c9IyLsdyLN/2sDug98h3JyDgKBpABYIKoUiNqTBXgQtsQuPv8P8IUXzq+dQJ33VK/g9PzE8vzfAWpyYXcta2V5LXYxAnggYXBwbGljYXRpb24vdm5kLmF1dGhzLnJhdy1rZXkudjEDWDJBVVRIUy1SQVctS0VZAAEBACANdVB1TggApdI37vWCYDV2a5s+WhWGipQKsomVh4jjsA==",
+      "code": "audit.outcome-invalid"
+    },
+    {
+      "id": "evidence-digest-on-observed",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://stripe-refunds/operations/evidence-digest-on-observed",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "observed"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "http-status": {
+          "uint": 200
+        },
+        "response-digest": {
+          "bytes_hex": "e15948e4ee018aa4afeb3647810059608f0681cc9be9e9efbd7324cf901dd19a"
+        },
+        "observation": {
+          "text": "match"
+        },
+        "evidence-digest": {
+          "bytes_hex": "b7eb6aa43446d60d0a08908a47425150522e8292504df62ca39ef1ab53f3709a"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3hFYXV0aHMtZ2F0ZXdheTovL3N0cmlwZS1yZWZ1bmRzL29wZXJhdGlvbnMvZXZpZGVuY2UtZGlnZXN0LW9uLW9ic2VydmVkBBpqsTuFBYiiAGpjb21taXRtZW50AXhAMjE0MDU0NGNiYjU0MDAxNzdkYzEzMjY5Y2NlYTFlZTRmNDAxMzNlYWQzZGFiNzI5NjQwMDk2MDViZjYzYjJiNaIAbGV2YWx1YXRlZC1hdAEaarE7gKIAb2V2aWRlbmNlLWRpZ2VzdAFYILfraqQ0RtYNCgiQikdCUVBSLoKSUE32LKOe8atT83CaogBraHR0cC1zdGF0dXMBGMiiAGtvYnNlcnZhdGlvbgFlbWF0Y2iiAG1yZWNpcGUtZGlnZXN0AXhAYzNhMjg4N2EyYWUwZGQ0Zjk2NjVkMDViZTE0YmM5NDg4YjE0Mzc5M2E1YjIyMDk4YWEyZGViY2M0MmRkMDIwYaIAb3Jlc3BvbnNlLWRpZ2VzdAFYIOFZSOTuAYqkr+s2R4EAWWCPBoHMm+np771zJM+QHdGaogBlc3RhZ2UBaG9ic2VydmVkAaIAowBqcmF3LWtleS12MQF4NmtleTpzaGEyNTY6V3pCNk8tLXd0QTlMTFA5Rlo1cXFBMFMzSmhuenh5MlBfbUdteGNKY2U5OAJqZWQyNTUxOS12MQFYQHEITjOnpojZ/AWCJVI9HuTZjSDLUmWwvucYos54U4UFx9z5CeC+HEvzUN8FgAMKascPr5Lk6alme8MV7SCBngMCgaQAWCCqFIjakwV4ELbELj7/D/CFF86vnUCd91Sv4PT8xPL83wFqcmF3LWtleS12MQJ4IGFwcGxpY2F0aW9uL3ZuZC5hdXRocy5yYXcta2V5LnYxA1gyQVVUSFMtUkFXLUtFWQABAQAgDXVQdU4IAKXSN+71gmA1dmubPloVhoqUCrKJlYeI47A=",
+      "code": "audit.outcome-invalid"
+    },
+    {
+      "id": "relative-basis-2-pow-53",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://stripe-refunds/operations/relative-basis-2-pow-53",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "response-recorded"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "http-status": {
+          "uint": 200
+        },
+        "response-digest": {
+          "bytes_hex": "e15948e4ee018aa4afeb3647810059608f0681cc9be9e9efbd7324cf901dd19a"
+        },
+        "relative-basis": {
+          "uint": 9007199254740992
+        },
+        "relative-basis-digest": {
+          "bytes_hex": "bab340fb646bcf08ddc7ae7c26e69272e86dab1a7e5f04a2e4127ca8009c0798"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3hBYXV0aHMtZ2F0ZXdheTovL3N0cmlwZS1yZWZ1bmRzL29wZXJhdGlvbnMvcmVsYXRpdmUtYmFzaXMtMi1wb3ctNTMEGmqxO4UFiKIAamNvbW1pdG1lbnQBeEAyMTQwNTQ0Y2JiNTQwMDE3N2RjMTMyNjljY2VhMWVlNGY0MDEzM2VhZDNkYWI3Mjk2NDAwOTYwNWJmNjNiMmI1ogBsZXZhbHVhdGVkLWF0ARpqsTuAogBraHR0cC1zdGF0dXMBGMiiAG1yZWNpcGUtZGlnZXN0AXhAYzNhMjg4N2EyYWUwZGQ0Zjk2NjVkMDViZTE0YmM5NDg4YjE0Mzc5M2E1YjIyMDk4YWEyZGViY2M0MmRkMDIwYaIAbnJlbGF0aXZlLWJhc2lzARsAIAAAAAAAAKIAdXJlbGF0aXZlLWJhc2lzLWRpZ2VzdAFYILqzQPtka88I3ceufCbmknLobasafl8EouQSfKgAnAeYogBvcmVzcG9uc2UtZGlnZXN0AVgg4VlI5O4BiqSv6zZHgQBZYI8Ggcyb6envvXMkz5Ad0ZqiAGVzdGFnZQFxcmVzcG9uc2UtcmVjb3JkZWQBogCjAGpyYXcta2V5LXYxAXg2a2V5OnNoYTI1NjpXekI2Ty0td3RBOUxMUDlGWjVxcUEwUzNKaG56eHkyUF9tR214Y0pjZTk4AmplZDI1NTE5LXYxAVhAnM6PAKMd4VZDjWqBNk53K1EBTI86lbYISkbXS/yt1RSHbKjaDSkfsHV5a9O31ywvDjddrA9V8+FUt21xrdg5AwKBpABYIKoUiNqTBXgQtsQuPv8P8IUXzq+dQJ33VK/g9PzE8vzfAWpyYXcta2V5LXYxAnggYXBwbGljYXRpb24vdm5kLmF1dGhzLnJhdy1rZXkudjEDWDJBVVRIUy1SQVctS0VZAAEBACANdVB1TggApdI37vWCYDV2a5s+WhWGipQKsomVh4jjsA==",
+      "code": "audit.outcome-invalid"
+    },
+    {
+      "id": "relative-basis-digest-without-basis",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://stripe-refunds/operations/relative-basis-digest-without-basis",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "response-recorded"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "http-status": {
+          "uint": 200
+        },
+        "response-digest": {
+          "bytes_hex": "e15948e4ee018aa4afeb3647810059608f0681cc9be9e9efbd7324cf901dd19a"
+        },
+        "relative-basis-digest": {
+          "bytes_hex": "bab340fb646bcf08ddc7ae7c26e69272e86dab1a7e5f04a2e4127ca8009c0798"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3hNYXV0aHMtZ2F0ZXdheTovL3N0cmlwZS1yZWZ1bmRzL29wZXJhdGlvbnMvcmVsYXRpdmUtYmFzaXMtZGlnZXN0LXdpdGhvdXQtYmFzaXMEGmqxO4UFh6IAamNvbW1pdG1lbnQBeEAyMTQwNTQ0Y2JiNTQwMDE3N2RjMTMyNjljY2VhMWVlNGY0MDEzM2VhZDNkYWI3Mjk2NDAwOTYwNWJmNjNiMmI1ogBsZXZhbHVhdGVkLWF0ARpqsTuAogBraHR0cC1zdGF0dXMBGMiiAG1yZWNpcGUtZGlnZXN0AXhAYzNhMjg4N2EyYWUwZGQ0Zjk2NjVkMDViZTE0YmM5NDg4YjE0Mzc5M2E1YjIyMDk4YWEyZGViY2M0MmRkMDIwYaIAdXJlbGF0aXZlLWJhc2lzLWRpZ2VzdAFYILqzQPtka88I3ceufCbmknLobasafl8EouQSfKgAnAeYogBvcmVzcG9uc2UtZGlnZXN0AVgg4VlI5O4BiqSv6zZHgQBZYI8Ggcyb6envvXMkz5Ad0ZqiAGVzdGFnZQFxcmVzcG9uc2UtcmVjb3JkZWQBogCjAGpyYXcta2V5LXYxAXg2a2V5OnNoYTI1NjpXekI2Ty0td3RBOUxMUDlGWjVxcUEwUzNKaG56eHkyUF9tR214Y0pjZTk4AmplZDI1NTE5LXYxAVhAPv9zbIAnLzppiKCweG4nIuS84PninFwA5vmu68HcBedLwHdEF5pb3g1x1iuaPRsZ+tCBYbELh2WBpYnuu7aeBQKBpABYIKoUiNqTBXgQtsQuPv8P8IUXzq+dQJ33VK/g9PzE8vzfAWpyYXcta2V5LXYxAnggYXBwbGljYXRpb24vdm5kLmF1dGhzLnJhdy1rZXkudjEDWDJBVVRIUy1SQVctS0VZAAEBACANdVB1TggApdI37vWCYDV2a5s+WhWGipQKsomVh4jjsA==",
+      "code": "audit.outcome-invalid"
+    },
+    {
+      "id": "http-status-99",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://stripe-refunds/operations/http-status-99",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "response-recorded"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "http-status": {
+          "uint": 99
+        },
+        "response-digest": {
+          "bytes_hex": "e15948e4ee018aa4afeb3647810059608f0681cc9be9e9efbd7324cf901dd19a"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3g4YXV0aHMtZ2F0ZXdheTovL3N0cmlwZS1yZWZ1bmRzL29wZXJhdGlvbnMvaHR0cC1zdGF0dXMtOTkEGmqxO4UFhqIAamNvbW1pdG1lbnQBeEAyMTQwNTQ0Y2JiNTQwMDE3N2RjMTMyNjljY2VhMWVlNGY0MDEzM2VhZDNkYWI3Mjk2NDAwOTYwNWJmNjNiMmI1ogBsZXZhbHVhdGVkLWF0ARpqsTuAogBraHR0cC1zdGF0dXMBGGOiAG1yZWNpcGUtZGlnZXN0AXhAYzNhMjg4N2EyYWUwZGQ0Zjk2NjVkMDViZTE0YmM5NDg4YjE0Mzc5M2E1YjIyMDk4YWEyZGViY2M0MmRkMDIwYaIAb3Jlc3BvbnNlLWRpZ2VzdAFYIOFZSOTuAYqkr+s2R4EAWWCPBoHMm+np771zJM+QHdGaogBlc3RhZ2UBcXJlc3BvbnNlLXJlY29yZGVkAaIAowBqcmF3LWtleS12MQF4NmtleTpzaGEyNTY6V3pCNk8tLXd0QTlMTFA5Rlo1cXFBMFMzSmhuenh5MlBfbUdteGNKY2U5OAJqZWQyNTUxOS12MQFYQCA32XcWaiDQGdtFqadpX/6cVTtoOkroKQU1LWgSwhjOmKPj3Q0m0AW+N7pjkFgcz+yW5Ov167rJAAV4rKuotQgCgaQAWCCqFIjakwV4ELbELj7/D/CFF86vnUCd91Sv4PT8xPL83wFqcmF3LWtleS12MQJ4IGFwcGxpY2F0aW9uL3ZuZC5hdXRocy5yYXcta2V5LnYxA1gyQVVUSFMtUkFXLUtFWQABAQAgDXVQdU4IAKXSN+71gmA1dmubPloVhoqUCrKJlYeI47A=",
+      "code": "audit.outcome-invalid"
+    },
+    {
+      "id": "stage-attempting",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://stripe-refunds/operations/stage-attempting",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "attempting"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3g6YXV0aHMtZ2F0ZXdheTovL3N0cmlwZS1yZWZ1bmRzL29wZXJhdGlvbnMvc3RhZ2UtYXR0ZW1wdGluZwQaarE7hQWEogBqY29tbWl0bWVudAF4QDIxNDA1NDRjYmI1NDAwMTc3ZGMxMzI2OWNjZWExZWU0ZjQwMTMzZWFkM2RhYjcyOTY0MDA5NjA1YmY2M2IyYjWiAGxldmFsdWF0ZWQtYXQBGmqxO4CiAG1yZWNpcGUtZGlnZXN0AXhAYzNhMjg4N2EyYWUwZGQ0Zjk2NjVkMDViZTE0YmM5NDg4YjE0Mzc5M2E1YjIyMDk4YWEyZGViY2M0MmRkMDIwYaIAZXN0YWdlAWphdHRlbXB0aW5nAaIAowBqcmF3LWtleS12MQF4NmtleTpzaGEyNTY6V3pCNk8tLXd0QTlMTFA5Rlo1cXFBMFMzSmhuenh5MlBfbUdteGNKY2U5OAJqZWQyNTUxOS12MQFYQCiCym93sUlLpkjTFtxoOmLVAxBfmaX/3oYw0TxkMkh5W5lMBinaB9heCh0/V7cERAUaJu+cceWeTqPipDr08A8CgaQAWCCqFIjakwV4ELbELj7/D/CFF86vnUCd91Sv4PT8xPL83wFqcmF3LWtleS12MQJ4IGFwcGxpY2F0aW9uL3ZuZC5hdXRocy5yYXcta2V5LnYxA1gyQVVUSFMtUkFXLUtFWQABAQAgDXVQdU4IAKXSN+71gmA1dmubPloVhoqUCrKJlYeI47A=",
+      "code": "audit.outcome-invalid"
+    },
+    {
+      "id": "unregistered-fact",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://stripe-refunds/operations/unregistered-fact",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "response-recorded"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "http-status": {
+          "uint": 200
+        },
+        "response-digest": {
+          "bytes_hex": "e15948e4ee018aa4afeb3647810059608f0681cc9be9e9efbd7324cf901dd19a"
+        },
+        "provider-status": {
+          "text": "succeeded"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2Old6QjZPLS13dEE5TExQOUZaNXFxQTBTM0pobnp4eTJQX21HbXhjSmNlOTgCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3g7YXV0aHMtZ2F0ZXdheTovL3N0cmlwZS1yZWZ1bmRzL29wZXJhdGlvbnMvdW5yZWdpc3RlcmVkLWZhY3QEGmqxO4UFh6IAamNvbW1pdG1lbnQBeEAyMTQwNTQ0Y2JiNTQwMDE3N2RjMTMyNjljY2VhMWVlNGY0MDEzM2VhZDNkYWI3Mjk2NDAwOTYwNWJmNjNiMmI1ogBsZXZhbHVhdGVkLWF0ARpqsTuAogBraHR0cC1zdGF0dXMBGMiiAG9wcm92aWRlci1zdGF0dXMBaXN1Y2NlZWRlZKIAbXJlY2lwZS1kaWdlc3QBeEBjM2EyODg3YTJhZTBkZDRmOTY2NWQwNWJlMTRiYzk0ODhiMTQzNzkzYTViMjIwOThhYTJkZWJjYzQyZGQwMjBhogBvcmVzcG9uc2UtZGlnZXN0AVgg4VlI5O4BiqSv6zZHgQBZYI8Ggcyb6envvXMkz5Ad0ZqiAGVzdGFnZQFxcmVzcG9uc2UtcmVjb3JkZWQBogCjAGpyYXcta2V5LXYxAXg2a2V5OnNoYTI1NjpXekI2Ty0td3RBOUxMUDlGWjVxcUEwUzNKaG56eHkyUF9tR214Y0pjZTk4AmplZDI1NTE5LXYxAVhAlS9BshbbhdPu5h7DOEymvnE5RNwOX7H3W5nV4twRCzYuVR4oS1QQ4F41n8DTlc1uVE245emVaRQ0QcwgdXx0CgKBpABYIKoUiNqTBXgQtsQuPv8P8IUXzq+dQJ33VK/g9PzE8vzfAWpyYXcta2V5LXYxAnggYXBwbGljYXRpb24vdm5kLmF1dGhzLnJhdy1rZXkudjEDWDJBVVRIUy1SQVctS0VZAAEBACANdVB1TggApdI37vWCYDV2a5s+WhWGipQKsomVh4jjsA==",
+      "code": "audit.outcome-invalid"
+    },
+    {
+      "id": "other-signer",
+      "schema": "auths.gateway-outcome/2",
+      "subject": "auths-gateway://stripe-refunds/operations/other-signer",
+      "facts": {
+        "commitment": {
+          "text": "2140544cbb5400177dc13269ccea1ee4f40133ead3dab72964009605bf63b2b5"
+        },
+        "stage": {
+          "text": "response-recorded"
+        },
+        "evaluated-at": {
+          "uint": 1790000000
+        },
+        "recipe-digest": {
+          "text": "c3a2887a2ae0dd4f9665d05be14bc9488b143793a5b22098aa2debcc42dd020a"
+        },
+        "http-status": {
+          "uint": 200
+        },
+        "response-digest": {
+          "bytes_hex": "e15948e4ee018aa4afeb3647810059608f0681cc9be9e9efbd7324cf901dd19a"
+        }
+      },
+      "observation_b64": "owCmAAEBeDZrZXk6c2hhMjU2OlF4M0pHS29ORGlTVHdaVUdHY1Boc1NUWTJqRXpUNGpJRDhuUWxfV3o2VHMCd2F1dGhzLmdhdGV3YXktb3V0Y29tZS8yA3g2YXV0aHMtZ2F0ZXdheTovL3N0cmlwZS1yZWZ1bmRzL29wZXJhdGlvbnMvb3RoZXItc2lnbmVyBBpqsTuFBYaiAGpjb21taXRtZW50AXhAMjE0MDU0NGNiYjU0MDAxNzdkYzEzMjY5Y2NlYTFlZTRmNDAxMzNlYWQzZGFiNzI5NjQwMDk2MDViZjYzYjJiNaIAbGV2YWx1YXRlZC1hdAEaarE7gKIAa2h0dHAtc3RhdHVzARjIogBtcmVjaXBlLWRpZ2VzdAF4QGMzYTI4ODdhMmFlMGRkNGY5NjY1ZDA1YmUxNGJjOTQ4OGIxNDM3OTNhNWIyMjA5OGFhMmRlYmNjNDJkZDAyMGGiAG9yZXNwb25zZS1kaWdlc3QBWCDhWUjk7gGKpK/rNkeBAFlgjwaBzJvp6e+9cyTPkB3RmqIAZXN0YWdlAXFyZXNwb25zZS1yZWNvcmRlZAGiAKMAanJhdy1rZXktdjEBeDZrZXk6c2hhMjU2OlF4M0pHS29ORGlTVHdaVUdHY1Boc1NUWTJqRXpUNGpJRDhuUWxfV3o2VHMCamVkMjU1MTktdjEBWECDSSwPhSKXugDPuGxTkp5HCeUuqhC3YSWfqusqnm+K7iZ/JH/h2/k2M4dUkqVCeaT1d+xB7HZJ81oZ4SSoytMFAoGkAFggt2Sne23RdULqAGmzXBrGYeM8rpkxlDYCtAXXDSZLvwoBanJhdy1rZXktdjECeCBhcHBsaWNhdGlvbi92bmQuYXV0aHMucmF3LWtleS52MQNYMkFVVEhTLVJBVy1LRVkAAQEAIGtzSo7/JG/nNLONQEbBSO7l8E/oezoKQjlVp3lW3gZr",
+      "code": "audit.outcome-invalid"
+    }
+  ]
+}

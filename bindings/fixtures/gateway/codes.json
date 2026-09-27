@@ -1,0 +1,812 @@
+{
+  "schema": "auths.gateway-codes/1",
+  "codes": [
+    {
+      "code": "audit.bound-exceeded",
+      "owner": "audit",
+      "stage": "audit",
+      "status": "new",
+      "epic": 4,
+      "case": {
+        "fixture": "bounds-aggregate.json",
+        "id": "audit-count-capacity-three-and-one"
+      }
+    },
+    {
+      "code": "audit.counters-mismatch",
+      "owner": "audit",
+      "stage": "audit",
+      "status": "new",
+      "epic": 4,
+      "case": null
+    },
+    {
+      "code": "audit.outcome-invalid",
+      "owner": "audit",
+      "stage": "audit",
+      "status": "existing",
+      "epic": null,
+      "case": {
+        "fixture": "outcome-v2.json",
+        "id": "outcome-v1-schema"
+      }
+    },
+    {
+      "code": "audit.pre-entry-invalid",
+      "owner": "audit",
+      "stage": "audit",
+      "status": "new",
+      "epic": 6,
+      "case": null
+    },
+    {
+      "code": "audit.pre-entry-missing",
+      "owner": "audit",
+      "stage": "audit",
+      "status": "new",
+      "epic": 6,
+      "case": null
+    },
+    {
+      "code": "audit.pre-entry-unsatisfied",
+      "owner": "audit",
+      "stage": "audit",
+      "status": "new",
+      "epic": 6,
+      "case": null
+    },
+    {
+      "code": "audit.relative-ceiling-exceeded",
+      "owner": "audit",
+      "stage": "audit",
+      "status": "new",
+      "epic": 6,
+      "case": null
+    },
+    {
+      "code": "audit.relative-ceiling-missing",
+      "owner": "audit",
+      "stage": "audit",
+      "status": "new",
+      "epic": 6,
+      "case": null
+    },
+    {
+      "code": "audit.sum-exceeded",
+      "owner": "audit",
+      "stage": "audit",
+      "status": "new",
+      "epic": 4,
+      "case": {
+        "fixture": "bounds-aggregate.json",
+        "id": "audit-sum-exceeded"
+      }
+    },
+    {
+      "code": "gateway.account-scope.invalid-value",
+      "owner": "engine",
+      "stage": "before-claim",
+      "status": "new",
+      "epic": 4,
+      "case": {
+        "fixture": "attempt-scenarios-v3.json",
+        "id": "account-scope-invalid-value"
+      }
+    },
+    {
+      "code": "gateway.account-scope.unbound",
+      "owner": "engine",
+      "stage": "before-claim",
+      "status": "new",
+      "epic": 4,
+      "case": {
+        "fixture": "attempt-scenarios-v3.json",
+        "id": "account-scope-unbound"
+      }
+    },
+    {
+      "code": "gateway.admin.credential-account",
+      "owner": "admin",
+      "stage": "admin",
+      "status": "new",
+      "epic": 3,
+      "case": null
+    },
+    {
+      "code": "gateway.admin.credential-capability",
+      "owner": "admin",
+      "stage": "admin",
+      "status": "new",
+      "epic": 3,
+      "case": null
+    },
+    {
+      "code": "gateway.admin.credential-guard",
+      "owner": "admin",
+      "stage": "admin",
+      "status": "new",
+      "epic": 3,
+      "case": null
+    },
+    {
+      "code": "gateway.admin.credential-probe",
+      "owner": "admin",
+      "stage": "admin",
+      "status": "new",
+      "epic": 3,
+      "case": null
+    },
+    {
+      "code": "gateway.admin.generation-conflict",
+      "owner": "admin",
+      "stage": "admin",
+      "status": "new",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.admin.peer-refused",
+      "owner": "admin",
+      "stage": "admin",
+      "status": "existing",
+      "epic": null,
+      "case": null
+    },
+    {
+      "code": "gateway.admin.reobserved",
+      "owner": "admin",
+      "stage": "admin",
+      "status": "new",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.admin.status",
+      "owner": "admin",
+      "stage": "admin",
+      "status": "new",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.attempt.entry-deadline",
+      "owner": "engine",
+      "stage": "recorded",
+      "status": "new",
+      "epic": 3,
+      "case": {
+        "fixture": "attempt-scenarios-v3.json",
+        "id": "entry-deadline-exceeded"
+      }
+    },
+    {
+      "code": "gateway.connection.changed",
+      "owner": "engine",
+      "stage": "recorded",
+      "status": "changed",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.connection.credential-generation-missing",
+      "owner": "engine",
+      "stage": "before-claim",
+      "status": "new",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.credential.account-mismatch",
+      "owner": "engine",
+      "stage": "recorded",
+      "status": "new",
+      "epic": 3,
+      "case": {
+        "fixture": "attempt-scenarios-v3.json",
+        "id": "account-substituted-at-lease"
+      }
+    },
+    {
+      "code": "gateway.credential.account-unavailable",
+      "owner": "engine",
+      "stage": "recorded",
+      "status": "new",
+      "epic": 3,
+      "case": {
+        "fixture": "attempt-scenarios-v3.json",
+        "id": "account-unavailable-at-lease"
+      }
+    },
+    {
+      "code": "gateway.credential.capability-excess",
+      "owner": "engine",
+      "stage": "recorded",
+      "status": "new",
+      "epic": 3,
+      "case": {
+        "fixture": "attempt-scenarios-v3.json",
+        "id": "denied-read-answered"
+      }
+    },
+    {
+      "code": "gateway.credential.capability-unavailable",
+      "owner": "engine",
+      "stage": "recorded",
+      "status": "new",
+      "epic": 3,
+      "case": {
+        "fixture": "attempt-scenarios-v3.json",
+        "id": "denied-read-unexpected-status"
+      }
+    },
+    {
+      "code": "gateway.credential.mode-guard",
+      "owner": "engine",
+      "stage": "recorded",
+      "status": "new",
+      "epic": 3,
+      "case": {
+        "fixture": "attempt-scenarios-v3.json",
+        "id": "credential-mode-guard-at-lease"
+      }
+    },
+    {
+      "code": "gateway.credential.unavailable",
+      "owner": "engine",
+      "stage": "recorded",
+      "status": "changed",
+      "epic": 3,
+      "case": null
+    },
+    {
+      "code": "gateway.echo-verify.absent",
+      "owner": "echo-verify",
+      "stage": "echo-verify",
+      "status": "new",
+      "epic": 6,
+      "case": null
+    },
+    {
+      "code": "gateway.echo-verify.action-invalid",
+      "owner": "echo-verify",
+      "stage": "echo-verify",
+      "status": "new",
+      "epic": 6,
+      "case": null
+    },
+    {
+      "code": "gateway.echo-verify.match",
+      "owner": "echo-verify",
+      "stage": "echo-verify",
+      "status": "new",
+      "epic": 6,
+      "case": null
+    },
+    {
+      "code": "gateway.echo-verify.mismatch",
+      "owner": "echo-verify",
+      "stage": "echo-verify",
+      "status": "new",
+      "epic": 6,
+      "case": null
+    },
+    {
+      "code": "gateway.echo-verify.pointer-invalid",
+      "owner": "echo-verify",
+      "stage": "echo-verify",
+      "status": "new",
+      "epic": 6,
+      "case": null
+    },
+    {
+      "code": "gateway.echo-verify.record-invalid",
+      "owner": "echo-verify",
+      "stage": "echo-verify",
+      "status": "new",
+      "epic": 6,
+      "case": null
+    },
+    {
+      "code": "gateway.idempotency.window-exceeds-retention",
+      "owner": "engine",
+      "stage": "before-claim",
+      "status": "new",
+      "epic": 3,
+      "case": {
+        "fixture": "attempt-scenarios-v3.json",
+        "id": "idempotency-window-exceeds-retention"
+      }
+    },
+    {
+      "code": "gateway.install.connection-exists",
+      "owner": "install",
+      "stage": "install",
+      "status": "new",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.install.credential-account",
+      "owner": "install",
+      "stage": "install",
+      "status": "new",
+      "epic": 3,
+      "case": null
+    },
+    {
+      "code": "gateway.install.credential-capability",
+      "owner": "install",
+      "stage": "install",
+      "status": "new",
+      "epic": 3,
+      "case": null
+    },
+    {
+      "code": "gateway.install.credential-guard",
+      "owner": "install",
+      "stage": "install",
+      "status": "new",
+      "epic": 3,
+      "case": null
+    },
+    {
+      "code": "gateway.install.credential-probe",
+      "owner": "install",
+      "stage": "install",
+      "status": "new",
+      "epic": 3,
+      "case": null
+    },
+    {
+      "code": "gateway.install.join-commitment-mismatch",
+      "owner": "install",
+      "stage": "install",
+      "status": "new",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.install.join-record-missing",
+      "owner": "install",
+      "stage": "install",
+      "status": "new",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.install.operator-attestation-invalid",
+      "owner": "install",
+      "stage": "install",
+      "status": "new",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.install.operator-attestation-required",
+      "owner": "install",
+      "stage": "install",
+      "status": "new",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.observer.credential-guard",
+      "owner": "observer",
+      "stage": "observe",
+      "status": "new",
+      "epic": 3,
+      "case": null
+    },
+    {
+      "code": "gateway.policy.above-sum-limit",
+      "owner": "engine",
+      "stage": "before-claim",
+      "status": "new",
+      "epic": 4,
+      "case": {
+        "fixture": "bounds-aggregate.json",
+        "id": "argument-above-smallest-sum-limit"
+      }
+    },
+    {
+      "code": "gateway.policy.count-unavailable",
+      "owner": "ReserveRefusal",
+      "stage": "before-claim",
+      "status": "changed",
+      "epic": 4,
+      "case": null
+    },
+    {
+      "code": "gateway.policy.evaluator-mismatch",
+      "owner": "engine",
+      "stage": "before-claim",
+      "status": "existing",
+      "epic": null,
+      "case": {
+        "fixture": "bounds-aggregate.json",
+        "id": "policy-type-v1-refused"
+      }
+    },
+    {
+      "code": "gateway.policy.evaluator-unregistered",
+      "owner": "engine",
+      "stage": "before-claim",
+      "status": "existing",
+      "epic": null,
+      "case": {
+        "fixture": "bounds-aggregate.json",
+        "id": "evaluator-v1-refused"
+      }
+    },
+    {
+      "code": "gateway.policy.expanded",
+      "owner": "engine",
+      "stage": "before-claim",
+      "status": "existing",
+      "epic": null,
+      "case": {
+        "fixture": "bounds-aggregate.json",
+        "id": "child-raises-sum-limit"
+      }
+    },
+    {
+      "code": "gateway.policy.partition-denied",
+      "owner": "engine",
+      "stage": "before-claim",
+      "status": "new",
+      "epic": 4,
+      "case": {
+        "fixture": "bounds-aggregate.json",
+        "id": "partition-value-not-listed"
+      }
+    },
+    {
+      "code": "gateway.policy.scope-denied",
+      "owner": "engine",
+      "stage": "before-claim",
+      "status": "new",
+      "epic": 4,
+      "case": {
+        "fixture": "attempt-scenarios-v3.json",
+        "id": "account-scope-outside-grant"
+      }
+    },
+    {
+      "code": "gateway.policy.sum-exhausted",
+      "owner": "ReserveRefusal",
+      "stage": "recorded",
+      "status": "new",
+      "epic": 4,
+      "case": {
+        "fixture": "bounds-aggregate.json",
+        "id": "siblings-exceed-parent-sum"
+      }
+    },
+    {
+      "code": "gateway.policy.sum-required",
+      "owner": "engine",
+      "stage": "before-claim",
+      "status": "new",
+      "epic": 4,
+      "case": {
+        "fixture": "bounds-aggregate.json",
+        "id": "sum-required-unbounded-action"
+      }
+    },
+    {
+      "code": "gateway.policy.too-many-bounds",
+      "owner": "engine",
+      "stage": "before-claim",
+      "status": "new",
+      "epic": 4,
+      "case": {
+        "fixture": "bounds-aggregate.json",
+        "id": "seventeen-links-refused"
+      }
+    },
+    {
+      "code": "gateway.policy.window-exhausted",
+      "owner": "ReserveRefusal",
+      "stage": "recorded",
+      "status": "changed",
+      "epic": 4,
+      "case": {
+        "fixture": "bounds-aggregate.json",
+        "id": "siblings-exceed-parent-count"
+      }
+    },
+    {
+      "code": "gateway.pre-entry.condition-false",
+      "owner": "engine",
+      "stage": "recorded",
+      "status": "new",
+      "epic": 3,
+      "case": {
+        "fixture": "attempt-scenarios-v3.json",
+        "id": "pre-entry-replaced-after-observation"
+      }
+    },
+    {
+      "code": "gateway.pre-entry.observer-unavailable",
+      "owner": "engine",
+      "stage": "before-claim",
+      "status": "new",
+      "epic": 3,
+      "case": {
+        "fixture": "attempt-scenarios-v3.json",
+        "id": "pre-entry-observer-unavailable"
+      }
+    },
+    {
+      "code": "gateway.pre-entry.requirement-missing",
+      "owner": "engine",
+      "stage": "before-claim",
+      "status": "new",
+      "epic": 3,
+      "case": {
+        "fixture": "attempt-scenarios-v3.json",
+        "id": "pre-entry-requirement-missing"
+      }
+    },
+    {
+      "code": "gateway.pre-entry.unavailable",
+      "owner": "engine",
+      "stage": "recorded",
+      "status": "new",
+      "epic": 3,
+      "case": {
+        "fixture": "attempt-scenarios-v3.json",
+        "id": "pre-entry-unavailable"
+      }
+    },
+    {
+      "code": "gateway.recipe.echo-conflict",
+      "owner": "GatewayRecipeError",
+      "stage": "compile",
+      "status": "existing",
+      "epic": null,
+      "case": {
+        "fixture": "hostile-recipes-v2.json",
+        "id": "form-echo-existing-field"
+      }
+    },
+    {
+      "code": "gateway.recipe.invalid-account-scope",
+      "owner": "GatewayRecipeError",
+      "stage": "compile",
+      "status": "new",
+      "epic": 2,
+      "case": {
+        "fixture": "hostile-recipes-v2.json",
+        "id": "account-scope-unregistered-header"
+      }
+    },
+    {
+      "code": "gateway.recipe.invalid-bounds",
+      "owner": "GatewayRecipeError",
+      "stage": "compile",
+      "status": "new",
+      "epic": 2,
+      "case": {
+        "fixture": "hostile-recipes-v2.json",
+        "id": "bounds-sum-argument-string"
+      }
+    },
+    {
+      "code": "gateway.recipe.invalid-credential",
+      "owner": "GatewayRecipeError",
+      "stage": "compile",
+      "status": "existing",
+      "epic": null,
+      "case": {
+        "fixture": "hostile-recipes-v2.json",
+        "id": "credential-header-is-stripe-version"
+      }
+    },
+    {
+      "code": "gateway.recipe.invalid-credential-guard",
+      "owner": "GatewayRecipeError",
+      "stage": "compile",
+      "status": "new",
+      "epic": 2,
+      "case": {
+        "fixture": "hostile-recipes-v2.json",
+        "id": "denied-read-post"
+      }
+    },
+    {
+      "code": "gateway.recipe.invalid-idempotency",
+      "owner": "GatewayRecipeError",
+      "stage": "compile",
+      "status": "new",
+      "epic": 2,
+      "case": {
+        "fixture": "hostile-recipes-v2.json",
+        "id": "idempotency-retention-zero"
+      }
+    },
+    {
+      "code": "gateway.recipe.invalid-pre-entry",
+      "owner": "GatewayRecipeError",
+      "stage": "compile",
+      "status": "new",
+      "epic": 2,
+      "case": {
+        "fixture": "hostile-recipes-v2.json",
+        "id": "pre-entry-no-pointers"
+      }
+    },
+    {
+      "code": "gateway.recipe.invalid-provider-header",
+      "owner": "GatewayRecipeError",
+      "stage": "compile",
+      "status": "new",
+      "epic": 2,
+      "case": {
+        "fixture": "hostile-recipes-v2.json",
+        "id": "provider-header-stripe-account"
+      }
+    },
+    {
+      "code": "gateway.recipe.invalid-relative-ceiling",
+      "owner": "GatewayRecipeError",
+      "stage": "compile",
+      "status": "new",
+      "epic": 2,
+      "case": {
+        "fixture": "hostile-recipes-v2.json",
+        "id": "relative-ceiling-basis-points-0"
+      }
+    },
+    {
+      "code": "gateway.recipe.invalid-source",
+      "owner": "GatewayRecipeError",
+      "stage": "compile",
+      "status": "existing",
+      "epic": null,
+      "case": {
+        "fixture": "hostile-recipes-v2.json",
+        "id": "schema-v1-refused"
+      }
+    },
+    {
+      "code": "gateway.recipe.precondition-conflict",
+      "owner": "GatewayRecipeError",
+      "stage": "compile",
+      "status": "existing",
+      "epic": null,
+      "case": {
+        "fixture": "hostile-recipes-v2.json",
+        "id": "read-back-subject-with-response-locator"
+      }
+    },
+    {
+      "code": "gateway.recipe.response-locator-conflict",
+      "owner": "GatewayRecipeError",
+      "stage": "compile",
+      "status": "new",
+      "epic": 2,
+      "case": {
+        "fixture": "hostile-recipes-v2.json",
+        "id": "write-path-response-field"
+      }
+    },
+    {
+      "code": "gateway.recipe.unbound-partition",
+      "owner": "GatewayRecipeError",
+      "stage": "compile",
+      "status": "new",
+      "epic": 2,
+      "case": {
+        "fixture": "hostile-recipes-v2.json",
+        "id": "unbound-partition"
+      }
+    },
+    {
+      "code": "gateway.recipe.unsafe-path",
+      "owner": "GatewayRecipeError",
+      "stage": "compile",
+      "status": "existing",
+      "epic": null,
+      "case": {
+        "fixture": "hostile-recipes-v2.json",
+        "id": "relative-ceiling-path-traversal"
+      }
+    },
+    {
+      "code": "gateway.recipe.unsafe-template",
+      "owner": "GatewayRecipeError",
+      "stage": "compile",
+      "status": "existing",
+      "epic": null,
+      "case": {
+        "fixture": "hostile-recipes-v2.json",
+        "id": "account-scope-removed"
+      }
+    },
+    {
+      "code": "gateway.relative-ceiling.above",
+      "owner": "engine",
+      "stage": "recorded",
+      "status": "new",
+      "epic": 3,
+      "case": {
+        "fixture": "attempt-scenarios-v3.json",
+        "id": "relative-ceiling-above"
+      }
+    },
+    {
+      "code": "gateway.relative-ceiling.binding-mismatch",
+      "owner": "engine",
+      "stage": "recorded",
+      "status": "new",
+      "epic": 3,
+      "case": {
+        "fixture": "attempt-scenarios-v3.json",
+        "id": "relative-binding-mismatch"
+      }
+    },
+    {
+      "code": "gateway.relative-ceiling.unavailable",
+      "owner": "engine",
+      "stage": "recorded",
+      "status": "new",
+      "epic": 3,
+      "case": {
+        "fixture": "attempt-scenarios-v3.json",
+        "id": "relative-basis-unavailable"
+      }
+    },
+    {
+      "code": "gateway.reobserve.not-observable",
+      "owner": "admin",
+      "stage": "admin",
+      "status": "new",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.serve.accept-failed",
+      "owner": "serve",
+      "stage": "serve",
+      "status": "existing",
+      "epic": null,
+      "case": null
+    },
+    {
+      "code": "gateway.serve.descriptor-limit",
+      "owner": "serve",
+      "stage": "serve",
+      "status": "new",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.transport.not-entered",
+      "owner": "engine",
+      "stage": "recorded",
+      "status": "new",
+      "epic": 3,
+      "case": {
+        "fixture": "attempt-scenarios-v3.json",
+        "id": "transport-not-entered"
+      }
+    },
+    {
+      "code": "gateway.trust.key-aliased",
+      "owner": "install",
+      "stage": "install-and-serve",
+      "status": "new",
+      "epic": 5,
+      "case": null
+    },
+    {
+      "code": "gateway.trust.observer-key-in-authority-chain",
+      "owner": "engine",
+      "stage": "before-claim",
+      "status": "new",
+      "epic": 5,
+      "case": null
+    }
+  ]
+}

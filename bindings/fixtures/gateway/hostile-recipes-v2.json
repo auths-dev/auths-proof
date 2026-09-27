@@ -1,0 +1,3198 @@
+{
+  "schema": "auths.gateway-hostile-recipes/2",
+  "source_schema": "auths.gateway-recipe-source/2",
+  "bases": {
+    "airtable": {
+      "recipe": {
+        "schema": "auths.gateway-recipe-source/2",
+        "profile_schema_digest": "72e60b43ec96354be07e5a3a15e7a12ab6aa19b7042b757ebd05dfadcc5f2a29",
+        "service": "airtable-gateway-demo",
+        "tool": "set_demo_status_v1",
+        "operator_namespace": "airtable-demo",
+        "credential": {
+          "kind": "bearer"
+        },
+        "origin": "https://api.airtable.com",
+        "write": {
+          "method": "PATCH",
+          "path": [
+            {
+              "kind": "fixed",
+              "value": "v0"
+            },
+            {
+              "kind": "fixed",
+              "value": "appTEST0000000001"
+            },
+            {
+              "kind": "fixed",
+              "value": "tblTEST0000000001"
+            },
+            {
+              "kind": "field",
+              "name": "record_id"
+            }
+          ],
+          "body": {
+            "kind": "json",
+            "value": {
+              "kind": "object",
+              "fields": {
+                "fields": {
+                  "kind": "object",
+                  "fields": {
+                    "DemoStatus": {
+                      "kind": "field",
+                      "name": "replacement"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "observation": {
+          "path": [
+            {
+              "kind": "fixed",
+              "value": "v0"
+            },
+            {
+              "kind": "fixed",
+              "value": "appTEST0000000001"
+            },
+            {
+              "kind": "fixed",
+              "value": "tblTEST0000000001"
+            },
+            {
+              "kind": "field",
+              "name": "record_id"
+            }
+          ],
+          "json_pointer": "/fields/DemoStatus",
+          "expected_field": "replacement",
+          "maximum_response_bytes": 16384
+        },
+        "echo": {
+          "write": {
+            "kind": "json-pointer",
+            "pointer": "/fields/auths_echo"
+          },
+          "observe": "/fields/auths_echo"
+        }
+      },
+      "lock": {
+        "command_schema": {
+          "fields": {
+            "operation_id": {
+              "kind": "string",
+              "maximum": 128,
+              "minimum": 1
+            },
+            "operator_namespace": {
+              "type": "enum",
+              "variants": [
+                "airtable-demo"
+              ]
+            },
+            "recipe_digest": {
+              "kind": "string",
+              "maximum": 64,
+              "minimum": 64
+            },
+            "record_id": {
+              "kind": "string",
+              "maximum": 43,
+              "minimum": 17
+            },
+            "replacement": {
+              "type": "enum",
+              "variants": [
+                "Approved",
+                "Pending"
+              ]
+            }
+          },
+          "kind": "object"
+        },
+        "generator_format": 2,
+        "profile": "airtable-gateway-record-update",
+        "schema": "auths.self-hosted-profile-lock/1",
+        "schema_digest": "72e60b43ec96354be07e5a3a15e7a12ab6aa19b7042b757ebd05dfadcc5f2a29",
+        "service": "airtable-gateway-demo",
+        "tool": "set_demo_status_v1",
+        "version": 1
+      },
+      "recovery": {
+        "schema": "auths.gateway-recovery-capability/1",
+        "class": "linked",
+        "state_observation": "verified-locator",
+        "provider_link": "verified-locator",
+        "unknown_resolution": "gateway-reobservation",
+        "lost_claim_reentry": {
+          "deduplication": "none"
+        },
+        "pre_entry_reread": false,
+        "write_is_conditional": false
+      },
+      "digest": "bcc87023c14afe93c0762c20b58796cdfaec92d604c0c2cf6c9f5cceae3066d1"
+    },
+    "airtable-pre-entry": {
+      "recipe": {
+        "schema": "auths.gateway-recipe-source/2",
+        "profile_schema_digest": "18c3621ff65c6f326bae155b0a9e984cc8ab97e03f75ec428b2d18ffda1b064a",
+        "service": "airtable-gateway-demo",
+        "tool": "set_demo_status_v1",
+        "operator_namespace": "airtable-demo",
+        "credential": {
+          "kind": "bearer"
+        },
+        "origin": "https://api.airtable.com",
+        "write": {
+          "method": "PATCH",
+          "path": [
+            {
+              "kind": "fixed",
+              "value": "v0"
+            },
+            {
+              "kind": "fixed",
+              "value": "appTEST0000000001"
+            },
+            {
+              "kind": "fixed",
+              "value": "tblTEST0000000001"
+            },
+            {
+              "kind": "field",
+              "name": "record_id"
+            }
+          ],
+          "body": {
+            "kind": "json",
+            "value": {
+              "kind": "object",
+              "fields": {
+                "fields": {
+                  "kind": "object",
+                  "fields": {
+                    "DemoStatus": {
+                      "kind": "field",
+                      "name": "replacement"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "observation": {
+          "path": [
+            {
+              "kind": "fixed",
+              "value": "v0"
+            },
+            {
+              "kind": "fixed",
+              "value": "appTEST0000000001"
+            },
+            {
+              "kind": "fixed",
+              "value": "tblTEST0000000001"
+            },
+            {
+              "kind": "field",
+              "name": "record_id"
+            }
+          ],
+          "json_pointer": "/fields/DemoStatus",
+          "expected_field": "replacement",
+          "maximum_response_bytes": 16384
+        },
+        "echo": {
+          "write": {
+            "kind": "json-pointer",
+            "pointer": "/fields/auths_echo"
+          },
+          "observe": "/fields/auths_echo"
+        },
+        "preconditions": {
+          "read_back_subject": "record_uri",
+          "verified": [
+            "expected"
+          ]
+        },
+        "pre_entry": {
+          "path": [
+            {
+              "kind": "fixed",
+              "value": "v0"
+            },
+            {
+              "kind": "fixed",
+              "value": "appTEST0000000001"
+            },
+            {
+              "kind": "fixed",
+              "value": "tblTEST0000000001"
+            },
+            {
+              "kind": "field",
+              "name": "record_id"
+            }
+          ],
+          "pointers": [
+            "/fields/DemoStatus"
+          ],
+          "maximum_response_bytes": 16384
+        }
+      },
+      "lock": {
+        "command_schema": {
+          "fields": {
+            "operation_id": {
+              "kind": "string",
+              "maximum": 128,
+              "minimum": 1
+            },
+            "operator_namespace": {
+              "type": "enum",
+              "variants": [
+                "airtable-demo"
+              ]
+            },
+            "recipe_digest": {
+              "kind": "string",
+              "maximum": 64,
+              "minimum": 64
+            },
+            "record_id": {
+              "kind": "string",
+              "maximum": 43,
+              "minimum": 17
+            },
+            "replacement": {
+              "type": "enum",
+              "variants": [
+                "Approved",
+                "Pending"
+              ]
+            },
+            "expected": {
+              "type": "enum",
+              "variants": [
+                "Approved",
+                "Pending"
+              ]
+            },
+            "record_uri": {
+              "kind": "string",
+              "minimum": 1,
+              "maximum": 256
+            }
+          },
+          "kind": "object"
+        },
+        "generator_format": 2,
+        "profile": "airtable-gateway-record-update",
+        "schema": "auths.self-hosted-profile-lock/1",
+        "schema_digest": "18c3621ff65c6f326bae155b0a9e984cc8ab97e03f75ec428b2d18ffda1b064a",
+        "service": "airtable-gateway-demo",
+        "tool": "set_demo_status_v1",
+        "version": 1
+      },
+      "recovery": {
+        "schema": "auths.gateway-recovery-capability/1",
+        "class": "linked",
+        "state_observation": "verified-locator",
+        "provider_link": "verified-locator",
+        "unknown_resolution": "gateway-reobservation",
+        "lost_claim_reentry": {
+          "deduplication": "none"
+        },
+        "pre_entry_reread": true,
+        "write_is_conditional": false
+      },
+      "digest": "27f8339d08701cd0b7955edc54ee21bf5ce355705aa93034284ac2d20289d70e"
+    },
+    "todoist": {
+      "recipe": {
+        "schema": "auths.gateway-recipe-source/2",
+        "profile_schema_digest": "d2929455f9e255caf23629daa0db125c73565a2a55b4db13fbe0fbea731d10f3",
+        "service": "todoist-gateway-demo",
+        "tool": "create_task_v1",
+        "operator_namespace": "todoist-demo",
+        "credential": {
+          "kind": "bearer"
+        },
+        "origin": "https://api.todoist.com",
+        "write": {
+          "method": "POST",
+          "path": [
+            {
+              "kind": "fixed",
+              "value": "api"
+            },
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "sync"
+            }
+          ],
+          "body": {
+            "kind": "form",
+            "fields": {
+              "commands": {
+                "kind": "json",
+                "value": {
+                  "kind": "array",
+                  "items": [
+                    {
+                      "kind": "object",
+                      "fields": {
+                        "type": {
+                          "kind": "string",
+                          "value": "item_add"
+                        },
+                        "uuid": {
+                          "kind": "field",
+                          "name": "operation_id"
+                        },
+                        "temp_id": {
+                          "kind": "field",
+                          "name": "temp_id"
+                        },
+                        "args": {
+                          "kind": "object",
+                          "fields": {
+                            "content": {
+                              "kind": "field",
+                              "name": "content"
+                            },
+                            "description": {
+                              "kind": "field",
+                              "name": "description"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "lock": {
+        "command_schema": {
+          "fields": {
+            "content": {
+              "kind": "string",
+              "maximum": 256,
+              "minimum": 1
+            },
+            "description": {
+              "kind": "string",
+              "maximum": 80,
+              "minimum": 1
+            },
+            "operation_id": {
+              "kind": "string",
+              "maximum": 128,
+              "minimum": 1
+            },
+            "operator_namespace": {
+              "type": "enum",
+              "variants": [
+                "todoist-demo"
+              ]
+            },
+            "recipe_digest": {
+              "kind": "string",
+              "maximum": 64,
+              "minimum": 64
+            },
+            "temp_id": {
+              "kind": "string",
+              "maximum": 36,
+              "minimum": 36
+            }
+          },
+          "kind": "object"
+        },
+        "generator_format": 2,
+        "profile": "todoist-gateway-task-create",
+        "schema": "auths.self-hosted-profile-lock/1",
+        "schema_digest": "d2929455f9e255caf23629daa0db125c73565a2a55b4db13fbe0fbea731d10f3",
+        "service": "todoist-gateway-demo",
+        "tool": "create_task_v1",
+        "version": 1
+      },
+      "recovery": {
+        "schema": "auths.gateway-recovery-capability/1",
+        "class": "recorded",
+        "state_observation": "none",
+        "provider_link": "none",
+        "unknown_resolution": "none",
+        "lost_claim_reentry": {
+          "deduplication": "none"
+        },
+        "pre_entry_reread": false,
+        "write_is_conditional": false
+      },
+      "digest": "3c5a6e4dfed46131f7882f697a70e7bb22e06cbf6d717f7182f0fedebe8a2f5b"
+    },
+    "todoist-operation-id": {
+      "recipe": {
+        "schema": "auths.gateway-recipe-source/2",
+        "profile_schema_digest": "d2929455f9e255caf23629daa0db125c73565a2a55b4db13fbe0fbea731d10f3",
+        "service": "todoist-gateway-demo",
+        "tool": "create_task_v1",
+        "operator_namespace": "todoist-demo",
+        "credential": {
+          "kind": "bearer"
+        },
+        "origin": "https://api.todoist.com",
+        "write": {
+          "method": "POST",
+          "path": [
+            {
+              "kind": "fixed",
+              "value": "api"
+            },
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "sync"
+            }
+          ],
+          "body": {
+            "kind": "form",
+            "fields": {
+              "commands": {
+                "kind": "json",
+                "value": {
+                  "kind": "array",
+                  "items": [
+                    {
+                      "kind": "object",
+                      "fields": {
+                        "type": {
+                          "kind": "string",
+                          "value": "item_add"
+                        },
+                        "uuid": {
+                          "kind": "field",
+                          "name": "operation_id"
+                        },
+                        "temp_id": {
+                          "kind": "field",
+                          "name": "temp_id"
+                        },
+                        "args": {
+                          "kind": "object",
+                          "fields": {
+                            "content": {
+                              "kind": "field",
+                              "name": "content"
+                            },
+                            "description": {
+                              "kind": "field",
+                              "name": "description"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "idempotency": {
+            "kind": "operation-id-field",
+            "location": {
+              "form_field": "commands",
+              "pointer": "/0/uuid"
+            },
+            "retention_seconds": 3600
+          }
+        }
+      },
+      "lock": {
+        "command_schema": {
+          "fields": {
+            "content": {
+              "kind": "string",
+              "maximum": 256,
+              "minimum": 1
+            },
+            "description": {
+              "kind": "string",
+              "maximum": 80,
+              "minimum": 1
+            },
+            "operation_id": {
+              "kind": "string",
+              "maximum": 128,
+              "minimum": 1
+            },
+            "operator_namespace": {
+              "type": "enum",
+              "variants": [
+                "todoist-demo"
+              ]
+            },
+            "recipe_digest": {
+              "kind": "string",
+              "maximum": 64,
+              "minimum": 64
+            },
+            "temp_id": {
+              "kind": "string",
+              "maximum": 36,
+              "minimum": 36
+            }
+          },
+          "kind": "object"
+        },
+        "generator_format": 2,
+        "profile": "todoist-gateway-task-create",
+        "schema": "auths.self-hosted-profile-lock/1",
+        "schema_digest": "d2929455f9e255caf23629daa0db125c73565a2a55b4db13fbe0fbea731d10f3",
+        "service": "todoist-gateway-demo",
+        "tool": "create_task_v1",
+        "version": 1
+      },
+      "recovery": {
+        "schema": "auths.gateway-recovery-capability/1",
+        "class": "recorded",
+        "state_observation": "none",
+        "provider_link": "none",
+        "unknown_resolution": "none",
+        "lost_claim_reentry": {
+          "deduplication": "declared",
+          "kind": "operation-id-field",
+          "retention_seconds": 3600
+        },
+        "pre_entry_reread": false,
+        "write_is_conditional": false
+      },
+      "note": "retention_seconds is a fixture value, not a statement of the provider's retention",
+      "digest": "9d6972f67644e0d6377f2feb33332fe27a1484b553615843fdcd85a5143c2aee"
+    },
+    "github": {
+      "recipe": {
+        "schema": "auths.gateway-recipe-source/2",
+        "profile_schema_digest": "2f9c472c3681a7c7a80f6dcf057f614adbc7126f5414ca2d19c770cd050ad71f",
+        "service": "github-gateway-demo",
+        "tool": "create_issue_v1",
+        "operator_namespace": "github-demo",
+        "credential": {
+          "kind": "bearer"
+        },
+        "origin": "https://api.github.com",
+        "write": {
+          "method": "POST",
+          "path": [
+            {
+              "kind": "fixed",
+              "value": "repos"
+            },
+            {
+              "kind": "fixed",
+              "value": "auths-dev"
+            },
+            {
+              "kind": "fixed",
+              "value": "gateway-fixture-repo"
+            },
+            {
+              "kind": "fixed",
+              "value": "issues"
+            }
+          ],
+          "body": {
+            "kind": "json",
+            "value": {
+              "kind": "object",
+              "fields": {
+                "title": {
+                  "kind": "field",
+                  "name": "title"
+                },
+                "body": {
+                  "kind": "field",
+                  "name": "body"
+                }
+              }
+            }
+          }
+        }
+      },
+      "lock": {
+        "command_schema": {
+          "fields": {
+            "body": {
+              "kind": "string",
+              "maximum": 256,
+              "minimum": 0
+            },
+            "operation_id": {
+              "kind": "string",
+              "maximum": 64,
+              "minimum": 1
+            },
+            "operator_namespace": {
+              "type": "enum",
+              "variants": [
+                "github-demo"
+              ]
+            },
+            "recipe_digest": {
+              "kind": "string",
+              "maximum": 64,
+              "minimum": 64
+            },
+            "title": {
+              "kind": "string",
+              "maximum": 128,
+              "minimum": 1
+            }
+          },
+          "kind": "object"
+        },
+        "generator_format": 2,
+        "profile": "github-gateway-issue-create",
+        "schema": "auths.self-hosted-profile-lock/1",
+        "schema_digest": "2f9c472c3681a7c7a80f6dcf057f614adbc7126f5414ca2d19c770cd050ad71f",
+        "service": "github-gateway-demo",
+        "tool": "create_issue_v1",
+        "version": 1
+      },
+      "recovery": {
+        "schema": "auths.gateway-recovery-capability/1",
+        "class": "recorded",
+        "state_observation": "none",
+        "provider_link": "none",
+        "unknown_resolution": "none",
+        "lost_claim_reentry": {
+          "deduplication": "none"
+        },
+        "pre_entry_reread": false,
+        "write_is_conditional": false
+      },
+      "digest": "45ad8e8a7d69b408dd3bed85714ece4b72a3ed35723b1bb0375d4b802e8bb0c3"
+    },
+    "github-response-locator": {
+      "recipe": {
+        "schema": "auths.gateway-recipe-source/2",
+        "profile_schema_digest": "2f9c472c3681a7c7a80f6dcf057f614adbc7126f5414ca2d19c770cd050ad71f",
+        "service": "github-gateway-demo",
+        "tool": "create_issue_v1",
+        "operator_namespace": "github-demo",
+        "credential": {
+          "kind": "bearer"
+        },
+        "origin": "https://api.github.com",
+        "write": {
+          "method": "POST",
+          "path": [
+            {
+              "kind": "fixed",
+              "value": "repos"
+            },
+            {
+              "kind": "fixed",
+              "value": "auths-dev"
+            },
+            {
+              "kind": "fixed",
+              "value": "gateway-fixture-repo"
+            },
+            {
+              "kind": "fixed",
+              "value": "issues"
+            }
+          ],
+          "body": {
+            "kind": "json",
+            "value": {
+              "kind": "object",
+              "fields": {
+                "title": {
+                  "kind": "field",
+                  "name": "title"
+                },
+                "body": {
+                  "kind": "field",
+                  "name": "body"
+                }
+              }
+            }
+          }
+        },
+        "observation": {
+          "path": [
+            {
+              "kind": "fixed",
+              "value": "repos"
+            },
+            {
+              "kind": "fixed",
+              "value": "auths-dev"
+            },
+            {
+              "kind": "fixed",
+              "value": "gateway-fixture-repo"
+            },
+            {
+              "kind": "fixed",
+              "value": "issues"
+            },
+            {
+              "kind": "response-field",
+              "pointer": "/number",
+              "max_bytes": 20
+            }
+          ],
+          "json_pointer": "/title",
+          "expected_field": "title",
+          "maximum_response_bytes": 65536
+        }
+      },
+      "lock": {
+        "command_schema": {
+          "fields": {
+            "body": {
+              "kind": "string",
+              "maximum": 256,
+              "minimum": 0
+            },
+            "operation_id": {
+              "kind": "string",
+              "maximum": 64,
+              "minimum": 1
+            },
+            "operator_namespace": {
+              "type": "enum",
+              "variants": [
+                "github-demo"
+              ]
+            },
+            "recipe_digest": {
+              "kind": "string",
+              "maximum": 64,
+              "minimum": 64
+            },
+            "title": {
+              "kind": "string",
+              "maximum": 128,
+              "minimum": 1
+            }
+          },
+          "kind": "object"
+        },
+        "generator_format": 2,
+        "profile": "github-gateway-issue-create",
+        "schema": "auths.self-hosted-profile-lock/1",
+        "schema_digest": "2f9c472c3681a7c7a80f6dcf057f614adbc7126f5414ca2d19c770cd050ad71f",
+        "service": "github-gateway-demo",
+        "tool": "create_issue_v1",
+        "version": 1
+      },
+      "recovery": {
+        "schema": "auths.gateway-recovery-capability/1",
+        "class": "observed",
+        "state_observation": "response-locator",
+        "provider_link": "none",
+        "unknown_resolution": "none",
+        "lost_claim_reentry": {
+          "deduplication": "none"
+        },
+        "pre_entry_reread": false,
+        "write_is_conditional": false
+      },
+      "digest": "df92737ef30b74ef81b4438533ee5d9d46b8056e430f6c0032bc23f18b87873c"
+    },
+    "stripe-plain": {
+      "recipe": {
+        "schema": "auths.gateway-recipe-source/2",
+        "profile_schema_digest": "06c91dcf9660ed2445c04c87bd5546d8bdfb7540c3f91276685c93ea5abdd82d",
+        "service": "stripe-refunds",
+        "tool": "create_refund_v1",
+        "operator_namespace": "stripe-refunds",
+        "credential": {
+          "kind": "bearer"
+        },
+        "origin": "https://api.stripe.com",
+        "write": {
+          "method": "POST",
+          "path": [
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "refunds"
+            }
+          ],
+          "body": {
+            "kind": "form",
+            "fields": {
+              "payment_intent": {
+                "kind": "field",
+                "name": "payment_intent"
+              },
+              "amount": {
+                "kind": "field",
+                "name": "amount"
+              }
+            }
+          },
+          "idempotency": {
+            "kind": "derived-header",
+            "retention_seconds": 86400
+          }
+        }
+      },
+      "lock": {
+        "command_schema": {
+          "fields": {
+            "amount": {
+              "kind": "integer",
+              "maximum": 99999999,
+              "minimum": 1
+            },
+            "operation_id": {
+              "kind": "string",
+              "maximum": 128,
+              "minimum": 1
+            },
+            "operator_namespace": {
+              "type": "enum",
+              "variants": [
+                "stripe-refunds"
+              ]
+            },
+            "payment_intent": {
+              "kind": "string",
+              "maximum": 255,
+              "minimum": 3
+            },
+            "recipe_digest": {
+              "kind": "string",
+              "maximum": 64,
+              "minimum": 64
+            }
+          },
+          "kind": "object"
+        },
+        "generator_format": 2,
+        "profile": "stripe-refund",
+        "schema": "auths.self-hosted-profile-lock/1",
+        "schema_digest": "06c91dcf9660ed2445c04c87bd5546d8bdfb7540c3f91276685c93ea5abdd82d",
+        "service": "stripe-refunds",
+        "tool": "create_refund_v1",
+        "version": 1
+      },
+      "recovery": {
+        "schema": "auths.gateway-recovery-capability/1",
+        "class": "recorded",
+        "state_observation": "none",
+        "provider_link": "none",
+        "unknown_resolution": "none",
+        "lost_claim_reentry": {
+          "deduplication": "declared",
+          "kind": "derived-header",
+          "retention_seconds": 86400
+        },
+        "pre_entry_reread": false,
+        "write_is_conditional": false
+      },
+      "digest": "ff49d44a2978d72869f3865cdf886d518aaabc1d9fb27d6ef143c3e80b2ba394"
+    },
+    "stripe": {
+      "recipe": {
+        "schema": "auths.gateway-recipe-source/2",
+        "profile_schema_digest": "db3a47820a6f5c3ce3883068bea16542721e049cab8453a2af579c77a46d5c5e",
+        "service": "stripe-refunds",
+        "tool": "create_refund_v1",
+        "operator_namespace": "stripe-refunds",
+        "credential": {
+          "kind": "bearer",
+          "guard": {
+            "prefixes": [
+              "rk_test_"
+            ],
+            "probe": {
+              "path": [
+                {
+                  "kind": "fixed",
+                  "value": "v1"
+                },
+                {
+                  "kind": "fixed",
+                  "value": "balance"
+                }
+              ],
+              "json_pointer": "/livemode",
+              "equals": false,
+              "maximum_response_bytes": 16384
+            },
+            "account": {
+              "path": [
+                {
+                  "kind": "fixed",
+                  "value": "v1"
+                },
+                {
+                  "kind": "fixed",
+                  "value": "account"
+                }
+              ],
+              "json_pointer": "/id",
+              "maximum_response_bytes": 65536
+            },
+            "denied_reads": [
+              {
+                "method": "GET",
+                "path": [
+                  {
+                    "kind": "fixed",
+                    "value": "v1"
+                  },
+                  {
+                    "kind": "fixed",
+                    "value": "customers"
+                  }
+                ],
+                "refused_status": [
+                  403
+                ]
+              },
+              {
+                "method": "GET",
+                "path": [
+                  {
+                    "kind": "fixed",
+                    "value": "v1"
+                  },
+                  {
+                    "kind": "fixed",
+                    "value": "payouts"
+                  }
+                ],
+                "refused_status": [
+                  403
+                ]
+              }
+            ]
+          }
+        },
+        "origin": "https://api.stripe.com",
+        "provider_headers": {
+          "Stripe-Version": "2025-03-31.basil"
+        },
+        "account_scope": {
+          "header": "Stripe-Account",
+          "field": "connect_account"
+        },
+        "bounds": {
+          "sum": {
+            "argument": "amount",
+            "partition": "currency"
+          }
+        },
+        "relative_ceiling": {
+          "argument": "amount",
+          "basis_points": 5000,
+          "path": [
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "payment_intents"
+            },
+            {
+              "kind": "field",
+              "name": "payment_intent"
+            }
+          ],
+          "json_pointer": "/amount_received",
+          "bind": [
+            {
+              "pointer": "/currency",
+              "field": "currency"
+            }
+          ],
+          "maximum_response_bytes": 65536
+        },
+        "write": {
+          "method": "POST",
+          "path": [
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "refunds"
+            }
+          ],
+          "body": {
+            "kind": "form",
+            "fields": {
+              "payment_intent": {
+                "kind": "field",
+                "name": "payment_intent"
+              },
+              "amount": {
+                "kind": "field",
+                "name": "amount"
+              }
+            }
+          },
+          "idempotency": {
+            "kind": "derived-header",
+            "retention_seconds": 86400
+          }
+        },
+        "observation": {
+          "path": [
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "refunds"
+            },
+            {
+              "kind": "response-field",
+              "pointer": "/id",
+              "max_bytes": 255
+            }
+          ],
+          "json_pointer": "/amount",
+          "expected_field": "amount",
+          "maximum_response_bytes": 16384
+        },
+        "echo": {
+          "write": {
+            "kind": "form-field",
+            "name": "metadata[auths_echo]"
+          },
+          "observe": "/metadata/auths_echo"
+        }
+      },
+      "lock": {
+        "command_schema": {
+          "fields": {
+            "amount": {
+              "kind": "integer",
+              "maximum": 99999999,
+              "minimum": 1
+            },
+            "operation_id": {
+              "kind": "string",
+              "maximum": 128,
+              "minimum": 1
+            },
+            "operator_namespace": {
+              "type": "enum",
+              "variants": [
+                "stripe-refunds"
+              ]
+            },
+            "payment_intent": {
+              "kind": "string",
+              "maximum": 255,
+              "minimum": 3
+            },
+            "recipe_digest": {
+              "kind": "string",
+              "maximum": 64,
+              "minimum": 64
+            },
+            "connect_account": {
+              "kind": "string",
+              "minimum": 13,
+              "maximum": 64
+            },
+            "currency": {
+              "kind": "string",
+              "minimum": 3,
+              "maximum": 3
+            }
+          },
+          "kind": "object"
+        },
+        "generator_format": 2,
+        "profile": "stripe-refund",
+        "schema": "auths.self-hosted-profile-lock/1",
+        "schema_digest": "db3a47820a6f5c3ce3883068bea16542721e049cab8453a2af579c77a46d5c5e",
+        "service": "stripe-refunds",
+        "tool": "create_refund_v1",
+        "version": 1
+      },
+      "recovery": {
+        "schema": "auths.gateway-recovery-capability/1",
+        "class": "linked-after-response",
+        "state_observation": "response-locator",
+        "provider_link": "response-locator",
+        "unknown_resolution": "none",
+        "lost_claim_reentry": {
+          "deduplication": "declared",
+          "kind": "derived-header",
+          "retention_seconds": 86400
+        },
+        "pre_entry_reread": false,
+        "write_is_conditional": false
+      },
+      "digest": "fe005b5323d196292b5eff4439f40f6e835dac2e9bd869c64f27b4a371615090"
+    },
+    "stripe-platform": {
+      "recipe": {
+        "schema": "auths.gateway-recipe-source/2",
+        "profile_schema_digest": "d61ec6d55d346f7c6ba550451623b72abaecebf013c307b685fce059db21f9ea",
+        "service": "stripe-refunds",
+        "tool": "create_refund_v1",
+        "operator_namespace": "stripe-refunds",
+        "credential": {
+          "kind": "bearer",
+          "guard": {
+            "prefixes": [
+              "rk_test_"
+            ],
+            "probe": {
+              "path": [
+                {
+                  "kind": "fixed",
+                  "value": "v1"
+                },
+                {
+                  "kind": "fixed",
+                  "value": "balance"
+                }
+              ],
+              "json_pointer": "/livemode",
+              "equals": false,
+              "maximum_response_bytes": 16384
+            },
+            "account": {
+              "path": [
+                {
+                  "kind": "fixed",
+                  "value": "v1"
+                },
+                {
+                  "kind": "fixed",
+                  "value": "account"
+                }
+              ],
+              "json_pointer": "/id",
+              "maximum_response_bytes": 65536
+            },
+            "denied_reads": [
+              {
+                "method": "GET",
+                "path": [
+                  {
+                    "kind": "fixed",
+                    "value": "v1"
+                  },
+                  {
+                    "kind": "fixed",
+                    "value": "customers"
+                  }
+                ],
+                "refused_status": [
+                  403
+                ]
+              },
+              {
+                "method": "GET",
+                "path": [
+                  {
+                    "kind": "fixed",
+                    "value": "v1"
+                  },
+                  {
+                    "kind": "fixed",
+                    "value": "payouts"
+                  }
+                ],
+                "refused_status": [
+                  403
+                ]
+              }
+            ]
+          }
+        },
+        "origin": "https://api.stripe.com",
+        "provider_headers": {
+          "Stripe-Version": "2025-03-31.basil"
+        },
+        "echo": {
+          "write": {
+            "kind": "form-field",
+            "name": "metadata[auths_echo]"
+          },
+          "observe": "/metadata/auths_echo"
+        },
+        "bounds": {
+          "sum": {
+            "argument": "amount",
+            "partition": "currency"
+          }
+        },
+        "relative_ceiling": {
+          "argument": "amount",
+          "basis_points": 5000,
+          "path": [
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "payment_intents"
+            },
+            {
+              "kind": "field",
+              "name": "payment_intent"
+            }
+          ],
+          "json_pointer": "/amount_received",
+          "bind": [
+            {
+              "pointer": "/currency",
+              "field": "currency"
+            }
+          ],
+          "maximum_response_bytes": 65536
+        },
+        "write": {
+          "method": "POST",
+          "path": [
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "refunds"
+            }
+          ],
+          "body": {
+            "kind": "form",
+            "fields": {
+              "payment_intent": {
+                "kind": "field",
+                "name": "payment_intent"
+              },
+              "amount": {
+                "kind": "field",
+                "name": "amount"
+              }
+            }
+          },
+          "idempotency": {
+            "kind": "derived-header",
+            "retention_seconds": 86400
+          }
+        },
+        "observation": {
+          "path": [
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "refunds"
+            },
+            {
+              "kind": "response-field",
+              "pointer": "/id",
+              "max_bytes": 255
+            }
+          ],
+          "json_pointer": "/amount",
+          "expected_field": "amount",
+          "maximum_response_bytes": 16384
+        }
+      },
+      "lock": {
+        "command_schema": {
+          "fields": {
+            "amount": {
+              "kind": "integer",
+              "maximum": 99999999,
+              "minimum": 1
+            },
+            "operation_id": {
+              "kind": "string",
+              "maximum": 128,
+              "minimum": 1
+            },
+            "operator_namespace": {
+              "type": "enum",
+              "variants": [
+                "stripe-refunds"
+              ]
+            },
+            "payment_intent": {
+              "kind": "string",
+              "maximum": 255,
+              "minimum": 3
+            },
+            "recipe_digest": {
+              "kind": "string",
+              "maximum": 64,
+              "minimum": 64
+            },
+            "currency": {
+              "kind": "string",
+              "minimum": 3,
+              "maximum": 3
+            }
+          },
+          "kind": "object"
+        },
+        "generator_format": 2,
+        "profile": "stripe-refund",
+        "schema": "auths.self-hosted-profile-lock/1",
+        "schema_digest": "d61ec6d55d346f7c6ba550451623b72abaecebf013c307b685fce059db21f9ea",
+        "service": "stripe-refunds",
+        "tool": "create_refund_v1",
+        "version": 1
+      },
+      "recovery": {
+        "schema": "auths.gateway-recovery-capability/1",
+        "class": "linked-after-response",
+        "state_observation": "response-locator",
+        "provider_link": "response-locator",
+        "unknown_resolution": "none",
+        "lost_claim_reentry": {
+          "deduplication": "declared",
+          "kind": "derived-header",
+          "retention_seconds": 86400
+        },
+        "pre_entry_reread": false,
+        "write_is_conditional": false
+      },
+      "digest": "7e0cd37f029562d2fb291026f98616148a667f2b19bbfa2b4ccb54637b3805ff"
+    }
+  },
+  "cases": [
+    {
+      "id": "schema-v1-refused",
+      "base": "github",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/schema",
+          "value": "auths.gateway-recipe-source/1"
+        }
+      ],
+      "code": "gateway.recipe.invalid-source"
+    },
+    {
+      "id": "credential-header-is-stripe-version",
+      "base": "todoist",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential",
+          "value": {
+            "kind": "header-api-key",
+            "header": "Stripe-Version"
+          }
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential"
+    },
+    {
+      "id": "credential-header-is-github-version",
+      "base": "todoist",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential",
+          "value": {
+            "kind": "header-api-key",
+            "header": "X-GitHub-Api-Version"
+          }
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential"
+    },
+    {
+      "id": "credential-header-is-stripe-account",
+      "base": "todoist",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential",
+          "value": {
+            "kind": "header-api-key",
+            "header": "Stripe-Account"
+          }
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential"
+    },
+    {
+      "id": "guard-prefixes-empty",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/prefixes",
+          "value": []
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "guard-prefixes-five",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/prefixes",
+          "value": [
+            "rk_test_",
+            "rk_a_",
+            "rk_b_",
+            "rk_c_",
+            "rk_d_"
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "guard-prefix-duplicate",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/prefixes",
+          "value": [
+            "rk_test_",
+            "rk_test_"
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "guard-prefix-empty-string",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/prefixes",
+          "value": [
+            ""
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "guard-prefix-33-bytes",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/prefixes",
+          "value": [
+            "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr"
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "guard-prefix-space",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/prefixes",
+          "value": [
+            "rk test_"
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "guard-prefix-non-ascii",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/prefixes",
+          "value": [
+            "rk_tést_"
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "probe-field-segment",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/probe/path",
+          "value": [
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "field",
+              "name": "payment_intent"
+            }
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "probe-path-empty",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/probe/path",
+          "value": []
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "probe-path-17-segments",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/probe/path",
+          "value": [
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "v1"
+            }
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "probe-pointer-not-a-pointer",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/probe/json_pointer",
+          "value": "livemode"
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "probe-equals-object",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/probe/equals",
+          "value": {}
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "probe-equals-null",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/probe/equals",
+          "value": null
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "probe-equals-integer-2-pow-53",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/probe/equals",
+          "value": 9007199254740992
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "probe-equals-string-257-bytes",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/probe/equals",
+          "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "probe-response-bound-zero",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/probe/maximum_response_bytes",
+          "value": 0
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "probe-response-bound-65537",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/probe/maximum_response_bytes",
+          "value": 65537
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "account-field-segment",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/account/path",
+          "value": [
+            {
+              "kind": "field",
+              "name": "payment_intent"
+            }
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "account-pointer-not-a-pointer",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/account/json_pointer",
+          "value": "id"
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "account-response-bound-65537",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/account/maximum_response_bytes",
+          "value": 65537
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "denied-read-post",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/denied_reads/0/method",
+          "value": "POST"
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "denied-read-field-segment",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/denied_reads/0/path",
+          "value": [
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "field",
+              "name": "payment_intent"
+            }
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "denied-read-status-429",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/denied_reads/0/refused_status",
+          "value": [
+            429
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "denied-read-status-408",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/denied_reads/0/refused_status",
+          "value": [
+            408
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "denied-read-status-200",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/denied_reads/0/refused_status",
+          "value": [
+            200
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "denied-read-status-500",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/denied_reads/0/refused_status",
+          "value": [
+            500
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "denied-read-status-duplicate",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/denied_reads/0/refused_status",
+          "value": [
+            403,
+            403
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "denied-read-four-statuses",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/denied_reads/0/refused_status",
+          "value": [
+            401,
+            403,
+            404,
+            405
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "denied-read-no-status",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/denied_reads/0/refused_status",
+          "value": []
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "denied-read-duplicate-path",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/denied_reads/1/path",
+          "value": [
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "customers"
+            }
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "denied-read-probe-path",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/denied_reads/0/path",
+          "value": [
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "balance"
+            }
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "denied-read-account-path",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/denied_reads/0/path",
+          "value": [
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "account"
+            }
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "denied-read-write-path",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/denied_reads/0/path",
+          "value": [
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "fixed",
+              "value": "refunds"
+            }
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "denied-reads-empty",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/denied_reads",
+          "value": []
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "denied-reads-five",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/credential/guard/denied_reads",
+          "value": [
+            {
+              "method": "GET",
+              "path": [
+                {
+                  "kind": "fixed",
+                  "value": "v1"
+                },
+                {
+                  "kind": "fixed",
+                  "value": "customers"
+                }
+              ],
+              "refused_status": [
+                403
+              ]
+            },
+            {
+              "method": "GET",
+              "path": [
+                {
+                  "kind": "fixed",
+                  "value": "v1"
+                },
+                {
+                  "kind": "fixed",
+                  "value": "payouts"
+                }
+              ],
+              "refused_status": [
+                403
+              ]
+            },
+            {
+              "method": "GET",
+              "path": [
+                {
+                  "kind": "fixed",
+                  "value": "v1"
+                },
+                {
+                  "kind": "fixed",
+                  "value": "charges"
+                }
+              ],
+              "refused_status": [
+                403
+              ]
+            },
+            {
+              "method": "GET",
+              "path": [
+                {
+                  "kind": "fixed",
+                  "value": "v1"
+                },
+                {
+                  "kind": "fixed",
+                  "value": "transfers"
+                }
+              ],
+              "refused_status": [
+                403
+              ]
+            },
+            {
+              "method": "GET",
+              "path": [
+                {
+                  "kind": "fixed",
+                  "value": "v1"
+                },
+                {
+                  "kind": "fixed",
+                  "value": "invoices"
+                }
+              ],
+              "refused_status": [
+                403
+              ]
+            }
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-credential-guard"
+    },
+    {
+      "id": "provider-header-stripe-account",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/provider_headers",
+          "value": {
+            "Stripe-Version": "2025-03-31.basil",
+            "Stripe-Account": "acct_TESTACCOUNT01"
+          }
+        }
+      ],
+      "code": "gateway.recipe.invalid-provider-header"
+    },
+    {
+      "id": "provider-header-unregistered",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/provider_headers",
+          "value": {
+            "Stripe-Version": "2025-03-31.basil",
+            "X-Api-Version": "1"
+          }
+        }
+      ],
+      "code": "gateway.recipe.invalid-provider-header"
+    },
+    {
+      "id": "provider-header-idempotency-key",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/provider_headers",
+          "value": {
+            "Idempotency-Key": "fixed"
+          }
+        }
+      ],
+      "code": "gateway.recipe.invalid-provider-header"
+    },
+    {
+      "id": "provider-header-authorization",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/provider_headers",
+          "value": {
+            "Authorization": "Bearer fixed"
+          }
+        }
+      ],
+      "code": "gateway.recipe.invalid-provider-header"
+    },
+    {
+      "id": "stripe-version-first-byte-letter",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/provider_headers",
+          "value": {
+            "Stripe-Version": "v2025-03-31"
+          }
+        }
+      ],
+      "code": "gateway.recipe.invalid-provider-header"
+    },
+    {
+      "id": "stripe-version-9-bytes",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/provider_headers",
+          "value": {
+            "Stripe-Version": "2025-03-3"
+          }
+        }
+      ],
+      "code": "gateway.recipe.invalid-provider-header"
+    },
+    {
+      "id": "stripe-version-65-bytes",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/provider_headers",
+          "value": {
+            "Stripe-Version": "2aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        }
+      ],
+      "code": "gateway.recipe.invalid-provider-header"
+    },
+    {
+      "id": "stripe-version-underscore",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/provider_headers",
+          "value": {
+            "Stripe-Version": "2025-03-31_basil"
+          }
+        }
+      ],
+      "code": "gateway.recipe.invalid-provider-header"
+    },
+    {
+      "id": "stripe-version-line-break",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/provider_headers",
+          "value": {
+            "Stripe-Version": "2025-03-31\r\nX-Injected: 1"
+          }
+        }
+      ],
+      "code": "gateway.recipe.invalid-provider-header"
+    },
+    {
+      "id": "github-version-not-a-date",
+      "base": "github",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/provider_headers",
+          "value": {
+            "X-GitHub-Api-Version": "2022/11/28"
+          }
+        }
+      ],
+      "code": "gateway.recipe.invalid-provider-header"
+    },
+    {
+      "id": "github-version-11-bytes",
+      "base": "github",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/provider_headers",
+          "value": {
+            "X-GitHub-Api-Version": "2022-11-280"
+          }
+        }
+      ],
+      "code": "gateway.recipe.invalid-provider-header"
+    },
+    {
+      "id": "account-scope-unregistered-header",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/account_scope/header",
+          "value": "X-Account"
+        }
+      ],
+      "code": "gateway.recipe.invalid-account-scope"
+    },
+    {
+      "id": "account-scope-version-header",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/account_scope/header",
+          "value": "Stripe-Version"
+        }
+      ],
+      "code": "gateway.recipe.invalid-account-scope"
+    },
+    {
+      "id": "account-scope-field-absent",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/account_scope/field",
+          "value": "missing"
+        },
+        {
+          "op": "set",
+          "pointer": "/write/body/fields/connect_account",
+          "value": {
+            "kind": "field",
+            "name": "connect_account"
+          }
+        }
+      ],
+      "code": "gateway.recipe.invalid-account-scope"
+    },
+    {
+      "id": "account-scope-field-integer",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/account_scope/field",
+          "value": "amount"
+        },
+        {
+          "op": "set",
+          "pointer": "/write/body/fields/connect_account",
+          "value": {
+            "kind": "field",
+            "name": "connect_account"
+          }
+        }
+      ],
+      "code": "gateway.recipe.invalid-account-scope"
+    },
+    {
+      "id": "account-scope-field-in-body",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/write/body/fields/connect_account",
+          "value": {
+            "kind": "field",
+            "name": "connect_account"
+          }
+        }
+      ],
+      "code": "gateway.recipe.invalid-account-scope"
+    },
+    {
+      "id": "account-scope-field-in-path",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "append",
+          "pointer": "/write/path",
+          "value": {
+            "kind": "field",
+            "name": "connect_account"
+          }
+        }
+      ],
+      "code": "gateway.recipe.invalid-account-scope"
+    },
+    {
+      "id": "account-scope-removed",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "remove",
+          "pointer": "/account_scope"
+        }
+      ],
+      "code": "gateway.recipe.unsafe-template"
+    },
+    {
+      "id": "bounds-sum-argument-string",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/bounds/sum/argument",
+          "value": "payment_intent"
+        }
+      ],
+      "code": "gateway.recipe.invalid-bounds"
+    },
+    {
+      "id": "bounds-sum-argument-absent",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/bounds/sum/argument",
+          "value": "missing"
+        }
+      ],
+      "code": "gateway.recipe.invalid-bounds"
+    },
+    {
+      "id": "bounds-sum-partition-is-argument",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/bounds/sum/partition",
+          "value": "amount"
+        }
+      ],
+      "code": "gateway.recipe.invalid-bounds"
+    },
+    {
+      "id": "bounds-sum-partition-absent",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/bounds/sum/partition",
+          "value": "missing"
+        }
+      ],
+      "code": "gateway.recipe.invalid-bounds"
+    },
+    {
+      "id": "unbound-partition",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/relative_ceiling/bind",
+          "value": []
+        },
+        {
+          "op": "append",
+          "pointer": "/relative_ceiling/path",
+          "value": {
+            "kind": "field",
+            "name": "currency"
+          }
+        }
+      ],
+      "code": "gateway.recipe.unbound-partition"
+    },
+    {
+      "id": "relative-ceiling-basis-points-0",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/relative_ceiling/basis_points",
+          "value": 0
+        }
+      ],
+      "code": "gateway.recipe.invalid-relative-ceiling"
+    },
+    {
+      "id": "relative-ceiling-basis-points-10001",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/relative_ceiling/basis_points",
+          "value": 10001
+        }
+      ],
+      "code": "gateway.recipe.invalid-relative-ceiling"
+    },
+    {
+      "id": "relative-ceiling-argument-string",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/relative_ceiling/argument",
+          "value": "payment_intent"
+        }
+      ],
+      "code": "gateway.recipe.invalid-relative-ceiling"
+    },
+    {
+      "id": "relative-ceiling-argument-absent",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/relative_ceiling/argument",
+          "value": "missing"
+        }
+      ],
+      "code": "gateway.recipe.invalid-relative-ceiling"
+    },
+    {
+      "id": "relative-ceiling-subtract-is-pointer",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/relative_ceiling/subtract_pointer",
+          "value": "/amount_received"
+        }
+      ],
+      "code": "gateway.recipe.invalid-relative-ceiling"
+    },
+    {
+      "id": "relative-ceiling-pointer-not-a-pointer",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/relative_ceiling/json_pointer",
+          "value": "amount_received"
+        }
+      ],
+      "code": "gateway.recipe.invalid-relative-ceiling"
+    },
+    {
+      "id": "relative-ceiling-three-binds",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/relative_ceiling/bind",
+          "value": [
+            {
+              "pointer": "/currency",
+              "field": "currency"
+            },
+            {
+              "pointer": "/customer",
+              "field": "connect_account"
+            },
+            {
+              "pointer": "/description",
+              "field": "payment_intent"
+            }
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-relative-ceiling"
+    },
+    {
+      "id": "relative-ceiling-bind-duplicate-pointer",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/relative_ceiling/bind",
+          "value": [
+            {
+              "pointer": "/currency",
+              "field": "currency"
+            },
+            {
+              "pointer": "/currency",
+              "field": "connect_account"
+            }
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-relative-ceiling"
+    },
+    {
+      "id": "relative-ceiling-bind-argument",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/relative_ceiling/bind",
+          "value": [
+            {
+              "pointer": "/currency",
+              "field": "currency"
+            },
+            {
+              "pointer": "/amount",
+              "field": "amount"
+            }
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-relative-ceiling"
+    },
+    {
+      "id": "relative-ceiling-bind-absent-field",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/relative_ceiling/bind",
+          "value": [
+            {
+              "pointer": "/currency",
+              "field": "currency"
+            },
+            {
+              "pointer": "/metadata/x",
+              "field": "missing"
+            }
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-relative-ceiling"
+    },
+    {
+      "id": "relative-ceiling-bind-not-a-pointer",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/relative_ceiling/bind",
+          "value": [
+            {
+              "pointer": "currency",
+              "field": "currency"
+            }
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-relative-ceiling"
+    },
+    {
+      "id": "relative-ceiling-response-bound-zero",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/relative_ceiling/maximum_response_bytes",
+          "value": 0
+        }
+      ],
+      "code": "gateway.recipe.invalid-relative-ceiling"
+    },
+    {
+      "id": "relative-ceiling-response-bound-65537",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/relative_ceiling/maximum_response_bytes",
+          "value": 65537
+        }
+      ],
+      "code": "gateway.recipe.invalid-relative-ceiling"
+    },
+    {
+      "id": "relative-ceiling-path-traversal",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/relative_ceiling/path/1/value",
+          "value": ".."
+        }
+      ],
+      "code": "gateway.recipe.unsafe-path"
+    },
+    {
+      "id": "relative-ceiling-path-integer-field",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "append",
+          "pointer": "/relative_ceiling/path",
+          "value": {
+            "kind": "field",
+            "name": "amount"
+          }
+        }
+      ],
+      "code": "gateway.recipe.unsafe-path"
+    },
+    {
+      "id": "write-path-response-field",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "append",
+          "pointer": "/write/path",
+          "value": {
+            "kind": "response-field",
+            "pointer": "/id",
+            "max_bytes": 255
+          }
+        }
+      ],
+      "code": "gateway.recipe.response-locator-conflict"
+    },
+    {
+      "id": "idempotency-v1-flag",
+      "base": "stripe-plain",
+      "mutations": [
+        {
+          "op": "remove",
+          "pointer": "/write/idempotency"
+        },
+        {
+          "op": "set",
+          "pointer": "/write/idempotency_key",
+          "value": true
+        }
+      ],
+      "code": "gateway.recipe.invalid-source"
+    },
+    {
+      "id": "idempotency-retention-zero",
+      "base": "stripe-plain",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/write/idempotency/retention_seconds",
+          "value": 0
+        }
+      ],
+      "code": "gateway.recipe.invalid-idempotency"
+    },
+    {
+      "id": "idempotency-retention-2592001",
+      "base": "stripe-plain",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/write/idempotency/retention_seconds",
+          "value": 2592001
+        }
+      ],
+      "code": "gateway.recipe.invalid-idempotency"
+    },
+    {
+      "id": "operation-id-field-names-temp-id",
+      "base": "todoist",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/write/idempotency",
+          "value": {
+            "kind": "operation-id-field",
+            "location": {
+              "form_field": "commands",
+              "pointer": "/0/temp_id"
+            },
+            "retention_seconds": 3600
+          }
+        }
+      ],
+      "code": "gateway.recipe.invalid-idempotency"
+    },
+    {
+      "id": "operation-id-field-json-location-on-form",
+      "base": "todoist",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/write/idempotency",
+          "value": {
+            "kind": "operation-id-field",
+            "location": {
+              "json_pointer": "/0/uuid"
+            },
+            "retention_seconds": 3600
+          }
+        }
+      ],
+      "code": "gateway.recipe.invalid-idempotency"
+    },
+    {
+      "id": "operation-id-field-absent-form-field",
+      "base": "todoist",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/write/idempotency",
+          "value": {
+            "kind": "operation-id-field",
+            "location": {
+              "form_field": "missing",
+              "pointer": "/0/uuid"
+            },
+            "retention_seconds": 3600
+          }
+        }
+      ],
+      "code": "gateway.recipe.invalid-idempotency"
+    },
+    {
+      "id": "operation-id-field-form-location-on-json",
+      "base": "github",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/write/idempotency",
+          "value": {
+            "kind": "operation-id-field",
+            "location": {
+              "form_field": "title"
+            },
+            "retention_seconds": 3600
+          }
+        }
+      ],
+      "code": "gateway.recipe.invalid-idempotency"
+    },
+    {
+      "id": "observation-three-response-fields",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/observation/path",
+          "value": [
+            {
+              "kind": "fixed",
+              "value": "v1"
+            },
+            {
+              "kind": "response-field",
+              "pointer": "/id",
+              "max_bytes": 255
+            },
+            {
+              "kind": "response-field",
+              "pointer": "/charge",
+              "max_bytes": 255
+            },
+            {
+              "kind": "response-field",
+              "pointer": "/object",
+              "max_bytes": 255
+            }
+          ]
+        }
+      ],
+      "code": "gateway.recipe.response-locator-conflict"
+    },
+    {
+      "id": "response-field-max-bytes-zero",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/observation/path/2/max_bytes",
+          "value": 0
+        }
+      ],
+      "code": "gateway.recipe.response-locator-conflict"
+    },
+    {
+      "id": "response-field-max-bytes-256",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/observation/path/2/max_bytes",
+          "value": 256
+        }
+      ],
+      "code": "gateway.recipe.response-locator-conflict"
+    },
+    {
+      "id": "response-field-not-a-pointer",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/observation/path/2/pointer",
+          "value": "id"
+        }
+      ],
+      "code": "gateway.recipe.response-locator-conflict"
+    },
+    {
+      "id": "read-back-subject-with-response-locator",
+      "base": "airtable-pre-entry",
+      "mutations": [
+        {
+          "op": "append",
+          "pointer": "/observation/path",
+          "value": {
+            "kind": "response-field",
+            "pointer": "/id",
+            "max_bytes": 64
+          }
+        }
+      ],
+      "code": "gateway.recipe.precondition-conflict"
+    },
+    {
+      "id": "echo-v1-string-form",
+      "base": "airtable",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/echo/write",
+          "value": "/fields/auths_echo"
+        }
+      ],
+      "code": "gateway.recipe.invalid-source"
+    },
+    {
+      "id": "form-echo-on-json-body",
+      "base": "airtable",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/echo/write",
+          "value": {
+            "kind": "form-field",
+            "name": "auths_echo"
+          }
+        }
+      ],
+      "code": "gateway.recipe.echo-conflict"
+    },
+    {
+      "id": "json-echo-on-form-body",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/echo/write",
+          "value": {
+            "kind": "json-pointer",
+            "pointer": "/metadata/auths_echo"
+          }
+        }
+      ],
+      "code": "gateway.recipe.echo-conflict"
+    },
+    {
+      "id": "form-echo-existing-field",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/echo/write",
+          "value": {
+            "kind": "form-field",
+            "name": "amount"
+          }
+        }
+      ],
+      "code": "gateway.recipe.echo-conflict"
+    },
+    {
+      "id": "form-echo-name-space",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/echo/write",
+          "value": {
+            "kind": "form-field",
+            "name": "metadata[auths echo]"
+          }
+        }
+      ],
+      "code": "gateway.recipe.echo-conflict"
+    },
+    {
+      "id": "form-echo-two-brackets",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/echo/write",
+          "value": {
+            "kind": "form-field",
+            "name": "metadata[a][b]"
+          }
+        }
+      ],
+      "code": "gateway.recipe.echo-conflict"
+    },
+    {
+      "id": "form-echo-empty-bracket",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/echo/write",
+          "value": {
+            "kind": "form-field",
+            "name": "metadata[]"
+          }
+        }
+      ],
+      "code": "gateway.recipe.echo-conflict"
+    },
+    {
+      "id": "form-echo-leading-underscore",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/echo/write",
+          "value": {
+            "kind": "form-field",
+            "name": "_auths_echo"
+          }
+        }
+      ],
+      "code": "gateway.recipe.echo-conflict"
+    },
+    {
+      "id": "form-echo-65-byte-name",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/echo/write",
+          "value": {
+            "kind": "form-field",
+            "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        }
+      ],
+      "code": "gateway.recipe.echo-conflict"
+    },
+    {
+      "id": "form-echo-seventeenth-field",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/write/body/fields",
+          "value": {
+            "payment_intent": {
+              "kind": "field",
+              "name": "payment_intent"
+            },
+            "amount": {
+              "kind": "field",
+              "name": "amount"
+            },
+            "f01": {
+              "kind": "string",
+              "value": "x"
+            },
+            "f02": {
+              "kind": "string",
+              "value": "x"
+            },
+            "f03": {
+              "kind": "string",
+              "value": "x"
+            },
+            "f04": {
+              "kind": "string",
+              "value": "x"
+            },
+            "f05": {
+              "kind": "string",
+              "value": "x"
+            },
+            "f06": {
+              "kind": "string",
+              "value": "x"
+            },
+            "f07": {
+              "kind": "string",
+              "value": "x"
+            },
+            "f08": {
+              "kind": "string",
+              "value": "x"
+            },
+            "f09": {
+              "kind": "string",
+              "value": "x"
+            },
+            "f10": {
+              "kind": "string",
+              "value": "x"
+            },
+            "f11": {
+              "kind": "string",
+              "value": "x"
+            },
+            "f12": {
+              "kind": "string",
+              "value": "x"
+            },
+            "f13": {
+              "kind": "string",
+              "value": "x"
+            },
+            "f14": {
+              "kind": "string",
+              "value": "x"
+            }
+          }
+        }
+      ],
+      "code": "gateway.recipe.echo-conflict"
+    },
+    {
+      "id": "form-echo-author-placed",
+      "base": "stripe",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/write/body/fields/metadata[auths_echo]",
+          "value": {
+            "kind": "echo"
+          }
+        }
+      ],
+      "code": "gateway.recipe.echo-conflict"
+    },
+    {
+      "id": "pre-entry-no-pointers",
+      "base": "airtable-pre-entry",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/pre_entry/pointers",
+          "value": []
+        }
+      ],
+      "code": "gateway.recipe.invalid-pre-entry"
+    },
+    {
+      "id": "pre-entry-five-pointers",
+      "base": "airtable-pre-entry",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/pre_entry/pointers",
+          "value": [
+            "/fields/A",
+            "/fields/B",
+            "/fields/C",
+            "/fields/D",
+            "/fields/E"
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-pre-entry"
+    },
+    {
+      "id": "pre-entry-duplicate-pointer",
+      "base": "airtable-pre-entry",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/pre_entry/pointers",
+          "value": [
+            "/fields/DemoStatus",
+            "/fields/DemoStatus"
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-pre-entry"
+    },
+    {
+      "id": "pre-entry-not-a-pointer",
+      "base": "airtable-pre-entry",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/pre_entry/pointers",
+          "value": [
+            "fields/DemoStatus"
+          ]
+        }
+      ],
+      "code": "gateway.recipe.invalid-pre-entry"
+    },
+    {
+      "id": "pre-entry-response-bound-65537",
+      "base": "airtable-pre-entry",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/pre_entry/maximum_response_bytes",
+          "value": 65537
+        }
+      ],
+      "code": "gateway.recipe.invalid-pre-entry"
+    },
+    {
+      "id": "pre-entry-path-traversal",
+      "base": "airtable-pre-entry",
+      "mutations": [
+        {
+          "op": "set",
+          "pointer": "/pre_entry/path/1/value",
+          "value": ".."
+        }
+      ],
+      "code": "gateway.recipe.unsafe-path"
+    }
+  ]
+}
