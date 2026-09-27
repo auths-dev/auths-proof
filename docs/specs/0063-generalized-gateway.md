@@ -104,6 +104,9 @@ All five share one recipe revision (§3) and one store contract (§9).
   process sharing the store at that process's next reload.
 - The offline audit shows the provider result beside `verified`, which still
   means authorized and entered.
+- The admission order, recovery transitions, credential-generation rule, and
+  request construction are machine-checked against Lean models over every
+  trace, under §11.6's residual assumptions.
 
 **Not a claim.**
 
@@ -1226,16 +1229,121 @@ Four existing codes change meaning:
 
 ## 11. Formal obligations
 
-- **Lean.** §6.6's model changes and theorems are registered in
-  `formal/assurance-manifest-v1.toml` under new claim identifiers, with claim
-  text that says "fixed window" and "a link's count bounds its subject and
-  delegates". The translated `chain_counts_admit` leaf and its refinement
-  theorem are `qualified`, citing the translation and the source closure.
-  Axioms stay `propext`, `Quot.sound`, and `Classical.choice`.
+The gateway's I/O (sockets, HTTP, the stores) stays covered by conformance,
+fuzz, property, and Kani checks. Its decision logic is machine-checked: every
+rule that decides whether a credential is leased, a write is sent, or an
+outcome is recorded is a small pure Rust function. It follows AP-SPEC-061
+§3.4's extraction rules, is translated through the pinned Aeneas route, and
+has a refinement theorem to a Lean model in `formal/Auths/Product/`. Each
+theorem is registered in `formal/assurance-manifest-v1.toml` under a new
+claim identifier. Each translated leaf and its refinement theorem are
+`qualified`, citing the translation and the source closure. Axioms stay
+`propext`, `Quot.sound`, and `Classical.choice`. Every translation slice is
+gated with `--error-on-warnings` and `-warnings-as-errors` from its first
+commit.
+
+### 11.1 Spend limit (epic 4)
+
+§6.6's model changes and theorems, with claim text that says "fixed window"
+and "a link's count bounds its subject and delegates". The leaf is
+`chain_counts_admit`.
+
+### 11.2 Admission order (epic 3)
+
+§5.5's order becomes a closed step machine. The leaf is
+`next_step(state: SubmitState, event: SubmitEvent) -> SubmitDecision` in a new
+`product/runtime/auths-gateway/src/order.rs`. `GatewayEngine::submit`
+performs I/O only as the decision directs, so the engine has no ordering of
+its own to diverge from. Model: `formal/Auths/Product/SubmitOrder.lean`.
+Theorems over every event trace:
+
+- `lease_requires_verified_claim`: a credential lease happens only after
+  native verification succeeded, the claim committed with every count slot,
+  and the step 8 reload found the record unchanged.
+- `send_requires_lease_and_deadline`: the write is sent only after a lease,
+  the pre-entry re-read when declared, the step 11 reload, and the step 12
+  deadline check.
+- `at_most_one_send`: each claim sends at most one write, including under
+  replay and re-observation.
+- `pre_claim_refusal_stores_nothing` and
+  `post_claim_refusal_records_not_entered`: every refusal before step 6
+  leaves no record, and every refusal after it and before transport entry
+  records `not-entered` with its code.
+
+The statement of `lease_requires_verified_claim` is the gateway premise the
+reference-monitor theorem (board §3) needs.
+
+### 11.3 Recovery (epics 2 and 3)
+
+The leaves are `recovery_capability` (§4.2) and `valid_transition` (§4.3).
+Model: `formal/Auths/Product/Recovery.lean`. Theorems:
+
+- `capability_total_deterministic`: every declaration triple maps to exactly
+  one capability, and `write_is_conditional` is always `false`.
+- `class_matches_declarations`: each class holds exactly under §4.2's rules.
+- `unknown_resolves_only_linked`: over every transition sequence, a record in
+  `unknown` leaves it only for `observed-by-provider`, only for a `linked`
+  class, and only on a transition that carries a token-and-value match.
+- `provider_claim_requires_evidence`: `observed-by-provider` is reachable only
+  through a transition carrying match evidence from the stored plan.
+- `terminal_stages_final`: `not-entered`, `observed`, and
+  `observed-by-provider` have no outgoing transition.
+- `transitions_preserve_identity`: every transition keeps the identity
+  fields, `evaluated_at`, `counters`, and the plan.
+
+The Kani harness of §8.5 still checks `valid_transition` exhaustively over
+bounded records. Lean adds the statements over sequences.
+
+### 11.4 Credential generations (epic 5)
+
+The leaves are the generation arithmetic of `auths-connections`'
+`transition_state` and `rotated`, and a new
+`lease_generation(record_generation, credential_generation, stored: &[u64]) -> Option<u64>`
+that implements the retained-entry rule together with §7.3's equality check.
+Model: `formal/Auths/Product/ConnectionGenerations.lean`, over any sequence
+of install, join, rotate, disable, enable, and revoke. Theorems:
+
+- `credential_generation_le_generation`: always true.
+- `state_change_preserves_credential_generation`: disable and enable change
+  only `generation` and `state`.
+- `lease_selects_credential_generation`: a lease succeeds exactly when the
+  local store holds `credential_generation` with the record's commitment,
+  and it returns that generation.
+- `join_after_state_changes`: a host that joins after any sequence of state
+  changes, holding the installed or rotated secret, can lease. This is the
+  case §7.3's `/2` exists for.
+- `revoked_never_leases`: after revocation, no sequence produces a lease.
+
+### 11.5 Request construction (epic 2)
+
+The leaf is `closed_request_from_arguments` in `recipe.rs`, restructured under
+AP-SPEC-061 §3.4. `CompiledRecipe::compile`'s parsing stays covered by the
+hostile recipe corpus and fuzzing, not by proof. Model:
+`formal/Auths/Product/RequestConstruction.lean`. Theorems, for every compiled
+recipe and every argument map:
+
+- `method_and_origin_fixed`: the request uses exactly the compiled method and
+  pinned origin.
+- `path_from_declared_segments`: each path segment is a declared `fixed`
+  segment or the percent-encoded value of a declared field reference, and no
+  argument can add, remove, or reorder segments.
+- `headers_within_declaration`: the header set is contained in the declared
+  headers, the credential header, the derived `Idempotency-Key`, and the
+  registered version headers.
+- `body_bounded`: the body is at most 16 KiB and consumes only declared
+  fields.
+
+### 11.6 Kani and residual assumptions
+
 - **Kani.** The four harnesses of §8.5.
 - **Residual assumptions,** recorded in the manifest and the claim ledger:
-  store atomicity and linearizability, the unauthenticated gateway clock, and
-  provider behavior.
+  - store atomicity and linearizability;
+  - the unauthenticated gateway clock;
+  - provider behavior;
+  - the fidelity of the Charon/Aeneas translation (AP-SPEC-061 §1);
+  - that `GatewayEngine::submit`'s I/O follows `next_step`'s decisions, which
+    holds by construction and is tested by the scenario corpus but not proved
+    over the async runtime.
 
 ## 12. Owner decision: the single provider-write path
 
@@ -1320,10 +1428,10 @@ on the exact revision, or a commit whose diff holds the evidence.
 | Epic | Work | Done |
 | --- | --- | --- |
 | 1. Case file and fixtures | ADR 0013 and the case 0007 comparisons (§2); hostile recipe cases for every new construct; attempt scenarios `/3`, including `pre-entry-replaced-after-observation`; `bounds-aggregate.json`, `outcome-v2.json`, `key-identity.json`, and `codes.json` | The vectors exist and fail against current code; the ADR and case file are reviewed |
-| 2. Recipe `/2` | The compiler, `recovery_capability`, and review `/2` in both CLIs; derivation emits `/2`; the fixtures, north-star recipe, and derivation corpus are regenerated | Every fixture compiles to its documented class; every hostile case fails with its code; both packaged CLIs pass the corpus |
-| 3. Store and engine | §9 (kinds, `insert_all`, sweep, the file batch, schema 5, record `/3`); the §5.5 steps marked 3; re-observation of `attempting` | Conformance passes on both stores (PostgreSQL in its workflow); the scenario corpus drives the counting provider; every hostile suite has zero unauthorized entries, and every pre-claim refusal zero leases |
+| 2. Recipe `/2` | The compiler, `recovery_capability`, and review `/2` in both CLIs; derivation emits `/2`; the fixtures, north-star recipe, and derivation corpus are regenerated | Every fixture compiles to its documented class; every hostile case fails with its code; both packaged CLIs pass the corpus; §11.3's capability theorems and §11.5 are proved and registered, with `cargo xtask formal` green |
+| 3. Store and engine | §9 (kinds, `insert_all`, sweep, the file batch, schema 5, record `/3`); the §5.5 steps marked 3; re-observation of `attempting` | Conformance passes on both stores (PostgreSQL in its workflow); the scenario corpus drives the counting provider; every hostile suite has zero unauthorized entries, and every pre-claim refusal zero leases; §11.2 and §11.3's transition theorems are proved and registered, with `cargo xtask formal` green |
 | 4. One spend limit | Formal first (the Lean model, theorems, and translated leaf, with `cargo xtask formal` green); then evaluator `/2`, the slot part of §5.5 step 6, §6.5's sweep, §6.7, and every §6.4 description | `bounds-aggregate.json` passes on both stores, including the race; no slot leaks; the audit flags the capacity-3 and capacity-1 bundle and passes every valid one |
-| 5. Operator plane | §7, including connection record `/2` (§7.3), and the §5.5 steps marked 5 | With the application at full capacity, every admin command answers within its deadline; a disable or revoke through process A stops new entries in process B at B's next reload, on PostgreSQL; a second host joins only with the matching secret, including after a disable and enable, and a cross-process `rotate` followed by a disable and enable still leases on every host; `did:key` and `raw-key-v1` aliasing is refused at install and per proof; an invalid attestation is refused |
+| 5. Operator plane | §7, including connection record `/2` (§7.3), and the §5.5 steps marked 5 | With the application at full capacity, every admin command answers within its deadline; a disable or revoke through process A stops new entries in process B at B's next reload, on PostgreSQL; a second host joins only with the matching secret, including after a disable and enable, and a cross-process `rotate` followed by a disable and enable still leases on every host; `did:key` and `raw-key-v1` aliasing is refused at install and per proof; an invalid attestation is refused; §11.4 is proved and registered, with `cargo xtask formal` green |
 | 6. Evidence and assurance | Step 1, repairing the scheduled Fuzz job (`.github/workflows/fuzz.yml`) so a scheduled campaign can pass, with a unit test on a captured libFuzzer log, merged in #168; scheduled runs pass from 2026-09-27. Then §8: outcome `/2` and its consumers, observe `/2`, audit `/2`, `echo-verify`, the SDK projections, the fuzz crate, property tests, Kani harnesses, and the code inventory | A scheduled Fuzz run is green with the gateway targets; Rust, Python, and TypeScript agree on `outcome-v2.json`; the north-star audit shows `http_status` for every entered refund, including a rejected one |
 | 7. North-star recipe | The Stripe recipe moves to §3.1 with an approval window of at most 86 340 seconds; the counting double returns refunds with metadata, requires `Stripe-Version`, and honors the key; `journey.py` checks `observed-by-provider` and the guard refusing a non-test key; the README non-claims and the claim ledger are updated; the test-mode command stays the developer's own step (board §0 step 4) | `stripe-refund-journey` is green from the packed wheel; the ledger entry uses §1's claim and non-claim wording |
 | 8. Consolidation | §12 A's removals and rewrites in one pull request | The profiles and routes are gone; the specs, ADRs, and plan are amended, and `AGENTS.md`'s summary of the boundary plan is checked against the rewrite; the board is updated; CI is green |
