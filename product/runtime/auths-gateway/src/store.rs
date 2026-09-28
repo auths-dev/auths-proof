@@ -40,6 +40,9 @@ const BATCH_SCHEMA: &str = "auths.gateway-file-batch/1";
 const SLOT_FILE_SCHEMA: &str = "auths.gateway-file-slot/1";
 const BATCH_FILE: &str = ".batch.json";
 const LOCK_FILE: &str = ".replace.lock";
+/// A load that keeps finding a crashed batch gives up after this many
+/// rollbacks rather than spin.
+const MAX_RECOVERY_ROUNDS: usize = 8;
 const MAX_RECORD_BYTES: usize = auths_stores::MAX_GATEWAY_RECORD_BYTES;
 const MAX_BATCH_ENTRIES: usize = auths_stores::MAX_GATEWAY_BATCH_ENTRIES;
 /// A slot file wraps its record in base64 with its expiry.
@@ -1059,10 +1062,21 @@ impl FileGatewayAttemptStore {
         Ok(lock)
     }
 
-    /// Excludes mutations for the duration of a load.
+    /// Excludes mutations for the duration of a load. A batch file seen
+    /// under the shared lock was left by a crashed process, since every
+    /// batch holds the exclusive lock until its file is gone; it is rolled
+    /// back under the exclusive lock before the load proceeds.
     fn shared(&self) -> Result<File, GatewayAttemptError> {
-        self.recover()?;
-        self.lock(rustix::fs::FlockOperation::LockShared)
+        for _ in 0..MAX_RECOVERY_ROUNDS {
+            let lock = self.lock(rustix::fs::FlockOperation::LockShared)?;
+            if !self.root.join(BATCH_FILE).exists() {
+                return Ok(lock);
+            }
+            drop(lock);
+            let _exclusive = self.lock(rustix::fs::FlockOperation::LockExclusive)?;
+            self.recover_locked()?;
+        }
+        Err(GatewayAttemptError::Unavailable)
     }
 
     /// Rolls back a batch a crashed process left, under the exclusive lock.
