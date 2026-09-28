@@ -1,21 +1,27 @@
 import Auths.Product.Recovery
+import Auths.Product.RelativeCeiling
 import Auths.Product.RequestConstruction
+import Auths.Product.SubmitOrder
 import qualification.aeneas.generated.gateway.Funs
 
 /-!
 # The translated gateway leaves refine their models
 
-`recovery_capability` and the request-construction functions of
-`auths-gateway-kernel` are translated by the pinned Charon/Aeneas route. Each
-theorem here states that a translated function terminates with `ok` and
-returns exactly its model's result under an abstraction that maps `u8` to its
-natural-number value, vectors and slices to lists, and the translated plan,
-argument, and request carriers to the model's.
+`recovery_capability`, the request-construction functions, the admission-order
+step machine `next_step`, the attempt-record rule `valid_transition`, and the
+relative-ceiling leaves of `auths-gateway-kernel` are translated by the pinned
+Charon/Aeneas route. Each theorem here states that a translated function
+terminates with `ok` and returns exactly its model's result under an
+abstraction that maps machine integers to their natural-number values,
+vectors and slices to lists, and the translated carriers to the model's.
 
 The construction theorems carry one representation premise: every buffer the
 function builds is shorter than `u32::MAX` bytes, so no `Vec::push` reaches
 the translated capacity bound. The compiler bounds real plans far below it
-(a body is at most 16 KiB, a path 8 KiB).
+(a body is at most 16 KiB, a path 8 KiB). The step machine, transition, and
+relative-ceiling theorems carry no premise: the next denied-read index never
+exceeds the declared count, and the relative-ceiling products stay below
+`2^80` in `u128`.
 -/
 
 open Aeneas Aeneas.Std Result ControlFlow
@@ -1721,5 +1727,521 @@ theorem translated_construct_credential_read_refines_model
   simp only [requestOf, constructCredentialRead, credentialPlanOf, fixedUrl, vecBytes, urlEq]
   simp only [List.map_nil, List.nil_append] at headersEq
   simp [headersEq, byteList]
+
+/-! ## Relative ceiling -/
+
+theorem basis_points_per_whole_val : ratio.BASIS_POINTS_PER_WHOLE.val = 10000 := by
+  unfold ratio.BASIS_POINTS_PER_WHOLE
+  rfl
+
+/-- The translated relative-ceiling check returns exactly the model's
+comparison; neither `u128` product can overflow. -/
+theorem translated_relative_ceiling_admits_refines_model (argument basis : Std.U64)
+    (basisPoints : Std.U16) :
+    ratio.relative_ceiling_admits argument basis basisPoints ⦃ admitted =>
+      admitted = Auths.Product.RelativeCeiling.admits argument.val basis.val basisPoints.val ⦄ := by
+  unfold ratio.relative_ceiling_admits
+  simp only [lift, bind_tc_ok]
+  have scaledArgument := UScalar.mul_spec (x := UScalar.cast .U128 argument)
+    (y := ratio.BASIS_POINTS_PER_WHOLE) (by
+      simp only [U64.cast_U128_val_eq, basis_points_per_whole_val]
+      scalar_tac)
+  obtain ⟨product, productEq, productVal⟩ := spec_imp_exists scaledArgument
+  rw [productEq, bind_tc_ok]
+  have scaledBasis := UScalar.mul_spec (x := UScalar.cast .U128 basis)
+    (y := UScalar.cast .U128 basisPoints) (by
+      simp only [U64.cast_U128_val_eq, U16.cast_U128_val_eq]
+      have basisSmall : basis.val < 2 ^ 64 := by scalar_tac
+      have pointsSmall : basisPoints.val < 2 ^ 16 := by scalar_tac
+      have : basis.val * basisPoints.val < 2 ^ 64 * 2 ^ 16 :=
+        Nat.mul_lt_mul'' basisSmall pointsSmall
+      scalar_tac)
+  obtain ⟨other, otherEq, otherVal⟩ := spec_imp_exists scaledBasis
+  rw [otherEq, bind_tc_ok, spec_ok]
+  simp only [U64.cast_U128_val_eq, U16.cast_U128_val_eq, basis_points_per_whole_val]
+    at productVal otherVal
+  simp only [Auths.Product.RelativeCeiling.admits, Auths.Product.RelativeCeiling.basisPointsPerWhole,
+    UScalar.le_equiv, productVal, otherVal, decide_eq_decide]
+
+theorem relative_ceiling_admits_eq (argument basis : Std.U64) (basisPoints : Std.U16) :
+    ratio.relative_ceiling_admits argument basis basisPoints =
+      ok (Auths.Product.RelativeCeiling.admits argument.val basis.val basisPoints.val) := by
+  obtain ⟨result, resultEq, resultVal⟩ :=
+    spec_imp_exists (translated_relative_ceiling_admits_refines_model argument basis basisPoints)
+  rw [resultEq, resultVal]
+
+/-- The translated basis returns exactly the model's basis. -/
+theorem translated_relative_basis_refines_model (value : Std.U64) (subtrahend : Option Std.U64) :
+    ratio.relative_basis value subtrahend ⦃ basis =>
+      basis.map (·.val) =
+        Auths.Product.RelativeCeiling.relativeBasis value.val (subtrahend.map (·.val)) ⦄ := by
+  match subtrahend with
+  | .none => simp [ratio.relative_basis, Auths.Product.RelativeCeiling.relativeBasis]
+  | .some second =>
+      simp only [ratio.relative_basis, Option.map_some,
+        Auths.Product.RelativeCeiling.relativeBasis]
+      split
+      · rename_i within
+        have within' : second.val ≤ value.val := by simpa using within
+        obtain ⟨difference, differenceEq, differenceVal⟩ :=
+          spec_imp_exists (UScalar.sub_spec (x := value) (y := second) within')
+        rw [differenceEq, bind_tc_ok, spec_ok]
+        simp [within', differenceVal.1]
+      · rename_i beyond
+        have beyond' : ¬ second.val ≤ value.val := by simpa using beyond
+        simp [beyond']
+
+/-! ## Admission order -/
+
+section Order
+open Auths.Product.SubmitOrder
+
+def modeOf : order.Mode → Mode
+  | .Entry => .entry
+  | .ReadBack => .readBack
+  | .Reobserve => .reobserve
+
+def planOf (plan : order.SubmitPlan) : Plan where
+  accountScope := plan.account_scope
+  accountRead := plan.account_read
+  deniedReads := plan.denied_reads.val
+  preEntry := plan.pre_entry
+  relativeCeiling := plan.relative_ceiling
+  basisPoints := plan.basis_points.val
+
+def phaseOf : order.Phase → Phase
+  | .Start => .start
+  | .Clock => .clock
+  | .Verify => .verify
+  | .Admit => .admit
+  | .Scope => .scope
+  | .Prepare => .prepare
+  | .Claim => .claim
+  | .Resume => .resume
+  | .Reload mode => .reload (modeOf mode)
+  | .Lease mode => .lease (modeOf mode)
+  | .Prefix mode => .prefixGuard (modeOf mode)
+  | .Account mode => .account (modeOf mode)
+  | .Denied mode index => .denied (modeOf mode) index.val
+  | .PreEntry => .preEntry
+  | .Ceiling => .ceiling
+  | .Checkpoint => .checkpoint
+  | .EntryReload => .entryReload
+  | .Deadline => .deadline
+  | .Send => .send
+  | .RecordResponse => .recordResponse
+  | .RecordUnknown => .recordUnknown
+  | .RecordNotEntered => .recordNotEntered
+  | .ReadBack mode => .readBack (modeOf mode)
+  | .Done => .done
+
+def stateOf (state : order.SubmitState) : State where
+  plan := planOf state.plan
+  phase := phaseOf state.phase
+  argument := state.argument.val
+
+def verificationOf : order.Verification → Verification
+  | .Refused => .refused
+  | .Authorized argument => .authorized argument.val
+
+def claimOf : order.ClaimResult → ClaimResult
+  | .Inserted => .inserted
+  | .Refused => .refused
+  | .Replay => .replay
+  | .Unavailable => .unavailable
+
+def accountOf : order.AccountResult → AccountResult
+  | .Equal => .equal
+  | .Mismatch => .mismatch
+  | .Unavailable => .unavailable
+
+def deniedOf : order.DeniedResult → DeniedResult
+  | .Refused => .refused
+  | .Answered => .answered
+  | .Unavailable => .unavailable
+
+def preEntryOf : order.PreEntryResult → PreEntryResult
+  | .Satisfied => .satisfied
+  | .ConditionFalse => .conditionFalse
+  | .Unavailable => .unavailable
+
+def ceilingOf : order.CeilingRead → CeilingRead
+  | .Unavailable => .unavailable
+  | .Read basis bindsEqual => .read basis.val bindsEqual
+
+def writeOf : order.WriteResult → WriteResult
+  | .NotEntered => .notEntered
+  | .Unknown => .unknown
+  | .Response => .response
+
+def responseOf : order.ResponseRecord → ResponseRecord
+  | .Failed => .failed
+  | .Recorded observable => .recorded observable
+
+def eventOf : order.SubmitEvent → Event
+  | .Start => .start
+  | .Clock read => .clock read
+  | .Verification result => .verification (verificationOf result)
+  | .Admission admitted => .admission admitted
+  | .Scope bound => .scope bound
+  | .Preparation prepared => .preparation prepared
+  | .Claim result => .claim (claimOf result)
+  | .Resume resumable => .resume resumable
+  | .Reload unchanged => .reload unchanged
+  | .Lease leased => .lease leased
+  | .Prefix allowed => .prefixGuard allowed
+  | .Account result => .account (accountOf result)
+  | .Denied result => .denied (deniedOf result)
+  | .PreEntry result => .preEntry (preEntryOf result)
+  | .Ceiling read => .ceiling (ceilingOf read)
+  | .Recorded stored => .recorded stored
+  | .Deadline within => .deadline within
+  | .Write result => .write (writeOf result)
+  | .Response record => .response (responseOf record)
+
+def refusalCodeOf : order.Refusal → Refusal
+  | .ConnectionChanged => .connectionChanged
+  | .CredentialUnavailable => .credentialUnavailable
+  | .ModeGuard => .modeGuard
+  | .AccountMismatch => .accountMismatch
+  | .AccountUnavailable => .accountUnavailable
+  | .CapabilityExcess => .capabilityExcess
+  | .CapabilityUnavailable => .capabilityUnavailable
+  | .PreEntryConditionFalse => .preEntryConditionFalse
+  | .PreEntryUnavailable => .preEntryUnavailable
+  | .CeilingAbove => .ceilingAbove
+  | .CeilingBindingMismatch => .ceilingBindingMismatch
+  | .CeilingUnavailable => .ceilingUnavailable
+  | .EntryDeadline => .entryDeadline
+  | .TransportNotEntered => .transportNotEntered
+
+def stopOf : order.Stop → Stop
+  | .Refused => .refused
+  | .StoreUnavailable => .storeUnavailable
+  | .ClaimRefused => .claimRefused
+  | .NotEntered => .notEntered
+  | .Unknown => .unknown
+  | .Response => .response
+  | .Observed => .observed
+  | .ReplayRefused => .replayRefused
+  | .Halted => .halted
+
+def actionOf : order.SubmitAction → Action
+  | .ReadClock => .readClock
+  | .Verify => .verify
+  | .Admit => .admit
+  | .BindScope => .bindScope
+  | .Prepare => .prepare
+  | .Claim => .claim
+  | .Resume => .resume
+  | .Reload mode => .reload (modeOf mode)
+  | .Lease mode => .lease (modeOf mode)
+  | .CheckPrefix mode => .checkPrefix (modeOf mode)
+  | .ReadAccount mode => .readAccount (modeOf mode)
+  | .DeniedRead mode index => .deniedRead (modeOf mode) index.val
+  | .PreEntryRead => .preEntryRead
+  | .CeilingRead => .ceilingRead
+  | .RecordCheckpoint => .recordCheckpoint
+  | .ReloadBeforeEntry => .reloadBeforeEntry
+  | .CheckDeadline => .checkDeadline
+  | .Send => .send
+  | .RecordResponse => .recordResponse
+  | .RecordUnknown => .recordUnknown
+  | .RecordNotEntered refusal => .recordNotEntered (refusalCodeOf refusal)
+  | .ReadBack mode => .readBack (modeOf mode)
+  | .Stop reason => .stop (stopOf reason)
+
+def decisionOf (decision : order.SubmitDecision) : Decision where
+  state := stateOf decision.state
+  action := actionOf decision.action
+
+theorem translated_start_refines_model (plan : order.SubmitPlan) :
+    order.start plan ⦃ state => stateOf state = start (planOf plan) ⦄ := by
+  simp [order.start, stateOf, start, phaseOf]
+
+/-- The next denied index of a refused read never overflows `u8`: it is at
+most the declared count. -/
+theorem after_denied_refused_spec (state : order.SubmitState) (mode : order.Mode) (index : Std.U8) :
+    order.after_denied state mode index .Refused ⦃ decision =>
+      decisionOf decision = afterDenied (stateOf state) (modeOf mode) index.val .refused ⦄ := by
+  unfold order.after_denied
+  simp only [afterDenied, stateOf, planOf]
+  split
+  · rename_i below
+    have below' : index.val < state.plan.denied_reads.val := by simpa using below
+    have fits : index.val + (1#u8 : Std.U8).val ≤ UScalar.max .U8 := by scalar_tac
+    obtain ⟨next, nextEq, nextVal⟩ := spec_imp_exists (UScalar.add_spec (x := index) (y := 1#u8) fits)
+    rw [nextEq, bind_tc_ok]
+    simp only [below', if_true]
+    have nextVal' : next.val = index.val + 1 := by simpa using nextVal
+    unfold order.denied_from deniedFrom
+    split
+    · rename_i more
+      have more' : next.val < state.plan.denied_reads.val := by simpa using more
+      simp [nextVal', order.go, go, decisionOf, stateOf, planOf, phaseOf, actionOf]
+      omega
+    · rename_i done
+      have done' : ¬ next.val < state.plan.denied_reads.val := by simpa using done
+      rw [nextVal'] at done'
+      simp only [done', if_false]
+      rcases mode with _ | _ | _
+      all_goals
+        simp [order.after_credentials, order.pre_entry_from, order.ceiling_from,
+          order.after_reads, order.go, afterCredentials, preEntryFrom, ceilingFrom, afterReads, go,
+          decisionOf, stateOf, planOf, phaseOf, actionOf, modeOf]
+        repeat' split
+        all_goals simp_all
+  · rename_i above
+    have above' : ¬ index.val < state.plan.denied_reads.val := by simpa using above
+    simp [above', order.halt, order.stop, order.go, halt, stop, go, decisionOf, stateOf, planOf,
+      phaseOf, actionOf, stopOf]
+
+
+@[simp] theorem stateOf_phase (state : order.SubmitState) :
+    (stateOf state).phase = phaseOf state.phase := rfl
+
+@[simp] theorem stateOf_plan (state : order.SubmitState) :
+    (stateOf state).plan = planOf state.plan := rfl
+
+@[simp] theorem stateOf_argument (state : order.SubmitState) :
+    (stateOf state).argument = state.argument.val := rfl
+
+theorem after_denied_spec (state : order.SubmitState) (mode : order.Mode) (index : Std.U8)
+    (result : order.DeniedResult) :
+    order.after_denied state mode index result ⦃ decision =>
+      decisionOf decision =
+        afterDenied (stateOf state) (modeOf mode) index.val (deniedOf result) ⦄ := by
+  match result with
+  | .Refused => exact after_denied_refused_spec state mode index
+  | .Answered | .Unavailable =>
+      rcases mode with _ | _ | _ <;>
+        simp [order.after_denied, order.lease_failed, order.not_entered, order.stop, order.go,
+          afterDenied, leaseFailed, notEntered, stop, go, decisionOf, stateOf, phaseOf, actionOf,
+          refusalCodeOf, stopOf, deniedOf, modeOf]
+
+theorem after_ceiling_spec (state : order.SubmitState) (read : order.CeilingRead) :
+    order.after_ceiling state read ⦃ decision =>
+      decisionOf decision = afterCeiling (stateOf state) (ceilingOf read) ⦄ := by
+  match read with
+  | .Unavailable =>
+      simp [order.after_ceiling, order.not_entered, order.go, afterCeiling, notEntered, go,
+        decisionOf, stateOf, phaseOf, actionOf, refusalCodeOf, ceilingOf]
+  | .Read basis bindsEqual =>
+      simp only [order.after_ceiling, afterCeiling, ceilingOf, relative_ceiling_admits_eq,
+        bind_tc_ok]
+      rcases bindsEqual with _ | _
+      all_goals
+        simp [order.not_entered, order.after_reads, order.go, notEntered, afterReads, go,
+          decisionOf, stateOf, planOf, phaseOf, actionOf, refusalCodeOf]
+        repeat' split
+        all_goals simp_all
+
+/-- The translated step machine returns exactly the model's next state and
+action for every state and event. -/
+theorem translated_next_step_refines_model (state : order.SubmitState)
+    (event : order.SubmitEvent) :
+    order.next_step state event ⦃ decision =>
+      decisionOf decision = nextStep (stateOf state) (eventOf event) ⦄ := by
+  rcases state with ⟨plan, phase, argument⟩
+  rcases phase with _ | _ | _ | _ | _ | _ | _ | _ | (_ | _ | _) | (_ | _ | _) | (_ | _ | _) |
+      (_ | _ | _) | ⟨(_ | _ | _), _⟩ | _ | _ | _ | _ | _ | _ | _ | _ | _ | (_ | _ | _) | _ <;>
+    rcases event with _ | _ | (_ | _) | _ | _ | _ | (_ | _ | _ | _) | _ | _ | _ | _ |
+      (_ | _ | _) | _ | (_ | _ | _) | _ | _ | _ | (_ | _ | _) | (_ | _) <;>
+    simp only [order.next_step, order.pre_claim_step, order.lease_step, order.entry_step,
+      nextStep, preClaimStep, leaseStep, entryStep, stateOf_phase, phaseOf, eventOf, modeOf] <;>
+    first
+    | exact after_denied_spec _ _ _ _
+    | exact after_ceiling_spec _ _
+    | skip
+  all_goals
+    simp [order.go, order.stop, order.halt, order.not_entered, order.lease_failed,
+      order.after_reads, order.ceiling_from, order.pre_entry_from, order.after_credentials,
+      order.denied_from, order.after_prefix, order.after_admission, order.pre_claim,
+      order.after_claim, order.after_account, order.after_pre_entry, order.after_write,
+      order.after_response, order.after_read_back, go, stop, halt, notEntered, leaseFailed,
+      afterReads, ceilingFrom, preEntryFrom, afterCredentials, deniedFrom, afterPrefix,
+      afterAdmission, preClaim, afterClaim, afterAccount, afterPreEntry, afterWrite,
+      afterResponse, afterReadBack, decisionOf, stateOf, planOf, phaseOf, actionOf, refusalCodeOf,
+      stopOf, modeOf, verificationOf, claimOf, accountOf, preEntryOf, writeOf,
+      responseOf] <;>
+    (repeat' split) <;> simp_all
+
+end Order
+
+/-! ## Attempt-record transitions -/
+
+section Transition
+
+theorem byteList_inj {left right : List Std.U8} : byteList left = byteList right ↔ left = right := by
+  constructor
+  · intro equal
+    induction left generalizing right with
+    | nil => cases right <;> simp_all [byteList]
+    | cons head tail induction =>
+        cases right with
+        | nil => simp [byteList] at equal
+        | cons head' tail' =>
+            simp only [byteList, List.map_cons, List.cons.injEq] at equal
+            rw [(UScalar.eq_equiv _ _).mpr equal.1, induction equal.2]
+  · intro equal
+    rw [equal]
+
+def stageOf : transition.Stage → Auths.Product.Recovery.Stage
+  | .Attempting => .attempting
+  | .NotEntered => .notEntered
+  | .Unknown => .unknown
+  | .ResponseRecorded => .responseRecorded
+  | .Observed => .observed
+  | .ObservedByProvider => .observedByProvider
+
+def readingOf : transition.Reading → Auths.Product.Recovery.Reading
+  | .None => .none
+  | .Match => .matched
+  | .Mismatch => .mismatched
+  | .EchoMismatch => .echoMismatch
+
+def storedLinkOf : transition.Link → Auths.Product.Recovery.Link
+  | .None => .none
+  | .Verified => .verified
+  | .AfterResponse => .afterResponse
+
+def viewOf (view : transition.AttemptView) : Auths.Product.Recovery.AttemptView where
+  fixed := byteList view.fixed.val
+  stage := stageOf view.stage
+  refusal := view.refusal
+  preEntry := byteList view.pre_entry.val
+  response := byteList view.response.val
+  locator := byteList view.locator.val
+  reading := readingOf view.reading
+  evidence := view.evidence
+  observation := view.observation
+  link := storedLinkOf view.link
+
+theorem absent_eq (bytes : Slice Std.U8) :
+    transition.absent bytes = ok (byteList bytes.val).isEmpty := by
+  have zero : (Slice.len bytes = 0#usize) ↔ bytes.val = [] := by
+    rw [UScalar.eq_equiv, Slice.len_val]
+    simp
+  simp only [transition.absent]
+  congr 1
+  cases equal : bytes.val with
+  | nil => simp [byteList, zero.mpr equal]
+  | cons head tail =>
+      have nonzero : ¬ (Slice.len bytes = 0#usize) := by
+        rw [zero, equal]
+        simp
+      simp [byteList, nonzero]
+
+theorem same_bytes_from_spec (left right : Slice Std.U8)
+    (sameLength : left.val.length = right.val.length) :
+    transition.same_bytes_from left right ⦃ result => result = decide (left.val = right.val) ⦄ := by
+  unfold transition.same_bytes_from transition.same_bytes_from_loop
+  apply loop.spec_decr_nat
+    (measure := fun index => left.val.length - index.val)
+    (inv := fun index =>
+      index.val ≤ left.val.length ∧ left.val.take index.val = right.val.take index.val)
+  · rintro index ⟨bound, prefixEq⟩
+    unfold transition.same_bytes_from_loop.body
+    dsimp only
+    split <;> rename_i withinLeft
+    · have inLeft : index.val < left.val.length := by simpa using withinLeft
+      have inRight : index.val < right.val.length := by omega
+      have withinRight : index < Slice.len right := by
+        simp only [UScalar.lt_equiv, Slice.len_val]
+        exact inRight
+      simp only [withinRight, if_true]
+      step as ⟨leftByte, leftEq⟩
+      step as ⟨rightByte, rightEq⟩
+      split <;> rename_i differs
+      · simp only [spec_ok]
+        have unequal : leftByte ≠ rightByte := by simpa using differs
+        symm
+        rw [decide_eq_false_iff_not]
+        intro same
+        apply unequal
+        rw [leftEq, rightEq]
+        simp only [same]
+      · have equalBytes : leftByte = rightByte :=
+          (UScalar.eq_equiv _ _).mpr (by simpa using differs)
+        step as ⟨next, nextEq⟩
+        refine ⟨by omega, ?_, by omega⟩
+        rw [nextEq, List.take_succ_eq_append_getElem inLeft,
+          List.take_succ_eq_append_getElem inRight, prefixEq]
+        congr 2
+        rw [← leftEq, ← rightEq, equalBytes]
+    · simp only [spec_ok]
+      have atEnd : left.val.length ≤ index.val := by simpa using withinLeft
+      have full : index.val = left.val.length := by omega
+      rw [full, List.take_length, sameLength, List.take_length] at prefixEq
+      simp [prefixEq]
+  · exact ⟨by simp, by simp⟩
+
+theorem same_bytes_eq (left right : Slice Std.U8) :
+    transition.same_bytes left right = ok (decide (byteList left.val = byteList right.val)) := by
+  unfold transition.same_bytes
+  dsimp only
+  split <;> rename_i lengths
+  · have sameLength : left.val.length = right.val.length := by
+      have := congrArg UScalar.val lengths
+      simpa using this
+    obtain ⟨result, resultEq, resultVal⟩ :=
+      spec_imp_exists (same_bytes_from_spec left right sameLength)
+    rw [resultEq, resultVal]
+    simp [byteList_inj]
+  · have differ : left.val.length ≠ right.val.length := by
+      intro same
+      apply lengths
+      rw [UScalar.eq_equiv]
+      simpa using same
+    congr 1
+    symm
+    rw [decide_eq_false_iff_not]
+    intro same
+    apply differ
+    have := congrArg List.length same
+    simpa [byteList] using this
+
+theorem consistent_eq (view : transition.AttemptView) :
+    transition.consistent view = ok (Auths.Product.Recovery.consistent (viewOf view)) := by
+  rcases view with ⟨fixed, stage, refusal, preEntry, response, locator, reading, evidence,
+    observation, link⟩
+  simp only [transition.consistent, absent_eq, bind_tc_ok, alloc.vec.Vec.deref,
+    Auths.Product.Recovery.consistent, viewOf]
+  rcases stage with _ | _ | _ | _ | _ | _ <;> rcases reading with _ | _ | _ | _ <;>
+    rcases link with _ | _ | _ <;>
+    simp [transition.refusal_stage, transition.requires_response, transition.permits_response,
+      transition.observed_stage, transition.provider_stage, transition.has_reading,
+      transition.has_link, transition.resolves_unknown, stageOf, readingOf, storedLinkOf,
+      Auths.Product.Recovery.refusalStage, Auths.Product.Recovery.requiresResponse,
+      Auths.Product.Recovery.permitsResponse, Auths.Product.Recovery.observedStage,
+      Auths.Product.Recovery.providerStage, Auths.Product.Recovery.hasReading,
+      Auths.Product.Recovery.hasLink, Auths.Product.Recovery.resolvesUnknown] <;>
+    (repeat' split) <;> simp_all
+
+/-- The translated transition rule returns exactly the model's decision for
+every pair of records. -/
+theorem translated_valid_transition_refines_model (old new : transition.AttemptView) :
+    transition.valid_transition old new ⦃ valid =>
+      valid = Auths.Product.Recovery.validTransition (viewOf old) (viewOf new) ⦄ := by
+  rcases old with ⟨fixed, stage, refusal, preEntry, response, locator, reading, evidence,
+    observation, link⟩
+  rcases new with ⟨fixed', stage', refusal', preEntry', response', locator', reading', evidence',
+    observation', link'⟩
+  simp only [transition.valid_transition, transition.plan_kept, transition.checkpoint_valid,
+    transition.pre_entry_kept, transition.response_kept, same_bytes_eq, absent_eq,
+    consistent_eq, bind_tc_ok, alloc.vec.Vec.deref, Auths.Product.Recovery.validTransition,
+    Auths.Product.Recovery.planKept, Auths.Product.Recovery.checkpointValid,
+    Auths.Product.Recovery.preEntryKept, Auths.Product.Recovery.responseKept, viewOf]
+  rcases stage with _ | _ | _ | _ | _ | _ <;> rcases stage' with _ | _ | _ | _ | _ | _ <;>
+    rcases link with _ | _ | _ <;> rcases link' with _ | _ | _ <;>
+    simp [transition.stage_transition_allowed, transition.adds_pre_entry,
+      transition.adds_response, transition.link_equal, transition.resolves_unknown, stageOf,
+      storedLinkOf, Auths.Product.Recovery.stageTransitionAllowed,
+      Auths.Product.Recovery.addsPreEntry, Auths.Product.Recovery.addsResponse,
+      Auths.Product.Recovery.resolvesUnknown, List.isEmpty_iff] <;>
+    (repeat' split) <;> simp_all <;>
+    (repeat' split) <;> simp_all
+
+end Transition
 
 end Auths.Product.Refinement.Gateway

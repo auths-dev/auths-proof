@@ -147,6 +147,230 @@ inductive construct.ConstructError where
 | HeaderValue : construct.ConstructError
 | BodySize : construct.ConstructError
 
+/-- [auths_gateway_kernel::order::Mode]
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 34:0-41:1
+    Visibility: public -/
+@[discriminant isize]
+inductive order.Mode where
+| Entry : order.Mode
+| ReadBack : order.Mode
+| Reobserve : order.Mode
+
+/-- [auths_gateway_kernel::order::SubmitPlan]
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 50:0-63:1
+    Visibility: public -/
+structure order.SubmitPlan where
+  account_scope : Bool
+  account_read : Bool
+  denied_reads : Std.U8
+  pre_entry : Bool
+  relative_ceiling : Bool
+  basis_points : Std.U16
+
+/-- [auths_gateway_kernel::order::Phase]
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 67:0-116:1
+    Visibility: public -/
+@[discriminant isize]
+inductive order.Phase where
+| Start : order.Phase
+| Clock : order.Phase
+| Verify : order.Phase
+| Admit : order.Phase
+| Scope : order.Phase
+| Prepare : order.Phase
+| Claim : order.Phase
+| Resume : order.Phase
+| Reload : order.Mode → order.Phase
+| Lease : order.Mode → order.Phase
+| Prefix : order.Mode → order.Phase
+| Account : order.Mode → order.Phase
+| Denied : order.Mode → Std.U8 → order.Phase
+| PreEntry : order.Phase
+| Ceiling : order.Phase
+| Checkpoint : order.Phase
+| EntryReload : order.Phase
+| Deadline : order.Phase
+| Send : order.Phase
+| RecordResponse : order.Phase
+| RecordUnknown : order.Phase
+| RecordNotEntered : order.Phase
+| ReadBack : order.Mode → order.Phase
+| Done : order.Phase
+
+/-- [auths_gateway_kernel::order::SubmitState]
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 120:0-128:1
+    Visibility: public -/
+structure order.SubmitState where
+  plan : order.SubmitPlan
+  phase : order.Phase
+  argument : Std.U64
+
+/-- [auths_gateway_kernel::order::Verification]
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 132:0-141:1
+    Visibility: public -/
+@[discriminant isize]
+inductive order.Verification where
+| Refused : order.Verification
+| Authorized : Std.U64 → order.Verification
+
+/-- [auths_gateway_kernel::order::ClaimResult]
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 145:0-154:1
+    Visibility: public -/
+@[discriminant isize]
+inductive order.ClaimResult where
+| Inserted : order.ClaimResult
+| Refused : order.ClaimResult
+| Replay : order.ClaimResult
+| Unavailable : order.ClaimResult
+
+/-- [auths_gateway_kernel::order::AccountResult]
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 158:0-165:1
+    Visibility: public -/
+@[discriminant isize]
+inductive order.AccountResult where
+| Equal : order.AccountResult
+| Mismatch : order.AccountResult
+| Unavailable : order.AccountResult
+
+/-- [auths_gateway_kernel::order::DeniedResult]
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 169:0-176:1
+    Visibility: public -/
+@[discriminant isize]
+inductive order.DeniedResult where
+| Refused : order.DeniedResult
+| Answered : order.DeniedResult
+| Unavailable : order.DeniedResult
+
+/-- [auths_gateway_kernel::order::PreEntryResult]
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 180:0-187:1
+    Visibility: public -/
+@[discriminant isize]
+inductive order.PreEntryResult where
+| Satisfied : order.PreEntryResult
+| ConditionFalse : order.PreEntryResult
+| Unavailable : order.PreEntryResult
+
+/-- [auths_gateway_kernel::order::CeilingRead]
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 191:0-201:1
+    Visibility: public -/
+@[discriminant isize]
+inductive order.CeilingRead where
+| Unavailable : order.CeilingRead
+| Read : Std.U64 → Bool → order.CeilingRead
+
+/-- [auths_gateway_kernel::order::WriteResult]
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 205:0-212:1
+    Visibility: public -/
+@[discriminant isize]
+inductive order.WriteResult where
+| NotEntered : order.WriteResult
+| Unknown : order.WriteResult
+| Response : order.WriteResult
+
+/-- [auths_gateway_kernel::order::ResponseRecord]
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 216:0-224:1
+    Visibility: public -/
+@[discriminant isize]
+inductive order.ResponseRecord where
+| Failed : order.ResponseRecord
+| Recorded : Bool → order.ResponseRecord
+
+/-- [auths_gateway_kernel::order::SubmitEvent]
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 228:0-267:1
+    Visibility: public -/
+@[discriminant isize]
+inductive order.SubmitEvent where
+| Start : order.SubmitEvent
+| Clock : Bool → order.SubmitEvent
+| Verification : order.Verification → order.SubmitEvent
+| Admission : Bool → order.SubmitEvent
+| Scope : Bool → order.SubmitEvent
+| Preparation : Bool → order.SubmitEvent
+| Claim : order.ClaimResult → order.SubmitEvent
+| Resume : Bool → order.SubmitEvent
+| Reload : Bool → order.SubmitEvent
+| Lease : Bool → order.SubmitEvent
+| Prefix : Bool → order.SubmitEvent
+| Account : order.AccountResult → order.SubmitEvent
+| Denied : order.DeniedResult → order.SubmitEvent
+| PreEntry : order.PreEntryResult → order.SubmitEvent
+| Ceiling : order.CeilingRead → order.SubmitEvent
+| Recorded : Bool → order.SubmitEvent
+| Deadline : Bool → order.SubmitEvent
+| Write : order.WriteResult → order.SubmitEvent
+| Response : order.ResponseRecord → order.SubmitEvent
+
+/-- [auths_gateway_kernel::order::Refusal]
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 271:0-300:1
+    Visibility: public -/
+@[discriminant isize]
+inductive order.Refusal where
+| ConnectionChanged : order.Refusal
+| CredentialUnavailable : order.Refusal
+| ModeGuard : order.Refusal
+| AccountMismatch : order.Refusal
+| AccountUnavailable : order.Refusal
+| CapabilityExcess : order.Refusal
+| CapabilityUnavailable : order.Refusal
+| PreEntryConditionFalse : order.Refusal
+| PreEntryUnavailable : order.Refusal
+| CeilingAbove : order.Refusal
+| CeilingBindingMismatch : order.Refusal
+| CeilingUnavailable : order.Refusal
+| EntryDeadline : order.Refusal
+| TransportNotEntered : order.Refusal
+
+/-- [auths_gateway_kernel::order::Stop]
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 304:0-323:1
+    Visibility: public -/
+@[discriminant isize]
+inductive order.Stop where
+| Refused : order.Stop
+| StoreUnavailable : order.Stop
+| ClaimRefused : order.Stop
+| NotEntered : order.Stop
+| Unknown : order.Stop
+| Response : order.Stop
+| Observed : order.Stop
+| ReplayRefused : order.Stop
+| Halted : order.Stop
+
+/-- [auths_gateway_kernel::order::SubmitAction]
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 327:0-374:1
+    Visibility: public -/
+@[discriminant isize]
+inductive order.SubmitAction where
+| ReadClock : order.SubmitAction
+| Verify : order.SubmitAction
+| Admit : order.SubmitAction
+| BindScope : order.SubmitAction
+| Prepare : order.SubmitAction
+| Claim : order.SubmitAction
+| Resume : order.SubmitAction
+| Reload : order.Mode → order.SubmitAction
+| Lease : order.Mode → order.SubmitAction
+| CheckPrefix : order.Mode → order.SubmitAction
+| ReadAccount : order.Mode → order.SubmitAction
+| DeniedRead : order.Mode → Std.U8 → order.SubmitAction
+| PreEntryRead : order.SubmitAction
+| CeilingRead : order.SubmitAction
+| RecordCheckpoint : order.SubmitAction
+| ReloadBeforeEntry : order.SubmitAction
+| CheckDeadline : order.SubmitAction
+| Send : order.SubmitAction
+| RecordResponse : order.SubmitAction
+| RecordUnknown : order.SubmitAction
+| RecordNotEntered : order.Refusal → order.SubmitAction
+| ReadBack : order.Mode → order.SubmitAction
+| Stop : order.Stop → order.SubmitAction
+
+/-- [auths_gateway_kernel::order::SubmitDecision]
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 378:0-383:1
+    Visibility: public -/
+structure order.SubmitDecision where
+  state : order.SubmitState
+  action : order.SubmitAction
+
 /-- [auths_gateway_kernel::recovery::StateObservation]
     Source: 'product/runtime/auths-gateway-kernel/src/recovery.rs', lines 10:0-17:1
     Visibility: public -/
@@ -210,5 +434,51 @@ structure recovery.RecoveryCapability where
   lost_claim_reentry : recovery.LostClaimReentry
   pre_entry_reread : Bool
   write_is_conditional : Bool
+
+/-- [auths_gateway_kernel::transition::Stage]
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 19:0-32:1
+    Visibility: public -/
+@[discriminant isize]
+inductive transition.Stage where
+| Attempting : transition.Stage
+| NotEntered : transition.Stage
+| Unknown : transition.Stage
+| ResponseRecorded : transition.Stage
+| Observed : transition.Stage
+| ObservedByProvider : transition.Stage
+
+/-- [auths_gateway_kernel::transition::Reading]
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 36:0-45:1
+    Visibility: public -/
+@[discriminant isize]
+inductive transition.Reading where
+| None : transition.Reading
+| Match : transition.Reading
+| Mismatch : transition.Reading
+| EchoMismatch : transition.Reading
+
+/-- [auths_gateway_kernel::transition::Link]
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 49:0-56:1
+    Visibility: public -/
+@[discriminant isize]
+inductive transition.Link where
+| None : transition.Link
+| Verified : transition.Link
+| AfterResponse : transition.Link
+
+/-- [auths_gateway_kernel::transition::AttemptView]
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 60:0-81:1
+    Visibility: public -/
+structure transition.AttemptView where
+  fixed : alloc.vec.Vec Std.U8
+  stage : transition.Stage
+  refusal : Bool
+  pre_entry : alloc.vec.Vec Std.U8
+  response : alloc.vec.Vec Std.U8
+  locator : alloc.vec.Vec Std.U8
+  reading : transition.Reading
+  evidence : Bool
+  observation : Bool
+  link : transition.Link
 
 end auths_gateway_kernel

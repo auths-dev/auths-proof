@@ -1729,10 +1729,14 @@ pub(crate) fn synchronize_formal_assurance_manifest(
                 .unwrap_or(&declaration.name);
             let phrase = short_name.replace('_', " ");
             let is_product = declaration.name.starts_with("Auths.Product.");
-            let is_gateway = declaration.name.starts_with("Auths.Product.Recovery.")
-                || declaration
-                    .name
-                    .starts_with("Auths.Product.RequestConstruction.");
+            let is_gateway = [
+                "Auths.Product.Recovery.",
+                "Auths.Product.RequestConstruction.",
+                "Auths.Product.SubmitOrder.",
+                "Auths.Product.RelativeCeiling.",
+            ]
+            .iter()
+            .any(|prefix| declaration.name.starts_with(prefix));
             let is_lifecycle = declaration.name.starts_with("Auths.Lifecycle.");
             FormalAssuranceClaim {
                 claim_id: format!("AP-FORMAL-RICH-{rich_index:03}"),
@@ -1760,7 +1764,7 @@ pub(crate) fn synchronize_formal_assurance_manifest(
                 scope: if is_lifecycle {
                     "Pure V1 lifecycle transitions, capacity conservation, replay, configuration gates, credential ordering, provider entry, and reconciliation.".to_owned()
                 } else if is_gateway {
-                    "Pure gateway recipe semantics: the recovery capability a recipe's declarations determine, and closed request construction over every compiled plan and argument list.".to_owned()
+                    "Pure gateway recipe semantics: the recovery capability a recipe's declarations determine, closed request construction over every compiled plan and argument list, the attempt-record transition rule over every sequence of records, the admission order over every event trace, and the exact relative ceiling.".to_owned()
                 } else if is_product {
                     "Pure V1 bounded product-policy commitments, checked arithmetic, configuration gating, and eligibility.".to_owned()
                 } else {
@@ -2093,30 +2097,74 @@ fn gateway_refinement_metadata(declaration: &str) -> Option<ProductionRefinement
     const COMMON: &str = "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the listed foundational axioms, and the theorem's explicit representation-validity premise (every buffer the leaf builds is shorter than u32::MAX bytes) are trusted.";
     const BOUNDARY: &str = "Recipe compilation, plan lowering, argument conversion from the verified MCP command, the echo-token and idempotency-key hashes, and the HTTP transport are outside this theorem; the compiler and conversion are covered by the hostile recipe corpus, the serde oracle, and fuzzing.";
     const RESIDUAL: &[&str] = &[COMMON, BOUNDARY];
+    const UNCONDITIONAL: &str = "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, and the listed foundational axioms are trusted; the theorem has no premise.";
+    const ORDER_BOUNDARY: &str = "That GatewayEngine::submit performs I/O only as next_step directs holds by construction and is tested by the scenario corpus but is not proved over the async runtime; store atomicity and linearizability, the unauthenticated gateway clock, and provider behavior, including what a basis value, an account identifier, a refusal status, or an account-scope header means, are assumed.";
+    const TRANSITION_BOUNDARY: &str = "The store's projection of each stored record onto the transition view and the compare-and-swap on the exact stored bytes are outside this theorem; they are covered by the store conformance suite and the Kani harness over bounded records.";
+    const RATIO_BOUNDARY: &str = "Reading the basis from the provider response (the JSON integer rules, the subtrahend pointer, and the bind pointers) is outside this theorem; it is covered by the recipe corpus and fuzzing. What the basis means is the recipe author's, approved by the operator.";
+    const ORDER_RESIDUAL: &[&str] = &[UNCONDITIONAL, ORDER_BOUNDARY];
+    const TRANSITION_RESIDUAL: &[&str] = &[UNCONDITIONAL, TRANSITION_BOUNDARY];
+    const RATIO_RESIDUAL: &[&str] = &[UNCONDITIONAL, RATIO_BOUNDARY];
     const RECOVERY: &str = "auths_gateway_kernel::recovery::recovery_capability";
     const WRITE: &str = "auths_gateway_kernel::construct::construct_write";
     const ACTION_READ: &str = "auths_gateway_kernel::construct::construct_action_read";
     const CREDENTIAL_READ: &str = "auths_gateway_kernel::construct::construct_credential_read";
-    let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
+    const NEXT_STEP: &str = "auths_gateway_kernel::order::next_step";
+    const VALID_TRANSITION: &str = "auths_gateway_kernel::transition::valid_transition";
+    const RELATIVE_BASIS: &str = "auths_gateway_kernel::ratio::relative_basis";
+    const RELATIVE_CEILING: &str = "auths_gateway_kernel::ratio::relative_ceiling_admits";
+    let (claim_text, rust_symbols, scope, residual_assumptions): (
+        &str,
+        &[&str],
+        &str,
+        &'static [&'static str],
+    ) = match declaration {
         "Auths.Product.Refinement.Gateway.translated_recovery_capability_refines_model" => (
             "The mechanically translated recovery-capability leaf returns exactly the model's capability for every declaration set.",
             &[RECOVERY],
             "Every observation locator, echo flag, idempotency declaration, and pre-entry flag.",
+            RESIDUAL,
         ),
         "Auths.Product.Refinement.Gateway.translated_construct_write_refines_model" => (
             "The mechanically translated write construction returns exactly the model's request or refusal.",
             &[WRITE],
             "Every write plan and argument list: path validation and percent-encoding, the canonical JSON or form body with the echo, version, account-scope, and idempotency headers, and the path and body bounds.",
+            RESIDUAL,
         ),
         "Auths.Product.Refinement.Gateway.translated_construct_action_read_refines_model" => (
             "The mechanically translated action-read construction returns exactly the model's request or refusal.",
             &[ACTION_READ],
             "Every action-read plan and argument list: the encoded path and the version and account-scope headers.",
+            RESIDUAL,
         ),
         "Auths.Product.Refinement.Gateway.translated_construct_credential_read_refines_model" => (
             "The mechanically translated credential-read construction returns exactly the model's request, a function of the plan alone.",
             &[CREDENTIAL_READ],
             "Every credential-read plan: the fixed path and the version headers.",
+            RESIDUAL,
+        ),
+        "Auths.Product.Refinement.Gateway.translated_next_step_refines_model" => (
+            "The mechanically translated admission-order step machine returns exactly the model's next state and action for every state and event.",
+            &[NEXT_STEP, RELATIVE_CEILING],
+            "Every plan, phase, verified argument, and event, including the denied-read index arithmetic and the relative-ceiling comparison on the verified argument.",
+            ORDER_RESIDUAL,
+        ),
+        "Auths.Product.Refinement.Gateway.translated_valid_transition_refines_model" => (
+            "The mechanically translated attempt-record transition rule returns exactly the model's decision for every pair of records.",
+            &[VALID_TRANSITION],
+            "Every pair of transition views: the unchangeable bytes, the plan summary, the closed stage table, the checkpoint, the pre-entry and response fields, and stage consistency.",
+            TRANSITION_RESIDUAL,
+        ),
+        "Auths.Product.Refinement.Gateway.translated_relative_basis_refines_model" => (
+            "The mechanically translated relative basis returns exactly the model's basis: the value, or the difference when the subtrahend is at most the value, and absent otherwise.",
+            &[RELATIVE_BASIS],
+            "Every u64 value and optional u64 subtrahend.",
+            RATIO_RESIDUAL,
+        ),
+        "Auths.Product.Refinement.Gateway.translated_relative_ceiling_admits_refines_model" => (
+            "The mechanically translated relative-ceiling check returns exactly the model's exact comparison of the argument times 10 000 with the basis times the basis points.",
+            &[RELATIVE_CEILING],
+            "Every u64 argument and basis and u16 basis points; neither u128 product overflows.",
+            RATIO_RESIDUAL,
         ),
         _ => return None,
     };
@@ -2124,7 +2172,7 @@ fn gateway_refinement_metadata(declaration: &str) -> Option<ProductionRefinement
         claim_text,
         rust_symbols,
         scope,
-        residual_assumptions: RESIDUAL,
+        residual_assumptions,
         translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
     })
 }
@@ -2721,7 +2769,7 @@ mod phase_ordering {
             .collect::<Vec<_>>();
         assert_eq!(
             declarations.len(),
-            4,
+            8,
             "every gateway refinement is inventoried"
         );
         for declaration in &declarations {
@@ -2734,7 +2782,18 @@ mod phase_ordering {
                     "{declaration} cites {symbol}, which is not a qualified translation symbol"
                 );
             }
-            assert!(metadata.residual_assumptions.join(" ").contains("u32::MAX"));
+            let residual = metadata.residual_assumptions.join(" ");
+            if declaration.contains("_construct_") {
+                assert!(
+                    residual.contains("u32::MAX"),
+                    "{declaration} states its premise"
+                );
+            } else if !declaration.ends_with("translated_recovery_capability_refines_model") {
+                assert!(
+                    residual.contains("no premise"),
+                    "{declaration} states it has no premise"
+                );
+            }
         }
     }
 

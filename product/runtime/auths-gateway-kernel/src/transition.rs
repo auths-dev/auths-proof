@@ -453,7 +453,10 @@ mod tests {
         checkpoint.pre_entry = vec![9];
         assert!(valid_transition(&old, &checkpoint));
         assert!(!valid_transition(&checkpoint, &checkpoint));
-        assert!(!valid_transition(&old, &old), "a checkpoint must add evidence");
+        assert!(
+            !valid_transition(&old, &old),
+            "a checkpoint must add evidence"
+        );
         let mut refused = view(Stage::NotEntered, Link::Verified);
         refused.pre_entry = vec![9];
         assert!(valid_transition(&old, &refused));
@@ -462,7 +465,10 @@ mod tests {
         assert!(!valid_transition(&checkpoint, &refused), "kept once set");
         let mut responded = view(Stage::ResponseRecorded, Link::Verified);
         responded.pre_entry = vec![9];
-        assert!(!valid_transition(&old, &responded), "added only before entry");
+        assert!(
+            !valid_transition(&old, &responded),
+            "added only before entry"
+        );
         assert!(valid_transition(&checkpoint, &responded));
     }
 

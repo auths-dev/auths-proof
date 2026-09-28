@@ -13,7 +13,7 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "fee66e765f2eba2db3b11a836d287f3f9b63a26951ac04e24d0debad65ec6f50";
+    "c74378440d9c3b75aad693770cb4c9f09b99f1938eb966a84bc356b183f93582";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
     (
@@ -1961,7 +1961,7 @@ fn reproduce(
     run_checked(
         charon,
         &charon_arguments(
-            "auths_gateway_kernel::recovery::recovery_capability,auths_gateway_kernel::construct::construct_write,auths_gateway_kernel::construct::construct_action_read,auths_gateway_kernel::construct::construct_credential_read",
+            "auths_gateway_kernel::recovery::recovery_capability,auths_gateway_kernel::construct::construct_write,auths_gateway_kernel::construct::construct_action_read,auths_gateway_kernel::construct::construct_credential_read,auths_gateway_kernel::order::start,auths_gateway_kernel::order::next_step,auths_gateway_kernel::transition::valid_transition,auths_gateway_kernel::ratio::relative_basis,auths_gateway_kernel::ratio::relative_ceiling_admits",
             &stable_llbc.join("auths_gateway_kernel.llbc"),
             "product/runtime/auths-gateway-kernel/Cargo.toml",
             &[],

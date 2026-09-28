@@ -543,7 +543,11 @@ pub const fn after_claim(state: SubmitState, result: ClaimResult) -> SubmitDecis
 
 /// The account read result.
 #[must_use]
-pub const fn after_account(state: SubmitState, mode: Mode, result: AccountResult) -> SubmitDecision {
+pub const fn after_account(
+    state: SubmitState,
+    mode: Mode,
+    result: AccountResult,
+) -> SubmitDecision {
     match result {
         AccountResult::Equal => denied_from(state, mode, 0),
         AccountResult::Mismatch => lease_failed(state, mode, Refusal::AccountMismatch),
@@ -677,15 +681,19 @@ pub const fn pre_claim_step(state: SubmitState, event: SubmitEvent) -> SubmitDec
             _ => halt(state),
         },
         Phase::Scope => match event {
-            SubmitEvent::Scope(bound) => {
-                pre_claim(state, bound, go(state, Phase::Prepare, SubmitAction::Prepare))
-            }
+            SubmitEvent::Scope(bound) => pre_claim(
+                state,
+                bound,
+                go(state, Phase::Prepare, SubmitAction::Prepare),
+            ),
             _ => halt(state),
         },
         Phase::Prepare => match event {
-            SubmitEvent::Preparation(prepared) => {
-                pre_claim(state, prepared, go(state, Phase::Claim, SubmitAction::Claim))
-            }
+            SubmitEvent::Preparation(prepared) => pre_claim(
+                state,
+                prepared,
+                go(state, Phase::Claim, SubmitAction::Claim),
+            ),
             _ => halt(state),
         },
         Phase::Claim => match event {
