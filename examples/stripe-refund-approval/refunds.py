@@ -5,11 +5,16 @@ Commands, in the order the README runs them:
 
     python refunds.py setup   --state DIR --gateway auths-gateway
     python refunds.py request --state DIR --operation-id ID --payment-intent PI \\
-                              --amount CENTS --approvers a,b --out REQUESTS
+                              --amount CENTS --approvers a,b --out REQUESTS \\
+                              [--currency usd] [--connect-account acct_...]
     auths approve REQUESTS/manager-a.request \\
                               --signer DIR/signers/manager-a.json --out REQUESTS/manager-a.response
     python refunds.py submit  --state DIR --socket SOCK --operation-id ID --responses REQUESTS
     python refunds.py export  --state DIR --out audit-bundle.json
+
+``python refunds.py grant --state DIR --agent NAME --max-count N`` issues one
+more agent its own grant with the same limits and another count; the journey
+uses it for the refusals that consume a count slot.
 
 The agent writes one approval request per manager; each manager answers with
 ``auths approve`` on their own machine, and the agent collects the
@@ -68,6 +73,9 @@ MANAGERS = ("manager-a", "manager-b", "manager-c")
 ROLES = ("root", "agent") + MANAGERS
 ASSURANCE = "raw-key-baseline"
 DAY = 86_400
+# The test connected account the grant's scope lists; the gateway sends it as
+# `Stripe-Account` on the refund and on every read of the refund's records.
+CONNECT_ACCOUNT = "acct_1AuthsConnected"
 # The recipe declares a derived Idempotency-Key with 86 400 seconds of
 # provider retention. The gateway refuses an action whose approval window plus
 # its 60-second entry deadline exceeds that retention, so every entry of one
@@ -139,6 +147,70 @@ def _signer(state: Path, name: str) -> DevelopmentSigner:
     return DevelopmentSigner(name, (state / "keys" / f"{name}.seed").read_bytes())
 
 
+def _principals(state: Path) -> Dict[str, str]:
+    """Every principal by name: the roles setup created and each agent
+    ``grant`` added."""
+    facts = json.loads((state / "setup.json").read_text())
+    principals: Dict[str, str] = dict(facts["principals"])
+    for path in sorted((state / "agents").glob("*.json")):
+        principals[path.stem] = json.loads(path.read_text())["principal"]
+    return principals
+
+
+def _bound(gateway: str, bound: Dict[str, Any], max_count: int) -> Dict[str, Any]:
+    """The grant extension for ``bound`` with ``max_count`` refunds per
+    window, as the gateway's registered evaluator enforces it."""
+    return _gateway_json(
+        gateway,
+        "bound-extension",
+        "--argument",
+        "amount",
+        "--ceiling",
+        str(bound["ceiling"]),
+        "--window-seconds",
+        str(bound["window_seconds"]),
+        "--max-count",
+        str(max_count),
+        "--sum-limit",
+        str(bound["sum_limit"]),
+        "--partition",
+        "currency=" + ",".join(bound["currencies"]),
+        "--scope",
+        "connect_account=" + bound["connect_account"],
+    )
+
+
+def _root_grant(
+    state: Path, facts: Dict[str, Any], subject: str, extension: Dict[str, Any]
+) -> bytes:
+    """A grant from the root to ``subject`` carrying ``extension``, valid for
+    the trust's lifetime."""
+    root = _signer(state, "root").key
+    audience = facts["audience"]
+    grant_request = _native.GrantRequest(
+        _native.Principal(subject),
+        "auths.mcp",
+        2,
+        [("tools/call", f"{audience}/tools/{facts['tool']}")],
+        facts["not_before"],
+        facts["expires_at"],
+        [audience],
+        None,
+        None,
+        0,
+        None,
+        ASSURANCE,
+        [(extension["extension_id"], bytes.fromhex(extension["extension_body_hex"]))],
+    )
+    signing = _native.prepare_signing(
+        _native.root_grant(_native.Principal(facts["principals"]["root"]), grant_request),
+        root.principal_method,
+        root.verification_method,
+        root.suite,
+    )
+    return bytes(_native.inspect_signed(signing.complete(root.sign(signing.signing_preimage))))
+
+
 def _trusted_context(
     configuration: bytes,
     anchors: List[Any],
@@ -182,18 +254,14 @@ def setup(args: argparse.Namespace) -> None:
     review = _gateway_json(
         args.gateway, "review", "--recipe", str(RECIPE), "--profile-lock", str(PROFILE_LOCK)
     )
-    bound = _gateway_json(
-        args.gateway,
-        "bound-extension",
-        "--argument",
-        "amount",
-        "--ceiling",
-        str(args.ceiling),
-        "--window-seconds",
-        str(args.window_seconds),
-        "--max-count",
-        str(args.max_count),
-    )
+    limits = {
+        "ceiling": args.ceiling,
+        "window_seconds": args.window_seconds,
+        "sum_limit": args.sum_limit,
+        "currencies": sorted(set(args.currencies.split(","))),
+        "connect_account": args.connect_account,
+    }
+    bound = _bound(args.gateway, limits, args.max_count)
     for name in ROLES:
         _private_write(state / "keys" / f"{name}.seed", os.urandom(32))
     # What each manager passes to `auths approve --signer`.
@@ -253,57 +321,74 @@ def setup(args: argparse.Namespace) -> None:
         extension,
     )
 
-    root = signers["root"].key
-    grant_request = _native.GrantRequest(
-        _native.Principal(principals["agent"]),
-        "auths.mcp",
-        2,
-        [permission],
-        not_before,
-        expires_at,
-        [audience],
-        None,
-        None,
-        0,
-        None,
-        ASSURANCE,
-        [(extension, bytes.fromhex(bound["extension_body_hex"]))],
-    )
-    signing = _native.prepare_signing(
-        _native.root_grant(_native.Principal(principals["root"]), grant_request),
-        root.principal_method,
-        root.verification_method,
-        root.suite,
-    )
-    grant = signing.complete(root.sign(signing.signing_preimage))
+    facts = {
+        "audience": audience,
+        "tool": tool,
+        "not_before": not_before,
+        "expires_at": expires_at,
+        "principals": principals,
+    }
+    agent_grant = _root_grant(state, facts, principals["agent"], bound)
 
     _private_write(state / "trust" / "gateway.context.cbor", gateway_context)
     _private_write(state / "trust" / "sdk.context.cbor", sdk_context)
-    _private_write(state / "agent.grant.cbor", bytes(_native.inspect_signed(grant)))
+    _private_write(state / "agent.grant.cbor", agent_grant)
     summary = {
         "recipe_digest": review["recipe_digest"],
         "operator_namespace": review["operator_namespace"],
         "audience": audience,
+        "tool": tool,
+        "not_before": not_before,
+        "expires_at": expires_at,
         "challenge_hex": challenge.hex(),
         "trusted_context_sha256": hashlib.sha256(gateway_context).hexdigest(),
         "principals": principals,
+        "connect_account": args.connect_account,
+        "limits": limits,
         "bound": {
-            key: bound[key] for key in ("argument", "ceiling", "window_seconds", "max_count")
+            key: bound[key]
+            for key in (
+                "argument",
+                "ceiling",
+                "window_seconds",
+                "max_count",
+                "sum_limit",
+                "partition",
+                "scope",
+            )
         },
     }
     _private_write(state / "setup.json", json.dumps(summary, indent=2).encode())
     print(json.dumps(summary, indent=2))
 
 
+def grant(args: argparse.Namespace) -> None:
+    """Issues one more agent its own grant: the setup's limits with
+    ``--max-count`` refunds per window, counted apart from every other
+    agent's."""
+    state: Path = args.state
+    facts = json.loads((state / "setup.json").read_text())
+    name: str = args.agent
+    if name in facts["principals"] or (state / "agents" / f"{name}.json").exists():
+        raise SystemExit(f"{name} already exists")
+    bound = _bound(args.gateway, facts["limits"], args.max_count)
+    _private_write(state / "keys" / f"{name}.seed", os.urandom(32))
+    principal = _signer(state, name).key.principal
+    _private_write(state / f"{name}.grant.cbor", _root_grant(state, facts, principal, bound))
+    record = {"principal": principal, "max_count": bound["max_count"]}
+    _private_write(state / "agents" / f"{name}.json", json.dumps(record).encode())
+    print(json.dumps({"agent": name, **record}))
+
+
 def _proposal(state: Path, operation: str) -> ApprovalProposal[CreateRefund]:
     """Rebuilds the agent's proposal for ``operation`` from its saved inputs;
     the same inputs always give the same envelopes and requests."""
     facts = json.loads((state / "setup.json").read_text())
+    principals = _principals(state)
     pending = json.loads((state / "pending" / f"{operation}.json").read_text())
     managers = pending["managers"]
-    agent = ApprovalMember(
-        facts["principals"]["agent"], (state / "agent.grant.cbor").read_bytes()
-    )
+    requester = principals[pending["agent"]]
+    agent = ApprovalMember(requester, (state / f"{pending['agent']}.grant.cbor").read_bytes())
     return propose_mcp_approval(
         contract=CONTRACT,
         command=CreateRefund(
@@ -312,46 +397,56 @@ def _proposal(state: Path, operation: str) -> ApprovalProposal[CreateRefund]:
             recipe_digest=facts["recipe_digest"],
             payment_intent=pending["payment_intent"],
             amount=pending["amount"],
+            connect_account=pending["connect_account"],
+            currency=pending["currency"],
         ),
         # The agent and every listed manager approve the same exact refund.
         required=1 + len(managers),
-        approvers=[agent] + [ApprovalMember(facts["principals"][name]) for name in managers],
-        requester=facts["principals"]["agent"],
+        approvers=[agent] + [ApprovalMember(principals[name]) for name in managers],
+        requester=requester,
         challenge=bytes.fromhex(facts["challenge_hex"]),
         evaluation_time=pending["evaluation_time"],
         validity_seconds=APPROVAL_WINDOW,
     )
 
 
-def _agent_grants(state: Path) -> tuple[GrantEvidence, ...]:
+def _agent_grants(state: Path, agent: str) -> tuple[GrantEvidence, ...]:
     root = _signer(state, "root")
-    return (GrantEvidence((state / "agent.grant.cbor").read_bytes(), (root.evidence,)),)
+    return (GrantEvidence((state / f"{agent}.grant.cbor").read_bytes(), (root.evidence,)),)
 
 
 async def _request(args: argparse.Namespace) -> Dict[str, Any]:
     state: Path = args.state
     facts = json.loads((state / "setup.json").read_text())
+    principals = _principals(state)
     managers = [name for name in args.approvers.split(",") if name]
     if not set(managers) <= set(MANAGERS) or len(set(managers)) != len(managers):
         raise SystemExit(f"approvers must be distinct names from {', '.join(MANAGERS)}")
+    if args.agent in MANAGERS or args.agent == "root" or args.agent not in principals:
+        raise SystemExit(f"{args.agent} is not an agent of {state}")
     pending = {
+        "agent": args.agent,
         "managers": managers,
         "payment_intent": args.payment_intent,
         "amount": args.amount,
+        "currency": args.currency,
+        "connect_account": args.connect_account or facts["connect_account"],
         "evaluation_time": int(time.time()),
     }
     _private_write(state / "pending" / f"{args.operation_id}.json", json.dumps(pending).encode())
     proposal = _proposal(state, args.operation_id)
-    names = {principal: name for name, principal in facts["principals"].items()}
+    names = {principal: name for name, principal in principals.items()}
     out: Path = args.out
     out.mkdir(mode=0o700, parents=True, exist_ok=True)
     written: Dict[str, str] = {}
     for request in approval_requests(proposal):
         name = names[request.approver]
-        if name == "agent":
+        if name == args.agent:
             # The agent approves its own request like any other approver.
             reviewed = open_approval_request(request.data)
-            response = await approve(reviewed, _signer(state, "agent"), grants=_agent_grants(state))
+            response = await approve(
+                reviewed, _signer(state, name), grants=_agent_grants(state, name)
+            )
             (out / "agent.response").write_text(response.text + "\n")
             continue
         path = out / f"{name}.request"
@@ -362,8 +457,7 @@ async def _request(args: argparse.Namespace) -> Dict[str, Any]:
 
 async def _submit(args: argparse.Namespace) -> Dict[str, Any]:
     state: Path = args.state
-    facts = json.loads((state / "setup.json").read_text())
-    names = {principal: name for name, principal in facts["principals"].items()}
+    names = {principal: name for name, principal in _principals(state).items()}
     proposal = _proposal(state, args.operation_id)
     responses = sorted(args.responses.glob("*.response"))
     texts = [path.read_text().strip() for path in responses]
@@ -436,13 +530,26 @@ def main(argv: Optional[List[str]] = None) -> int:
     prepare.add_argument("--ceiling", type=int, default=5_000, help="largest refund, in cents")
     prepare.add_argument("--max-count", type=int, default=2, help="refunds per agent per window")
     prepare.add_argument("--window-seconds", type=int, default=DAY)
+    prepare.add_argument(
+        "--sum-limit", type=int, default=6_000, help="refund sum per currency per window, in cents"
+    )
+    prepare.add_argument("--currencies", default="eur,usd", help="comma-separated currencies")
+    prepare.add_argument("--connect-account", default=CONNECT_ACCOUNT, help="the account in scope")
     prepare.add_argument("--days", type=int, default=30, help="trust and grant validity")
+    another = commands.add_parser("grant", help="issue one more agent its own grant")
+    another.add_argument("--state", type=Path, required=True)
+    another.add_argument("--gateway", default="auths-gateway")
+    another.add_argument("--agent", required=True)
+    another.add_argument("--max-count", type=int, required=True, help="refunds per window")
     request = commands.add_parser("request", help="write one approval request per manager")
     request.add_argument("--state", type=Path, required=True)
     request.add_argument("--operation-id", required=True)
     request.add_argument("--payment-intent", required=True)
     request.add_argument("--amount", type=int, required=True, help="cents")
     request.add_argument("--approvers", required=True, help="comma-separated manager names")
+    request.add_argument("--currency", default="usd")
+    request.add_argument("--connect-account", help="defaults to the account in the grant's scope")
+    request.add_argument("--agent", default="agent", help="the requesting agent")
     request.add_argument("--out", type=Path, required=True, help="directory for requests and responses")
     submit = commands.add_parser("submit", help="collect the responses and submit through the gateway")
     submit.add_argument("--state", type=Path, required=True)
@@ -455,6 +562,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "setup":
         setup(args)
+    elif args.command == "grant":
+        grant(args)
     elif args.command == "request":
         print(json.dumps(asyncio.run(_request(args))))
     elif args.command == "submit":

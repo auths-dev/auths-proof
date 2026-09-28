@@ -361,6 +361,68 @@ connection record but no claim, and the gateway restarts, a resubmitted
 refund reaches the double with the same key and creates no second refund. The double is not Stripe, and no hosted CI
 result is cited here.
 
+### North-star Stripe recipe with the vertical's five checks (AP-SPEC-063 §3.1, §5.6–§5.9, §6.10, repository-local only)
+
+**Claim.** The north-star recipe (`examples/stripe-refund-approval/recipe.json`)
+declares the five checks the `auths-stripe` vertical makes, as provider-neutral
+recipe capabilities, so refunds written through the gateway keep them. For a
+recipe that declares them, the gateway sends no write unless, after the lease:
+the credential still resolves to the connection's account; each declared
+denied read was refused with a declared status; and the bounded argument is at
+most the declared basis points of the integer just read from the provider. An
+account-scope header carries only a value the grant lists, and a recipe that
+declares none never sends one. A grant that also carries a sum limit bounds
+the sum of the bounded argument directly, per declared partition value, and
+the grant lists every partition value it allows. In the north-star recipe the
+credential must start with `rk_test_` and pass the `/v1/balance` probe, the
+account is read at `/v1/account`, `/v1/customers` and `/v1/payouts` must be
+refused with 403, the refund amount is at most 5 000 basis points of the
+PaymentIntent's `/amount_received` with its `/currency` bound to the verified
+`currency`, `Stripe-Account` carries the grant-listed `connect_account`, and
+the sum is partitioned by `currency`. Refunds made through the gateway carry
+a provider link: the gateway writes the action's echo token into
+`metadata[auths_echo]`, reads the refund back at the id the response
+returned, and records `observed-by-provider` when the token and amount match.
+
+**Not a claim.** Provider effect, acceptance, or settlement. Authorship: the
+echo is unkeyed and shows consistency, not who wrote a record. Observer
+honesty: observer trust is operator trust. A conditional write: the
+relative-ceiling read narrows the window; it does not close it. That a
+credential lacks any permission beyond the refusals observed: a denied read
+shows only that the declared requests were refused at that lease. That the
+provider's basis value or account identity is still current at the write.
+That a provider honors a declared idempotency mechanism or keeps it for the
+declared retention. A rolling limit: fixed windows admit up to twice a count
+across a boundary. Claims or counts after store loss. That an audit bundle is
+complete. An authenticated gateway clock. That the recipe's header value,
+key prefix, pointers, refused statuses, and ratio match Stripe's current
+behavior: they are the author's reading of Stripe's documentation, which
+states 403 for a key without permission but not whether that refusal carries
+`Stripe-Version`; a refusal without it fails closed at install
+(`gateway.install.credential-capability`). Until the local-agent Stripe
+vertical is retired, a Stripe account reachable through both it and the
+gateway has two unrelated limits, and neither bounds the other path.
+
+Current evidence is the north-star journey from the packed wheel
+(`examples/stripe-refund-approval/journey.py`) and from the packed npm
+package (`typescript/journey.ts`) against the Stripe-compatible counting
+double (`mock_stripe.py`), which requires `Stripe-Version`, scopes records by
+`Stripe-Account`, serves PaymentIntents, the account, and 403 refusals,
+stores refund metadata, and honors the idempotency key. Refund 1 records
+`observed-by-provider`; each hostile case records its code with zero
+writes: a key without `rk_test_` at install
+(`gateway.install.credential-guard`, no provider request), a
+`connect_account` outside the grant (`gateway.policy.scope-denied`) and a
+refund above the currency's remaining sum (`gateway.policy.sum-exhausted`),
+both with no provider request, and, after the lease, a refund above half of
+`/amount_received` (`gateway.relative-ceiling.above`), a currency that does
+not match the PaymentIntent (`gateway.relative-ceiling.binding-mismatch`),
+the double reporting another account (`gateway.credential.account-mismatch`),
+and the double answering a denied read with 200
+(`gateway.credential.capability-excess`). The double is not Stripe; the
+Stripe test-mode run is the developer's own step, and no hosted CI result is
+cited here.
+
 ## Packaged clean-consumer exercise
 
 Exercised at auths-proof commit

@@ -142,6 +142,12 @@ mod unix {
             /// directory's own store.
             #[arg(long)]
             attempt_store: Option<PathBuf>,
+            /// Development builds only: send the onboarding credential reads
+            /// of a first install to a plain-HTTP provider double on
+            /// 127.0.0.1:<port>.
+            #[cfg(feature = "loopback-provider")]
+            #[arg(long, conflicts_with = "join")]
+            loopback_provider: Option<u16>,
         },
         /// Serve a restricted application socket and private admin socket.
         Serve {
@@ -499,15 +505,26 @@ mod unix {
         recipe: &CompiledRecipe,
         mut candidate: Zeroizing<Vec<u8>>,
         account_label: &str,
+        loopback_provider: Option<u16>,
     ) -> Result<SecretBytes, &'static str> {
-        check_candidate_credential(
-            recipe,
-            recipe.review().credential(),
-            &candidate,
-            OnboardingAccount::Label(account_label),
-        )
-        .await
-        .map_err(OnboardingFailure::install_code)?;
+        let account = OnboardingAccount::Label(account_label);
+        let review = recipe.review();
+        let requirement = review.credential();
+        let checked = match loopback_provider {
+            #[cfg(feature = "loopback-provider")]
+            Some(port) => {
+                auths_gateway::check_candidate_credential_loopback(
+                    recipe,
+                    requirement,
+                    &candidate,
+                    account,
+                    port,
+                )
+                .await
+            }
+            _ => check_candidate_credential(recipe, requirement, &candidate, account).await,
+        };
+        checked.map_err(OnboardingFailure::install_code)?;
         SecretBytes::new(std::mem::take(&mut *candidate))
             .map_err(|_| "gateway.install.invalid-credential")
     }
@@ -568,6 +585,7 @@ mod unix {
         deployment: Deployment,
         operator_attestation: Option<PathBuf>,
         attempt_store: Option<PathBuf>,
+        loopback_provider: Option<u16>,
     ) -> Result<(), &'static str> {
         if !credential_stdin || std::io::stdin().is_terminal() {
             return Err("gateway.install.credential-must-be-piped-to-stdin");
@@ -642,7 +660,9 @@ mod unix {
             if account_label.is_empty() || account_label.len() > 256 {
                 return Err("gateway.install.invalid-account-label");
             }
-            let secret = checked_install_credential(&recipe, candidate, &account_label).await?;
+            let secret =
+                checked_install_credential(&recipe, candidate, &account_label, loopback_provider)
+                    .await?;
             let connection_id =
                 ConnectionId::generate().map_err(|_| "gateway.install.randomness-unavailable")?;
             let profile = ConnectionProfile::new(
@@ -1642,7 +1662,11 @@ mod unix {
                 deployment,
                 operator_attestation,
                 attempt_store,
+                #[cfg(feature = "loopback-provider")]
+                loopback_provider,
             } => {
+                #[cfg(not(feature = "loopback-provider"))]
+                let loopback_provider = None;
                 install(
                     state_dir,
                     recipe,
@@ -1658,6 +1682,7 @@ mod unix {
                     deployment,
                     operator_attestation,
                     attempt_store,
+                    loopback_provider,
                 )
                 .await
             }

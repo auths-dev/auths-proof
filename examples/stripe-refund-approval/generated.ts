@@ -4,7 +4,7 @@ import { enumField, exactMcpTool, integerField, stringField, type CommandOf } fr
 export const PROFILE_NAME = "stripe-refund";
 export const PROFILE_VERSION = 1;
 export const TOOL_NAME = "create_refund_v1";
-export const SCHEMA_DIGEST = "06c91dcf9660ed2445c04c87bd5546d8bdfb7540c3f91276685c93ea5abdd82d";
+export const SCHEMA_DIGEST = "db3a47820a6f5c3ce3883068bea16542721e049cab8453a2af579c77a46d5c5e";
 
 export const FIELDS = {
   operator_namespace: enumField(["stripe-refunds"]),
@@ -12,6 +12,8 @@ export const FIELDS = {
   recipe_digest: stringField({ minBytes: 64, maxBytes: 64 }),
   payment_intent: stringField({ minBytes: 3, maxBytes: 255 }),
   amount: integerField({ minimum: 1, maximum: 99999999 }),
+  connect_account: stringField({ minBytes: 13, maxBytes: 64 }),
+  currency: stringField({ minBytes: 3, maxBytes: 3 }),
 } as const;
 export type CreateRefund = CommandOf<typeof FIELDS>;
 export const CONTRACT = exactMcpTool({ service: "stripe-refunds", name: TOOL_NAME, fields: FIELDS });

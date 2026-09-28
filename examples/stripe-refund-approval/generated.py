@@ -14,7 +14,7 @@ from auths.self_hosted import (
 PROFILE_NAME = "stripe-refund"
 PROFILE_VERSION = 1
 TOOL_NAME = "create_refund_v1"
-SCHEMA_DIGEST = "06c91dcf9660ed2445c04c87bd5546d8bdfb7540c3f91276685c93ea5abdd82d"
+SCHEMA_DIGEST = "db3a47820a6f5c3ce3883068bea16542721e049cab8453a2af579c77a46d5c5e"
 
 
 @dataclass(frozen=True)
@@ -24,6 +24,8 @@ class CreateRefund:
     recipe_digest: str
     payment_intent: str
     amount: int
+    connect_account: str
+    currency: str
 
 
 FIELDS = {
@@ -32,6 +34,8 @@ FIELDS = {
     "recipe_digest": StringField(min_length=64, max_length=64),
     "payment_intent": StringField(min_length=3, max_length=255),
     "amount": IntegerField(minimum=1, maximum=99999999),
+    "connect_account": StringField(min_length=13, max_length=64),
+    "currency": StringField(min_length=3, max_length=3),
 }
 
 CommandT = TypeVar("CommandT")

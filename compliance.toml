@@ -1795,6 +1795,7 @@ runtime-enforcement-boundary = [
   "product/runtime/auths-gateway/src/scenario_tests.rs#postgres_attempt_scenarios_v3_drive_the_counting_provider",
   "product/runtime/auths-gateway/src/onboarding.rs#onboarding_runs_every_declared_check_in_order",
   "product/runtime/auths-gateway/src/onboarding.rs#a_recipe_without_a_guard_needs_no_network",
+  "product/runtime/auths-gateway/src/onboarding.rs#the_loopback_build_runs_the_same_onboarding_checks",
 ]
 stateful-replay-budget-component = [
   "product/runtime/auths-gateway/src/recipe/tests.rs#durable_claim_is_one_use_across_races_and_restart",
