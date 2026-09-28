@@ -34,9 +34,9 @@ use tokio_postgres_rustls::MakeRustlsConnect;
 const DATABASE_MAGIC: &[u8; 8] = b"AUTHSLF1";
 const MAX_DATABASE_BYTES: usize = 256 * 1024 * 1024;
 const MAX_RECORD_BYTES: usize = auths_lifecycle::MAX_LIFECYCLE_RECORD_BYTES;
-const SCHEMA_VERSION: i32 = 4;
+const SCHEMA_VERSION: i32 = 5;
 const CONTRACT_ID: &str = "auths.lifecycle.transactional-store/4";
-const POSTGRES_SCHEMA: &str = include_str!("../migrations/postgres_lifecycle_v4.sql");
+const POSTGRES_SCHEMA: &str = include_str!("../migrations/postgres_lifecycle_v5.sql");
 
 /// One closed capacity rule configured by a domain registration.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -533,7 +533,7 @@ impl PostgresStoreSummary {
     /// Returns the physical schema identity.
     #[must_use]
     pub const fn schema_id(self) -> &'static str {
-        "auths.lifecycle.postgresql/4"
+        "auths.lifecycle.postgresql/5"
     }
 
     /// Returns the transactional store contract identity.
@@ -705,7 +705,7 @@ impl PostgresLifecycleStore {
         }
         let state = self.pool.state();
         Ok(PostgresStoreHealth {
-            schema_version: 4,
+            schema_version: 5,
             pool_connections: state.connections,
             pool_idle_connections: state.idle_connections,
         })
@@ -1033,7 +1033,7 @@ fn initialize_or_verify_schema(
                     to_regclass('auths_lifecycle_records') IS NOT NULL,
                     to_regclass('auths_recovery_references') IS NOT NULL,
                     to_regclass('auths_recovery_leases') IS NOT NULL,
-                    to_regclass('auths_gateway_attempts') IS NOT NULL",
+                    to_regclass('auths_gateway_records') IS NOT NULL",
             &[],
         )
         .map_err(|_| LifecycleStoreConfigurationError::DatabaseUnavailable)?;
@@ -1049,7 +1049,7 @@ fn initialize_or_verify_schema(
     let leases_exist: bool = tables
         .try_get(3)
         .map_err(|_| LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
-    let attempts_exist: bool = tables
+    let gateway_records_exist: bool = tables
         .try_get(4)
         .map_err(|_| LifecycleStoreConfigurationError::DatabaseSchemaMismatch)?;
     match (
@@ -1057,7 +1057,7 @@ fn initialize_or_verify_schema(
         records_exist,
         references_exist,
         leases_exist,
-        attempts_exist,
+        gateway_records_exist,
     ) {
         (false, false, false, false, false) => {
             let existing: i64 = client

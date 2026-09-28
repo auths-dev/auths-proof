@@ -26,8 +26,9 @@ mod unix {
     use auths_gateway::{
         CompiledRecipe, FileGatewayAttemptStore, GatewayAttempts, GatewayConnectionDescriptor,
         GatewayEngine, GatewayObserveRequest, GatewayObserveResult, GatewayObserver,
-        GatewayObserverError, GatewaySubmitResult, ObserverCustody, OperatorNamespace,
-        PostgresGatewayAttemptStore, PrincipalSeparationError, check_principal_separation,
+        GatewayObserverError, GatewaySubmitResult, ObserverCustody, OnboardingAccount,
+        OnboardingFailure, OperatorNamespace, PostgresGatewayAttemptStore,
+        PrincipalSeparationError, check_candidate_credential, check_principal_separation,
         gateway_verifier_configuration,
     };
     use auths_model::PrincipalId;
@@ -307,7 +308,7 @@ mod unix {
             .map_err(|_| "gateway.clock.unavailable")
     }
 
-    fn read_install_credential() -> Result<SecretBytes, &'static str> {
+    fn read_install_credential() -> Result<Zeroizing<Vec<u8>>, &'static str> {
         // Pre-sized to the read limit so reading never reallocates and strands
         // an unwiped partial copy; every exit path zeroizes the buffer.
         let mut bytes = Zeroizing::new(Vec::with_capacity(4_098));
@@ -324,7 +325,26 @@ mod unix {
         {
             return Err("gateway.install.invalid-credential");
         }
-        SecretBytes::new(std::mem::take(&mut *bytes))
+        Ok(bytes)
+    }
+
+    /// Reads the candidate secret and runs every credential check the recipe
+    /// declares before anything is stored: the prefix, the probe, the
+    /// account read against the operator's label, and the denied reads.
+    async fn checked_install_credential(
+        recipe: &CompiledRecipe,
+        account_label: &str,
+    ) -> Result<SecretBytes, &'static str> {
+        let mut candidate = read_install_credential()?;
+        check_candidate_credential(
+            recipe,
+            recipe.review().credential(),
+            &candidate,
+            OnboardingAccount::Label(account_label),
+        )
+        .await
+        .map_err(OnboardingFailure::install_code)?;
+        SecretBytes::new(std::mem::take(&mut *candidate))
             .map_err(|_| "gateway.install.invalid-credential")
     }
 
@@ -386,7 +406,7 @@ mod unix {
         if account_label.is_empty() || account_label.len() > 256 {
             return Err("gateway.install.invalid-account-label");
         }
-        let secret = read_install_credential()?;
+        let secret = checked_install_credential(&recipe, &account_label).await?;
         private_root(&state_dir)?;
         if state_dir.join("installation.json").exists() {
             return Err("gateway.install.already-installed");
@@ -627,7 +647,7 @@ mod unix {
     enum AdminCommand {
         Disable,
         Revoke,
-        Rotate(SecretBytes),
+        Rotate(Zeroizing<Vec<u8>>),
     }
 
     /// Reads the command frame and, for a rotation, the secret frame, each
@@ -650,13 +670,14 @@ mod unix {
                     .read_frame(stream)
                     .await
                     .map_err(|_| "gateway.admin.invalid-credential")?;
-                if secret.len() > 4_096 || !secret.iter().all(|byte| (0x21..=0x7e).contains(byte)) {
+                if secret.is_empty()
+                    || secret.len() > 4_096
+                    || !secret.iter().all(|byte| (0x21..=0x7e).contains(byte))
+                {
                     secret.zeroize();
                     return Err("gateway.admin.invalid-credential");
                 }
-                SecretBytes::new(secret)
-                    .map(AdminCommand::Rotate)
-                    .map_err(|_| "gateway.admin.invalid-credential")
+                Ok(AdminCommand::Rotate(Zeroizing::new(secret)))
             }
         }
     }

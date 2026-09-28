@@ -11,21 +11,26 @@ use crate::observer::{
     GatewayObserver, GatewaySignedObservation, OUTCOME_SCHEMA, READ_BACK_SCHEMA, operation_subject,
     outcome_facts, read_back_facts,
 };
-use crate::recipe::ReadBack;
+use crate::recipe::{ENTRY_DEADLINE_SECONDS, GuardChecks};
+use crate::submit::{self, SubmitContext, SubmitIo};
 use crate::transport::{
-    GatewayHttpTransport, LeasedTransport, ProviderPort, WriteTransportOutcome,
+    GatewayHttpTransport, GatewayTransportError, LeasedTransport, ProviderPort, ProviderResponse,
+    WriteTransportOutcome,
 };
 use crate::{
-    ClaimedGatewayAttempt, ClosedObservationRequest, ClosedProviderRequest, CompiledRecipe,
-    GatewayAttemptError, GatewayAttempts, GatewayConnectionDescriptor, GatewayEvidenceChannel,
-    GatewayProviderEvidence, ObservableGatewayAttempt,
+    ClosedCredentialRead, ClosedObservationRequest, ClosedProviderRequest, CompiledRecipe,
+    GatewayAttempts, GatewayConnectionDescriptor, GatewayEvidenceChannel, GatewayProviderEvidence,
+    RequestHeader,
 };
 use auths_connections::{
     ConnectionAlias, ConnectionBinding, ConnectionCredentialStore, ConnectionProfile,
     ConnectionRecord, ConnectionState, PersistentCredentialStore, ProviderKind, SecretBytes,
     StoredSecretLease,
 };
-use auths_model::{Timestamp, TrustedContext, VerificationDecision, VerifierConfigurationId};
+use auths_model::{
+    CanonicalAction, ObservationRequirement, ResourceId, Timestamp, TrustedContext,
+    VerificationDecision, VerifierConfigurationId,
+};
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_profile_api::ActionProfile;
 use auths_profile_mcp::{McpProfile, with_mcp_arguments_registries};
@@ -34,6 +39,7 @@ use auths_stores::PersistentConnectionStore;
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use std::sync::OnceLock;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 use tokio::sync::RwLock;
@@ -299,13 +305,38 @@ impl GatewayEngine {
     }
 
     /// Rotates the operator-held secret to a new generation and deletes every
-    /// older generation. A rotation that fails after storing the successor
-    /// deletes it, leaving the connection on its current secret. The admin
-    /// channel must be unavailable to the application identity.
+    /// older generation. The candidate secret must first pass every declared
+    /// credential check: the prefix, the probe, the account read against the
+    /// record's commitment, and the denied reads. A rotation that fails after
+    /// storing the successor deletes it, leaving the connection on its
+    /// current secret. The admin channel must be unavailable to the
+    /// application identity.
     ///
     /// # Errors
-    /// A failed durable transition never reports rotation complete.
-    pub async fn rotate_connection(&self, secret: SecretBytes) -> Result<(), &'static str> {
+    /// A refused candidate or a failed durable transition never reports
+    /// rotation complete.
+    pub async fn rotate_connection(
+        &self,
+        candidate: zeroize::Zeroizing<Vec<u8>>,
+    ) -> Result<(), &'static str> {
+        // The candidate is checked before the gate is taken, so no
+        // submission waits on the provider reads. A rotation keeps the
+        // account commitment, so the record reloaded under the gate is
+        // checked against the same account.
+        let account = *self
+            .connections
+            .load(&self.provider, &self.alias)
+            .map_err(|_| "gateway.admin.connection-unavailable")?
+            .ok_or("gateway.admin.connection-unavailable")?
+            .account_commitment();
+        crate::onboarding::check_candidate_credential(
+            &self.recipe,
+            self.recipe.review().credential(),
+            &candidate,
+            crate::onboarding::OnboardingAccount::Commitment(account),
+        )
+        .await
+        .map_err(crate::onboarding::OnboardingFailure::admin_code)?;
         let _guard = self.administrative_gate.write().await;
         let current = self
             .connections
@@ -315,6 +346,12 @@ impl GatewayEngine {
         if current.state() != ConnectionState::Active {
             return Err("gateway.admin.connection-not-active");
         }
+        if *current.account_commitment() != account {
+            return Err("gateway.admin.credential-account");
+        }
+        let mut candidate = candidate;
+        let secret = SecretBytes::new(std::mem::take(&mut *candidate))
+            .map_err(|_| "gateway.admin.invalid-credential")?;
         let next = current
             .generation()
             .get()
@@ -417,56 +454,31 @@ impl GatewayEngine {
 
     /// Verifies and attempts one exact action. Only proof and action bytes are
     /// accepted from the application; trust, recipe, connection, and credential
-    /// come from the operator's installation. A replay never writes again; for
-    /// an echo recipe it may perform one more read-only observation.
+    /// come from the operator's installation. The admission-order step machine
+    /// directs every step: a replay never writes again, and for a linked
+    /// recipe it may perform one more read-only observation.
     pub async fn submit(&self, proof_cbor: &[u8], action_cbor: &[u8]) -> GatewaySubmitResult {
-        let Some(now) = wall_clock_seconds() else {
-            return GatewaySubmitResult::Indeterminate {
-                code: "gateway.verify.clock-unavailable".to_owned(),
-            };
-        };
-        let (request, bound) = match verify_command(
-            &self.recipe,
-            &self.trusted_context,
-            now,
-            proof_cbor,
-            action_cbor,
-        ) {
-            Ok(value) => value,
-            Err(result) => return result,
-        };
         let _guard = self.administrative_gate.read().await;
-        let (binding, transport) = match self.prepare_entry() {
-            Ok(value) => value,
-            Err(result) => return result,
+        let io = EngineIo {
+            engine: self,
+            proof: proof_cbor,
+            action: action_cbor,
+            started: Instant::now(),
+            prepared: OnceLock::new(),
         };
-        let claim = match self.attempts.claim(&request, *self.recipe.digest()).await {
-            Ok(value) => value,
-            Err(GatewayAttemptError::Replay) => {
-                return self
-                    .observe_after_replay(&request, &binding, &transport)
-                    .await;
-            }
-            Err(_) => return not_entered("gateway.attempt.unavailable"),
-        };
-        let claim = match reserve_bound(&self.attempts, bound.as_ref(), &request, claim).await {
-            Ok(value) => value,
-            Err(result) => return result,
-        };
-        let lease = match self.lease(&binding).await {
-            Ok(value) => value,
-            Err(()) => return checkpoint_not_entered(claim).await,
-        };
-        let port = LeasedTransport {
-            transport: &transport,
-            lease: &lease,
-        };
-        execute_claimed(claim, &request, &port).await
+        submit::run(
+            &SubmitContext {
+                recipe: &self.recipe,
+                attempts: &self.attempts,
+                context: &self.trusted_context,
+                observer: self.observer.as_ref(),
+            },
+            &io,
+        )
+        .await
     }
 
-    fn prepare_entry(
-        &self,
-    ) -> Result<(ConnectionBinding, GatewayHttpTransport), GatewaySubmitResult> {
+    fn prepare_entry(&self) -> Result<(ConnectionBinding, GatewayHttpTransport), &'static str> {
         let binding = match self.connections.resolve(
             &self.provider,
             Some(&self.alias),
@@ -474,18 +486,14 @@ impl GatewayEngine {
             &self.profile,
         ) {
             Ok(value) => value,
-            Err(_) => return Err(not_entered("gateway.connection.unavailable")),
+            Err(_) => return Err("gateway.connection.unavailable"),
         };
         let descriptor = match GatewayConnectionDescriptor::from_binding(&binding, &self.recipe) {
             Ok(value) => value,
-            Err(_) => return Err(not_entered("gateway.connection.recipe-mismatch")),
+            Err(_) => return Err("gateway.connection.recipe-mismatch"),
         };
-        if self
-            .connections
-            .reread_before_lease(&binding, &self.workload_id, &self.profile)
-            .is_err()
-        {
-            return Err(not_entered("gateway.connection.changed"));
+        if !self.reread(&binding) {
+            return Err("gateway.connection.changed");
         }
         #[cfg(feature = "loopback-provider")]
         if let Some(port) = self.loopback_port {
@@ -495,12 +503,20 @@ impl GatewayEngine {
                 port,
             )
             .map(|transport| (binding, transport))
-            .map_err(|_| not_entered("gateway.transport.preparation"));
+            .map_err(|_| "gateway.transport.preparation");
         }
         match GatewayHttpTransport::prepare(&self.recipe, descriptor.credential()) {
             Ok(transport) => Ok((binding, transport)),
-            Err(_) => Err(not_entered("gateway.transport.preparation")),
+            Err(_) => Err("gateway.transport.preparation"),
         }
+    }
+
+    /// Rereads this process's connection record and requires the binding to
+    /// be unchanged: the re-read immediately before credential acquisition.
+    fn reread(&self, binding: &ConnectionBinding) -> bool {
+        self.connections
+            .reread_before_lease(binding, &self.workload_id, &self.profile)
+            .is_ok()
     }
 
     async fn lease(&self, binding: &ConnectionBinding) -> Result<StoredSecretLease, ()> {
@@ -510,35 +526,11 @@ impl GatewayEngine {
             .map_err(|_| ())
     }
 
-    async fn observe_after_replay(
-        &self,
-        request: &ClosedProviderRequest,
-        binding: &ConnectionBinding,
-        transport: &GatewayHttpTransport,
-    ) -> GatewaySubmitResult {
-        let attempt = match self
-            .attempts
-            .resume_observable(request, *self.recipe.digest())
-            .await
-        {
-            Ok(Some(value)) => value,
-            Ok(None) | Err(_) => return replay_refused(),
-        };
-        let lease = match self.lease(binding).await {
-            Ok(value) => value,
-            Err(()) => return replay_refused(),
-        };
-        let port = LeasedTransport {
-            transport,
-            lease: &lease,
-        };
-        reobserve(attempt, request, &port).await
-    }
-
     /// Signs one observation for the application. A read-back uses the
     /// installed connection and credential for exactly one bounded read-only
-    /// GET built from the approved recipe; an outcome reads only the local
-    /// attempt store. Nothing here writes to a provider or to the store.
+    /// GET built from the approved recipe, after the lease passes every
+    /// declared credential check; an outcome reads only the local attempt
+    /// store. Nothing here writes to a provider or to the store.
     pub async fn observe(&self, request: &GatewayObserveRequest) -> GatewayObserveResult {
         let Some(observer) = &self.observer else {
             return refused("gateway.observer.not-provisioned");
@@ -572,10 +564,144 @@ impl GatewayEngine {
                     transport: &transport,
                     lease: &lease,
                 };
+                let prefix = self.recipe.guard_checks().is_none_or(|guard| {
+                    lease
+                        .expose(Instant::now())
+                        .is_ok_and(|secret| guard.admits_secret(secret))
+                });
+                if !submit::lease_checks(
+                    &self.recipe,
+                    &port,
+                    prefix,
+                    Some(*binding.account_commitment()),
+                )
+                .await
+                {
+                    return refused("gateway.observer.credential-guard");
+                }
                 observe_read_back(&target, observer, &port, wall_clock_seconds).await
             }
         }
     }
+}
+
+/// The installed engine's I/O for one submission.
+struct EngineIo<'a> {
+    engine: &'a GatewayEngine,
+    proof: &'a [u8],
+    action: &'a [u8],
+    started: Instant,
+    prepared: OnceLock<(ConnectionBinding, GatewayHttpTransport)>,
+}
+
+impl SubmitIo for EngineIo<'_> {
+    type Lease = StoredSecretLease;
+
+    fn clock(&self) -> Option<u64> {
+        wall_clock_seconds()
+    }
+
+    fn verify(&self, now: u64) -> Result<VerifiedCommand, GatewaySubmitResult> {
+        verify_detailed(
+            &self.engine.recipe,
+            &self.engine.trusted_context,
+            now,
+            self.proof,
+            self.action,
+        )
+    }
+
+    fn bind_scope(&self, _verified: &VerifiedCommand) -> Result<(), &'static str> {
+        // An engine is never constructed for a recipe that declares an
+        // account-scope header until grants can carry a scope.
+        Err("gateway.engine.unexecuted-capability")
+    }
+
+    fn prepare(&self) -> Result<(), &'static str> {
+        let prepared = self.engine.prepare_entry()?;
+        self.prepared
+            .set(prepared)
+            .map_err(|_| "gateway.transport.preparation")
+    }
+
+    fn reload(&self) -> bool {
+        self.prepared
+            .get()
+            .is_some_and(|(binding, _)| self.engine.reread(binding))
+    }
+
+    async fn lease(&self) -> Option<StoredSecretLease> {
+        let (binding, _) = self.prepared.get()?;
+        self.engine.lease(binding).await.ok()
+    }
+
+    fn secret_admitted(&self, lease: &StoredSecretLease, guard: &GuardChecks) -> bool {
+        lease
+            .expose(Instant::now())
+            .is_ok_and(|secret| guard.admits_secret(secret))
+    }
+
+    fn account_commitment(&self) -> Option<[u8; 32]> {
+        self.prepared
+            .get()
+            .map(|(binding, _)| *binding.account_commitment())
+    }
+
+    fn within_entry_deadline(&self, evaluated_at: u64) -> bool {
+        wall_clock_seconds()
+            .is_some_and(|now| now <= evaluated_at.saturating_add(ENTRY_DEADLINE_SECONDS))
+            && self.started.elapsed() <= Duration::from_secs(ENTRY_DEADLINE_SECONDS)
+    }
+
+    async fn write(
+        &self,
+        lease: &StoredSecretLease,
+        request: &ClosedProviderRequest,
+    ) -> Result<WriteTransportOutcome, GatewayTransportError> {
+        match self.prepared.get() {
+            Some((_, transport)) => LeasedTransport { transport, lease }.write(request).await,
+            None => Err(GatewayTransportError::NotEntered),
+        }
+    }
+
+    async fn action_read(
+        &self,
+        lease: &StoredSecretLease,
+        url: &str,
+        headers: &[RequestHeader],
+        maximum_response_bytes: usize,
+    ) -> Option<ProviderResponse> {
+        let (_, transport) = self.prepared.get()?;
+        LeasedTransport { transport, lease }
+            .action_read(url, headers, maximum_response_bytes)
+            .await
+    }
+
+    async fn credential_read(
+        &self,
+        lease: &StoredSecretLease,
+        read: &ClosedCredentialRead,
+    ) -> Option<ProviderResponse> {
+        let (_, transport) = self.prepared.get()?;
+        LeasedTransport { transport, lease }
+            .credential_read(read)
+            .await
+    }
+}
+
+/// Whether `namespace` covers `subject` under the trusted context's
+/// resource matcher; an unavailable matcher covers nothing.
+pub(crate) fn resource_covers(
+    context: &TrustedContext,
+    namespace: &ResourceId,
+    subject: &ResourceId,
+) -> bool {
+    with_gateway_registries(|registries| {
+        registries
+            .resource_matcher(context.accepted_registries(), context.resource_matcher())
+            .is_some_and(|matcher| matcher.matches(namespace, subject).unwrap_or(false))
+    })
+    .unwrap_or(false)
 }
 
 /// Builds the gateway's immutable verifier registries: the principal methods
@@ -613,6 +739,7 @@ pub fn gateway_verifier_configuration() -> Result<VerifierConfigurationId, &'sta
 /// evaluation time is the gateway's own, so observation freshness, grant
 /// validity, and the counting window are judged when the request arrives.
 /// The returned reservation, if any, is taken after the claim.
+#[cfg(test)]
 pub(crate) fn verify_command(
     recipe: &CompiledRecipe,
     context: &TrustedContext,
@@ -624,16 +751,25 @@ pub(crate) fn verify_command(
         .map(|verified| (verified.request, verified.bound))
 }
 
-/// A command the gateway would admit, with the actors of its authorized
-/// branches.
+/// A command the gateway would admit, with what admission and an auditor
+/// need of its authorized branches.
+#[derive(Clone, Debug)]
 pub(crate) struct VerifiedCommand {
     pub(crate) request: ClosedProviderRequest,
     pub(crate) bound: Option<WindowReservation>,
     pub(crate) actors: Vec<auths_model::PrincipalId>,
     pub(crate) arguments: Map<String, Value>,
+    /// Every observation requirement of every grant of every authorized
+    /// branch.
+    pub(crate) requirements: Vec<ObservationRequirement>,
+    /// The verified canonical action, the source of action facts.
+    pub(crate) canonical_action: CanonicalAction,
+    /// The longest validity window, `expires_at` minus `not_before`, of any
+    /// authorized action envelope.
+    pub(crate) validity_seconds: u64,
 }
 
-/// [`verify_command`] that also reports what an auditor needs.
+/// [`verify_command`] that also reports what admission and an auditor need.
 pub(crate) fn verify_detailed(
     recipe: &CompiledRecipe,
     context: &TrustedContext,
@@ -688,34 +824,17 @@ pub(crate) fn verify_detailed(
     let request = recipe
         .closed_request(&command, *action_commitment.as_bytes())
         .map_err(|error| not_entered(error.code()))?;
-    let actors = crate::bounds::authorized_actors(proof_cbor, action)
+    let branches = crate::bounds::authorized_branches(proof_cbor, action)
         .map_err(|_| not_entered("gateway.policy.proof-unavailable"))?;
     Ok(VerifiedCommand {
         request,
         bound,
-        actors,
+        actors: branches.actors,
         arguments: command.arguments().clone(),
+        requirements: branches.requirements,
+        canonical_action: action.canonical_action().clone(),
+        validity_seconds: branches.validity_seconds,
     })
-}
-
-/// Reserves the bound's window slot for a fresh claim before any lease. An
-/// exhausted or unavailable count leaves the claim `not-entered`.
-pub(crate) async fn reserve_bound(
-    attempts: &GatewayAttempts,
-    bound: Option<&WindowReservation>,
-    request: &ClosedProviderRequest,
-    claim: ClaimedGatewayAttempt,
-) -> Result<ClaimedGatewayAttempt, GatewaySubmitResult> {
-    let Some(bound) = bound else {
-        return Ok(claim);
-    };
-    match attempts.reserve_window(bound, request.operation_id()).await {
-        Ok(()) => Ok(claim),
-        Err(refusal) => Err(match claim.record_not_entered().await {
-            Ok(_) => not_entered(refusal.code()),
-            Err(_) => GatewaySubmitResult::Unknown,
-        }),
-    }
 }
 
 fn indeterminate_registry() -> GatewaySubmitResult {
@@ -734,98 +853,11 @@ pub(crate) fn replay_refused() -> GatewaySubmitResult {
     not_entered("gateway.attempt.replay")
 }
 
-async fn checkpoint_not_entered(claim: ClaimedGatewayAttempt) -> GatewaySubmitResult {
-    match claim.record_not_entered().await {
-        Ok(_) => not_entered("gateway.credential.unavailable"),
-        Err(_) => GatewaySubmitResult::Unknown,
-    }
-}
-
 fn wall_clock_seconds() -> Option<u64> {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .ok()
         .map(|elapsed| elapsed.as_secs())
-}
-
-/// Enters the provider once for a freshly claimed attempt, records the
-/// response class, then performs at most one read-only observation.
-pub(crate) async fn execute_claimed(
-    claim: ClaimedGatewayAttempt,
-    request: &ClosedProviderRequest,
-    port: &impl ProviderPort,
-) -> GatewaySubmitResult {
-    let write = match port.write(request).await {
-        Ok(value) => value,
-        Err(_) => return checkpoint_not_entered(claim).await,
-    };
-    match write {
-        WriteTransportOutcome::Unknown => {
-            let _ = claim.record_unknown().await;
-            GatewaySubmitResult::Unknown
-        }
-        WriteTransportOutcome::ResponseRecorded { status, digest } => {
-            let recorded = match claim.record_response(status, digest).await {
-                Ok(value) => value,
-                Err(_) => return GatewaySubmitResult::Unknown,
-            };
-            record_read_back(recorded, request, port)
-                .await
-                .unwrap_or(GatewaySubmitResult::ResponseRecorded { status })
-        }
-    }
-}
-
-/// Performs one more read-only observation of a resumed attempt. Anything
-/// short of a recorded transition is reported as the replay refusal it is.
-pub(crate) async fn reobserve(
-    attempt: ObservableGatewayAttempt,
-    request: &ClosedProviderRequest,
-    port: &impl ProviderPort,
-) -> GatewaySubmitResult {
-    record_read_back(attempt, request, port)
-        .await
-        .unwrap_or_else(replay_refused)
-}
-
-/// Returns `None` when nothing was durably recorded. The echo token comes
-/// from the stored attempt, never from the current submission, so a fresh
-/// challenge for the same logical operation checks the original token.
-async fn record_read_back(
-    attempt: ObservableGatewayAttempt,
-    request: &ClosedProviderRequest,
-    port: &impl ProviderPort,
-) -> Option<GatewaySubmitResult> {
-    let observation = request.observation()?;
-    let bytes = port.read_back(observation).await?;
-    let token = attempt.echo_token();
-    let reading = observation.read_back(token.as_deref(), &bytes)?;
-    let status = attempt.snapshot().ok()?.response_status();
-    match reading {
-        ReadBack::EchoMatched => {
-            let snapshot = attempt
-                .record_provider_evidence(&bytes, wall_clock_seconds()?)
-                .await
-                .ok()?;
-            Some(GatewaySubmitResult::ObservedByProvider {
-                status,
-                evidence: snapshot.provider_evidence()?.into(),
-            })
-        }
-        ReadBack::Value { matched } => {
-            let status = status?;
-            attempt.record_observation(matched).await.ok()?;
-            Some(GatewaySubmitResult::Observed { status, matched })
-        }
-        ReadBack::EchoMismatch => {
-            let status = status?;
-            attempt.record_echo_mismatch().await.ok()?;
-            Some(GatewaySubmitResult::Observed {
-                status,
-                matched: false,
-            })
-        }
-    }
 }
 
 /// Signs the stored stage and commitment of one logical operation.
@@ -868,7 +900,15 @@ pub(crate) async fn observe_read_back(
     let Some(observed_at) = clock() else {
         return refused("gateway.observer.clock-unavailable");
     };
-    let Some(bytes) = port.read_back(target).await else {
+    let Some(bytes) = port
+        .action_read(
+            target.url(),
+            target.headers(),
+            target.maximum_response_bytes(),
+        )
+        .await
+        .and_then(|response| response.usable_body().map(<[u8]>::to_vec))
+    else {
         return refused("gateway.observer.read-unavailable");
     };
     let Some((value, echo)) = target.observed_values(&bytes) else {
@@ -882,866 +922,13 @@ pub(crate) async fn observe_read_back(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::store_testkit::{Backend, TestAttempts, postgres_configured};
-    use crate::transport::GatewayTransportError;
-    use crate::{
-        ClosedObservationRequest, GatewayAttemptSnapshot, GatewayAttemptStage,
-        GatewayObservationFact, LogicalOperationId, echo_token,
-    };
-    use serde_json::{Map, Value, json};
-    use sha2::{Digest as _, Sha256};
-    use std::sync::Mutex;
-    use std::sync::atomic::{AtomicUsize, Ordering};
 
-    const ORIGINAL: [u8; 32] = [0x11; 32];
-    const FRESH: [u8; 32] = [0x22; 32];
-    const RECORD: &str = "recTEST0000000001";
-    const FOREIGN: &str =
-        "auths-e1-0000000000000000000000000000000000000000000000000000000000000000";
-
-    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-    enum Delivery {
-        Respond,
-        RespondWithoutApplying,
-        TimeoutAfterApplying,
-        LostBeforeApplying,
-    }
-
-    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-    enum Reading {
-        Faithful,
-        Unavailable,
-        ForeignEcho,
-        EchoStripped,
-        ValueChanged,
-    }
-
-    /// Synthetic provider that counts every write entry and read-back.
-    struct CountingProvider {
-        delivery: Delivery,
-        reading: Reading,
-        writes: AtomicUsize,
-        reads: AtomicUsize,
-        fields: Mutex<Map<String, Value>>,
-        last_read: Mutex<Vec<u8>>,
-        idempotency_keys: Mutex<Vec<Option<String>>>,
-    }
-
-    impl CountingProvider {
-        fn new(delivery: Delivery, reading: Reading) -> Self {
-            let mut fields = Map::new();
-            fields.insert("DemoStatus".into(), json!("Pending"));
-            Self {
-                delivery,
-                reading,
-                writes: AtomicUsize::new(0),
-                reads: AtomicUsize::new(0),
-                fields: Mutex::new(fields),
-                last_read: Mutex::new(Vec::new()),
-                idempotency_keys: Mutex::new(Vec::new()),
-            }
-        }
-
-        fn writes(&self) -> usize {
-            self.writes.load(Ordering::SeqCst)
-        }
-
-        fn reads(&self) -> usize {
-            self.reads.load(Ordering::SeqCst)
-        }
-    }
-
-    impl ProviderPort for CountingProvider {
-        async fn write(
-            &self,
-            request: &ClosedProviderRequest,
-        ) -> Result<WriteTransportOutcome, GatewayTransportError> {
-            self.writes.fetch_add(1, Ordering::SeqCst);
-            self.idempotency_keys
-                .lock()
-                .expect("keys")
-                .push(request.idempotency_key().map(str::to_owned));
-            if matches!(
-                self.delivery,
-                Delivery::Respond | Delivery::TimeoutAfterApplying
-            ) {
-                let body: Value = serde_json::from_slice(request.body())
-                    .map_err(|_| GatewayTransportError::NotEntered)?;
-                if let Some(update) = body.get("fields").and_then(Value::as_object) {
-                    self.fields.lock().expect("fields").extend(update.clone());
-                }
-            }
-            Ok(match self.delivery {
-                Delivery::Respond | Delivery::RespondWithoutApplying => {
-                    WriteTransportOutcome::ResponseRecorded {
-                        status: 200,
-                        digest: [4; 32],
-                    }
-                }
-                Delivery::TimeoutAfterApplying | Delivery::LostBeforeApplying => {
-                    WriteTransportOutcome::Unknown
-                }
-            })
-        }
-
-        async fn read_back(&self, _: &ClosedObservationRequest) -> Option<Vec<u8>> {
-            self.reads.fetch_add(1, Ordering::SeqCst);
-            let mut fields = self.fields.lock().expect("fields").clone();
-            match self.reading {
-                Reading::Faithful => {}
-                Reading::Unavailable => return None,
-                Reading::ForeignEcho => {
-                    fields.insert("auths_echo".into(), json!(FOREIGN));
-                }
-                Reading::EchoStripped => {
-                    fields.remove("auths_echo");
-                }
-                Reading::ValueChanged => {
-                    fields.insert("DemoStatus".into(), json!("Pending"));
-                }
-            }
-            let bytes = serde_json::to_vec(&json!({"id": RECORD, "fields": fields})).ok()?;
-            *self.last_read.lock().expect("last read") = bytes.clone();
-            Some(bytes)
-        }
-    }
-
-    struct Harness {
-        recipe: CompiledRecipe,
-        store: TestAttempts,
-    }
-
-    impl Harness {
-        fn open(name: &str, backend: Backend) -> Self {
-            let (source, lock): (&[u8], &[u8]) = match name {
-                "airtable" => (
-                    include_bytes!("../../../../bindings/fixtures/gateway/airtable/recipe.json"),
-                    include_bytes!(
-                        "../../../../bindings/fixtures/gateway/airtable/profile.lock.json"
-                    ),
-                ),
-                "github" => (
-                    include_bytes!("../../../../bindings/fixtures/gateway/github/recipe.json"),
-                    include_bytes!(
-                        "../../../../bindings/fixtures/gateway/github/profile.lock.json"
-                    ),
-                ),
-                _ => panic!("unknown test-only fixture"),
-            };
-            Self {
-                recipe: CompiledRecipe::compile(source, lock).expect("fixture compiles"),
-                store: TestAttempts::open(backend),
-            }
-        }
-
-        fn restart(&mut self) {
-            self.store.restart();
-        }
-
-        fn request(&self, commitment: [u8; 32], values: &Value) -> ClosedProviderRequest {
-            let mut arguments = values.as_object().expect("object").clone();
-            arguments.insert(
-                "operator_namespace".into(),
-                json!(self.recipe.namespace().as_str()),
-            );
-            arguments.insert("recipe_digest".into(), json!(self.recipe.digest_hex()));
-            self.recipe
-                .closed_request_from_arguments(&arguments, commitment)
-                .expect("closed request")
-        }
-
-        fn airtable(&self, commitment: [u8; 32], replacement: &str) -> ClosedProviderRequest {
-            self.request(
-                commitment,
-                &json!({"operation_id": "run-1", "record_id": RECORD, "replacement": replacement}),
-            )
-        }
-
-        fn github(&self) -> ClosedProviderRequest {
-            self.request(
-                ORIGINAL,
-                &json!({"operation_id": "issue-1", "title": "Exact", "body": "One issue"}),
-            )
-        }
-
-        /// Mirrors the engine's post-verification dispatch with a fake port.
-        async fn submit(
-            &self,
-            request: &ClosedProviderRequest,
-            provider: &CountingProvider,
-        ) -> GatewaySubmitResult {
-            submit_on(self.store.attempts(), &self.recipe, request, provider).await
-        }
-
-        async fn snapshot(&self, request: &ClosedProviderRequest) -> GatewayAttemptSnapshot {
-            self.store
-                .attempts()
-                .read(request.namespace(), request.operation_id())
-                .await
-                .expect("read")
-                .expect("retained claim")
-        }
-
-        async fn describe(&self, request: &ClosedProviderRequest) -> String {
-            let snapshot = self.snapshot(request).await;
-            let stage = serde_json::to_value(snapshot.stage())
-                .expect("stage")
-                .as_str()
-                .expect("kebab stage")
-                .to_owned();
-            match (snapshot.observation_match(), snapshot.observation_fact()) {
-                (Some(true), _) => format!("{stage}-match"),
-                (Some(false), Some(GatewayObservationFact::EchoMismatch)) => {
-                    format!("{stage}-mismatch-echo-mismatch")
-                }
-                (Some(false), None) => format!("{stage}-mismatch"),
-                (None, _) => stage,
-            }
-        }
-    }
-
-    fn original_token() -> String {
-        echo_token(
-            &crate::OperatorNamespace::parse("airtable-demo").expect("namespace"),
-            &LogicalOperationId::parse("run-1").expect("operation"),
-            &ORIGINAL,
-        )
-    }
-
-    /// The engine's post-verification dispatch over one attempt store.
-    async fn submit_on(
-        attempts: &crate::GatewayAttempts,
-        recipe: &CompiledRecipe,
-        request: &ClosedProviderRequest,
-        provider: &CountingProvider,
-    ) -> GatewaySubmitResult {
-        match attempts.claim(request, *recipe.digest()).await {
-            Ok(claim) => execute_claimed(claim, request, provider).await,
-            Err(GatewayAttemptError::Replay) => {
-                match attempts.resume_observable(request, *recipe.digest()).await {
-                    Ok(Some(attempt)) => reobserve(attempt, request, provider).await,
-                    _ => replay_refused(),
-                }
-            }
-            Err(_) => not_entered("gateway.attempt.unavailable"),
-        }
-    }
-
-    async fn run_claim_case(id: &str, backend: Backend) -> (String, usize) {
-        let mut harness = Harness::open("airtable", backend);
-        let provider = CountingProvider::new(Delivery::Respond, Reading::Faithful);
-        let original = harness.airtable(ORIGINAL, "Approved");
-        drop(
-            harness
-                .store
-                .attempts()
-                .claim(&original, *harness.recipe.digest())
-                .await
-                .expect("first claim"),
-        );
-        let transition = match id {
-            "first-claim" => "unclaimed->attempting".to_owned(),
-            "same-id-fresh-challenge" | "changed-action-same-id" => {
-                let replacement = if id == "same-id-fresh-challenge" {
-                    "Approved"
-                } else {
-                    "Pending"
-                };
-                let second = harness.airtable(FRESH, replacement);
-                assert_eq!(harness.submit(&second, &provider).await, replay_refused());
-                "attempting->replay-refused".to_owned()
-            }
-            "crash-after-claim" => {
-                harness.restart();
-                format!(
-                    "attempting->{}-on-restart",
-                    harness.describe(&original).await
-                )
-            }
-            _ => panic!("unhandled claim scenario {id}"),
-        };
-        assert_eq!(provider.reads(), 0, "{id}");
-        (transition, provider.writes())
-    }
-
-    async fn run_first_attempt_case(id: &str, backend: Backend) -> (String, usize) {
-        let (delivery, reading) = match id {
-            "complete-http-response" | "echo-read-back" => (Delivery::Respond, Reading::Faithful),
-            "ambiguous-transport" => (Delivery::LostBeforeApplying, Reading::Faithful),
-            "matching-read-back" => (Delivery::Respond, Reading::EchoStripped),
-            "mismatching-read-back" => (Delivery::RespondWithoutApplying, Reading::Faithful),
-            "observation-unavailable" => (Delivery::Respond, Reading::Unavailable),
-            "echo-overwritten-by-provider" => (Delivery::Respond, Reading::ForeignEcho),
-            "echo-present-value-changed" => (Delivery::Respond, Reading::ValueChanged),
-            _ => panic!("unhandled first-attempt scenario {id}"),
-        };
-        let harness = Harness::open(
-            if matches!(id, "complete-http-response" | "ambiguous-transport") {
-                "github"
-            } else {
-                "airtable"
-            },
-            backend,
-        );
-        let provider = CountingProvider::new(delivery, reading);
-        let request = if harness.recipe.review().has_observation() {
-            harness.airtable(ORIGINAL, "Approved")
-        } else {
-            harness.github()
-        };
-        let result = harness.submit(&request, &provider).await;
-        let from = if matches!(result, GatewaySubmitResult::Unknown)
-            || !harness.recipe.review().has_observation()
-        {
-            "attempting"
-        } else {
-            "response-recorded"
-        };
-        (
-            format!("{from}->{}", harness.describe(&request).await),
-            provider.writes(),
-        )
-    }
-
-    async fn run_resolution_case(id: &str, backend: Backend) -> (String, usize) {
-        let (delivery, reading) = match id {
-            "lost-write-echo-absent" => (Delivery::LostBeforeApplying, Reading::Faithful),
-            "unknown-echo-overwritten" => (Delivery::TimeoutAfterApplying, Reading::ForeignEcho),
-            "fresh-challenge-after-observed-by-provider" => (Delivery::Respond, Reading::Faithful),
-            _ => (Delivery::TimeoutAfterApplying, Reading::Faithful),
-        };
-        let mut harness = Harness::open("airtable", backend);
-        let provider = CountingProvider::new(delivery, reading);
-        let original = harness.airtable(ORIGINAL, "Approved");
-        let first = harness.submit(&original, &provider).await;
-        let before = harness.describe(&original).await;
-        if id == "restart-during-unknown" {
-            harness.restart();
-        }
-        let replacement = if id == "changed-action-during-unknown" {
-            "Pending"
-        } else {
-            "Approved"
-        };
-        let replay = harness
-            .submit(&harness.airtable(FRESH, replacement), &provider)
-            .await;
-        if matches!(
-            harness.snapshot(&original).await.stage(),
-            GatewayAttemptStage::ObservedByProvider
-        ) && before != "observed-by-provider"
-        {
-            assert!(matches!(
-                replay,
-                GatewaySubmitResult::ObservedByProvider { status: None, .. }
-            ));
-        } else {
-            assert_eq!(replay, replay_refused(), "{id}: first {first:?}");
-        }
-        (
-            format!("{before}->{}", harness.describe(&original).await),
-            provider.writes(),
-        )
-    }
-
-    async fn run_crash_after_entry_case(backend: Backend) -> (String, usize) {
-        let mut harness = Harness::open("airtable", backend);
-        let provider = CountingProvider::new(Delivery::Respond, Reading::Faithful);
-        let original = harness.airtable(ORIGINAL, "Approved");
-        let claim = harness
-            .store
-            .attempts()
-            .claim(&original, *harness.recipe.digest())
-            .await
-            .expect("claim");
-        provider.write(&original).await.expect("entered");
-        drop(claim);
-        harness.restart();
-        let replay = harness
-            .submit(&harness.airtable(FRESH, "Approved"), &provider)
-            .await;
-        assert_eq!(replay, replay_refused());
-        assert_eq!(provider.reads(), 0);
-        (
-            format!(
-                "attempting->{}-on-restart",
-                harness.describe(&original).await
-            ),
-            provider.writes(),
-        )
-    }
-
-    /// Drives the pre-generated attempt-scenario corpus against `backend`.
-    async fn attempt_scenario_corpus(backend: Backend) {
-        let corpus: Value = serde_json::from_slice(include_bytes!(
-            "../../../../bindings/fixtures/gateway/attempt-scenarios.json"
-        ))
-        .expect("state corpus");
-        assert_eq!(corpus["schema"], "auths.gateway-attempt-scenarios/1");
-        for case in corpus["cases"].as_array().expect("cases") {
-            let id = case["id"].as_str().expect("id");
-            let (transition, writes) = match id {
-                "first-claim"
-                | "same-id-fresh-challenge"
-                | "changed-action-same-id"
-                | "crash-after-claim" => run_claim_case(id, backend).await,
-                "crash-after-entry-not-reobserved" => run_crash_after_entry_case(backend).await,
-                "timeout-after-delivery-read-back"
-                | "lost-write-echo-absent"
-                | "unknown-echo-overwritten"
-                | "restart-during-unknown"
-                | "changed-action-during-unknown"
-                | "fresh-challenge-after-observed-by-provider" => {
-                    run_resolution_case(id, backend).await
-                }
-                _ => run_first_attempt_case(id, backend).await,
-            };
-            assert_eq!(transition, case["transition"], "{}: {id}", backend.label());
-            assert_eq!(
-                u64::try_from(writes).expect("count"),
-                case["provider_entries"].as_u64().expect("entries"),
-                "{}: {id}",
-                backend.label()
-            );
-        }
-    }
-
-    #[tokio::test]
-    async fn attempt_scenario_corpus_drives_the_counting_provider() {
-        attempt_scenario_corpus(Backend::File).await;
-    }
-
-    #[tokio::test]
-    #[ignore = "needs the TLS PostgreSQL fixture"]
-    async fn postgres_attempt_scenario_corpus_drives_the_counting_provider() {
-        assert!(
-            postgres_configured(),
-            "TLS PostgreSQL environment slots are required"
-        );
-        attempt_scenario_corpus(Backend::Postgres).await;
-    }
-
-    #[tokio::test]
-    async fn normal_write_reaches_observed_by_provider_with_secret_free_evidence() {
-        let harness = Harness::open("airtable", Backend::File);
-        let provider = CountingProvider::new(Delivery::Respond, Reading::Faithful);
-        let request = harness.airtable(ORIGINAL, "Approved");
-        let result = harness.submit(&request, &provider).await;
-        let snapshot = harness.snapshot(&request).await;
-        let evidence = snapshot.provider_evidence().expect("evidence");
-        let bytes = provider.last_read.lock().expect("last read").clone();
-        assert_eq!(snapshot.stage(), GatewayAttemptStage::ObservedByProvider);
-        assert_eq!(evidence.channel(), GatewayEvidenceChannel::ReadBack);
-        assert_eq!(
-            evidence.locator(),
-            request.observation().expect("obs").url()
-        );
-        assert_eq!(evidence.echo(), original_token());
-        assert_eq!(evidence.evidence(), bytes.as_slice());
-        assert_eq!(
-            evidence.evidence_digest(),
-            &<[u8; 32]>::from(Sha256::digest(&bytes))
-        );
-        assert!(!format!("{evidence:?}").contains("DemoStatus"));
-        assert_eq!(
-            result,
-            GatewaySubmitResult::ObservedByProvider {
-                status: Some(200),
-                evidence: evidence.into(),
-            }
-        );
-        let wire = serde_json::to_value(&result).expect("wire");
-        assert_eq!(wire["outcome"], "observed-by-provider");
-        assert_eq!(wire["evidence"]["channel"], "read-back");
-        assert_eq!(wire["evidence"]["echo"], original_token());
-        assert_eq!(
-            wire["evidence"].as_object().expect("object").len(),
-            4,
-            "no bytes or locator reach the application"
-        );
-        assert_eq!((provider.writes(), provider.reads()), (1, 1));
-    }
-
-    /// While the attempt store is intact, the claim alone stops a fresh
-    /// challenge for the same logical operation. Once the store is lost
-    /// (wiped, or restored from an older backup) the claim is gone and the
-    /// operation enters the provider again; only the repeated derived key
-    /// lets a provider that honors it de-duplicate that second entry.
-    #[tokio::test]
-    async fn a_lost_claim_resends_the_same_idempotency_key() {
-        let mut source: Value = serde_json::from_slice(include_bytes!(
-            "../../../../bindings/fixtures/gateway/airtable/recipe.json"
-        ))
-        .expect("source");
-        source["write"]["idempotency"] =
-            json!({"kind": "derived-header", "retention_seconds": 86_400});
-        let recipe = CompiledRecipe::compile(
-            &serde_json::to_vec(&source).expect("source"),
+    fn airtable_recipe() -> CompiledRecipe {
+        CompiledRecipe::compile(
+            include_bytes!("../../../../bindings/fixtures/gateway/airtable/recipe.json"),
             include_bytes!("../../../../bindings/fixtures/gateway/airtable/profile.lock.json"),
         )
-        .expect("recipe");
-        let key = crate::idempotency_key(
-            recipe.namespace(),
-            &LogicalOperationId::parse("run-1").expect("operation"),
-        );
-        let intact = Harness {
-            recipe: recipe.clone(),
-            store: TestAttempts::open(Backend::File),
-        };
-        let provider = CountingProvider::new(Delivery::Respond, Reading::Faithful);
-        let original = intact.airtable(ORIGINAL, "Approved");
-        assert!(matches!(
-            intact.submit(&original, &provider).await,
-            GatewaySubmitResult::ObservedByProvider { .. }
-        ));
-        let fresh = intact.airtable(FRESH, "Approved");
-        assert_eq!(intact.submit(&fresh, &provider).await, replay_refused());
-        assert_eq!(provider.writes(), 1, "the intact claim stops the repeat");
-        let lost = Harness {
-            recipe,
-            store: TestAttempts::open(Backend::File),
-        };
-        assert!(matches!(
-            lost.submit(&fresh, &provider).await,
-            GatewaySubmitResult::ObservedByProvider { .. }
-        ));
-        assert_eq!(provider.writes(), 2, "a lost claim no longer stops it");
-        assert_eq!(
-            *provider.idempotency_keys.lock().expect("keys"),
-            [Some(key.clone()), Some(key)]
-        );
-    }
-
-    // One shared conformance suite for every attempt store. The file store
-    // runs it on every test run; the PostgreSQL store runs it
-    // against the TLS fixture in the PostgreSQL lifecycle workflow.
-
-    /// A logical operation enters the provider exactly once; an identical
-    /// replay neither writes nor reads.
-    async fn conformance_claim_exactly_once_and_replay(backend: Backend) {
-        let harness = Harness::open("airtable", backend);
-        let provider = CountingProvider::new(Delivery::Respond, Reading::Faithful);
-        let original = harness.airtable(ORIGINAL, "Approved");
-        assert!(matches!(
-            harness.submit(&original, &provider).await,
-            GatewaySubmitResult::ObservedByProvider { .. }
-        ));
-        for _ in 0..3 {
-            assert_eq!(harness.submit(&original, &provider).await, replay_refused());
-        }
-        assert!(matches!(
-            harness
-                .store
-                .attempts()
-                .claim(&original, *harness.recipe.digest())
-                .await,
-            Err(GatewayAttemptError::Replay)
-        ));
-        assert_eq!((provider.writes(), provider.reads()), (1, 1));
-    }
-
-    /// A fresh challenge, or a changed action, under the same logical ID is
-    /// the same operation and never a second entry.
-    async fn conformance_fresh_challenge(backend: Backend) {
-        let harness = Harness::open("airtable", backend);
-        let provider = CountingProvider::new(Delivery::Respond, Reading::Faithful);
-        let first = harness
-            .submit(&harness.airtable(ORIGINAL, "Approved"), &provider)
-            .await;
-        assert!(matches!(
-            first,
-            GatewaySubmitResult::ObservedByProvider { .. }
-        ));
-        for request in [
-            harness.airtable(ORIGINAL, "Approved"),
-            harness.airtable(FRESH, "Approved"),
-            harness.airtable(FRESH, "Pending"),
-        ] {
-            assert_eq!(harness.submit(&request, &provider).await, replay_refused());
-        }
-        assert_eq!((provider.writes(), provider.reads()), (1, 1));
-    }
-
-    /// An unknown write is resolved only by a later read-only observation on
-    /// another store instance, against the original echo token.
-    async fn conformance_unknown_and_reobserve(backend: Backend) {
-        let mut harness = Harness::open("airtable", backend);
-        let provider = CountingProvider::new(Delivery::TimeoutAfterApplying, Reading::Faithful);
-        let original = harness.airtable(ORIGINAL, "Approved");
-        assert_eq!(
-            harness.submit(&original, &provider).await,
-            GatewaySubmitResult::Unknown
-        );
-        assert_eq!(
-            provider.reads(),
-            0,
-            "an unknown write is not read back in-line"
-        );
-        harness.restart();
-        let fresh = harness.airtable(FRESH, "Approved");
-        let GatewaySubmitResult::ObservedByProvider { status, evidence } =
-            harness.submit(&fresh, &provider).await
-        else {
-            panic!("expected observed-by-provider");
-        };
-        assert_eq!(status, None);
-        assert_eq!(evidence.echo, original_token());
-        assert_ne!(Some(evidence.echo.as_str()), fresh.echo_token());
-        assert_eq!(
-            harness.submit(&fresh, &provider).await,
-            replay_refused(),
-            "terminal stage is not re-read"
-        );
-        assert_eq!((provider.writes(), provider.reads()), (1, 1));
-    }
-
-    /// A foreign echo token is recorded as `echo-mismatch`, never as the
-    /// attempt's own evidence.
-    async fn conformance_echo_mismatch(backend: Backend) {
-        let harness = Harness::open("airtable", backend);
-        let provider = CountingProvider::new(Delivery::Respond, Reading::ForeignEcho);
-        let request = harness.airtable(ORIGINAL, "Approved");
-        assert_eq!(
-            harness.submit(&request, &provider).await,
-            GatewaySubmitResult::Observed {
-                status: 200,
-                matched: false
-            }
-        );
-        let snapshot = harness.snapshot(&request).await;
-        assert_eq!(snapshot.stage(), GatewayAttemptStage::Observed);
-        assert_eq!(
-            snapshot.observation_fact(),
-            Some(GatewayObservationFact::EchoMismatch)
-        );
-        assert!(snapshot.provider_evidence().is_none());
-        assert_eq!(provider.writes(), 1);
-    }
-
-    /// Two store instances re-observing the same unknown attempt record
-    /// exactly one terminal stage; the other records nothing.
-    async fn conformance_concurrent_reobservation(backend: Backend) {
-        let harness = Harness::open("airtable", backend);
-        let provider = CountingProvider::new(Delivery::TimeoutAfterApplying, Reading::Faithful);
-        let original = harness.airtable(ORIGINAL, "Approved");
-        assert_eq!(
-            harness.submit(&original, &provider).await,
-            GatewaySubmitResult::Unknown
-        );
-        let first = harness.store.reopen();
-        let second = harness.store.reopen();
-        let request = harness.airtable(FRESH, "Approved");
-        let digest = *harness.recipe.digest();
-        let left = first
-            .resume_observable(&request, digest)
-            .await
-            .expect("resume")
-            .expect("observable");
-        let right = second
-            .resume_observable(&request, digest)
-            .await
-            .expect("resume")
-            .expect("observable");
-        let (left, right) = tokio::join!(
-            reobserve(left, &request, &provider),
-            reobserve(right, &request, &provider)
-        );
-        let terminal = [&left, &right]
-            .iter()
-            .filter(|result| matches!(result, GatewaySubmitResult::ObservedByProvider { .. }))
-            .count();
-        assert_eq!(terminal, 1, "{left:?} {right:?}");
-        assert!(left == replay_refused() || right == replay_refused());
-        assert_eq!(
-            harness.snapshot(&original).await.stage(),
-            GatewayAttemptStage::ObservedByProvider
-        );
-        assert_eq!(provider.writes(), 1);
-    }
-
-    /// Replacement is compare-and-swap on the exact stored bytes, and stored
-    /// bytes that do not decode fail closed rather than read as unclaimed.
-    async fn conformance_mechanism_fails_closed(backend: Backend) {
-        let harness = Harness::open("airtable", backend);
-        let raw = harness.store.raw();
-        let key = crate::GatewayAttemptKey::for_operation(
-            harness.recipe.namespace(),
-            &LogicalOperationId::parse("run-1").expect("operation"),
-        );
-        tokio::task::spawn_blocking(move || {
-            raw.insert(&key, b"{}").expect("insert");
-            assert_eq!(raw.insert(&key, b"{}"), Err(GatewayAttemptError::Replay));
-            assert_eq!(
-                raw.replace(&key, b"{\"other\":1}", b"[]"),
-                Err(GatewayAttemptError::Conflict)
-            );
-            raw.replace(&key, b"{}", b"[]").expect("exact replacement");
-            assert_eq!(raw.load(&key).expect("load").as_deref(), Some(&b"[]"[..]));
-        })
-        .await
-        .expect("mechanism checks");
-        let request = harness.airtable(ORIGINAL, "Approved");
-        assert_eq!(
-            harness
-                .store
-                .attempts()
-                .read(request.namespace(), request.operation_id())
-                .await,
-            Err(GatewayAttemptError::Corrupt)
-        );
-        let provider = CountingProvider::new(Delivery::Respond, Reading::Faithful);
-        assert_eq!(harness.submit(&request, &provider).await, replay_refused());
-        assert_eq!(provider.writes(), 0);
-    }
-
-    const RACE_OPERATIONS: usize = 48;
-    const CHILD: &str = "AUTHS_GATEWAY_CONFORMANCE_CHILD";
-
-    /// Two separate gateway processes race to claim the same logical
-    /// operations; each operation enters the provider exactly once.
-    async fn conformance_concurrent_claims_from_two_processes(backend: Backend) {
-        let harness = Harness::open("airtable", backend);
-        let start = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("clock")
-            .as_millis()
-            + 1_500;
-        let children: Vec<_> = (0..2)
-            .map(|_| {
-                std::process::Command::new(std::env::current_exe().expect("test binary"))
-                    .args([
-                        "--exact",
-                        "engine::tests::conformance_child_process",
-                        "--ignored",
-                        "--nocapture",
-                        "--test-threads=1",
-                    ])
-                    .env(
-                        CHILD,
-                        format!("{}|{}|{start}", backend.label(), harness.store.location()),
-                    )
-                    .stdout(std::process::Stdio::piped())
-                    .spawn()
-                    .expect("child gateway process")
-            })
-            .collect();
-        let mut claimed = 0;
-        let mut entries = 0;
-        for child in children {
-            let output = child.wait_with_output().expect("child exit");
-            assert!(output.status.success(), "child failed");
-            let text = String::from_utf8(output.stdout).expect("utf-8");
-            let line = text
-                .lines()
-                .find_map(|line| line.split_once("RACE ").map(|(_, counts)| counts))
-                .expect("child result");
-            let fields: Vec<usize> = line
-                .split(' ')
-                .map(|value| value.parse().expect("count"))
-                .collect();
-            claimed += fields[0];
-            entries += fields[1];
-        }
-        assert_eq!(claimed, RACE_OPERATIONS, "{}", backend.label());
-        assert_eq!(entries, RACE_OPERATIONS, "{}", backend.label());
-        for index in 0..RACE_OPERATIONS {
-            let request = race_request(&harness, index);
-            assert_eq!(
-                harness.snapshot(&request).await.stage(),
-                GatewayAttemptStage::ObservedByProvider
-            );
-        }
-    }
-
-    fn race_request(harness: &Harness, index: usize) -> ClosedProviderRequest {
-        harness.request(
-            ORIGINAL,
-            &json!({"operation_id": format!("race-{index}"), "record_id": RECORD, "replacement": "Approved"}),
-        )
-    }
-
-    /// Child half of the two-process race. It does nothing unless spawned by
-    /// the parent with the store location.
-    #[tokio::test]
-    #[ignore = "spawned by the two-process conformance case"]
-    async fn conformance_child_process() {
-        let Ok(spec) = std::env::var(CHILD) else {
-            return;
-        };
-        let parts: Vec<&str> = spec.splitn(3, '|').collect();
-        let backend = Backend::parse(parts[0]);
-        let store = TestAttempts::attach(backend, parts[1]);
-        let start: u128 = parts[2].parse().expect("start");
-        let harness = Harness {
-            recipe: Harness::open("airtable", Backend::File).recipe,
-            store,
-        };
-        let provider = CountingProvider::new(Delivery::Respond, Reading::Faithful);
-        while SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("clock")
-            .as_millis()
-            < start
-        {
-            std::thread::yield_now();
-        }
-        let mut claimed = 0;
-        for index in 0..RACE_OPERATIONS {
-            let request = race_request(&harness, index);
-            if let Ok(claim) = harness
-                .store
-                .attempts()
-                .claim(&request, *harness.recipe.digest())
-                .await
-            {
-                claimed += 1;
-                execute_claimed(claim, &request, &provider).await;
-            }
-        }
-        println!("RACE {claimed} {}", provider.writes());
-    }
-
-    async fn store_conformance(backend: Backend) {
-        conformance_claim_exactly_once_and_replay(backend).await;
-        conformance_fresh_challenge(backend).await;
-        conformance_unknown_and_reobserve(backend).await;
-        conformance_echo_mismatch(backend).await;
-        conformance_concurrent_reobservation(backend).await;
-        conformance_mechanism_fails_closed(backend).await;
-        conformance_concurrent_claims_from_two_processes(backend).await;
-    }
-
-    #[tokio::test]
-    async fn file_store_passes_attempt_store_conformance() {
-        store_conformance(Backend::File).await;
-    }
-
-    #[tokio::test]
-    #[ignore = "needs the TLS PostgreSQL fixture"]
-    async fn postgres_store_passes_attempt_store_conformance() {
-        assert!(
-            postgres_configured(),
-            "TLS PostgreSQL environment slots are required"
-        );
-        store_conformance(Backend::Postgres).await;
-    }
-
-    #[test]
-    fn application_result_parses_closed_observed_by_provider_shape() {
-        let wire = json!({
-            "outcome": "observed-by-provider",
-            "status": null,
-            "evidence": {
-                "channel": "read-back",
-                "echo": original_token(),
-                "evidence_digest": "00".repeat(32),
-                "observed_at": 1
-            }
-        });
-        assert!(serde_json::from_value::<GatewaySubmitResult>(wire.clone()).is_ok());
-        let mut extra = wire;
-        extra["evidence"]["evidence_b64"] = json!("e30");
-        assert!(serde_json::from_value::<GatewaySubmitResult>(extra).is_err());
+        .expect("fixture compiles")
     }
 
     // Connection administration over the persistent stores an installed
@@ -1769,13 +956,17 @@ mod tests {
             SecretBytes::new(value.as_bytes().to_vec()).expect("secret")
         }
 
+        fn candidate(value: &str) -> zeroize::Zeroizing<Vec<u8>> {
+            zeroize::Zeroizing::new(value.as_bytes().to_vec())
+        }
+
         async fn installation(credential_entries: usize) -> Installation {
             let state = tempfile::tempdir().expect("state");
             let credentials_directory = state.path().join("credentials");
             let connections_directory = state.path().join("connections");
             private_directory(&credentials_directory);
             private_directory(&connections_directory);
-            let recipe = Harness::open("airtable", Backend::File).recipe;
+            let recipe = airtable_recipe();
             let root = crate::harness::Signer::new(0x11);
             let observer = crate::harness::Signer::new(0x33);
             let trust = auths_codec::encode_verifier_context(
@@ -1880,11 +1071,7 @@ mod tests {
 
             /// The refusal code of a new entry, or `None` when entry may lease.
             fn entry_refusal(&self) -> Option<String> {
-                match self.engine.prepare_entry() {
-                    Ok(_) => None,
-                    Err(GatewaySubmitResult::NotEntered { code }) => Some(code),
-                    Err(other) => panic!("unexpected entry result {other:?}"),
-                }
+                self.engine.prepare_entry().err().map(str::to_owned)
             }
         }
 
@@ -1896,7 +1083,7 @@ mod tests {
 
             installation
                 .engine
-                .rotate_connection(gateway_secret("pat-rotated"))
+                .rotate_connection(candidate("pat-rotated"))
                 .await
                 .expect("rotate");
             assert_eq!(
@@ -1944,7 +1131,7 @@ mod tests {
             assert_eq!(
                 installation
                     .engine
-                    .rotate_connection(gateway_secret("pat-rotated"))
+                    .rotate_connection(candidate("pat-rotated"))
                     .await,
                 Err("gateway.admin.transition-unavailable")
             );
@@ -1972,7 +1159,7 @@ mod tests {
             assert_eq!(
                 installation
                     .engine
-                    .rotate_connection(gateway_secret("pat-rotated"))
+                    .rotate_connection(candidate("pat-rotated"))
                     .await,
                 Err("gateway.admin.credential-unavailable"),
                 "the full store has no room for a successor"

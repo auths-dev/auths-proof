@@ -184,10 +184,10 @@ test("packed npm consumer attaches a gateway read-back and is refused once it is
       { cwd: directory, encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
     assert.deepEqual(JSON.parse(output), {
       written: { outcome: "observed-by-provider", status: 200 },
-      afterWrite: [1, 2],
+      afterWrite: [1, 3],
       conditionFalse: { outcome: "denied", code: "observation-condition-false" },
       stale: { outcome: "indeterminate", code: "observation-missing" },
-      final: [1, 3],
+      final: [1, 4],
     });
   } finally {
     await rm(directory, { recursive: true, force: true });

@@ -683,7 +683,10 @@ async fn approval_quorum_hostile_cases_admit_only_a_two_manager_quorum() {
                 ),
                 "{id}: {result:?}"
             );
-            assert_eq!(leases, 1, "{id}: one lease for one entry");
+            assert_eq!(
+                leases, 2,
+                "{id}: one lease for the entry and one for its read-back"
+            );
             unauthorized_entries += entries.saturating_sub(1);
         } else {
             assert_eq!(leases, 0, "{id}: refused before any credential lease");
@@ -776,7 +779,7 @@ async fn a_quorum_still_authorizes_23_hours_after_approval_and_only_once() {
         "{result:?}"
     );
     let (writes, _, leases) = harness.provider.counts();
-    assert_eq!((writes, leases), (1, 1));
+    assert_eq!((writes, leases), (1, 2));
     let replay = harness.submit(&proof, &action, later + 60).await;
     assert!(
         !matches!(replay, GatewaySubmitResult::ResponseRecorded { .. }),
@@ -888,7 +891,7 @@ async fn remote_approvals_authorize_only_at_the_threshold() {
             case.id
         );
         assert_eq!(after.0 - before.0, case.provider_entries, "{}", case.id);
-        assert_eq!(after.2 - before.2, case.provider_entries, "{}", case.id);
+        assert_eq!(after.2 - before.2, 2 * case.provider_entries, "{}", case.id);
         entries += case.provider_entries;
     }
     assert_eq!(

@@ -4,7 +4,7 @@
 #![allow(clippy::manual_let_else)]
 
 use crate::{
-    ClosedObservationRequest, ClosedProviderRequest, CompiledRecipe, CredentialRequirement,
+    ClosedCredentialRead, ClosedProviderRequest, CompiledRecipe, CredentialRequirement,
     RequestHeader,
 };
 use auths_connections::StoredSecretLease;
@@ -33,17 +33,48 @@ pub(crate) enum GatewayTransportError {
 }
 
 /// Write transport evidence, never provider-effect confirmation.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum WriteTransportOutcome {
     /// The request may have entered, but a complete response was not recorded.
     Unknown,
-    /// A complete bounded HTTP response was received.
-    ResponseRecorded { status: u16, digest: [u8; 32] },
+    /// A complete bounded HTTP response was received. The body is kept only
+    /// long enough to read a response locator; only its digest is stored.
+    ResponseRecorded {
+        status: u16,
+        digest: [u8; 32],
+        body: Vec<u8>,
+        version_ok: bool,
+    },
+}
+
+/// One complete bounded provider response to a read.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ProviderResponse {
+    /// The HTTP status.
+    pub(crate) status: u16,
+    /// Whether every version header the recipe requires the provider to
+    /// echo came back with its declared value.
+    pub(crate) version_ok: bool,
+    /// The response body.
+    pub(crate) body: Vec<u8>,
+}
+
+impl ProviderResponse {
+    /// Whether the status is 2xx.
+    pub(crate) const fn success(&self) -> bool {
+        self.status >= 200 && self.status < 300
+    }
+
+    /// The body of a 2xx response with no version mismatch; any other
+    /// response is unavailable and is not compared, signed, or recorded.
+    pub(crate) fn usable_body(&self) -> Option<&[u8]> {
+        (self.success() && self.version_ok).then_some(self.body.as_slice())
+    }
 }
 
 /// Provider entry used by the execution path. The production implementation
 /// is the pinned HTTPS transport holding one credential lease; tests supply a
-/// counting provider. Neither method may retry a write.
+/// counting provider. No method may retry a write.
 pub(crate) trait ProviderPort {
     /// Sends one closed write after a durable claim.
     async fn write(
@@ -51,8 +82,43 @@ pub(crate) trait ProviderPort {
         request: &ClosedProviderRequest,
     ) -> Result<WriteTransportOutcome, GatewayTransportError>;
 
-    /// Performs one bounded read-only observation and returns its exact bytes.
-    async fn read_back(&self, request: &ClosedObservationRequest) -> Option<Vec<u8>>;
+    /// Performs one bounded GET of an action read or observation and returns
+    /// the complete response, or `None` after a transport failure or an
+    /// oversized body.
+    async fn action_read(
+        &self,
+        url: &str,
+        headers: &[RequestHeader],
+        maximum_response_bytes: usize,
+    ) -> Option<ProviderResponse>;
+
+    /// Performs one credential read with the leased secret.
+    async fn credential_read(&self, read: &ClosedCredentialRead) -> Option<ProviderResponse>;
+}
+
+/// A borrowed provider is the provider.
+impl<P: ProviderPort> ProviderPort for &P {
+    async fn write(
+        &self,
+        request: &ClosedProviderRequest,
+    ) -> Result<WriteTransportOutcome, GatewayTransportError> {
+        (**self).write(request).await
+    }
+
+    async fn action_read(
+        &self,
+        url: &str,
+        headers: &[RequestHeader],
+        maximum_response_bytes: usize,
+    ) -> Option<ProviderResponse> {
+        (**self)
+            .action_read(url, headers, maximum_response_bytes)
+            .await
+    }
+
+    async fn credential_read(&self, read: &ClosedCredentialRead) -> Option<ProviderResponse> {
+        (**self).credential_read(read).await
+    }
 }
 
 /// The pinned transport paired with the exact credential lease for one call.
@@ -69,8 +135,27 @@ impl ProviderPort for LeasedTransport<'_> {
         self.transport.write(request, self.lease).await
     }
 
-    async fn read_back(&self, request: &ClosedObservationRequest) -> Option<Vec<u8>> {
-        self.transport.read_back(request, self.lease).await
+    async fn action_read(
+        &self,
+        url: &str,
+        headers: &[RequestHeader],
+        maximum_response_bytes: usize,
+    ) -> Option<ProviderResponse> {
+        let secret = self.lease.expose(Instant::now()).ok()?;
+        self.transport
+            .read(
+                reqwest::Method::GET,
+                url,
+                headers,
+                maximum_response_bytes,
+                secret,
+            )
+            .await
+    }
+
+    async fn credential_read(&self, read: &ClosedCredentialRead) -> Option<ProviderResponse> {
+        let secret = self.lease.expose(Instant::now()).ok()?;
+        self.transport.credential_read(read, secret).await
     }
 }
 
@@ -83,6 +168,8 @@ pub(crate) struct GatewayHttpTransport {
     /// `loopback-provider` development build.
     target_origin: String,
     requirement: CredentialRequirement,
+    /// Version headers every response must echo with these values.
+    required_versions: Vec<(String, String)>,
 }
 
 impl GatewayHttpTransport {
@@ -124,6 +211,7 @@ impl GatewayHttpTransport {
             origin: origin.to_owned(),
             target_origin: origin.to_owned(),
             requirement: connection_requirement.clone(),
+            required_versions: recipe.required_response_versions(),
         })
     }
 
@@ -154,6 +242,7 @@ impl GatewayHttpTransport {
             origin: origin.to_owned(),
             target_origin: format!("http://{}:{port}", Ipv4Addr::LOCALHOST),
             requirement: connection_requirement.clone(),
+            required_versions: recipe.required_response_versions(),
         })
     }
 
@@ -161,7 +250,9 @@ impl GatewayHttpTransport {
     /// conservatively unknown, even when the error occurred before a socket
     /// connected; it never authorizes a retry. The closed request's headers
     /// (version headers, the account-scope header, and the derived
-    /// `Idempotency-Key`, each only when declared) are sent as built.
+    /// `Idempotency-Key`, each only when declared) are sent as built. A
+    /// version mismatch is reported with the response, which is recorded as
+    /// usual because the gateway never interprets a write body.
     pub(crate) async fn write(
         &self,
         request: &ClosedProviderRequest,
@@ -170,7 +261,10 @@ impl GatewayHttpTransport {
         if request.credential_requirement() != &self.requirement || !self.owns_url(request.url()) {
             return Err(GatewayTransportError::NotEntered);
         }
-        let headers = credential_headers(&self.requirement, lease)?;
+        let secret = lease
+            .expose(Instant::now())
+            .map_err(|_| GatewayTransportError::NotEntered)?;
+        let headers = credential_headers(&self.requirement, secret)?;
         let method = reqwest::Method::from_bytes(request.method().as_str().as_bytes())
             .map_err(|_| GatewayTransportError::NotEntered)?;
         let mut outbound = self
@@ -194,33 +288,61 @@ impl GatewayHttpTransport {
             Err(_) => return Ok(WriteTransportOutcome::Unknown),
         };
         let status = response.status().as_u16();
+        let version_ok = self.versions_echoed(response.headers());
         let Some(bytes) = read_bounded(&mut response, MAX_WRITE_RESPONSE_BYTES).await else {
             return Ok(WriteTransportOutcome::Unknown);
         };
         Ok(WriteTransportOutcome::ResponseRecorded {
             status,
-            digest: Sha256::digest(bytes).into(),
+            digest: Sha256::digest(&bytes).into(),
+            body: bytes,
+            version_ok,
         })
     }
 
-    /// Performs a separate bounded read-only GET and returns the exact 2xx
-    /// response bytes. Failure leaves the write stage unchanged and does not
-    /// license a second write. The bytes are never logged.
-    pub(crate) async fn read_back(
+    /// Performs one credential read with `secret`: the leased secret at a
+    /// lease, or the candidate secret at onboarding. It carries only the
+    /// version headers.
+    pub(crate) async fn credential_read(
         &self,
-        request: &ClosedObservationRequest,
-        lease: &StoredSecretLease,
-    ) -> Option<Vec<u8>> {
-        if !self.owns_url(request.url()) {
+        read: &ClosedCredentialRead,
+        secret: &[u8],
+    ) -> Option<ProviderResponse> {
+        let method = match read.method() {
+            crate::CredentialReadMethod::Get => reqwest::Method::GET,
+            crate::CredentialReadMethod::Head => reqwest::Method::HEAD,
+        };
+        self.read(
+            method,
+            read.url(),
+            read.headers(),
+            read.maximum_response_bytes(),
+            secret,
+        )
+        .await
+    }
+
+    /// One bounded read with `secret`: the complete response of any status,
+    /// or `None` after a transport failure or an oversized body. Redirects
+    /// are never followed, so a 3xx comes back as its own status.
+    pub(crate) async fn read(
+        &self,
+        method: reqwest::Method,
+        url: &str,
+        headers: &[RequestHeader],
+        maximum_response_bytes: usize,
+        secret: &[u8],
+    ) -> Option<ProviderResponse> {
+        if !self.owns_url(url) {
             return None;
         }
-        let headers = credential_headers(&self.requirement, lease).ok()?;
+        let credential = credential_headers(&self.requirement, secret).ok()?;
         let mut outbound = self
             .client
-            .get(self.target(request.url()))
-            .headers(headers)
+            .request(method, self.target(url))
+            .headers(credential)
             .header(ACCEPT, "application/json");
-        for header in request.headers() {
+        for header in headers {
             outbound = outbound.header(
                 provider_header_name(header).ok()?,
                 provider_header_value(header).ok()?,
@@ -228,10 +350,44 @@ impl GatewayHttpTransport {
         }
         let outbound = outbound.build().ok()?;
         let mut response = self.client.execute(outbound).await.ok()?;
-        if !response.status().is_success() {
-            return None;
+        let status = response.status().as_u16();
+        let version_ok = self.versions_echoed(response.headers());
+        let body = read_bounded(&mut response, maximum_response_bytes).await?;
+        Some(ProviderResponse {
+            status,
+            version_ok,
+            body,
+        })
+    }
+
+    /// Whether every required version header came back with its value.
+    fn versions_echoed(&self, headers: &HeaderMap) -> bool {
+        self.required_versions.iter().all(|(name, value)| {
+            let mut values = headers.get_all(name.as_str()).iter();
+            values
+                .next()
+                .is_some_and(|found| found.as_bytes() == value.as_bytes())
+                && values.next().is_none()
+        })
+    }
+
+    /// A transport that sends requests for the recipe's origin to a
+    /// plain-HTTP double on `127.0.0.1:port`, for tests.
+    #[cfg(test)]
+    pub(crate) fn for_loopback_test(recipe: &CompiledRecipe, port: u16) -> Self {
+        let review = recipe.review();
+        Self {
+            client: Client::builder()
+                .no_proxy()
+                .redirect(reqwest::redirect::Policy::none())
+                .pool_max_idle_per_host(0)
+                .build()
+                .expect("loopback test client"),
+            origin: review.origin().to_owned(),
+            target_origin: format!("http://{}:{port}", Ipv4Addr::LOCALHOST),
+            requirement: review.credential().clone(),
+            required_versions: recipe.required_response_versions(),
         }
-        read_bounded(&mut response, request.maximum_response_bytes()).await
     }
 
     /// Maps an owned URL onto the transport's target origin.
@@ -277,11 +433,8 @@ fn pinned_client(hostname: &str, pinned: SocketAddr) -> Result<Client, GatewayTr
 
 fn credential_headers(
     requirement: &CredentialRequirement,
-    lease: &StoredSecretLease,
+    secret: &[u8],
 ) -> Result<HeaderMap, GatewayTransportError> {
-    let secret = lease
-        .expose(Instant::now())
-        .map_err(|_| GatewayTransportError::NotEntered)?;
     if secret.is_empty()
         || secret.len() > MAX_SECRET_BYTES
         || !secret.iter().all(|byte| (0x21..=0x7e).contains(byte))
@@ -469,13 +622,27 @@ mod tests {
                 origin: recipe.review().origin().to_owned(),
                 target_origin: format!("http://{}:{port}", Ipv4Addr::LOCALHOST),
                 requirement: recipe.review().credential().clone(),
+                required_versions: Vec::new(),
             };
             assert!(matches!(
                 transport.write(&request, &lease).await,
                 Ok(WriteTransportOutcome::ResponseRecorded { status: 200, .. })
             ));
             let observation = request.observation().expect("observation");
-            assert!(transport.read_back(observation, &lease).await.is_some());
+            let secret = lease.expose(Instant::now()).expect("lease");
+            assert!(
+                transport
+                    .read(
+                        reqwest::Method::GET,
+                        observation.url(),
+                        observation.headers(),
+                        observation.maximum_response_bytes(),
+                        secret,
+                    )
+                    .await
+                    .and_then(|response| response.usable_body().map(<[u8]>::to_vec))
+                    .is_some()
+            );
             let heads = provider.await.expect("provider");
             assert!(heads[0].starts_with("patch /v0/"), "{}", heads[0]);
             assert!(heads[1].starts_with("get /v0/"), "{}", heads[1]);
@@ -520,7 +687,8 @@ mod tests {
                 b"not-a-real-secret".as_slice(),
             ),
         ] {
-            let headers = credential_headers(&requirement, &lease).expect("credential headers");
+            let secret = lease.expose(Instant::now()).expect("lease");
+            let headers = credential_headers(&requirement, secret).expect("credential headers");
             assert_eq!(headers.len(), 1);
             let value = headers.get(&name).expect("credential header");
             assert!(value.is_sensitive());

@@ -455,8 +455,8 @@ async fn fresh_matching_read_back_authorizes_the_replacement_write(backend: Back
     );
     assert_eq!(
         harness.provider.counts(),
-        (1, 2, 2),
-        "one write; the pre-read and the post-write read-back"
+        (1, 2, 3),
+        "one write; the pre-read and the post-write read-back, each under its own lease"
     );
 }
 

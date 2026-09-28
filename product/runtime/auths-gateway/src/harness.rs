@@ -1,23 +1,26 @@
 //! The gateway's counting-provider test harness.
 //!
-//! It follows the engine's post-verification dispatch exactly: native
-//! verification with the gateway registries at an explicit gateway clock,
-//! then a durable claim, then one credential lease, then provider entry. A
-//! synthetic provider counts every write entry, read-only observation, and
-//! lease, and holds the records in memory so a test can change them the way
-//! another writer would. Everything here is test infrastructure: the root
-//! and observer keys come from public fixed seeds.
+//! It runs the engine's own submission driver: native verification with the
+//! gateway registries at an explicit gateway clock, then every step the
+//! admission-order step machine names. A synthetic provider counts every
+//! write entry, read-only observation, and lease, and holds the records in
+//! memory so a test can change them the way another writer would.
+//! Everything here is test infrastructure: the root and observer keys come
+//! from public fixed seeds.
 
 use crate::engine::{
-    GatewayObserveRequest, GatewayObserveResult, GatewaySubmitResult, execute_claimed,
-    gateway_verifier_configuration, not_entered, observe_outcome, observe_read_back, reobserve,
-    replay_refused, reserve_bound, verify_command,
+    GatewayObserveRequest, GatewayObserveResult, GatewaySubmitResult, VerifiedCommand,
+    gateway_verifier_configuration, observe_outcome, observe_read_back, verify_detailed,
 };
 use crate::observer::{OUTCOME_SCHEMA, READ_BACK_SCHEMA};
-use crate::transport::{GatewayTransportError, ProviderPort, WriteTransportOutcome};
+use crate::recipe::GuardChecks;
+use crate::submit::{SubmitContext, SubmitIo};
+use crate::transport::{
+    GatewayTransportError, ProviderPort, ProviderResponse, WriteTransportOutcome,
+};
 use crate::{
-    ClosedObservationRequest, ClosedProviderRequest, CompiledRecipe, FileGatewayAttemptStore,
-    GatewayAttemptError, GatewayAttempts, GatewayObserver,
+    ClosedCredentialRead, ClosedProviderRequest, CompiledRecipe, FileGatewayAttemptStore,
+    GatewayAttempts, GatewayObserver, RequestHeader,
 };
 use auths_codec::{encode_observation_requirements, evidence_id, grant_signing_preimage};
 use auths_model::{
@@ -624,17 +627,117 @@ impl ProviderPort for CountingProvider {
             Delivery::Respond => WriteTransportOutcome::ResponseRecorded {
                 status: 200,
                 digest: [4; 32],
+                body: b"{}".to_vec(),
+                version_ok: true,
             },
             #[cfg(test)]
             Delivery::TimeoutAfterApplying => WriteTransportOutcome::Unknown,
         })
     }
 
-    async fn read_back(&self, request: &ClosedObservationRequest) -> Option<Vec<u8>> {
+    async fn action_read(
+        &self,
+        url: &str,
+        _headers: &[RequestHeader],
+        _maximum_response_bytes: usize,
+    ) -> Option<ProviderResponse> {
         self.reads.fetch_add(1, Ordering::SeqCst);
-        let record = Self::record_of(request.url());
+        let record = Self::record_of(url);
         let fields = self.records.lock().ok()?.get(&record)?.clone();
-        serde_json::to_vec(&json!({"id": record, "fields": fields})).ok()
+        Some(ProviderResponse {
+            status: 200,
+            version_ok: true,
+            body: serde_json::to_vec(&json!({"id": record, "fields": fields})).ok()?,
+        })
+    }
+
+    async fn credential_read(&self, _read: &ClosedCredentialRead) -> Option<ProviderResponse> {
+        None
+    }
+}
+
+/// The harness's submission I/O: verification at the harness clock and the
+/// counting provider under a counted lease.
+struct HarnessIo<'a> {
+    harness: &'a Harness,
+    proof: &'a [u8],
+    action: &'a [u8],
+    now: u64,
+}
+
+impl SubmitIo for HarnessIo<'_> {
+    type Lease = ();
+
+    fn clock(&self) -> Option<u64> {
+        Some(self.now)
+    }
+
+    fn verify(&self, now: u64) -> Result<VerifiedCommand, GatewaySubmitResult> {
+        verify_detailed(
+            &self.harness.recipe,
+            &self.harness.context,
+            now,
+            self.proof,
+            self.action,
+        )
+    }
+
+    fn bind_scope(&self, _verified: &VerifiedCommand) -> Result<(), &'static str> {
+        Err("gateway.engine.unexecuted-capability")
+    }
+
+    fn prepare(&self) -> Result<(), &'static str> {
+        Ok(())
+    }
+
+    fn reload(&self) -> bool {
+        true
+    }
+
+    async fn lease(&self) -> Option<()> {
+        self.harness.provider.leases.fetch_add(1, Ordering::SeqCst);
+        Some(())
+    }
+
+    fn secret_admitted(&self, _lease: &(), _guard: &GuardChecks) -> bool {
+        false
+    }
+
+    fn account_commitment(&self) -> Option<[u8; 32]> {
+        None
+    }
+
+    fn within_entry_deadline(&self, evaluated_at: u64) -> bool {
+        self.now <= evaluated_at.saturating_add(crate::recipe::ENTRY_DEADLINE_SECONDS)
+    }
+
+    async fn write(
+        &self,
+        _lease: &(),
+        request: &ClosedProviderRequest,
+    ) -> Result<WriteTransportOutcome, GatewayTransportError> {
+        self.harness.provider.write(request).await
+    }
+
+    async fn action_read(
+        &self,
+        _lease: &(),
+        url: &str,
+        headers: &[RequestHeader],
+        maximum_response_bytes: usize,
+    ) -> Option<ProviderResponse> {
+        self.harness
+            .provider
+            .action_read(url, headers, maximum_response_bytes)
+            .await
+    }
+
+    async fn credential_read(
+        &self,
+        _lease: &(),
+        read: &ClosedCredentialRead,
+    ) -> Option<ProviderResponse> {
+        self.harness.provider.credential_read(read).await
     }
 }
 
@@ -682,8 +785,7 @@ impl Harness {
         }
     }
 
-    /// Mirrors the engine: verify at `now`, claim, reserve any bounded-policy
-    /// window slot, lease, then enter the provider. A replay never writes
+    /// Runs the engine's submission driver at `now`. A replay never writes
     /// again.
     pub(crate) async fn submit(
         &self,
@@ -691,36 +793,21 @@ impl Harness {
         action: &[u8],
         now: u64,
     ) -> GatewaySubmitResult {
-        let (request, bound) = match verify_command(&self.recipe, &self.context, now, proof, action)
-        {
-            Ok(value) => value,
-            Err(result) => return result,
-        };
-        match self.store.claim(&request, *self.recipe.digest()).await {
-            Ok(claim) => {
-                let claim = match reserve_bound(&self.store, bound.as_ref(), &request, claim).await
-                {
-                    Ok(value) => value,
-                    Err(result) => return result,
-                };
-                self.provider.leases.fetch_add(1, Ordering::SeqCst);
-                execute_claimed(claim, &request, &self.provider).await
-            }
-            Err(GatewayAttemptError::Replay) => {
-                match self
-                    .store
-                    .resume_observable(&request, *self.recipe.digest())
-                    .await
-                {
-                    Ok(Some(attempt)) => {
-                        self.provider.leases.fetch_add(1, Ordering::SeqCst);
-                        reobserve(attempt, &request, &self.provider).await
-                    }
-                    _ => replay_refused(),
-                }
-            }
-            Err(_) => not_entered("gateway.attempt.unavailable"),
-        }
+        crate::submit::run(
+            &SubmitContext {
+                recipe: &self.recipe,
+                attempts: &self.store,
+                context: &self.context,
+                observer: Some(&self.observer),
+            },
+            &HarnessIo {
+                harness: self,
+                proof,
+                action,
+                now,
+            },
+        )
+        .await
     }
 
     /// Mirrors the engine's observation request at `now`: a read-back leases

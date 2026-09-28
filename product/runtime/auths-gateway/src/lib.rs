@@ -15,9 +15,12 @@ mod engine;
 #[cfg(unix)]
 pub mod listener;
 mod observer;
+mod onboarding;
+mod pre_entry;
 pub mod recipe;
 mod separation;
 mod store;
+mod submit;
 mod transport;
 
 #[cfg(any(test, feature = "testkit-harness"))]
@@ -28,6 +31,8 @@ mod observed_tests;
 mod pending_vectors;
 #[cfg(test)]
 mod quorum_tests;
+#[cfg(test)]
+mod scenario_tests;
 #[cfg(test)]
 mod store_testkit;
 
@@ -51,6 +56,7 @@ pub use observer::{
     OPERATION_SUBJECT_SCHEME, OUTCOME_SCHEMA, ObserverAnchorTemplate, ObserverCustody,
     READ_BACK_SCHEMA, operation_subject,
 };
+pub use onboarding::{OnboardingAccount, OnboardingFailure, check_candidate_credential};
 pub use recipe::{
     ClosedActionRead, ClosedCredentialRead, ClosedCredentialReads, ClosedObservationRequest,
     ClosedProviderRequest, CompiledRecipe, CredentialReadMethod, CredentialRequirement,
@@ -64,6 +70,8 @@ pub use separation::{PrincipalSeparationError, check_principal_separation};
 pub use store::{
     ClaimedGatewayAttempt, FileGatewayAttemptStore, GatewayAttemptError, GatewayAttemptKey,
     GatewayAttemptSnapshot, GatewayAttemptStage, GatewayAttemptStore, GatewayAttempts,
-    GatewayEvidenceChannel, GatewayObservationFact, GatewayProviderEvidence,
-    ObservableGatewayAttempt, PostgresGatewayAttemptStore,
+    GatewayCounterEntry, GatewayCounterKind, GatewayEvidenceChannel, GatewayInsert,
+    GatewayObservationFact, GatewayPreEntry, GatewayProviderEvidence, GatewayRecordEntry,
+    GatewayRecordKind, GatewayRelativeBasis, ObservableGatewayAttempt, PostgresGatewayAttemptStore,
+    pre_entry_digest,
 };

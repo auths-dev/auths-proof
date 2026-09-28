@@ -1,13 +1,13 @@
 CREATE TABLE auths_lifecycle_store_meta (
     singleton BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
-    schema_version INTEGER NOT NULL CHECK (schema_version = 4),
+    schema_version INTEGER NOT NULL CHECK (schema_version = 5),
     contract_id TEXT NOT NULL CHECK (
         contract_id = 'auths.lifecycle.transactional-store/4'
     )
 );
 
 INSERT INTO auths_lifecycle_store_meta (singleton, schema_version, contract_id)
-VALUES (TRUE, 4, 'auths.lifecycle.transactional-store/4');
+VALUES (TRUE, 5, 'auths.lifecycle.transactional-store/4');
 
 CREATE TABLE auths_lifecycle_records (
     workflow_id TEXT PRIMARY KEY CHECK (
@@ -52,10 +52,19 @@ CREATE TABLE auths_recovery_leases (
     lease_digest BYTEA NOT NULL CHECK (octet_length(lease_digest) = 32)
 );
 
-CREATE TABLE auths_gateway_attempts (
-    attempt_key BYTEA PRIMARY KEY CHECK (octet_length(attempt_key) = 32),
-    record_bytes BYTEA NOT NULL CHECK (
-        octet_length(record_bytes) BETWEEN 1 AND 131072
+CREATE TABLE auths_gateway_records (
+    record_key BYTEA PRIMARY KEY CHECK (octet_length(record_key) = 32),
+    record_kind TEXT NOT NULL CHECK (
+        record_kind IN ('attempt', 'count-slot', 'sum-slot', 'connection')
     ),
-    record_sha256 BYTEA NOT NULL CHECK (octet_length(record_sha256) = 32)
+    expires_at BIGINT NULL CHECK (expires_at IS NULL OR expires_at >= 0),
+    record_bytes BYTEA NOT NULL CHECK (
+        octet_length(record_bytes) BETWEEN 1 AND 262144
+    ),
+    record_sha256 BYTEA NOT NULL CHECK (octet_length(record_sha256) = 32),
+    CHECK ((record_kind IN ('count-slot', 'sum-slot')) = (expires_at IS NOT NULL))
 );
+
+CREATE INDEX auths_gateway_records_expiry
+ON auths_gateway_records (expires_at)
+WHERE record_kind IN ('count-slot', 'sum-slot');

@@ -68,6 +68,11 @@ MANAGERS = ("manager-a", "manager-b", "manager-c")
 ROLES = ("root", "agent") + MANAGERS
 ASSURANCE = "raw-key-baseline"
 DAY = 86_400
+# The recipe declares a derived Idempotency-Key with 86 400 seconds of
+# provider retention. The gateway refuses an action whose approval window plus
+# its 60-second entry deadline exceeds that retention, so every entry of one
+# approved refund falls within one retention period of the first.
+APPROVAL_WINDOW = DAY - 60
 
 
 def _b64(value: bytes) -> str:
@@ -314,6 +319,7 @@ def _proposal(state: Path, operation: str) -> ApprovalProposal[CreateRefund]:
         requester=facts["principals"]["agent"],
         challenge=bytes.fromhex(facts["challenge_hex"]),
         evaluation_time=pending["evaluation_time"],
+        validity_seconds=APPROVAL_WINDOW,
     )
 
 

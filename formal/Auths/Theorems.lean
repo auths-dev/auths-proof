@@ -6,7 +6,9 @@ import Auths.Diversity
 import Auths.Product.Theorems
 import Auths.Product.Refinement
 import Auths.Product.Recovery
+import Auths.Product.RelativeCeiling
 import Auths.Product.RequestConstruction
+import Auths.Product.SubmitOrder
 import Auths.Product.Refinement.Gateway
 import Auths.Lifecycle.Theorems
 import Auths.Lifecycle.Refinement
@@ -158,6 +160,23 @@ def theoremInventory : List Lean.Name :=
     `Auths.Product.Recovery.capability_total_deterministic,
     `Auths.Product.Recovery.class_matches_declarations,
     `Auths.Product.Recovery.write_never_conditional,
+    `Auths.Product.Recovery.unknown_resolves_only_linked,
+    `Auths.Product.Recovery.provider_claim_requires_evidence,
+    `Auths.Product.Recovery.terminal_stages_final,
+    `Auths.Product.Recovery.transitions_preserve_identity,
+    `Auths.Product.SubmitOrder.lease_requires_verified_claim,
+    `Auths.Product.SubmitOrder.send_requires_lease_and_deadline,
+    `Auths.Product.SubmitOrder.send_requires_credential_checks,
+    `Auths.Product.SubmitOrder.send_requires_relative_ceiling,
+    `Auths.Product.SubmitOrder.account_scope_requires_binding,
+    `Auths.Product.SubmitOrder.at_most_one_send,
+    `Auths.Product.SubmitOrder.pre_claim_refusal_stores_nothing,
+    `Auths.Product.SubmitOrder.not_entered_refusal_table,
+    `Auths.Product.SubmitOrder.post_claim_refusal_records_not_entered,
+    `Auths.Product.RelativeCeiling.relative_ceiling_exact,
+    `Auths.Product.RelativeCeiling.relative_ceiling_never_exceeds_ratio,
+    `Auths.Product.RelativeCeiling.relative_ceiling_monotone,
+    `Auths.Product.RelativeCeiling.relative_basis_never_negative,
     `Auths.Product.RequestConstruction.method_and_origin_fixed,
     `Auths.Product.RequestConstruction.path_from_declared_segments,
     `Auths.Product.RequestConstruction.headers_within_declaration,
@@ -168,6 +187,10 @@ def theoremInventory : List Lean.Name :=
     `Auths.Product.Refinement.Gateway.translated_construct_write_refines_model,
     `Auths.Product.Refinement.Gateway.translated_construct_action_read_refines_model,
     `Auths.Product.Refinement.Gateway.translated_construct_credential_read_refines_model,
+    `Auths.Product.Refinement.Gateway.translated_next_step_refines_model,
+    `Auths.Product.Refinement.Gateway.translated_valid_transition_refines_model,
+    `Auths.Product.Refinement.Gateway.translated_relative_basis_refines_model,
+    `Auths.Product.Refinement.Gateway.translated_relative_ceiling_admits_refines_model,
     `Auths.Lifecycle.additive_capacity_success_positive,
     `Auths.Lifecycle.additive_capacity_success_conserves,
     `Auths.Lifecycle.additive_capacity_success_never_overflows_u64,

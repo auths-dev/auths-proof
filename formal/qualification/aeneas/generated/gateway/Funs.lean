@@ -1286,6 +1286,964 @@ def construct.construct_credential_read
       body := (alloc.vec.Vec.new Std.U8)
     }
 
+/-- [auths_gateway_kernel::order::start]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 387:0-393:1
+    Visibility: public -/
+def order.start (plan : order.SubmitPlan) : Result order.SubmitState := do
+  ok { plan, phase := order.Phase.Start, argument := 0#u64 }
+
+/-- [auths_gateway_kernel::order::go]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 397:0-406:1
+    Visibility: public -/
+def order.go
+  (state : order.SubmitState) (phase : order.Phase)
+  (action : order.SubmitAction) :
+  Result order.SubmitDecision
+  := do
+  ok { state := { state with phase }, action }
+
+/-- [auths_gateway_kernel::order::stop]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 410:0-412:1
+    Visibility: public -/
+def order.stop
+  (state : order.SubmitState) (stop : order.Stop) :
+  Result order.SubmitDecision
+  := do
+  order.go state order.Phase.Done (order.SubmitAction.Stop stop)
+
+/-- [auths_gateway_kernel::order::halt]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 416:0-418:1
+    Visibility: public -/
+def order.halt (state : order.SubmitState) : Result order.SubmitDecision := do
+  order.stop state order.Stop.Halted
+
+/-- [auths_gateway_kernel::order::not_entered]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 422:0-428:1
+    Visibility: public -/
+def order.not_entered
+  (state : order.SubmitState) (refusal : order.Refusal) :
+  Result order.SubmitDecision
+  := do
+  order.go state order.Phase.RecordNotEntered
+    (order.SubmitAction.RecordNotEntered refusal)
+
+/-- [auths_gateway_kernel::order::lease_failed]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 433:0-439:1
+    Visibility: public -/
+def order.lease_failed
+  (state : order.SubmitState) (mode : order.Mode) (refusal : order.Refusal) :
+  Result order.SubmitDecision
+  := do
+  match mode with
+  | order.Mode.Entry => order.not_entered state refusal
+  | order.Mode.ReadBack => order.stop state order.Stop.Response
+  | order.Mode.Reobserve => order.stop state order.Stop.ReplayRefused
+
+/-- [auths_gateway_kernel::order::after_reads]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 445:0-451:1
+    Visibility: public -/
+def order.after_reads
+  (state : order.SubmitState) : Result order.SubmitDecision := do
+  if state.plan.pre_entry
+  then
+    order.go state order.Phase.Checkpoint order.SubmitAction.RecordCheckpoint
+  else
+    if state.plan.relative_ceiling
+    then
+      order.go state order.Phase.Checkpoint order.SubmitAction.RecordCheckpoint
+    else
+      order.go state order.Phase.EntryReload
+        order.SubmitAction.ReloadBeforeEntry
+
+/-- [auths_gateway_kernel::order::ceiling_from]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 455:0-461:1
+    Visibility: public -/
+def order.ceiling_from
+  (state : order.SubmitState) : Result order.SubmitDecision := do
+  if state.plan.relative_ceiling
+  then order.go state order.Phase.Ceiling order.SubmitAction.CeilingRead
+  else order.after_reads state
+
+/-- [auths_gateway_kernel::order::pre_entry_from]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 465:0-471:1
+    Visibility: public -/
+def order.pre_entry_from
+  (state : order.SubmitState) : Result order.SubmitDecision := do
+  if state.plan.pre_entry
+  then order.go state order.Phase.PreEntry order.SubmitAction.PreEntryRead
+  else order.ceiling_from state
+
+/-- [auths_gateway_kernel::order::after_credentials]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 476:0-483:1
+    Visibility: public -/
+def order.after_credentials
+  (state : order.SubmitState) (mode : order.Mode) :
+  Result order.SubmitDecision
+  := do
+  match mode with
+  | order.Mode.Entry => order.pre_entry_from state
+  | order.Mode.ReadBack =>
+    order.go state (order.Phase.ReadBack order.Mode.ReadBack)
+      (order.SubmitAction.ReadBack order.Mode.ReadBack)
+  | order.Mode.Reobserve =>
+    order.go state (order.Phase.ReadBack order.Mode.Reobserve)
+      (order.SubmitAction.ReadBack order.Mode.Reobserve)
+
+/-- [auths_gateway_kernel::order::denied_from]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 487:0-497:1
+    Visibility: public -/
+def order.denied_from
+  (state : order.SubmitState) (mode : order.Mode) (index : Std.U8) :
+  Result order.SubmitDecision
+  := do
+  if index < state.plan.denied_reads
+  then
+    order.go state (order.Phase.Denied mode index)
+      (order.SubmitAction.DeniedRead mode index)
+  else order.after_credentials state mode
+
+/-- [auths_gateway_kernel::order::after_prefix]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 501:0-507:1
+    Visibility: public -/
+def order.after_prefix
+  (state : order.SubmitState) (mode : order.Mode) :
+  Result order.SubmitDecision
+  := do
+  if state.plan.account_read
+  then
+    order.go state (order.Phase.Account mode) (order.SubmitAction.ReadAccount
+      mode)
+  else order.denied_from state mode 0#u8
+
+/-- [auths_gateway_kernel::order::after_admission]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 511:0-517:1
+    Visibility: public -/
+def order.after_admission
+  (state : order.SubmitState) : Result order.SubmitDecision := do
+  if state.plan.account_scope
+  then order.go state order.Phase.Scope order.SubmitAction.BindScope
+  else order.go state order.Phase.Prepare order.SubmitAction.Prepare
+
+/-- [auths_gateway_kernel::order::pre_claim]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 521:0-527:1
+    Visibility: public -/
+def order.pre_claim
+  (state : order.SubmitState) (passed : Bool) (next : order.SubmitDecision) :
+  Result order.SubmitDecision
+  := do
+  if passed
+  then ok next
+  else order.stop state order.Stop.Refused
+
+/-- [auths_gateway_kernel::order::after_claim]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 531:0-542:1
+    Visibility: public -/
+def order.after_claim
+  (state : order.SubmitState) (result : order.ClaimResult) :
+  Result order.SubmitDecision
+  := do
+  match result with
+  | order.ClaimResult.Inserted =>
+    order.go state (order.Phase.Reload order.Mode.Entry)
+      (order.SubmitAction.Reload order.Mode.Entry)
+  | order.ClaimResult.Refused => order.stop state order.Stop.ClaimRefused
+  | order.ClaimResult.Replay =>
+    order.go state order.Phase.Resume order.SubmitAction.Resume
+  | order.ClaimResult.Unavailable =>
+    order.stop state order.Stop.StoreUnavailable
+
+/-- [auths_gateway_kernel::order::after_account]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 546:0-556:1
+    Visibility: public -/
+def order.after_account
+  (state : order.SubmitState) (mode : order.Mode)
+  (result : order.AccountResult) :
+  Result order.SubmitDecision
+  := do
+  match result with
+  | order.AccountResult.Equal => order.denied_from state mode 0#u8
+  | order.AccountResult.Mismatch =>
+    order.lease_failed state mode order.Refusal.AccountMismatch
+  | order.AccountResult.Unavailable =>
+    order.lease_failed state mode order.Refusal.AccountUnavailable
+
+/-- [auths_gateway_kernel::order::after_denied]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 560:0-577:1
+    Visibility: public -/
+def order.after_denied
+  (state : order.SubmitState) (mode : order.Mode) (index : Std.U8)
+  (result : order.DeniedResult) :
+  Result order.SubmitDecision
+  := do
+  match result with
+  | order.DeniedResult.Refused =>
+    if index < state.plan.denied_reads
+    then let i ← index + 1#u8
+         order.denied_from state mode i
+    else order.halt state
+  | order.DeniedResult.Answered =>
+    order.lease_failed state mode order.Refusal.CapabilityExcess
+  | order.DeniedResult.Unavailable =>
+    order.lease_failed state mode order.Refusal.CapabilityUnavailable
+
+/-- [auths_gateway_kernel::order::after_pre_entry]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 581:0-587:1
+    Visibility: public -/
+def order.after_pre_entry
+  (state : order.SubmitState) (result : order.PreEntryResult) :
+  Result order.SubmitDecision
+  := do
+  match result with
+  | order.PreEntryResult.Satisfied => order.ceiling_from state
+  | order.PreEntryResult.ConditionFalse =>
+    order.not_entered state order.Refusal.PreEntryConditionFalse
+  | order.PreEntryResult.Unavailable =>
+    order.not_entered state order.Refusal.PreEntryUnavailable
+
+/-- [auths_gateway_kernel::ratio::BASIS_POINTS_PER_WHOLE]
+    Source: 'product/runtime/auths-gateway-kernel/src/ratio.rs', lines 10:0-10:48
+    Visibility: public -/
+@[global_simps, irreducible]
+def ratio.BASIS_POINTS_PER_WHOLE : Std.U128 := 10000#u128
+
+/-- [auths_gateway_kernel::ratio::relative_ceiling_admits]:
+    Source: 'product/runtime/auths-gateway-kernel/src/ratio.rs', lines 35:0-39:1
+    Visibility: public -/
+def ratio.relative_ceiling_admits
+  (argument : Std.U64) (basis : Std.U64) (basis_points : Std.U16) :
+  Result Bool
+  := do
+  let i ← lift (UScalar.cast .U128 argument)
+  let scaled_argument ← i * ratio.BASIS_POINTS_PER_WHOLE
+  let i1 ← lift (UScalar.cast .U128 basis)
+  let i2 ← lift (UScalar.cast .U128 basis_points)
+  let scaled_basis ← i1 * i2
+  ok (scaled_argument <= scaled_basis)
+
+/-- [auths_gateway_kernel::order::after_ceiling]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 592:0-605:1
+    Visibility: public -/
+def order.after_ceiling
+  (state : order.SubmitState) (read : order.CeilingRead) :
+  Result order.SubmitDecision
+  := do
+  match read with
+  | order.CeilingRead.Unavailable =>
+    order.not_entered state order.Refusal.CeilingUnavailable
+  | order.CeilingRead.Read basis binds_equal =>
+    if binds_equal
+    then
+      let b ←
+        ratio.relative_ceiling_admits state.argument basis
+          state.plan.basis_points
+      if b
+      then order.after_reads state
+      else order.not_entered state order.Refusal.CeilingAbove
+    else order.not_entered state order.Refusal.CeilingBindingMismatch
+
+/-- [auths_gateway_kernel::order::after_write]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 609:0-615:1
+    Visibility: public -/
+def order.after_write
+  (state : order.SubmitState) (result : order.WriteResult) :
+  Result order.SubmitDecision
+  := do
+  match result with
+  | order.WriteResult.NotEntered =>
+    order.not_entered state order.Refusal.TransportNotEntered
+  | order.WriteResult.Unknown =>
+    order.go state order.Phase.RecordUnknown order.SubmitAction.RecordUnknown
+  | order.WriteResult.Response =>
+    order.go state order.Phase.RecordResponse order.SubmitAction.RecordResponse
+
+/-- [auths_gateway_kernel::order::after_response]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 619:0-634:1
+    Visibility: public -/
+def order.after_response
+  (state : order.SubmitState) (record1 : order.ResponseRecord) :
+  Result order.SubmitDecision
+  := do
+  match record1 with
+  | order.ResponseRecord.Failed => order.stop state order.Stop.Unknown
+  | order.ResponseRecord.Recorded observable =>
+    if observable
+    then
+      order.go state (order.Phase.Reload order.Mode.ReadBack)
+        (order.SubmitAction.Reload order.Mode.ReadBack)
+    else order.stop state order.Stop.Response
+
+/-- [auths_gateway_kernel::order::after_read_back]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 638:0-648:1
+    Visibility: public -/
+def order.after_read_back
+  (state : order.SubmitState) (mode : order.Mode) (recorded : Bool) :
+  Result order.SubmitDecision
+  := do
+  if recorded
+  then order.stop state order.Stop.Observed
+  else
+    match mode with
+    | order.Mode.Entry => order.halt state
+    | order.Mode.ReadBack => order.stop state order.Stop.Response
+    | order.Mode.Reobserve => order.stop state order.Stop.ReplayRefused
+
+/-- [auths_gateway_kernel::order::pre_claim_step]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 653:0-705:1
+    Visibility: public -/
+def order.pre_claim_step
+  (state : order.SubmitState) (event : order.SubmitEvent) :
+  Result order.SubmitDecision
+  := do
+  match state.phase with
+  | order.Phase.Start =>
+    match event with
+    | order.SubmitEvent.Start =>
+      order.go state order.Phase.Clock order.SubmitAction.ReadClock
+    | order.SubmitEvent.Clock _ => order.halt state
+    | order.SubmitEvent.Verification _ => order.halt state
+    | order.SubmitEvent.Admission _ => order.halt state
+    | order.SubmitEvent.Scope _ => order.halt state
+    | order.SubmitEvent.Preparation _ => order.halt state
+    | order.SubmitEvent.Claim _ => order.halt state
+    | order.SubmitEvent.Resume _ => order.halt state
+    | order.SubmitEvent.Reload _ => order.halt state
+    | order.SubmitEvent.Lease _ => order.halt state
+    | order.SubmitEvent.Prefix _ => order.halt state
+    | order.SubmitEvent.Account _ => order.halt state
+    | order.SubmitEvent.Denied _ => order.halt state
+    | order.SubmitEvent.PreEntry _ => order.halt state
+    | order.SubmitEvent.Ceiling _ => order.halt state
+    | order.SubmitEvent.Recorded _ => order.halt state
+    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Write _ => order.halt state
+    | order.SubmitEvent.Response _ => order.halt state
+  | order.Phase.Clock =>
+    match event with
+    | order.SubmitEvent.Start => order.halt state
+    | order.SubmitEvent.Clock read =>
+      let sd ← order.go state order.Phase.Verify order.SubmitAction.Verify
+      order.pre_claim state read sd
+    | order.SubmitEvent.Verification _ => order.halt state
+    | order.SubmitEvent.Admission _ => order.halt state
+    | order.SubmitEvent.Scope _ => order.halt state
+    | order.SubmitEvent.Preparation _ => order.halt state
+    | order.SubmitEvent.Claim _ => order.halt state
+    | order.SubmitEvent.Resume _ => order.halt state
+    | order.SubmitEvent.Reload _ => order.halt state
+    | order.SubmitEvent.Lease _ => order.halt state
+    | order.SubmitEvent.Prefix _ => order.halt state
+    | order.SubmitEvent.Account _ => order.halt state
+    | order.SubmitEvent.Denied _ => order.halt state
+    | order.SubmitEvent.PreEntry _ => order.halt state
+    | order.SubmitEvent.Ceiling _ => order.halt state
+    | order.SubmitEvent.Recorded _ => order.halt state
+    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Write _ => order.halt state
+    | order.SubmitEvent.Response _ => order.halt state
+  | order.Phase.Verify =>
+    match event with
+    | order.SubmitEvent.Start => order.halt state
+    | order.SubmitEvent.Clock _ => order.halt state
+    | order.SubmitEvent.Verification verification =>
+      match verification with
+      | order.Verification.Refused => order.stop state order.Stop.Refused
+      | order.Verification.Authorized argument =>
+        ok
+          {
+            state := { state with phase := order.Phase.Admit, argument },
+            action := order.SubmitAction.Admit
+          }
+    | order.SubmitEvent.Admission _ => order.halt state
+    | order.SubmitEvent.Scope _ => order.halt state
+    | order.SubmitEvent.Preparation _ => order.halt state
+    | order.SubmitEvent.Claim _ => order.halt state
+    | order.SubmitEvent.Resume _ => order.halt state
+    | order.SubmitEvent.Reload _ => order.halt state
+    | order.SubmitEvent.Lease _ => order.halt state
+    | order.SubmitEvent.Prefix _ => order.halt state
+    | order.SubmitEvent.Account _ => order.halt state
+    | order.SubmitEvent.Denied _ => order.halt state
+    | order.SubmitEvent.PreEntry _ => order.halt state
+    | order.SubmitEvent.Ceiling _ => order.halt state
+    | order.SubmitEvent.Recorded _ => order.halt state
+    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Write _ => order.halt state
+    | order.SubmitEvent.Response _ => order.halt state
+  | order.Phase.Admit =>
+    match event with
+    | order.SubmitEvent.Start => order.halt state
+    | order.SubmitEvent.Clock _ => order.halt state
+    | order.SubmitEvent.Verification _ => order.halt state
+    | order.SubmitEvent.Admission admitted =>
+      let sd ← order.after_admission state
+      order.pre_claim state admitted sd
+    | order.SubmitEvent.Scope _ => order.halt state
+    | order.SubmitEvent.Preparation _ => order.halt state
+    | order.SubmitEvent.Claim _ => order.halt state
+    | order.SubmitEvent.Resume _ => order.halt state
+    | order.SubmitEvent.Reload _ => order.halt state
+    | order.SubmitEvent.Lease _ => order.halt state
+    | order.SubmitEvent.Prefix _ => order.halt state
+    | order.SubmitEvent.Account _ => order.halt state
+    | order.SubmitEvent.Denied _ => order.halt state
+    | order.SubmitEvent.PreEntry _ => order.halt state
+    | order.SubmitEvent.Ceiling _ => order.halt state
+    | order.SubmitEvent.Recorded _ => order.halt state
+    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Write _ => order.halt state
+    | order.SubmitEvent.Response _ => order.halt state
+  | order.Phase.Scope =>
+    match event with
+    | order.SubmitEvent.Start => order.halt state
+    | order.SubmitEvent.Clock _ => order.halt state
+    | order.SubmitEvent.Verification _ => order.halt state
+    | order.SubmitEvent.Admission _ => order.halt state
+    | order.SubmitEvent.Scope bound =>
+      let sd ← order.go state order.Phase.Prepare order.SubmitAction.Prepare
+      order.pre_claim state bound sd
+    | order.SubmitEvent.Preparation _ => order.halt state
+    | order.SubmitEvent.Claim _ => order.halt state
+    | order.SubmitEvent.Resume _ => order.halt state
+    | order.SubmitEvent.Reload _ => order.halt state
+    | order.SubmitEvent.Lease _ => order.halt state
+    | order.SubmitEvent.Prefix _ => order.halt state
+    | order.SubmitEvent.Account _ => order.halt state
+    | order.SubmitEvent.Denied _ => order.halt state
+    | order.SubmitEvent.PreEntry _ => order.halt state
+    | order.SubmitEvent.Ceiling _ => order.halt state
+    | order.SubmitEvent.Recorded _ => order.halt state
+    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Write _ => order.halt state
+    | order.SubmitEvent.Response _ => order.halt state
+  | order.Phase.Prepare =>
+    match event with
+    | order.SubmitEvent.Start => order.halt state
+    | order.SubmitEvent.Clock _ => order.halt state
+    | order.SubmitEvent.Verification _ => order.halt state
+    | order.SubmitEvent.Admission _ => order.halt state
+    | order.SubmitEvent.Scope _ => order.halt state
+    | order.SubmitEvent.Preparation prepared =>
+      let sd ← order.go state order.Phase.Claim order.SubmitAction.Claim
+      order.pre_claim state prepared sd
+    | order.SubmitEvent.Claim _ => order.halt state
+    | order.SubmitEvent.Resume _ => order.halt state
+    | order.SubmitEvent.Reload _ => order.halt state
+    | order.SubmitEvent.Lease _ => order.halt state
+    | order.SubmitEvent.Prefix _ => order.halt state
+    | order.SubmitEvent.Account _ => order.halt state
+    | order.SubmitEvent.Denied _ => order.halt state
+    | order.SubmitEvent.PreEntry _ => order.halt state
+    | order.SubmitEvent.Ceiling _ => order.halt state
+    | order.SubmitEvent.Recorded _ => order.halt state
+    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Write _ => order.halt state
+    | order.SubmitEvent.Response _ => order.halt state
+  | order.Phase.Claim =>
+    match event with
+    | order.SubmitEvent.Start => order.halt state
+    | order.SubmitEvent.Clock _ => order.halt state
+    | order.SubmitEvent.Verification _ => order.halt state
+    | order.SubmitEvent.Admission _ => order.halt state
+    | order.SubmitEvent.Scope _ => order.halt state
+    | order.SubmitEvent.Preparation _ => order.halt state
+    | order.SubmitEvent.Claim result => order.after_claim state result
+    | order.SubmitEvent.Resume _ => order.halt state
+    | order.SubmitEvent.Reload _ => order.halt state
+    | order.SubmitEvent.Lease _ => order.halt state
+    | order.SubmitEvent.Prefix _ => order.halt state
+    | order.SubmitEvent.Account _ => order.halt state
+    | order.SubmitEvent.Denied _ => order.halt state
+    | order.SubmitEvent.PreEntry _ => order.halt state
+    | order.SubmitEvent.Ceiling _ => order.halt state
+    | order.SubmitEvent.Recorded _ => order.halt state
+    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Write _ => order.halt state
+    | order.SubmitEvent.Response _ => order.halt state
+  | order.Phase.Resume => order.halt state
+  | order.Phase.Reload _ => order.halt state
+  | order.Phase.Lease _ => order.halt state
+  | order.Phase.Prefix _ => order.halt state
+  | order.Phase.Account _ => order.halt state
+  | order.Phase.Denied _ _ => order.halt state
+  | order.Phase.PreEntry => order.halt state
+  | order.Phase.Ceiling => order.halt state
+  | order.Phase.Checkpoint => order.halt state
+  | order.Phase.EntryReload => order.halt state
+  | order.Phase.Deadline => order.halt state
+  | order.Phase.Send => order.halt state
+  | order.Phase.RecordResponse => order.halt state
+  | order.Phase.RecordUnknown => order.halt state
+  | order.Phase.RecordNotEntered => order.halt state
+  | order.Phase.ReadBack _ => order.halt state
+  | order.Phase.Done => order.halt state
+
+/-- [auths_gateway_kernel::order::lease_step]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 710:0-766:1
+    Visibility: public -/
+def order.lease_step
+  (state : order.SubmitState) (event : order.SubmitEvent) :
+  Result order.SubmitDecision
+  := do
+  match state.phase with
+  | order.Phase.Start => order.halt state
+  | order.Phase.Clock => order.halt state
+  | order.Phase.Verify => order.halt state
+  | order.Phase.Admit => order.halt state
+  | order.Phase.Scope => order.halt state
+  | order.Phase.Prepare => order.halt state
+  | order.Phase.Claim => order.halt state
+  | order.Phase.Resume =>
+    match event with
+    | order.SubmitEvent.Start => order.halt state
+    | order.SubmitEvent.Clock _ => order.halt state
+    | order.SubmitEvent.Verification _ => order.halt state
+    | order.SubmitEvent.Admission _ => order.halt state
+    | order.SubmitEvent.Scope _ => order.halt state
+    | order.SubmitEvent.Preparation _ => order.halt state
+    | order.SubmitEvent.Claim _ => order.halt state
+    | order.SubmitEvent.Resume resumable =>
+      if resumable
+      then
+        order.go state (order.Phase.Reload order.Mode.Reobserve)
+          (order.SubmitAction.Reload order.Mode.Reobserve)
+      else order.stop state order.Stop.ReplayRefused
+    | order.SubmitEvent.Reload _ => order.halt state
+    | order.SubmitEvent.Lease _ => order.halt state
+    | order.SubmitEvent.Prefix _ => order.halt state
+    | order.SubmitEvent.Account _ => order.halt state
+    | order.SubmitEvent.Denied _ => order.halt state
+    | order.SubmitEvent.PreEntry _ => order.halt state
+    | order.SubmitEvent.Ceiling _ => order.halt state
+    | order.SubmitEvent.Recorded _ => order.halt state
+    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Write _ => order.halt state
+    | order.SubmitEvent.Response _ => order.halt state
+  | order.Phase.Reload mode =>
+    match event with
+    | order.SubmitEvent.Start => order.halt state
+    | order.SubmitEvent.Clock _ => order.halt state
+    | order.SubmitEvent.Verification _ => order.halt state
+    | order.SubmitEvent.Admission _ => order.halt state
+    | order.SubmitEvent.Scope _ => order.halt state
+    | order.SubmitEvent.Preparation _ => order.halt state
+    | order.SubmitEvent.Claim _ => order.halt state
+    | order.SubmitEvent.Resume _ => order.halt state
+    | order.SubmitEvent.Reload unchanged =>
+      if unchanged
+      then
+        order.go state (order.Phase.Lease mode) (order.SubmitAction.Lease mode)
+      else order.lease_failed state mode order.Refusal.ConnectionChanged
+    | order.SubmitEvent.Lease _ => order.halt state
+    | order.SubmitEvent.Prefix _ => order.halt state
+    | order.SubmitEvent.Account _ => order.halt state
+    | order.SubmitEvent.Denied _ => order.halt state
+    | order.SubmitEvent.PreEntry _ => order.halt state
+    | order.SubmitEvent.Ceiling _ => order.halt state
+    | order.SubmitEvent.Recorded _ => order.halt state
+    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Write _ => order.halt state
+    | order.SubmitEvent.Response _ => order.halt state
+  | order.Phase.Lease mode =>
+    match event with
+    | order.SubmitEvent.Start => order.halt state
+    | order.SubmitEvent.Clock _ => order.halt state
+    | order.SubmitEvent.Verification _ => order.halt state
+    | order.SubmitEvent.Admission _ => order.halt state
+    | order.SubmitEvent.Scope _ => order.halt state
+    | order.SubmitEvent.Preparation _ => order.halt state
+    | order.SubmitEvent.Claim _ => order.halt state
+    | order.SubmitEvent.Resume _ => order.halt state
+    | order.SubmitEvent.Reload _ => order.halt state
+    | order.SubmitEvent.Lease leased =>
+      if leased
+      then
+        order.go state (order.Phase.Prefix mode)
+          (order.SubmitAction.CheckPrefix mode)
+      else order.lease_failed state mode order.Refusal.CredentialUnavailable
+    | order.SubmitEvent.Prefix _ => order.halt state
+    | order.SubmitEvent.Account _ => order.halt state
+    | order.SubmitEvent.Denied _ => order.halt state
+    | order.SubmitEvent.PreEntry _ => order.halt state
+    | order.SubmitEvent.Ceiling _ => order.halt state
+    | order.SubmitEvent.Recorded _ => order.halt state
+    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Write _ => order.halt state
+    | order.SubmitEvent.Response _ => order.halt state
+  | order.Phase.Prefix mode =>
+    match event with
+    | order.SubmitEvent.Start => order.halt state
+    | order.SubmitEvent.Clock _ => order.halt state
+    | order.SubmitEvent.Verification _ => order.halt state
+    | order.SubmitEvent.Admission _ => order.halt state
+    | order.SubmitEvent.Scope _ => order.halt state
+    | order.SubmitEvent.Preparation _ => order.halt state
+    | order.SubmitEvent.Claim _ => order.halt state
+    | order.SubmitEvent.Resume _ => order.halt state
+    | order.SubmitEvent.Reload _ => order.halt state
+    | order.SubmitEvent.Lease _ => order.halt state
+    | order.SubmitEvent.Prefix allowed =>
+      if allowed
+      then order.after_prefix state mode
+      else order.lease_failed state mode order.Refusal.ModeGuard
+    | order.SubmitEvent.Account _ => order.halt state
+    | order.SubmitEvent.Denied _ => order.halt state
+    | order.SubmitEvent.PreEntry _ => order.halt state
+    | order.SubmitEvent.Ceiling _ => order.halt state
+    | order.SubmitEvent.Recorded _ => order.halt state
+    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Write _ => order.halt state
+    | order.SubmitEvent.Response _ => order.halt state
+  | order.Phase.Account mode =>
+    match event with
+    | order.SubmitEvent.Start => order.halt state
+    | order.SubmitEvent.Clock _ => order.halt state
+    | order.SubmitEvent.Verification _ => order.halt state
+    | order.SubmitEvent.Admission _ => order.halt state
+    | order.SubmitEvent.Scope _ => order.halt state
+    | order.SubmitEvent.Preparation _ => order.halt state
+    | order.SubmitEvent.Claim _ => order.halt state
+    | order.SubmitEvent.Resume _ => order.halt state
+    | order.SubmitEvent.Reload _ => order.halt state
+    | order.SubmitEvent.Lease _ => order.halt state
+    | order.SubmitEvent.Prefix _ => order.halt state
+    | order.SubmitEvent.Account result => order.after_account state mode result
+    | order.SubmitEvent.Denied _ => order.halt state
+    | order.SubmitEvent.PreEntry _ => order.halt state
+    | order.SubmitEvent.Ceiling _ => order.halt state
+    | order.SubmitEvent.Recorded _ => order.halt state
+    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Write _ => order.halt state
+    | order.SubmitEvent.Response _ => order.halt state
+  | order.Phase.Denied mode index =>
+    match event with
+    | order.SubmitEvent.Start => order.halt state
+    | order.SubmitEvent.Clock _ => order.halt state
+    | order.SubmitEvent.Verification _ => order.halt state
+    | order.SubmitEvent.Admission _ => order.halt state
+    | order.SubmitEvent.Scope _ => order.halt state
+    | order.SubmitEvent.Preparation _ => order.halt state
+    | order.SubmitEvent.Claim _ => order.halt state
+    | order.SubmitEvent.Resume _ => order.halt state
+    | order.SubmitEvent.Reload _ => order.halt state
+    | order.SubmitEvent.Lease _ => order.halt state
+    | order.SubmitEvent.Prefix _ => order.halt state
+    | order.SubmitEvent.Account _ => order.halt state
+    | order.SubmitEvent.Denied result =>
+      order.after_denied state mode index result
+    | order.SubmitEvent.PreEntry _ => order.halt state
+    | order.SubmitEvent.Ceiling _ => order.halt state
+    | order.SubmitEvent.Recorded _ => order.halt state
+    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Write _ => order.halt state
+    | order.SubmitEvent.Response _ => order.halt state
+  | order.Phase.PreEntry => order.halt state
+  | order.Phase.Ceiling => order.halt state
+  | order.Phase.Checkpoint => order.halt state
+  | order.Phase.EntryReload => order.halt state
+  | order.Phase.Deadline => order.halt state
+  | order.Phase.Send => order.halt state
+  | order.Phase.RecordResponse => order.halt state
+  | order.Phase.RecordUnknown => order.halt state
+  | order.Phase.RecordNotEntered => order.halt state
+  | order.Phase.ReadBack _ => order.halt state
+  | order.Phase.Done => order.halt state
+
+/-- [auths_gateway_kernel::order::entry_step]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 772:0-840:1
+    Visibility: public -/
+def order.entry_step
+  (state : order.SubmitState) (event : order.SubmitEvent) :
+  Result order.SubmitDecision
+  := do
+  match state.phase with
+  | order.Phase.Start => order.halt state
+  | order.Phase.Clock => order.halt state
+  | order.Phase.Verify => order.halt state
+  | order.Phase.Admit => order.halt state
+  | order.Phase.Scope => order.halt state
+  | order.Phase.Prepare => order.halt state
+  | order.Phase.Claim => order.halt state
+  | order.Phase.Resume => order.halt state
+  | order.Phase.Reload _ => order.halt state
+  | order.Phase.Lease _ => order.halt state
+  | order.Phase.Prefix _ => order.halt state
+  | order.Phase.Account _ => order.halt state
+  | order.Phase.Denied _ _ => order.halt state
+  | order.Phase.PreEntry =>
+    match event with
+    | order.SubmitEvent.Start => order.halt state
+    | order.SubmitEvent.Clock _ => order.halt state
+    | order.SubmitEvent.Verification _ => order.halt state
+    | order.SubmitEvent.Admission _ => order.halt state
+    | order.SubmitEvent.Scope _ => order.halt state
+    | order.SubmitEvent.Preparation _ => order.halt state
+    | order.SubmitEvent.Claim _ => order.halt state
+    | order.SubmitEvent.Resume _ => order.halt state
+    | order.SubmitEvent.Reload _ => order.halt state
+    | order.SubmitEvent.Lease _ => order.halt state
+    | order.SubmitEvent.Prefix _ => order.halt state
+    | order.SubmitEvent.Account _ => order.halt state
+    | order.SubmitEvent.Denied _ => order.halt state
+    | order.SubmitEvent.PreEntry result => order.after_pre_entry state result
+    | order.SubmitEvent.Ceiling _ => order.halt state
+    | order.SubmitEvent.Recorded _ => order.halt state
+    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Write _ => order.halt state
+    | order.SubmitEvent.Response _ => order.halt state
+  | order.Phase.Ceiling =>
+    match event with
+    | order.SubmitEvent.Start => order.halt state
+    | order.SubmitEvent.Clock _ => order.halt state
+    | order.SubmitEvent.Verification _ => order.halt state
+    | order.SubmitEvent.Admission _ => order.halt state
+    | order.SubmitEvent.Scope _ => order.halt state
+    | order.SubmitEvent.Preparation _ => order.halt state
+    | order.SubmitEvent.Claim _ => order.halt state
+    | order.SubmitEvent.Resume _ => order.halt state
+    | order.SubmitEvent.Reload _ => order.halt state
+    | order.SubmitEvent.Lease _ => order.halt state
+    | order.SubmitEvent.Prefix _ => order.halt state
+    | order.SubmitEvent.Account _ => order.halt state
+    | order.SubmitEvent.Denied _ => order.halt state
+    | order.SubmitEvent.PreEntry _ => order.halt state
+    | order.SubmitEvent.Ceiling read => order.after_ceiling state read
+    | order.SubmitEvent.Recorded _ => order.halt state
+    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Write _ => order.halt state
+    | order.SubmitEvent.Response _ => order.halt state
+  | order.Phase.Checkpoint =>
+    match event with
+    | order.SubmitEvent.Start => order.halt state
+    | order.SubmitEvent.Clock _ => order.halt state
+    | order.SubmitEvent.Verification _ => order.halt state
+    | order.SubmitEvent.Admission _ => order.halt state
+    | order.SubmitEvent.Scope _ => order.halt state
+    | order.SubmitEvent.Preparation _ => order.halt state
+    | order.SubmitEvent.Claim _ => order.halt state
+    | order.SubmitEvent.Resume _ => order.halt state
+    | order.SubmitEvent.Reload _ => order.halt state
+    | order.SubmitEvent.Lease _ => order.halt state
+    | order.SubmitEvent.Prefix _ => order.halt state
+    | order.SubmitEvent.Account _ => order.halt state
+    | order.SubmitEvent.Denied _ => order.halt state
+    | order.SubmitEvent.PreEntry _ => order.halt state
+    | order.SubmitEvent.Ceiling _ => order.halt state
+    | order.SubmitEvent.Recorded recorded =>
+      if recorded
+      then
+        order.go state order.Phase.EntryReload
+          order.SubmitAction.ReloadBeforeEntry
+      else order.stop state order.Stop.Unknown
+    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Write _ => order.halt state
+    | order.SubmitEvent.Response _ => order.halt state
+  | order.Phase.EntryReload =>
+    match event with
+    | order.SubmitEvent.Start => order.halt state
+    | order.SubmitEvent.Clock _ => order.halt state
+    | order.SubmitEvent.Verification _ => order.halt state
+    | order.SubmitEvent.Admission _ => order.halt state
+    | order.SubmitEvent.Scope _ => order.halt state
+    | order.SubmitEvent.Preparation _ => order.halt state
+    | order.SubmitEvent.Claim _ => order.halt state
+    | order.SubmitEvent.Resume _ => order.halt state
+    | order.SubmitEvent.Reload unchanged =>
+      if unchanged
+      then order.go state order.Phase.Deadline order.SubmitAction.CheckDeadline
+      else order.not_entered state order.Refusal.ConnectionChanged
+    | order.SubmitEvent.Lease _ => order.halt state
+    | order.SubmitEvent.Prefix _ => order.halt state
+    | order.SubmitEvent.Account _ => order.halt state
+    | order.SubmitEvent.Denied _ => order.halt state
+    | order.SubmitEvent.PreEntry _ => order.halt state
+    | order.SubmitEvent.Ceiling _ => order.halt state
+    | order.SubmitEvent.Recorded _ => order.halt state
+    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Write _ => order.halt state
+    | order.SubmitEvent.Response _ => order.halt state
+  | order.Phase.Deadline =>
+    match event with
+    | order.SubmitEvent.Start => order.halt state
+    | order.SubmitEvent.Clock _ => order.halt state
+    | order.SubmitEvent.Verification _ => order.halt state
+    | order.SubmitEvent.Admission _ => order.halt state
+    | order.SubmitEvent.Scope _ => order.halt state
+    | order.SubmitEvent.Preparation _ => order.halt state
+    | order.SubmitEvent.Claim _ => order.halt state
+    | order.SubmitEvent.Resume _ => order.halt state
+    | order.SubmitEvent.Reload _ => order.halt state
+    | order.SubmitEvent.Lease _ => order.halt state
+    | order.SubmitEvent.Prefix _ => order.halt state
+    | order.SubmitEvent.Account _ => order.halt state
+    | order.SubmitEvent.Denied _ => order.halt state
+    | order.SubmitEvent.PreEntry _ => order.halt state
+    | order.SubmitEvent.Ceiling _ => order.halt state
+    | order.SubmitEvent.Recorded _ => order.halt state
+    | order.SubmitEvent.Deadline within =>
+      if within
+      then order.go state order.Phase.Send order.SubmitAction.Send
+      else order.not_entered state order.Refusal.EntryDeadline
+    | order.SubmitEvent.Write _ => order.halt state
+    | order.SubmitEvent.Response _ => order.halt state
+  | order.Phase.Send =>
+    match event with
+    | order.SubmitEvent.Start => order.halt state
+    | order.SubmitEvent.Clock _ => order.halt state
+    | order.SubmitEvent.Verification _ => order.halt state
+    | order.SubmitEvent.Admission _ => order.halt state
+    | order.SubmitEvent.Scope _ => order.halt state
+    | order.SubmitEvent.Preparation _ => order.halt state
+    | order.SubmitEvent.Claim _ => order.halt state
+    | order.SubmitEvent.Resume _ => order.halt state
+    | order.SubmitEvent.Reload _ => order.halt state
+    | order.SubmitEvent.Lease _ => order.halt state
+    | order.SubmitEvent.Prefix _ => order.halt state
+    | order.SubmitEvent.Account _ => order.halt state
+    | order.SubmitEvent.Denied _ => order.halt state
+    | order.SubmitEvent.PreEntry _ => order.halt state
+    | order.SubmitEvent.Ceiling _ => order.halt state
+    | order.SubmitEvent.Recorded _ => order.halt state
+    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Write result => order.after_write state result
+    | order.SubmitEvent.Response _ => order.halt state
+  | order.Phase.RecordResponse =>
+    match event with
+    | order.SubmitEvent.Start => order.halt state
+    | order.SubmitEvent.Clock _ => order.halt state
+    | order.SubmitEvent.Verification _ => order.halt state
+    | order.SubmitEvent.Admission _ => order.halt state
+    | order.SubmitEvent.Scope _ => order.halt state
+    | order.SubmitEvent.Preparation _ => order.halt state
+    | order.SubmitEvent.Claim _ => order.halt state
+    | order.SubmitEvent.Resume _ => order.halt state
+    | order.SubmitEvent.Reload _ => order.halt state
+    | order.SubmitEvent.Lease _ => order.halt state
+    | order.SubmitEvent.Prefix _ => order.halt state
+    | order.SubmitEvent.Account _ => order.halt state
+    | order.SubmitEvent.Denied _ => order.halt state
+    | order.SubmitEvent.PreEntry _ => order.halt state
+    | order.SubmitEvent.Ceiling _ => order.halt state
+    | order.SubmitEvent.Recorded _ => order.halt state
+    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Write _ => order.halt state
+    | order.SubmitEvent.Response record1 => order.after_response state record1
+  | order.Phase.RecordUnknown =>
+    match event with
+    | order.SubmitEvent.Start => order.halt state
+    | order.SubmitEvent.Clock _ => order.halt state
+    | order.SubmitEvent.Verification _ => order.halt state
+    | order.SubmitEvent.Admission _ => order.halt state
+    | order.SubmitEvent.Scope _ => order.halt state
+    | order.SubmitEvent.Preparation _ => order.halt state
+    | order.SubmitEvent.Claim _ => order.halt state
+    | order.SubmitEvent.Resume _ => order.halt state
+    | order.SubmitEvent.Reload _ => order.halt state
+    | order.SubmitEvent.Lease _ => order.halt state
+    | order.SubmitEvent.Prefix _ => order.halt state
+    | order.SubmitEvent.Account _ => order.halt state
+    | order.SubmitEvent.Denied _ => order.halt state
+    | order.SubmitEvent.PreEntry _ => order.halt state
+    | order.SubmitEvent.Ceiling _ => order.halt state
+    | order.SubmitEvent.Recorded _ => order.stop state order.Stop.Unknown
+    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Write _ => order.halt state
+    | order.SubmitEvent.Response _ => order.halt state
+  | order.Phase.RecordNotEntered =>
+    match event with
+    | order.SubmitEvent.Start => order.halt state
+    | order.SubmitEvent.Clock _ => order.halt state
+    | order.SubmitEvent.Verification _ => order.halt state
+    | order.SubmitEvent.Admission _ => order.halt state
+    | order.SubmitEvent.Scope _ => order.halt state
+    | order.SubmitEvent.Preparation _ => order.halt state
+    | order.SubmitEvent.Claim _ => order.halt state
+    | order.SubmitEvent.Resume _ => order.halt state
+    | order.SubmitEvent.Reload _ => order.halt state
+    | order.SubmitEvent.Lease _ => order.halt state
+    | order.SubmitEvent.Prefix _ => order.halt state
+    | order.SubmitEvent.Account _ => order.halt state
+    | order.SubmitEvent.Denied _ => order.halt state
+    | order.SubmitEvent.PreEntry _ => order.halt state
+    | order.SubmitEvent.Ceiling _ => order.halt state
+    | order.SubmitEvent.Recorded recorded =>
+      if recorded
+      then order.stop state order.Stop.NotEntered
+      else order.stop state order.Stop.Unknown
+    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Write _ => order.halt state
+    | order.SubmitEvent.Response _ => order.halt state
+  | order.Phase.ReadBack mode =>
+    match event with
+    | order.SubmitEvent.Start => order.halt state
+    | order.SubmitEvent.Clock _ => order.halt state
+    | order.SubmitEvent.Verification _ => order.halt state
+    | order.SubmitEvent.Admission _ => order.halt state
+    | order.SubmitEvent.Scope _ => order.halt state
+    | order.SubmitEvent.Preparation _ => order.halt state
+    | order.SubmitEvent.Claim _ => order.halt state
+    | order.SubmitEvent.Resume _ => order.halt state
+    | order.SubmitEvent.Reload _ => order.halt state
+    | order.SubmitEvent.Lease _ => order.halt state
+    | order.SubmitEvent.Prefix _ => order.halt state
+    | order.SubmitEvent.Account _ => order.halt state
+    | order.SubmitEvent.Denied _ => order.halt state
+    | order.SubmitEvent.PreEntry _ => order.halt state
+    | order.SubmitEvent.Ceiling _ => order.halt state
+    | order.SubmitEvent.Recorded recorded =>
+      order.after_read_back state mode recorded
+    | order.SubmitEvent.Deadline _ => order.halt state
+    | order.SubmitEvent.Write _ => order.halt state
+    | order.SubmitEvent.Response _ => order.halt state
+  | order.Phase.Done => order.halt state
+
+/-- [auths_gateway_kernel::order::next_step]:
+    Source: 'product/runtime/auths-gateway-kernel/src/order.rs', lines 846:0-873:1
+    Visibility: public -/
+def order.next_step
+  (state : order.SubmitState) (event : order.SubmitEvent) :
+  Result order.SubmitDecision
+  := do
+  match state.phase with
+  | order.Phase.Start => order.pre_claim_step state event
+  | order.Phase.Clock => order.pre_claim_step state event
+  | order.Phase.Verify => order.pre_claim_step state event
+  | order.Phase.Admit => order.pre_claim_step state event
+  | order.Phase.Scope => order.pre_claim_step state event
+  | order.Phase.Prepare => order.pre_claim_step state event
+  | order.Phase.Claim => order.pre_claim_step state event
+  | order.Phase.Resume => order.lease_step state event
+  | order.Phase.Reload _ => order.lease_step state event
+  | order.Phase.Lease _ => order.lease_step state event
+  | order.Phase.Prefix _ => order.lease_step state event
+  | order.Phase.Account _ => order.lease_step state event
+  | order.Phase.Denied _ _ => order.lease_step state event
+  | order.Phase.PreEntry => order.entry_step state event
+  | order.Phase.Ceiling => order.entry_step state event
+  | order.Phase.Checkpoint => order.entry_step state event
+  | order.Phase.EntryReload => order.entry_step state event
+  | order.Phase.Deadline => order.entry_step state event
+  | order.Phase.Send => order.entry_step state event
+  | order.Phase.RecordResponse => order.entry_step state event
+  | order.Phase.RecordUnknown => order.entry_step state event
+  | order.Phase.RecordNotEntered => order.entry_step state event
+  | order.Phase.ReadBack _ => order.entry_step state event
+  | order.Phase.Done => order.halt state
+
+/-- [auths_gateway_kernel::ratio::relative_basis]:
+    Source: 'product/runtime/auths-gateway-kernel/src/ratio.rs', lines 16:0-27:1
+    Visibility: public -/
+def ratio.relative_basis
+  (value : Std.U64) (subtrahend : Option Std.U64) :
+  Result (Option Std.U64)
+  := do
+  match subtrahend with
+  | none => ok (some value)
+  | some second =>
+    if second <= value
+    then let i ← value - second
+         ok (some i)
+    else ok none
+
 /-- [auths_gateway_kernel::recovery::provider_link]:
     Source: 'product/runtime/auths-gateway-kernel/src/recovery.rs', lines 98:0-104:1
     Visibility: public -/
@@ -1352,5 +2310,580 @@ def recovery.recovery_capability
       pre_entry_reread := declarations.pre_entry,
       write_is_conditional := false
     }
+
+/-- [auths_gateway_kernel::transition::absent]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 89:0-91:1
+    Visibility: public -/
+def transition.absent (bytes : Slice Std.U8) : Result Bool := do
+  let i := Slice.len bytes
+  ok (i = 0#usize)
+
+/-- [auths_gateway_kernel::transition::same_bytes_from]: loop body 0:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 97:4-104:1
+    Visibility: public -/
+@[rust_loop_body]
+def transition.same_bytes_from_loop.body
+  (left : Slice Std.U8) (right : Slice Std.U8) (index : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i := Slice.len left
+  if index < i
+  then
+    let i1 := Slice.len right
+    if index < i1
+    then
+      let i2 ← Slice.index_usize left index
+      let i3 ← Slice.index_usize right index
+      if i2 != i3
+      then ok (done false)
+      else let index1 ← index + 1#usize
+           ok (cont index1)
+    else ok (done true)
+  else ok (done true)
+
+/-- [auths_gateway_kernel::transition::same_bytes_from]: loop 0:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 97:4-104:1
+    Visibility: public -/
+@[rust_loop]
+def transition.same_bytes_from_loop
+  (left : Slice Std.U8) (right : Slice Std.U8) (index : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun index1 => transition.same_bytes_from_loop.body left right index1)
+    index
+
+/-- [auths_gateway_kernel::transition::same_bytes_from]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 95:0-104:1
+    Visibility: public -/
+@[reducible]
+def transition.same_bytes_from
+  (left : Slice Std.U8) (right : Slice Std.U8) : Result Bool := do
+  transition.same_bytes_from_loop left right 0#usize
+
+/-- [auths_gateway_kernel::transition::same_bytes]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 108:0-114:1
+    Visibility: public -/
+def transition.same_bytes
+  (left : Slice Std.U8) (right : Slice Std.U8) : Result Bool := do
+  let i := Slice.len left
+  let i1 := Slice.len right
+  if i = i1
+  then transition.same_bytes_from left right
+  else ok false
+
+/-- [auths_gateway_kernel::transition::resolves_unknown]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 119:0-124:1
+    Visibility: public -/
+def transition.resolves_unknown (link : transition.Link) : Result Bool := do
+  match link with
+  | transition.Link.None => ok false
+  | transition.Link.Verified => ok true
+  | transition.Link.AfterResponse => ok false
+
+/-- [auths_gateway_kernel::transition::has_link]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 128:0-133:1
+    Visibility: public -/
+def transition.has_link (link : transition.Link) : Result Bool := do
+  match link with
+  | transition.Link.None => ok false
+  | transition.Link.Verified => ok true
+  | transition.Link.AfterResponse => ok true
+
+/-- [auths_gateway_kernel::transition::refusal_stage]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 137:0-146:1
+    Visibility: public -/
+def transition.refusal_stage (stage : transition.Stage) : Result Bool := do
+  match stage with
+  | transition.Stage.Attempting => ok false
+  | transition.Stage.NotEntered => ok true
+  | transition.Stage.Unknown => ok false
+  | transition.Stage.ResponseRecorded => ok false
+  | transition.Stage.Observed => ok false
+  | transition.Stage.ObservedByProvider => ok false
+
+/-- [auths_gateway_kernel::transition::requires_response]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 150:0-155:1
+    Visibility: public -/
+def transition.requires_response (stage : transition.Stage) : Result Bool := do
+  match stage with
+  | transition.Stage.Attempting => ok false
+  | transition.Stage.NotEntered => ok false
+  | transition.Stage.Unknown => ok false
+  | transition.Stage.ResponseRecorded => ok true
+  | transition.Stage.Observed => ok true
+  | transition.Stage.ObservedByProvider => ok false
+
+/-- [auths_gateway_kernel::transition::permits_response]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 159:0-164:1
+    Visibility: public -/
+def transition.permits_response (stage : transition.Stage) : Result Bool := do
+  match stage with
+  | transition.Stage.Attempting => ok false
+  | transition.Stage.NotEntered => ok false
+  | transition.Stage.Unknown => ok false
+  | transition.Stage.ResponseRecorded => ok true
+  | transition.Stage.Observed => ok true
+  | transition.Stage.ObservedByProvider => ok true
+
+/-- [auths_gateway_kernel::transition::observed_stage]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 168:0-177:1
+    Visibility: public -/
+def transition.observed_stage (stage : transition.Stage) : Result Bool := do
+  match stage with
+  | transition.Stage.Attempting => ok false
+  | transition.Stage.NotEntered => ok false
+  | transition.Stage.Unknown => ok false
+  | transition.Stage.ResponseRecorded => ok false
+  | transition.Stage.Observed => ok true
+  | transition.Stage.ObservedByProvider => ok false
+
+/-- [auths_gateway_kernel::transition::provider_stage]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 181:0-190:1
+    Visibility: public -/
+def transition.provider_stage (stage : transition.Stage) : Result Bool := do
+  match stage with
+  | transition.Stage.Attempting => ok false
+  | transition.Stage.NotEntered => ok false
+  | transition.Stage.Unknown => ok false
+  | transition.Stage.ResponseRecorded => ok false
+  | transition.Stage.Observed => ok false
+  | transition.Stage.ObservedByProvider => ok true
+
+/-- [auths_gateway_kernel::transition::has_reading]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 203:0-208:1
+    Visibility: public -/
+def transition.has_reading (reading : transition.Reading) : Result Bool := do
+  match reading with
+  | transition.Reading.None => ok false
+  | transition.Reading.Match => ok true
+  | transition.Reading.Mismatch => ok true
+  | transition.Reading.EchoMismatch => ok true
+
+/-- [auths_gateway_kernel::transition::consistent]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 217:0-228:1
+    Visibility: public -/
+def transition.consistent (view : transition.AttemptView) : Result Bool := do
+  let s := alloc.vec.Vec.deref view.response
+  let b ← transition.absent s
+  let b1 ← transition.refusal_stage view.stage
+  if b1 = view.refusal
+  then
+    let b2 ← transition.requires_response view.stage
+    if b2
+    then
+      if ¬ b
+      then
+        let b3 ← transition.permits_response view.stage
+        if b3
+        then
+          let s1 := alloc.vec.Vec.deref view.locator
+          let b4 ← transition.absent s1
+          if b4
+          then
+            let b5 ← transition.observed_stage view.stage
+            let b6 ← transition.has_reading view.reading
+            if b5 = b6
+            then
+              if b6
+              then
+                if view.observation
+                then
+                  let b7 ← transition.provider_stage view.stage
+                  if b7 = view.evidence
+                  then
+                    if view.evidence
+                    then
+                      let b8 ← transition.has_link view.link
+                      if b8
+                      then ok true
+                      else ok false
+                    else ok true
+                  else ok false
+                else ok false
+              else
+                let b7 ← transition.provider_stage view.stage
+                if b7 = view.evidence
+                then
+                  if view.evidence
+                  then
+                    let b8 ← transition.has_link view.link
+                    if b8
+                    then ok true
+                    else ok false
+                  else ok true
+                else ok false
+            else ok false
+          else
+            let b5 ← transition.observed_stage view.stage
+            let b6 ← transition.has_reading view.reading
+            if b5 = b6
+            then
+              if b6
+              then
+                if view.observation
+                then
+                  let b7 ← transition.provider_stage view.stage
+                  if b7 = view.evidence
+                  then
+                    if view.evidence
+                    then
+                      let b8 ← transition.has_link view.link
+                      if b8
+                      then ok true
+                      else ok false
+                    else ok true
+                  else ok false
+                else ok false
+              else
+                let b7 ← transition.provider_stage view.stage
+                if b7 = view.evidence
+                then
+                  if view.evidence
+                  then
+                    let b8 ← transition.has_link view.link
+                    if b8
+                    then ok true
+                    else ok false
+                  else ok true
+                else ok false
+            else ok false
+        else ok false
+      else ok false
+    else
+      if ¬ b
+      then
+        let b3 ← transition.permits_response view.stage
+        if b3
+        then
+          let s1 := alloc.vec.Vec.deref view.locator
+          let b4 ← transition.absent s1
+          if b4
+          then
+            let b5 ← transition.observed_stage view.stage
+            let b6 ← transition.has_reading view.reading
+            if b5 = b6
+            then
+              if b6
+              then
+                if view.observation
+                then
+                  let b7 ← transition.provider_stage view.stage
+                  if b7 = view.evidence
+                  then
+                    if view.evidence
+                    then
+                      let b8 ← transition.has_link view.link
+                      if b8
+                      then ok true
+                      else ok false
+                    else ok true
+                  else ok false
+                else ok false
+              else
+                let b7 ← transition.provider_stage view.stage
+                if b7 = view.evidence
+                then
+                  if view.evidence
+                  then
+                    let b8 ← transition.has_link view.link
+                    if b8
+                    then ok true
+                    else ok false
+                  else ok true
+                else ok false
+            else ok false
+          else
+            let b5 ← transition.observed_stage view.stage
+            let b6 ← transition.has_reading view.reading
+            if b5 = b6
+            then
+              if b6
+              then
+                if view.observation
+                then
+                  let b7 ← transition.provider_stage view.stage
+                  if b7 = view.evidence
+                  then
+                    if view.evidence
+                    then
+                      let b8 ← transition.has_link view.link
+                      if b8
+                      then ok true
+                      else ok false
+                    else ok true
+                  else ok false
+                else ok false
+              else
+                let b7 ← transition.provider_stage view.stage
+                if b7 = view.evidence
+                then
+                  if view.evidence
+                  then
+                    let b8 ← transition.has_link view.link
+                    if b8
+                    then ok true
+                    else ok false
+                  else ok true
+                else ok false
+            else ok false
+        else ok false
+      else
+        let s1 := alloc.vec.Vec.deref view.locator
+        let b3 ← transition.absent s1
+        if b3
+        then
+          let b4 ← transition.observed_stage view.stage
+          let b5 ← transition.has_reading view.reading
+          if b4 = b5
+          then
+            if b5
+            then
+              if view.observation
+              then
+                let b6 ← transition.provider_stage view.stage
+                if b6 = view.evidence
+                then
+                  if view.evidence
+                  then
+                    let b7 ← transition.has_link view.link
+                    if b7
+                    then transition.resolves_unknown view.link
+                    else ok false
+                  else ok true
+                else ok false
+              else ok false
+            else
+              let b6 ← transition.provider_stage view.stage
+              if b6 = view.evidence
+              then
+                if view.evidence
+                then
+                  let b7 ← transition.has_link view.link
+                  if b7
+                  then transition.resolves_unknown view.link
+                  else ok false
+                else ok true
+              else ok false
+          else ok false
+        else ok false
+  else ok false
+
+/-- [auths_gateway_kernel::transition::stage_transition_allowed]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 235:0-260:1
+    Visibility: public -/
+def transition.stage_transition_allowed
+  (from1 : transition.Stage) (to1 : transition.Stage) (link : transition.Link)
+  :
+  Result Bool
+  := do
+  match from1 with
+  | transition.Stage.Attempting =>
+    match to1 with
+    | transition.Stage.Attempting => ok true
+    | transition.Stage.NotEntered => ok true
+    | transition.Stage.Unknown => ok true
+    | transition.Stage.ResponseRecorded => ok true
+    | transition.Stage.Observed => ok false
+    | transition.Stage.ObservedByProvider => transition.resolves_unknown link
+  | transition.Stage.NotEntered => ok false
+  | transition.Stage.Unknown =>
+    match to1 with
+    | transition.Stage.Attempting => ok false
+    | transition.Stage.NotEntered => ok false
+    | transition.Stage.Unknown => ok false
+    | transition.Stage.ResponseRecorded => ok false
+    | transition.Stage.Observed => ok false
+    | transition.Stage.ObservedByProvider => transition.resolves_unknown link
+  | transition.Stage.ResponseRecorded =>
+    match to1 with
+    | transition.Stage.Attempting => ok false
+    | transition.Stage.NotEntered => ok false
+    | transition.Stage.Unknown => ok false
+    | transition.Stage.ResponseRecorded => ok false
+    | transition.Stage.Observed => ok true
+    | transition.Stage.ObservedByProvider => ok true
+  | transition.Stage.Observed => ok false
+  | transition.Stage.ObservedByProvider => ok false
+
+/-- [auths_gateway_kernel::transition::adds_pre_entry]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 265:0-280:1
+    Visibility: public -/
+def transition.adds_pre_entry
+  (from1 : transition.Stage) (to1 : transition.Stage) : Result Bool := do
+  match from1 with
+  | transition.Stage.Attempting =>
+    match to1 with
+    | transition.Stage.Attempting => ok true
+    | transition.Stage.NotEntered => ok true
+    | transition.Stage.Unknown => ok false
+    | transition.Stage.ResponseRecorded => ok false
+    | transition.Stage.Observed => ok false
+    | transition.Stage.ObservedByProvider => ok false
+  | transition.Stage.NotEntered => ok false
+  | transition.Stage.Unknown => ok false
+  | transition.Stage.ResponseRecorded => ok false
+  | transition.Stage.Observed => ok false
+  | transition.Stage.ObservedByProvider => ok false
+
+/-- [auths_gateway_kernel::transition::adds_response]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 284:0-300:1
+    Visibility: public -/
+def transition.adds_response
+  (from1 : transition.Stage) (to1 : transition.Stage) : Result Bool := do
+  match from1 with
+  | transition.Stage.Attempting =>
+    match to1 with
+    | transition.Stage.Attempting => ok false
+    | transition.Stage.NotEntered => ok false
+    | transition.Stage.Unknown => ok false
+    | transition.Stage.ResponseRecorded => ok true
+    | transition.Stage.Observed => ok false
+    | transition.Stage.ObservedByProvider => ok false
+  | transition.Stage.NotEntered => ok false
+  | transition.Stage.Unknown => ok false
+  | transition.Stage.ResponseRecorded => ok false
+  | transition.Stage.Observed => ok false
+  | transition.Stage.ObservedByProvider => ok false
+
+/-- [auths_gateway_kernel::transition::checkpoint_valid]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 305:0-321:1
+    Visibility: public -/
+def transition.checkpoint_valid
+  (old : transition.AttemptView) (new : transition.AttemptView) :
+  Result Bool
+  := do
+  match old.stage with
+  | transition.Stage.Attempting =>
+    match new.stage with
+    | transition.Stage.Attempting =>
+      let s := alloc.vec.Vec.deref old.pre_entry
+      let b ← transition.absent s
+      if b
+      then
+        let s1 := alloc.vec.Vec.deref new.pre_entry
+        let b1 ← transition.absent s1
+        ok (¬ b1)
+      else ok false
+    | transition.Stage.NotEntered => ok true
+    | transition.Stage.Unknown => ok true
+    | transition.Stage.ResponseRecorded => ok true
+    | transition.Stage.Observed => ok true
+    | transition.Stage.ObservedByProvider => ok true
+  | transition.Stage.NotEntered => ok true
+  | transition.Stage.Unknown => ok true
+  | transition.Stage.ResponseRecorded => ok true
+  | transition.Stage.Observed => ok true
+  | transition.Stage.ObservedByProvider => ok true
+
+/-- [auths_gateway_kernel::transition::pre_entry_kept]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 326:0-332:1
+    Visibility: public -/
+def transition.pre_entry_kept
+  (old : transition.AttemptView) (new : transition.AttemptView) :
+  Result Bool
+  := do
+  let s := alloc.vec.Vec.deref old.pre_entry
+  let b ← transition.absent s
+  if b
+  then
+    let s1 := alloc.vec.Vec.deref new.pre_entry
+    let b1 ← transition.absent s1
+    if b1
+    then ok true
+    else transition.adds_pre_entry old.stage new.stage
+  else
+    let s1 := alloc.vec.Vec.deref old.pre_entry
+    let s2 := alloc.vec.Vec.deref new.pre_entry
+    transition.same_bytes s1 s2
+
+/-- [auths_gateway_kernel::transition::response_kept]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 337:0-340:1
+    Visibility: public -/
+def transition.response_kept
+  (old : transition.AttemptView) (new : transition.AttemptView) :
+  Result Bool
+  := do
+  let b ← transition.adds_response old.stage new.stage
+  if b
+  then ok true
+  else
+    let s := alloc.vec.Vec.deref old.response
+    let s1 := alloc.vec.Vec.deref new.response
+    let b1 ← transition.same_bytes s s1
+    if b1
+    then
+      let s2 := alloc.vec.Vec.deref old.locator
+      let s3 := alloc.vec.Vec.deref new.locator
+      transition.same_bytes s2 s3
+    else ok false
+
+/-- [auths_gateway_kernel::transition::link_equal]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 350:0-365:1
+    Visibility: public -/
+def transition.link_equal
+  (left : transition.Link) (right : transition.Link) : Result Bool := do
+  match left with
+  | transition.Link.None =>
+    match right with
+    | transition.Link.None => ok true
+    | transition.Link.Verified => ok false
+    | transition.Link.AfterResponse => ok false
+  | transition.Link.Verified =>
+    match right with
+    | transition.Link.None => ok false
+    | transition.Link.Verified => ok true
+    | transition.Link.AfterResponse => ok false
+  | transition.Link.AfterResponse =>
+    match right with
+    | transition.Link.None => ok false
+    | transition.Link.Verified => ok false
+    | transition.Link.AfterResponse => ok true
+
+/-- [auths_gateway_kernel::transition::plan_kept]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 344:0-346:1
+    Visibility: public -/
+def transition.plan_kept
+  (old : transition.AttemptView) (new : transition.AttemptView) :
+  Result Bool
+  := do
+  if old.observation = new.observation
+  then transition.link_equal old.link new.link
+  else ok false
+
+/-- [auths_gateway_kernel::transition::valid_transition]:
+    Source: 'product/runtime/auths-gateway-kernel/src/transition.rs', lines 373:0-381:1
+    Visibility: public -/
+def transition.valid_transition
+  (old : transition.AttemptView) (new : transition.AttemptView) :
+  Result Bool
+  := do
+  let s := alloc.vec.Vec.deref old.fixed
+  let s1 := alloc.vec.Vec.deref new.fixed
+  let b ← transition.same_bytes s s1
+  if b
+  then
+    let b1 ← transition.plan_kept old new
+    if b1
+    then
+      let b2 ←
+        transition.stage_transition_allowed old.stage new.stage old.link
+      if b2
+      then
+        let b3 ← transition.checkpoint_valid old new
+        if b3
+        then
+          let b4 ← transition.pre_entry_kept old new
+          if b4
+          then
+            let b5 ← transition.response_kept old new
+            if b5
+            then transition.consistent new
+            else ok false
+          else ok false
+        else ok false
+      else ok false
+    else ok false
+  else ok false
 
 end auths_gateway_kernel

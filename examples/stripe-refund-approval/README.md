@@ -67,7 +67,10 @@ source `/2`. It declares `write.idempotency` of kind `derived-header`, so
 the gateway sends each refund with an `Idempotency-Key` it derives from the
 namespace and operation ID (`auths-gateway review` shows
 `"sends_idempotency_key": true` and the declared 86 400-second retention,
-which the gateway cannot verify).
+which the gateway cannot verify). Because of that retention, each refund's
+approval window is 86 340 seconds: the gateway refuses, before any claim,
+an action whose window plus its 60-second entry deadline exceeds the
+declared retention.
 `profile.toml` generated `generated.py` and `profile.lock.json` with
 `auths generate`.
 

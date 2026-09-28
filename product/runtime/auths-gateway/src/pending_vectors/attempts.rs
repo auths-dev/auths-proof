@@ -6,15 +6,19 @@
 //! Each case names a base of the recipe `/2` corpus, the provider double's
 //! answers where they differ from the defaults, the stored stages in order
 //! (empty when nothing is stored), the refusal code, and the lease, read, and
-//! write counts. The nineteen `/1` scenarios stay in `attempt-scenarios.json`
-//! until attempt record `/2` is retired, when they move here unchanged.
+//! write counts.
+//!
+//! `record_cases` are the claim, response, observation, and `unknown`
+//! scenarios of the retired attempt record `/2`, moved here unchanged when
+//! record `/3` replaced it. One `/2` scenario is not carried:
+//! `crash-after-entry-not-reobserved` asserted that a stored `attempting`
+//! record is never re-observed, which record `/3` reverses for a linked
+//! recipe; `linked-attempting-reobserved` replaces it.
 
-use super::{NOW, load, recipes, require_current};
-use crate::{CompiledRecipe, FileGatewayAttemptStore, GatewayAttempts};
+use super::{NOW, recipes, require_current};
 use serde_json::{Map, Value, json};
-use std::sync::Arc;
 
-pub(super) const FILE: &str = "attempt-scenarios-v3.json";
+pub(crate) const FILE: &str = "attempt-scenarios-v3.json";
 const SCHEMA: &str = "auths.gateway-attempt-scenarios/3";
 const ATTEMPT_SCHEMA: &str = "auths.gateway-attempt/3";
 const STRIPE_VERSION: &str = "2025-03-31.basil";
@@ -484,7 +488,63 @@ fn entry_and_recovery_cases() -> Vec<Value> {
     ]
 }
 
+/// The `/2` record scenarios: id, transition, and provider entries.
+const RECORD_CASES: &[(&str, &str, u64)] = &[
+    ("first-claim", "unclaimed->attempting", 0),
+    ("same-id-fresh-challenge", "attempting->replay-refused", 0),
+    ("changed-action-same-id", "attempting->replay-refused", 0),
+    ("crash-after-claim", "attempting->unknown-on-restart", 0),
+    ("complete-http-response", "attempting->response-recorded", 1),
+    ("ambiguous-transport", "attempting->unknown", 1),
+    ("matching-read-back", "response-recorded->observed-match", 1),
+    (
+        "mismatching-read-back",
+        "response-recorded->observed-mismatch",
+        1,
+    ),
+    (
+        "observation-unavailable",
+        "response-recorded->response-recorded",
+        1,
+    ),
+    (
+        "echo-read-back",
+        "response-recorded->observed-by-provider",
+        1,
+    ),
+    (
+        "echo-overwritten-by-provider",
+        "response-recorded->observed-mismatch-echo-mismatch",
+        1,
+    ),
+    (
+        "echo-present-value-changed",
+        "response-recorded->observed-mismatch",
+        1,
+    ),
+    (
+        "timeout-after-delivery-read-back",
+        "unknown->observed-by-provider",
+        1,
+    ),
+    ("lost-write-echo-absent", "unknown->unknown", 1),
+    ("unknown-echo-overwritten", "unknown->unknown", 1),
+    ("restart-during-unknown", "unknown->observed-by-provider", 1),
+    ("changed-action-during-unknown", "unknown->unknown", 1),
+    (
+        "fresh-challenge-after-observed-by-provider",
+        "observed-by-provider->observed-by-provider",
+        1,
+    ),
+];
+
 fn document() -> Value {
+    let record_cases: Vec<Value> = RECORD_CASES
+        .iter()
+        .map(|(id, transition, entries)| {
+            json!({"id": id, "transition": transition, "provider_entries": entries})
+        })
+        .collect();
     let cases: Vec<Value> = [
         pre_entry_cases(),
         relative_ceiling_cases(),
@@ -502,69 +562,11 @@ fn document() -> Value {
             "airtable": {"validity_seconds": 3600, "arguments": {"operation_id": "update-1",
                 "record_id": "recTEST0000000001", "replacement": "Approved"}}},
         "cases": cases,
+        "record_cases": record_cases,
     })
 }
 
 #[test]
 fn attempt_scenarios_v3_are_current() {
     require_current(FILE, &document());
-}
-
-/// Today's store writes attempt record `/2`, so none of these scenarios can
-/// run yet. Every scenario's recipe already compiles under `/2`.
-#[tokio::test]
-async fn current_store_cannot_run_attempt_scenarios_v3() {
-    let scenarios = load(FILE);
-    assert_eq!(scenarios["attempt_schema"], ATTEMPT_SCHEMA);
-    let corpus = load(recipes::FILE);
-    for case in scenarios["cases"].as_array().expect("cases") {
-        let base = &corpus["bases"][case["recipe"].as_str().expect("recipe")];
-        CompiledRecipe::compile(
-            &serde_json::to_vec(&base["recipe"]).expect("recipe"),
-            &serde_json::to_vec(&base["lock"]).expect("lock"),
-        )
-        .expect("scenario recipe compiles");
-    }
-    let recipe = CompiledRecipe::compile(
-        include_bytes!("../../../../../bindings/fixtures/gateway/github/recipe.json"),
-        include_bytes!("../../../../../bindings/fixtures/gateway/github/profile.lock.json"),
-    )
-    .expect("current github fixture");
-    let mut arguments = Map::new();
-    arguments.insert("operation_id".into(), json!("issue-1"));
-    arguments.insert("title".into(), json!("Exact"));
-    arguments.insert("body".into(), json!("One issue"));
-    arguments.insert(
-        "operator_namespace".into(),
-        json!(recipe.namespace().as_str()),
-    );
-    arguments.insert("recipe_digest".into(), json!(recipe.digest_hex()));
-    let request = recipe
-        .closed_request_from_arguments(&arguments, [7; 32])
-        .expect("request");
-    let temp = tempfile::tempdir().expect("temp directory");
-    let root = std::fs::canonicalize(temp.path())
-        .expect("canonical")
-        .join("attempts");
-    let store = GatewayAttempts::new(Arc::new(
-        FileGatewayAttemptStore::open(&root).expect("store"),
-    ));
-    store
-        .claim(&request, *recipe.digest())
-        .await
-        .expect("claim");
-    let mut schemas = Vec::new();
-    for entry in std::fs::read_dir(&root).expect("store directory") {
-        let path = entry.expect("entry").path();
-        if path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .is_some_and(|name| name.starts_with("claim-"))
-        {
-            let record: Value = serde_json::from_slice(&std::fs::read(&path).expect("record"))
-                .expect("JSON record");
-            schemas.push(record["schema"].as_str().expect("schema").to_owned());
-        }
-    }
-    assert_eq!(schemas, ["auths.gateway-attempt/2"]);
 }
