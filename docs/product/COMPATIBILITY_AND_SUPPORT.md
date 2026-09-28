@@ -4,7 +4,7 @@ This page is generated from the Auths evolution policy and lifecycle registry.
 
 Stable publication: **blocked**
 
-Current blockers: independent-security-review, moderated-recipe-three-cohort, second-qualified-effect-vertical.
+Current blockers: independent-security-review, moderated-recipe-three-cohort, second-qualified-recipe.
 
 ## Version axes
 
