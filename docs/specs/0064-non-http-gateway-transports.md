@@ -1,5 +1,30 @@
 # AP-SPEC-064: Non-HTTP gateway transports, PostgreSQL first
 
+> **Parked on 2026-09-28 by owner decision; not merged, and no epic will
+> start.** Reasons:
+>
+> - **It would distract from the HTTPS product,** which AP-SPEC-063 completed
+>   and which now needs finishing, not widening. The remaining work there is
+>   the unfamiliar-developer cold run, the ADR 0013 qualification decision,
+>   and the production observer key (AP-SPEC-038 Epic 4).
+> - **HTTPS already covers the target surface.** That includes agent-facing
+>   SaaS APIs and cloud control planes (AWS, GCP and Azure are HTTPS). Many
+>   hosted PostgreSQL services expose HTTPS data APIs (for example PostgREST,
+>   Supabase, or Neon's HTTP interface), which an ordinary recipe can target
+>   without a new transport.
+> - **What this spec would add costs a lot:** a second recipe schema
+>   (`/3`), a new recovery class (`fenced-commit`), a PostgreSQL wire client
+>   and fence, and an OpenTofu phase that depends on an external sandbox
+>   capability.
+>
+> Proofbound Runtime's declared network egress (proofbound-runtime PR #36)
+> continues on that project's own roadmap and does not gate auths-proof.
+>
+> Revisit only if a concrete requirement cannot be met over HTTPS. That
+> means a provider whose only write interface is non-HTTP, where the
+> self-hosted adapter path (AP-SPEC-054) is not acceptable. The design below
+> is kept on this branch as the record of what parity would take.
+
 - **Status:** Draft, written on owner direction on 2026-09-28 before its
   epics started. No epic has started. §13's readings are PROVISIONAL until
   the owner reviews them.
