@@ -328,8 +328,6 @@ export interface DelegationReview {
 
 export interface WorkflowWasmEngine {
   authoringAbiVersionV1(): number;
-  qualificationClientCancellationResultV1(requestId: Uint8Array): Uint8Array;
-  encodeQualificationClientResultFrameV1(mode: number, requestId: Uint8Array, result: Uint8Array): Uint8Array;
   canonicalPrincipalV1(principal: string): string;
   encodePrincipalStatusStatementV1(
     method: string,

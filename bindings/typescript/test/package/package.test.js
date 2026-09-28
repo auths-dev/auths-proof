@@ -66,8 +66,6 @@ test("packed contents carry the published artifacts and no source or tests", asy
     "dist/doctor-cli.js",
     "dist/doctor.js",
     "dist/identity.js",
-    "dist/profile-runtime.js",
-    "dist/profile-runtime.d.ts",
     "dist/testkit/index.js",
     "dist/verify.js",
     "wasm/auths_proof_wasm.js",
@@ -100,6 +98,12 @@ test("packed contents carry the published artifacts and no source or tests", asy
     "dist/testkit/conformance.d.ts",
     "dist/internal/development-store-node.js",
     "dist/internal/development-store-node.d.ts",
+    "dist/profile-runtime.js",
+    "dist/profile-runtime.d.ts",
+    "dist/session.js",
+    "dist/session.d.ts",
+    "dist/internal/profile-file-node.js",
+    "dist/internal/profile-file-node.d.ts",
   ]) {
     assert.equal(entries.includes(removed), false, `packed artifact retained ${removed}`);
   }
@@ -135,23 +139,6 @@ test("identity entry point has no higher-layer imports", async () => {
     source,
     /from\s+["'].\/(?:approvals|plans|profiles|workflow|verifier)\b/,
   );
-});
-
-test("launch examples use only the local agent and generated domain clients", async () => {
-  const examples = [
-    new URL("../../../../examples/local-agent/typescript/refund.mjs", import.meta.url),
-    new URL("../../../../examples/local-agent/typescript/refund-outcomes.mjs", import.meta.url),
-    new URL("../../../../examples/local-agent/python/refund.py", import.meta.url),
-    new URL("../../../../examples/local-agent/python/refund_outcomes.py", import.meta.url),
-  ];
-  const forbiddenProtocolMechanics = /(?:authorityBytes|actionBytes|proofBytes|Uint8Array|canonical(?:ize|Bytes)|cbor)/iu;
-  for (const example of examples) {
-    const source = await readFile(example, "utf8");
-    assert.match(source, /Stripe/);
-    assert.match(source, /connect/);
-    assert.doesNotMatch(source, /(?:CONTROL_PLANE|ACCESS_TOKEN|API_KEY|executor\.example|connectGitHub)/iu);
-    assert.doesNotMatch(source, forbiddenProtocolMechanics);
-  }
 });
 
 test("identity and verification dependency closures exclude effect workflow code", async () => {

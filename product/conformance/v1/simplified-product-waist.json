@@ -207,7 +207,7 @@
       "evidence": {
         "rust": "product/runtime/auths-lifecycle/src/transition.rs",
         "typescript": "bindings/typescript/test/unit/runtime-contract.test.js",
-        "python": "bindings/python/tests/test_profile_runtime_v1.py"
+        "python": "bindings/python/tests/test_self_hosted_attempts.py"
       }
     },
     {
@@ -217,7 +217,7 @@
       "evidence": {
         "rust": "product/runtime/auths-lifecycle/src/transition.rs",
         "typescript": "bindings/typescript/test/unit/runtime-contract.test.js",
-        "python": "bindings/python/tests/test_profile_runtime_v1.py"
+        "python": "bindings/python/tests/test_self_hosted_attempts.py"
       }
     },
     {
@@ -227,7 +227,7 @@
       "evidence": {
         "rust": "product/runtime/auths-lifecycle/src/transition.rs",
         "typescript": "bindings/typescript/test/unit/runtime-contract.test.js",
-        "python": "bindings/python/tests/test_profile_runtime_v1.py"
+        "python": "bindings/python/tests/test_self_hosted_attempts.py"
       }
     },
     {
@@ -237,7 +237,7 @@
       "evidence": {
         "rust": "product/runtime/auths-lifecycle/src/transition.rs",
         "typescript": "bindings/typescript/test/unit/runtime-contract.test.js",
-        "python": "bindings/python/tests/test_profile_runtime_v1.py"
+        "python": "bindings/python/tests/test_self_hosted_attempts.py"
       }
     },
     {

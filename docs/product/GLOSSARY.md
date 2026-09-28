@@ -3,9 +3,9 @@
 Auths lets software prove exactly what it may do, execute through a closed
 action family, and leave a signed receipt.
 
-A profile names a versioned effect-domain action family. Shipping its generated
-client does not qualify or activate that profile; the exact local-agent build
-must advertise a qualified matching route.
+A profile names a versioned effect-domain action family. Naming a profile does
+not qualify it. Provider writes go through a gateway recipe or an
+application-owned adapter, and neither carries a qualified claim.
 
 ## The five security nouns
 

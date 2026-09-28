@@ -397,22 +397,11 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
             "auths.product.facade",
             versions.entry("auths.product.facade")?,
             FreezeClassification::FrozenMeaning,
-            &[
-                "small-shared-root",
-                "ambient-local-agent-session",
-                "generated-profile-clients",
-                "sealed-recovery-locators",
-                "closed-profile-outcomes",
-            ],
+            &["small-shared-root"],
             vec![
                 "bindings/public-topology-v1.json".to_owned(),
                 "bindings/typescript/src/index.ts".to_owned(),
-                "bindings/typescript/src/session.ts".to_owned(),
-                "bindings/typescript/src/profile-runtime.ts".to_owned(),
                 "bindings/python/python/auths/__init__.py".to_owned(),
-                "bindings/python/python/auths/_session.py".to_owned(),
-                "bindings/python/python/auths/profile_runtime.py".to_owned(),
-                "bindings/generated".to_owned(),
             ],
         )?,
         freeze_entry(
@@ -479,7 +468,6 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
             &[
                 "error-envelope",
                 "effect-and-retry-classification",
-                "profile-error-registration",
                 "bounded-support-evidence",
                 "cross-language-error-fixtures",
             ],
@@ -666,28 +654,6 @@ fn generate_inventory() -> Result<SemanticFreezeInventory, String> {
                 "xtask/src/bounded_benchmark.rs".to_owned(),
                 "docs/research/domains/0004-seven-domain-bounded-authorization-performance-baseline.md"
                     .to_owned(),
-            ],
-        )?,
-        freeze_entry(
-            "auths.product.profile-qualification-launch",
-            versions.entry("auths.product.profile-qualification-launch")?,
-            FreezeClassification::FrozenMeaning,
-            &[
-                "profile-roster-v2",
-                "production-qualification-state",
-                "testkit-availability-isolation",
-                "launch-projection-v1",
-                "transactional-qualification-import",
-            ],
-            vec![
-                "docs/specs/0040-generic-profile-sdk-and-contributor-system.md".to_owned(),
-                "docs/specs/0044-live-provider-qualification-and-recovery-evidence.md".to_owned(),
-                "product/runtime/auths-node/src/profile_launch.rs".to_owned(),
-                "product/sdk/auths-profile-kit/src/roster.rs".to_owned(),
-                "product/spec/v1/profile-launch-projection.schema.json".to_owned(),
-                "product/spec/v1/profile-roster.schema.json".to_owned(),
-                "xtask/src/profile_codegen.rs".to_owned(),
-                "xtask/src/profile_qualification.rs".to_owned(),
             ],
         )?,
     ];

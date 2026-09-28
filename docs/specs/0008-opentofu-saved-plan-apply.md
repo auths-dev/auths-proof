@@ -6,6 +6,16 @@ Profile: `auths.opentofu.saved-plan-apply/1`
 Product package: `product/integrations/auths-opentofu`  
 Demo: `demos/opentofu-plan`
 
+> **Status note (2026-09-28).** On 2026-09-27 the owner chose AP-SPEC-063
+> §12 option A, which makes the Auths gateway the single provider-write path.
+> The OpenTofu saved-plan apply is not an HTTP write, so it has no gateway
+> equivalent: its production path ended, and with it the stale-plan refusal
+> in production. The local-agent route, connection administration, and
+> qualification material for this profile were removed. `auths-opentofu`
+> stays only as a test-only reference: the pure evaluator, fixtures, and
+> `demos/opentofu-plan`. The sections below record the vertical as it was
+> specified.
+
 ## 1. Decision
 
 Build one vertical OpenTofu product package that allows an untrusted agent to propose infrastructure configuration without receiving backend or provider credentials.

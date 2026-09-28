@@ -113,10 +113,7 @@ Implement `ActionProfile` so one type owns all four mappings:
 3. canonical action → human approval display;
 4. sealed verified action → executor-safe command.
 
-`auths-profile-kit` checks repeatable canonicalization, approval-display
-digest binding, emits cross-language fixtures, and supplies bounded hostile
-input mutations. Profiles cannot select roots or construct a verifier
-verdict.
+Profiles cannot select roots or construct a verifier verdict.
 
 ## CI
 

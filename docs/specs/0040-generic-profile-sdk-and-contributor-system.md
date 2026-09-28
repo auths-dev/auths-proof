@@ -2,9 +2,27 @@
 
 ## Status
 
-Target-state specification, partly implemented on `main`: the local
-agent, SDK sessions, and generated profile clients. No provider effect
-profile is qualified.
+**Superseded for provider writes on 28 September 2026.** Under the owner's
+decision of 27 September 2026 ([AP-SPEC-063](0063-generalized-gateway.md)
+§12, option A) the Auths gateway is the single provider-write path, and
+AP-SPEC-063 epic 8 removed in one cutover, with no switch, what this document
+had implemented: the local agent (§7.1–§7.2, §13), its five effect profiles
+(`auths.stripe.refund/1`, `auths.postgresql.bounded-update/1`,
+`auths.postgresql.update-preflight/1`, `auths.opentofu.saved-plan-apply/1`,
+`auths.opentofu.plan-preflight/1`), the root SDK session API (§8), the
+generated profile clients and extension ABI (§9, §12), the profile package
+manifest, restricted API schema, roster, and launch projection (§10, §11),
+the journal executor's effect path (§14–§16), the profile error fragments
+(§17), the contributor workflow and profile qualification (§18, §19), and the
+local agent's connection administration. A production provider write is now
+a gateway recipe ([ADR 0012](../adr/0012-declarative-credential-isolated-gateway-boundary.md),
+[ADR 0013](../adr/0013-recipe-capabilities-and-sum-budget.md)).
+
+What survives: the provider connection record and credential lifecycle of
+§7.3–§7.4, as `product/runtime/auths-connections`, which the gateway's
+connection record `/2` uses (AP-SPEC-063 §7.3); and §20's shared-mechanism
+extraction rule, which the boundary plan now states. The remaining text is
+the record of the managed-profile design and is not a current requirement.
 
 This document is intentionally self-contained. A new implementation session
 with no conversation history must be able to implement the target by reading

@@ -17,8 +17,6 @@
     "inspectRawKeyReceiptV1",
     "profileReceiptBindingsV1",
     "developmentEd25519PublicKeyV1",
-    "qualificationClientCancellationResultV1",
-    "encodeQualificationClientResultFrameV1",
     "prepareAuthorizedDecisionReceiptV1",
     "prepareProfileDecisionReceiptV2",
     "prepareApplicationExecutionReceiptV1",

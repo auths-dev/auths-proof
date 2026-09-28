@@ -15,9 +15,7 @@ Start with:
 - [`RELEASE_CANDIDATE_NOTES.md`](RELEASE_CANDIDATE_NOTES.md) for the text that
   will become the GitHub prerelease description; and
 - [`SLSA_BUILD_LEVEL_3_ASSESSMENT.md`](SLSA_BUILD_LEVEL_3_ASSESSMENT.md) for
-  the assessed build-platform boundary;
-- [`qualification/v1/index.json`](qualification/v1/index.json) for the exact
-  imported live-provider qualification bindings; and
+  the assessed build-platform boundary; and
 - [`../docs/product/COMPATIBILITY_AND_SUPPORT.md`](../docs/product/COMPATIBILITY_AND_SUPPORT.md)
   for the generated cross-language evolution, support, and retirement contract.
 

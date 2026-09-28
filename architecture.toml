@@ -153,9 +153,6 @@ auths-ports = "core"
 auths-path-webpki = "core"
 auths-profile-api = "product"
 auths-profile-domains = "product"
-auths-profile-kit = "product"
-auths-qualification-evidence-source = "product"
-auths-qualification-supervisor = "product"
 auths-bounded-policy = "product"
 auths-bounded-policy-fuzz = "product"
 auths-gateway-fuzz = "product"
@@ -206,7 +203,6 @@ auths-production-client = "product"
 auths-connections = "product"
 auths-gateway = "product"
 auths-gateway-kernel = "product"
-auths-profile-runtime = "product"
 auths-node = "product"
 auths-runtime = "product"
 auths = "core"
@@ -377,24 +373,6 @@ status = "permanent"
 reason = "The Node-only client encodes and decodes the fixed four-byte local socket length prefix; Rust bounds and parses that frame, and these bytes are never a signed preimage, authorization decision, or provider request."
 
 [[binding_semantics.allowances]]
-path = "bindings/typescript/src/session.ts"
-pattern = "getRandomValues"
-status = "permanent"
-reason = "The local transport creates a fresh correlation request ID; the agent validates it only for response binding and it grants no authority or provider access."
-
-[[binding_semantics.allowances]]
-path = "bindings/typescript/src/profile-runtime.ts"
-pattern = "getRandomValues"
-status = "permanent"
-reason = "A generated client creates a fresh correlation request ID; Rust owns all action commitments, idempotency meaning, effect classification, and recovery semantics."
-
-[[binding_semantics.allowances]]
-path = "bindings/typescript/src/profile-runtime.ts"
-pattern = "crypto.subtle"
-status = "permanent"
-reason = "The digest is only an in-process coalescing-table key over already canonical input; it is never sent, persisted, signed, or used to authorize provider access."
-
-[[binding_semantics.allowances]]
 path = "bindings/typescript/src/testkit/index.ts"
 pattern = "crypto.subtle"
 status = "permanent"
@@ -411,24 +389,6 @@ path = "bindings/python/python/auths/_profile_cli.py"
 pattern = "hashlib"
 status = "permanent"
 reason = "The local profile generator hashes its own closed schema snapshot for source-versus-lock drift detection. This digest is not a signed action, proof commitment, or native authorization decision."
-
-[[binding_semantics.allowances]]
-path = "bindings/python/python/auths/_session.py"
-pattern = "os.urandom"
-status = "permanent"
-reason = "The local transport creates a fresh correlation request ID; the agent validates it only for response binding and it grants no authority or provider access."
-
-[[binding_semantics.allowances]]
-path = "bindings/python/python/auths/profile_runtime.py"
-pattern = "os.urandom"
-status = "permanent"
-reason = "A generated client creates a fresh correlation request ID; Rust owns all action commitments, idempotency meaning, effect classification, and recovery semantics."
-
-[[binding_semantics.allowances]]
-path = "bindings/python/python/auths/profile_runtime.py"
-pattern = "hashlib"
-status = "permanent"
-reason = "The digest is only an in-process coalescing-table key over already canonical input; it is never sent, persisted, signed, or used to authorize provider access."
 
 [[binding_semantics.allowances]]
 path = "bindings/python/python/auths/attempts.py"

@@ -55,11 +55,6 @@ impl OpenTofuSourceBundleV1 {
         self.validated_hcl_dependency_closure().map(|_| ())
     }
 
-    /// Parses every root file and returns its exact static provider/module set.
-    pub(crate) fn hcl_dependency_closure(&self) -> Result<HclDependencyClosure, ValidationError> {
-        self.validated_hcl_dependency_closure()
-    }
-
     fn validated_hcl_dependency_closure(&self) -> Result<HclDependencyClosure, ValidationError> {
         if self.root_module_files.is_empty()
             || self.root_module_files.len() > HARD_MAX_SOURCE_FILES
@@ -499,7 +494,7 @@ mod tests {
             "#
             .into(),
         )]);
-        let closure = value.hcl_dependency_closure().unwrap();
+        let closure = value.validated_hcl_dependency_closure().unwrap();
         assert_eq!(
             closure.providers,
             BTreeSet::from([(
@@ -588,7 +583,7 @@ mod tests {
             unbound_bundle
                 .root_module_files
                 .insert("unbound.tf".into(), unbound.into());
-            assert!(unbound_bundle.hcl_dependency_closure().is_err());
+            assert!(unbound_bundle.validated_hcl_dependency_closure().is_err());
         }
     }
 }

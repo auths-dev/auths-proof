@@ -262,7 +262,6 @@ jobs:
       - name: Check installed mypy consumer narrowing and negative boundaries
         run: >-
           python -m mypy --strict --warn-unused-ignores
-          consumer/bindings/python/typecheck/profile_runtime_consumer.py
           consumer/bindings/python/typecheck/workflow_consumer.py
           consumer/bindings/python/typecheck/mypy_negative.py
       - name: Check strict Pyright source contract

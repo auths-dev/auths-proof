@@ -2,6 +2,22 @@
 
 ## 1. Status and authority
 
+**Production path ended on 28 September 2026.** Under the owner's decision of
+27 September 2026 ([AP-SPEC-063](0063-generalized-gateway.md) §12, option A)
+the gateway is the single provider-write path. OpenTofu runs a local engine
+against a state backend, not an HTTPS request, so no gateway recipe can
+express it, and AP-SPEC-063 epic 8 removed `auths.opentofu.plan-preflight/1`,
+`auths.opentofu.saved-plan-apply/1`, this connection's onboarding and
+administration, the protected planner and executor, the prepared-plan store,
+and their generated clients, with no switch. Production gives up OpenTofu's
+stale-plan refusal with them. `product/integrations/auths-opentofu` stays as a
+test-only reference: its bundle validation, plan projection, evaluator,
+receipts, fixtures, and the `demos/opentofu-plan` demo. An OpenTofu apply
+returns to production only through a new capability admitted under
+[ADR 0013](../adr/0013-recipe-capabilities-and-sum-budget.md)'s form or a new
+owner decision. The text below is the record of the local-agent design and is
+not a current requirement.
+
 Prelaunch normative specification for `auths.opentofu.connection/1`,
 `auths.opentofu.plan-preflight/1`, and
 `auths.opentofu.saved-plan-apply/1`.

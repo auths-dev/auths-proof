@@ -7,9 +7,11 @@ artifacts, CI, or repository structure.
 After reading this file, every agent must also read
 `docs/target-state/PROFILE_AND_DOMAIN_ABSTRACTION_BOUNDARY_PLAN.md` before
 planning or changing repository code. It defines the required vertical-first
-process for adding profiles and domains, the evidence gates for extracting
-shared mechanisms, and the boundaries that prevent premature semantic
-coupling. Existing abstractions are not permission to bypass that review.
+process for building domain semantics as reviewed, test-only references, the
+rule that production provider writes are data-only gateway recipes, the
+evidence gates for extracting shared mechanisms, and the boundaries that
+prevent premature semantic coupling. Existing abstractions are not permission
+to bypass that review.
 
 `AGENTS.md`, `architecture.toml`, `compliance.toml`, workspace metadata, and
 `xtask` remain authoritative if the target-state document ever conflicts with

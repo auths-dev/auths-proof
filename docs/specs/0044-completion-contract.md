@@ -1,6 +1,12 @@
 # AP-SPEC-0044 completion contract
 
-Status: implementation contract for the remaining live-provider qualification work.
+Status: **moved to gateway recipes on 28 September 2026**, with its parent
+[AP-SPEC-044](0044-live-provider-qualification-and-recovery-evidence.md): the
+local-agent profiles and the qualification machinery it completes were
+removed in [AP-SPEC-063](0063-generalized-gateway.md) epic 8. The text below
+is the record of that work and is not a current requirement.
+
+Original status: implementation contract for the remaining live-provider qualification work.
 
 This document is subordinate to
 `0044-live-provider-qualification-and-recovery-evidence.md`. It closes only the

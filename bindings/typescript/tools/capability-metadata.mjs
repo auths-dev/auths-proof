@@ -54,7 +54,7 @@ if (
 for (const statement of [
   "closed product workflow",
   "There is no Auths application token",
-  "profile-runtime",
+  "single provider-write path",
   "Publication, promotion, and independent-review status",
 ]) {
   if (!readme.includes(statement)) {

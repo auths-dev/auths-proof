@@ -6,19 +6,12 @@ license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 homepage.workspace = true
-description = "Canonical bounded client contract for the Auths production runtime"
+description = "Effect-free SDK telemetry projection for the Auths language bindings"
 publish = false
 
 [dependencies]
-base64ct.workspace = true
-minicbor.workspace = true
 serde = { workspace = true, features = ["std"] }
 serde_json = { workspace = true, features = ["std"] }
-sha2.workspace = true
-thiserror.workspace = true
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-getrandom.workspace = true
 
 [lints]
 workspace = true

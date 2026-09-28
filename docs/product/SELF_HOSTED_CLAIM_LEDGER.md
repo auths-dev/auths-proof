@@ -280,9 +280,7 @@ namespace served from two stores, or a wiped or restored store, counts
 separately. That a verifier without the gateway's product layer checks
 anything about the policy beyond the link, or that the argument's value
 reflects provider state; the sum is of verified arguments, not amounts the
-provider settled, and capacity is never released. Until the local-agent
-Stripe vertical is retired, a Stripe account reachable through both it and
-the gateway has two unrelated limits, and neither bounds the other path.
+provider settled, and capacity is never released.
 
 Current evidence is the canonical corpus (Rust, Go, and TypeScript agree on
 the bounded-policy vectors), `bindings/fixtures/gateway/bounds-aggregate.json`
@@ -364,7 +362,7 @@ result is cited here.
 ### North-star Stripe recipe with the vertical's five checks (AP-SPEC-063 §3.1, §5.6–§5.9, §6.10, repository-local only)
 
 **Claim.** The north-star recipe (`examples/stripe-refund-approval/recipe.json`)
-declares the five checks the `auths-stripe` vertical makes, as provider-neutral
+declares the five checks the `auths-stripe` vertical made, as provider-neutral
 recipe capabilities, so refunds written through the gateway keep them. For a
 recipe that declares them, the gateway sends no write unless, after the lease:
 the credential still resolves to the connection's account; each declared
@@ -399,9 +397,7 @@ key prefix, pointers, refused statuses, and ratio match Stripe's current
 behavior: they are the author's reading of Stripe's documentation, which
 states 403 for a key without permission but not whether that refusal carries
 `Stripe-Version`; a refusal without it fails closed at install
-(`gateway.install.credential-capability`). Until the local-agent Stripe
-vertical is retired, a Stripe account reachable through both it and the
-gateway has two unrelated limits, and neither bounds the other path.
+(`gateway.install.credential-capability`).
 
 Current evidence is the north-star journey from the packed wheel
 (`examples/stripe-refund-approval/journey.py`) and from the packed npm

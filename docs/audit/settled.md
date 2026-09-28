@@ -82,32 +82,32 @@ documented limit), why, where it is documented, and when to raise it again.
 
 ### Stripe metadata doesn't carry an action-derived echo
 - **Decision:** documented limit (scope).
-- **Why:** AP-SPEC-059 limits the echo to gateway recipes with a JSON body and an observation, and leaves the `auths-stripe` vertical out. There the Stripe idempotency key is already derived from the action, and an unkeyed echo wouldn't stop anyone holding a Stripe API key. The gateway's Stripe recipe (the north-star journey) has a form body and no observation, so it can't carry an echo. Beyond the gateway's claim, its only de-duplication is the derived `Idempotency-Key` from #146, which protects re-entry of the same operation, not a retry under a new operation ID.
+- **Why:** AP-SPEC-059 limits the echo to gateway recipes with a JSON body and an observation, and leaves the `auths-stripe` vertical out (a test-only reference since epic 8, 2026-09-27). There the Stripe idempotency key is already derived from the action, and an unkeyed echo wouldn't stop anyone holding a Stripe API key. The gateway's Stripe recipe (the north-star journey) has a form body and no observation, so it can't carry an echo. Beyond the gateway's claim, its only de-duplication is the derived `Idempotency-Key` from #146, which protects re-entry of the same operation, not a retry under a new operation ID.
 - **Documented:** `docs/specs/0059-commitment-bound-provider-evidence.md`, non-goals; `docs/specs/0053-declarative-credential-isolated-gateway.md` §3.2.1 (from #146); `examples/stripe-refund-approval/README.md`, non-claims.
 - **Re-raise if:** a Stripe spec adopts an echo, a claim says Stripe records carry one, or a claim says the gateway key stops a retry under a new operation ID.
 - **Pass:** 2026-09-23, item 4; 2026-09-24, item 06-4.
 
 ## Runtime and stores
 
-### The journal, the file stores and connection state are single-host
-- **Decision:** documented limit.
-- **Why:** single-host is the development default. Gateway attempts, evidence, outcome stages and window-count slots are multi-host on the PostgreSQL store (two-process conformance in `postgres-lifecycle.yml`), but that store's qualification (0038 Epic 2) is open, so it is not "qualified". The file attempt store, the journal, and the connection and credential stores stay single-host; each gateway process keeps its own copy of connection state, which AP-SPEC-038 §9's done gate covers.
-- **Documented:** `docs/PROGRAM_BOARD.md` §3–§5; `docs/specs/0038-production-runtime-custody-observability-and-assurance.md` §9.5; `product/runtime/auths-gateway/src/store.rs`; `product/stores/auths-stores/src/operation.rs` ("Single-process").
+### The file stores and connection state are single-host
+- **Decision:** documented limit. The local-agent journal this entry also named was removed in epic 8 (2026-09-27, AP-SPEC-063 §12).
+- **Why:** single-host is the development default. Gateway attempts, evidence, outcome stages and window-count slots are multi-host on the PostgreSQL store (two-process conformance in `postgres-lifecycle.yml`), but that store's qualification (0038 Epic 2) is open, so it is not "qualified". The file attempt store and the connection and credential stores stay single-host; each gateway process keeps its own copy of connection state, which AP-SPEC-038 §9's done gate covers.
+- **Documented:** `docs/PROGRAM_BOARD.md` §3–§5; `docs/specs/0038-production-runtime-custody-observability-and-assurance.md` §9.5; `product/runtime/auths-gateway/src/store.rs`.
 - **Re-raise if:** a claim says qualified or production multi-host before 0038 Epic 2 closes, or says an admin change reaches every gateway process before §9's done gate holds. Blocking I/O inside async code is a separate open finding (review pass 2026-09-24, board §3).
 - **Pass:** 2026-09-23, item 9; 2026-09-24, items 06-6, 02-6, 02-4.
 
 ### Same-UID processes satisfy the executable-hash and cgroup selectors
-- **Decision:** documented limit.
+- **Decision:** moot: removed in epic 8. The local agent and its workload selectors were removed on 2026-09-27 (AP-SPEC-063 §12); the record below is kept as it was decided.
 - **Why:** AP-SPEC-040 §7.2.1 makes executable hashes and cgroup selectors defense in depth that can't be the sole discriminator; isolation needs distinct OS identities. Exec and descriptor hand-off by the same UID defeat them. The overclaim (evidence "bound to the accepted peer") and the cgroup parse bug are open (review pass 2026-09-24, package 2.4).
 - **Documented:** `docs/specs/0040-generic-profile-sdk-and-contributor-system.md` §7.2.1.
-- **Re-raise if:** a doc treats these selectors as the sole discriminator, or a layout relies on them without distinct OS identities.
+- **Re-raise if:** workload selectors of this kind return in any runtime and a doc treats them as the sole discriminator, or a layout relies on them without distinct OS identities.
 - **Pass:** 2026-09-24, item 04-5.
 
 ### The production local agent can't run a provider effect
-- **Decision:** documented limit, by design until qualification.
+- **Decision:** moot: removed in epic 8. The local agent and its five effect profiles were removed on 2026-09-27 (AP-SPEC-063 §12); the gateway is the single provider-write path. The record below is kept as it was decided; the files it cites existed last at commit `09596075`.
 - **Why:** every built-in effect profile is `unqualified` in `product/runtime/auths-node/src/generated/profile_launch_projection.json`, and the production flavor serves only qualified profiles. Findings in the local-agent effect path are latent until a profile qualifies; they are not rejected.
 - **Documented:** `docs/product/PRODUCTION_SDK_QUICKSTART.md`; `docs/product/LOCAL_AGENT_SDK_QUICKSTART.md`; `product/runtime/auths-node/src/profile_launch.rs`.
-- **Re-raise if:** a profile is marked qualified without its live, crash, recovery, receipt and independent-review gates, or a doc says the production agent performs provider effects today.
+- **Re-raise if:** a doc says the local agent or its effect profiles exist, or a gateway recipe is called qualified.
 - **Pass:** 2026-09-24, item 05-4.
 
 ### The PostgreSQL lifecycle store takes one global lock and reloads every record

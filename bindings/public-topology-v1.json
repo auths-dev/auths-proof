@@ -39,12 +39,10 @@
     {
       "name": "extension",
       "typescript": [
-        "@auths-dev/sdk/protocol",
-        "@auths-dev/sdk/profile-runtime"
+        "@auths-dev/sdk/protocol"
       ],
       "python": [
-        "auths.protocol",
-        "auths.profile_runtime"
+        "auths.protocol"
       ]
     },
     {

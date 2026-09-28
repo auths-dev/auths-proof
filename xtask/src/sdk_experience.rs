@@ -259,7 +259,7 @@ pub(crate) fn classify_typescript_entry(entry: &str) -> &'static str {
         | "./identity"
         | "./identity/authoring" => "product",
         "./identity/adapters" | "./adapters" => "mechanism",
-        "./protocol" | "./profile-runtime" => "extension",
+        "./protocol" => "extension",
         "./testkit" => "test",
         _ => "internal-leak",
     }
@@ -280,7 +280,7 @@ pub(crate) fn classify_python_module(module: &str) -> &'static str {
         | "auths.adapters"
         | "auths.adapters.custody"
         | "auths.adapters.reservations" => "mechanism",
-        "auths.protocol" | "auths.profile_runtime" => "extension",
+        "auths.protocol" => "extension",
         "auths.testkit" => "test",
         _ => "internal-leak",
     }
@@ -393,7 +393,6 @@ mod tests {
         assert_eq!(classify_typescript_entry("./mcp"), "internal-leak");
         assert_eq!(classify_typescript_entry("./adapters"), "mechanism");
         assert_eq!(classify_typescript_entry("./protocol"), "extension");
-        assert_eq!(classify_typescript_entry("./profile-runtime"), "extension");
         assert_eq!(classify_typescript_entry("./authority"), "internal-leak");
         assert_eq!(classify_python_module("auths.mcp"), "internal-leak");
         assert_eq!(classify_python_module("auths.authoring"), "product");
@@ -406,7 +405,6 @@ mod tests {
             "mechanism"
         );
         assert_eq!(classify_python_module("auths.protocol"), "extension");
-        assert_eq!(classify_python_module("auths.profile_runtime"), "extension");
         assert_eq!(classify_python_module("auths.authority"), "internal-leak");
     }
 

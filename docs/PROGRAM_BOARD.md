@@ -38,7 +38,7 @@ Every piece of work traces to a step of this done test, or goes to Not now.
 
 | Now | Next | Not now |
 | --- | --- | --- |
-| Hardening the journey, which merged in PR #152: the gateway `Idempotency-Key` for recipe writes (#146); the gateway path of #148 (the provider secret the gateway holds is zeroized and compared in constant time); and the same journey from the npm package. All three are draft PRs (§1). | An unfamiliar developer runs the README cold and reports the time (the "under 30 minutes" clause cannot be self-certified). | 060 §16 observer quorum; the witnessed did:keri adapter; 061; grant-constrained decoding; the any-2-of-3 quorum mode (approver set chosen after signing starts); more vendor recipes; review-pass findings off this path: #145, #147, the rest of #148, and the pass's small cleanups (§3). |
+| AP-SPEC-063 epic 8, consolidation: the gateway becomes the single provider-write path and the five local-agent effect profiles are removed, on branch `audit-2026-09-24-gateway-epic8` (local commits, awaiting owner review and push). Epics 1–7 are merged (#181–#187), so the journey runs on §3.1's recipe with all five Stripe checks (§1). | An unfamiliar developer runs the README cold and reports the time (the "under 30 minutes" clause cannot be self-certified). The Stripe test-mode run with the developer's own key (§0 step 4). | 060 §16 observer quorum; the witnessed did:keri adapter; 061; grant-constrained decoding; the any-2-of-3 quorum mode (approver set chosen after signing starts); more vendor recipes; review-pass findings off this path: #145 and #147, which after epic 8 concern test-only references, and the rest of #148 (§3). |
 
 ## Rules
 
@@ -83,9 +83,10 @@ Every piece of work traces to a step of this done test, or goes to Not now.
 | Queue item 7 — approval quorum ("2 of 3 managers approve") | merged [PR #142](https://github.com/auths-dev/auths-proof/pull/142) (2026-09-24) | implemented and merged; started on owner direction before Epic 5 merged | Python `author_mcp_quorum_proof` and TypeScript `authorMcpQuorumProof` project the core `k_of_n` plan through the new native `auths-approval-quorum` crate and collect one custody signature per approver. `bindings/fixtures/gateway/approval-quorum.json` drives the gateway hostile cases (`auths-gateway` `quorum_tests`): 1 of 3 (plan lowered to 1-of-1, or one approval missing) and a duplicate signer are denied with zero provider entries and zero credential leases; 2 of 3, 3 of 3, and 2 managers plus an outsider are authorized with exactly one entry each; an outsider beside one manager does not count; zero unauthorized entries; replay refused. Python and TypeScript author byte-identical proofs to the Rust vectors and reach the gateway's decision and code on every vector. No core change. Local only: `cargo test -p auths-approval-quorum -p auths-gateway`, clippy, the Python suite (gateway-client socket tests fail locally on the macOS path limit), mypy strict, pyright, ruff, TypeScript unit, integration, and package tests. | Owner: review the PROVISIONAL readings in §4 (threshold from installed trust; approver set fixed before the first signature). |
 | AP-SPEC-038 §9 — production trust for gateway, observers, Git signing | merged [PR #143](https://github.com/auths-dev/auths-proof/pull/143) (2026-09-24) | engineering merged; §9.3 human and quorum gate items open | Local: gateway, stores, custody, adapters, and Git-signing tests; PostgreSQL variants against a local TLS PostgreSQL 14; clippy, fmt, ci-plan, arch. Hosted: the PostgreSQL lifecycle workflow now runs the gateway conformance and hostile suites against its TLS fixture. Status and open items: [0038 §9.5](specs/0038-production-runtime-custody-observability-and-assurance.md). | Review; a second operator exercises separation and custody; decide whether to start AP-SPEC-060 §16. |
 | North star — Stripe refunds behind 2-of-3 approval and a per-agent limit | merged [PR #152](https://github.com/auths-dev/auths-proof/pull/152) (2026-09-24) | journey merged; the cold run by an unfamiliar developer is open | `examples/stripe-refund-approval/`, `auths-gateway audit`, and CI job `stripe-refund-journey` in `sdk-recipes.yml`, from the packed wheel; the hostile cases and four tampered bundles run in the same journey; CI makes no Stripe calls. Readings are PROVISIONAL in §4. | Owner: find an unfamiliar developer for the cold run (§0 Next). |
-| AP-SPEC-062 — remote approval requests (managers approve on their own devices) | [draft PR #171](https://github.com/auths-dev/auths-proof/pull/171), started 2026-09-26 on owner direction | implemented, epic steps 1–5; in review | `bindings/fixtures/approval/remote-approval.json` (Rust generator in `auths-approval-quorum`) covers requests, approvals, a decline, every `approval.*` code, the display attack in both directions, and a response signed for another envelope; Rust, Python, and TypeScript reproduce it byte for byte. `auths approve` ships in both packaged CLIs. The gateway hostile suite assembles every quorum case from remote responses, byte-identical to the in-process quorum. Both north-star journeys exchange requests and responses as files, with a declined manager and a tampered request, and the audit bundle lists the responses. No core or wire change. Local only; hosted results are recorded in the PR. Readings the spec had to choose are in 0062 §10. | Owner: review the §10 readings (CLI name `auths approve`, per-request digest, decline custody kind). |
-| North-star hardening | draft PRs [#155](https://github.com/auths-dev/auths-proof/pull/155), [#156](https://github.com/auths-dev/auths-proof/pull/156), [#157](https://github.com/auths-dev/auths-proof/pull/157), and [#158](https://github.com/auths-dev/auths-proof/pull/158), started 2026-09-24 on owner direction | in review | The gateway `Idempotency-Key` for recipe writes (#146) is #156. The gateway path of #148 is #155: it zeroizes provider credentials and compares them in constant time, and #148 keeps the remaining `fill(0)` sites, encryption at rest, and the admin fields. The journey from the npm package is #158, which adds `compileTrustedContext` and `authorRootGrant` to the TypeScript package. The root README now leads with the journey (#157). The packed-Chromium cold-start flake that hit #153 and #158 is fixed in [#159](https://github.com/auths-dev/auths-proof/pull/159). | Review each draft PR. #155, #156, and #158 each bump the semantic freeze, so each later merge re-runs `cargo xtask semantic-freeze --update`. #156 adds a state-loss step to `journey.py` that `journey.ts` in #158 must mirror. |
+| AP-SPEC-062 — remote approval requests (managers approve on their own devices) | merged [PR #171](https://github.com/auths-dev/auths-proof/pull/171) (2026-09-26) | implemented, epic steps 1–5; merged | `bindings/fixtures/approval/remote-approval.json` (Rust generator in `auths-approval-quorum`) covers requests, approvals, a decline, every `approval.*` code, the display attack in both directions, and a response signed for another envelope; Rust, Python, and TypeScript reproduce it byte for byte. `auths approve` ships in both packaged CLIs. The gateway hostile suite assembles every quorum case from remote responses, byte-identical to the in-process quorum. Both north-star journeys exchange requests and responses as files, with a declined manager and a tampered request, and the audit bundle lists the responses. No core or wire change. Local only; hosted results are recorded in the PR. Readings the spec had to choose are in 0062 §10. | Owner: review the §10 readings (CLI name `auths approve`, per-request digest, decline custody kind). |
+| North-star hardening | merged [#155](https://github.com/auths-dev/auths-proof/pull/155), [#156](https://github.com/auths-dev/auths-proof/pull/156), [#157](https://github.com/auths-dev/auths-proof/pull/157), [#158](https://github.com/auths-dev/auths-proof/pull/158), and [#159](https://github.com/auths-dev/auths-proof/pull/159) (2026-09-26) | done | The gateway `Idempotency-Key` for recipe writes (#146) is #156. The gateway path of #148 is #155: it zeroizes provider credentials and compares them in constant time, and #148 keeps the remaining `fill(0)` sites, encryption at rest, and the admin fields. The journey from the npm package is #158, which adds `compileTrustedContext` and `authorRootGrant` to the TypeScript package. The root README now leads with the journey (#157). The packed-Chromium cold-start flake that hit #153 and #158 is fixed in [#159](https://github.com/auths-dev/auths-proof/pull/159). | None. |
 | Principal status for every principal | merged [PR #153](https://github.com/auths-dev/auths-proof/pull/153) (`8bf2970c`) | done | Rust, Go, and TypeScript check principal status for every principal in a branch under the anchor's policy (revocation-list semantics for delegates and actors) and agree on 184 vectors; the Go and TypeScript status selection now matches Rust. Advisory [GHSA-j863-hjcq-vwj3](https://github.com/auths-dev/auths-proof/security/advisories/GHSA-j863-hjcq-vwj3) published 2026-09-24. | None. |
+| AP-SPEC-063 — the generalized gateway | spec [#178](https://github.com/auths-dev/auths-proof/pull/178), [#179](https://github.com/auths-dev/auths-proof/pull/179), [#180](https://github.com/auths-dev/auths-proof/pull/180); epics 1–7 merged 2026-09-27/28; epic 8 on branch `audit-2026-09-24-gateway-epic8` | epics 1–7 merged; epic 8 local, awaiting review | Epic 1 case file and fixtures [#181](https://github.com/auths-dev/auths-proof/pull/181) ([ADR 0013](adr/0013-recipe-capabilities-and-sum-budget.md) stays Proposed); epic 2 recipe `/2` [#182](https://github.com/auths-dev/auths-proof/pull/182); epic 3 store and engine [#183](https://github.com/auths-dev/auths-proof/pull/183); epic 4 one spend limit [#184](https://github.com/auths-dev/auths-proof/pull/184); epic 5 operator plane [#185](https://github.com/auths-dev/auths-proof/pull/185); epic 6 evidence and assurance [#186](https://github.com/auths-dev/auths-proof/pull/186) (the scheduled Fuzz run with the gateway targets is the owner's to trigger); epic 7 north-star recipe with all five Stripe checks [#187](https://github.com/auths-dev/auths-proof/pull/187). Epic 8 (§12 option A) removes the five local-agent effect profiles, their routes, the journal executor, the generated clients, the SDK local-agent client, the connection administration, and the AP-SPEC-044 qualification machinery; `auths-node` keeps only `gateway recipe check`; the domain crates stay as test-only references; ADR 0012, the boundary plan, AP-SPEC-040–044, and AP-SPEC-038 Epic 6 are amended. §13 readings 1–57 are PROVISIONAL. | Owner: review ADR 0013 and the §13 readings; push epic 8. |
 | Review passes | merged [PR #151](https://github.com/auths-dev/auths-proof/pull/151) | done | `docs/audit/`: area prompts, verify and plan-work prompts, and `settled.md`. Pass records stay local. The 2026-09-23 pass filed #145–#148 and the advisory above. | Next pass in early November. |
 
 ## 2. Queued — single-agent order, with gates
@@ -123,48 +124,13 @@ gates do not shrink.
     RUSTSEC-2026-0173 exception, decided when phase 2 starts.
   - Phases 0–1 can start now.
 - **063 Generalized gateway.** Spec:
-  [AP-SPEC-063](specs/0063-generalized-gateway.md) (draft).
-  - Epic 1 (case file and fixtures) is on branch
-    `audit-2026-09-24-gateway-epic1`, awaiting owner review:
-    [ADR 0013](adr/0013-recipe-capabilities-and-sum-budget.md) (proposed),
-    the comparisons in case 0007, and six vectors under
-    `bindings/fixtures/gateway/`. The tests in
-    `product/runtime/auths-gateway/src/pending_vectors/` show that current
-    code does not satisfy them. Epics 2–8 have not started.
-  - Epic 5 (operator plane) is on branch
-    `audit-2026-09-24-gateway-epic5`, awaiting owner review: connection
-    record `/2` in the shared store, admin commands `/1`, key-identity
-    separation, the authenticated operator, and `ConnectionGenerations.lean`
-    with its translated leaves. §13 readings 26–33 are PROVISIONAL.
-  - Epic 6 (evidence and assurance) is on branch
-    `audit-2026-09-24-gateway-epic6`, awaiting owner review: outcome `/2`
-    and its presence rule, observe `/2`, audit bundle and report `/2` with
-    the provider result, the counter-set, relative-ceiling, and pre-entry
-    checks, `echo-verify`, the `auths-gateway-fuzz` crate in the scheduled
-    campaign (three shards), property tests, Kani harnesses, and the closed
-    code inventory. Rust, Python, and TypeScript agree on `outcome-v2.json`.
-    Local only; the scheduled Fuzz run is the owner's to trigger after
-    merge. §13 readings 34–44 are PROVISIONAL; the SDK `echo_token`
-    projection is deferred (reading 44).
-  - Epic 7 (north-star recipe) is on branch
-    `audit-2026-09-24-gateway-epic7`, awaiting owner review: the Stripe
-    recipe is §3.1's, with all five Stripe checks; its grants carry policy
-    `/2` with a per-currency sum and a scope listing the test connected
-    account; the counting double serves every read the recipe makes; and
-    both journeys record `observed-by-provider` for refund 1 and each
-    hostile case's code with zero writes. `install --loopback-provider`
-    exists in the development build only. The README keeps 10 steps (8.1 s
-    locally from the wheel, 7.0 s from npm). Local only. §13 readings
-    46–51 are PROVISIONAL.
-  - It covers five things: per-recipe recovery capability, the provider
-    capabilities the Stripe vertical proved necessary, one spend limit, an
-    operator plane the application cannot interfere with, and evidence and
-    assurance.
-  - It has eight epics; epic 8 runs only under §12 option A.
-  - Owner decision, 2026-09-27: §12 option A. The gateway becomes the single
-    provider-write path, and epic 8 retires the five local-agent effect
-    profiles.
-  - §13's readings are PROVISIONAL.
+  [AP-SPEC-063](specs/0063-generalized-gateway.md) (draft). Epics 1–7 are
+  merged and epic 8 is in review; status is in §1. It covers per-recipe
+  recovery capability, the provider capabilities the Stripe vertical proved
+  necessary, one spend limit, an operator plane the application cannot
+  interfere with, evidence and assurance, and, under the owner's §12
+  decision (option A, 2026-09-27), one provider-write path. §13's readings
+  are PROVISIONAL.
 - **Reads through the gateway.** Read recipes, response projection
   (`allowed_fields`, `maximum_response_bytes` as in 0024 §10), disclosure
   receipts. Confidentiality additionally needs hermetic agent egress.
@@ -181,15 +147,17 @@ gates do not shrink.
 - **Multi-host gateway.** Merged in PR #143: attempt, evidence, outcome, and
   window-count state runs on the PostgreSQL store under AP-SPEC-038 §9.1,
   with two-process conformance in `postgres-lifecycle.yml`. The store's
-  qualification (0038 Epic 2) is open, and connection state is still per
-  process.
+  qualification (0038 Epic 2) is open. Connection state is shared through
+  the store since 063 epic 5 (#185).
 - **Surface-area cost.** Formal, kernel, gateway, bindings, and signing have
   grown faster than adoption. Before each new epic, name what it retires or
   consolidates, and track the per-PR regeneration and freeze overhead.
 - **Review pass 2026-09-23.** Off the north-star path, so Not now: #145 (Stripe
-  local-agent refund recovery reads one page and matches on editable
-  metadata; its demo releases budget on a miss), #147 (PostgreSQL receipt
-  timestamps and read-back field), and the remaining `fill(0)` sites of #148.
+  refund recovery reads one page and matches on editable metadata; its demo
+  releases budget on a miss; after 063 epic 8 only the demo and the
+  reference vertical remain), #147 (PostgreSQL receipt timestamps and
+  read-back field, now in a test-only reference), and the remaining
+  `fill(0)` sites of #148.
   Its small cleanups landed in #163. Settled findings are in
   `docs/audit/settled.md`.
 - **Review pass 2026-09-24.** Merged as PRs in priority order on owner
@@ -198,12 +166,12 @@ gates do not shrink.
   revocation #164, the Stripe reservation hold #165, admin-socket capacity
   #166, kernel conformance #167, CI gates #168, and status statements #169.
   Still open: the nightly kernel mutation job (2.5 part C); one key counted
-  as two principals (2.7); and, pending the owner's decision on whether the
-  gateway becomes the single provider-write path, the local-agent socket
-  model (2.4), the local-agent error contract (2.8), GitHub recovery, the
-  journal after provider entry, blocking I/O off async workers, and the
-  audit's recorded provider status. Settled findings are in
-  `docs/audit/settled.md`.
+  as two principals (2.7). The owner's 063 §12 decision settled the rest:
+  063 epic 8 removes the local agent, so its socket model (2.4), its error
+  contract (2.8), and its journal after provider entry are moot; 063 epic 6
+  records the provider status in the audit; GitHub recovery and blocking
+  I/O off async workers now concern only test-only references. Settled
+  findings are in `docs/audit/settled.md`.
 
 ## 4. Decisions log
 
@@ -247,6 +215,8 @@ gates do not shrink.
 | 2026-09-25 | PROVISIONAL, taken unattended as the narrower readings for package 2.6 (status statements) of the 2026-09-24 review, whose `purpose` decision the owner left open: (1) `purpose` is removed from principal-status statements rather than given purpose-scoped selection, which would add role semantics no spec defines. The wire loses key 3 and the later keys move down one, one direct cutover with no reader for the old shape (a ten-entry statement is `malformed-proof`); the carried-status rollback check keys on the principal alone, as selection does; the Python and WASM authoring APIs and the TypeScript engine contract drop the argument. (2) The accepted-extension rule covers every statement about a principal or grant whose status a branch evaluates, whatever its method or issuer and whether or not selection would pick it, checked after the statement's control and before selection; statements about subjects the branch does not evaluate are not checked. (3) As for actions and grants, the first extension in canonical order decides: an identifier the context does not accept is `critical-extension-unknown`, an accepted one `unsupported-critical-extension`. (4) No registered extension, `exact-marker-v1` included, has a status handler, so an accepted extension on an evaluated status statement is never evaluated and is always `unsupported-critical-extension`; a status extension needs a protocol review, an executable model, and a new manifest. | `core/spec/v1/protocol.md` "Evidence and status"; `core/spec/v1/verification-algorithm.md` "Principal status", "Grant status"; `core/spec/v1/registry.md` "Status-statement extensions"; `core/spec/v1/auths-proof.cddl` |
 | 2026-09-25 | Owner directed AP-SPEC-063 (the generalized gateway) to be written as a draft before its epic starts. Writing it does not start an epic; the WIP limit still governs. The single-provider-write-path choice is left to the owner (§12), and §13's readings are PROVISIONAL. | 0063 §12, §13 |
 | 2026-09-28 | PROVISIONAL, taken unattended for AP-SPEC-063 Epic 7 as the narrower readings: the four refusals after the credential lease run as a second agent with its own grant, so the agent keeps two refunds per UTC day; the rejected refund names an already-refunded PaymentIntent, since a missing one now fails the relative-ceiling read before any write; the non-test key is refused at `install`; `install --loopback-provider` exists only in the `loopback-provider` build; the profile keeps version 1 as a clean cutover; and the denied reads stay, failing closed at install if Stripe's refusals omit `Stripe-Version`. | 0063 §13 readings 46–51 |
+| 2026-09-28 | PROVISIONAL, taken unattended for AP-SPEC-063 epic 8 as the narrower readings: `auths-node` keeps only the operator `gateway recipe check`, since public naming reserves the binary; the AP-SPEC-044 qualification machinery goes with the profiles it qualifies; the domain crates' production-only modules (connection onboarding, the Stripe evidence reader, the preflight stores, the OpenTofu protected executor, the profile error fragments) go, while evaluators, fixtures, Kani harnesses, and demos stay; the SDKs' local-agent client and its registry codes go; and shared code only the local agent used goes, each crate keeping its other consumers' surface. | 0063 §13 readings 52–56 |
+| 2026-09-28 | Owner decision: epic 8 deletes the live provider qualification machinery with the profiles. PROVISIONAL, taken as the narrower reading: the stable-launch blocker `second-qualified-effect-vertical` becomes `second-qualified-recipe`, so stable launch stays blocked until two recipes earn a qualified claim under ADR 0013's rule, whatever the owner settles that rule to be. | 0063 §13 reading 57; `release/evolution-policy-v1.json` |
 | 2026-09-27 | Owner decision on AP-SPEC-063 §12: option A. The gateway becomes the single provider-write path. Epic 8 removes the five local-agent effect profiles in one cutover, and the PostgreSQL and OpenTofu production paths end with them, since they have no HTTP equivalent. The domain crates stay as test-only references, and §12's table lists what production gives up. | 0063 §12, §15 |
 | 2026-09-26 | The owner delegated the choice between two fixes. Taken: when protected-base translation evidence is missing, `formal translation` runs two clean reproductions in the same job, rather than also reusing base runs where only the translation job succeeded. Six of the last eight `main` push runs were cancelled by newer merges, which the second fix cannot cover. Evidence that is found but fails binding still fails the job, and every pull-request reproduction still packages generated drift. | `docs/ci/formal-translation-evidence.md`; `.github/workflows/ci.yml` |
 | 2026-09-26 | The owner delegated whether `formal Lean authoritative` fails when it packages an assurance update. Taken: it fails, as `formal translation` does, so the job that found the drift is the red one; the `formal-translation` gate and `CI qualified` were already red, and the updater keys off the update artifact, not job status. The job now declares the `update_required` output that `formal evidence` gates on, so aggregation is skipped instead of failing on a missing Lean artifact, and xtask requires both. | `.github/workflows/ci.yml`; `xtask/src/formal_qualification.rs` |

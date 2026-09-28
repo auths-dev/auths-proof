@@ -247,7 +247,7 @@ kind = "executable"
 current = "auths-node"
 target = "auths-node"
 state = "renamed-to-free-auths"
-compatibility = "The privileged deployment and local-agent binary of the unpublished auths-node package, renamed from auths so the packaged CLI owns that name. Prelaunch clean cutover; no alias."
+compatibility = "The operator deployment binary of the unpublished auths-node package (gateway recipe checks), renamed from auths so the packaged CLI owns that name. Prelaunch clean cutover; no alias."
 owner_pr = "CLI-NAMED-AUTHS"
 
 [[release_order]]

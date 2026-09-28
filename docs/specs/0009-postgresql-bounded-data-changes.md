@@ -6,6 +6,16 @@ Profile: `auths.postgresql.bounded-update/1`
 Product package: `product/integrations/auths-postgresql`  
 Demo: `demos/postgresql-data-change`
 
+> **Status note (2026-09-28).** On 2026-09-27 the owner chose AP-SPEC-063
+> §12 option A, which makes the Auths gateway the single provider-write path.
+> The PostgreSQL bounded update is not an HTTP write, so it has no gateway
+> equivalent: its production path ended, and with it the serializable
+> row-version write in production. The local-agent route, the preflight
+> profile, connection administration, and qualification material were
+> removed. `auths-postgresql` stays only as a test-only reference: the pure
+> evaluator, fixtures, and `demos/postgresql-data-change`. The sections below
+> record the vertical as it was specified.
+
 ## 1. Decision
 
 Build one vertical PostgreSQL product package that lets an untrusted agent propose a typed, bounded data update without possessing a database credential.

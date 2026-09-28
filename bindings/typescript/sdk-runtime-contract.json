@@ -14,7 +14,6 @@
     "./identity/adapters",
     "./adapters",
     "./protocol",
-    "./profile-runtime",
     "./testkit"
   ],
   "requiredWasmExports": [
@@ -35,9 +34,6 @@
     "diagnostics.doctor",
     "gateway.client-v1",
     "identity.compact-v2",
-    "local-agent.session-v1",
-    "profile-operation.v1",
-    "profile-runtime.v1",
     "verification.batch-v1",
     "verification.single-v1"
   ]

@@ -37,9 +37,9 @@ the final check.
 
 ## Public API
 
-Only documented package exports are public. `src/index.ts` is the application
-facade; `src/profile-runtime.ts` is the explicit generated-package extension
-surface. Advanced inspection must never mint an effect capability.
+Only documented package exports are public. `src/index.ts` is the shared
+root and `src/gateway.ts` is the only provider-write client. Advanced
+inspection must never mint an effect capability.
 
 Every public change needs documentation, a misuse test, an external-consumer
 example where applicable, and an explicit statement of the assurance claim it

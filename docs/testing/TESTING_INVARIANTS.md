@@ -120,7 +120,8 @@ binding versus its owner, an independent reimplementation versus the reference.
 - Drive it from the canonical corpus so the inputs are real.
 
 **Real defect:** `auths-node` disagreed with the kernel on **103 of 103** canonical inputs. Nothing
-compared them, so nobody knew. The differential test is now the acceptance criterion for that crate.
+compared them, so nobody knew. That runtime was removed on 2026-09-27; the rule applies to any
+runtime that re-implements kernel semantics.
 
 ## Corpus and fixture tests
 

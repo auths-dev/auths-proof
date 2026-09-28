@@ -6,6 +6,20 @@
 
 **Blocks:** Epics 7–9
 
+**Status (28 September 2026): moved to gateway recipes.** Under the owner's
+decision of 27 September 2026 ([AP-SPEC-063](../0063-generalized-gateway.md)
+§12, option A) the gateway is the single provider-write path. The OpenTofu
+and PostgreSQL verticals below have no gateway equivalent, because neither
+provider is reached over HTTPS; their production paths ended in AP-SPEC-063
+epic 8, and their packages and demos stay as test-only references. The
+GitHub row is a gateway recipe (the issue-creation recipe of abstraction
+case 0007 and the derivation corpus), and `auths-github` stays its reference.
+This epic's goal of qualified production effects becomes the qualification
+rule of [ADR 0013](../../adr/0013-recipe-capabilities-and-sum-budget.md): a
+recipe is qualified only through a later ADR with differential agreement
+against its vertical's oracle and hosted live-provider evidence. The text
+below is the record of the vertical design and is not a current requirement.
+
 ## Outcome
 
 Qualify three materially different, fully open effect paths:

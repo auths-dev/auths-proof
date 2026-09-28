@@ -34,6 +34,12 @@ This introduces a third, deliberately narrow path:
 | Declarative gateway (this spec) | Separately deployed gateway | Exact action verified and one closed request attempted with the gateway-held credential, if the deployment isolation and operator bindings hold. Provider meaning remains unqualified. |
 | Qualified managed vertical (040) | Reviewed Auths runtime | Separately qualified provider, recovery, and receipt claims for that exact vertical. |
 
+**Note (2026-09-28).** The managed-vertical row no longer describes a path.
+On 2026-09-27 the owner chose AP-SPEC-063 §12 option A: the gateway is the
+single provider-write path, the local agent and its effect profiles were
+removed, and AP-SPEC-040 is superseded for provider writes. Two paths remain:
+the self-hosted adapter and the gateway recipe.
+
 “Non-bypassable” here is **relative to the credential bound to this gateway**.
 It does not prevent an account owner from using another credential or the
 provider's own UI. A library called inside the credential-owning application,

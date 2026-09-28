@@ -8,32 +8,20 @@
 
 #![forbid(unsafe_code)]
 
-/// Build-time sentinel used by the production agent to reject accidental
-/// linkage of Stripe's synthetic testkit surface.
-#[doc(hidden)]
-pub const __TESTKIT_AGENT_ENABLED: bool = cfg!(feature = "testkit-agent");
-
 pub mod adapters;
 pub mod bounded;
 pub mod bounded_service;
 pub mod canonical;
 pub mod claim;
 pub mod connect;
-pub mod connection;
 pub mod decision;
 pub mod executor;
-pub mod generated;
 pub mod issuing;
 pub mod lifecycle;
-pub mod local_agent;
-pub mod local_configuration;
 pub mod mandate;
 pub mod merchant;
 pub mod ports;
 pub mod profile;
-pub mod protected_evidence;
-#[cfg(feature = "qualification")]
-pub mod qualification;
 pub mod receipts;
 pub mod reservation;
 pub mod service;
@@ -73,7 +61,6 @@ pub use lifecycle::{
     StripeLifecycleDecisionBindings, StripeLifecycleProjectionError,
     StripeLifecycleProjectionInput, StripeLifecycleProjectionV1, project_refund_lifecycle,
 };
-pub use local_configuration::{StripeRefundEvidenceStoreV1, StripeRefundLocalAgentConfigurationV1};
 pub use mandate::*;
 pub use merchant::*;
 pub use ports::{
@@ -90,10 +77,6 @@ pub use ports::{
     SubscriptionModifyCredentialScope,
 };
 pub use profile::{StripeRefundCommand, StripeRefundProfile};
-pub use protected_evidence::{
-    ProtectedRefundEvidenceSnapshotV1, StripeEvidenceStoreError, StripeRefundEvidencePhase,
-    StripeRefundEvidenceRequestV1, request_refund_evidence_snapshot,
-};
 pub use receipts::{
     BoundedDecisionReceipt, BoundedDecisionReceiptInput, DecisionReceipt, ExecutionReceipt,
     ObservationReceipt, ReservationReceipt, StripeReceipt,

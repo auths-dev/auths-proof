@@ -2,14 +2,6 @@
 
 #![forbid(unsafe_code)]
 
-mod agent;
-
-pub use agent::{
-    AgentConfig, AgentConfigError, AgentPlatform, AuthoritySourceConfig, ConnectionSelection,
-    ReceiptPublicKeyConfig, ReceiptSigningConfig, ReceiptSigningKeyConfig, ReceiptSigningRole,
-    WorkloadConfig, WorkloadSelector,
-};
-
 use auths_codec::context_digest;
 use auths_model::{
     ChannelBindingId, ContextDigest, Digest, LimitKind, PROTOCOL_V1, ProfileId, ProfileRef,

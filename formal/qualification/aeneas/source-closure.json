@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "6ab895a9a490d6daacd3f2fe26816e197c66bd8d4999b324506f2979a568c388",
+  "digest": "51b5e455a813e16eb5c76ae5614a4d19a4087717c58a6fb1dcfefb82b26027ac",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -8,12 +8,12 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "6d9f3e47a05782e198eafd37898119dd380a3b996393abbb9ef743bd9880f763",
+      "sha256": "b34be72b36839ca86a87080eea244b0b01c37dbceb53c9cc4bee6abaf386d572",
       "normalization": "translated-cargo-closure-v1"
     },
     {
       "path": "Cargo.toml",
-      "sha256": "3f49b069d7ce097326e67b874f176a1ea0fbfa1364cbdd2d55fdaf33f278b055"
+      "sha256": "e1b4230455a9d1815ee793cd66db4eccec6e0d5396765501ddccd8d1aeca9940"
     },
     {
       "path": "core/crates/auths-algebra-kernel/Cargo.toml",
@@ -149,7 +149,7 @@
     },
     {
       "path": "product/runtime/auths-connections/Cargo.toml",
-      "sha256": "de608ce79f1d5bcde6b7e1626bb62d1d4ab9a207076b3fca576512279cb0d6bb"
+      "sha256": "babeb6e1dda3dfb66291713ce1e43dce5c349833d0b50ea4dccbf986030026b2"
     },
     {
       "path": "product/runtime/auths-connections/src/credential.rs",
@@ -161,15 +161,11 @@
     },
     {
       "path": "product/runtime/auths-connections/src/lib.rs",
-      "sha256": "26110c8029b9fb538f2c7241b71435ee88c9bd42b066e42daf7a376b5e4b2325"
+      "sha256": "0164e5f6a109f4da16d007e8cde9d38f7e902fff9ac4c76261d9c833b433640b"
     },
     {
       "path": "product/runtime/auths-connections/src/model.rs",
       "sha256": "f09288d441edcab8bd9e2c4a8c4e1d299c28a91ec2a7ecd207a235a2b8956453"
-    },
-    {
-      "path": "product/runtime/auths-connections/src/qualification.rs",
-      "sha256": "13aad2a475db0446a34e03c418032e1d52203ee947844149138e827195a3baee"
     },
     {
       "path": "product/runtime/auths-connections/src/registry.rs",
@@ -261,7 +257,7 @@
     },
     {
       "path": "xtask/Cargo.toml",
-      "sha256": "f103363e6a1a309be6515fa14ed781174390bd0c0eba7f61de2369b157892270"
+      "sha256": "d1ef9514d9b7331865bbf207646c7dcec072c995830b47399f2dc483636bf729"
     },
     {
       "path": "xtask/ci-plan/Cargo.toml",
@@ -301,7 +297,7 @@
     },
     {
       "path": "xtask/src/checks.rs",
-      "sha256": "1a6736e321e161bfcefae051a1a22d047d83f5d511490670f37da5d70a44d082"
+      "sha256": "edd9203b9160e1a5b85ff12f26048b2d9090133c8228c8259d4364a8dda54fcf"
     },
     {
       "path": "xtask/src/compliance.rs",
@@ -313,7 +309,7 @@
     },
     {
       "path": "xtask/src/error_registry.rs",
-      "sha256": "6b5e4ba2cf9cd2d0d3bea35d5e0a58720bb7653f8e24ae5093103b908f9304bb"
+      "sha256": "e90d28df019f14b95865e1aee9520dda5c8badda4a6a5971b36edc5231039343"
     },
     {
       "path": "xtask/src/evolution_policy.rs",
@@ -345,7 +341,7 @@
     },
     {
       "path": "xtask/src/main.rs",
-      "sha256": "30354aafa7a22ee11837a66056f8abbd428b91d74a82f65c4cb22619618fb69c"
+      "sha256": "36101ebf96fae735af19be2764968e57a817aa13e92b56e2628cd07a38a98ac2"
     },
     {
       "path": "xtask/src/mcp_session_contract.rs",
@@ -368,40 +364,20 @@
       "sha256": "323b1410f96809b9b462eda2c8865f6ade74cef8c17322ba1045576b184013b9"
     },
     {
-      "path": "xtask/src/profile_codegen.rs",
-      "sha256": "e4e5ee42a9f2cdd6fadc5288291382c5f39a417e3704cbad1117e70707f42112"
-    },
-    {
-      "path": "xtask/src/profile_qualification.rs",
-      "sha256": "a5e8ec823fcb6ab9bfaaad069dac1c341563393a7f417735338ab2e6f7a53ee6"
-    },
-    {
-      "path": "xtask/src/profile_qualification_adapters.rs",
-      "sha256": "3ba5592ef62f79a8eafd92302ca6ac1ec3590d9e26c5a333acbb7c6691128241"
-    },
-    {
-      "path": "xtask/src/profile_qualification_evidence.rs",
-      "sha256": "eebc4eb5fdb4d1ffecda01ef6c347768aa385c297290f850795cd5abd6a14cb3"
-    },
-    {
-      "path": "xtask/src/profile_qualification_reports.rs",
-      "sha256": "8377d526532b3a9abeb89dfbd70547ca3ce88351297c71bf066b63f2dd46a04b"
-    },
-    {
       "path": "xtask/src/public_naming.rs",
-      "sha256": "f076064dbd8a6e76a90d42b5e0a2643a3bac9d9a1d97b649d935f6453e448b8e"
+      "sha256": "cdd6647f1bac6266f239ab5484cb0d4799df843da7d2e95c11270826fa5ac492"
     },
     {
       "path": "xtask/src/release.rs",
-      "sha256": "51d7713fd79730568d70b15065b1091de0096e1d398dfe03fe1433a470f7d8a4"
+      "sha256": "787352db2f5932519fe601e011fda044cf616f6c580334d0249050c271b31e52"
     },
     {
       "path": "xtask/src/release_control.rs",
-      "sha256": "4d84c2e72cead61bca0cc5974a289d45e0f434a95cf88efcd2e26c1afc547cc6"
+      "sha256": "6027e030cd2db03818a23d816e3011f2b504c18599d100322d994387207db090"
     },
     {
       "path": "xtask/src/sdk_experience.rs",
-      "sha256": "ab0c21b282940797e818d905fb6ec5125e463293b7044bf1fa9d2a467894af15"
+      "sha256": "ab58c932bf68bf48273ccd28811a10fb09d9705268d9d257221bb4c194c4d517"
     },
     {
       "path": "xtask/src/sdk_vocabulary.rs",
@@ -409,7 +385,7 @@
     },
     {
       "path": "xtask/src/semantic_freeze.rs",
-      "sha256": "79ef10857c2b76b00c0840ff256251eee2a292eb7d634113ba3304cd542002bd"
+      "sha256": "3227a3dc0a2edc827e2408545063f142b3f89bb7277799fb6a9608669729d5f6"
     },
     {
       "path": "xtask/src/stripe.rs",

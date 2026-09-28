@@ -4,7 +4,7 @@ This page is generated from the Auths evolution policy and lifecycle registry.
 
 Stable publication: **blocked**
 
-Current blockers: independent-security-review, moderated-recipe-three-cohort, second-qualified-effect-vertical.
+Current blockers: independent-security-review, moderated-recipe-three-cohort, second-qualified-recipe.
 
 ## Version axes
 
@@ -33,12 +33,6 @@ Current blockers: independent-security-review, moderated-recipe-three-cohort, se
 
 | Code | Status | Replacement | Final producing version |
 | --- | --- | --- | --- |
-| `client.agent-unavailable` | active | — | — |
-| `client.profile-contract-mismatch` | active | — | — |
-| `client.profile-unavailable` | active | — | — |
-| `connection.contract-mismatch` | active | — | — |
-| `connection.credential-unavailable` | active | — | — |
-| `connection.unavailable` | active | — | — |
 | `core.authorization-denied` | active | — | — |
 | `core.authorization-indeterminate` | active | — | — |
 | `core.forged-execution-reference` | active | — | — |
@@ -146,30 +140,15 @@ Current blockers: independent-security-review, moderated-recipe-three-cohort, se
 | `mcp.recovery-not-found` | active | — | — |
 | `mcp.replay` | active | — | — |
 | `mcp.reservation-conflict` | active | — | — |
-| `opentofu.apply-outcome-unknown` | active | — | — |
-| `opentofu.plan-preflight-denied` | active | — | — |
-| `opentofu.plan-preflight-outcome-unknown` | active | — | — |
-| `opentofu.saved-plan-denied` | active | — | — |
-| `operation.admission-exhausted` | active | — | — |
-| `operation.idempotency-conflict` | active | — | — |
-| `operation.outcome-unknown` | active | — | — |
-| `operation.recovery-unavailable` | active | — | — |
-| `operation.timed-out` | active | — | — |
 | `plan.action-substituted` | active | — | — |
 | `plan.member-failed-before-entry` | active | — | — |
 | `plan.member-interrupted` | active | — | — |
 | `plan.reconciliation-pending` | active | — | — |
 | `plan.resume-reference-invalid` | active | — | — |
-| `postgresql.preflight-denied` | active | — | — |
-| `postgresql.preflight-outcome-unknown` | active | — | — |
-| `postgresql.update-denied` | active | — | — |
-| `postgresql.update-outcome-unknown` | active | — | — |
 | `remote.authentication-failed` | active | — | — |
 | `remote.response-malformed` | active | — | — |
 | `remote.timeout` | active | — | — |
 | `remote.transport-unavailable` | active | — | — |
-| `stripe.refund-denied` | active | — | — |
-| `stripe.refund-outcome-unknown` | active | — | — |
 
 ## Conformance suites
 

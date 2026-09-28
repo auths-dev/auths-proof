@@ -15,17 +15,13 @@
   ],
   "claims": {
     "supported": [
-      "ambient local-agent session establishment without an application token",
-      "non-secret provider connection aliases selected on generated domain clients",
-      "generated Stripe, PostgreSQL, and OpenTofu domain distributions",
-      "typed success, refusal, conflict, partial, and recovery outcomes",
-      "opaque durable recovery handles and portable receipts",
-      "public versioned profile-runtime compatibility module for generated distributions",
+      "the operator-run gateway as the single provider-write path; the SDK submits a proof and canonical action and holds no provider credential",
+      "proof/action-only local gateway client with distinct refusal, unknown, response, observation, and echo-bound observed-by-provider outcomes, plus read-only requests for gateway-signed read-back and outcome observations returned as attachable bytes and for an operation's stored pre-entry observations; deployment isolation is operator-owned",
+      "portable receipts verified offline against pinned trust",
       "effect-free identity and verification utilities",
       "self-hosted exact MCP authorization with application-owned provider credentials and unqualified effects",
-      "proof/action-only local gateway client with distinct refusal, unknown, response, observation, and echo-bound observed-by-provider outcomes, plus read-only requests for gateway-signed read-back and outcome observations returned as attachable bytes and for an operation's stored pre-entry observations; deployment isolation is operator-owned",
       "closed bounded enumeration fields in self-hosted exact MCP argument contracts",
-      "typed installed-wheel coverage for the local-agent surface"
+      "typed installed-wheel coverage for the verification, identity, and gateway surfaces"
     ],
     "excluded": [
       "backward compatibility or migration shims for prelaunch APIs",
@@ -34,6 +30,7 @@
       "qualified execution claims for self-hosted application-owned provider calls",
       "credential-isolation claims from an SDK client without a separately tested gateway deployment",
       "caller-defined profile callbacks or dynamic runtime plugins",
+      "an in-process or local-agent provider-write path that bypasses the gateway",
       "independent review, production readiness, and package publication authorization"
     ]
   }

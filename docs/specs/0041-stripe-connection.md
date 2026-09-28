@@ -1,6 +1,28 @@
 # AP-SPEC-041: Stripe Connection Contract
 
-Status: implementation contract for the generic profile client relaunch.
+Status: **moved to the gateway recipe on 28 September 2026.** Under the
+owner's decision of 27 September 2026 ([AP-SPEC-063](0063-generalized-gateway.md)
+§12, option A) the local-agent profile `auths.stripe.refund/1`, this
+connection's onboarding and administration, the protected evidence reader,
+and the qualification custody of §4 were removed (AP-SPEC-063 epic 8). The
+production Stripe refund is AP-SPEC-063 §3.1's recipe in
+`examples/stripe-refund-approval/`. Each requirement below maps to a gateway
+capability, narrower where AP-SPEC-063 §6.9 and §14 say:
+
+| This contract | Gateway recipe |
+| --- | --- |
+| `rk_test_` restricted keys only, refused before network I/O | §5.2 credential-mode guard: a declared prefix allowlist at `install`, `rotate`, and every lease |
+| Pinned `Stripe-Version` sent, response header required equal | §5.1 provider version header with the "must echo" response rule |
+| `acct_` identity read at onboarding and re-checked before each lease | §5.7 account binding at onboarding and every lease, read from the provider each time |
+| The exact `stripe.refunds.write/1` scope | §5.8 denied reads: observed refusals of declared reads, since neither path can read a key's scopes |
+| Connect accounts refused in v1 | §5.9 account scope: a grant-listed `Stripe-Account` value; a recipe without `account_scope` writes on the platform |
+| Separate runtime-read key and signed evidence reader; pre-entry reread | §5.6 relative-ceiling basis read by the gateway after the lease with the same credential (§13 reading 21), and §5.3 pre-entry re-read where a recipe declares one |
+| Workflow-derived idempotency key and metadata marker | §4.1's derived `Idempotency-Key` and §5.4's form echo |
+| Paginated reconciliation by marker | §4.4: `unknown` resolves only through a `linked` read-back of the response locator |
+| Qualification custody (§4) | None. ADR 0013's qualification rule governs any later qualified claim |
+
+The text below is the record of the local-agent design and is not a current
+requirement.
 
 `auths.stripe.connection/1` binds one Auths connection to one Stripe test-mode
 account, one pinned Stripe API version, and a closed byte-sorted set of

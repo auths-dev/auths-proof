@@ -11,7 +11,7 @@ const entryPoints = JSON.parse(
 const removed = [
   "advanced", "approvals", "authority", "custody", "diagnostics", "framework",
   "github", "inspection", "integrations", "lifecycle", "mcp", "mcp/node", "observability", "plans",
-  "profile-kit", "profiles", "runtime", "service", "trust", "workflow",
+  "profile-kit", "profile-runtime", "profiles", "runtime", "service", "trust", "workflow",
 ];
 
 test("packed package exposes only the reviewed public topology", async () => {
@@ -21,12 +21,7 @@ test("packed package exposes only the reviewed public topology", async () => {
       for (const entry of ${JSON.stringify(entryPoints)}) await import(entry);
       const root = await import("@auths-dev/sdk");
       const names = Object.keys(root).sort();
-      const expected = ${JSON.stringify([
-        "AuthsError", "AuthsOperationError", "ClientStateError", "ConflictError",
-        "DeniedError", "NotAppliedError", "PartialError", "ReceiptIntegrityError",
-        "RecoveryRequiredError", "UnavailableError", "connect", "isAuthsError",
-        "recoveryHandleFromBytes", "runtimeInfo",
-      ])};
+      const expected = ${JSON.stringify(["AuthsError", "isAuthsError", "runtimeInfo"])};
       if (JSON.stringify(names) !== JSON.stringify(expected)) {
         throw new Error("root drifted: " + names.join(","));
       }
@@ -41,12 +36,7 @@ test("packed package exposes only the reviewed public topology", async () => {
       process.stdout.write(JSON.stringify({ entryPoints: ${entryPoints.length}, root: names }));
     `);
     const output = execFileSync(process.execPath, ["consumer.mjs"], { cwd: directory, encoding: "utf8" });
-    assert.deepEqual(JSON.parse(output), { entryPoints: entryPoints.length, root: [
-      "AuthsError", "AuthsOperationError", "ClientStateError", "ConflictError",
-      "DeniedError", "NotAppliedError", "PartialError", "ReceiptIntegrityError",
-      "RecoveryRequiredError", "UnavailableError", "connect", "isAuthsError",
-      "recoveryHandleFromBytes", "runtimeInfo",
-    ] });
+    assert.deepEqual(JSON.parse(output), { entryPoints: entryPoints.length, root: ["AuthsError", "isAuthsError", "runtimeInfo"] });
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

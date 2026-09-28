@@ -222,8 +222,6 @@ jobs:
           [[ "$DISPATCH_ACTOR_ID" == 3743841 ]]
           [[ "$(git rev-parse HEAD)" == "$CANDIDATE_COMMIT" ]]
           [[ "$CANDIDATE_TAG" == "auths-v$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -1)" ]]
-      - name: Require all production profiles to have imported trusted qualification
-        run: cargo xtask profile qualification release-check
       - name: Refuse absent or unprotected promotion environment
         env:
           GH_TOKEN: ${{ github.token }}

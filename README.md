@@ -88,8 +88,6 @@ part establishes and what it does not.
 | Put another HTTP API behind the gateway | The example's [`recipe.json`](examples/stripe-refund-approval/recipe.json) and the [gateway specification](docs/specs/0053-declarative-credential-isolated-gateway.md) |
 | Derive gateway operations from an OpenAPI document | [OpenAPI-derived operations](docs/specs/0056-openapi-derived-operation-contracts.md) |
 | Protect one action in your own application, without a gateway | [Application-owned adapter](docs/product/SELF_HOSTED_PROFILE_QUICKSTART.md) |
-| Write a profile for a new provider | [Profile authoring](docs/product/PROFILE_AUTHORING.md) |
-| Use the typed application SDK through a local agent (no live provider route is promoted yet) | [SDK contract](docs/product/PRODUCTION_SDK_QUICKSTART.md), then the [local-agent guide](docs/product/LOCAL_AGENT_SDK_QUICKSTART.md) |
 | Sign Git commits under any principal method, or run the gateway with production trust | [Git object signing](docs/specs/0058-git-object-signing-under-any-principal-method.md) and the [trust and signing runbook](docs/operations/GATEWAY_TRUST_AND_GIT_SIGNING_RUNBOOK.md) |
 
 Package documentation: [Python](bindings/python/README.md) and

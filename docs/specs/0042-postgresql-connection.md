@@ -2,6 +2,21 @@
 
 ## 1. Status and authority
 
+**Production path ended on 28 September 2026.** Under the owner's decision of
+27 September 2026 ([AP-SPEC-063](0063-generalized-gateway.md) §12, option A)
+the gateway is the single provider-write path. PostgreSQL is not reached over
+HTTPS, so no gateway recipe can express it, and AP-SPEC-063 epic 8 removed
+`auths.postgresql.update-preflight/1`, `auths.postgresql.bounded-update/1`,
+this connection's onboarding and administration, the prepared-update store,
+and their generated clients, with no switch. Production gives up the
+serializable row-version write with them. `product/integrations/auths-postgresql`
+stays as a test-only reference: its action, compiler, evaluator, receipts,
+fixtures, and the `demos/postgresql-data-change` demo. A PostgreSQL write
+returns to production only through a new capability admitted under
+[ADR 0013](../adr/0013-recipe-capabilities-and-sum-budget.md)'s form or a new
+owner decision. The text below is the record of the local-agent design and is
+not a current requirement.
+
 Prelaunch normative specification for `auths.postgresql.connection/1`,
 `auths.postgresql.update-preflight/1`, and
 `auths.postgresql.bounded-update/1`.
