@@ -16,11 +16,12 @@
 //! corpus has made that change: its test compiles every base to its
 //! documented class and digest and fails every hostile case with its code.
 //! So have the attempt scenarios: `scenario_tests` drives every case of
-//! `attempt-scenarios-v3.json` whose checks exist, and the account-scope
-//! binding cases wait for the grant policy that carries a scope.
+//! `attempt-scenarios-v3.json`, account-scope binding included. So have the
+//! one-spend-limit cases: `bounds_aggregate_tests` drives every case of
+//! `bounds-aggregate.json` through both stores.
 
 pub(crate) mod attempts;
-mod bounds;
+pub(crate) mod bounds;
 mod codes;
 mod keys;
 mod outcomes;

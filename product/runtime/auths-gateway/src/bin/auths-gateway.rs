@@ -22,7 +22,7 @@ mod unix {
         SessionLimits, app_session, read_frame, write_frame,
     };
     use auths_gateway::listener::{ADMIN_CAPACITY, APP_CAPACITY, serve_listener};
-    use auths_gateway::{ArgumentCeilingPolicy, AuditPins, audit_bundle};
+    use auths_gateway::{ArgumentCeilingPolicy, AuditPins, ListedValues, audit_bundle};
     use auths_gateway::{
         CompiledRecipe, FileGatewayAttemptStore, GatewayAttempts, GatewayConnectionDescriptor,
         GatewayEngine, GatewayObserveRequest, GatewayObserveResult, GatewayObserver,
@@ -136,18 +136,11 @@ mod unix {
             profile_lock: PathBuf,
         },
         /// Print the grant extension committing to a ceiling on one verified
-        /// integer argument and a count per principal per window, as this
-        /// gateway's registered evaluator enforces it.
-        BoundExtension {
-            #[arg(long)]
-            argument: String,
-            #[arg(long)]
-            ceiling: u64,
-            #[arg(long)]
-            window_seconds: u64,
-            #[arg(long)]
-            max_count: u64,
-        },
+        /// integer argument and a count per fixed, epoch-aligned window, and
+        /// optionally a sum limit per listed partition value and a scope, as
+        /// this gateway's registered evaluator enforces it. The count and sum
+        /// bound the grant's subject and every delegate together.
+        BoundExtension(BoundOptions),
         /// Audit an exported bundle offline against pinned trust and observer.
         /// Opens no socket and reads no gateway state.
         Audit {
@@ -809,6 +802,7 @@ mod unix {
         // Separate capacities: the application can fill its own listener but
         // never take an admin permit.
         let app_engine = Arc::clone(&engine);
+        let sweep_engine = Arc::clone(&engine);
         let app_listener = serve_listener(
             app,
             Arc::new(Semaphore::new(APP_CAPACITY)),
@@ -836,22 +830,27 @@ mod unix {
                 }
             },
         );
+        let sweeper = async move {
+            let mut tick = tokio::time::interval(std::time::Duration::from_secs(
+                auths_gateway::SLOT_SWEEP_INTERVAL_SECONDS,
+            ));
+            loop {
+                tick.tick().await;
+                if let Err(code) = sweep_engine.sweep_expired_slots().await {
+                    eprintln!("{code}");
+                }
+            }
+        };
         tokio::select! {
             never = app_listener => match never {},
             never = admin_listener => match never {},
+            never = sweeper => match never {},
         }
     }
 
-    /// Compiles a recipe this gateway can run. A recipe that declares a
-    /// capability whose runtime step the gateway does not perform is refused,
-    /// because installing it would skip a check the operator approves.
+    /// Compiles a recipe this gateway can run.
     fn installable_recipe(source: &[u8], lock: &[u8]) -> Result<CompiledRecipe, &'static str> {
-        let recipe =
-            CompiledRecipe::compile(source, lock).map_err(|_| "gateway.install.invalid-recipe")?;
-        if recipe.declares_unexecuted_capability() {
-            return Err("gateway.install.invalid-recipe");
-        }
-        Ok(recipe)
+        CompiledRecipe::compile(source, lock).map_err(|_| "gateway.install.invalid-recipe")
     }
 
     fn review(recipe_path: &Path, lock_path: &Path) -> Result<(), &'static str> {
@@ -874,25 +873,80 @@ mod unix {
         Ok(())
     }
 
-    fn bound_extension(
-        argument: &str,
+    /// Parses `<argument>=<value>,<value>...`.
+    fn listed_values(text: &str) -> Result<ListedValues, &'static str> {
+        let invalid = "gateway.policy.invalid-policy";
+        let (argument, values) = text.split_once('=').ok_or(invalid)?;
+        let values: Vec<&str> = values.split(',').collect();
+        ListedValues::new(argument, &values).map_err(|_| invalid)
+    }
+
+    #[derive(clap::Args)]
+    struct BoundOptions {
+        #[arg(long)]
+        argument: String,
+        #[arg(long)]
         ceiling: u64,
+        #[arg(long)]
         window_seconds: u64,
+        #[arg(long)]
         max_count: u64,
-    ) -> Result<(), &'static str> {
-        let policy = ArgumentCeilingPolicy::new(argument, ceiling, window_seconds, max_count)
-            .map_err(|_| "gateway.policy.invalid-policy")?;
-        let body = policy
-            .extension_body(None)
-            .map_err(|_| "gateway.policy.invalid-policy")?;
+        /// The largest window sum of the argument.
+        #[arg(long)]
+        sum_limit: Option<u64>,
+        /// `<argument>=<value>,<value>...`: the sum counts each listed value
+        /// of this verified text argument separately.
+        #[arg(long, requires = "sum_limit")]
+        partition: Option<String>,
+        /// `<argument>=<value>,<value>...`: the values this verified text
+        /// argument may take.
+        #[arg(long)]
+        scope: Option<String>,
+    }
+
+    fn bound_extension(options: &BoundOptions) -> Result<(), &'static str> {
+        let invalid = "gateway.policy.invalid-policy";
+        let mut policy = ArgumentCeilingPolicy::new(
+            &options.argument,
+            options.ceiling,
+            options.window_seconds,
+            options.max_count,
+        )
+        .map_err(|_| invalid)?;
+        let partition = options
+            .partition
+            .as_deref()
+            .map(listed_values)
+            .transpose()?;
+        match options.sum_limit {
+            Some(limit) => policy = policy.with_sum(limit, partition).map_err(|_| invalid)?,
+            None if partition.is_some() => return Err(invalid),
+            None => {}
+        }
+        if let Some(scope) = options.scope.as_deref() {
+            policy = policy
+                .with_scope(listed_values(scope)?)
+                .map_err(|_| invalid)?;
+        }
+        let body = policy.extension_body(None).map_err(|_| invalid)?;
+        let list = |values: Option<&ListedValues>| {
+            values.map(|values| {
+                serde_json::json!({"argument": values.argument(), "values": values.values()})
+            })
+        };
         let output = serde_json::json!({
             "extension_id": auths_registries::BOUNDED_POLICY_COMMITMENT_EXTENSION_V1,
             "extension_body_hex": hex::encode(body),
-            "evaluator": auths_gateway::ARGUMENT_CEILING_EVALUATOR_V1,
+            "evaluator": auths_gateway::ARGUMENT_CEILING_EVALUATOR,
+            "policy_type": auths_gateway::ARGUMENT_CEILING_POLICY_TYPE,
             "argument": policy.argument(),
             "ceiling": policy.ceiling(),
             "window_seconds": policy.window_seconds(),
+            "window": "fixed, epoch-aligned",
             "max_count": policy.max_count(),
+            "sum_limit": policy.sum_limit(),
+            "partition": list(policy.partition()),
+            "scope": list(policy.scope()),
         });
         println!(
             "{}",
@@ -1170,12 +1224,7 @@ mod unix {
                 recipe,
                 profile_lock,
             } => review(&recipe, &profile_lock),
-            Command::BoundExtension {
-                argument,
-                ceiling,
-                window_seconds,
-                max_count,
-            } => bound_extension(&argument, ceiling, window_seconds, max_count),
+            Command::BoundExtension(options) => bound_extension(&options),
             Command::Audit {
                 bundle,
                 trusted_context_sha256,

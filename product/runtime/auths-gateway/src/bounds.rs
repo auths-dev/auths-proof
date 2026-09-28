@@ -1,38 +1,52 @@
-//! Bounded policy in the gateway path.
+//! Bounded policy in the gateway path: one spend limit.
 //!
 //! A grant may carry a `bounded-policy-commitment-v1` critical extension. The
 //! native verifier checks its shape and that a delegated bound links its
 //! parent's exact extension bytes; it never interprets the policy. After
 //! verification and before any durable claim, the gateway:
 //!
-//! 1. resolves every commitment in the authorized chain through a closed
-//!    evaluator registry keyed by evaluator semantic identifier, refusing an
-//!    unregistered evaluator or a commitment whose policy type, version, or
-//!    canonicalization differs from the registered evaluator's;
-//! 2. refuses a root bound that carries a parent link, and a delegated bound
+//! 1. takes the one authorized branch whose chain carries a bound; every
+//!    grant from its first bounded grant to its terminal grant is a link,
+//!    and a chain of more than [`MAX_BOUNDED_LINKS`] links is refused;
+//! 2. resolves every link's commitment through a closed evaluator registry,
+//!    refusing an unregistered evaluator or a commitment whose policy type,
+//!    version, or canonicalization the registered evaluator does not read;
+//! 3. refuses a root bound that carries a parent link, and a delegated bound
 //!    the registered tightening decider cannot prove tighter than its
 //!    parent's;
-//! 3. evaluates every bound against the verified action.
+//! 4. evaluates every link against the verified action: the ceiling, every
+//!    scope and partition list, and the smallest sum limit;
+//! 5. derives the counters to reserve: one count counter per distinct link
+//!    subject, and one sum counter per distinct link subject and partition
+//!    value, each with the smallest capacity of the links that share it.
 //!
-//! After the claim and before any credential lease, it reserves one slot of
-//! the actor's per-window count in the attempt store; an exhausted window
-//! leaves the claim `not-entered`.
+//! The counters are keyed by the link's subject, not by the acting
+//! principal, so an action charges the counter of its own subject and of
+//! every ancestor link, and delegation cannot multiply a parent's count or
+//! sum. Windows are fixed and epoch-aligned: the window index is
+//! `floor(evaluated_at / window_seconds)` on the gateway clock, so up to
+//! twice a count can be admitted across a window boundary. The slots are
+//! reserved atomically with the claim (`GatewayAttempts::claim_bounded`),
+//! and are never released.
 //!
-//! One evaluator is registered: a ceiling on one named verified MCP argument
-//! plus a maximum count of authorized actions per principal per fixed window.
+//! One evaluator is registered: a ceiling on one named verified MCP
+//! argument, a maximum count per counter per fixed window, and optionally a
+//! sum limit per listed partition value and a scope listing the values one
+//! verified argument may take.
 
 use crate::engine::{GatewaySubmitResult, not_entered};
-use crate::{GatewayAttemptError, LogicalOperationId, OperatorNamespace};
+use crate::{CompiledRecipe, OperatorNamespace};
 use auths_bounded_policy::kernel::{
-    CeilingCountCode, ceiling_count_code, ceiling_count_tightens, window_index,
+    CeilingCountCode, PolicyMembers, SumBound, ValueList, argument_policy_tightens,
+    ceiling_count_code, window_index,
 };
 use auths_bounded_policy::{
     CanonicalizationId, EvaluatorRegistrationV1, EvaluatorSemanticId, ImplementationId,
     PolicyTypeId, ProfileId, validate_registry,
 };
 use auths_model::{
-    BoundedPolicyCommitment, Digest, FactName, FactValue, PolicyCommitment, PolicyIdentifier,
-    SignedGrant,
+    BoundedPolicyCommitment, CanonicalAction, Digest, FactName, FactValue, PolicyCommitment,
+    PolicyIdentifier, PrincipalId, SignedGrant,
 };
 use auths_ports::ProfilePolicy as _;
 use auths_profile_mcp::McpArgumentsPolicy;
@@ -44,17 +58,25 @@ use minicbor::{Decoder, Encoder};
 use sha2::{Digest as _, Sha256};
 
 /// Evaluator semantic identifier of the one registered evaluator.
-pub const ARGUMENT_CEILING_EVALUATOR_V1: &str = "auths.gateway.argument-ceiling-window-count/1";
+pub const ARGUMENT_CEILING_EVALUATOR: &str = "auths.gateway.argument-ceiling-window-count/2";
 /// Policy type the registered evaluator reads.
-pub const ARGUMENT_CEILING_POLICY_TYPE_V1: &str = "auths.gateway.argument-ceiling-policy/1";
+pub const ARGUMENT_CEILING_POLICY_TYPE: &str = "auths.gateway.argument-ceiling-policy/2";
 /// Canonicalization of the registered evaluator's policy bytes.
-pub const ARGUMENT_CEILING_CANONICALIZATION_V1: &str = "auths.canonical-cbor/1";
+pub const ARGUMENT_CEILING_CANONICALIZATION: &str = "auths.canonical-cbor/1";
 /// Policy schema version of the registered evaluator.
 pub const ARGUMENT_CEILING_POLICY_VERSION: u16 = 1;
 /// Longest counting window, in seconds.
 pub const MAX_WINDOW_SECONDS: u64 = 31 * 86_400;
 /// Largest per-window count a policy may allow.
 pub const MAX_WINDOW_COUNT: u64 = 1 << 32;
+/// Largest sum limit a policy may carry.
+pub const MAX_SUM_LIMIT: u64 = (1 << 53) - 1;
+/// Largest number of values one partition or scope list may carry.
+pub const MAX_LISTED_VALUES: usize = 16;
+/// Longest listed value, in bytes.
+pub const MAX_LISTED_VALUE_BYTES: usize = 64;
+/// Largest number of bounded links one authorized branch may carry.
+pub const MAX_BOUNDED_LINKS: usize = 16;
 
 const MAX_POLICY_BYTES: usize = auths_model::MAX_BOUNDED_POLICY_BYTES;
 
@@ -66,18 +88,133 @@ pub enum BoundedPolicyError {
     InvalidPolicy,
 }
 
-/// A ceiling on one named verified argument, and at most `max_count`
-/// authorized actions per principal in each window of `window_seconds`.
+fn invalid_policy<E>(_error: E) -> BoundedPolicyError {
+    BoundedPolicyError::InvalidPolicy
+}
+
+/// A listed value: 1–64 bytes, each in `0x21..=0x7e`.
+fn valid_listed_value(value: &str) -> bool {
+    (1..=MAX_LISTED_VALUE_BYTES).contains(&value.len())
+        && value.bytes().all(|byte| (0x21..=0x7e).contains(&byte))
+}
+
+/// The values a policy lists for one named verified text argument: 1–16
+/// sorted, unique values of 1–64 bytes in `0x21..=0x7e`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ListedValues {
+    argument: FactName,
+    values: Vec<String>,
+}
+
+impl ListedValues {
+    /// Lists `values` for `argument`, in byte order.
+    ///
+    /// # Errors
+    /// Refuses an invalid argument name, an empty or oversized list, an
+    /// invalid value, or a repeated value.
+    pub fn new(argument: &str, values: &[&str]) -> Result<Self, BoundedPolicyError> {
+        let mut sorted: Vec<String> = values.iter().map(|value| (*value).to_owned()).collect();
+        sorted.sort_unstable();
+        Self::from_sorted(argument, sorted)
+    }
+
+    fn from_sorted(argument: &str, values: Vec<String>) -> Result<Self, BoundedPolicyError> {
+        if !(1..=MAX_LISTED_VALUES).contains(&values.len())
+            || !values.iter().all(|value| valid_listed_value(value))
+            || values.windows(2).any(|pair| pair[0] >= pair[1])
+        {
+            return Err(BoundedPolicyError::InvalidPolicy);
+        }
+        Ok(Self {
+            argument: FactName::parse(argument).map_err(invalid_policy)?,
+            values,
+        })
+    }
+
+    /// The named verified argument.
+    #[must_use]
+    pub fn argument(&self) -> &str {
+        self.argument.as_str()
+    }
+
+    /// The listed values, in byte order.
+    #[must_use]
+    pub fn values(&self) -> &[String] {
+        &self.values
+    }
+
+    /// Whether `value` is listed.
+    #[must_use]
+    pub fn lists(&self, value: &str) -> bool {
+        self.values.iter().any(|listed| listed == value)
+    }
+
+    fn encode(&self, encoder: &mut Encoder<Vec<u8>>) -> Result<(), BoundedPolicyError> {
+        encoder.map(2).map_err(invalid_policy)?;
+        encoder.u8(0).map_err(invalid_policy)?;
+        encoder
+            .str(self.argument.as_str())
+            .map_err(invalid_policy)?;
+        encoder.u8(1).map_err(invalid_policy)?;
+        encoder
+            .array(u64::try_from(self.values.len()).map_err(invalid_policy)?)
+            .map_err(invalid_policy)?;
+        for value in &self.values {
+            encoder.str(value).map_err(invalid_policy)?;
+        }
+        Ok(())
+    }
+
+    fn decode(decoder: &mut Decoder<'_>) -> Result<Self, BoundedPolicyError> {
+        if decoder.map().map_err(invalid_policy)? != Some(2) {
+            return Err(BoundedPolicyError::InvalidPolicy);
+        }
+        next_key(decoder, 0)?;
+        let argument = decoder.str().map_err(invalid_policy)?.to_owned();
+        next_key(decoder, 1)?;
+        let length = decoder
+            .array()
+            .map_err(invalid_policy)?
+            .ok_or(BoundedPolicyError::InvalidPolicy)?;
+        if length == 0 || length > MAX_LISTED_VALUES as u64 {
+            return Err(BoundedPolicyError::InvalidPolicy);
+        }
+        let mut values = Vec::new();
+        for _ in 0..length {
+            values.push(decoder.str().map_err(invalid_policy)?.to_owned());
+        }
+        Self::from_sorted(&argument, values)
+    }
+
+    fn members(&self) -> ValueList {
+        ValueList {
+            argument: self.argument.as_str().as_bytes().to_vec(),
+            values: self
+                .values
+                .iter()
+                .map(|value| value.as_bytes().to_vec())
+                .collect(),
+        }
+    }
+}
+
+/// Policy `auths.gateway.argument-ceiling-policy/2`: a ceiling on one named
+/// verified argument, at most `max_count` admitted actions per counter in
+/// each fixed window of `window_seconds`, and optionally a sum limit on the
+/// argument, per listed partition value, and a scope.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ArgumentCeilingPolicy {
     argument: FactName,
     ceiling: u64,
     window_seconds: u64,
     max_count: u64,
+    sum_limit: Option<u64>,
+    partition: Option<ListedValues>,
+    scope: Option<ListedValues>,
 }
 
 impl ArgumentCeilingPolicy {
-    /// Constructs a policy.
+    /// Constructs a policy with no sum limit and no scope.
     ///
     /// # Errors
     /// Refuses an invalid argument name, a window outside
@@ -94,11 +231,49 @@ impl ArgumentCeilingPolicy {
             return Err(BoundedPolicyError::InvalidPolicy);
         }
         Ok(Self {
-            argument: FactName::parse(argument).map_err(|_| BoundedPolicyError::InvalidPolicy)?,
+            argument: FactName::parse(argument).map_err(invalid_policy)?,
             ceiling,
             window_seconds,
             max_count,
+            sum_limit: None,
+            partition: None,
+            scope: None,
         })
+    }
+
+    /// Adds a sum limit, optionally per value of a listed partition
+    /// argument.
+    ///
+    /// # Errors
+    /// Refuses a limit outside `1..=MAX_SUM_LIMIT`, or a partition on the
+    /// bounded argument itself.
+    pub fn with_sum(
+        mut self,
+        limit: u64,
+        partition: Option<ListedValues>,
+    ) -> Result<Self, BoundedPolicyError> {
+        if !(1..=MAX_SUM_LIMIT).contains(&limit)
+            || partition
+                .as_ref()
+                .is_some_and(|partition| partition.argument == self.argument)
+        {
+            return Err(BoundedPolicyError::InvalidPolicy);
+        }
+        self.sum_limit = Some(limit);
+        self.partition = partition;
+        Ok(self)
+    }
+
+    /// Adds a scope.
+    ///
+    /// # Errors
+    /// Refuses a scope on the bounded argument itself.
+    pub fn with_scope(mut self, scope: ListedValues) -> Result<Self, BoundedPolicyError> {
+        if scope.argument == self.argument {
+            return Err(BoundedPolicyError::InvalidPolicy);
+        }
+        self.scope = Some(scope);
+        Ok(self)
     }
 
     /// The named verified argument.
@@ -113,26 +288,49 @@ impl ArgumentCeilingPolicy {
         self.ceiling
     }
 
-    /// The counting window, in seconds.
+    /// The fixed, epoch-aligned counting window, in seconds.
     #[must_use]
     pub const fn window_seconds(&self) -> u64 {
         self.window_seconds
     }
 
-    /// The largest number of authorized actions per principal per window.
+    /// The largest number of admitted actions per counter per window.
     #[must_use]
     pub const fn max_count(&self) -> u64 {
         self.max_count
     }
 
+    /// The sum limit, when the policy carries one.
+    #[must_use]
+    pub const fn sum_limit(&self) -> Option<u64> {
+        self.sum_limit
+    }
+
+    /// The partition of the sum limit, when the policy carries one.
+    #[must_use]
+    pub const fn partition(&self) -> Option<&ListedValues> {
+        self.partition.as_ref()
+    }
+
+    /// The scope, when the policy carries one.
+    #[must_use]
+    pub const fn scope(&self) -> Option<&ListedValues> {
+        self.scope.as_ref()
+    }
+
     /// Canonical CBOR: `{0: argument, 1: ceiling, 2: window_seconds,
-    /// 3: max_count}`.
+    /// 3: max_count}`, then the optional `4: sum limit`, `5: partition`, and
+    /// `6: scope`, where each list is `{0: argument, 1: [values]}`.
     ///
     /// # Errors
     /// Returns [`BoundedPolicyError::InvalidPolicy`] only if encoding fails.
     pub fn encode(&self) -> Result<Vec<u8>, BoundedPolicyError> {
+        let members = 4
+            + u64::from(self.sum_limit.is_some())
+            + u64::from(self.partition.is_some())
+            + u64::from(self.scope.is_some());
         let mut encoder = Encoder::new(Vec::new());
-        encoder.map(4).map_err(invalid_policy)?;
+        encoder.map(members).map_err(invalid_policy)?;
         encoder.u8(0).map_err(invalid_policy)?;
         encoder
             .str(self.argument.as_str())
@@ -143,19 +341,35 @@ impl ArgumentCeilingPolicy {
         encoder.u64(self.window_seconds).map_err(invalid_policy)?;
         encoder.u8(3).map_err(invalid_policy)?;
         encoder.u64(self.max_count).map_err(invalid_policy)?;
+        if let Some(limit) = self.sum_limit {
+            encoder.u8(4).map_err(invalid_policy)?;
+            encoder.u64(limit).map_err(invalid_policy)?;
+        }
+        if let Some(partition) = &self.partition {
+            encoder.u8(5).map_err(invalid_policy)?;
+            partition.encode(&mut encoder)?;
+        }
+        if let Some(scope) = &self.scope {
+            encoder.u8(6).map_err(invalid_policy)?;
+            scope.encode(&mut encoder)?;
+        }
         Ok(encoder.into_writer())
     }
 
     /// Decodes exactly the canonical encoding [`Self::encode`] produces.
     ///
     /// # Errors
-    /// Refuses any other bytes.
+    /// Refuses any other bytes, including a partition without a sum limit.
     pub fn decode(bytes: &[u8]) -> Result<Self, BoundedPolicyError> {
         if bytes.is_empty() || bytes.len() > MAX_POLICY_BYTES {
             return Err(BoundedPolicyError::InvalidPolicy);
         }
         let mut decoder = Decoder::new(bytes);
-        if decoder.map().map_err(invalid_policy)? != Some(4) {
+        let members = decoder
+            .map()
+            .map_err(invalid_policy)?
+            .ok_or(BoundedPolicyError::InvalidPolicy)?;
+        if !(4..=7).contains(&members) {
             return Err(BoundedPolicyError::InvalidPolicy);
         }
         next_key(&mut decoder, 0)?;
@@ -166,11 +380,29 @@ impl ArgumentCeilingPolicy {
         let window_seconds = decoder.u64().map_err(invalid_policy)?;
         next_key(&mut decoder, 3)?;
         let max_count = decoder.u64().map_err(invalid_policy)?;
-        if decoder.position() != bytes.len() {
-            return Err(BoundedPolicyError::InvalidPolicy);
+        let mut policy = Self::new(&argument, ceiling, window_seconds, max_count)?;
+        let mut previous = 3;
+        let mut sum_limit = None;
+        let mut partition = None;
+        for _ in 4..members {
+            let key = decoder.u8().map_err(invalid_policy)?;
+            if key <= previous {
+                return Err(BoundedPolicyError::InvalidPolicy);
+            }
+            previous = key;
+            match key {
+                4 => sum_limit = Some(decoder.u64().map_err(invalid_policy)?),
+                5 => partition = Some(ListedValues::decode(&mut decoder)?),
+                6 => policy = policy.with_scope(ListedValues::decode(&mut decoder)?)?,
+                _ => return Err(BoundedPolicyError::InvalidPolicy),
+            }
         }
-        let policy = Self::new(&argument, ceiling, window_seconds, max_count)?;
-        if policy.encode()? != bytes {
+        match (sum_limit, partition) {
+            (Some(limit), partition) => policy = policy.with_sum(limit, partition)?,
+            (None, Some(_)) => return Err(BoundedPolicyError::InvalidPolicy),
+            (None, None) => {}
+        }
+        if decoder.position() != bytes.len() || policy.encode()? != bytes {
             return Err(BoundedPolicyError::InvalidPolicy);
         }
         Ok(policy)
@@ -186,13 +418,12 @@ impl ArgumentCeilingPolicy {
     pub fn extension_body(&self, parent: Option<Digest>) -> Result<Vec<u8>, BoundedPolicyError> {
         let policy = self.encode()?;
         let commitment = PolicyCommitment::new(
-            PolicyIdentifier::parse(ARGUMENT_CEILING_POLICY_TYPE_V1, 128)
-                .map_err(invalid_policy)?,
+            PolicyIdentifier::parse(ARGUMENT_CEILING_POLICY_TYPE, 128).map_err(invalid_policy)?,
             ARGUMENT_CEILING_POLICY_VERSION,
-            PolicyIdentifier::parse(ARGUMENT_CEILING_CANONICALIZATION_V1, 64)
+            PolicyIdentifier::parse(ARGUMENT_CEILING_CANONICALIZATION, 64)
                 .map_err(invalid_policy)?,
             auths_codec::bounded_policy_digest(&policy).map_err(invalid_policy)?,
-            PolicyIdentifier::parse(ARGUMENT_CEILING_EVALUATOR_V1, 128).map_err(invalid_policy)?,
+            PolicyIdentifier::parse(ARGUMENT_CEILING_EVALUATOR, 128).map_err(invalid_policy)?,
         )
         .map_err(invalid_policy)?;
         auths_codec::encode_bounded_policy_commitment(
@@ -201,24 +432,31 @@ impl ArgumentCeilingPolicy {
         .map_err(invalid_policy)
     }
 
-    /// The registered tightening decider: the same argument and window, and a
-    /// ceiling and count no larger than `parent`'s.
+    /// The members the translated tightening decider reads.
+    fn members(&self) -> PolicyMembers {
+        PolicyMembers {
+            argument: self.argument.as_str().as_bytes().to_vec(),
+            ceiling: self.ceiling,
+            window: self.window_seconds,
+            max_count: self.max_count,
+            sum: self.sum_limit.map(|limit| SumBound {
+                limit,
+                partition: self.partition.as_ref().map(ListedValues::members),
+            }),
+            scope: self.scope.as_ref().map(ListedValues::members),
+        }
+    }
+
+    /// The registered tightening decider, the translated
+    /// `argument_policy_tightens`: the same argument and window, a ceiling
+    /// and count no larger, a sum no larger with the parent's partition
+    /// argument and a subset of its values whenever the parent has a sum,
+    /// and a scope on the same argument with a subset of its values whenever
+    /// the parent has one.
     #[must_use]
     pub fn tightens(&self, parent: &Self) -> bool {
-        self.argument == parent.argument
-            && ceiling_count_tightens(
-                self.ceiling,
-                self.max_count,
-                self.window_seconds,
-                parent.ceiling,
-                parent.max_count,
-                parent.window_seconds,
-            )
+        argument_policy_tightens(&self.members(), &parent.members())
     }
-}
-
-fn invalid_policy<E>(_error: E) -> BoundedPolicyError {
-    BoundedPolicyError::InvalidPolicy
 }
 
 fn next_key(decoder: &mut Decoder<'_>, expected: u8) -> Result<(), BoundedPolicyError> {
@@ -250,19 +488,19 @@ pub fn gateway_evaluator_registrations() -> Result<Vec<EvaluatorRegistrationV1>,
         owning_package: "auths-gateway",
         layer: "product",
         profile_id: ProfileId::parse(auths_profile_mcp::PROFILE_ID).map_err(invalid)?,
-        policy_type: PolicyTypeId::parse(ARGUMENT_CEILING_POLICY_TYPE_V1).map_err(invalid)?,
-        evaluator_semantic_id: EvaluatorSemanticId::parse(ARGUMENT_CEILING_EVALUATOR_V1)
+        policy_type: PolicyTypeId::parse(ARGUMENT_CEILING_POLICY_TYPE).map_err(invalid)?,
+        evaluator_semantic_id: EvaluatorSemanticId::parse(ARGUMENT_CEILING_EVALUATOR)
             .map_err(invalid)?,
         implementation_id: ImplementationId::parse(concat!(
             "auths-gateway/",
             env!("CARGO_PKG_VERSION")
         ))
         .map_err(invalid)?,
-        canonicalization_id: CanonicalizationId::parse(ARGUMENT_CEILING_CANONICALIZATION_V1)
+        canonicalization_id: CanonicalizationId::parse(ARGUMENT_CEILING_CANONICALIZATION)
             .map_err(invalid)?,
         rust_symbol: "auths_gateway::ArgumentCeilingPolicy::tightens",
         lean_artifact: "Auths.Product.CeilingCount",
-        fixture_manifest: "bindings/fixtures/gateway/bounds-hostile.json",
+        fixture_manifest: "bindings/fixtures/gateway/bounds-aggregate.json",
         migrated: true,
     }];
     validate_registry(&registrations).map_err(|_| "gateway.policy.registry-invalid")?;
@@ -287,25 +525,355 @@ fn registered(commitment: &PolicyCommitment) -> Result<GatewayEvaluator, &'stati
         return Err("gateway.policy.evaluator-mismatch");
     }
     match registration.evaluator_semantic_id.as_str() {
-        ARGUMENT_CEILING_EVALUATOR_V1 => Ok(GatewayEvaluator::ArgumentCeilingWindowCount),
+        ARGUMENT_CEILING_EVALUATOR => Ok(GatewayEvaluator::ArgumentCeilingWindowCount),
         _ => Err("gateway.policy.evaluator-unregistered"),
     }
 }
 
-/// One slot of an actor's per-window count, reserved after the claim.
+/// One link: a bounded grant's subject and its decoded policy.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct WindowReservation {
-    pub(crate) counter: [u8; 32],
-    pub(crate) max_count: u64,
-    /// The end of the window plus one full window: a slot outlives its
-    /// window by one window, then the sweep may delete it.
-    pub(crate) expires_at: u64,
+pub(crate) struct BoundLink {
+    pub(crate) subject: PrincipalId,
+    pub(crate) policy: ArgumentCeilingPolicy,
+}
+
+/// One distinct count counter of a chain and its capacity: the smallest
+/// maximum count of the links whose subject it counts.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct CountCounter {
+    pub(crate) key: [u8; 32],
+    pub(crate) capacity: u64,
+}
+
+/// One distinct sum counter of a chain and its capacity: the smallest sum
+/// limit of the links that share it. Every action that charges it also
+/// charges its subject's count counter, so it holds at most `slots` slots
+/// in a window.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct SumCounter {
+    pub(crate) key: [u8; 32],
+    pub(crate) capacity: u64,
+    pub(crate) slots: u64,
+}
+
+/// What admission reserves with the claim, and what the account-scope
+/// binding and an auditor read.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct BoundAdmission {
+    /// The links of the bounded branch, from its first bounded grant to its
+    /// terminal grant.
+    pub(crate) links: Vec<BoundLink>,
+    /// The verified value of the bounded argument.
+    pub(crate) argument: u64,
+    pub(crate) window_seconds: u64,
+    pub(crate) window_index: u64,
+    /// The first second after the window.
+    pub(crate) window_end: u64,
+    /// Distinct count counters, in key order.
+    pub(crate) counts: Vec<CountCounter>,
+    /// Distinct sum counters, in key order.
+    pub(crate) sums: Vec<SumCounter>,
+}
+
+impl BoundAdmission {
+    /// When the slots may be swept: one full window after the window ends.
+    pub(crate) const fn expires_at(&self) -> u64 {
+        self.window_end.saturating_add(self.window_seconds)
+    }
+}
+
+/// The sum a recipe's `bounds.sum` requires of every link.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct SumRequirement {
+    pub(crate) argument: String,
+    pub(crate) partition: Option<String>,
+}
+
+/// SHA-256 of `domain`, each component with an eight-byte big-endian length
+/// prefix, then the window length and index.
+fn counter_key(domain: &[u8], components: &[&[u8]], window_seconds: u64, index: u64) -> [u8; 32] {
+    let mut hash = Sha256::new();
+    hash.update(domain);
+    for component in components {
+        hash.update(
+            u64::try_from(component.len())
+                .unwrap_or(u64::MAX)
+                .to_be_bytes(),
+        );
+        hash.update(component);
+    }
+    hash.update(window_seconds.to_be_bytes());
+    hash.update(index.to_be_bytes());
+    hash.finalize().into()
+}
+
+/// The count counter of `subject` in one fixed window.
+pub(crate) fn count_counter_key(
+    namespace: &OperatorNamespace,
+    subject: &PrincipalId,
+    window_seconds: u64,
+    index: u64,
+) -> [u8; 32] {
+    counter_key(
+        b"auths.gateway-bounded-count/2\0",
+        &[
+            namespace.as_str().as_bytes(),
+            subject.as_str().as_bytes(),
+            ARGUMENT_CEILING_EVALUATOR.as_bytes(),
+        ],
+        window_seconds,
+        index,
+    )
+}
+
+/// The sum counter of `subject` and `partition` (empty when unpartitioned)
+/// in one fixed window.
+pub(crate) fn sum_counter_key(
+    namespace: &OperatorNamespace,
+    subject: &PrincipalId,
+    partition: &str,
+    window_seconds: u64,
+    index: u64,
+) -> [u8; 32] {
+    counter_key(
+        b"auths.gateway-bounded-sum/1\0",
+        &[
+            namespace.as_str().as_bytes(),
+            subject.as_str().as_bytes(),
+            ARGUMENT_CEILING_EVALUATOR.as_bytes(),
+            partition.as_bytes(),
+        ],
+        window_seconds,
+        index,
+    )
+}
+
+/// The key of slot `slot` of count counter `counter`.
+pub(crate) fn count_slot_key(counter: &[u8; 32], slot: u64) -> [u8; 32] {
+    slot_key(b"auths.gateway-bounded-count-slot/2\0", counter, slot)
+}
+
+/// The key of slot `slot` of sum counter `counter`.
+pub(crate) fn sum_slot_key(counter: &[u8; 32], slot: u64) -> [u8; 32] {
+    slot_key(b"auths.gateway-bounded-sum-slot/1\0", counter, slot)
+}
+
+fn slot_key(domain: &[u8], counter: &[u8; 32], slot: u64) -> [u8; 32] {
+    let mut hash = Sha256::new();
+    hash.update(domain);
+    hash.update(counter);
+    hash.update(slot.to_be_bytes());
+    hash.finalize().into()
+}
+
+/// The verified text value of `argument`, or `argument-unavailable`.
+fn text_argument(
+    facts: &McpArgumentsPolicy,
+    action: &CanonicalAction,
+    argument: &str,
+) -> Result<String, &'static str> {
+    let unavailable = "gateway.policy.argument-unavailable";
+    let name = FactName::parse(argument).map_err(|_| unavailable)?;
+    match facts.action_fact(action, &name) {
+        Ok(Some(FactValue::Text(text))) => Ok(text.as_str().to_owned()),
+        _ => Err(unavailable),
+    }
+}
+
+/// The registered evaluator's policy a link's commitment names: an
+/// unregistered evaluator, a mismatched policy type, version, or
+/// canonicalization, and malformed policy bytes are refused.
+pub(crate) fn link_policy(
+    commitment: &PolicyCommitment,
+    policy: &[u8],
+) -> Result<ArgumentCeilingPolicy, &'static str> {
+    match registered(commitment)? {
+        GatewayEvaluator::ArgumentCeilingWindowCount => {
+            ArgumentCeilingPolicy::decode(policy).map_err(|_| "gateway.policy.evaluator-mismatch")
+        }
+    }
+}
+
+/// Admits the verified action under every link of its bounded branch and
+/// derives the counters to reserve, or refuses it before any claim. An
+/// empty chain is unbounded, which a recipe that declares `bounds.sum`
+/// refuses.
+///
+/// The checks run in this order: the link count, tightening of every linked
+/// pair, the argument and every ceiling, every scope and partition list,
+/// the smallest sum limit, and the recipe's sum requirement.
+pub(crate) fn admit_links(
+    links: Vec<BoundLink>,
+    action: &CanonicalAction,
+    recipe: &CompiledRecipe,
+    now: u64,
+) -> Result<Option<BoundAdmission>, &'static str> {
+    let requirement = recipe.sum_requirement();
+    if links.len() > MAX_BOUNDED_LINKS {
+        return Err("gateway.policy.too-many-bounds");
+    }
+    let Some(first) = links.first() else {
+        return match requirement {
+            Some(_) => Err("gateway.policy.sum-required"),
+            None => Ok(None),
+        };
+    };
+    let window_seconds = first.policy.window_seconds;
+    for pair in links.windows(2) {
+        if !pair[1].policy.tightens(&pair[0].policy) {
+            return Err("gateway.policy.expanded");
+        }
+    }
+    let facts = McpArgumentsPolicy::new().map_err(|_| "gateway.policy.registry-invalid")?;
+    let argument = bounded_argument(&links, &facts, action)?;
+    let partitions = listed_arguments(&links, &facts, action)?;
+    if links
+        .iter()
+        .filter_map(|link| link.policy.sum_limit)
+        .min()
+        .is_some_and(|smallest| argument > smallest)
+    {
+        return Err("gateway.policy.above-sum-limit");
+    }
+    if let Some(requirement) = &requirement {
+        let satisfies = |link: &BoundLink| {
+            link.policy.sum_limit.is_some()
+                && link.policy.argument() == requirement.argument
+                && link.policy.partition().map(ListedValues::argument)
+                    == requirement.partition.as_deref()
+        };
+        if !links.iter().all(satisfies) {
+            return Err("gateway.policy.sum-required");
+        }
+    }
+    let index = window_index(now, window_seconds).ok_or("gateway.policy.evaluator-mismatch")?;
+    let window_end = index
+        .checked_add(1)
+        .and_then(|next| next.checked_mul(window_seconds))
+        .filter(|end| end.checked_add(window_seconds).is_some())
+        .ok_or("gateway.verify.clock-unavailable")?;
+    let (counts, sums) = chain_counters(
+        &links,
+        &partitions,
+        recipe.namespace(),
+        window_seconds,
+        index,
+    );
+    Ok(Some(BoundAdmission {
+        links,
+        argument,
+        window_seconds,
+        window_index: index,
+        window_end,
+        counts,
+        sums,
+    }))
+}
+
+/// The verified value of the chain's bounded argument, within every
+/// link's ceiling.
+fn bounded_argument(
+    links: &[BoundLink],
+    facts: &McpArgumentsPolicy,
+    action: &CanonicalAction,
+) -> Result<u64, &'static str> {
+    let mut argument = None;
+    for link in links {
+        let name = &link.policy.argument;
+        let Ok(Some(FactValue::Uint(value))) = facts.action_fact(action, name) else {
+            return Err("gateway.policy.argument-unavailable");
+        };
+        if argument.is_some_and(|previous| previous != value) {
+            return Err("gateway.policy.argument-unavailable");
+        }
+        argument = Some(value);
+        if ceiling_count_code(value, link.policy.ceiling, 0, link.policy.max_count)
+            == CeilingCountCode::AboveCeiling
+        {
+            return Err("gateway.policy.above-ceiling");
+        }
+    }
+    argument.ok_or("gateway.policy.argument-unavailable")
+}
+
+/// Checks every scope and partition list against the verified values and
+/// returns each link's partition value, empty for a link without one.
+fn listed_arguments(
+    links: &[BoundLink],
+    facts: &McpArgumentsPolicy,
+    action: &CanonicalAction,
+) -> Result<Vec<String>, &'static str> {
+    let mut partitions = Vec::with_capacity(links.len());
+    for link in links {
+        if let Some(scope) = &link.policy.scope
+            && !scope.lists(&text_argument(facts, action, scope.argument())?)
+        {
+            return Err("gateway.policy.scope-denied");
+        }
+        let partition = match &link.policy.partition {
+            None => String::new(),
+            Some(partition) => {
+                let value = text_argument(facts, action, partition.argument())?;
+                if !partition.lists(&value) {
+                    return Err("gateway.policy.partition-denied");
+                }
+                value
+            }
+        };
+        partitions.push(partition);
+    }
+    Ok(partitions)
+}
+
+/// The chain's distinct count and sum counters in one fixed window, each
+/// with the smallest capacity of the links that share it, in key order.
+fn chain_counters(
+    links: &[BoundLink],
+    partitions: &[String],
+    namespace: &OperatorNamespace,
+    window_seconds: u64,
+    index: u64,
+) -> (Vec<CountCounter>, Vec<SumCounter>) {
+    let mut counts: Vec<CountCounter> = Vec::new();
+    for link in links {
+        let key = count_counter_key(namespace, &link.subject, window_seconds, index);
+        match counts.iter_mut().find(|counter| counter.key == key) {
+            Some(counter) => counter.capacity = counter.capacity.min(link.policy.max_count),
+            None => counts.push(CountCounter {
+                key,
+                capacity: link.policy.max_count,
+            }),
+        }
+    }
+    let mut sums: Vec<SumCounter> = Vec::new();
+    for (link, partition) in links.iter().zip(partitions) {
+        let Some(limit) = link.policy.sum_limit else {
+            continue;
+        };
+        let count = count_counter_key(namespace, &link.subject, window_seconds, index);
+        let slots = counts
+            .iter()
+            .find(|counter| counter.key == count)
+            .map_or(0, |counter| counter.capacity);
+        let key = sum_counter_key(namespace, &link.subject, partition, window_seconds, index);
+        match sums.iter_mut().find(|counter| counter.key == key) {
+            Some(counter) => counter.capacity = counter.capacity.min(limit),
+            None => sums.push(SumCounter {
+                key,
+                capacity: limit,
+                slots,
+            }),
+        }
+    }
+    counts.sort_by_key(|counter| counter.key);
+    sums.sort_by_key(|counter| counter.key);
+    (counts, sums)
 }
 
 /// One authorized branch: its actor, its grant chain root to terminal, and
 /// its action envelope's validity window in seconds.
 struct AuthorizedBranch {
-    actor: auths_model::PrincipalId,
+    actor: PrincipalId,
     chain: Vec<SignedGrant>,
     validity_seconds: u64,
 }
@@ -360,7 +928,7 @@ fn authorized_chains(
 /// What admission needs of the authorized branches.
 pub(crate) struct BranchFacts {
     /// The actor of every authorized branch, in verified order.
-    pub(crate) actors: Vec<auths_model::PrincipalId>,
+    pub(crate) actors: Vec<PrincipalId>,
     /// Every observation requirement of every grant of every branch.
     pub(crate) requirements: Vec<auths_model::ObservationRequirement>,
     /// The longest action validity window of any branch.
@@ -398,28 +966,27 @@ pub(crate) fn authorized_branches(
     })
 }
 
-/// The one branch whose chain carries a bound, keyed to its actor. The
-/// other branches of a composed proof must be unbounded, such as approvers
-/// anchored directly in trust; a joint count over two bounded branches has
-/// no specified meaning, so that composition is refused.
+fn carries_bound(grant: &SignedGrant) -> bool {
+    grant
+        .statement()
+        .extensions()
+        .as_slice()
+        .iter()
+        .any(|extension| extension.id().as_str() == BOUNDED_POLICY_COMMITMENT_EXTENSION_V1)
+}
+
+/// The one authorized chain that carries a bound. The other branches of a
+/// composed proof must be unbounded, such as approvers anchored directly in
+/// trust; a joint count over two bounded branches has no specified meaning,
+/// so that composition is refused.
 fn bounded_chain(
     proof_cbor: &[u8],
     verified: &VerifiedAction,
-) -> Result<Option<(auths_model::PrincipalId, Vec<SignedGrant>)>, &'static str> {
-    let bounded = |chain: &[SignedGrant]| {
-        chain.iter().any(|grant| {
-            grant
-                .statement()
-                .extensions()
-                .as_slice()
-                .iter()
-                .any(|extension| extension.id().as_str() == BOUNDED_POLICY_COMMITMENT_EXTENSION_V1)
-        })
-    };
+) -> Result<Option<Vec<SignedGrant>>, &'static str> {
     let mut chains: Vec<_> = authorized_chains(proof_cbor, verified)?
         .into_iter()
-        .filter(|branch| bounded(&branch.chain))
-        .map(|branch| (branch.actor, branch.chain))
+        .filter(|branch| branch.chain.iter().any(carries_bound))
+        .map(|branch| branch.chain)
         .collect();
     match chains.len() {
         0 | 1 => Ok(chains.pop()),
@@ -427,223 +994,102 @@ fn bounded_chain(
     }
 }
 
-/// Admits the verified action under every bound in its authorized chain, or
-/// refuses it before any claim. `Ok(None)` is an unbounded chain.
+/// Admits the verified action under every link of its bounded branch, or
+/// refuses it before any claim. `Ok(None)` is an unbounded chain, which a
+/// recipe that declares `bounds.sum` refuses.
 pub(crate) fn admit_bounds(
     proof_cbor: &[u8],
     verified: &VerifiedAction,
-    namespace: &OperatorNamespace,
+    recipe: &CompiledRecipe,
     now: u64,
-) -> Result<Option<WindowReservation>, GatewaySubmitResult> {
+) -> Result<Option<BoundAdmission>, GatewaySubmitResult> {
     let refuse = not_entered;
-    let Some((actor, chain)) = bounded_chain(proof_cbor, verified).map_err(refuse)? else {
-        return Ok(None);
-    };
-    let mut bounds: Vec<(Vec<u8>, BoundedPolicyCommitment)> = Vec::new();
-    for grant in &chain {
+    let chain = bounded_chain(proof_cbor, verified).map_err(refuse)?;
+    let mut bounds: Vec<(PrincipalId, BoundedPolicyCommitment)> = Vec::new();
+    for grant in chain
+        .iter()
+        .flatten()
+        .skip_while(|grant| !carries_bound(grant))
+    {
+        let mut found = None;
         for extension in grant.statement().extensions().as_slice() {
             if extension.id().as_str() != BOUNDED_POLICY_COMMITMENT_EXTENSION_V1 {
                 continue;
             }
             let body = auths_codec::decode_bounded_policy_commitment(extension.bytes())
                 .map_err(|_| refuse("gateway.policy.invalid-commitment"))?;
-            bounds.push((extension.bytes().to_vec(), body));
-        }
-    }
-    let Some((_, root)) = bounds.first() else {
-        return Ok(None);
-    };
-    if root.parent().is_some() {
-        return Err(refuse("gateway.policy.dangling-link"));
-    }
-    let mut policies = Vec::with_capacity(bounds.len());
-    for (_, body) in &bounds {
-        match registered(body.commitment()).map_err(refuse)? {
-            GatewayEvaluator::ArgumentCeilingWindowCount => {
-                policies.push(
-                    ArgumentCeilingPolicy::decode(body.policy())
-                        .map_err(|_| refuse("gateway.policy.invalid-policy"))?,
-                );
+            if found.replace(body).is_some() {
+                return Err(refuse("gateway.policy.invalid-commitment"));
             }
         }
-    }
-    for pair in policies.windows(2) {
-        if !pair[1].tightens(&pair[0]) {
-            return Err(refuse("gateway.policy.expanded"));
+        let body = found.ok_or_else(|| refuse("gateway.policy.dangling-link"))?;
+        bounds.push((grant.statement().subject().clone(), body));
+        if bounds.len() > MAX_BOUNDED_LINKS {
+            return Err(refuse("gateway.policy.too-many-bounds"));
         }
     }
-    let facts = McpArgumentsPolicy::new().map_err(|_| refuse("gateway.policy.registry-invalid"))?;
-    for policy in &policies {
-        let Ok(Some(FactValue::Uint(value))) =
-            facts.action_fact(verified.canonical_action(), &policy.argument)
-        else {
-            return Err(refuse("gateway.policy.argument-unavailable"));
-        };
-        if ceiling_count_code(value, policy.ceiling, 0, policy.max_count)
-            == CeilingCountCode::AboveCeiling
-        {
-            return Err(refuse("gateway.policy.above-ceiling"));
-        }
+    if bounds
+        .first()
+        .is_some_and(|(_, root)| root.parent().is_some())
+    {
+        return Err(refuse("gateway.policy.dangling-link"));
     }
-    let Some(terminal) = policies.last() else {
-        return Ok(None);
-    };
-    let window = window_index(now, terminal.window_seconds)
-        .ok_or_else(|| refuse("gateway.policy.invalid-policy"))?;
-    let mut hash = Sha256::new();
-    hash.update(b"auths.gateway-bounded-count/1\0");
-    for component in [
-        namespace.as_str().as_bytes(),
-        actor.as_str().as_bytes(),
-        ARGUMENT_CEILING_EVALUATOR_V1.as_bytes(),
-    ] {
-        hash.update(
-            u64::try_from(component.len())
-                .unwrap_or(u64::MAX)
-                .to_be_bytes(),
-        );
-        hash.update(component);
-    }
-    hash.update(terminal.window_seconds.to_be_bytes());
-    hash.update(window.to_be_bytes());
-    let expires_at = window
-        .checked_add(2)
-        .and_then(|windows| windows.checked_mul(terminal.window_seconds))
-        .ok_or_else(|| refuse("gateway.policy.invalid-policy"))?;
-    Ok(Some(WindowReservation {
-        counter: hash.finalize().into(),
-        max_count: terminal.max_count,
-        expires_at,
-    }))
+    let links = bounds
+        .into_iter()
+        .map(|(subject, body)| {
+            link_policy(body.commitment(), body.policy())
+                .map(|policy| BoundLink { subject, policy })
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(refuse)?;
+    admit_links(links, verified.canonical_action(), recipe, now).map_err(refuse)
 }
 
-/// Durable insert-once slots holding per-window counts. Every
-/// implementation must give one winner per slot across processes and must
-/// never report an unreadable slot as absent.
-pub trait BoundedCountStore {
-    /// Inserts slot `key` with `record`, sweepable after `expires_at`;
-    /// `Ok(false)` when it already exists.
-    ///
-    /// # Errors
-    /// Returns a store failure; the slot is then neither reserved nor free.
-    fn insert_count_slot(
-        &self,
-        key: &[u8; 32],
-        record: &[u8],
-        expires_at: u64,
-    ) -> Result<bool, GatewayAttemptError>;
-
-    /// Reports whether slot `key` exists.
-    ///
-    /// # Errors
-    /// Returns a store failure rather than guessing.
-    fn count_slot_exists(&self, key: &[u8; 32]) -> Result<bool, GatewayAttemptError>;
-}
-
-/// Why a count slot was not reserved.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum ReserveRefusal {
-    Exhausted,
-    Unavailable,
-}
-
-impl ReserveRefusal {
-    pub(crate) const fn code(self) -> &'static str {
-        match self {
-            Self::Exhausted => "gateway.policy.window-exhausted",
-            Self::Unavailable => "gateway.policy.count-unavailable",
-        }
-    }
-}
-
-fn slot_key(counter: &[u8; 32], slot: u64) -> [u8; 32] {
-    let mut hash = Sha256::new();
-    hash.update(b"auths.gateway-bounded-count-slot/1\0");
-    hash.update(counter);
-    hash.update(slot.to_be_bytes());
-    hash.finalize().into()
-}
-
-/// Reserves the lowest free slot below the window maximum for `operation`.
+/// The account-scope binding: for a recipe with `account_scope`, the action
+/// has a bounded branch in which every link's policy carries a scope on the
+/// recipe's field that lists the verified value. A recipe without
+/// `account_scope` binds nothing.
 ///
-/// Slots are only ever inserted at the frontier found by a binary search over
-/// the occupied prefix, so occupied slots always form a prefix and the
-/// search is exact. Work is logarithmic in the maximum plus one insert per
-/// concurrent winner.
-pub(crate) fn reserve_window(
-    store: &(impl BoundedCountStore + ?Sized),
-    reservation: &WindowReservation,
-    operation: &LogicalOperationId,
-) -> Result<(), ReserveRefusal> {
-    let exists = |slot| {
-        store
-            .count_slot_exists(&slot_key(&reservation.counter, slot))
-            .map_err(|_| ReserveRefusal::Unavailable)
+/// # Errors
+/// `gateway.account-scope.unbound` when there is no bounded branch or a link
+/// carries no scope on the field, and `gateway.policy.scope-denied` when a
+/// link's scope does not list the verified value.
+pub(crate) fn bind_account_scope(
+    recipe: &CompiledRecipe,
+    bound: Option<&BoundAdmission>,
+    arguments: &serde_json::Map<String, serde_json::Value>,
+) -> Result<(), &'static str> {
+    let Some(field) = recipe.account_scope_field() else {
+        return Ok(());
     };
-    let (mut low, mut high) = (0_u64, reservation.max_count);
-    while low < high {
-        let middle = low + (high - low) / 2;
-        if exists(middle)? {
-            low = middle + 1;
-        } else {
-            high = middle;
+    let unbound = "gateway.account-scope.unbound";
+    let bound = bound.ok_or(unbound)?;
+    let value = arguments
+        .get(field)
+        .and_then(serde_json::Value::as_str)
+        .ok_or(unbound)?;
+    if bound.links.is_empty() {
+        return Err(unbound);
+    }
+    for link in &bound.links {
+        let scope = link
+            .policy
+            .scope()
+            .filter(|scope| scope.argument() == field)
+            .ok_or(unbound)?;
+        if !scope.lists(value) {
+            return Err("gateway.policy.scope-denied");
         }
     }
-    let record = serde_json::to_vec(&serde_json::json!({
-        "schema": "auths.gateway-bounded-count/1",
-        "operation_id": operation.as_str(),
-    }))
-    .map_err(|_| ReserveRefusal::Unavailable)?;
-    let mut slot = low;
-    while slot < reservation.max_count {
-        if store
-            .insert_count_slot(
-                &slot_key(&reservation.counter, slot),
-                &record,
-                reservation.expires_at,
-            )
-            .map_err(|_| ReserveRefusal::Unavailable)?
-        {
-            return Ok(());
-        }
-        slot += 1;
-    }
-    Err(ReserveRefusal::Exhausted)
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::BTreeMap;
-    use std::sync::Mutex;
 
-    struct MemoryCounts(Mutex<BTreeMap<[u8; 32], Vec<u8>>>);
-
-    impl BoundedCountStore for MemoryCounts {
-        fn insert_count_slot(
-            &self,
-            key: &[u8; 32],
-            record: &[u8],
-            _expires_at: u64,
-        ) -> Result<bool, GatewayAttemptError> {
-            let mut slots = self
-                .0
-                .lock()
-                .map_err(|_| GatewayAttemptError::Unavailable)?;
-            if slots.contains_key(key) {
-                return Ok(false);
-            }
-            slots.insert(*key, record.to_vec());
-            Ok(true)
-        }
-
-        fn count_slot_exists(&self, key: &[u8; 32]) -> Result<bool, GatewayAttemptError> {
-            Ok(self
-                .0
-                .lock()
-                .map_err(|_| GatewayAttemptError::Unavailable)?
-                .contains_key(key))
-        }
+    fn usd() -> ListedValues {
+        ListedValues::new("currency", &["usd"]).expect("list")
     }
 
     #[test]
@@ -661,6 +1107,65 @@ mod tests {
     }
 
     #[test]
+    fn extended_policy_round_trips_and_refuses_every_malformed_member() {
+        let full = ArgumentCeilingPolicy::new("amount", 500, 86_400, 3)
+            .and_then(|policy| policy.with_sum(1_000, Some(usd())))
+            .and_then(|policy| {
+                policy.with_scope(
+                    ListedValues::new("connect_account", &["acct_2", "acct_1"]).expect("list"),
+                )
+            })
+            .expect("policy");
+        let bytes = full.encode().expect("bytes");
+        assert_eq!(ArgumentCeilingPolicy::decode(&bytes), Ok(full.clone()));
+        assert_eq!(
+            full.scope().map(ListedValues::values),
+            Some(&["acct_1".to_owned(), "acct_2".to_owned()][..])
+        );
+        let base = || ArgumentCeilingPolicy::new("amount", 500, 86_400, 3).expect("policy");
+        assert!(base().with_sum(0, None).is_err());
+        assert!(base().with_sum(MAX_SUM_LIMIT + 1, None).is_err());
+        assert!(
+            base()
+                .with_sum(1, Some(ListedValues::new("amount", &["x"]).expect("list")))
+                .is_err()
+        );
+        assert!(
+            base()
+                .with_scope(ListedValues::new("amount", &["x"]).expect("list"))
+                .is_err()
+        );
+        assert!(ListedValues::new("currency", &[]).is_err());
+        assert!(ListedValues::new("currency", &["usd", "usd"]).is_err());
+        assert!(ListedValues::new("currency", &["has space"]).is_err());
+        assert!(ListedValues::new("currency", &[&"x".repeat(65)]).is_err());
+        let seventeen: Vec<String> = (0..17).map(|index| format!("v{index:02}")).collect();
+        let seventeen: Vec<&str> = seventeen.iter().map(String::as_str).collect();
+        assert!(ListedValues::new("currency", &seventeen).is_err());
+
+        // A partition without a sum, and members out of order, are refused.
+        let mut encoder = Encoder::new(Vec::new());
+        encoder.map(5).expect("map");
+        encoder.u8(0).expect("key").str("amount").expect("argument");
+        encoder.u8(1).expect("key").u64(500).expect("ceiling");
+        encoder.u8(2).expect("key").u64(86_400).expect("window");
+        encoder.u8(3).expect("key").u64(3).expect("count");
+        encoder.u8(5).expect("key");
+        usd().encode(&mut encoder).expect("partition");
+        assert!(ArgumentCeilingPolicy::decode(&encoder.into_writer()).is_err());
+        let mut encoder = Encoder::new(Vec::new());
+        encoder.map(6).expect("map");
+        encoder.u8(0).expect("key").str("amount").expect("argument");
+        encoder.u8(1).expect("key").u64(500).expect("ceiling");
+        encoder.u8(2).expect("key").u64(86_400).expect("window");
+        encoder.u8(3).expect("key").u64(3).expect("count");
+        encoder.u8(5).expect("key");
+        usd().encode(&mut encoder).expect("partition");
+        encoder.u8(4).expect("key").u64(1_000).expect("sum");
+        assert!(ArgumentCeilingPolicy::decode(&encoder.into_writer()).is_err());
+    }
+
+    #[test]
     fn decider_accepts_only_a_tighter_bound_on_the_same_argument_and_window() {
         let parent = ArgumentCeilingPolicy::new("amount", 500, 3_600, 3).expect("policy");
         let tighter = ArgumentCeilingPolicy::new("amount", 100, 3_600, 2).expect("policy");
@@ -671,6 +1176,9 @@ mod tests {
         assert!(!other_argument.tightens(&parent));
         let other_window = ArgumentCeilingPolicy::new("amount", 1, 60, 1).expect("policy");
         assert!(!other_window.tightens(&parent));
+        let summed = parent.clone().with_sum(1_000, Some(usd())).expect("sum");
+        assert!(summed.tightens(&parent), "adding a sum only narrows");
+        assert!(!parent.tightens(&summed), "dropping a sum widens");
     }
 
     #[test]
@@ -680,7 +1188,7 @@ mod tests {
             PolicyCommitment::new(
                 PolicyIdentifier::parse(policy_type, 128).expect("type"),
                 version,
-                PolicyIdentifier::parse(ARGUMENT_CEILING_CANONICALIZATION_V1, 64).expect("canon"),
+                PolicyIdentifier::parse(ARGUMENT_CEILING_CANONICALIZATION, 64).expect("canon"),
                 digest,
                 PolicyIdentifier::parse(evaluator, 128).expect("evaluator"),
             )
@@ -688,32 +1196,32 @@ mod tests {
         };
         assert_eq!(
             registered(&commitment(
-                ARGUMENT_CEILING_EVALUATOR_V1,
-                ARGUMENT_CEILING_POLICY_TYPE_V1,
+                ARGUMENT_CEILING_EVALUATOR,
+                ARGUMENT_CEILING_POLICY_TYPE,
                 1
             )),
             Ok(GatewayEvaluator::ArgumentCeilingWindowCount)
         );
         assert_eq!(
             registered(&commitment(
-                "auths.gateway.other/1",
-                ARGUMENT_CEILING_POLICY_TYPE_V1,
+                "auths.gateway.argument-ceiling-window-count/1",
+                ARGUMENT_CEILING_POLICY_TYPE,
                 1
             )),
             Err("gateway.policy.evaluator-unregistered")
         );
         assert_eq!(
             registered(&commitment(
-                ARGUMENT_CEILING_EVALUATOR_V1,
-                "auths.gateway.other-policy/1",
+                ARGUMENT_CEILING_EVALUATOR,
+                "auths.gateway.argument-ceiling-policy/1",
                 1
             )),
             Err("gateway.policy.evaluator-mismatch")
         );
         assert_eq!(
             registered(&commitment(
-                ARGUMENT_CEILING_EVALUATOR_V1,
-                ARGUMENT_CEILING_POLICY_TYPE_V1,
+                ARGUMENT_CEILING_EVALUATOR,
+                ARGUMENT_CEILING_POLICY_TYPE,
                 2
             )),
             Err("gateway.policy.evaluator-mismatch")
@@ -721,26 +1229,18 @@ mod tests {
     }
 
     #[test]
-    fn window_reservation_takes_exactly_the_maximum() {
-        let store = MemoryCounts(Mutex::new(BTreeMap::new()));
-        let reservation = WindowReservation {
-            counter: [9; 32],
-            max_count: 3,
-            expires_at: 7_200,
-        };
-        let operation = LogicalOperationId::parse("op-1").expect("operation");
-        for _ in 0..3 {
-            assert_eq!(reserve_window(&store, &reservation, &operation), Ok(()));
-        }
-        assert_eq!(
-            reserve_window(&store, &reservation, &operation),
-            Err(ReserveRefusal::Exhausted)
+    fn counter_domains_keep_count_and_sum_keys_apart() {
+        let namespace = OperatorNamespace::parse("stripe-refunds").expect("namespace");
+        let subject = PrincipalId::parse("did:key:z6MkTest").expect("principal");
+        let count = count_counter_key(&namespace, &subject, 86_400, 7);
+        let sum = sum_counter_key(&namespace, &subject, "", 86_400, 7);
+        assert_ne!(count, sum);
+        assert_ne!(count, count_counter_key(&namespace, &subject, 86_400, 8));
+        assert_ne!(
+            sum_counter_key(&namespace, &subject, "usd", 86_400, 7),
+            sum_counter_key(&namespace, &subject, "eur", 86_400, 7)
         );
-        let other = WindowReservation {
-            counter: [8; 32],
-            max_count: 3,
-            expires_at: 7_200,
-        };
-        assert_eq!(reserve_window(&store, &other, &operation), Ok(()));
+        assert_ne!(count_slot_key(&count, 0), sum_slot_key(&count, 0));
+        assert_ne!(count_slot_key(&count, 0), count_slot_key(&count, 1));
     }
 }

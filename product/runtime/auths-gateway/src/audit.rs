@@ -9,9 +9,15 @@
 //!
 //! Each entry is re-verified with the gateway's own verifier and bounded-
 //! policy admission at the time the gateway signed its outcome (or, without
-//! an outcome, at the start of the approvals' validity). Per-window counts are
-//! recomputed across the bundle in evaluation-time order. No socket, provider,
-//! or gateway state is touched.
+//! an outcome, at the start of the approvals' validity), which derives the
+//! count and sum counters of its links in that fixed window. The bounds are
+//! then recounted without any order: the gateway gave each entered entry a
+//! distinct slot below its capacity, which is possible exactly when, for
+//! every capacity value k, at most k entered entries have a capacity of at
+//! most k; and it kept a sum within every capacity, which is possible
+//! exactly when the arguments of the entered entries with a capacity of at
+//! most k sum to at most k. No socket, provider, or gateway state is
+//! touched.
 //!
 //! An entry is `verified` when the auditor admits it and the gateway signed an
 //! entered outcome for its exact action commitment; `refused` when the auditor
@@ -26,6 +32,7 @@
 //! declined; they never change a verdict. Only the verified proof counts an
 //! approval, and a decline's signature carries no authority.
 
+use crate::bounds::BoundAdmission;
 use crate::engine::{GatewaySubmitResult, verify_detailed};
 use crate::observer::{VerifiedOutcome, operation_subject, verify_outcome};
 use crate::{CompiledRecipe, LogicalOperationId};
@@ -199,7 +206,7 @@ fn validity_start(proof: &[u8]) -> u64 {
 struct Pending {
     entry: AuditedEntry,
     outcome: Option<VerifiedOutcome>,
-    reservation: Option<([u8; 32], u64)>,
+    bound: Option<BoundAdmission>,
     commitment: Option<String>,
 }
 
@@ -215,7 +222,7 @@ fn finding(operation_id: &str, code: &str, evaluated_at: u64) -> Pending {
             evaluated_at,
         },
         outcome: None,
-        reservation: None,
+        bound: None,
         commitment: None,
     }
 }
@@ -265,24 +272,7 @@ pub fn audit_bundle(bytes: &[u8], pins: &AuditPins) -> Result<AuditReport, &'sta
         pending.push(audit_entry(&recipe, &context, pins, entry, &mut seen));
     }
 
-    // Recount every bounded window in evaluation-time order; the gateway
-    // reserved slots in arrival order, which the signed outcome times track.
-    let mut order: Vec<usize> = (0..pending.len()).collect();
-    order.sort_by_key(|index| pending[*index].entry.evaluated_at);
-    let mut counts: BTreeMap<[u8; 32], u64> = BTreeMap::new();
-    for index in order {
-        let item = &mut pending[index];
-        let Some((counter, maximum)) = item.reservation else {
-            continue;
-        };
-        let used = counts.entry(counter).or_insert(0);
-        if *used >= maximum {
-            item.entry.status = AuditStatus::Refused;
-            "gateway.policy.window-exhausted".clone_into(&mut item.entry.code);
-        } else {
-            *used += 1;
-        }
-    }
+    recount(&mut pending);
 
     let entries: Vec<AuditedEntry> = pending.into_iter().map(reconcile).collect();
     let count = |status| entries.iter().filter(|item| item.status == status).count();
@@ -297,6 +287,141 @@ pub fn audit_bundle(bytes: &[u8], pins: &AuditPins) -> Result<AuditReport, &'sta
         entries,
         approval_responses,
     })
+}
+
+/// The entries, by index, that break the order-free count bound: every
+/// entry whose capacity is at most the smallest capacity value `k` that more
+/// than `k` entries have a capacity of at most. Each charge is an entry
+/// index and its capacity for one counter. Empty when some arrival order
+/// gives every entry a distinct slot below its capacity.
+pub(crate) fn count_bound_violations(charges: &[(usize, u64)]) -> Vec<usize> {
+    let mut capacities: Vec<u64> = charges.iter().map(|(_, capacity)| *capacity).collect();
+    capacities.sort_unstable();
+    capacities.dedup();
+    for capacity in capacities {
+        let within = charges
+            .iter()
+            .filter(|(_, other)| *other <= capacity)
+            .count();
+        if u64::try_from(within).unwrap_or(u64::MAX) > capacity {
+            return charges
+                .iter()
+                .filter(|(_, other)| *other <= capacity)
+                .map(|(entry, _)| *entry)
+                .collect();
+        }
+    }
+    Vec::new()
+}
+
+/// The entries, by index, that break the order-free sum bound: every entry
+/// whose capacity is at most the smallest capacity value `k` at which the
+/// arguments of the entries with a capacity of at most `k` sum above `k`.
+/// Each charge is an entry index, its capacity for one sum counter, and its
+/// argument. Empty when some arrival order keeps every running sum within
+/// every capacity; admitting by capacity is optimal, as for deadlines.
+pub(crate) fn sum_bound_violations(charges: &[(usize, u64, u64)]) -> Vec<usize> {
+    let mut capacities: Vec<u64> = charges.iter().map(|(_, capacity, _)| *capacity).collect();
+    capacities.sort_unstable();
+    capacities.dedup();
+    for capacity in capacities {
+        let total: u128 = charges
+            .iter()
+            .filter(|(_, other, _)| *other <= capacity)
+            .map(|(_, _, argument)| u128::from(*argument))
+            .sum();
+        if total > u128::from(capacity) {
+            return charges
+                .iter()
+                .filter(|(_, other, _)| *other <= capacity)
+                .map(|(entry, _, _)| *entry)
+                .collect();
+        }
+    }
+    Vec::new()
+}
+
+/// Recounts every count and sum counter across the bundle's entered entries
+/// without any order, and names the bound a refused entry met when the
+/// bundle shows it: a verified entry the gateway did not enter is refused
+/// with `gateway.policy.window-exhausted` or `gateway.policy.sum-exhausted`
+/// when the entered entries on one of its counters leave it no room. A bundle
+/// may be incomplete, so an entry whose exhaustion the bundle does not show
+/// keeps `audit.gateway-not-entered`.
+fn recount(pending: &mut [Pending]) {
+    let entered = |item: &Pending| {
+        item.entry.status == AuditStatus::Verified
+            && item
+                .outcome
+                .as_ref()
+                .is_some_and(|outcome| outcome.stage != "not-entered")
+    };
+    let mut counts: BTreeMap<[u8; 32], Vec<(usize, u64)>> = BTreeMap::new();
+    let mut sums: BTreeMap<[u8; 32], Vec<(usize, u64, u64)>> = BTreeMap::new();
+    for (index, item) in pending.iter().enumerate() {
+        let Some(bound) = item.bound.as_ref().filter(|_| entered(item)) else {
+            continue;
+        };
+        for counter in &bound.counts {
+            counts
+                .entry(counter.key)
+                .or_default()
+                .push((index, counter.capacity));
+        }
+        for counter in &bound.sums {
+            sums.entry(counter.key)
+                .or_default()
+                .push((index, counter.capacity, bound.argument));
+        }
+    }
+    let mut flagged: BTreeMap<usize, &'static str> = BTreeMap::new();
+    for charges in counts.values() {
+        for index in count_bound_violations(charges) {
+            flagged.entry(index).or_insert("audit.bound-exceeded");
+        }
+    }
+    for charges in sums.values() {
+        for index in sum_bound_violations(charges) {
+            flagged.entry(index).or_insert("audit.sum-exceeded");
+        }
+    }
+    for (index, item) in pending.iter_mut().enumerate() {
+        if let Some(code) = flagged.get(&index) {
+            item.entry.status = AuditStatus::Inconsistent;
+            (*code).clone_into(&mut item.entry.code);
+            continue;
+        }
+        let refused_by_gateway = item.entry.status == AuditStatus::Verified
+            && item
+                .outcome
+                .as_ref()
+                .is_some_and(|outcome| outcome.stage == "not-entered");
+        let Some(bound) = item.bound.as_ref().filter(|_| refused_by_gateway) else {
+            continue;
+        };
+        let count_full = bound.counts.iter().any(|counter| {
+            let used = counts.get(&counter.key).map_or(0, Vec::len);
+            u64::try_from(used).unwrap_or(u64::MAX) >= counter.capacity
+        });
+        let sum_full = bound.sums.iter().any(|counter| {
+            let used: u128 = sums.get(&counter.key).map_or(0, |charges| {
+                charges
+                    .iter()
+                    .map(|(_, _, argument)| u128::from(*argument))
+                    .sum()
+            });
+            used + u128::from(bound.argument) > u128::from(counter.capacity)
+        });
+        let code = if count_full {
+            "gateway.policy.window-exhausted"
+        } else if sum_full {
+            "gateway.policy.sum-exhausted"
+        } else {
+            continue;
+        };
+        item.entry.status = AuditStatus::Refused;
+        code.clone_into(&mut item.entry.code);
+    }
 }
 
 fn recorded_response(source: &ResponseSource) -> Option<AuditedApprovalResponse> {
@@ -366,7 +491,7 @@ fn audit_entry(
             evaluated_at,
         },
         outcome,
-        reservation: None,
+        bound: None,
         commitment: None,
     };
     match verify_detailed(recipe, context, evaluated_at, &proof, &action) {
@@ -382,7 +507,7 @@ fn audit_entry(
                 .map(|actor| actor.as_str().to_owned())
                 .collect();
             item.entry.arguments = Some(verified.arguments);
-            item.reservation = verified.bound.map(|bound| (bound.counter, bound.max_count));
+            item.bound = verified.bound;
             item.commitment = Some(hex::encode(verified.request.action_commitment()));
         }
         Err(result) => {

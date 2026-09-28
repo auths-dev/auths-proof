@@ -2,7 +2,7 @@
 
 Your AI agent may refund a Stripe payment only when two of your three
 managers approve that exact refund, and only up to its own limit: at most
-50.00 per refund and two refunds a day. The Stripe key lives only in the
+50.00 per refund and two refunds per UTC day. The Stripe key lives only in the
 Auths gateway. An auditor checks every refund afterwards, offline.
 
 **10 steps. The unattended run of all of them (step 10) took 4.2 s on an
@@ -58,8 +58,10 @@ under `state/signers/` (development custody over that manager's key), and:
   each approver as a remote approval (`propose_mcp_approval`,
   `approval_requests`, `collect_approvals`);
 - the agent's grant from the root, carrying a bounded-policy commitment:
-  `amount` at most 5000 (cents) and at most 2 refunds per 86400 s.
-  `--ceiling`, `--max-count`, and `--window-seconds` change it.
+  `amount` at most 5000 (cents) and at most 2 refunds per fixed,
+  epoch-aligned 86400 s window, which is a UTC day. The count bounds the
+  agent and anyone it delegates to together. `--ceiling`, `--max-count`,
+  and `--window-seconds` change it.
 
 It prints `recipe_digest` and `trusted_context_sha256`. Keep both.
 `recipe.json` is the gateway recipe for `POST /v1/refunds`, in recipe
@@ -148,7 +150,7 @@ ledger has one entry.
 | A request edited to show another amount | `auths approve` refuses `approval.action-mismatch` and signs nothing | 0 |
 | 90.00, above the 50.00 ceiling | `not-entered` `gateway.policy.above-ceiling` | 0 |
 | Only manager A approves | `denied` `composition-requirement-not-met` | 0 |
-| A third refund on the same day | `not-entered` `gateway.policy.window-exhausted` | 0 |
+| A third refund on the same UTC day | `not-entered` `gateway.policy.window-exhausted` | 0 |
 
 The agent's collection checks that every response signs its own request's
 envelope byte for byte; the gateway's verifier checks every signature and the
@@ -176,7 +178,8 @@ For every refund it re-verifies, with the gateway's own verifier:
 - the proof chain from the agent to the root, and each manager's signature;
 - the approval threshold of the pinned trusted context (the report lists the
   approving principals);
-- the ceiling, and the per-window count recomputed across the bundle;
+- the ceiling, and the per-window count recounted across the bundle
+  without relying on the order of the entries;
 - the gateway-signed outcome: signed by the pinned observer, for this exact
   action, with its recorded stage.
 
@@ -276,9 +279,11 @@ on stdin.
   applies to it.
 - The audit checks the entries in the bundle. It cannot show that none were
   left out; the gateway's attempt store is the complete record.
-- The per-window count is recomputed at the time the gateway signed each
+- The per-window count is recounted at the time the gateway signed each
   outcome, so the app requests that outcome right after submitting. An
   outcome signed in a later window than its submission is counted there.
+- Windows are fixed UTC days, not rolling: up to four refunds can land
+  within 24 hours across midnight UTC.
 - Stripe returns the refund object to the gateway, which records its status
   and a digest. The response body is not in the bundle, and the gateway does
   not read the refund back, so the audit shows what the gateway recorded,

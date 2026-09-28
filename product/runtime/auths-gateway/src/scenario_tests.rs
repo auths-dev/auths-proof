@@ -3,12 +3,11 @@
 //! doubles.
 //!
 //! The corpus enters after native verification: each case builds the
-//! verified command from its arguments, and the step machine then directs
-//! every claim, lease, credential read, action read, store write, and write
-//! entry against a provider double that counts them. The account-scope
-//! binding, which grant policy `/2` supplies, is stood in for by the case's
-//! grant scope; the cases whose code that binding produces run once it
-//! exists.
+//! verified command from its arguments and admits it under its grant's
+//! policy `/2` with the gateway's own admission, and the step machine then
+//! directs the account-scope binding and every claim, lease, credential
+//! read, action read, store write, and write entry against a provider
+//! double that counts them.
 
 #![allow(clippy::too_many_lines, reason = "scenario tables read top to bottom")]
 
@@ -153,10 +152,15 @@ impl GatewayAttemptStore for RecordingStore {
 // ---------------------------------------------------------------------------
 // The submission I/O of a verified command.
 
-struct TestIo<'a, P> {
+pub(crate) struct TestIo<'a, P> {
     provider: &'a P,
-    verified: VerifiedCommand,
-    clock: AtomicU64,
+    /// The verified command, or the refusal verification and admission
+    /// return before any claim.
+    pub(crate) verified: Result<VerifiedCommand, GatewaySubmitResult>,
+    /// The recipe whose account-scope binding the step machine runs; `None`
+    /// binds nothing.
+    pub(crate) recipe: Option<&'a CompiledRecipe>,
+    pub(crate) clock: AtomicU64,
     deadline_advance: u64,
     secret: Vec<u8>,
     account: [u8; 32],
@@ -164,10 +168,18 @@ struct TestIo<'a, P> {
 }
 
 impl<'a, P> TestIo<'a, P> {
-    fn new(provider: &'a P, verified: VerifiedCommand) -> Self {
+    pub(crate) fn new(provider: &'a P, verified: VerifiedCommand) -> Self {
+        Self::answering(provider, Ok(verified))
+    }
+
+    pub(crate) fn answering(
+        provider: &'a P,
+        verified: Result<VerifiedCommand, GatewaySubmitResult>,
+    ) -> Self {
         Self {
             provider,
             verified,
+            recipe: None,
             clock: AtomicU64::new(NOW),
             deadline_advance: 0,
             secret: b"rk_test_not-a-real-credential".to_vec(),
@@ -176,7 +188,7 @@ impl<'a, P> TestIo<'a, P> {
         }
     }
 
-    fn leases(&self) -> usize {
+    pub(crate) fn leases(&self) -> usize {
         self.leases.load(Ordering::SeqCst)
     }
 }
@@ -189,11 +201,13 @@ impl<P: ProviderPort> SubmitIo for TestIo<'_, P> {
     }
 
     fn verify(&self, _now: u64) -> Result<VerifiedCommand, GatewaySubmitResult> {
-        Ok(self.verified.clone())
+        self.verified.clone()
     }
 
-    fn bind_scope(&self, _verified: &VerifiedCommand) -> Result<(), &'static str> {
-        Ok(())
+    fn bind_scope(&self, verified: &VerifiedCommand) -> Result<(), &'static str> {
+        self.recipe.map_or(Ok(()), |recipe| {
+            crate::bounds::bind_account_scope(recipe, verified.bound.as_ref(), &verified.arguments)
+        })
     }
 
     fn prepare(&self) -> Result<(), &'static str> {
@@ -252,7 +266,7 @@ impl<P: ProviderPort> SubmitIo for TestIo<'_, P> {
 }
 
 /// Trust with the test root and the test observer's anchor.
-fn test_context(observer: &GatewayObserver) -> TrustedContext {
+pub(crate) fn test_context(observer: &GatewayObserver) -> TrustedContext {
     context(&Signer::new(ROOT_SEED), observer.principal(), None, NOW).expect("context")
 }
 
@@ -265,29 +279,88 @@ fn verified(
     requirements: Vec<ObservationRequirement>,
     validity_seconds: u64,
 ) -> VerifiedCommand {
+    admitted(
+        recipe,
+        values,
+        commitment,
+        requirements,
+        validity_seconds,
+        Vec::new(),
+        NOW,
+    )
+    .expect("verified command")
+}
+
+/// The verified command of `values` under `recipe`, admitted under `links`
+/// by the gateway's own bounded-policy admission at `now`, or the refusal
+/// verification returns before any claim: an admission refusal, or a value
+/// the closed request refuses.
+pub(crate) fn admitted(
+    recipe: &CompiledRecipe,
+    values: &Map<String, Value>,
+    commitment: [u8; 32],
+    requirements: Vec<ObservationRequirement>,
+    validity_seconds: u64,
+    links: Vec<crate::bounds::BoundLink>,
+    now: u64,
+) -> Result<VerifiedCommand, GatewaySubmitResult> {
     let mut arguments = values.clone();
     arguments.insert(
         "operator_namespace".into(),
         json!(recipe.namespace().as_str()),
     );
     arguments.insert("recipe_digest".into(), json!(recipe.digest_hex()));
-    let request = recipe
-        .closed_request_from_arguments(&arguments, commitment)
-        .expect("closed request");
     let review = recipe.review();
     let call = McpToolCall::new(review.service(), review.tool(), arguments.clone()).expect("call");
     let canonical_action = McpProfile
         .canonicalize(&call.canonical_bytes().expect("canonical call"))
         .expect("canonical action");
-    VerifiedCommand {
+    let bound = crate::bounds::admit_links(links, &canonical_action, recipe, now)
+        .map_err(crate::engine::not_entered)?;
+    let request = recipe
+        .closed_request_from_arguments(&arguments, commitment)
+        .map_err(|error| crate::engine::not_entered(error.code()))?;
+    Ok(VerifiedCommand {
         request,
-        bound: None,
+        bound,
         actors: Vec::new(),
         arguments,
         requirements,
         canonical_action,
         validity_seconds,
+    })
+}
+
+/// Policy `/2` from its members as the fixtures list them.
+pub(crate) fn policy_from_members(members: &Value) -> crate::ArgumentCeilingPolicy {
+    let list = |value: &Value| {
+        let values: Vec<&str> = value["values"]
+            .as_array()
+            .expect("values")
+            .iter()
+            .map(|item| item.as_str().expect("value"))
+            .collect();
+        crate::ListedValues::new(value["argument"].as_str().expect("argument"), &values)
+            .expect("listed values")
+    };
+    let mut policy = crate::ArgumentCeilingPolicy::new(
+        members["argument"].as_str().expect("argument"),
+        members["ceiling"].as_u64().expect("ceiling"),
+        members["window_seconds"].as_u64().expect("window"),
+        members["max_count"].as_u64().expect("count"),
+    )
+    .expect("policy");
+    if let Some(limit) = members.get("sum_limit").and_then(Value::as_u64) {
+        let partition = members
+            .get("partition")
+            .filter(|value| !value.is_null())
+            .map(list);
+        policy = policy.with_sum(limit, partition).expect("sum");
     }
+    if let Some(scope) = members.get("scope").filter(|value| !value.is_null()) {
+        policy = policy.with_scope(list(scope)).expect("scope");
+    }
+    policy
 }
 
 async fn run<P: ProviderPort>(
@@ -795,7 +868,7 @@ async fn a_lost_claim_resends_the_same_idempotency_key() {
 /// A provider that answers each `METHOD /path` from a table, applies each
 /// write to the table the way the provider would, and counts every request
 /// by kind.
-struct TableProvider {
+pub(crate) struct TableProvider {
     origin: String,
     answers: Mutex<BTreeMap<String, Value>>,
     required_versions: Vec<(String, String)>,
@@ -807,7 +880,7 @@ struct TableProvider {
 }
 
 impl TableProvider {
-    fn new(recipe: &CompiledRecipe, answers: &Value, write_mode: &str) -> Self {
+    pub(crate) fn new(recipe: &CompiledRecipe, answers: &Value, write_mode: &str) -> Self {
         Self {
             origin: recipe.review().origin().to_owned(),
             answers: Mutex::new(
@@ -825,6 +898,11 @@ impl TableProvider {
             action_reads: AtomicUsize::new(0),
             requests: Mutex::new(Vec::new()),
         }
+    }
+
+    /// How many writes entered the provider.
+    pub(crate) fn writes(&self) -> usize {
+        self.writes.load(Ordering::SeqCst)
     }
 
     fn path<'a>(&self, url: &'a str) -> &'a str {
@@ -1023,12 +1101,20 @@ fn grant_requirement(setup: &Value) -> Vec<ObservationRequirement> {
     ]
 }
 
-/// The epic that implements the account-scope binding runs these.
-const ACCOUNT_SCOPE_BINDING_CASES: [&str; 3] = [
-    "account-scope-outside-grant",
-    "account-scope-unbound",
-    "account-scope-invalid-value",
-];
+/// The links a scenario's grant policy yields: one grant from the test root
+/// to the agent, or none when the scenario grants no bounded policy.
+fn scenario_links(setup: &Value) -> Vec<crate::bounds::BoundLink> {
+    setup
+        .get("grant_policy")
+        .filter(|policy| !policy.is_null())
+        .map(|policy| {
+            vec![crate::bounds::BoundLink {
+                subject: Signer::new(0x44).principal,
+                policy: policy_from_members(policy),
+            }]
+        })
+        .unwrap_or_default()
+}
 
 /// Runs one record `/3` scenario and checks every recorded count, stage,
 /// and code.
@@ -1058,14 +1144,17 @@ async fn attempt_scenario(case: &Value, corpus: &Value, recipes: &Value, backend
     }
     let attempts = GatewayAttempts::new(recording.clone());
     let arguments = setup["arguments"].as_object().expect("arguments").clone();
-    let command = verified(
+    let command = admitted(
         &recipe,
         &arguments,
         ORIGINAL,
         grant_requirement(&setup),
         setup["validity_seconds"].as_u64().expect("validity"),
+        scenario_links(&setup),
+        NOW,
     );
-    let mut io = TestIo::new(&provider, command);
+    let mut io = TestIo::answering(&provider, command);
+    io.recipe = Some(&recipe);
     if let Some(label) = setup["account_label"].as_str() {
         io.account = account_commitment(label);
     }
@@ -1091,14 +1180,17 @@ async fn attempt_scenario(case: &Value, corpus: &Value, recipes: &Value, backend
     let first = submit::run(&cx, &io).await;
     let mut leases = io.leases();
     if setup["replay"] == "fresh-proof" {
-        let replay_command = verified(
+        let replay_command = admitted(
             &recipe,
             &arguments,
             FRESH,
             grant_requirement(&setup),
             setup["validity_seconds"].as_u64().expect("validity"),
+            scenario_links(&setup),
+            NOW,
         );
-        let mut replay_io = TestIo::new(&provider, replay_command);
+        let mut replay_io = TestIo::answering(&provider, replay_command);
+        replay_io.recipe = Some(&recipe);
         replay_io.account = io.account;
         let _ = submit::run(&cx, &replay_io).await;
         leases += replay_io.leases();
@@ -1140,8 +1232,12 @@ async fn attempt_scenario(case: &Value, corpus: &Value, recipes: &Value, backend
     {
         let snapshot = attempts
             .read(
-                io.verified.request.namespace(),
-                io.verified.request.operation_id(),
+                io.verified.as_ref().expect("verified").request.namespace(),
+                io.verified
+                    .as_ref()
+                    .expect("verified")
+                    .request
+                    .operation_id(),
             )
             .await
             .expect("read")
@@ -1188,13 +1284,10 @@ async fn attempt_scenarios(backend: Backend) {
     let recipes = self::corpus(corpus["recipes"].as_str().expect("recipes"));
     let mut ran = 0;
     for case in corpus["cases"].as_array().expect("cases") {
-        if ACCOUNT_SCOPE_BINDING_CASES.contains(&case["id"].as_str().expect("id")) {
-            continue;
-        }
         attempt_scenario(case, &corpus, &recipes, backend).await;
         ran += 1;
     }
-    assert_eq!(ran, 24);
+    assert_eq!(ran, 27);
 }
 
 #[tokio::test]
