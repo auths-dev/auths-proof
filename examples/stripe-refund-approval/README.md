@@ -204,9 +204,10 @@ This runs steps 3–9 with every manager answering through
 `auths approve`, a declined manager, a tampered request, the three
 refusals, and the four tampering cases,
 checks every result, including exactly two Stripe calls and the
-`Idempotency-Key` each one carried, and prints timings. It then wipes the
-gateway's attempt store, as restoring an older backup would, and resubmits
-refund 1's approved proof. With the claim gone the gateway sends it again,
+`Idempotency-Key` each one carried, and prints timings. It then restores the
+gateway's store from a backup taken before the first refund, which keeps the
+shared connection record but no claim, and resubmits refund 1's approved
+proof. With the claim gone the gateway sends it again,
 with the same key, and the double answers with the first refund: three calls,
 two refunds. CI runs it from the packed wheel
 (`.github/workflows/sdk-recipes.yml`, job `stripe-refund-journey`).

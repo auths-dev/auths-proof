@@ -836,9 +836,15 @@ mod unix {
             Some(observer) => engine.with_observer(observer),
             None => engine,
         };
-        engine
-            .check_principal_separation(operator.as_ref())
-            .map_err(PrincipalSeparationError::code)?;
+        // Separation is checked against an authenticated operator. A
+        // development installation without one keeps its observer key
+        // outside the trust it installed, as `observer-init` creates it after
+        // install; aliased anchors were refused above either way.
+        if let Some(operator) = &operator {
+            engine
+                .check_principal_separation(Some(operator))
+                .map_err(PrincipalSeparationError::code)?;
+        }
         Ok(engine)
     }
 

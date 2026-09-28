@@ -245,6 +245,32 @@ fn a_joined_process_sees_every_change_committed_through_the_other() {
     assert_eq!(status(&second)["credential_held"], false);
 }
 
+/// A development installation has no operator, so its observer key, made
+/// after install, need not be anchored in the trust it installed: `serve`
+/// starts, as the north-star journey runs it.
+#[test]
+fn a_development_gateway_serves_with_an_observer_made_after_install() {
+    let (_directory, root) = private_root();
+    let state = root.join("state");
+    let installed = install(
+        &root,
+        &state,
+        &["--account-label", "synthetic-account"],
+        b"synthetic-token\n",
+    );
+    assert!(installed.status.success(), "{}", stderr(&installed));
+    let observer = run(
+        Command::new(BIN)
+            .arg("observer-init")
+            .arg("--state-dir")
+            .arg(&state),
+        b"",
+    );
+    assert!(observer.status.success(), "{}", stderr(&observer));
+    let _gateway = serve(&state, &root.join("app.sock"));
+    assert_eq!(status(&state)["state"], "active");
+}
+
 #[test]
 fn a_production_install_needs_a_verifying_operator_attestation() {
     let (_directory, root) = private_root();

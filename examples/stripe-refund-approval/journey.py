@@ -11,9 +11,10 @@ journey calls Stripe's test mode instead, using the developer's own
 install and nowhere else.
 
 Against the double it also checks the ``Idempotency-Key`` the gateway derives
-for each refund, then wipes the gateway's attempt store and resubmits an
-approved refund: the double, like Stripe, must return the first refund
-rather than create a second.
+for each refund, then restores the gateway's store from a backup taken
+before the first refund, which forgets every claim but keeps the shared
+connection record, and resubmits an approved refund: the double, like
+Stripe, must return the first refund rather than create a second.
 """
 
 from __future__ import annotations
@@ -315,6 +316,10 @@ def main() -> int:
                 stdin=secret + "\n",
             ),
         )
+        # The store as a backup taken now would hold it: the shared connection
+        # record and no claim. The state-loss check restores it.
+        attempts_backup = journey.work / "attempts-backup"
+        shutil.copytree(journey.gateway_state / "attempts", attempts_backup)
         observer = journey.step(
             "gateway observer key",
             lambda: json.loads(
@@ -475,19 +480,22 @@ def main() -> int:
             expect(sent == [keys["refund-1"], keys["refund-4"]], f"Idempotency-Key values {sent}")
             expect(not any(entry["replayed"] for entry in entries), f"provider replays {entries}")
 
-            # State loss: the gateway's attempt store is wiped, as a restore
-            # from an older backup would leave it, and a client resubmits
+            # State loss: the gateway's store is restored from the backup
+            # taken before the first refund, which still holds the shared
+            # connection record but no claim, and a client resubmits
             # refund-1's approved proof and action. No claim stops it now;
             # only the repeated Idempotency-Key keeps the double, like Stripe,
-            # from making a second refund.
+            # from making a second refund. A wiped store would lose the
+            # connection record too, and the gateway would refuse every entry.
             def lose_attempts_and_resubmit() -> Dict[str, Any]:
                 journey.terminate(running["gateway"])
                 shutil.rmtree(journey.gateway_state / "attempts")
+                shutil.copytree(attempts_backup, journey.gateway_state / "attempts")
                 start_gateway()
                 return resubmit(journey, "refund-1")
 
             state_loss = journey.step(
-                "state loss: attempt store wiped, refund-1 resubmitted",
+                "state loss: store restored from an older backup, refund-1 resubmitted",
                 lose_attempts_and_resubmit,
             )
             expect(
