@@ -13,7 +13,7 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "101506a2b7059313bf59c659071cf21c787abe6374dda0b9aac164cddca32a5f";
+    "fee66e765f2eba2db3b11a836d287f3f9b63a26951ac04e24d0debad65ec6f50";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
     (
@@ -88,6 +88,18 @@ const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
         "lifecycle-run/translation.json",
         "formal/qualification/aeneas/generated/lifecycle/translation.json",
     ),
+    (
+        "gateway-run/qualification/aeneas/generated/gateway/Types.lean",
+        "formal/qualification/aeneas/generated/gateway/Types.lean",
+    ),
+    (
+        "gateway-run/qualification/aeneas/generated/gateway/Funs.lean",
+        "formal/qualification/aeneas/generated/gateway/Funs.lean",
+    ),
+    (
+        "gateway-run/translation.json",
+        "formal/qualification/aeneas/generated/gateway/translation.json",
+    ),
 ];
 
 const REVIEWED_BRIDGE_ARTIFACTS: &[&str] = &[
@@ -121,6 +133,9 @@ const GENERATED_ARTIFACTS: &[&str] = &[
     "formal/qualification/aeneas/generated/lifecycle/Types.lean",
     "formal/qualification/aeneas/generated/lifecycle/Funs.lean",
     "formal/qualification/aeneas/generated/lifecycle/translation.json",
+    "formal/qualification/aeneas/generated/gateway/Types.lean",
+    "formal/qualification/aeneas/generated/gateway/Funs.lean",
+    "formal/qualification/aeneas/generated/gateway/translation.json",
 ];
 
 const EXPECTED_CASE_MODULES: &[&str] = &[
@@ -129,6 +144,7 @@ const EXPECTED_CASE_MODULES: &[&str] = &[
     "qualification.aeneas.cases.Authority",
     "qualification.aeneas.cases.BoundedPolicy",
     "qualification.aeneas.cases.Lifecycle",
+    "qualification.aeneas.cases.Gateway",
 ];
 
 const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
@@ -143,6 +159,7 @@ const REQUIRED_AUTHORED_SOURCE_INPUTS: &[&str] = &[
     "formal/qualification/aeneas/cases/Authority.lean",
     "formal/qualification/aeneas/cases/BoundedPolicy.lean",
     "formal/qualification/aeneas/cases/Lifecycle.lean",
+    "formal/qualification/aeneas/cases/Gateway.lean",
 ];
 
 const EXPECTED_TRANSLATIONS: &[(&str, &str)] = &[
@@ -165,6 +182,10 @@ const EXPECTED_TRANSLATIONS: &[(&str, &str)] = &[
     (
         "auths_bounded_policy",
         "formal/qualification/aeneas/generated/bounded_policy/translation.json",
+    ),
+    (
+        "auths_gateway_kernel",
+        "formal/qualification/aeneas/generated/gateway/translation.json",
     ),
 ];
 
@@ -504,8 +525,8 @@ fn validate_manifest(root: &Path, qualification: &Qualification) -> Result<(), S
                 .to_owned(),
         );
     }
-    if qualification.case_modules.len() != 5
-        || qualification.translations.len() != 5
+    if qualification.case_modules.len() != 6
+        || qualification.translations.len() != 6
         || qualification.external_models.len() != 4
         || qualification.warning_inventory.len() != 4
         || qualification.template_axioms.len() != 3
@@ -1937,6 +1958,17 @@ fn reproduce(
         root,
         &[],
     )?;
+    run_checked(
+        charon,
+        &charon_arguments(
+            "auths_gateway_kernel::recovery::recovery_capability,auths_gateway_kernel::construct::construct_write,auths_gateway_kernel::construct::construct_action_read,auths_gateway_kernel::construct::construct_credential_read",
+            &stable_llbc.join("auths_gateway_kernel.llbc"),
+            "product/runtime/auths-gateway-kernel/Cargo.toml",
+            &[],
+        ),
+        root,
+        &[],
+    )?;
 
     for crate_name in [
         "auths_model",
@@ -1944,6 +1976,7 @@ fn reproduce(
         "auths_authority",
         "auths_bounded_policy",
         "auths_lifecycle",
+        "auths_gateway_kernel",
     ] {
         let snapshot = llbc.join(format!("{crate_name}.llbc"));
         fs::copy(stable_llbc.join(format!("{crate_name}.llbc")), &snapshot).map_err(|error| {
@@ -1967,6 +2000,7 @@ fn reproduce(
         ("auths_authority", "authority"),
         ("auths_bounded_policy", "bounded_policy"),
         ("auths_lifecycle", "lifecycle"),
+        ("auths_gateway_kernel", "gateway"),
     ] {
         let destination = output.join(format!("{subdir}-run"));
         fs::create_dir_all(&destination).map_err(|error| {
@@ -2001,6 +2035,7 @@ fn reproduce(
         "auths_authority",
         "auths_bounded_policy",
         "auths_lifecycle",
+        "auths_gateway_kernel",
     ] {
         fs::remove_file(llbc.join(format!("{crate_name}.llbc")))
             .map_err(|error| format!("could not remove raw nondeterministic LLBC: {error}"))?;
@@ -2076,6 +2111,7 @@ fn canonicalize_aeneas_versions(reproduced: &Path, expected_commit: &str) -> Res
         "authority",
         "bounded_policy",
         "lifecycle",
+        "gateway",
     ] {
         let path = reproduced
             .join(format!("{component}-run"))
