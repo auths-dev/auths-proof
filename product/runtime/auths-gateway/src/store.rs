@@ -750,6 +750,107 @@ pub enum GatewayAttemptError {
     Conflict,
 }
 
+/// Why a directory is not private to this process's effective UID.
+#[derive(Debug, Error)]
+pub enum PrivateDirectoryError {
+    /// The path is relative or holds a `.` or `..` component.
+    #[error("not an absolute path free of `.` and `..` components")]
+    NotNormalizedAbsolute,
+    /// The directory or its canonical form could not be read.
+    #[error("{0}")]
+    Unavailable(std::io::Error),
+    /// The path differs from its canonical form: it passes through a
+    /// symbolic link, as `/tmp` and `/var` do on macOS.
+    #[error("not canonical; it resolves to {}", canonical.display())]
+    NotCanonical {
+        /// The path the directory resolves to.
+        canonical: PathBuf,
+    },
+    /// The path names something other than a directory.
+    #[error("not a directory")]
+    NotDirectory,
+    /// The mode grants group or other permission bits.
+    #[error("mode {mode:04o} grants group or other access; it must be 0700 or narrower")]
+    Shared {
+        /// The permission bits, without the file type.
+        mode: u32,
+    },
+    /// Another UID owns the directory.
+    #[error("owned by UID {uid}, not by the expected owner")]
+    Foreign {
+        /// The owner's UID.
+        uid: u32,
+    },
+}
+
+fn is_normalized_absolute(path: &Path) -> bool {
+    path.is_absolute()
+        && path
+            .components()
+            .all(|part| matches!(part, Component::RootDir | Component::Normal(_)))
+}
+
+/// Checks, without creating anything, that `path` is an existing directory
+/// private to this process's effective UID: absolute and free of `.` and
+/// `..`, equal to its canonical form, a directory, owned by the effective
+/// UID, and with no group or other permission bits.
+///
+/// # Errors
+/// Returns the first check that fails. The canonical form is checked before
+/// the file type, so a path through a symbolic link reports the path it
+/// resolves to.
+pub fn check_private_directory(path: &Path) -> Result<(), PrivateDirectoryError> {
+    #[cfg(unix)]
+    let owner = rustix::process::geteuid().as_raw();
+    #[cfg(not(unix))]
+    let owner = 0;
+    check_private_directory_owned_by(path, owner)
+}
+
+/// [`check_private_directory`] with an explicit owner, for a privileged
+/// caller checking a directory another UID must own.
+///
+/// # Errors
+/// As [`check_private_directory`].
+pub fn check_private_directory_owned_by(
+    path: &Path,
+    owner: u32,
+) -> Result<(), PrivateDirectoryError> {
+    if !is_normalized_absolute(path) {
+        return Err(PrivateDirectoryError::NotNormalizedAbsolute);
+    }
+    let metadata = fs::symlink_metadata(path).map_err(PrivateDirectoryError::Unavailable)?;
+    match fs::canonicalize(path) {
+        Ok(canonical) if canonical != path => {
+            return Err(PrivateDirectoryError::NotCanonical { canonical });
+        }
+        Ok(_) => {}
+        Err(_) if !metadata.file_type().is_dir() => {
+            return Err(PrivateDirectoryError::NotDirectory);
+        }
+        Err(error) => return Err(PrivateDirectoryError::Unavailable(error)),
+    }
+    if !metadata.file_type().is_dir() {
+        return Err(PrivateDirectoryError::NotDirectory);
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
+        let mode = metadata.permissions().mode() & 0o7777;
+        if mode & 0o077 != 0 {
+            return Err(PrivateDirectoryError::Shared { mode });
+        }
+        if metadata.uid() != owner {
+            return Err(PrivateDirectoryError::Foreign {
+                uid: metadata.uid(),
+            });
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = owner;
+    Ok(())
+}
+
 /// Storage key of one gateway record.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct GatewayAttemptKey([u8; 32]);
@@ -941,11 +1042,7 @@ impl FileGatewayAttemptStore {
     /// batch file, and I/O errors.
     pub fn open(root: impl Into<PathBuf>) -> Result<Self, GatewayAttemptError> {
         let root = root.into();
-        if !root.is_absolute()
-            || root
-                .components()
-                .any(|part| !matches!(part, Component::RootDir | Component::Normal(_)))
-        {
+        if !is_normalized_absolute(&root) {
             return Err(GatewayAttemptError::UnsafeDirectory);
         }
         if !root.exists() {
@@ -960,21 +1057,10 @@ impl FileGatewayAttemptStore {
             #[cfg(not(unix))]
             return Err(GatewayAttemptError::UnsafeDirectory);
         }
-        let metadata = fs::symlink_metadata(&root).map_err(|_| GatewayAttemptError::Unavailable)?;
-        if !metadata.file_type().is_dir()
-            || fs::canonicalize(&root).map_err(|_| GatewayAttemptError::Unavailable)? != root
-        {
-            return Err(GatewayAttemptError::UnsafeDirectory);
-        }
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
-            if metadata.permissions().mode() & 0o077 != 0
-                || metadata.uid() != rustix::process::geteuid().as_raw()
-            {
-                return Err(GatewayAttemptError::UnsafeDirectory);
-            }
-        }
+        check_private_directory(&root).map_err(|error| match error {
+            PrivateDirectoryError::Unavailable(_) => GatewayAttemptError::Unavailable,
+            _ => GatewayAttemptError::UnsafeDirectory,
+        })?;
         let store = Self { root };
         store.recover()?;
         Ok(store)

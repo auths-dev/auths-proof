@@ -21,7 +21,7 @@ mod unix {
         APP_OBSERVE_SCHEMA, APP_REQUEST_SCHEMA, AppObservation, AppSubmission, SessionClock,
         SessionLimits, app_session, read_frame, write_frame,
     };
-    use auths_gateway::listener::{ADMIN_CAPACITY, serve_listener};
+    use auths_gateway::listener::{ADMIN_CAPACITY, check_socket_path_length, serve_listener};
     use auths_gateway::{ArgumentCeilingPolicy, AuditPins, ListedValues, audit_bundle};
     use auths_gateway::{
         CompiledRecipe, FileGatewayAttemptStore, GatewayAttempts, GatewayConnectionDescriptor,
@@ -29,7 +29,7 @@ mod unix {
         GatewayObserverError, GatewaySubmitResult, ObserverCustody, OnboardingAccount,
         OnboardingFailure, OperatorNamespace, PostgresGatewayAttemptStore,
         PrincipalSeparationError, check_candidate_credential, check_principal_separation,
-        gateway_verifier_configuration,
+        check_private_directory, check_private_directory_owned_by, gateway_verifier_configuration,
     };
     use auths_gateway::{
         GatewayAdminOutcome, GatewayAdminStatus, OperatorInstallation, OperatorStatement,
@@ -43,6 +43,7 @@ mod unix {
     use serde::{Deserialize, Serialize};
     use sha2::{Digest as _, Sha256};
     use std::{
+        fmt,
         fs::{self, File, OpenOptions},
         io::{IsTerminal as _, Read as _, Write as _},
         num::NonZeroU64,
@@ -50,7 +51,7 @@ mod unix {
             fs::{FileTypeExt as _, MetadataExt as _, OpenOptionsExt as _, PermissionsExt as _},
             process::CommandExt as _,
         },
-        path::{Path, PathBuf},
+        path::{Component, Path, PathBuf},
         sync::Arc,
         time::{Duration, SystemTime, UNIX_EPOCH},
     };
@@ -82,6 +83,40 @@ mod unix {
         response_write: Duration::from_secs(5),
         session: Duration::from_mins(1),
     };
+
+    /// A command's failure: its stable code, always the first token printed,
+    /// and an optional detail. A detail holds only paths, lengths, modes,
+    /// UIDs, and operating-system errors, never a credential.
+    #[derive(Debug)]
+    pub struct Failure {
+        code: &'static str,
+        detail: Option<String>,
+    }
+
+    impl Failure {
+        /// A failure concerning `path`, printed as `code path=<path>: cause`.
+        fn at(code: &'static str, path: &Path, cause: impl fmt::Display) -> Self {
+            Self {
+                code,
+                detail: Some(format!("path={}: {cause}", path.display())),
+            }
+        }
+    }
+
+    impl From<&'static str> for Failure {
+        fn from(code: &'static str) -> Self {
+            Self { code, detail: None }
+        }
+    }
+
+    impl fmt::Display for Failure {
+        fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match &self.detail {
+                Some(detail) => write!(formatter, "{} {detail}", self.code),
+                None => formatter.write_str(self.code),
+            }
+        }
+    }
 
     #[derive(Parser)]
     #[command(
@@ -150,11 +185,28 @@ mod unix {
             loopback_provider: Option<u16>,
         },
         /// Serve a restricted application socket and private admin socket.
+        /// A Unix socket path holds at most 103 bytes on macOS and 107 on
+        /// Linux; `serve` refuses a longer socket path before binding either
+        /// socket.
         Serve {
+            /// The installed state directory: absolute, owned by this UID,
+            /// mode 0700, and reached through no symbolic link (on macOS,
+            /// `/tmp` is `/private/tmp`). The default admin socket,
+            /// `<state-dir>/admin.sock`, must fit the socket path limit; for a
+            /// longer state directory pass `--admin-socket`.
             #[arg(long)]
             state_dir: PathBuf,
+            /// The application socket's absolute path, at most 103 bytes on
+            /// macOS and 107 on Linux.
             #[arg(long)]
             app_socket: PathBuf,
+            /// The admin socket's absolute path, at most 103 bytes on macOS
+            /// and 107 on Linux; defaults to `<state-dir>/admin.sock`. Its
+            /// parent must already exist, be owned by this UID with mode 0700
+            /// or narrower, and be reached through no symbolic link. Admin
+            /// commands and `doctor` must be given the same path.
+            #[arg(long)]
+            admin_socket: Option<PathBuf>,
             /// Application connections served at once, 1-1024; the default
             /// is `APP_CAPACITY`.
             #[arg(long, default_value_t = 64, value_parser = clap::value_parser!(u16).range(1..=1024))]
@@ -206,22 +258,38 @@ mod unix {
         Disable {
             #[arg(long)]
             state_dir: PathBuf,
+            /// The admin socket `serve` was given with `--admin-socket`;
+            /// defaults to `<state-dir>/admin.sock`.
+            #[arg(long)]
+            admin_socket: Option<PathBuf>,
         },
         /// Ask the private operator socket to enable a disabled connection.
         Enable {
             #[arg(long)]
             state_dir: PathBuf,
+            /// The admin socket `serve` was given with `--admin-socket`;
+            /// defaults to `<state-dir>/admin.sock`.
+            #[arg(long)]
+            admin_socket: Option<PathBuf>,
         },
         /// Ask the private operator socket for the connection state.
         Status {
             #[arg(long)]
             state_dir: PathBuf,
+            /// The admin socket `serve` was given with `--admin-socket`;
+            /// defaults to `<state-dir>/admin.sock`.
+            #[arg(long)]
+            admin_socket: Option<PathBuf>,
         },
         /// Ask the private operator socket for one read-only re-observation
         /// of a stored attempt.
         Reobserve {
             #[arg(long)]
             state_dir: PathBuf,
+            /// The admin socket `serve` was given with `--admin-socket`;
+            /// defaults to `<state-dir>/admin.sock`.
+            #[arg(long)]
+            admin_socket: Option<PathBuf>,
             #[arg(long)]
             operation_id: String,
         },
@@ -255,6 +323,10 @@ mod unix {
         OperatorAttest {
             #[arg(long)]
             state_dir: PathBuf,
+            /// The admin socket `serve` was given with `--admin-socket`;
+            /// defaults to `<state-dir>/admin.sock`.
+            #[arg(long)]
+            admin_socket: Option<PathBuf>,
             #[arg(long)]
             operator_attestation: PathBuf,
             #[arg(long, required = true)]
@@ -264,11 +336,19 @@ mod unix {
         Revoke {
             #[arg(long)]
             state_dir: PathBuf,
+            /// The admin socket `serve` was given with `--admin-socket`;
+            /// defaults to `<state-dir>/admin.sock`.
+            #[arg(long)]
+            admin_socket: Option<PathBuf>,
         },
         /// Rotate the credential via the private operator socket and stdin.
         Rotate {
             #[arg(long)]
             state_dir: PathBuf,
+            /// The admin socket `serve` was given with `--admin-socket`;
+            /// defaults to `<state-dir>/admin.sock`.
+            #[arg(long)]
+            admin_socket: Option<PathBuf>,
             #[arg(long, default_value_t = false)]
             credential_stdin: bool,
         },
@@ -328,6 +408,10 @@ mod unix {
         Doctor {
             #[arg(long)]
             state_dir: PathBuf,
+            /// The admin socket `serve` was given with `--admin-socket`;
+            /// defaults to `<state-dir>/admin.sock`.
+            #[arg(long)]
+            admin_socket: Option<PathBuf>,
             #[arg(long)]
             app_socket: PathBuf,
             #[arg(long)]
@@ -340,6 +424,8 @@ mod unix {
         Probe {
             #[arg(long)]
             state_dir: PathBuf,
+            #[arg(long)]
+            admin_socket: Option<PathBuf>,
             #[arg(long)]
             app_socket: PathBuf,
         },
@@ -433,10 +519,90 @@ mod unix {
         }
     }
 
-    fn private_root(path: &Path) -> Result<(), &'static str> {
-        let _ = FileGatewayAttemptStore::open(path.to_path_buf())
-            .map_err(|_| "gateway.state.unsafe-directory")?;
-        Ok(())
+    fn private_root(path: &Path) -> Result<(), Failure> {
+        match FileGatewayAttemptStore::open(path.to_path_buf()) {
+            Ok(_) => Ok(()),
+            Err(error) => Err(Failure::at(
+                "gateway.state.unsafe-directory",
+                path,
+                check_private_directory(path)
+                    .err()
+                    .map_or_else(|| error.to_string(), |cause| cause.to_string()),
+            )),
+        }
+    }
+
+    /// The admin socket: the explicit `--admin-socket`, or
+    /// `<state-dir>/admin.sock`.
+    fn admin_socket_path(state_dir: &Path, explicit: Option<PathBuf>) -> AdminSocket {
+        match explicit {
+            Some(path) => AdminSocket {
+                path,
+                relocated: true,
+            },
+            None => AdminSocket {
+                path: state_dir.join("admin.sock"),
+                relocated: false,
+            },
+        }
+    }
+
+    /// A resolved admin socket path, and whether `--admin-socket` moved it.
+    struct AdminSocket {
+        path: PathBuf,
+        relocated: bool,
+    }
+
+    /// The codes an admin socket check reports under.
+    struct AdminSocketCodes {
+        invalid: &'static str,
+        unsafe_directory: &'static str,
+        too_long: &'static str,
+    }
+
+    const SERVE_ADMIN_SOCKET: AdminSocketCodes = AdminSocketCodes {
+        invalid: "gateway.serve.invalid-admin-socket",
+        unsafe_directory: "gateway.serve.unsafe-admin-socket-directory",
+        too_long: "gateway.serve.admin-socket-too-long",
+    };
+
+    const CLIENT_ADMIN_SOCKET: AdminSocketCodes = AdminSocketCodes {
+        invalid: "gateway.admin.socket-unavailable",
+        unsafe_directory: "gateway.admin.socket-unavailable",
+        too_long: "gateway.admin.socket-unavailable",
+    };
+
+    /// The admin socket must be absolute and normalized, sit in an existing
+    /// directory private to this UID, and fit the platform's socket path
+    /// limit. The directory's privacy is what keeps another user from
+    /// listening at the path the credential is rotated through, and from
+    /// connecting while the socket still has its bind-time mode.
+    fn check_admin_socket(admin: &AdminSocket, codes: &AdminSocketCodes) -> Result<(), Failure> {
+        let path = admin.path.as_path();
+        let parent = path.parent().filter(|_| {
+            path.is_absolute()
+                && path.file_name().is_some()
+                && path
+                    .components()
+                    .all(|part| matches!(part, Component::RootDir | Component::Normal(_)))
+        });
+        let Some(parent) = parent else {
+            return Err(Failure::at(
+                codes.invalid,
+                path,
+                "not an absolute socket path free of `.` and `..` components",
+            ));
+        };
+        check_private_directory(parent)
+            .map_err(|cause| Failure::at(codes.unsafe_directory, parent, cause))?;
+        check_socket_path_length(path).map_err(|cause| {
+            let remedy = if admin.relocated {
+                "pass a shorter --admin-socket"
+            } else {
+                "use a shorter --state-dir or pass --admin-socket"
+            };
+            Failure::at(codes.too_long, path, format_args!("{cause}; {remedy}"))
+        })
     }
 
     fn read_bounded(path: &Path, maximum: usize) -> Result<Vec<u8>, &'static str> {
@@ -586,9 +752,9 @@ mod unix {
         operator_attestation: Option<PathBuf>,
         attempt_store: Option<PathBuf>,
         loopback_provider: Option<u16>,
-    ) -> Result<(), &'static str> {
+    ) -> Result<(), Failure> {
         if !credential_stdin || std::io::stdin().is_terminal() {
-            return Err("gateway.install.credential-must-be-piped-to-stdin");
+            return Err("gateway.install.credential-must-be-piped-to-stdin".into());
         }
         let source = read_bounded(&recipe_path, 65_536)?;
         let lock = read_bounded(&lock_path, 65_536)?;
@@ -598,7 +764,7 @@ mod unix {
         check_anchor_aliasing(&context).map_err(PrincipalSeparationError::code)?;
         let recipe = installable_recipe(&source, &lock)?;
         if approved != recipe.digest_hex() {
-            return Err("gateway.install.approval-digest-mismatch");
+            return Err("gateway.install.approval-digest-mismatch".into());
         }
         let descriptor = GatewayConnectionDescriptor::approve(&recipe, &credential_header)
             .map_err(|_| "gateway.install.credential-header-mismatch")?
@@ -611,7 +777,7 @@ mod unix {
         let store_path = match deployment {
             Deployment::Development => Some(development_store(&state_dir, attempt_store)?),
             Deployment::Production if attempt_store.is_some() => {
-                return Err("gateway.install.invalid-attempt-store");
+                return Err("gateway.install.invalid-attempt-store".into());
             }
             Deployment::Production => None,
         };
@@ -634,14 +800,14 @@ mod unix {
                 Some(bytes)
             }
             (None, Deployment::Production) => {
-                return Err("gateway.install.operator-attestation-required");
+                return Err("gateway.install.operator-attestation-required".into());
             }
             (None, Deployment::Development) => None,
         };
         let candidate = read_install_credential()?;
         private_root(&state_dir)?;
         if state_dir.join("installation.json").exists() {
-            return Err("gateway.install.already-installed");
+            return Err("gateway.install.already-installed".into());
         }
         let attempts = {
             let store_path = store_path.clone();
@@ -658,7 +824,7 @@ mod unix {
         } else {
             let account_label = account_label.ok_or("gateway.install.invalid-account-label")?;
             if account_label.is_empty() || account_label.len() > 256 {
-                return Err("gateway.install.invalid-account-label");
+                return Err("gateway.install.invalid-account-label".into());
             }
             let secret =
                 checked_install_credential(&recipe, candidate, &account_label, loopback_provider)
@@ -789,7 +955,7 @@ mod unix {
         }
     }
 
-    fn load_engine(state_dir: &Path) -> Result<GatewayEngine, &'static str> {
+    fn load_engine(state_dir: &Path) -> Result<GatewayEngine, Failure> {
         private_root(state_dir)?;
         let manifest = installation(state_dir)?;
         let source = read_bounded(&state_dir.join("recipe.json"), 65_536)?;
@@ -798,7 +964,7 @@ mod unix {
         if digest(&lock) != manifest.profile_lock_sha256
             || digest(&trust) != manifest.trusted_context_sha256
         {
-            return Err("gateway.serve.installation-changed");
+            return Err("gateway.serve.installation-changed".into());
         }
         let context = auths_codec::decode_verifier_context(&trust)
             .map_err(|_| "gateway.serve.invalid-installation")?;
@@ -807,7 +973,7 @@ mod unix {
             (Some(pinned), _) => {
                 let bytes = read_attestation(&state_dir.join(OPERATOR_ATTESTATION_FILE))?;
                 if digest(&bytes) != *pinned {
-                    return Err("gateway.install.operator-attestation-invalid");
+                    return Err("gateway.install.operator-attestation-invalid".into());
                 }
                 Some(authenticated_operator(
                     &bytes,
@@ -816,14 +982,14 @@ mod unix {
                 )?)
             }
             (None, Deployment::Production) => {
-                return Err("gateway.install.operator-attestation-required");
+                return Err("gateway.install.operator-attestation-required".into());
             }
             (None, Deployment::Development) => None,
         };
         let recipe =
             CompiledRecipe::compile(&source, &lock).map_err(|_| "gateway.serve.invalid-recipe")?;
         if recipe.digest_hex() != manifest.recipe_digest {
-            return Err("gateway.serve.recipe-changed");
+            return Err("gateway.serve.recipe-changed".into());
         }
         let approved = *recipe.digest();
         let profile = ConnectionProfile::new(
@@ -837,7 +1003,7 @@ mod unix {
                 .as_ref()
                 .is_some_and(|observer| observer.custody() == ObserverCustody::Software)
         {
-            return Err("gateway.production.observer-software-custody");
+            return Err("gateway.production.observer-software-custody".into());
         }
         let engine = GatewayEngine::new(
             recipe,
@@ -917,9 +1083,9 @@ mod unix {
         Ok(())
     }
 
-    fn observer_init(state_dir: &Path) -> Result<(), &'static str> {
+    fn observer_init(state_dir: &Path) -> Result<(), Failure> {
         if installation(state_dir)?.deployment == Deployment::Production {
-            return Err("gateway.production.observer-software-custody");
+            return Err("gateway.production.observer-software-custody".into());
         }
         private_root(state_dir)?;
         let recipe = installed_recipe(state_dir)?;
@@ -928,14 +1094,14 @@ mod unix {
         File::open(state_dir)
             .and_then(|dir| dir.sync_all())
             .map_err(|_| "gateway.state.sync-failed")?;
-        print_observer(&observer, &recipe)
+        Ok(print_observer(&observer, &recipe)?)
     }
 
-    fn observer_show(state_dir: &Path) -> Result<(), &'static str> {
+    fn observer_show(state_dir: &Path) -> Result<(), Failure> {
         private_root(state_dir)?;
         let recipe = installed_recipe(state_dir)?;
         let observer = load_observer(state_dir)?.ok_or("gateway.observer.not-provisioned")?;
-        print_observer(&observer, &recipe)
+        Ok(print_observer(&observer, &recipe)?)
     }
 
     /// One admin command, with the secret a rotation carries.
@@ -1051,38 +1217,86 @@ mod unix {
             && fs::canonicalize(parent).is_ok_and(|canonical| canonical == parent)
     }
 
-    fn bind_recovering_socket(
-        path: &Path,
-        code: &'static str,
-    ) -> Result<UnixListener, &'static str> {
+    fn bind_recovering_socket(path: &Path, code: &'static str) -> Result<UnixListener, Failure> {
+        let owner = rustix::process::geteuid().as_raw();
         match fs::symlink_metadata(path) {
             Ok(metadata) => {
                 // Only replace a dead socket owned by this gateway inside its own
                 // non-writable directory. A live listener or foreign inode fails closed.
-                if !secure_socket_parent(path, rustix::process::geteuid().as_raw())
-                    || !metadata.file_type().is_socket()
-                    || metadata.uid() != rustix::process::geteuid().as_raw()
-                    || !matches!(
-                        std::os::unix::net::UnixStream::connect(path),
-                        Err(error) if error.kind() == std::io::ErrorKind::ConnectionRefused
-                    )
-                {
-                    return Err(code);
+                if !secure_socket_parent(path, owner) {
+                    return Err(Failure::at(
+                        code,
+                        path,
+                        "the parent directory is not this gateway's own directory closed to group and other writes",
+                    ));
                 }
-                fs::remove_file(path).map_err(|_| code)?;
+                if !metadata.file_type().is_socket() {
+                    return Err(Failure::at(code, path, "an existing file is not a socket"));
+                }
+                if metadata.uid() != owner {
+                    return Err(Failure::at(
+                        code,
+                        path,
+                        format_args!("the existing socket is owned by UID {}", metadata.uid()),
+                    ));
+                }
+                match std::os::unix::net::UnixStream::connect(path) {
+                    Err(error) if error.kind() == std::io::ErrorKind::ConnectionRefused => {}
+                    Ok(_) => {
+                        return Err(Failure::at(
+                            code,
+                            path,
+                            "a live listener answers at this path",
+                        ));
+                    }
+                    Err(error) => {
+                        return Err(Failure::at(
+                            code,
+                            path,
+                            format_args!("cannot tell whether a listener answers: {error}"),
+                        ));
+                    }
+                }
+                fs::remove_file(path).map_err(|error| Failure::at(code, path, error))?;
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(_) => return Err(code),
+            Err(error) => return Err(Failure::at(code, path, error)),
         }
-        UnixListener::bind(path).map_err(|_| code)
+        UnixListener::bind(path).map_err(|error| Failure::at(code, path, error))
+    }
+
+    /// Removes a socket file this process bound when startup fails after
+    /// the bind; [`BoundSocket::keep`] leaves it for the running gateway.
+    struct BoundSocket<'a> {
+        path: &'a Path,
+        kept: bool,
+    }
+
+    impl<'a> BoundSocket<'a> {
+        const fn new(path: &'a Path) -> Self {
+            Self { path, kept: false }
+        }
+
+        fn keep(mut self) {
+            self.kept = true;
+        }
+    }
+
+    impl Drop for BoundSocket<'_> {
+        fn drop(&mut self) {
+            if !self.kept {
+                let _ = fs::remove_file(self.path);
+            }
+        }
     }
 
     async fn serve(
         state_dir: PathBuf,
         app_socket: PathBuf,
+        admin_socket: AdminSocket,
         app_capacity: usize,
         loopback_provider: Option<u16>,
-    ) -> Result<(), &'static str> {
+    ) -> Result<(), Failure> {
         let loading = state_dir.clone();
         let engine = tokio::task::spawn_blocking(move || {
             let deployment = installation(&loading)?.deployment;
@@ -1104,19 +1318,39 @@ mod unix {
         #[cfg(not(feature = "loopback-provider"))]
         let _ = loopback_provider;
         let engine = Arc::new(engine);
+        // Both paths are checked before either socket is bound.
         if !app_socket.is_absolute() {
-            return Err("gateway.serve.invalid-app-socket");
+            return Err("gateway.serve.invalid-app-socket".into());
         }
-        let admin_socket = state_dir.join("admin.sock");
+        check_socket_path_length(&app_socket).map_err(|cause| {
+            Failure::at("gateway.serve.app-socket-too-long", &app_socket, cause)
+        })?;
+        if admin_socket.path == app_socket {
+            return Err(Failure::at(
+                SERVE_ADMIN_SOCKET.invalid,
+                &admin_socket.path,
+                "the same path as --app-socket",
+            ));
+        }
+        check_admin_socket(&admin_socket, &SERVE_ADMIN_SOCKET)?;
+        let admin_path = admin_socket.path.as_path();
+        // The admin socket is bound first, so the socket an application
+        // waits for appears last.
+        let admin = bind_recovering_socket(admin_path, "gateway.serve.admin-bind-failed")?;
+        let admin_bound = BoundSocket::new(admin_path);
+        fs::set_permissions(admin_path, fs::Permissions::from_mode(0o600)).map_err(|error| {
+            Failure::at("gateway.serve.admin-permissions-failed", admin_path, error)
+        })?;
         let app = bind_recovering_socket(&app_socket, "gateway.serve.app-bind-failed")?;
-        fs::set_permissions(&app_socket, fs::Permissions::from_mode(0o660))
-            .map_err(|_| "gateway.serve.app-permissions-failed")?;
-        let admin = bind_recovering_socket(&admin_socket, "gateway.serve.admin-bind-failed")?;
-        fs::set_permissions(&admin_socket, fs::Permissions::from_mode(0o600))
-            .map_err(|_| "gateway.serve.admin-permissions-failed")?;
+        let app_bound = BoundSocket::new(&app_socket);
+        fs::set_permissions(&app_socket, fs::Permissions::from_mode(0o660)).map_err(|error| {
+            Failure::at("gateway.serve.app-permissions-failed", &app_socket, error)
+        })?;
+        let recipe_marker = engine_recipe_marker(&state_dir)?;
+        admin_bound.keep();
+        app_bound.keep();
         println!(
-            "app socket ready; exact recipe {}, no provider-effect qualification",
-            engine_recipe_marker(&state_dir)?
+            "app socket ready; exact recipe {recipe_marker}, no provider-effect qualification"
         );
         // Separate capacities: the application can fill its own listener but
         // never take an admin permit.
@@ -1307,7 +1541,16 @@ mod unix {
         Ok(manifest.recipe_digest)
     }
 
-    async fn submit(socket: PathBuf, proof: PathBuf, action: PathBuf) -> Result<(), &'static str> {
+    /// Connects to an application socket, reporting a path over the
+    /// platform limit before connecting and any connect error with its path.
+    async fn connect_app_socket(socket: &Path, code: &'static str) -> Result<UnixStream, Failure> {
+        check_socket_path_length(socket).map_err(|cause| Failure::at(code, socket, cause))?;
+        UnixStream::connect(socket)
+            .await
+            .map_err(|error| Failure::at(code, socket, error))
+    }
+
+    async fn submit(socket: PathBuf, proof: PathBuf, action: PathBuf) -> Result<(), Failure> {
         let proof = read_bounded(&proof, 4 * 1024 * 1024)?;
         let action = read_bounded(&action, 64 * 1024)?;
         let request = AppSubmission {
@@ -1316,9 +1559,7 @@ mod unix {
             action_b64: Base64UrlUnpadded::encode_string(&action),
         };
         let bytes = serde_json::to_vec(&request).map_err(|_| "gateway.submit.encoding-failed")?;
-        let mut stream = UnixStream::connect(socket)
-            .await
-            .map_err(|_| "gateway.submit.socket-unavailable")?;
+        let mut stream = connect_app_socket(&socket, "gateway.submit.socket-unavailable").await?;
         write_frame(&mut stream, &bytes).await?;
         let response = read_frame(&mut stream).await?;
         let result: GatewaySubmitResult =
@@ -1335,7 +1576,7 @@ mod unix {
         read_back: Option<String>,
         outcome: Option<String>,
         pre_entry: Option<String>,
-    ) -> Result<(), &'static str> {
+    ) -> Result<(), Failure> {
         let request = match (read_back, outcome, pre_entry) {
             (Some(arguments), None, None) => GatewayObserveRequest::ReadBack {
                 arguments: serde_json::from_str(&arguments)
@@ -1343,16 +1584,14 @@ mod unix {
             },
             (None, Some(operation_id), None) => GatewayObserveRequest::Outcome { operation_id },
             (None, None, Some(operation_id)) => GatewayObserveRequest::PreEntry { operation_id },
-            _ => return Err("gateway.observe.invalid-request"),
+            _ => return Err("gateway.observe.invalid-request".into()),
         };
         let bytes = serde_json::to_vec(&AppObservation {
             schema: APP_OBSERVE_SCHEMA.to_owned(),
             request,
         })
         .map_err(|_| "gateway.observe.encoding-failed")?;
-        let mut stream = UnixStream::connect(socket)
-            .await
-            .map_err(|_| "gateway.observe.socket-unavailable")?;
+        let mut stream = connect_app_socket(&socket, "gateway.observe.socket-unavailable").await?;
         write_frame(&mut stream, &bytes).await?;
         let response = read_frame(&mut stream).await?;
         let result: GatewayObserveResult =
@@ -1363,7 +1602,7 @@ mod unix {
         );
         match result {
             GatewayObserveResult::Signed { .. } | GatewayObserveResult::PreEntry { .. } => Ok(()),
-            GatewayObserveResult::Refused { .. } => Err("gateway.observe.refused"),
+            GatewayObserveResult::Refused { .. } => Err("gateway.observe.refused".into()),
         }
     }
 
@@ -1406,12 +1645,20 @@ mod unix {
         Action { namespace: String, action: PathBuf },
     }
 
+    /// Sends one admin command. Before anything is written, the admin
+    /// socket must pass the checks `serve` applies, and the listener must
+    /// run as this user or root, so a rotated credential never reaches a
+    /// socket another user controls.
     async fn admin_command(
         state_dir: &Path,
+        admin_socket: &AdminSocket,
         command: serde_json::Value,
         secret: Option<&[u8]>,
-    ) -> Result<(), &'static str> {
+    ) -> Result<(), Failure> {
+        const CODE: &str = "gateway.admin.socket-unavailable";
         private_root(state_dir)?;
+        check_admin_socket(admin_socket, &CLIENT_ADMIN_SOCKET)?;
+        let path = admin_socket.path.as_path();
         let mut request = serde_json::json!({"schema": ADMIN_REQUEST_SCHEMA});
         if let (Some(request), serde_json::Value::Object(fields)) =
             (request.as_object_mut(), command)
@@ -1419,9 +1666,20 @@ mod unix {
             request.extend(fields);
         }
         let frame = serde_json::to_vec(&request).map_err(|_| "gateway.admin.invalid-frame")?;
-        let mut stream = UnixStream::connect(state_dir.join("admin.sock"))
+        let mut stream = UnixStream::connect(path)
             .await
-            .map_err(|_| "gateway.admin.socket-unavailable")?;
+            .map_err(|error| Failure::at(CODE, path, error))?;
+        let listener = stream
+            .peer_cred()
+            .map_err(|error| Failure::at(CODE, path, error))?
+            .uid();
+        if listener != rustix::process::geteuid().as_raw() && listener != 0 {
+            return Err(Failure::at(
+                CODE,
+                path,
+                format_args!("the listener runs as UID {listener}, neither this user nor root"),
+            ));
+        }
         write_frame(&mut stream, &frame).await?;
         if let Some(secret) = secret {
             write_frame(&mut stream, secret).await?;
@@ -1433,13 +1691,17 @@ mod unix {
         if response.get("ok").and_then(serde_json::Value::as_bool) == Some(true) {
             Ok(())
         } else {
-            Err("gateway.admin.refused")
+            Err("gateway.admin.refused".into())
         }
     }
 
-    async fn rotate(state_dir: &Path, credential_stdin: bool) -> Result<(), &'static str> {
+    async fn rotate(
+        state_dir: &Path,
+        admin_socket: &AdminSocket,
+        credential_stdin: bool,
+    ) -> Result<(), Failure> {
         if !credential_stdin || std::io::stdin().is_terminal() {
-            return Err("gateway.admin.credential-must-be-piped-to-stdin");
+            return Err("gateway.admin.credential-must-be-piped-to-stdin".into());
         }
         // Pre-sized to the read limit so reading never reallocates and strands
         // an unwiped partial copy; every exit path zeroizes the buffer.
@@ -1455,10 +1717,11 @@ mod unix {
             || bytes.len() > 4_096
             || !bytes.iter().all(|byte| (0x21..=0x7e).contains(byte))
         {
-            return Err("gateway.admin.invalid-credential");
+            return Err("gateway.admin.invalid-credential".into());
         }
         admin_command(
             state_dir,
+            admin_socket,
             serde_json::json!({"command": "rotate"}),
             Some(bytes.as_slice()),
         )
@@ -1539,15 +1802,19 @@ mod unix {
 
     /// Replaces the operator attestation of a stopped installation. The new
     /// operator must authenticate and pass separation by key.
-    fn operator_attest(state_dir: &Path, attestation: &Path) -> Result<(), &'static str> {
+    fn operator_attest(
+        state_dir: &Path,
+        admin_socket: &Path,
+        attestation: &Path,
+    ) -> Result<(), Failure> {
         private_root(state_dir)?;
-        if std::os::unix::net::UnixStream::connect(state_dir.join("admin.sock")).is_ok() {
-            return Err("gateway.operator.gateway-running");
+        if std::os::unix::net::UnixStream::connect(admin_socket).is_ok() {
+            return Err("gateway.operator.gateway-running".into());
         }
         let mut manifest = installation(state_dir)?;
         let trust = read_bounded(&state_dir.join("trusted.context.cbor"), 4 * 1024 * 1024)?;
         if digest(&trust) != manifest.trusted_context_sha256 {
-            return Err("gateway.serve.installation-changed");
+            return Err("gateway.serve.installation-changed".into());
         }
         let context = auths_codec::decode_verifier_context(&trust)
             .map_err(|_| "gateway.serve.invalid-installation")?;
@@ -1564,6 +1831,7 @@ mod unix {
 
     fn doctor(
         state_dir: &Path,
+        admin_socket: &Path,
         app_socket: &Path,
         application_uid: u32,
         probe_group: u32,
@@ -1572,8 +1840,11 @@ mod unix {
             fs::symlink_metadata(state_dir).map_err(|_| "gateway.doctor.state-unavailable")?;
         let credential = fs::symlink_metadata(state_dir.join("credentials.cbor"))
             .map_err(|_| "gateway.doctor.credential-unavailable")?;
-        let admin = fs::symlink_metadata(state_dir.join("admin.sock"))
-            .map_err(|_| "gateway.doctor.admin-unavailable")?;
+        let admin =
+            fs::symlink_metadata(admin_socket).map_err(|_| "gateway.doctor.admin-unavailable")?;
+        let admin_parent_private = admin_socket
+            .parent()
+            .is_some_and(|parent| check_private_directory_owned_by(parent, state.uid()).is_ok());
         let app = fs::symlink_metadata(app_socket).map_err(|_| "gateway.doctor.app-unavailable")?;
         let observer_private = match fs::symlink_metadata(state_dir.join(OBSERVER_SEED)) {
             Ok(seed) => {
@@ -1587,6 +1858,7 @@ mod unix {
             || !credential.file_type().is_file()
             || credential.permissions().mode() & 0o077 != 0
             || !admin.file_type().is_socket()
+            || !admin_parent_private
             || !app.file_type().is_socket()
             || !secure_socket_parent(app_socket, state.uid())
             || app.uid() != state.uid()
@@ -1609,6 +1881,8 @@ mod unix {
         .arg("probe")
         .arg("--state-dir")
         .arg(state_dir)
+        .arg("--admin-socket")
+        .arg(admin_socket)
         .arg("--app-socket")
         .arg(app_socket)
         .gid(probe_group)
@@ -1624,7 +1898,7 @@ mod unix {
         Ok(())
     }
 
-    fn probe(state_dir: &Path, app_socket: &Path) -> Result<(), &'static str> {
+    fn probe(state_dir: &Path, admin_socket: &Path, app_socket: &Path) -> Result<(), &'static str> {
         // Doctor starts the probe with an empty environment. On Linux nothing
         // adds to it, so any variable was inherited and could carry operator
         // secrets to the application UID. macOS system libraries set their own.
@@ -1633,7 +1907,7 @@ mod unix {
         }
         if File::open(state_dir.join("credentials.cbor")).is_ok()
             || File::open(state_dir.join(OBSERVER_SEED)).is_ok()
-            || std::os::unix::net::UnixStream::connect(state_dir.join("admin.sock")).is_ok()
+            || std::os::unix::net::UnixStream::connect(admin_socket).is_ok()
             || std::os::unix::net::UnixStream::connect(app_socket).is_err()
         {
             return Err("gateway.doctor.probe-failed");
@@ -1645,7 +1919,7 @@ mod unix {
         clippy::too_many_lines,
         reason = "one arm per command keeps the command-to-handler mapping in one place"
     )]
-    pub async fn run() -> Result<(), &'static str> {
+    pub async fn run() -> Result<(), Failure> {
         match Cli::parse().command {
             Command::Install {
                 state_dir,
@@ -1690,12 +1964,15 @@ mod unix {
             Command::Serve {
                 state_dir,
                 app_socket,
+                admin_socket,
                 app_capacity,
                 loopback_provider,
             } => {
+                let admin_socket = admin_socket_path(&state_dir, admin_socket);
                 serve(
                     state_dir,
                     app_socket,
+                    admin_socket,
                     usize::from(app_capacity),
                     loopback_provider,
                 )
@@ -1705,45 +1982,75 @@ mod unix {
             Command::Serve {
                 state_dir,
                 app_socket,
+                admin_socket,
                 app_capacity,
-            } => serve(state_dir, app_socket, usize::from(app_capacity), None).await,
+            } => {
+                let admin_socket = admin_socket_path(&state_dir, admin_socket);
+                serve(
+                    state_dir,
+                    app_socket,
+                    admin_socket,
+                    usize::from(app_capacity),
+                    None,
+                )
+                .await
+            }
             Command::Review {
                 recipe,
                 profile_lock,
-            } => review(&recipe, &profile_lock),
-            Command::BoundExtension(options) => bound_extension(&options),
+            } => Ok(review(&recipe, &profile_lock)?),
+            Command::BoundExtension(options) => Ok(bound_extension(&options)?),
             Command::Audit {
                 bundle,
                 trusted_context_sha256,
                 observer,
-            } => audit(&bundle, &trusted_context_sha256, &observer),
+            } => Ok(audit(&bundle, &trusted_context_sha256, &observer)?),
             Command::Submit {
                 app_socket,
                 proof,
                 action,
             } => submit(app_socket, proof, action).await,
-            Command::Disable { state_dir } => {
-                admin_command(&state_dir, serde_json::json!({"command": "disable"}), None).await
+            Command::Disable {
+                state_dir,
+                admin_socket,
+            } => {
+                let admin_socket = admin_socket_path(&state_dir, admin_socket);
+                let command = serde_json::json!({"command": "disable"});
+                admin_command(&state_dir, &admin_socket, command, None).await
             }
-            Command::Enable { state_dir } => {
-                admin_command(&state_dir, serde_json::json!({"command": "enable"}), None).await
+            Command::Enable {
+                state_dir,
+                admin_socket,
+            } => {
+                let admin_socket = admin_socket_path(&state_dir, admin_socket);
+                let command = serde_json::json!({"command": "enable"});
+                admin_command(&state_dir, &admin_socket, command, None).await
             }
-            Command::Revoke { state_dir } => {
-                admin_command(&state_dir, serde_json::json!({"command": "revoke"}), None).await
+            Command::Revoke {
+                state_dir,
+                admin_socket,
+            } => {
+                let admin_socket = admin_socket_path(&state_dir, admin_socket);
+                let command = serde_json::json!({"command": "revoke"});
+                admin_command(&state_dir, &admin_socket, command, None).await
             }
-            Command::Status { state_dir } => {
-                admin_command(&state_dir, serde_json::json!({"command": "status"}), None).await
+            Command::Status {
+                state_dir,
+                admin_socket,
+            } => {
+                let admin_socket = admin_socket_path(&state_dir, admin_socket);
+                let command = serde_json::json!({"command": "status"});
+                admin_command(&state_dir, &admin_socket, command, None).await
             }
             Command::Reobserve {
                 state_dir,
+                admin_socket,
                 operation_id,
             } => {
-                admin_command(
-                    &state_dir,
-                    serde_json::json!({"command": "reobserve", "operation_id": operation_id}),
-                    None,
-                )
-                .await
+                let admin_socket = admin_socket_path(&state_dir, admin_socket);
+                let command =
+                    serde_json::json!({"command": "reobserve", "operation_id": operation_id});
+                admin_command(&state_dir, &admin_socket, command, None).await
             }
             Command::OperatorRequest {
                 recipe,
@@ -1756,7 +2063,7 @@ mod unix {
                 principal_method,
                 verification_method,
                 signature_suite,
-            } => operator_request(
+            } => Ok(operator_request(
                 &recipe,
                 &profile_lock,
                 &trusted_context,
@@ -1767,16 +2074,24 @@ mod unix {
                 principal_method,
                 verification_method,
                 signature_suite,
-            ),
+            )?),
             Command::OperatorAttest {
                 state_dir,
+                admin_socket,
                 operator_attestation,
                 replace: _,
-            } => operator_attest(&state_dir, &operator_attestation),
+            } => {
+                let admin_socket = admin_socket_path(&state_dir, admin_socket);
+                operator_attest(&state_dir, &admin_socket.path, &operator_attestation)
+            }
             Command::Rotate {
                 state_dir,
+                admin_socket,
                 credential_stdin,
-            } => rotate(&state_dir, credential_stdin).await,
+            } => {
+                let admin_socket = admin_socket_path(&state_dir, admin_socket);
+                rotate(&state_dir, &admin_socket, credential_stdin).await
+            }
             Command::ObserverInit { state_dir } => observer_init(&state_dir),
             Command::ObserverShow { state_dir } => observer_show(&state_dir),
             Command::Observe {
@@ -1798,20 +2113,34 @@ mod unix {
                     (None, Some(namespace), Some(action)) => {
                         EchoSource::Action { namespace, action }
                     }
-                    _ => return Err("gateway.echo-verify.action-invalid"),
+                    _ => return Err("gateway.echo-verify.action-invalid".into()),
                 };
-                echo_verify(&record, &pointer, &operation_id, source)
+                Ok(echo_verify(&record, &pointer, &operation_id, source)?)
             }
             Command::Doctor {
                 state_dir,
+                admin_socket,
                 app_socket,
                 app_uid,
                 app_gid,
-            } => doctor(&state_dir, &app_socket, app_uid, app_gid),
+            } => {
+                let admin_socket = admin_socket_path(&state_dir, admin_socket);
+                Ok(doctor(
+                    &state_dir,
+                    &admin_socket.path,
+                    &app_socket,
+                    app_uid,
+                    app_gid,
+                )?)
+            }
             Command::Probe {
                 state_dir,
+                admin_socket,
                 app_socket,
-            } => probe(&state_dir, &app_socket),
+            } => {
+                let admin_socket = admin_socket_path(&state_dir, admin_socket);
+                Ok(probe(&state_dir, &admin_socket.path, &app_socket)?)
+            }
         }
     }
 
@@ -1946,8 +2275,8 @@ mod unix {
 #[cfg(unix)]
 #[tokio::main]
 async fn main() {
-    if let Err(code) = unix::run().await {
-        eprintln!("{code}");
+    if let Err(failure) = unix::run().await {
+        eprintln!("{failure}");
         std::process::exit(1);
     }
 }
