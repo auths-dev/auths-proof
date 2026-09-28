@@ -11,8 +11,8 @@
       "is_local": true,
       "source": {
         "file": "product/policy/auths-bounded-policy/src/kernel.rs",
-        "begin_line": 28,
-        "end_line": 45
+        "begin_line": 32,
+        "end_line": 49
       },
       "is_opaque": false,
       "can_fail": true,
@@ -28,8 +28,8 @@
       "is_local": true,
       "source": {
         "file": "product/policy/auths-bounded-policy/src/kernel.rs",
-        "begin_line": 49,
-        "end_line": 51
+        "begin_line": 53,
+        "end_line": 55
       },
       "is_opaque": false,
       "can_fail": true,
@@ -45,8 +45,8 @@
       "is_local": true,
       "source": {
         "file": "product/policy/auths-bounded-policy/src/kernel.rs",
-        "begin_line": 55,
-        "end_line": 57
+        "begin_line": 59,
+        "end_line": 61
       },
       "is_opaque": false,
       "can_fail": true,
@@ -62,8 +62,8 @@
       "is_local": true,
       "source": {
         "file": "product/policy/auths-bounded-policy/src/kernel.rs",
-        "begin_line": 61,
-        "end_line": 63
+        "begin_line": 65,
+        "end_line": 67
       },
       "is_opaque": false,
       "can_fail": true,
@@ -79,8 +79,8 @@
       "is_local": true,
       "source": {
         "file": "product/policy/auths-bounded-policy/src/kernel.rs",
-        "begin_line": 67,
-        "end_line": 69
+        "begin_line": 71,
+        "end_line": 73
       },
       "is_opaque": false,
       "can_fail": true,
@@ -96,8 +96,8 @@
       "is_local": true,
       "source": {
         "file": "product/policy/auths-bounded-policy/src/kernel.rs",
-        "begin_line": 86,
-        "end_line": 99
+        "begin_line": 90,
+        "end_line": 103
       },
       "is_opaque": false,
       "can_fail": true,
@@ -113,8 +113,8 @@
       "is_local": true,
       "source": {
         "file": "product/policy/auths-bounded-policy/src/kernel.rs",
-        "begin_line": 104,
-        "end_line": 119
+        "begin_line": 108,
+        "end_line": 123
       },
       "is_opaque": false,
       "can_fail": true,
@@ -130,12 +130,432 @@
       "is_local": true,
       "source": {
         "file": "product/policy/auths-bounded-policy/src/kernel.rs",
-        "begin_line": 124,
-        "end_line": 126
+        "begin_line": 128,
+        "end_line": 130
       },
       "is_opaque": false,
       "can_fail": true,
       "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 8,
+      "lean_name": "auths_bounded_policy.kernel.chain_counts_admit_loop.body",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::chain_counts_admit",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 142,
+        "end_line": 149
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
+      "parent_lean_name": "auths_bounded_policy.kernel.chain_counts_admit"
+    },
+    {
+      "def_id": 8,
+      "lean_name": "auths_bounded_policy.kernel.chain_counts_admit_loop",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::chain_counts_admit",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 142,
+        "end_line": 149
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_bounded_policy.kernel.chain_counts_admit"
+    },
+    {
+      "def_id": 8,
+      "lean_name": "auths_bounded_policy.kernel.chain_counts_admit",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::chain_counts_admit",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 137,
+        "end_line": 149
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 9,
+      "lean_name": "auths_bounded_policy.kernel.chain_sums_admit_loop.body",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::chain_sums_admit",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 162,
+        "end_line": 174
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
+      "parent_lean_name": "auths_bounded_policy.kernel.chain_sums_admit"
+    },
+    {
+      "def_id": 9,
+      "lean_name": "auths_bounded_policy.kernel.chain_sums_admit_loop",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::chain_sums_admit",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 162,
+        "end_line": 174
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_bounded_policy.kernel.chain_sums_admit"
+    },
+    {
+      "def_id": 9,
+      "lean_name": "auths_bounded_policy.kernel.chain_sums_admit",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::chain_sums_admit",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 157,
+        "end_line": 174
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 17,
+      "lean_name": "auths_bounded_policy.kernel.bytes_equal_loop.body",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::bytes_equal",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 219,
+        "end_line": 226
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
+      "parent_lean_name": "auths_bounded_policy.kernel.bytes_equal"
+    },
+    {
+      "def_id": 17,
+      "lean_name": "auths_bounded_policy.kernel.bytes_equal_loop",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::bytes_equal",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 219,
+        "end_line": 226
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_bounded_policy.kernel.bytes_equal"
+    },
+    {
+      "def_id": 17,
+      "lean_name": "auths_bounded_policy.kernel.bytes_equal",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::bytes_equal",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 214,
+        "end_line": 226
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 23,
+      "lean_name": "auths_bounded_policy.kernel.values_contain_loop.body",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::values_contain",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 232,
+        "end_line": 239
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
+      "parent_lean_name": "auths_bounded_policy.kernel.values_contain"
+    },
+    {
+      "def_id": 23,
+      "lean_name": "auths_bounded_policy.kernel.values_contain_loop",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::values_contain",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 232,
+        "end_line": 239
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_bounded_policy.kernel.values_contain"
+    },
+    {
+      "def_id": 23,
+      "lean_name": "auths_bounded_policy.kernel.values_contain",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::values_contain",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 230,
+        "end_line": 239
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": true
+    },
+    {
+      "def_id": 22,
+      "lean_name": "auths_bounded_policy.kernel.values_subset_loop.body",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::values_subset",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 245,
+        "end_line": 252
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
+      "parent_lean_name": "auths_bounded_policy.kernel.values_subset"
+    },
+    {
+      "def_id": 22,
+      "lean_name": "auths_bounded_policy.kernel.values_subset_loop",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::values_subset",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 245,
+        "end_line": 252
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_bounded_policy.kernel.values_subset"
+    },
+    {
+      "def_id": 22,
+      "lean_name": "auths_bounded_policy.kernel.values_subset",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::values_subset",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 243,
+        "end_line": 252
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": true
+    },
+    {
+      "def_id": 21,
+      "lean_name": "auths_bounded_policy.kernel.values_narrow",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::values_narrow",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 256,
+        "end_line": 258
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 20,
+      "lean_name": "auths_bounded_policy.kernel.partition_narrows",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::partition_narrows",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 267,
+        "end_line": 278
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 18,
+      "lean_name": "auths_bounded_policy.kernel.sum_tightens",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::sum_tightens",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 284,
+        "end_line": 295
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 19,
+      "lean_name": "auths_bounded_policy.kernel.scope_tightens",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::scope_tightens",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 300,
+        "end_line": 308
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 10,
+      "lean_name": "auths_bounded_policy.kernel.argument_policy_tightens",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Funs.lean",
+      "rust_name": "auths_bounded_policy::kernel::argument_policy_tightens",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 314,
+        "end_line": 332
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
       "is_rec": false,
       "reducible": false
     }
@@ -149,8 +569,8 @@
       "is_local": true,
       "source": {
         "file": "product/policy/auths-bounded-policy/src/kernel.rs",
-        "begin_line": 9,
-        "end_line": 20
+        "begin_line": 13,
+        "end_line": 24
       }
     },
     {
@@ -161,8 +581,44 @@
       "is_local": true,
       "source": {
         "file": "product/policy/auths-bounded-policy/src/kernel.rs",
-        "begin_line": 73,
-        "end_line": 80
+        "begin_line": 77,
+        "end_line": 84
+      }
+    },
+    {
+      "def_id": 7,
+      "lean_name": "auths_bounded_policy.kernel.ValueList",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Types.lean",
+      "rust_name": "auths_bounded_policy::kernel::ValueList",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 178,
+        "end_line": 183
+      }
+    },
+    {
+      "def_id": 6,
+      "lean_name": "auths_bounded_policy.kernel.SumBound",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Types.lean",
+      "rust_name": "auths_bounded_policy::kernel::SumBound",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 187,
+        "end_line": 193
+      }
+    },
+    {
+      "def_id": 3,
+      "lean_name": "auths_bounded_policy.kernel.PolicyMembers",
+      "lean_file": "qualification/aeneas/generated/bounded_policy/Types.lean",
+      "rust_name": "auths_bounded_policy::kernel::PolicyMembers",
+      "is_local": true,
+      "source": {
+        "file": "product/policy/auths-bounded-policy/src/kernel.rs",
+        "begin_line": 197,
+        "end_line": 210
       }
     }
   ],

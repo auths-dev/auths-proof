@@ -58,4 +58,32 @@ example : kernel.ceiling_count_tightens 11#u64 1#u64 60#u64 10#u64 2#u64 60#u64 
 example : kernel.ceiling_count_tightens 5#u64 3#u64 60#u64 10#u64 2#u64 60#u64 = ok false := by
   rfl
 
+-- A child that raises its parent's sum limit, drops its sum, or adds a
+-- partition under an unpartitioned parent is refused; a child that adds a
+-- sum under a parent without one only narrows.
+example : kernel.sum_tightens (some { limit := 2000#u64, partition := none })
+    (some { limit := 1000#u64, partition := none }) = ok false := by
+  rfl
+
+example : kernel.sum_tightens none (some { limit := 1000#u64, partition := none }) =
+    ok false := by
+  rfl
+
+example : kernel.sum_tightens (some { limit := 500#u64, partition := none })
+    (some { limit := 1000#u64, partition := none }) = ok true := by
+  rfl
+
+example : kernel.sum_tightens (some { limit := 500#u64, partition := none }) none =
+    ok true := by
+  rfl
+
+example : kernel.partition_narrows
+    (some { argument := ⟨[], by simp⟩, values := ⟨[], by simp⟩ }) none = ok false := by
+  rfl
+
+-- A child that drops its parent's scope is refused.
+example : kernel.scope_tightens none
+    (some { argument := ⟨[], by simp⟩, values := ⟨[], by simp⟩ }) = ok false := by
+  rfl
+
 end qualification.aeneas.cases
