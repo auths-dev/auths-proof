@@ -303,7 +303,8 @@ observer key is provisioned, it signs that record on request as
 digest, and the relative-ceiling basis when recorded; the gateway refuses
 to sign, and the auditor refuses to accept, any fact set its stage could not
 carry. The offline audit (`auths.gateway-audit-report/3`) re-verifies each
-entry at the outcome's `evaluated-at`, requires the counters it derives to
+entry at the outcome's `evaluated-at`, with the recipe's account-scope
+binding when it declares one, requires the counters it derives to
 digest to the outcome's `counters-digest`, recounts the count and sum bounds
 without order, requires a relative-ceiling recipe's outcomes to carry a
 basis that admits the re-derived argument and a pre-entry recipe's
