@@ -397,7 +397,12 @@ key prefix, pointers, refused statuses, and ratio match Stripe's current
 behavior: they are the author's reading of Stripe's documentation, which
 states 403 for a key without permission but not whether that refusal carries
 `Stripe-Version`; a refusal without it fails closed at install
-(`gateway.install.credential-capability`).
+(`gateway.install.credential-capability`). That the recipe is qualified:
+under ADR 0013, a recipe earns a qualified provider claim only through a
+later ADR with differential agreement against the vertical's oracle and
+hosted live-provider evidence. That a production gateway signs its
+outcomes: the observer key must be held in KMS or an HSM, and the shipped
+gateway has no such client yet (#190).
 
 Current evidence is the north-star journey from the packed wheel
 (`examples/stripe-refund-approval/journey.py`) and from the packed npm

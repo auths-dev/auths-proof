@@ -1,8 +1,10 @@
 # ADR 0013: Admit ten closed recipe capabilities and a sum budget into the data-only gateway
 
-**Status:** Proposed, for owner review with AP-SPEC-063 epic 1. It amends
-ADR 0012. Accepting it approves the mechanisms below as candidates for
-epics 2–7; it approves no implementation, deployment, or product claim.
+**Status:** Accepted on 28 September 2026 by owner decision. It amends
+ADR 0012. Epics 2–7 of AP-SPEC-063 implemented the mechanisms below
+(PRs #182–#187). Acceptance approves no deployment or product claim beyond
+AP-SPEC-063 §1. The Qualification section below is the rule for any future
+qualified recipe claim.
 Epic 8 removed the local-agent code some evidence entries cite; those
 entries name the last revision that held it, `09596075`.
 
