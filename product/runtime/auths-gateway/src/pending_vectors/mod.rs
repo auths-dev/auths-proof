@@ -4,17 +4,20 @@
 //! Each submodule generates one fixture under `bindings/fixtures/gateway/`
 //! from fixed inputs and requires the committed file to be byte-identical;
 //! `AUTHS_UPDATE_FIXTURES=1` rewrites it, as for `approval-quorum.json`.
-//! Each submodule also runs its vectors against today's code and asserts the
-//! specific way that code falls short: the store writes an older attempt
-//! record, the evaluator registry lacks the revised evaluator, the outcome
-//! verifier refuses the revised outcome, separation compares identifiers
-//! only, and the codes of unimplemented epics exist nowhere in the crate.
+//! Each submodule whose epic has not landed also runs its vectors against
+//! today's code and asserts the specific way that code falls short: the
+//! evaluator registry lacks the revised evaluator, the outcome verifier
+//! refuses the revised outcome, separation compares identifiers only, and
+//! the codes of unimplemented epics exist nowhere in the crate.
 //!
 //! These assertions are expected to fail when the implementing work lands.
 //! That failure is the signal: the change that makes a vector pass replaces
 //! its pending assertion with the conformance test that drives it. The recipe
 //! corpus has made that change: its test compiles every base to its
 //! documented class and digest and fails every hostile case with its code.
+//! So have the attempt scenarios: `scenario_tests` drives every case of
+//! `attempt-scenarios-v3.json` whose checks exist, and the account-scope
+//! binding cases wait for the grant policy that carries a scope.
 
 pub(crate) mod attempts;
 mod bounds;
