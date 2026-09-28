@@ -16,7 +16,10 @@ pub use connection::{
     ConnectionStoreConfigurationError, PersistentConnectionStore, PersistentConnectionStoreError,
 };
 
-pub use gateway_attempt::{GatewayAttemptInsert, MAX_GATEWAY_ATTEMPT_BYTES};
+pub use gateway_attempt::{
+    GatewayRecordEntry, GatewayRecordInsert, GatewayRecordKind, MAX_GATEWAY_BATCH_ENTRIES,
+    MAX_GATEWAY_RECORD_BYTES, validate_gateway_batch,
+};
 pub use lifecycle::{
     InMemoryLifecycleStore, LifecycleCapacityRuleV1, LifecycleStoreConfigurationError,
     PersistentLifecycleStore, PostgresLifecycleStore, PostgresPoolConfig, PostgresServerName,

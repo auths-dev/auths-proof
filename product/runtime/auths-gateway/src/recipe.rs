@@ -22,6 +22,7 @@ pub use auths_gateway_kernel::{construct, recovery};
 
 mod lower;
 mod review;
+mod runtime;
 mod source;
 mod validate;
 
@@ -38,6 +39,10 @@ pub use review::{
 };
 
 use construct::{ArgumentValue, ConstructError};
+pub(crate) use runtime::{
+    CeilingCheck, CeilingReading, ENTRY_DEADLINE_SECONDS, GuardChecks, MAX_ACCOUNT_BYTES,
+    ObservationTemplate,
+};
 use source::{CredentialSource, IdempotencySource, PathSegment, RecipeSource};
 
 /// The only recipe source schema the compiler accepts.
@@ -612,20 +617,13 @@ impl CompiledRecipe {
     }
 
     /// Reports whether the recipe declares a capability whose runtime step
-    /// this gateway does not perform: a credential guard, provider headers,
-    /// an account-scope header, a sum bound, a relative ceiling, a pre-entry
-    /// re-read, or a response locator. Such a recipe compiles and can be
-    /// reviewed, but an engine refuses to run it rather than skip a declared
-    /// check.
+    /// this gateway does not perform yet: an account-scope header, whose
+    /// value must be bound to a grant-listed scope, or a sum bound. Such a
+    /// recipe compiles and can be reviewed, but an engine refuses to run it
+    /// rather than skip a declared check.
     #[must_use]
     pub fn declares_unexecuted_capability(&self) -> bool {
-        self.source.credential.guard().is_some()
-            || self.source.provider_headers.is_some()
-            || self.source.account_scope.is_some()
-            || self.source.bounds.is_some()
-            || self.source.relative_ceiling.is_some()
-            || self.source.pre_entry.is_some()
-            || self.recovery_declarations().observation == StateObservation::ResponseLocator
+        self.source.account_scope.is_some() || self.source.bounds.is_some()
     }
 
     /// The credential reads the recipe declares: the probe, the account read,
@@ -752,6 +750,17 @@ impl CompiledRecipe {
             construct::BodyPlan::Form(_) => "application/x-www-form-urlencoded",
         };
         let observation = self.observation_request(arguments, &values)?;
+        let headers = request_headers(built.headers)?;
+        let observation_template = match &self.source.observation {
+            Some(source) => self.observation_template(
+                &values,
+                &headers,
+                arguments
+                    .get(&source.expected_field)
+                    .ok_or(GatewayRecipeError::ActionMismatch)?,
+            )?,
+            None => None,
+        };
         let pre_entry = action_read(self.plans.pre_entry.as_ref(), &values, || {
             self.source
                 .pre_entry
@@ -775,9 +784,10 @@ impl CompiledRecipe {
             url: ascii(built.url)?,
             content_type,
             body: built.body,
-            headers: request_headers(built.headers)?,
+            headers,
             credential_requirement: credential_requirement(&self.source.credential),
             observation,
+            observation_template,
             pre_entry,
             relative_ceiling,
         })
@@ -980,6 +990,7 @@ pub struct ClosedProviderRequest {
     headers: Vec<RequestHeader>,
     credential_requirement: CredentialRequirement,
     observation: Option<ClosedObservationRequest>,
+    observation_template: Option<ObservationTemplate>,
     pre_entry: Option<ClosedActionRead>,
     relative_ceiling: Option<ClosedActionRead>,
 }
@@ -1050,6 +1061,12 @@ impl ClosedProviderRequest {
     pub const fn observation(&self) -> Option<&ClosedObservationRequest> {
         self.observation.as_ref()
     }
+    /// Returns the observation fixed at the claim: resolved from verified
+    /// fields, with any response-field pointers still to be read from the
+    /// recorded response.
+    pub(crate) const fn observation_template(&self) -> Option<&ObservationTemplate> {
+        self.observation_template.as_ref()
+    }
     /// Returns the declared pre-entry re-read.
     #[must_use]
     pub const fn pre_entry_read(&self) -> Option<&ClosedActionRead> {
@@ -1101,6 +1118,12 @@ impl ClosedActionRead {
     #[must_use]
     pub const fn maximum_response_bytes(&self) -> usize {
         self.maximum_response_bytes
+    }
+    /// Returns the subject of the field at `pointer` in this read's
+    /// response: the URL with the pointer as its fragment.
+    #[must_use]
+    pub fn subject(&self, pointer: &str) -> String {
+        format!("{}#{pointer}", self.url)
     }
 }
 

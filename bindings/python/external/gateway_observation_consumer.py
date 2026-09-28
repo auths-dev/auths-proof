@@ -252,7 +252,9 @@ async def journey(harness: Path, state: Path) -> None:
         written = await run.client.submit(proof=proof, action=action)
         assert isinstance(written, GatewayObservedByProvider), written
         assert written.status == 200
-        assert await run.counts() == (1, 2), "one write; the read-back and write leases"
+        assert await run.counts() == (1, 3), (
+            "one write; the observation, the write, and its read-back each lease"
+        )
 
         await _control(run.control, {
             "command": "set-record", "record_id": run.record["record_id"],
@@ -269,7 +271,7 @@ async def journey(harness: Path, state: Path) -> None:
             run.command("journey-3", "Pending", "Approved"), changed, aged,
             GatewayIndeterminate("observation-missing"),
         )
-        assert await run.counts() == (1, 3), "only the second read-back leased again"
+        assert await run.counts() == (1, 4), "only the second read-back leased again"
     finally:
         process.kill()
         process.wait()

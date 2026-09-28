@@ -681,12 +681,6 @@ fn logical_id_and_namespace_are_canonical_and_bounded() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn durable_claim_is_one_use_across_races_and_restart() {
-    let fixture: Value = serde_json::from_slice(include_bytes!(
-        "../../../../../bindings/fixtures/gateway/attempt-scenarios.json"
-    ))
-    .expect("valid state corpus");
-    assert_eq!(fixture["schema"], "auths.gateway-attempt-scenarios/1");
-    assert_eq!(fixture["cases"].as_array().expect("cases").len(), 19);
     let recipe = compiled("github");
     let args = arguments(
         &recipe,
@@ -709,7 +703,9 @@ async fn durable_claim_is_one_use_across_races_and_restart() {
             let store = store.clone();
             let request = Arc::clone(&request);
             let digest = *recipe.digest();
-            tokio::spawn(async move { store.claim(&request, digest).await.map(drop) })
+            tokio::spawn(
+                async move { store.claim(&request, digest, 1_790_000_000).await.map(drop) },
+            )
         })
         .collect();
     let mut outcomes = Vec::new();
@@ -735,7 +731,9 @@ async fn durable_claim_is_one_use_across_races_and_restart() {
         .expect("retained claim");
     assert_eq!(snapshot.stage(), GatewayAttemptStage::Unknown);
     assert!(matches!(
-        restarted.claim(&request, *recipe.digest()).await,
+        restarted
+            .claim(&request, *recipe.digest(), 1_790_000_000)
+            .await,
         Err(GatewayAttemptError::Replay)
     ));
 }
@@ -758,10 +756,13 @@ async fn response_and_observation_are_distinct_durable_stages() {
         FileGatewayAttemptStore::open(&root).expect("store"),
     ));
     let claim = store
-        .claim(&request, *recipe.digest())
+        .claim(&request, *recipe.digest(), 1_790_000_000)
         .await
         .expect("claim");
-    let response = claim.record_response(200, [3; 32]).await.expect("response");
+    let response = claim
+        .record_response(200, [3; 32], None)
+        .await
+        .expect("response");
     assert_eq!(
         response.snapshot().expect("snapshot").stage(),
         GatewayAttemptStage::ResponseRecorded
@@ -780,7 +781,7 @@ async fn response_and_observation_are_distinct_durable_stages() {
         Some(observed)
     );
     assert!(matches!(
-        store.claim(&request, *recipe.digest()).await,
+        store.claim(&request, *recipe.digest(), 1_790_000_000).await,
         Err(GatewayAttemptError::Replay)
     ));
 }
@@ -1109,14 +1110,20 @@ fn only_executed_capabilities_run_in_an_engine() {
     for name in ["airtable", "todoist", "github"] {
         assert!(!compiled(name).declares_unexecuted_capability(), "{name}");
     }
-    assert!(!corpus_recipe("stripe-plain").declares_unexecuted_capability());
-    assert!(!corpus_recipe("todoist-operation-id").declares_unexecuted_capability());
     for base in [
-        "stripe",
-        "stripe-platform",
+        "stripe-plain",
+        "todoist-operation-id",
         "airtable-pre-entry",
         "github-response-locator",
     ] {
+        assert!(
+            !corpus_recipe(base).declares_unexecuted_capability(),
+            "{base}"
+        );
+    }
+    // An account-scope header and a sum bound need grant policy that can
+    // carry a scope and a sum; until then an engine refuses to run them.
+    for base in ["stripe", "stripe-platform"] {
         assert!(
             corpus_recipe(base).declares_unexecuted_capability(),
             "{base}"

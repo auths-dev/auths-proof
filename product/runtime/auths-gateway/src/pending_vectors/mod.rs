@@ -16,7 +16,7 @@
 //! corpus has made that change: its test compiles every base to its
 //! documented class and digest and fails every hostile case with its code.
 
-mod attempts;
+pub(crate) mod attempts;
 mod bounds;
 mod codes;
 mod keys;

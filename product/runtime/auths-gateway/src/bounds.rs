@@ -36,7 +36,9 @@ use auths_model::{
 };
 use auths_ports::ProfilePolicy as _;
 use auths_profile_mcp::McpArgumentsPolicy;
-use auths_registries::BOUNDED_POLICY_COMMITMENT_EXTENSION_V1;
+use auths_registries::{
+    BOUNDED_POLICY_COMMITMENT_EXTENSION_V1, OBSERVATION_REQUIREMENT_EXTENSION_V1,
+};
 use auths_verifier::VerifiedAction;
 use minicbor::{Decoder, Encoder};
 use sha2::{Digest as _, Sha256};
@@ -295,14 +297,24 @@ fn registered(commitment: &PolicyCommitment) -> Result<GatewayEvaluator, &'stati
 pub(crate) struct WindowReservation {
     pub(crate) counter: [u8; 32],
     pub(crate) max_count: u64,
+    /// The end of the window plus one full window: a slot outlives its
+    /// window by one window, then the sweep may delete it.
+    pub(crate) expires_at: u64,
 }
 
-/// The authorized chain of every verified action, root to terminal, with
-/// each action's actor.
+/// One authorized branch: its actor, its grant chain root to terminal, and
+/// its action envelope's validity window in seconds.
+struct AuthorizedBranch {
+    actor: auths_model::PrincipalId,
+    chain: Vec<SignedGrant>,
+    validity_seconds: u64,
+}
+
+/// The authorized branch of every verified action.
 fn authorized_chains(
     proof_cbor: &[u8],
     verified: &VerifiedAction,
-) -> Result<Vec<(auths_model::PrincipalId, Vec<SignedGrant>)>, &'static str> {
+) -> Result<Vec<AuthorizedBranch>, &'static str> {
     let unavailable = "gateway.policy.proof-unavailable";
     let bundle = auths_codec::decode_bundle(proof_cbor, &auths_model::VerifierLimits::default())
         .map_err(|_| unavailable)?;
@@ -332,20 +344,58 @@ fn authorized_chains(
             cursor = grant.statement().parent();
         }
         chain.reverse();
-        chains.push((action.envelope().actor().clone(), chain));
+        let validity = action.envelope().validity();
+        chains.push(AuthorizedBranch {
+            actor: action.envelope().actor().clone(),
+            chain,
+            validity_seconds: validity
+                .expires_at()
+                .get()
+                .saturating_sub(validity.not_before().get()),
+        });
     }
     Ok(chains)
 }
 
-/// The actor of every authorized branch, in verified order.
-pub(crate) fn authorized_actors(
+/// What admission needs of the authorized branches.
+pub(crate) struct BranchFacts {
+    /// The actor of every authorized branch, in verified order.
+    pub(crate) actors: Vec<auths_model::PrincipalId>,
+    /// Every observation requirement of every grant of every branch.
+    pub(crate) requirements: Vec<auths_model::ObservationRequirement>,
+    /// The longest action validity window of any branch.
+    pub(crate) validity_seconds: u64,
+}
+
+/// The actors, observation requirements, and longest validity window of
+/// every authorized branch.
+pub(crate) fn authorized_branches(
     proof_cbor: &[u8],
     verified: &VerifiedAction,
-) -> Result<Vec<auths_model::PrincipalId>, &'static str> {
-    Ok(authorized_chains(proof_cbor, verified)?
-        .into_iter()
-        .map(|(actor, _)| actor)
-        .collect())
+) -> Result<BranchFacts, &'static str> {
+    let branches = authorized_chains(proof_cbor, verified)?;
+    let mut requirements = Vec::new();
+    for branch in &branches {
+        for grant in &branch.chain {
+            for extension in grant.statement().extensions().as_slice() {
+                if extension.id().as_str() != OBSERVATION_REQUIREMENT_EXTENSION_V1 {
+                    continue;
+                }
+                let decoded = auths_codec::decode_observation_requirements(extension.bytes())
+                    .map_err(|_| "gateway.policy.proof-unavailable")?;
+                requirements.extend(decoded.as_slice().iter().cloned());
+            }
+        }
+    }
+    Ok(BranchFacts {
+        actors: branches.iter().map(|branch| branch.actor.clone()).collect(),
+        requirements,
+        validity_seconds: branches
+            .iter()
+            .map(|branch| branch.validity_seconds)
+            .max()
+            .unwrap_or(0),
+    })
 }
 
 /// The one branch whose chain carries a bound, keyed to its actor. The
@@ -368,7 +418,8 @@ fn bounded_chain(
     };
     let mut chains: Vec<_> = authorized_chains(proof_cbor, verified)?
         .into_iter()
-        .filter(|(_, chain)| bounded(chain))
+        .filter(|branch| bounded(&branch.chain))
+        .map(|branch| (branch.actor, branch.chain))
         .collect();
     match chains.len() {
         0 | 1 => Ok(chains.pop()),
@@ -455,9 +506,14 @@ pub(crate) fn admit_bounds(
     }
     hash.update(terminal.window_seconds.to_be_bytes());
     hash.update(window.to_be_bytes());
+    let expires_at = window
+        .checked_add(2)
+        .and_then(|windows| windows.checked_mul(terminal.window_seconds))
+        .ok_or_else(|| refuse("gateway.policy.invalid-policy"))?;
     Ok(Some(WindowReservation {
         counter: hash.finalize().into(),
         max_count: terminal.max_count,
+        expires_at,
     }))
 }
 
@@ -465,12 +521,17 @@ pub(crate) fn admit_bounds(
 /// implementation must give one winner per slot across processes and must
 /// never report an unreadable slot as absent.
 pub trait BoundedCountStore {
-    /// Inserts slot `key` with `record`; `Ok(false)` when it already exists.
+    /// Inserts slot `key` with `record`, sweepable after `expires_at`;
+    /// `Ok(false)` when it already exists.
     ///
     /// # Errors
     /// Returns a store failure; the slot is then neither reserved nor free.
-    fn insert_count_slot(&self, key: &[u8; 32], record: &[u8])
-    -> Result<bool, GatewayAttemptError>;
+    fn insert_count_slot(
+        &self,
+        key: &[u8; 32],
+        record: &[u8],
+        expires_at: u64,
+    ) -> Result<bool, GatewayAttemptError>;
 
     /// Reports whether slot `key` exists.
     ///
@@ -536,7 +597,11 @@ pub(crate) fn reserve_window(
     let mut slot = low;
     while slot < reservation.max_count {
         if store
-            .insert_count_slot(&slot_key(&reservation.counter, slot), &record)
+            .insert_count_slot(
+                &slot_key(&reservation.counter, slot),
+                &record,
+                reservation.expires_at,
+            )
             .map_err(|_| ReserveRefusal::Unavailable)?
         {
             return Ok(());
@@ -559,6 +624,7 @@ mod tests {
             &self,
             key: &[u8; 32],
             record: &[u8],
+            _expires_at: u64,
         ) -> Result<bool, GatewayAttemptError> {
             let mut slots = self
                 .0
@@ -660,6 +726,7 @@ mod tests {
         let reservation = WindowReservation {
             counter: [9; 32],
             max_count: 3,
+            expires_at: 7_200,
         };
         let operation = LogicalOperationId::parse("op-1").expect("operation");
         for _ in 0..3 {
@@ -672,6 +739,7 @@ mod tests {
         let other = WindowReservation {
             counter: [8; 32],
             max_count: 3,
+            expires_at: 7_200,
         };
         assert_eq!(reserve_window(&store, &other, &operation), Ok(()));
     }
