@@ -374,15 +374,18 @@ def _parse_pre_entry_result(raw: bytes, operation_id: str) -> GatewayPreEntryRes
         or set(value) != {"outcome", "operation_id", "observations_b64"}
         or value.get("operation_id") != operation_id
         or not isinstance(encoded, list)
-        or len(encoded) > _MAX_PRE_ENTRY_OBSERVATIONS
-        or not all(isinstance(item, str) for item in encoded)
+    ):
+        raise GatewayProtocolError("gateway returned invalid pre-entry observations")
+    items = cast("list[object]", encoded)
+    if len(items) > _MAX_PRE_ENTRY_OBSERVATIONS or not all(
+        isinstance(item, str) for item in items
     ):
         raise GatewayProtocolError("gateway returned invalid pre-entry observations")
     return GatewayPreEntryObservations(
         operation_id,
         tuple(
             _decode_base64url(cast(str, item), _MAX_OBSERVATION_BYTES)
-            for item in encoded
+            for item in items
         ),
     )
 
