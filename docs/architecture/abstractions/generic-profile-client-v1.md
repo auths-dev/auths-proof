@@ -6,6 +6,12 @@ Implementation case file for AP-SPEC-040. The repository is prelaunch; the
 cutover is direct and retains no legacy reader, dual route, deprecated alias,
 state converter, or runtime rollback path.
 
+**Removed 2026-09-27.** AP-SPEC-063 §12 option A made the Auths gateway the
+single provider-write path. The local session, generated profile clients,
+operation journal, and connection administration this case extracted were
+removed with the local agent; they existed last at commit `09596075`. This
+file is kept as the record of the extraction.
+
 ## Candidate mechanisms
 
 The candidate shared product mechanisms are the authenticated local session,

@@ -4,7 +4,7 @@
 
 The current Auths reusable release builder is pending a new hosted SLSA 1.2
 Build Level 3 runtime assessment. Its workflow SHA-256 is
-`ad6573cb516eb238fabcc5311bd86c3c054c20d1e9b34772887b4c0d07140f04`.
+`2e5ca60bda11cf7c7bc5879a0cd5f5d35e80cab32ea0946b7cc9fde246921466`.
 The previous builder bytes passed the applicable requirements, but that result
 does not authorize the changed workflow.
 The machine-readable authority is

@@ -193,13 +193,19 @@ concurrency and crash behavior are those of the claim. It never licenses a
 second write. Its prelaunch cutover replaces recipe source `/1` with `/2` and
 rejects old recipes, with no legacy reader.
 
+The tables were written before epic 8 (AP-SPEC-063 §12 option A,
+2026-09-27) removed the vertical's production path. Its onboarding, lease,
+and local-agent request code no longer exists; each row that cites it names
+the removal and commit `09596075`, the last revision where the code existed.
+The pure evaluator (`bounded.rs`, `types.rs`) remains.
+
 ### Provider version headers
 
 | Field | Consumers today | Recipe form | Class |
 | --- | --- | --- | --- |
 | Representation | `Stripe-Version` from the exact action (`auths-stripe`); fixed `X-GitHub-Api-Version: 2022-11-28` (`auths-github` `adapters.rs`) | `provider_headers`, at most two registry names with a value grammar | identical mechanism, different literals |
 | Meaning | Which provider API contract applies | The same; the gateway does not know it | domain-specific |
-| Denial and indeterminate | Stripe: a missing or different response header makes the write outcome possible, not known (`bounded_provider_result`); GitHub: responses unchecked | A mismatched read is unavailable; a mismatched write is recorded and only its locator is suppressed | analogous: the recipe never turns a write into `unknown` for a header, because the gateway interprets no write body |
+| Denial and indeterminate | Stripe: a missing or different response header makes the write outcome possible, not known (`bounded_provider_result` in `auths-stripe` `local_agent.rs`, removed in epic 8, last at `09596075`); GitHub: responses unchecked | A mismatched read is unavailable; a mismatched write is recorded and only its locator is suppressed | analogous: the recipe never turns a write into `unknown` for a header, because the gateway interprets no write body |
 | Limits and work | One header per request | At most two headers, 10–64 bytes for Stripe, 10 for GitHub | identical |
 | Credential timing | Sent with the credential | Sent on every request to the origin, credential reads included | identical |
 | Evidence and UX | Not recorded | Shown in review `/2` | analogous |
@@ -208,7 +214,7 @@ rejects old recipes, with no legacy reader.
 
 | Field | Consumers today | Recipe form | Class |
 | --- | --- | --- | --- |
-| Representation | `rk_test_` prefix, 16–256 printable bytes (`valid_static_secret`); `/v1/account` with `object`, `id`, and `livemode` checked together (`verify_account_response`) | `credential.guard`: 1–4 prefixes; an optional probe with one pointer and one literal | identical prefix test; the vertical's combined account and mode read splits into the probe and the account read |
+| Representation | `rk_test_` prefix, 16–256 printable bytes (`valid_static_secret`); `/v1/account` with `object`, `id`, and `livemode` checked together (`verify_account_response`); both in `auths-stripe` `connection/onboarding.rs`, removed in epic 8, last at `09596075` | `credential.guard`: 1–4 prefixes; an optional probe with one pointer and one literal | identical prefix test; the vertical's combined account and mode read splits into the probe and the account read |
 | Meaning | Test mode only | Whatever the author's convention is | domain-specific |
 | Denial and indeterminate | Onboarding refused; lease refused on a wrong prefix | Onboarding refused with nothing stored; a lease-time prefix failure records `gateway.credential.mode-guard` | analogous |
 | Limits and work | One onboarding read | One probe at onboarding within a 20-second deadline; no probe at lease | identical |
@@ -219,7 +225,7 @@ rejects old recipes, with no legacy reader.
 
 | Field | Consumers today | Recipe form | Class |
 | --- | --- | --- | --- |
-| Representation | `auths-refund-` plus SHA-256 over the exact action, including its nonce (`IdempotencyPreimage`); the bounded path's key from the operation ID; Todoist's `uuid` equal to the operation ID | `write.idempotency`: #156's derived header, or the location of the verified operation ID in the body, plus a retention | analogous: the gateway key ignores the action commitment, so re-authorizing one logical operation reuses one key; the vertical's primary key changes with the nonce |
+| Representation | `auths-refund-` plus SHA-256 over the exact action, including its nonce (`IdempotencyPreimage`); the bounded path's key from the operation ID (`local_agent.rs`, removed in epic 8, last at `09596075`); Todoist's `uuid` equal to the operation ID | `write.idempotency`: #156's derived header, or the location of the verified operation ID in the body, plus a retention | analogous: the gateway key ignores the action commitment, so re-authorizing one logical operation reuses one key; the vertical's primary key changes with the nonce |
 | Meaning | The provider de-duplicates within its retention | Declared by the author; unverifiable by the gateway | domain-specific |
 | Denial and indeterminate | None | An action whose window plus 60 seconds exceeds the retention is refused before the claim | new, narrower |
 | Limits and work | One header | One header, or none; retention 1–2 592 000 seconds | identical |
@@ -241,7 +247,7 @@ rejects old recipes, with no legacy reader.
 
 | Field | Consumers today | Recipe form | Class |
 | --- | --- | --- | --- |
-| Representation | Author-supplied `metadata[<key>]` form fields from the exact action (`local_agent.rs`); AP-SPEC-059's token only in JSON bodies (`echo_token`) | `echo.write` as one new form field, `name` or `name[segment]`, added by the compiler | identical token, new placement |
+| Representation | Author-supplied `metadata[<key>]` form fields from the exact action (`auths-stripe` `local_agent.rs`, removed in epic 8, last at `09596075`); AP-SPEC-059's token only in JSON bodies (`echo_token`) | `echo.write` as one new form field, `name` or `name[segment]`, added by the compiler | identical token, new placement |
 | Meaning | Vertical metadata is author data, not an action-derived link (settled.md) | The token shows consistency with this action, not authorship | domain-specific for the vertical's metadata; identical to 059 for the token |
 | Limits and work | Form fields bounded by the action | At most 16 form fields including the echo | identical |
 | Provider effect and observation | None | Observation reads the token at the declared pointer (059) | identical to 059 |
@@ -273,7 +279,7 @@ rejects old recipes, with no legacy reader.
 
 | Field | Consumers today | Recipe form | Class |
 | --- | --- | --- | --- |
-| Representation | `/v1/account` `id` equal to the descriptor at onboarding; a local descriptor lookup by `account_commitment` at every lease | `credential.guard.account`: one path and pointer; the value hashed under `auths.gateway-account/1` | identical commitment comparison |
+| Representation | `/v1/account` `id` equal to the descriptor at onboarding; a local descriptor lookup by `account_commitment` at every lease (`auths-stripe` `connection/onboarding.rs` and `connection/credentials.rs`, removed in epic 8, last at `09596075`) | `credential.guard.account`: one path and pointer; the value hashed under `auths.gateway-account/1` | identical commitment comparison |
 | Meaning | The Stripe account | Not interpreted | domain-specific |
 | Denial and indeterminate | `AccountSubstitution` | `account-mismatch` for a valid different value, `account-unavailable` otherwise | identical split |
 | Credential timing | Provider read at onboarding only | Provider read at onboarding and at every lease, read-backs included | narrower: stronger check, one read per lease |
@@ -283,7 +289,7 @@ rejects old recipes, with no legacy reader.
 
 | Field | Consumers today | Recipe form | Class |
 | --- | --- | --- | --- |
-| Representation | None: `valid_static_secret` and `lease_credential` check only the prefix; AP-SPEC-012 §13 asks for a restricted key without a check | `credential.guard.denied_reads`: 1–4 fixed-path GET or HEAD requests with 1–3 refused 4xx statuses, never 408 or 429 | new mechanism with no vertical implementation |
+| Representation | None: `valid_static_secret` and `lease_credential` (`auths-stripe` `connection/onboarding.rs` and `connection/credentials.rs`, removed in epic 8, last at `09596075`) check only the prefix; AP-SPEC-012 §13 asks for a restricted key without a check | `credential.guard.denied_reads`: 1–4 fixed-path GET or HEAD requests with 1–3 refused 4xx statuses, never 408 or 429 | new mechanism with no vertical implementation |
 | Meaning | Least privilege, asserted | Only the refusals observed at that lease | narrower claim |
 | Denial and indeterminate | — | `capability-excess` on a 2xx; `capability-unavailable` on anything else, including a version mismatch | new |
 | Limits and work | — | Up to four reads per lease; bodies discarded after 16 384 bytes | new |

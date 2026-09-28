@@ -49,7 +49,6 @@ the release-candidate publication set):
 - `auths-sdk`: trusted-context, verification, issuance, and custody
   facade selected for the first public Rust surface;
 - `auths-enforcement`: a transport-neutral in-process enforcement kit;
-- `auths-profile-kit`: deterministic fixtures and hostile-input scaffolding;
 - `@auths-dev/sdk`: precompiled WASM with an idiomatic TypeScript API;
 - `auths`: stable-ABI Python wheels;
 - `auths.dev/independent-verifier/auths`: independent pure-Go verifier.

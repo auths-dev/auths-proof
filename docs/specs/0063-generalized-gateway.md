@@ -1,15 +1,12 @@
 # AP-SPEC-063: The generalized gateway: recovery capability, provider capabilities, one spend limit, operator plane, and evidence
 
-- **Status:** Draft, written on owner direction on 2026-09-25 before its epic
-  starts. Nothing here is implemented except what #166 and #168 merged on
-  2026-09-26: §5.5 step 7, part of §7.1, and Epic 6 step 1. Writing it does
-  not start an epic, and the WIP limit (program board rule 1) still governs
-  implementation. §13's readings are PROVISIONAL until the owner reviews
-  them. On 2026-09-27 the owner chose §12 option A: the gateway becomes the
-  single provider-write path. On the same day the owner decided that
-  production keeps the `auths-stripe` vertical's five checks, as the
-  provider-neutral capabilities of §5.6–§5.9 and §6.10. This change adds this
-  file and its program board entries.
+- **Status:** Draft, written on owner direction on 2026-09-25 before its
+  epics started. Epics 1–7 are merged (#181–#187), and epic 8 removes the
+  local-agent effect profiles and rewrites the documents §12 lists. §13's readings are PROVISIONAL until the owner reviews them. On
+  2026-09-27 the owner chose §12 option A: the gateway becomes the single
+  provider-write path. On the same day the owner decided that production
+  keeps the `auths-stripe` vertical's five checks, as the provider-neutral
+  capabilities of §5.6–§5.9 and §6.10.
 - **Depends on:** [AP-SPEC-053](0053-declarative-credential-isolated-gateway.md)
   (gateway, recipe language, stages),
   [AP-SPEC-056](0056-openapi-derived-operation-contracts.md) (derivation),
@@ -1896,6 +1893,11 @@ decision (option A, 2026-09-27) and is not listed.
 | 49 | How `install`'s onboarding reads reach the counting double | (a) `install --loopback-provider <port>` in the `loopback-provider` build only, for a first install; (b) skip the reads in that build | (a): the development build runs the same checks in the same order, and only their destination differs; the default build has no such option |
 | 50 | The north-star profile gains `connect_account` and `currency` | (a) keep version 1 and tool `create_refund_v1`, regenerating the lock as a clean cutover; (b) bump to version 2, tool `create_refund_v2` | (a): §3.1 and Epic 1's fixture name `create_refund_v1`; prelaunch there are no earlier actions to keep apart, and every recipe needs a new approval under §3.3 anyway |
 | 51 | Reading 16's check against the provider's documentation | (a) keep the denied reads: Stripe documents 403 for a key without permission but not whether that refusal carries `Stripe-Version`, so the double echoes it as the vertical requires and the developer's test-mode run confirms it; (b) drop the denied reads | (a): a refusal without the header fails closed at `install` (`gateway.install.credential-capability`), never open |
+| 52 | What remains of `product/runtime/auths-node` once the local agent goes | (a) the operator CLI `auths-node gateway recipe check`, with no library, socket, or feature; (b) remove the crate and fold the check into `auths-gateway review` | (a): the public naming inventory reserves `auths-node` as the deployment binary, and derivation reports and their corpus test print this command; renaming a public binary is outside §12's list |
+| 53 | The live provider qualification machinery (AP-SPEC-044: the supervisor and evidence-source crates, the profile kit, `cargo xtask profile`, the qualification release build, and the `profile-qualification*` workflows) | (a) removed with the profiles it qualifies; (b) kept for later recipes | (a): it drives the removed agent binary and qualifies only the removed routes; ADR 0013's later ADR specifies the evidence for the recipe it names |
+| 54 | Production-only modules of the domain crates beyond the local-agent route (connection onboarding and administration, the Stripe protected evidence reader and its binary, the prepared-plan and prepared-update stores, the OpenTofu protected executor, the profile error fragments) | (a) removed; (b) kept as references | (a): §12 keeps pure evaluators, fixtures, Kani harnesses, and demos; these modules are none of those, and no demo uses them |
+| 55 | The SDKs' local-agent client (Python `auths.Client` and `auths.connect`, `auths.profile_runtime`; TypeScript `session.ts` and `@auths-dev/sdk/profile-runtime`) and its registry codes (`client.*`, `connection.*`, `operation.*`, and the five profiles' codes) | (a) removed, so the gateway client is the SDKs' only write path; (b) kept without a server | (a): a client with no agent to reach is a second, dead write path, and no remaining component emits those codes |
+| 56 | Shared product code that only the local agent used (the operation journal and connection store in `auths-stores`, the receipt trust anchors in `auths-receipts`, the agent configuration in `auths-config`, the qualification broker in `auths-connections`, the local-agent protocol in `auths-production-client`) | (a) removed, each crate keeping its other consumers' surface; (b) kept | (a): the prelaunch rule removes superseded production code in the same change; `auths-production-client` keeps only the SDK telemetry projection the bindings use |
 
 ## 14. Conflicts with committed documents
 
@@ -1920,7 +1922,9 @@ Each amendment lands with the code that causes it.
 | Board §4, 2026-09-24, readings 1 and 4 | (1) The count keyed to the bounded branch's actor; (4) the audit evaluated at the outcome's signing time and recounted in that order | (1) Keyed to each link's subject; (4) evaluated at `evaluated-at`, with §6.7's order-free test |
 | #156 | The boolean `write.idempotency_key`; its state-loss journey | The object form of §4.1. The journey stays valid, since a wiped store forgets claims and counts (§1), once its approval window fits §4.5's retention rule |
 | settled.md | "Stripe metadata doesn't carry an action-derived echo"; single-host connection state | Scoped to `auths-stripe`, because the gateway recipe gains a form echo with the same non-claims; connection state is shared through the store |
-| ADR 0012 and the boundary plan | — | Rewritten in epic 8, under §12's decision (option A) |
+| ADR 0012 and the boundary plan | — | Rewritten in epic 8, under §12's decision (option A): production writes are data-only recipes, and verticals stay the source of reviewed semantics and evidence, not the production executor |
+| AP-SPEC-040–044, AP-SPEC-038 Epic 6 | The local-agent profiles, their qualification, and the three-vertical production epic | Epic 8 adds a status note to each: 040 is superseded for provider writes; 041, 044, and 038 Epic 6 move to gateway recipes; 042 and 043 end with their production paths |
+| ADR 0013 | Evidence entries cite local-agent code | Epic 8 marks each removed citation with the last revision that held it, and records that the qualification machinery went with the profiles; the ADR stays Proposed |
 | Board rule 3 | Specs are written when an epic starts | The owner directed this one ahead, as with 059–061 (board §4, 2026-09-22) |
 
 ## 15. Epics and done gates

@@ -72,12 +72,6 @@ prerelease description comes from the digest-bound staged copy of
 [`RELEASE_CANDIDATE_NOTES.md`](RELEASE_CANDIDATE_NOTES.md), not mutable or
 hardcoded workflow prose.
 
-Before the protected promotion boundary opens, the entry gate runs the strict
-Rust-owned qualification release check. It requires the exact five-profile
-linux-x86_64 launch set, three distinct family attestations, and exact agreement
-among the signed records, qualification index, roster, and launch projection.
-An empty or merely well-formed unqualified index cannot authorize promotion.
-
 The SLSA 1.2 Build Level 3 assessment is recorded in
 [`SLSA_BUILD_LEVEL_3_ASSESSMENT.md`](SLSA_BUILD_LEVEL_3_ASSESSMENT.md) and its
 machine-readable companion. It is bound to an observed successful preparation

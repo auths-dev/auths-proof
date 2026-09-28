@@ -400,6 +400,4 @@ install step, on stdin; the secret key reaches only `curl`.
   helps only if that store is lost and the refund is submitted again, and
   then only while Stripe still keeps the key. `journey.py` shows this
   against the double, not against Stripe.
-- The double is not Stripe. Until the local-agent Stripe vertical is
-  retired, a Stripe account reachable through both it and this gateway has
-  two unrelated limits, and neither bounds the other path.
+- The double is not Stripe.

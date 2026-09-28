@@ -8,6 +8,21 @@ Evaluator semantics: `auths.stripe.bounded-refund-evaluator/1`
 Product package: `product/integrations/auths-stripe`
 Demo: `demos/stripe-refund`
 
+> **Status note (2026-09-28).** On 2026-09-27 the owner chose AP-SPEC-063
+> §12 option A, which makes the Auths gateway the single provider-write path.
+> The local agent that served this refund in production (the
+> `auths.stripe.refund/1` route, its journal and reservation store,
+> connection administration, and qualification material) was removed. A
+> Stripe refund in production is now the gateway recipe in
+> `examples/stripe-refund-approval/`, which declares this vertical's five
+> checks as recipe capabilities: relative ceiling, account binding, denied
+> reads, Connect account scope, and a per-currency sum budget. AP-SPEC-063
+> §6.9 and §14 list where each is narrower than this specification.
+> `auths-stripe` stays only as a test-only reference: the pure evaluator,
+> fixtures, Kani harnesses, and `demos/stripe-refund`. Sections that describe
+> the local agent (in §6, §11.1, §13, and §25) record the vertical as it
+> was specified.
+
 ## 1. Decision
 
 Add an immutable, versioned Stripe refund policy and deterministic evaluator

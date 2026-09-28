@@ -1,6 +1,6 @@
 # Prompt: execution, crash recovery and exactly-once
 
-Scope: `product/runtime/auths-node` (especially `journal_executor.rs`), `auths-gateway`, `auths-lifecycle`, `auths-profile-runtime`, `product/stores`.
+Scope: `auths-gateway` (especially its attempt store and submission path), `auths-lifecycle`, `product/stores`.
 
 Goal: establish what the system actually guarantees about how many times a side effect happens, under crashes, retries and concurrency.
 
@@ -12,7 +12,7 @@ Answer:
    - How long does the provider remember keys, and is reconciliation guaranteed to run inside that window?
    - What happens for providers that have neither idempotency nor read-back?
 4. **Concurrency.**
-   - Two submits of the same action, two different actions sharing a budget, two processes on the same journal file. Trace each.
+   - Two submits of the same action, two different actions sharing a budget, two processes on the same attempt store. Trace each.
    - Is locking in-process only, or across processes? Across hosts?
 5. **Async hazards.**
    - Look for blocking IO or fsync inside async code without `spawn_blocking`.

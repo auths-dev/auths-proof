@@ -1,6 +1,6 @@
 # Prompt: secrets, custody and operational security
 
-Scope: `product/runtime/auths-connections`, `auths-gateway/src/transport.rs`, `product/integrations/auths-custody*`, `auths-node` (local agent and socket auth), `product/operations*`, `bindings/python`, `bindings/typescript`, `release/`, `.github/`.
+Scope: `product/runtime/auths-connections`, `auths-gateway/src/transport.rs`, `product/integrations/auths-custody*`, `auths-gateway` (application and admin sockets, peer authentication), `product/operations*`, `bindings/python`, `bindings/typescript`, `release/`, `.github/`.
 
 Goal: follow every secret (provider credentials, signing keys, observer keys) from creation to disposal.
 
@@ -16,12 +16,12 @@ Answer:
    - Are auth headers marked sensitive?
    - Can secrets reach logs, errors, `Debug`, OTel spans, receipts, panics or core dumps? Grep for every `Debug`/`Display`/`Serialize` on types that contain secrets.
 4. **Who can call.**
-   - How does the local agent authenticate the calling workload (peer credentials, `/proc` exe, cgroup)?
+   - How does the gateway authenticate callers on its application and admin sockets (peer credentials)?
    - Can another process under the same user impersonate it?
    - What about containers, symlinked exes, or deleted-and-replaced binaries?
 5. **Trust boundaries.**
-   - Which code is trusted with raw secrets (profiles via `expose()`)?
-   - Can a bug in one profile read another connection's credential?
+   - Which code is trusted with raw secrets (the gateway transport, adapters via `expose()`)?
+   - Can a bug in one recipe or adapter read another connection's credential?
 6. **Network.** Check SSRF defences (DNS pinning, IPv6, redirects, proxies), TLS settings, and response-size limits.
 7. **Keys and roles.**
    - Are root, operator and observer keys actually separated?

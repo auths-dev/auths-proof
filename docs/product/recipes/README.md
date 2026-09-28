@@ -9,7 +9,10 @@ The displayed TypeScript and Python programs are generated from the
 external-consumer sources in `bindings/recipes`. The installed-artifact runner
 executes them against the packed root packages.
 
-Effectful applications use the local agent and a generated profile client.
-Start with the [production SDK quickstart](../PRODUCTION_SDK_QUICKSTART.md).
+Effectful applications either send provider writes through a gateway recipe,
+which holds the credential, or keep the credential in an application-owned
+adapter. Start with the
+[Stripe refund example](../../../examples/stripe-refund-approval/README.md) or
+the [application-owned adapter quickstart](../SELF_HOSTED_PROFILE_QUICKSTART.md).
 The removed caller-handler, remote-token, and staged-delegation recipes are not
-compatibility examples for the AP-SPEC-040 relaunch.
+compatibility examples.

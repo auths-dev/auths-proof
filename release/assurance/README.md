@@ -18,7 +18,5 @@ candidate --bind  ->  record evidence, qualification, and review
 release assurance key has yet been established. Adding a signer is an explicit,
 reviewed source change; a manifest signed by an unlisted key is rejected.
 
-Production qualification records and their immutable index live under
-[`../qualification/v1`](../qualification/v1). Promotion requires the strict
-qualification release check; this directory remains only the trust root and
-schema-owned inputs for the deterministic assurance archive.
+This directory holds only the trust root and schema-owned inputs for the
+deterministic assurance archive.

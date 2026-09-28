@@ -107,10 +107,7 @@ held which key, is operator evidence and is not produced by this code.
   claim. A namespace served from two stores, or a store that is wiped or
   restored, counts separately; reinstall under a new namespace after a loss.
   `serve` deletes count and sum slots one full window after their window
-  ends, at most 1 024 every 60 seconds, and never deletes a claim. Until the
-  local-agent Stripe vertical is retired, a Stripe account reachable through
-  both it and the gateway has two unrelated limits: neither bounds the other
-  path, so do not rely on either for both.
+  ends, at most 1 024 every 60 seconds, and never deletes a claim.
 - **Connection state is shared.** The connection record
   (`auths.provider-connection/2`) lives in the attempt store, so every process
   sharing the store reads it before each claim, again before the credential

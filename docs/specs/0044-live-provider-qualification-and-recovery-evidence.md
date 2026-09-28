@@ -2,7 +2,26 @@
 
 ## Status
 
-Implementation contract for qualifying real Stripe, PostgreSQL, and OpenTofu
+**Moved to gateway recipes on 28 September 2026.** Under the owner's decision
+of 27 September 2026 ([AP-SPEC-063](0063-generalized-gateway.md) §12, option
+A) the gateway is the single provider-write path, and AP-SPEC-063 epic 8
+removed the local-agent profiles this document qualifies, together with its
+machinery: the qualification supervisor and evidence-source crates, the
+qualification build of the agent, the qualification ledger and attester
+tools, the `profile-qualification*` workflows, `release/qualification/v1`,
+and the qualification release build. No profile was ever qualified under it.
+
+A gateway recipe earns a qualified claim only as
+[ADR 0013](../adr/0013-recipe-capabilities-and-sum-budget.md) states: a later
+ADR names the recipe's digest family, keeps the vertical's pure evaluator and
+fixtures as a test-only oracle, shows differential agreement with that
+oracle on the vertical's corpus, cites hosted evidence from a live provider
+contract, and specifies the evidence pipeline that produces it. The
+PostgreSQL and OpenTofu rows (§14, §15) have no recipe, because their
+production paths ended. The text below is the record of the local-agent
+design and is not a current requirement.
+
+Original status: implementation contract for qualifying real Stripe, PostgreSQL, and OpenTofu
 profiles for production advertisement.
 
 This specification closes the launch gate left intentionally open by

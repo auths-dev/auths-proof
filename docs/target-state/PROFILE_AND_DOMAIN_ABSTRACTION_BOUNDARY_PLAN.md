@@ -2,7 +2,11 @@
 
 ## Status
 
-Target-state architectural plan.
+Target-state architectural plan. Amended on 28 September 2026 under the
+owner's decision of 27 September 2026
+([AP-SPEC-063](../specs/0063-generalized-gateway.md) §12, option A): the
+Auths gateway is the single production path for provider writes, and every
+production write is a data-only recipe.
 
 This document defines how Auths Proof adds profiles, profile families, and
 provider domains without prematurely coupling their semantics. It generalizes
@@ -13,6 +17,11 @@ The governing rule is:
 
 > Build complete vertical semantics first. Extract shared mechanisms only
 > after independent implementations prove that their contracts are identical.
+
+Since the gateway decision, a vertical is where domain semantics are built,
+reviewed, and tested. It is not where a production write runs: that is a
+recipe the gateway interprets, and a recipe may use only mechanisms that
+passed this plan's extraction gates.
 
 Auths-proof is prelaunch and has no users or production state. Until that
 changes, architectural “migration” means a direct source cutover to one
@@ -77,10 +86,31 @@ This plan uses the following terms:
 - **Semantic abstraction**: shared code that decides authorization, state
   transitions, obligations, provider behavior, or receipt meaning.
 - **Vertical**: the complete path from canonical action and policy through
-  execution, observation, receipts, frontend, and live tests.
+  execution, observation, receipts, frontend, and live tests. Since the
+  gateway decision a vertical runs in tests and demos only; it is the
+  reference for a domain's semantics, not a production executor.
+- **Recipe**: operator-approved, digest-bound data that the gateway
+  interprets to send one closed provider request for one verified action
+  ([ADR 0012](../adr/0012-declarative-credential-isolated-gateway-boundary.md),
+  [AP-SPEC-063](../specs/0063-generalized-gateway.md) §3).
 
-The vertical-package rule applies when Auths owns the credential-bearing
-executor or makes qualified end-to-end effect claims. The distinct
+The vertical-package rule governs how domain semantics are built and
+reviewed. Production provider writes are data-only recipes: the Auths gateway
+is the only Auths component that holds a production provider credential,
+claims an operation, and sends a provider write, and it interprets no
+provider field. A vertical package stays the source of reviewed semantics and
+evidence for its domain. Its pure evaluators, canonical fixtures, mutation
+corpus, Kani harnesses, formal models, and demos are test-only references:
+they are the oracle a recipe capability is compared against before it is
+admitted, and the oracle a later qualified claim must agree with. No
+vertical package holds a production credential, serves an application
+channel, or issues a production receipt. A domain whose provider is not
+reached over HTTPS, such as PostgreSQL or OpenTofu, therefore has no
+production path; its package stays a reference. Phases 0, 1, 3, and 4 below
+apply to every vertical. Phase 2 describes the reference implementation of
+the durable order, which the gateway implements once for every recipe.
+
+The distinct
 [self-hosted developer path](../specs/0051-self-hosted-developer-profiles.md)
 uses the existing exact `auths.mcp/v2` action and native verifier, but the
 application owns the provider credential, request mapping, attempt persistence,
@@ -91,23 +121,36 @@ Auths gateway, lease Auths-held credentials to callbacks, or issue qualified
 execution receipts for application-owned calls.
 
 [ADR 0012](../adr/0012-declarative-credential-isolated-gateway-boundary.md)
-permits a separate *candidate* data-only mechanism for credential-isolated
-closed requests under [AP-SPEC-053](../specs/0053-declarative-credential-isolated-gateway.md).
-Its application channel supplies proof and canonical action only; an operator
-separately approves the typed recipe digest, trust, connection, and credential
-generation. The gateway may share bounded request-construction mechanics, not
-provider-specific effect, recovery, or qualified receipt semantics. It must
-not load developer code, accept runtime request parameters, or lease secrets
-to a callback. The [three-operation abstraction case](../research/domains/abstraction-cases/0007-declarative-credential-isolated-request.md)
-records the proposed extraction and its divergent semantics. This is a
-review gate, not approval to ship a gateway or claim non-bypassability; the
-vertical-first rule continues to govern qualified provider effects.
+makes the data-only gateway of
+[AP-SPEC-053](../specs/0053-declarative-credential-isolated-gateway.md), as
+generalized by [AP-SPEC-063](../specs/0063-generalized-gateway.md), the
+production mechanism for credential-isolated provider writes. Its application
+channel supplies proof and canonical action only; an operator separately
+approves the typed recipe digest, trust, connection, and credential
+generation. The gateway owns the shared mechanics once: bounded request
+construction, the atomic claim, the spend limit, attempt records, recovery,
+and the recorded outcome. Every provider-specific value, such as a header
+value, a path, a JSON pointer, a status, or a ratio, is recipe data that the
+operator approves by digest. The gateway must not load developer code, accept
+runtime request parameters, lease secrets to a callback, or branch on a
+provider or operation tag.
+[ADR 0013](../adr/0013-recipe-capabilities-and-sum-budget.md) lists the closed
+recipe capabilities the gateway may contain and states how a recipe could
+earn a qualified claim; until a later ADR grants one, no recipe is
+qualified. The
+[abstraction case](../research/domains/abstraction-cases/0007-declarative-credential-isolated-request.md)
+records the comparison behind each capability. Adding a capability is a
+semantic extraction: it follows this plan's promotion rules, its case-file
+protocol, and a vertical reference that exercises it.
 
 ## Architectural decision
 
 ### Vertical package first
 
-New domain semantics begin in one cohesive product package:
+New domain semantics begin in one cohesive product package, which is the
+domain's reference. A production write for that domain is then a recipe that
+uses admitted gateway capabilities; a behavior the capabilities cannot
+express is not shipped until a new capability passes the extraction gates:
 
 ```text
 product/integrations/auths-<domain>/
@@ -140,6 +183,11 @@ Every profile owns:
 - its orchestration and reconciliation rules;
 - its profile receipts and stable codes;
 - its fixtures, mutation corpus, live contract, and demo.
+
+In production, the closed outbound request, the credential, the claim, and
+the recorded outcome belong to the gateway and the approved recipe; the
+vertical keeps its own for its tests and demos, where they are the reference
+the recipe is compared against.
 
 Two profiles may share a policy carrier without sharing an evaluator function.
 They may share a store implementation without sharing transition semantics.
@@ -322,6 +370,12 @@ Framework inversion does not make semantics generic. Passing domain behavior as
 traits, closures, or plugins can couple profiles just as strongly as a large
 `match` statement.
 
+The gateway's closed request construction, credential timing, spend limit,
+and unknown-outcome recording are the extractions that ADR 0012 and ADR 0013
+admitted through this gate, each on its written comparison. They carry no
+provider meaning: every provider-specific value in them is recipe data, and
+the list above still applies to anything they do not already cover.
+
 ## Vertical implementation workflow
 
 ### Phase 0: boundary specification
@@ -367,7 +421,10 @@ Do not begin by implementing a generic evaluator interface.
 
 ### Phase 2: durable exact-effect boundary
 
-Implement the ordered stateful path:
+Implement the ordered stateful path in the reference vertical. The gateway
+implements the same order once for every recipe (AP-SPEC-063 §5.5); the
+vertical's implementation is the oracle for the recipe capabilities the
+domain needs:
 
 ```text
 fresh evidence
@@ -708,7 +765,9 @@ demos rather than sources of production truth.
 This boundary is working when:
 
 - new domains begin as cohesive vertical packages;
-- every exact effect has a profile-owned typed path;
+- every exact effect has a profile-owned typed reference path, and every
+  production write is a digest-bound recipe whose capabilities have a
+  vertical reference and a case-file comparison;
 - domain inventories and compliance evidence agree;
 - abstractions are supported by several completed verticals;
 - source cutovers preserve exact decisions, commands, state, and receipts;

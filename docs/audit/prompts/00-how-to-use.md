@@ -8,9 +8,9 @@ Prompts `01`–`07` are standalone prompts, one reviewer agent each, with no pri
 >
 > The project is proof-carrying authorization for AI agent actions:
 > - a pure offline Rust verification kernel (`core/crates/*`);
-> - a runtime, gateway and journal (`product/runtime/*`, `product/stores/*`);
-> - provider integrations (`product/integrations/*`);
-> - generated profiles (`xtask`, `product/sdk/auths-profile-kit`);
+> - a runtime and the gateway, the single provider-write path (`product/runtime/*`, `product/stores/*`);
+> - gateway recipes (`examples/`, `bindings/fixtures/gateway/`) and the operator recipe check (`auths-node gateway recipe check`);
+> - provider integrations (`product/integrations/*`; `auths-stripe`, `auths-postgresql` and `auths-opentofu` are test-only references);
 > - Python/TypeScript SDKs (`bindings/*`);
 > - Go and TS independent verifiers;
 > - Lean/Aeneas/Kani formal work (`formal/`).

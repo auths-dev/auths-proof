@@ -35,7 +35,7 @@ evidence; `auths-lifecycle::Committed` is not a projection of an HTTP response.
 | New type / owner | Invariant | Why an existing type is insufficient |
 | --- | --- | --- |
 | `auths-gateway::OperatorNamespace` | 1–64 canonical ASCII token bytes, operator-approved literal | `SemanticId` permits `:` and `/` and is not an operator/account replay namespace. |
-| `auths-gateway::LogicalOperationId` | 1–128 canonical ASCII token bytes; replay key independent of proof challenge | `OperationId` names a local-agent operation, not a durable cross-proof logical request. |
+| `auths-gateway::LogicalOperationId` | 1–128 canonical ASCII token bytes; replay key independent of proof challenge | `auths-lifecycle::OperationIdV1` is a server-generated identifier for one operation, not a caller-chosen, durable cross-proof logical request. |
 | `auths-gateway::CompiledRecipe` | bounded, validated, digest-stable request grammar tied to a profile lock | `ExactMcpTool` owns action shape, not outbound HTTP mapping. |
 | `auths-gateway::ClosedProviderRequest` | request built only from a native-verified command and approved literals | Provider-specific commands cannot express a self-service closed transport mapping. |
 | `auths-gateway::GatewayAttemptStage` | `not-entered`, `attempting`, `response-recorded`, `unknown`, `observed`, `observed-by-provider` (terminal; only from `response-recorded` or a persisted `unknown`) | SDK `confirmed` and lifecycle `Committed` make stronger or different claims. |

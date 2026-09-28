@@ -3,6 +3,8 @@
 **Status:** Proposed, for owner review with AP-SPEC-063 epic 1. It amends
 ADR 0012. Accepting it approves the mechanisms below as candidates for
 epics 2–7; it approves no implementation, deployment, or product claim.
+Epic 8 removed the local-agent code some evidence entries cite; those
+entries name the last revision that held it, `09596075`.
 
 **Date:** 27 September 2026
 
@@ -68,9 +70,9 @@ denied reads, account scope, sum budget) reopens its row of AP-SPEC-063 §12.
   registry is the only place a provider header name appears in gateway code,
   and it names headers, not behavior; adding an entry needs an amendment with
   vertical evidence and hostile fixtures.
-- **Evidence.** `auths-stripe` sends and requires `Stripe-Version`
-  (`bounded_provider_result` in `local_agent.rs`); `auths-github` sends
-  `X-GitHub-Api-Version` (`adapters.rs`).
+- **Evidence.** `auths-stripe` sent and required `Stripe-Version`
+  (`bounded_provider_result` in `local_agent.rs`, removed in epic 8; see
+  `09596075`); `auths-github` sends `X-GitHub-Api-Version` (`adapters.rs`).
 - **Operation-owned.** Which version, and what it changes at the provider.
 
 ### 2. Credential-mode guard
@@ -82,7 +84,7 @@ denied reads, account scope, sum budget) reopens its row of AP-SPEC-063 §12.
   independent of what "test mode" means; the author states the convention.
 - **Evidence.** `valid_static_secret` and `verify_account_response`
   (`auths-stripe` onboarding) and the lease-time prefix check in
-  `credentials.rs`; AP-SPEC-012 §7.
+  `credentials.rs`, all removed in epic 8 (see `09596075`); AP-SPEC-012 §7.
 - **Operation-owned.** What a prefix or the probed field means.
 
 ### 3. Idempotency declaration
@@ -117,8 +119,9 @@ denied reads, account scope, sum budget) reopens its row of AP-SPEC-063 §12.
   compiler in sorted order.
 - **Why it is a primitive.** It is the existing JSON placement in the form
   grammar; the token, stages, and evidence record are unchanged.
-- **Evidence.** `echo_token` in `recipe.rs`; the vertical writes form
-  `metadata[...]` fields (`local_agent.rs`).
+- **Evidence.** `echo_token` in `recipe.rs`; the vertical wrote form
+  `metadata[...]` fields (`local_agent.rs`, removed in epic 8; see
+  `09596075`).
 - **Operation-owned.** Authorship, which the unkeyed token never shows.
 
 ### 6. Pre-entry re-read
@@ -153,7 +156,8 @@ denied reads, account scope, sum budget) reopens its row of AP-SPEC-063 §12.
 - **Why it is a primitive.** Constant-time comparison of two commitments is on
   the plan's early-shareable list; the read uses the probe mechanics.
 - **Evidence.** `verify_account_response` at onboarding and the
-  `account_commitment` lookup in `lease_credential` (`auths-stripe`).
+  `account_commitment` lookup in `lease_credential` (`auths-stripe`, removed
+  in epic 8; see `09596075`).
 - **Operation-owned.** What an account is.
 
 ### 9. Denied reads
@@ -167,7 +171,8 @@ denied reads, account scope, sum budget) reopens its row of AP-SPEC-063 §12.
   with an observed check, and claims only that the declared requests were
   refused at that lease.
 - **Evidence.** AP-SPEC-012 §13's restricted credential; `valid_static_secret`
-  and `lease_credential`, which cannot read a key's permissions.
+  and `lease_credential`, which cannot read a key's permissions (removed in
+  epic 8; see `09596075`).
 - **Operation-owned.** Which permissions a key should lack.
 
 ### 10. Account-scope headers
@@ -218,7 +223,9 @@ through a later ADR that names its digest family, keeps the vertical's pure
 evaluator and fixtures as a test-only oracle, shows differential agreement
 with that oracle on the vertical's corpus, and cites hosted evidence from a
 live provider contract. Until such an ADR, no document may call a recipe
-qualified.
+qualified. Epic 8 removed the AP-SPEC-044 qualification machinery with the
+local-agent profiles it qualified, so such an ADR also specifies the hosted
+evidence pipeline for the recipe it names.
 
 ## Rejected alternatives
 
@@ -243,7 +250,7 @@ qualified.
   `attempt-scenarios-v3.json`, `bounds-aggregate.json`, `outcome-v2.json`,
   `key-identity.json`, and `codes.json`), each with a test showing that
   current code does not satisfy it.
-- ADR 0012 stays in force. Epic 8 rewrites its decision and consequences
+- ADR 0012 stays in force. Epic 8 rewrote its decision and consequences
   under §12 option A; this ADR changes only the set of mechanisms the
   interpreter may contain.
 - A rejected capability loses its compile rows, codes, and vectors in the

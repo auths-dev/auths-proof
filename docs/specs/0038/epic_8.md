@@ -6,6 +6,14 @@ Parent: [0038](../0038-production-runtime-custody-observability-and-assurance.md
 
 Depends on: [Epic 2](epic_2.md), [Epic 3](epic_3.md), [Epic 4](epic_4.md), [Epic 5](epic_5.md), [Epic 6](epic_6.md), and [Epic 7](epic_7.md)
 
+> **Status note (2026-09-28).** The deployment this epic specifies, an
+> `auths-node` runtime serving the exact-effect profiles, no longer exists. On
+> 2026-09-27 the owner chose AP-SPEC-063 §12 option A: the Auths gateway is
+> the single provider-write path, the local agent and its five effect profiles
+> were removed, and `auths-node` builds only the operator command
+> `auths-node gateway recipe check`. The text below records the epic as it was
+> specified.
+
 ## 1. Outcome
 
 Ship one reproducible, open deployment of Auths that a team can operate on its

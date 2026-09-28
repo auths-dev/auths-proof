@@ -1,6 +1,6 @@
 # Prompt: provider integrations and evidence truth
 
-Scope: `product/integrations/*` (especially `auths-stripe`, `auths-postgresql`, `auths-github`, `auths-opentofu`, `auths-records-api`), `auths-gateway` recipes, `bindings/fixtures/gateway/*`, `product/tools/auths-openapi-derive`, `demos/*`.
+Scope: `product/integrations/*` (especially `auths-github` and `auths-records-api`; `auths-stripe`, `auths-postgresql` and `auths-opentofu` are test-only references with no production path), `auths-gateway` recipes, `bindings/fixtures/gateway/*`, `product/tools/auths-openapi-derive`, `demos/*`.
 
 Goal: check that each provider path delivers the headline evidence claims, and find where it doesn't.
 
