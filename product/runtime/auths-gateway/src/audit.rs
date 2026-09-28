@@ -548,6 +548,29 @@ fn entry_outcome(
         .ok_or(())
 }
 
+impl Pending {
+    /// An entry that starts refused with an empty code until verification runs.
+    fn refused(operation: &str, evaluated_at: u64, outcome: Option<VerifiedOutcome>) -> Self {
+        Self {
+            entry: AuditedEntry {
+                operation_id: operation.to_owned(),
+                status: AuditStatus::Refused,
+                code: String::new(),
+                approvals: Vec::new(),
+                arguments: None,
+                evaluated_at,
+                provider_result: None,
+            },
+            outcome,
+            bound: None,
+            commitment: None,
+            finding: None,
+            pre_entry: None,
+            recount: None,
+        }
+    }
+}
+
 fn audit_entry(
     recipe: &CompiledRecipe,
     context: &TrustedContext,
@@ -578,23 +601,7 @@ fn audit_entry(
     let evaluated_at = outcome
         .as_ref()
         .map_or_else(|| validity_start(&proof), |value| value.record.evaluated_at);
-    let mut item = Pending {
-        entry: AuditedEntry {
-            operation_id: operation.clone(),
-            status: AuditStatus::Refused,
-            code: String::new(),
-            approvals: Vec::new(),
-            arguments: None,
-            evaluated_at,
-            provider_result: None,
-        },
-        outcome,
-        bound: None,
-        commitment: None,
-        finding: None,
-        pre_entry: None,
-        recount: None,
-    };
+    let mut item = Pending::refused(operation, evaluated_at, outcome);
     // The auditor applies the per-proof observer check the gateway admits
     // with; it does not re-run the retention rule or pre-entry selection
     // here, and checks the pre-entry evidence of entered entries below.
