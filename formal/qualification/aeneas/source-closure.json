@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "90496c14bacb0ef65e164a46197227e2d8a44b37b13232bbb01525b6ab23481b",
+  "digest": "af642ea59683fe5ca323042df94c3f1354b7cce4fc0e043ea4598b7ca466858e",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -73,7 +73,7 @@
     },
     {
       "path": "formal/qualification/aeneas/cases/Gateway.lean",
-      "sha256": "576435bafedcf5ebe4a86cb3f688a49ad88b7367512aa5d2a04587c88604e03a"
+      "sha256": "a6d3148ab9ad313a0d00b92313d6fb2bc70a131759e5ccffb9d6f5e028738264"
     },
     {
       "path": "formal/qualification/aeneas/cases/Lifecycle.lean",
@@ -85,7 +85,7 @@
     },
     {
       "path": "formal/qualification/aeneas/qualification.toml",
-      "sha256": "08ff16f18e23a47e04b8bfc6653a7121225f0aeaea2e97b736e2a321ba5899da"
+      "sha256": "b95ddf65bee514cabf25d05cf453f6f1ba28e9f991d61dbac9d87a5644cd4d82"
     },
     {
       "path": "formal/translation-toolchain.lock",
@@ -145,7 +145,7 @@
     },
     {
       "path": "product/runtime/auths-gateway-kernel/Cargo.toml",
-      "sha256": "a3f82ed704586f82372afc4be8b3bbaa81d42daa923eaa9c38e2c8e83ff901c7"
+      "sha256": "112524ce45711fab5395da6bdbdf091319abfcef9aa44491ac6bb898fa29c8a2"
     },
     {
       "path": "product/runtime/auths-gateway-kernel/src/construct.rs",
@@ -153,11 +153,23 @@
     },
     {
       "path": "product/runtime/auths-gateway-kernel/src/lib.rs",
-      "sha256": "3f49995de554bd26b47affe5eedb6e4f396fb91aa5934628f65e7035ca66db04"
+      "sha256": "fe263c8645ccc48367f3efcb8fd9ff149246c482bc7d67b02dec43aff3feac54"
+    },
+    {
+      "path": "product/runtime/auths-gateway-kernel/src/order.rs",
+      "sha256": "e0045f877c4b7fe3860c291039853885064ddcdebba7c9b345ab65e81e646dda"
+    },
+    {
+      "path": "product/runtime/auths-gateway-kernel/src/ratio.rs",
+      "sha256": "6a3dc8e6c890f5a9c2445a7ecbf6c8a043b9a479a0e9092bd4dfed2c7e5555b6"
     },
     {
       "path": "product/runtime/auths-gateway-kernel/src/recovery.rs",
       "sha256": "9c6b6668889bf859fbe1845bd6a30e83b874115b3eb5d5db148541e358cdda27"
+    },
+    {
+      "path": "product/runtime/auths-gateway-kernel/src/transition.rs",
+      "sha256": "3df1e9190884a9501b2b75c0695b8bfc504cdda0bb878468903db8bc7d5fe43f"
     },
     {
       "path": "product/runtime/auths-lifecycle/Cargo.toml",
@@ -277,11 +289,11 @@
     },
     {
       "path": "xtask/src/formal.rs",
-      "sha256": "7b203c40ee2dedb30eec0ee1170232466cb9ad15efc0772d4e5998ef24e1ce0a"
+      "sha256": "1b12f2aba5c5c57d191f217161aea4e05e5ddd889ae13ec0740a81b2d235d6a2"
     },
     {
       "path": "xtask/src/formal_qualification.rs",
-      "sha256": "2430c3c76f12b9ac4c7ec5a99bea0190c2efc4d2b88585cca0be6cae83c67f02"
+      "sha256": "3e9bcae2690023d11ef2b33c5fd3936849300456ff366415f5b0dc663e660a6a"
     },
     {
       "path": "xtask/src/fuzz.rs",
@@ -361,7 +373,7 @@
     },
     {
       "path": "xtask/src/semantic_freeze.rs",
-      "sha256": "816d88501e0ad14fe49e33b02f2ad550e6cbe8f6185a38358cca263a5c688f90"
+      "sha256": "79ef10857c2b76b00c0840ff256251eee2a292eb7d634113ba3304cd542002bd"
     },
     {
       "path": "xtask/src/stripe.rs",
