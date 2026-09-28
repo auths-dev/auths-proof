@@ -37,7 +37,9 @@ jobs:
           AUTHS_POSTGRES_URL: host=localhost port=55438 dbname=auths_lifecycle user=auths password=local-fixture-password sslmode=require
           AUTHS_POSTGRES_CA_PEM: ${{ github.workspace }}/product/stores/auths-stores/tests/postgres_tls/generated/ca.crt
           AUTHS_POSTGRES_SERVER_NAME: localhost
-        run: cargo test -p auths-gateway --lib -- --ignored postgres
+        run: |
+          cargo test -p auths-gateway --lib -- --ignored postgres
+          cargo test -p auths-gateway --test operator_plane -- --ignored postgres
       - name: Stop fixture
         if: always()
         run: docker compose -f product/stores/auths-stores/tests/postgres_tls/compose.yaml down -v

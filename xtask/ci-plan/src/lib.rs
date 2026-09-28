@@ -1077,6 +1077,12 @@ fn formal_closure_contains(path: &str, kind: FormalClosureKind) -> bool {
         || path.starts_with("core/crates/auths-authority/")
         || path.starts_with("product/runtime/auths-lifecycle/")
         || path.starts_with("product/runtime/auths-gateway-kernel/")
+        || matches!(
+            path,
+            "product/runtime/auths-connections/Cargo.toml"
+                | "product/runtime/auths-connections/src/lib.rs"
+                | "product/runtime/auths-connections/src/kernel.rs"
+        )
         || path.starts_with("product/policy/auths-bounded-policy/");
     let cargo_semantics = matches!(path, "Cargo.toml" | "Cargo.lock" | ".cargo/config.toml");
     match kind {

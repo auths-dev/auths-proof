@@ -15,35 +15,60 @@ A production deployment keeps three principals apart.
 | Principal | Holds | Where it appears |
 | --- | --- | --- |
 | Root | Grant-issuing key, in qualified custody; production roots MAY be several keys under an M-of-N composition | Trust anchors of the trusted context |
-| Operator | The gateway host, its admin socket, and the provider credentials | `--operator-principal` at install |
+| Operator | The gateway host, its admin socket, and the provider credentials | A signed operator attestation at install |
 | Observer | The key that signs what the gateway saw, in qualified custody | Observer anchors of the trusted context |
 
-Install a production gateway with:
+A production installation names its operator only through a signed
+`auths.gateway-operator-attestation/1` statement. `operator-request` prints
+the statement for the installation and the preimage the operator's own
+signer signs; the operator assembles the statement, the base64url signature,
+and at most four control-evidence objects into a file of at most 16 KiB,
+readable only by its owner:
 
 ```text
-auths-gateway install --deployment production --operator-principal <principal> ...
+auths-gateway operator-request --recipe recipe.json --profile-lock profile.lock.json \
+  --trusted-context trusted.context.cbor --provider <provider> --alias <alias> \
+  --deployment production --operator-principal <principal> \
+  --principal-method did-key-v1 --verification-method <method> --signature-suite ed25519-v1
+auths-gateway install --deployment production --operator-attestation operator-attestation.json ...
 ```
+
+`install` and every `serve` start verify the attestation as the kernel
+verifies a signed object: the named method (`raw-key-v1`, `did-key-v1`, or
+`did-keri-v1`) establishes the key from the control evidence for assertion,
+and the named suite verifies the signature. Its installation block must
+equal the installation, and its signing time may be at most 300 seconds
+ahead of the gateway clock. `operator-attest --replace` replaces it offline,
+with every gateway process stopped. A development installation may omit it
+and then has no operator.
 
 Install and every `serve` refuse an overlap with one stable code:
 
 | Code | Meaning |
 | --- | --- |
-| `gateway.install.operator-principal-required` | Production install without an operator principal |
+| `gateway.install.operator-attestation-required` | Production install or serve without an operator attestation |
+| `gateway.install.operator-attestation-invalid` | The attestation does not verify, names another installation, or is issued in the future |
 | `gateway.trust.operator-is-root` | The operator is a trust anchor |
 | `gateway.trust.operator-is-observer` | The operator is an observer anchor or the gateway's observer key |
 | `gateway.trust.observer-is-root` | An observer anchor, or the gateway's observer key, is a trust anchor |
 | `gateway.trust.observer-not-anchored` | The gateway's observer key is not an observer anchor of the trust |
+| `gateway.trust.key-aliased` | Two distinct trust or observer anchor identifiers name one key |
 
-These checks compare principal identifiers exactly. They refuse the same
-identifier in two roles; they cannot detect one key anchored under two
-principal methods (for example `did:key` and `raw-key-v1`), and
-`--operator-principal` is a declaration the gateway does not authenticate.
-Anchor each key under one principal method, and keep the custody of the
-three principals separate.
+Two principals overlap when their identifiers are equal or their key
+identities are: the SHA-256 of the canonical `raw-key-v1` descriptor of the
+one key a `raw-key-v1` or `did:key` identifier names. One Ed25519 or P-256
+key under both methods therefore overlaps itself. Other methods (`raw-key-v2`,
+`did:keri`, keyless methods) name no single key and keep identifier
+comparison, so anchor each key under one principal method and keep the
+custody of the three principals separate. An authenticated operator holds the
+key it names; separation of persons stays a human gate.
 
-The kernel separately refuses, per proof, an observer that appears in the
-proof's authority chain (`observer-in-authority-chain`), by the same exact
-identifier comparison.
+The kernel separately refuses, per proof, an observer whose identifier
+appears in the proof's authority chain (`observer-in-authority-chain`).
+Before the claim, the gateway also refuses an observer of a satisfying
+observation that overlaps by key the root, a grant issuer or subject, or the
+actor of an authorized branch
+(`gateway.trust.observer-key-in-authority-chain`).
 
 ### Root M-of-N
 
@@ -86,21 +111,42 @@ held which key, is operator evidence and is not produced by this code.
   local-agent Stripe vertical is retired, a Stripe account reachable through
   both it and the gateway has two unrelated limits: neither bounds the other
   path, so do not rely on either for both.
-- **Connection state is per process.** Each gateway process keeps its own
-  connection and credential state, so a disable, rotate, or revoke made
-  through one process's admin socket applies to that process only. Processes
-  must not share a state directory.
+- **Connection state is shared.** The connection record
+  (`auths.provider-connection/2`) lives in the attempt store, so every process
+  sharing the store reads it before each claim, again before the credential
+  lease, and again before entry. A disable, enable, rotation, or revocation
+  committed through any process's admin socket stops new leases and entries
+  in every process at its next reload. Each process keeps its own credential
+  store (`credentials.cbor`), and nothing secret enters the shared store. The
+  first host runs `install`; each further host runs `install --join` with the
+  same recipe, trust, lock, provider, alias, deployment, and store, and the
+  same secret, which it stores only when its reference commitment under the
+  record's credential generation matches (`gateway.install.join-commitment-mismatch`
+  otherwise). A `rotate` through a process holding the current secret commits
+  a new generation; every other process then runs its own `rotate` with the
+  same secret to take it (`gateway.admin.generation-conflict` for another
+  secret). Until it does, that process refuses entries before the claim
+  (`gateway.connection.credential-generation-missing`). A later disable or
+  enable leaves every process that holds the secret able to lease. After a
+  revocation, run `revoke` on each process to delete its stored secrets.
+  A store holding an `auths.provider-connection/1` record is obsolete
+  prelaunch state: recreate it.
 - **Development** installations keep the single-host file store under
-  `<state-dir>/attempts`. It is not a multi-host store.
-- **Sockets.** `serve` keeps separate capacity for the app socket and the
-  owner-only `admin.sock`, so `auths-gateway disable`, `revoke`, and `rotate`
-  still connect while the application holds or refills the app socket. A
-  connection past either socket's capacity is closed at accept without a
-  response. An admin change still waits for authorized submissions and
-  read-back observations already in progress, each bounded by the provider
-  transport's timeouts. A failed accept is logged as
-  `gateway.serve.accept-failed` and retried; it does not stop `serve`, but
-  repeated lines mean the process is short of descriptors.
+  `<state-dir>/attempts`, or under the absolute directory `--attempt-store`
+  names so that several processes on one host share it. It is not a
+  multi-host store.
+- **Sockets.** `serve` keeps separate capacity for the app socket
+  (`--app-capacity`, 1–1 024, default 64) and the owner-only `admin.sock`
+  (4), so `auths-gateway disable`, `enable`, `revoke`, `rotate`, `status`,
+  and `reobserve` still connect while the application holds or refills the
+  app socket. A connection past either socket's capacity is closed at accept
+  without a response. An admin change commits without waiting for any
+  submission or provider call, then waits at most 20 seconds for this
+  process's entries already past their final reload, and answers `drained`
+  with the remaining `in_flight` count. `serve` refuses to start when the
+  descriptor limit is below both capacities plus the store pool plus 32
+  (`gateway.serve.descriptor-limit`). A failed accept is logged as
+  `gateway.serve.accept-failed` and retried; it does not stop `serve`.
 - **Observer custody.** A production installation refuses the software
   observer seed (`gateway.production.observer-software-custody`), and
   `observer-init` refuses to create one. The engine accepts a custody-held

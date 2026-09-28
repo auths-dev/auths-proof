@@ -1612,7 +1612,7 @@ kind = "cargo"
 layer = "product"
 path = "product/runtime/auths-connections"
 core_apis = []
-protocol_versions = ["auths.provider-connection/1", "auths.connection-credential-store/1", "auths.qualification-credential-broker/1"]
+protocol_versions = ["auths.provider-connection/2", "auths.connection-credential-store/1", "auths.qualification-credential-broker/1"]
 wire_objects = ["ConnectionRecord", "QualificationCredentialLeaseRequest"]
 fixture_suites = ["product/fixtures/v1/provider-connections"]
 principal_families = []
@@ -1620,11 +1620,16 @@ signature_families = []
 profiles = ["caller-authorized"]
 transports = ["memory", "protected-credential-broker"]
 configuration_inputs = ["connection-alias", "provider-kind", "workload-identity"]
-security_state = ["connection-generation", "credential-reference", "provider-account-commitment"]
+security_state = ["connection-generation", "credential-generation", "credential-reference", "provider-account-commitment"]
 
 [packages.auths-connections.claims]
 independent-semantic-implementation = [
   "product/runtime/auths-connections/src/model.rs#canonical_record_round_trip_is_byte_exact",
+  "product/runtime/auths-connections/src/model.rs#state_changes_keep_and_rotations_set_the_credential_generation",
+  "product/runtime/auths-connections/src/model.rs#an_obsolete_version_one_record_is_refused_not_converted",
+  "product/runtime/auths-connections/src/kernel.rs#the_lease_uses_exactly_the_credential_generation",
+  "product/runtime/auths-connections/src/credential.rs#a_host_joining_after_state_changes_leases_the_credential_generation",
+  "product/runtime/auths-connections/src/credential.rs#a_cross_process_rotation_leases_on_every_host_after_state_changes",
   "product/runtime/auths-connections/src/registry.rs#missing_and_unauthorized_are_indistinguishable",
   "product/runtime/auths-connections/src/credential.rs#binding_commitment_substitution_fails_closed",
 ]
@@ -1655,16 +1660,16 @@ runtime-enforcement-boundary = [
 kind = "cargo"
 layer = "product"
 path = "product/runtime/auths-gateway"
-core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-verifier"]
-protocol_versions = ["auths.gateway-installation/2", "auths.lifecycle.transactional-store/4", "auths.gateway-recipe-source/2", "auths.gateway-compiled-recipe/2", "auths.gateway-recipe-review/2", "auths.gateway-recovery-capability/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/3", "auths.gateway-pre-entry/1", "auths.lifecycle.postgresql/5", "auths.gateway-echo/1", "auths.gateway-idempotency-key/1", "auths.gateway-observe/1", "auths.gateway-outcome/1", "auths.gateway-readback/1", "auths.self-hosted-profile-lock/1", "mcp-arguments-v1", "auths.gateway-bounded-count/2", "auths.gateway-bounded-sum/1", "auths.gateway-audit-bundle/1", "auths.gateway-audit-report/1", "auths.gateway.argument-ceiling-window-count/2", "auths.gateway.argument-ceiling-policy/2", "bounded-policy-commitment-v1", "auths.approval-response/1"]
-wire_objects = ["CompiledRecipe", "ClosedProviderRequest", "ClosedCredentialReads", "RecipeReview", "RecoveryCapability", "GatewayAttemptSnapshot", "GatewayPreEntry", "GatewayRecordEntry", "GatewayConnectionDescriptor", "GatewayEvidenceSummary", "GatewayObserveRequest", "GatewayObserveResult", "GatewayProviderEvidence", "GatewaySubmitResult", "SignedObservation", "ArgumentCeilingPolicy", "ListedValues", "BoundedPolicyCommitment", "AuditReport"]
+core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-model", "auths-multikey", "auths-ports", "auths-raw-key", "auths-raw-key-core", "auths-registries", "auths-signature", "auths-verifier"]
+protocol_versions = ["auths.gateway-installation/3", "auths.gateway-operator-attestation/1", "auths.gateway-admin-request/1", "auths.gateway-admin-response/1", "auths.gateway-connection/1", "auths.provider-connection/2", "auths.gateway-key-identity/1", "auths.lifecycle.transactional-store/4", "auths.gateway-recipe-source/2", "auths.gateway-compiled-recipe/2", "auths.gateway-recipe-review/2", "auths.gateway-recovery-capability/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/3", "auths.gateway-pre-entry/1", "auths.lifecycle.postgresql/5", "auths.gateway-echo/1", "auths.gateway-idempotency-key/1", "auths.gateway-observe/1", "auths.gateway-outcome/1", "auths.gateway-readback/1", "auths.self-hosted-profile-lock/1", "mcp-arguments-v1", "auths.gateway-audit-bundle/1", "auths.gateway-audit-report/1", "bounded-policy-commitment-v1", "auths.approval-response/1", "auths.gateway-bounded-count/2", "auths.gateway-bounded-sum/1", "auths.gateway.argument-ceiling-window-count/2", "auths.gateway.argument-ceiling-policy/2"]
+wire_objects = ["CompiledRecipe", "ClosedProviderRequest", "ClosedCredentialReads", "RecipeReview", "RecoveryCapability", "GatewayAttemptSnapshot", "GatewayPreEntry", "GatewayRecordEntry", "GatewayConnectionDescriptor", "ConnectionRecord", "OperatorAttestation", "OperatorStatement", "GatewayAdminStatus", "GatewayEvidenceSummary", "GatewayObserveRequest", "GatewayObserveResult", "GatewayProviderEvidence", "GatewaySubmitResult", "SignedObservation", "ArgumentCeilingPolicy", "BoundedPolicyCommitment", "AuditReport", "ListedValues"]
 fixture_suites = ["bindings/fixtures/approval", "bindings/fixtures/gateway"]
-principal_families = ["raw-key-v1"]
+principal_families = ["raw-key-v1", "did-key-v1", "did-keri-v1"]
 signature_families = ["ed25519-v1", "p256-sha256-v1"]
 profiles = ["auths.mcp/2"]
 transports = ["bounded-https", "postgresql-tls", "loopback-http-development"]
-configuration_inputs = ["operator-approved-recipe", "profile-lock", "independently-provisioned-trust", "connection-binding", "observer-anchor", "observer-signing-key", "deployment-kind", "operator-principal", "postgresql-store-configuration", "audit-trust-and-observer-pins"]
-security_state = ["recipe-digest", "logical-operation-claims", "credential-reference-generation", "echo-bound-provider-evidence", "observer-signing-seed", "custody-held-observer-key", "principal-separation", "link-subject-count-and-sum-slots", "pre-entry-evidence", "relative-ceiling-basis", "gateway-record-batches"]
+configuration_inputs = ["operator-approved-recipe", "profile-lock", "independently-provisioned-trust", "connection-binding", "observer-anchor", "observer-signing-key", "deployment-kind", "operator-attestation", "app-capacity", "development-shared-file-store", "postgresql-store-configuration", "audit-trust-and-observer-pins"]
+security_state = ["recipe-digest", "logical-operation-claims", "credential-reference-generation", "shared-connection-record", "credential-generation", "in-flight-entry-count", "echo-bound-provider-evidence", "observer-signing-seed", "custody-held-observer-key", "principal-separation", "key-identity-separation", "pre-entry-evidence", "relative-ceiling-basis", "gateway-record-batches", "link-subject-count-and-sum-slots"]
 
 [packages.auths-gateway.claims]
 configuration-compiler = [
@@ -1700,6 +1705,11 @@ principal-evidence-integration = [
   "product/runtime/auths-gateway/src/observed_tests.rs#custody_observer_passes_custody_conformance",
   "product/runtime/auths-gateway/src/observed_tests.rs#custody_observer_lifecycle_gates_the_provider",
   "product/runtime/auths-gateway/src/observed_tests.rs#production_principals_must_be_separate",
+  "product/runtime/auths-gateway/src/observed_tests.rs#observer_key_in_the_authority_chain_is_refused_by_key",
+  "product/runtime/auths-gateway/src/pending_vectors/keys.rs#key_identity_conformance",
+  "product/runtime/auths-gateway/src/pending_vectors/keys.rs#separation_compares_one_key_under_two_methods",
+  "product/runtime/auths-gateway/src/operator.rs#a_signed_attestation_authenticates_its_operator",
+  "product/runtime/auths-gateway/src/operator.rs#an_invalid_attestation_is_refused",
   "product/runtime/auths-gateway/src/observed_tests.rs#two_of_three_root_authorizes_only_with_two_distinct_roots",
   "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_reproduces_every_gateway_decision",
   "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_detects_a_tampered_bundle",
@@ -1727,10 +1737,20 @@ runtime-enforcement-boundary = [
   "product/runtime/auths-gateway/src/bounds_tests.rs#one_bounded_branch_is_admitted_and_counted_against_its_actor",
   "product/runtime/auths-gateway/src/bounds.rs#registry_refuses_unregistered_and_mismatched_evaluators",
   "product/runtime/auths-gateway/src/bounds.rs#decider_accepts_only_a_tighter_bound_on_the_same_argument_and_window",
+  "product/runtime/auths-gateway/tests/admin_capacity.rs#every_admin_command_answers_while_idle_application_connections_hold_the_capacity",
+  "product/runtime/auths-gateway/tests/admin_capacity.rs#serve_refuses_a_descriptor_limit_below_both_capacities",
+  "product/runtime/auths-gateway/src/engine.rs#file_store_shares_the_connection_across_processes",
+  "product/runtime/auths-gateway/src/engine.rs#postgres_store_shares_the_connection_across_processes",
+  "product/runtime/auths-gateway/src/engine.rs#an_admin_change_commits_without_waiting_and_reports_the_drain",
+  "product/runtime/auths-gateway/src/engine.rs#an_obsolete_record_is_refused_as_state",
+  "product/runtime/auths-gateway/src/engine.rs#a_join_needs_an_installed_record",
+  "product/runtime/auths-gateway/src/engine.rs#a_second_install_never_replaces_the_record",
+  "product/runtime/auths-gateway/src/listener.rs#accept_errors_back_off_and_the_listener_keeps_serving",
+  "product/runtime/auths-gateway/tests/operator_plane.rs#a_joined_process_sees_every_change_committed_through_the_other",
+  "product/runtime/auths-gateway/tests/operator_plane.rs#postgres_production_processes_share_the_connection",
+  "product/runtime/auths-gateway/tests/operator_plane.rs#a_production_install_needs_a_verifying_operator_attestation",
   "product/runtime/auths-gateway/src/bounds.rs#extended_policy_round_trips_and_refuses_every_malformed_member",
   "product/runtime/auths-gateway/src/bounds_tests.rs#delegates_share_their_parent_counter",
-  "product/runtime/auths-gateway/tests/admin_capacity.rs#revoke_answers_while_idle_application_connections_hold_the_capacity",
-  "product/runtime/auths-gateway/tests/admin_capacity.rs#a_failed_accept_does_not_stop_the_gateway",
   "product/runtime/auths-gateway/src/app.rs#the_deadline_closes_the_connection_but_never_cancels_the_call",
   "product/runtime/auths-gateway/src/transport.rs#write_sends_the_derived_idempotency_key_only_when_declared_and_read_back_never_does",
   "product/runtime/auths-gateway/src/scenario_tests.rs#attempt_scenarios_v3_drive_the_counting_provider",

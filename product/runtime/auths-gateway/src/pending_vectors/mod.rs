@@ -7,8 +7,8 @@
 //! Each submodule whose epic has not landed also runs its vectors against
 //! today's code and asserts the specific way that code falls short: the
 //! evaluator registry lacks the revised evaluator, the outcome verifier
-//! refuses the revised outcome, separation compares identifiers only, and
-//! the codes of unimplemented epics exist nowhere in the crate.
+//! refuses the revised outcome, and the codes of unimplemented epics exist
+//! nowhere in the crate.
 //!
 //! These assertions are expected to fail when the implementing work lands.
 //! That failure is the signal: the change that makes a vector pass replaces
@@ -18,7 +18,9 @@
 //! So have the attempt scenarios: `scenario_tests` drives every case of
 //! `attempt-scenarios-v3.json`, account-scope binding included. So have the
 //! one-spend-limit cases: `bounds_aggregate_tests` drives every case of
-//! `bounds-aggregate.json` through both stores.
+//! `bounds-aggregate.json` through both stores. So have the key-identity
+//! vectors: `keys` checks every key identity and overlap they pin, and
+//! separation by key.
 
 pub(crate) mod attempts;
 pub(crate) mod bounds;

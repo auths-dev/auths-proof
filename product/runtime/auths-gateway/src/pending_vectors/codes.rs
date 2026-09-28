@@ -161,7 +161,7 @@ fn expected_codes(value: &Value, found: &mut BTreeSet<String>) {
 }
 
 /// The epics whose codes the crate defines.
-const IMPLEMENTED_EPICS: &[u64] = &[2, 3, 4];
+const IMPLEMENTED_EPICS: &[u64] = &[2, 3, 4, 5];
 
 /// Every code of an implemented epic exists in the crate and no code of a
 /// later epic does; every existing and changed code does, every named case

@@ -1,7 +1,7 @@
 //! Typed, immutable connection descriptor for an operator-approved recipe.
 
 use crate::{CompiledRecipe, CredentialRequirement, OperatorNamespace};
-use auths_connections::ConnectionBinding;
+use auths_connections::{ConnectionBinding, ConnectionRecord};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -95,11 +95,40 @@ impl GatewayConnectionDescriptor {
         binding: &ConnectionBinding,
         recipe: &CompiledRecipe,
     ) -> Result<Self, GatewayConnectionError> {
-        if binding.descriptor_schema().as_str() != SCHEMA || binding.contract().as_str() != CONTRACT
-        {
+        Self::from_parts(
+            binding.descriptor_schema().as_str(),
+            binding.contract().as_str(),
+            binding.descriptor(),
+            recipe,
+        )
+    }
+
+    /// Parses and validates the descriptor in a shared connection record
+    /// against the exact installed recipe.
+    ///
+    /// # Errors
+    /// Refuses wrong schema, digest, namespace, or credential header.
+    pub fn from_record(
+        record: &ConnectionRecord,
+        recipe: &CompiledRecipe,
+    ) -> Result<Self, GatewayConnectionError> {
+        Self::from_parts(
+            record.descriptor_schema().as_str(),
+            record.contract().as_str(),
+            record.descriptor(),
+            recipe,
+        )
+    }
+
+    fn from_parts(
+        schema: &str,
+        contract: &str,
+        bytes: &[u8],
+        recipe: &CompiledRecipe,
+    ) -> Result<Self, GatewayConnectionError> {
+        if schema != SCHEMA || contract != CONTRACT {
             return Err(GatewayConnectionError::Mismatch);
         }
-        let bytes = binding.descriptor();
         if bytes.is_empty() || bytes.len() > MAX_DESCRIPTOR_BYTES {
             return Err(GatewayConnectionError::InvalidDescriptor);
         }

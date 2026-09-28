@@ -1,0 +1,159 @@
+{
+  "aeneas_version": "3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0",
+  "charon_version": "0.1.225",
+  "crate": "auths_connections",
+  "functions": [
+    {
+      "def_id": 0,
+      "lean_name": "auths_connections.kernel.next_generation",
+      "lean_file": "qualification/aeneas/generated/connections/Funs.lean",
+      "rust_name": "auths_connections::kernel::next_generation",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-connections/src/kernel.rs",
+        "begin_line": 29,
+        "end_line": 31
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 1,
+      "lean_name": "auths_connections.kernel.state_change",
+      "lean_file": "qualification/aeneas/generated/connections/Funs.lean",
+      "rust_name": "auths_connections::kernel::state_change",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-connections/src/kernel.rs",
+        "begin_line": 36,
+        "end_line": 44
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 2,
+      "lean_name": "auths_connections.kernel.rotation",
+      "lean_file": "qualification/aeneas/generated/connections/Funs.lean",
+      "rust_name": "auths_connections::kernel::rotation",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-connections/src/kernel.rs",
+        "begin_line": 49,
+        "end_line": 57
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 3,
+      "lean_name": "auths_connections.kernel.retained_generation_loop.body",
+      "lean_file": "qualification/aeneas/generated/connections/Funs.lean",
+      "rust_name": "auths_connections::kernel::retained_generation",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-connections/src/kernel.rs",
+        "begin_line": 66,
+        "end_line": 73
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
+      "parent_lean_name": "auths_connections.kernel.retained_generation"
+    },
+    {
+      "def_id": 3,
+      "lean_name": "auths_connections.kernel.retained_generation_loop",
+      "lean_file": "qualification/aeneas/generated/connections/Funs.lean",
+      "rust_name": "auths_connections::kernel::retained_generation",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-connections/src/kernel.rs",
+        "begin_line": 66,
+        "end_line": 73
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_connections.kernel.retained_generation"
+    },
+    {
+      "def_id": 3,
+      "lean_name": "auths_connections.kernel.retained_generation",
+      "lean_file": "qualification/aeneas/generated/connections/Funs.lean",
+      "rust_name": "auths_connections::kernel::retained_generation",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-connections/src/kernel.rs",
+        "begin_line": 62,
+        "end_line": 75
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 4,
+      "lean_name": "auths_connections.kernel.lease_generation",
+      "lean_file": "qualification/aeneas/generated/connections/Funs.lean",
+      "rust_name": "auths_connections::kernel::lease_generation",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-connections/src/kernel.rs",
+        "begin_line": 86,
+        "end_line": 101
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    }
+  ],
+  "types": [
+    {
+      "def_id": 1,
+      "lean_name": "auths_connections.kernel.Generations",
+      "lean_file": "qualification/aeneas/generated/connections/Types.lean",
+      "rust_name": "auths_connections::kernel::Generations",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-connections/src/kernel.rs",
+        "begin_line": 19,
+        "end_line": 25
+      }
+    }
+  ],
+  "globals": [],
+  "trait_decls": [],
+  "trait_impls": []
+}

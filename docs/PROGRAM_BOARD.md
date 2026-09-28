@@ -131,6 +131,11 @@ gates do not shrink.
     `bindings/fixtures/gateway/`. The tests in
     `product/runtime/auths-gateway/src/pending_vectors/` show that current
     code does not satisfy them. Epics 2–8 have not started.
+  - Epic 5 (operator plane) is on branch
+    `audit-2026-09-24-gateway-epic5`, awaiting owner review: connection
+    record `/2` in the shared store, admin commands `/1`, key-identity
+    separation, the authenticated operator, and `ConnectionGenerations.lean`
+    with its translated leaves. §13 readings 26–33 are PROVISIONAL.
   - It covers five things: per-recipe recovery capability, the provider
     capabilities the Stripe vertical proved necessary, one spend limit, an
     operator plane the application cannot interfere with, and evidence and

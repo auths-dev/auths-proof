@@ -1,4 +1,4 @@
-use crate::{ConnectionBinding, ConnectionId};
+use crate::{ConnectionBinding, ConnectionId, ConnectionRecord, kernel};
 use async_trait::async_trait;
 use minicbor::{Decoder, Encoder, encode::Write as CborWrite};
 use sha2::{Digest as _, Sha256};
@@ -67,6 +67,12 @@ impl CredentialReferenceCommitment {
     #[must_use]
     pub const fn as_bytes(&self) -> &[u8; 32] {
         &self.0
+    }
+
+    /// Whether this commitment equals `expected`, compared in constant time.
+    #[must_use]
+    pub fn matches(&self, expected: &[u8; 32]) -> bool {
+        bool::from(self.0.ct_eq(expected))
     }
 
     #[cfg(test)]
@@ -452,6 +458,109 @@ impl PersistentCredentialStore {
             .collect())
     }
 
+    /// Leases the secret that serves `record`: the one stored at the newest
+    /// generation not after the record's generation, and only when that is
+    /// the record's credential generation and its reference commitment equals
+    /// the record's, compared in constant time.
+    ///
+    /// The store checks identity and generation only; the caller must first
+    /// authorize the record's state.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CredentialStoreError::Unavailable`] when this store holds no
+    /// secret at the credential generation, or holds a newer unpublished one,
+    /// and [`CredentialStoreError::Substitution`] when the stored commitment
+    /// differs from the record's.
+    pub fn lease_for_record(
+        &self,
+        record: &ConnectionRecord,
+        deadline: Instant,
+    ) -> Result<StoredSecretLease, CredentialStoreError> {
+        let entries = self
+            .entries
+            .lock()
+            .map_err(|_| CredentialStoreError::Unavailable)?;
+        let stored = record_entry(&entries, record)?;
+        Ok(StoredSecretLease {
+            bytes: stored.bytes.clone(),
+            deadline,
+        })
+    }
+
+    /// Checks, without leasing, that this store holds the secret that serves
+    /// `record` under the rule of [`Self::lease_for_record`].
+    ///
+    /// # Errors
+    ///
+    /// Returns every refusal of [`Self::lease_for_record`].
+    pub fn holds_record_credential(
+        &self,
+        record: &ConnectionRecord,
+    ) -> Result<(), CredentialStoreError> {
+        let entries = self
+            .entries
+            .lock()
+            .map_err(|_| CredentialStoreError::Unavailable)?;
+        record_entry(&entries, record).map(|_| ())
+    }
+
+    /// Stores `secret` at `generation` only when its reference commitment at
+    /// that generation equals `expected`, compared in constant time. This is
+    /// how a process that did not install or rotate a secret takes the same
+    /// secret into its own store: it proves it holds the secret the shared
+    /// record commits to without the record ever carrying the secret.
+    ///
+    /// Repeating it with the same secret succeeds without a write.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CredentialStoreError::Substitution`] when the commitment
+    /// differs, with nothing stored; [`CredentialStoreError::Conflict`] when
+    /// another secret is stored at `generation`; and the store's capacity and
+    /// persistence errors.
+    #[allow(
+        clippy::needless_pass_by_value,
+        reason = "the store takes the secret, so dropping it here zeroizes the caller's copy"
+    )]
+    pub fn store_confirmed(
+        &self,
+        connection_id: &ConnectionId,
+        generation: NonZeroU64,
+        expected: &[u8; 32],
+        secret: SecretBytes,
+    ) -> Result<CredentialReferenceCommitment, CredentialStoreError> {
+        let commitment = credential_commitment(connection_id, generation, secret.expose());
+        if !commitment.matches(expected) {
+            return Err(CredentialStoreError::Substitution);
+        }
+        let key = (connection_id.as_str().to_owned(), generation.get());
+        self.mutate(|entries| {
+            if let Some(existing) = entries.get(&key) {
+                return if existing.holds(&commitment, secret.expose()) {
+                    Ok(commitment)
+                } else {
+                    Err(CredentialStoreError::Conflict)
+                };
+            }
+            if entries.len() >= self.maximum_entries
+                || Self::total_bytes(entries)
+                    .checked_add(secret.expose().len())
+                    .is_none_or(|value| value > self.maximum_bytes)
+            {
+                return Err(CredentialStoreError::Capacity);
+            }
+            entries.insert(
+                key,
+                StoredSecret {
+                    bytes: Zeroizing::new(secret.expose().to_vec()),
+                    commitment,
+                },
+            );
+            Ok(commitment)
+        })
+    }
+
     /// Deletes every stored generation of one connection in one persisted
     /// mutation.
     ///
@@ -551,6 +660,33 @@ fn retained_entry<'entries>(
         .range((id.to_owned(), 1)..=(id.to_owned(), generation.get()))
         .next_back()
         .map(|((_, stored), entry)| (*stored, entry))
+}
+
+/// The entry that serves `record`: stored at exactly the generation
+/// [`kernel::lease_generation`] selects, with the record's commitment.
+fn record_entry<'entries>(
+    entries: &'entries BTreeMap<(String, u64), StoredSecret>,
+    record: &ConnectionRecord,
+) -> Result<&'entries StoredSecret, CredentialStoreError> {
+    let connection_id = record.connection_id();
+    let stored = connection_generations(entries, connection_id).collect::<Vec<_>>();
+    let generation = kernel::lease_generation(
+        record.generation().get(),
+        record.credential_generation().get(),
+        &stored,
+    )
+    .ok_or(CredentialStoreError::Unavailable)?;
+    let entry = entries
+        .get(&(connection_id.as_str().to_owned(), generation))
+        .ok_or(CredentialStoreError::Unavailable)?;
+    if entry
+        .commitment
+        .matches(record.credential_reference_commitment())
+    {
+        Ok(entry)
+    } else {
+        Err(CredentialStoreError::Substitution)
+    }
 }
 
 fn connection_generations<'entries>(
@@ -1275,6 +1411,156 @@ mod generation_tests {
             "a superseded credential never serves a later generation"
         );
         assert_eq!(stored(&store, CONNECTION), [1, 4]);
+    }
+
+    /// A record whose current secret is `secret`, installed at generation 1.
+    fn installed_record(secret: &[u8]) -> ConnectionRecord {
+        let base = record();
+        let commitment = credential_commitment(base.connection_id(), generation(1), secret);
+        ConnectionRecord::new(
+            base.provider_kind().clone(),
+            base.alias().clone(),
+            base.connection_id().clone(),
+            base.contract().clone(),
+            base.descriptor_schema().clone(),
+            base.descriptor().to_vec(),
+            *base.account_commitment(),
+            *commitment.as_bytes(),
+            generation(1),
+            base.state(),
+            base.allowed_workloads().to_vec(),
+            base.allowed_profiles().to_vec(),
+            10,
+            10,
+            None,
+        )
+        .unwrap()
+    }
+
+    fn leased_for(
+        store: &PersistentCredentialStore,
+        record: &ConnectionRecord,
+    ) -> Result<Vec<u8>, CredentialStoreError> {
+        let deadline = Instant::now() + std::time::Duration::from_secs(5);
+        let lease = store.lease_for_record(record, deadline)?;
+        lease.expose(Instant::now()).map(<[u8]>::to_vec)
+    }
+
+    #[test]
+    fn a_host_joining_after_state_changes_leases_the_credential_generation() {
+        let (_first_directory, _first_path, first) = private_store(8);
+        let (_second_directory, _second_path, second) = private_store(8);
+        let installed = installed_record(b"first-secret");
+        let id = installed.connection_id().clone();
+        ready(first.install(&id, generation(1), secret(b"first-secret"))).unwrap();
+        let disabled = installed
+            .transition_state(crate::ConnectionState::Disabled, 11)
+            .unwrap();
+        let enabled = disabled
+            .transition_state(crate::ConnectionState::Active, 12)
+            .unwrap();
+        assert_eq!(leased_for(&first, &enabled).unwrap(), b"first-secret");
+        assert_eq!(
+            leased_for(&second, &enabled).unwrap_err(),
+            CredentialStoreError::Unavailable
+        );
+
+        let expected = *enabled.credential_reference_commitment();
+        let cg = enabled.credential_generation();
+        assert_eq!(
+            second
+                .store_confirmed(&id, cg, &expected, secret(b"wrong-secret"))
+                .unwrap_err(),
+            CredentialStoreError::Substitution
+        );
+        assert!(stored(&second, CONNECTION).is_empty(), "nothing stored");
+        second
+            .store_confirmed(&id, cg, &expected, secret(b"first-secret"))
+            .unwrap();
+        second
+            .store_confirmed(&id, cg, &expected, secret(b"first-secret"))
+            .expect("a repeated join is idempotent");
+        assert_eq!(leased_for(&second, &enabled).unwrap(), b"first-secret");
+        second.holds_record_credential(&enabled).unwrap();
+    }
+
+    #[test]
+    fn a_cross_process_rotation_leases_on_every_host_after_state_changes() {
+        let (_first_directory, _first_path, first) = private_store(8);
+        let (_second_directory, _second_path, second) = private_store(8);
+        let installed = installed_record(b"first-secret");
+        let id = installed.connection_id().clone();
+        ready(first.install(&id, generation(1), secret(b"first-secret"))).unwrap();
+        second
+            .store_confirmed(
+                &id,
+                generation(1),
+                installed.credential_reference_commitment(),
+                secret(b"first-secret"),
+            )
+            .unwrap();
+        let disabled = installed
+            .transition_state(crate::ConnectionState::Disabled, 11)
+            .unwrap();
+        // The first host rotates at the next generation and publishes.
+        let next = generation(3);
+        let rotated_commitment =
+            ready(first.replace(&id, disabled.generation(), next, secret(b"second-secret")))
+                .unwrap();
+        let rotated = disabled
+            .rotated(
+                disabled.descriptor().to_vec(),
+                *disabled.account_commitment(),
+                *rotated_commitment.as_bytes(),
+                12,
+            )
+            .unwrap();
+        assert_eq!(rotated.credential_generation(), next);
+        assert_eq!(
+            leased_for(&second, &rotated).unwrap_err(),
+            CredentialStoreError::Unavailable,
+            "a host that has not taken the rotation leases nothing"
+        );
+        second
+            .store_confirmed(
+                &id,
+                rotated.credential_generation(),
+                rotated.credential_reference_commitment(),
+                secret(b"second-secret"),
+            )
+            .unwrap();
+        let later = rotated
+            .transition_state(crate::ConnectionState::Active, 13)
+            .unwrap()
+            .transition_state(crate::ConnectionState::Disabled, 14)
+            .unwrap()
+            .transition_state(crate::ConnectionState::Active, 15)
+            .unwrap();
+        for host in [&first, &second] {
+            assert_eq!(leased_for(host, &later).unwrap(), b"second-secret");
+        }
+        assert_eq!(
+            leased_for(&second, &installed).unwrap(),
+            b"first-secret",
+            "the older record still names its own secret"
+        );
+    }
+
+    #[test]
+    fn an_unpublished_successor_blocks_the_lease() {
+        let (_directory, _path, store) = private_store(8);
+        let installed = installed_record(b"first-secret");
+        let id = installed.connection_id().clone();
+        ready(store.install(&id, generation(1), secret(b"first-secret"))).unwrap();
+        ready(store.replace(&id, generation(1), generation(2), secret(b"orphan"))).unwrap();
+        let disabled = installed
+            .transition_state(crate::ConnectionState::Disabled, 11)
+            .unwrap();
+        assert_eq!(
+            leased_for(&store, &disabled).unwrap_err(),
+            CredentialStoreError::Unavailable
+        );
+        assert_eq!(leased_for(&store, &installed).unwrap(), b"first-secret");
     }
 
     #[test]

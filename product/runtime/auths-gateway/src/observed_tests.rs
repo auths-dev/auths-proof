@@ -665,6 +665,90 @@ async fn observer_in_the_authority_chain_is_refused(backend: Backend) {
     assert_eq!(harness.provider.counts(), (0, 0, 0));
 }
 
+/// A read-back signed by the agent's own Ed25519 key under its `did:key`
+/// identifier: the kernel sees two identifiers, the gateway one key.
+fn did_key_read_back(signer: &Signer, record: &str, value: &str) -> (PrincipalId, Vec<u8>) {
+    let multikey = auths_multikey::Multikey::from_public_key(
+        auths_multikey::MultikeyType::Ed25519,
+        signer.key.verifying_key().to_bytes().to_vec(),
+    )
+    .expect("multikey");
+    let evidence = auths_did_key::DidKeyEvidence::new(multikey);
+    let principal = evidence.principal().expect("principal");
+    let statement = ObservationStatement::new(
+        principal.clone(),
+        ObservationSchemaId::parse(READ_BACK_SCHEMA).expect("schema"),
+        ResourceId::parse(&read_back_subject(record)).expect("subject"),
+        Timestamp::new(NOW),
+        ObservationFacts::new(vec![ObservationFact::new(name("value"), text(value))])
+            .expect("facts"),
+    );
+    let descriptor = auths_model::SignatureDescriptor::new(
+        auths_model::PrincipalMethodId::parse(auths_did_key::DID_KEY_V1).expect("method"),
+        evidence.verification_method().expect("verification method"),
+        auths_model::SignatureSuiteId::parse(auths_signature::ED25519_V1).expect("suite"),
+    );
+    let signature =
+        signer.sign(&observation_signing_preimage(&statement, &descriptor).expect("preimage"));
+    let object = |id| {
+        EvidenceObject::new(
+            id,
+            auths_model::EvidenceTypeId::parse(auths_did_key::DID_KEY_V1).expect("type"),
+            MediaType::parse(auths_did_key::DID_KEY_MEDIA_TYPE).expect("media type"),
+            evidence.encode().expect("evidence"),
+        )
+        .expect("evidence object")
+    };
+    let evidence_object = object(
+        auths_codec::evidence_id(&object(auths_model::EvidenceId::new([0; 32]))).expect("id"),
+    );
+    let bytes = encode_signed_observation(
+        &SignedObservation::new(
+            statement,
+            SignatureEnvelope::new(descriptor, signature),
+            vec![evidence_object],
+        )
+        .expect("observation"),
+    )
+    .expect("observation bytes");
+    (principal, bytes)
+}
+
+/// The kernel refuses an observer whose identifier is in the authority
+/// chain; the gateway also refuses one that is the agent's own key under
+/// another method, before any claim or lease.
+async fn observer_key_in_the_authority_chain_is_refused_by_key(backend: Backend) {
+    let root = signer(0x11);
+    let agent = signer(0x22);
+    let (observer_principal, observation) = did_key_read_back(&agent, RECORD, "Pending");
+    assert!(crate::principals_overlap(
+        &observer_principal,
+        &agent.principal
+    ));
+    let context = h::context_accepting(
+        &root,
+        &observer_principal,
+        NOW,
+        &[auths_raw_key::RAW_KEY_V1, auths_did_key::DID_KEY_V1],
+    )
+    .expect("context");
+    let harness = Harness::with(
+        update_recipe(),
+        context,
+        GatewayObserver::from_test_seed(0x33),
+        root,
+        agent,
+        backend,
+    );
+    let arguments = harness.arguments("key-observer", RECORD, &update_extra(RECORD, "Pending"));
+    let signed = harness.sign(Some(read_back_requirement()), &arguments, &[observation]);
+    assert_eq!(
+        harness.submit(&signed, NOW + 1).await,
+        not_entered("gateway.trust.observer-key-in-authority-chain")
+    );
+    assert_eq!(harness.provider.counts(), (0, 0, 0));
+}
+
 async fn action_fact_policy_is_bound_into_the_pinned_configuration(backend: Backend) {
     let raw_key = auths_raw_key::RawKeyMethod::new().expect("raw key");
     let did_key = auths_did_key::DidKeyMethod::new().expect("did:key");
@@ -1059,30 +1143,42 @@ fn production_principals_must_be_separate() {
     let observer = GatewayObserver::from_test_seed(0x33);
     let trust = context(&root, observer.principal(), None);
     assert_eq!(
-        check(&trust, &operator.principal, Some(observer.principal())),
+        check(
+            &trust,
+            Some(&operator.principal),
+            Some(observer.principal())
+        ),
         Ok(())
     );
     assert_eq!(
-        check(&trust, &root.principal, Some(observer.principal())),
+        check(&trust, Some(&root.principal), Some(observer.principal())),
         Err(E::OperatorIsRoot)
     );
     assert_eq!(
-        check(&trust, observer.principal(), Some(observer.principal())),
+        check(
+            &trust,
+            Some(observer.principal()),
+            Some(observer.principal())
+        ),
         Err(E::OperatorIsObserver)
     );
     let operator_observes = context(&root, &operator.principal, None);
     assert_eq!(
-        check(&operator_observes, &operator.principal, None),
+        check(&operator_observes, Some(&operator.principal), None),
         Err(E::OperatorIsObserver)
     );
     let root_observes = context(&root, &root.principal, None);
     assert_eq!(
-        check(&root_observes, &operator.principal, None),
+        check(&root_observes, Some(&operator.principal), None),
         Err(E::ObserverIsRoot)
     );
     let unanchored = GatewayObserver::from_test_seed(0x77);
     assert_eq!(
-        check(&trust, &operator.principal, Some(unanchored.principal())),
+        check(
+            &trust,
+            Some(&operator.principal),
+            Some(unanchored.principal())
+        ),
         Err(E::ObserverNotAnchored)
     );
     for (error, code) in [
@@ -1093,6 +1189,7 @@ fn production_principals_must_be_separate() {
             E::ObserverNotAnchored,
             "gateway.trust.observer-not-anchored",
         ),
+        (E::KeyAliased, "gateway.trust.key-aliased"),
     ] {
         assert_eq!(error.code(), code);
     }
@@ -1437,6 +1534,7 @@ on_both_stores!(
     chained_step_is_refused_until_the_previous_step_is_provider_bound,
     self_signed_or_forged_observations_never_satisfy,
     observer_in_the_authority_chain_is_refused,
+    observer_key_in_the_authority_chain_is_refused_by_key,
     action_fact_policy_is_bound_into_the_pinned_configuration,
     sdk_action_window_admits_a_later_gateway_clock_and_replay_stays_refused,
     sdk_action_window_is_cut_to_the_grant_expiry,

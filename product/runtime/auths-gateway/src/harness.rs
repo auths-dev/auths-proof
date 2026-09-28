@@ -237,15 +237,20 @@ pub(crate) fn update_recipe() -> Result<CompiledRecipe, HarnessError> {
     )
 }
 
-pub(crate) fn observer_anchor(
+/// The observer anchor for `observer` under the principal `methods`.
+fn observer_anchor_for(
     observer: &PrincipalId,
     now: u64,
+    methods: &[&str],
 ) -> Result<ObserverAnchor, HarnessError> {
     fixture(
         ObserverAnchor::new(
             fixture(ObserverAnchorId::parse(ANCHOR), "observer anchor ID")?,
             observer.clone(),
-            vec![fixture(PrincipalMethodId::parse(RAW_KEY_V1), "method")?],
+            methods
+                .iter()
+                .map(|method| fixture(PrincipalMethodId::parse(method), "method"))
+                .collect::<Result<_, _>>()?,
             vec![
                 fixture(ObservationSchemaId::parse(READ_BACK_SCHEMA), "schema")?,
                 fixture(ObservationSchemaId::parse(OUTCOME_SCHEMA), "schema")?,
@@ -263,11 +268,16 @@ pub(crate) fn observer_anchor(
     )
 }
 
-pub(crate) fn accepted_registries() -> Result<AcceptedRegistries, HarnessError> {
+/// The accepted registries with the principal methods, and evidence types
+/// of the same names, in `methods`.
+fn accepted_registries_for(methods: &[&str]) -> Result<AcceptedRegistries, HarnessError> {
     fixture(
         AcceptedRegistries::new(
             auths_registries::TARGET_V1_REGISTRY_MANIFEST,
-            vec![fixture(PrincipalMethodId::parse(RAW_KEY_V1), "method")?],
+            methods
+                .iter()
+                .map(|method| fixture(PrincipalMethodId::parse(method), "method"))
+                .collect::<Result<_, _>>()?,
             vec![
                 fixture(
                     SignatureSuiteId::parse(auths_signature::ED25519_V1),
@@ -275,7 +285,10 @@ pub(crate) fn accepted_registries() -> Result<AcceptedRegistries, HarnessError> 
                 )?,
                 fixture(SignatureSuiteId::parse("p256-sha256-v1"), "suite")?,
             ],
-            vec![fixture(EvidenceTypeId::parse(RAW_KEY_V1), "evidence type")?],
+            methods
+                .iter()
+                .map(|method| fixture(EvidenceTypeId::parse(method), "evidence type"))
+                .collect::<Result<_, _>>()?,
             Vec::new(),
             Vec::new(),
             vec![
@@ -347,6 +360,46 @@ pub(crate) fn context_with_roots(
     depth: u16,
     composition: CompositionRequirement,
 ) -> Result<TrustedContext, HarnessError> {
+    context_for(
+        roots,
+        observer,
+        configuration,
+        now,
+        depth,
+        composition,
+        &[RAW_KEY_V1],
+    )
+}
+
+/// Trust as in [`context`] whose observer anchor, and the accepted
+/// registries, admit the principal `methods`, such as `did-key-v1`.
+#[cfg(test)]
+pub(crate) fn context_accepting(
+    root: &Signer,
+    observer: &PrincipalId,
+    now: u64,
+    methods: &[&str],
+) -> Result<TrustedContext, HarnessError> {
+    context_for(
+        &[root],
+        observer,
+        None,
+        now,
+        1,
+        fixture(CompositionRequirement::new(None, 1, 1, 1), "composition")?,
+        methods,
+    )
+}
+
+fn context_for(
+    roots: &[&Signer],
+    observer: &PrincipalId,
+    configuration: Option<[u8; 32]>,
+    now: u64,
+    depth: u16,
+    composition: CompositionRequirement,
+    methods: &[&str],
+) -> Result<TrustedContext, HarnessError> {
     let configuration = match configuration {
         Some(value) => auths_model::VerifierConfigurationId::new(value),
         None => fixture(gateway_verifier_configuration(), "configuration")?,
@@ -389,7 +442,7 @@ pub(crate) fn context_with_roots(
             configuration,
             composition,
             anchors,
-            accepted_registries()?,
+            accepted_registries_for(methods)?,
             audience()?,
             Challenge::new([0; 32]),
             Timestamp::new(now),
@@ -425,7 +478,7 @@ pub(crate) fn context_with_roots(
         "context",
     )?;
     fixture(
-        context.with_observer_anchors(vec![observer_anchor(observer, now)?]),
+        context.with_observer_anchors(vec![observer_anchor_for(observer, now, methods)?]),
         "observer anchors",
     )
 }
@@ -690,11 +743,11 @@ impl SubmitIo for HarnessIo<'_> {
         )
     }
 
-    fn prepare(&self) -> Result<(), &'static str> {
+    async fn prepare(&self) -> Result<(), &'static str> {
         Ok(())
     }
 
-    fn reload(&self) -> bool {
+    async fn reload(&self) -> bool {
         true
     }
 

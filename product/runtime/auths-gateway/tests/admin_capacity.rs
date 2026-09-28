@@ -1,9 +1,9 @@
 //! The application cannot take the operator's admin socket. With idle
-//! application connections held at and past the gateway's capacity,
-//! `auths-gateway revoke` still answers through the admin socket;
-//! connections past the capacity are closed at accept; idle connections are
-//! closed at the frame deadline; and a failed accept does not stop the
-//! gateway.
+//! application connections held at and past the gateway's capacity, every
+//! admin command still answers through the admin socket within its
+//! deadline; connections past the capacity are closed at accept; idle
+//! connections are closed at the frame deadline; and `serve` refuses to
+//! start under a descriptor limit that cannot hold both capacities.
 
 #![cfg(unix)]
 
@@ -45,27 +45,11 @@ impl Drop for Gateway {
 
 impl Gateway {
     /// Installs a synthetic development gateway under a fresh private root
-    /// and starts `serve`, optionally under a lowered descriptor limit.
-    fn start(root: &Path, descriptor_limit: Option<u32>) -> Self {
+    /// and starts `serve`.
+    fn start(root: &Path) -> Self {
         let state = root.join("state");
         install(root, &state);
-        let mut command = match descriptor_limit {
-            Some(limit) => {
-                let mut command = Command::new("/bin/sh");
-                command
-                    .arg("-c")
-                    .arg(format!("ulimit -n {limit} && exec \"$0\" \"$@\""))
-                    .arg(BIN);
-                command
-            }
-            None => Command::new(BIN),
-        };
-        let mut child = command
-            .arg("serve")
-            .arg("--state-dir")
-            .arg(&state)
-            .arg("--app-socket")
-            .arg(root.join("app.sock"))
+        let mut child = serve_command(root, None, &[])
             .stdout(Stdio::piped())
             .stderr(File::create(root.join("gateway.stderr")).expect("stderr file"))
             .spawn()
@@ -98,20 +82,74 @@ impl Gateway {
         fs::read_to_string(self.root.join("gateway.stderr")).unwrap_or_default()
     }
 
-    fn running(&mut self) -> bool {
-        self.child.try_wait().expect("poll gateway").is_none()
-    }
-
     /// Runs one admin command through the admin socket, as an operator would.
-    fn admin(&self, command: &str) -> Output {
+    fn admin(&self, command: &str, arguments: &[&str]) -> Output {
         run_with_deadline(
             Command::new(BIN)
                 .arg(command)
                 .arg("--state-dir")
-                .arg(self.state()),
+                .arg(self.state())
+                .args(arguments),
             Duration::from_secs(20),
         )
     }
+
+    /// Rotates to `secret` through the admin socket, the secret on stdin.
+    fn rotate(&self, secret: &[u8]) -> Output {
+        let mut child = Command::new(BIN)
+            .arg("rotate")
+            .arg("--state-dir")
+            .arg(self.state())
+            .arg("--credential-stdin")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("spawn rotate");
+        child
+            .stdin
+            .take()
+            .expect("stdin")
+            .write_all(secret)
+            .expect("secret");
+        child.wait_with_output().expect("rotate output")
+    }
+}
+
+/// The `serve` command for the installation under `root`, optionally under a
+/// lowered descriptor limit.
+fn serve_command(root: &Path, descriptor_limit: Option<u32>, arguments: &[&str]) -> Command {
+    let mut command = match descriptor_limit {
+        Some(limit) => {
+            let mut command = Command::new("/bin/sh");
+            command
+                .arg("-c")
+                .arg(format!("ulimit -n {limit} && exec \"$0\" \"$@\""))
+                .arg(BIN);
+            command
+        }
+        None => Command::new(BIN),
+    };
+    command
+        .arg("serve")
+        .arg("--state-dir")
+        .arg(root.join("state"))
+        .arg("--app-socket")
+        .arg(root.join("app.sock"))
+        .args(arguments);
+    command
+}
+
+/// The admin response an operator command printed.
+fn printed(output: &Output) -> serde_json::Value {
+    serde_json::from_slice(
+        output
+            .stdout
+            .split(|byte| *byte == b'\n')
+            .next()
+            .expect("response line"),
+    )
+    .expect("admin response JSON")
 }
 
 fn private_root() -> (tempfile::TempDir, PathBuf) {
@@ -222,12 +260,12 @@ fn mode(path: &Path) -> u32 {
 }
 
 #[test]
-fn revoke_answers_while_idle_application_connections_hold_the_capacity() {
+fn every_admin_command_answers_while_idle_application_connections_hold_the_capacity() {
     let _serial = SERIAL
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let (_directory, root) = private_root();
-    let gateway = Gateway::start(&root, None);
+    let gateway = Gateway::start(&root);
     assert_eq!(mode(&gateway.state().join("admin.sock")), 0o600);
     assert_eq!(mode(&gateway.app_socket()), 0o660);
 
@@ -243,17 +281,43 @@ fn revoke_answers_while_idle_application_connections_hold_the_capacity() {
         );
     }
 
-    let revoked = gateway.admin("revoke");
+    let answered = |output: &Output, code: &str| {
+        let response = printed(output);
+        assert_eq!(response["schema"], "auths.gateway-admin-response/1");
+        assert_eq!(response["code"], code, "{response}");
+        response
+    };
+    let status = gateway.admin("status", &[]);
+    assert!(status.status.success());
+    let status = answered(&status, "gateway.admin.status");
+    assert_eq!(status["status"]["state"], "active");
+    assert_eq!(status["status"]["credential_held"], true);
+    assert_eq!(status["status"]["in_flight"], 0);
+    let disabled = answered(&gateway.admin("disable", &[]), "gateway.admin.disabled");
+    assert_eq!(disabled["drained"], true);
+    assert_eq!(disabled["in_flight"], 0);
+    answered(&gateway.admin("enable", &[]), "gateway.admin.enabled");
+    answered(
+        &gateway.rotate(b"synthetic-rotated\n"),
+        "gateway.admin.rotated",
+    );
+    let unknown = gateway.admin("reobserve", &["--operation-id", "op-never-claimed"]);
+    assert!(!unknown.status.success());
+    answered(&unknown, "gateway.reobserve.not-observable");
+    let revoked = gateway.admin("revoke", &[]);
     assert!(
         revoked.status.success(),
         "revoke failed while the application held its capacity: {}",
         String::from_utf8_lossy(&revoked.stderr)
     );
-    assert!(String::from_utf8_lossy(&revoked.stdout).contains("gateway.admin.revoked"));
+    answered(&revoked, "gateway.admin.revoked");
+    let status = answered(&gateway.admin("status", &[]), "gateway.admin.status");
+    assert_eq!(status["status"]["state"], "revoked");
+    assert_eq!(status["status"]["credential_held"], false);
     let mut still_full = connect(&gateway.app_socket());
     assert!(
         closed_without_response(&mut still_full),
-        "the application capacity was still held when revoke answered"
+        "the application capacity was still held when every admin command answered"
     );
     assert!(held_since.elapsed() < Duration::from_secs(5));
 
@@ -275,37 +339,43 @@ fn revoke_answers_while_idle_application_connections_hold_the_capacity() {
 }
 
 #[test]
-fn a_failed_accept_does_not_stop_the_gateway() {
+fn serve_refuses_a_descriptor_limit_below_both_capacities() {
     let _serial = SERIAL
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let (_directory, root) = private_root();
-    // The descriptor limit sits below the application capacity, so accept
-    // fails for lack of descriptors before any permit is refused.
-    let mut gateway = Gateway::start(&root, Some(32));
-
-    let opened: Vec<UnixStream> = (0..48).map(|_| connect(&gateway.app_socket())).collect();
-    let deadline = Instant::now() + Duration::from_secs(5);
-    while !gateway.stderr().contains("gateway.serve.accept-failed") {
-        assert!(
-            Instant::now() < deadline,
-            "no accept failed for lack of descriptors: {}",
-            gateway.stderr()
-        );
-        thread::sleep(Duration::from_millis(20));
-    }
-    thread::sleep(Duration::from_millis(300));
-    assert!(gateway.running(), "an accept error stopped the gateway");
-
-    drop(opened);
-    // Let the gateway close the sessions those connections opened.
-    thread::sleep(Duration::from_millis(500));
-    let disabled = gateway.admin("disable");
-    assert!(
-        disabled.status.success(),
-        "disable failed after accept errors: {}",
-        String::from_utf8_lossy(&disabled.stderr)
+    install(&root, &root.join("state"));
+    // One application permit, four admin permits, no store pool, and 32
+    // descriptors of slack need 37.
+    let refused = run_with_deadline(
+        &mut serve_command(&root, Some(36), &["--app-capacity", "1"]),
+        Duration::from_secs(20),
     );
-    assert!(String::from_utf8_lossy(&disabled.stdout).contains("gateway.admin.disabled"));
-    assert!(gateway.running());
+    assert!(!refused.status.success());
+    assert!(
+        String::from_utf8_lossy(&refused.stderr).contains("gateway.serve.descriptor-limit"),
+        "{}",
+        String::from_utf8_lossy(&refused.stderr)
+    );
+    let refused = run_with_deadline(
+        &mut serve_command(&root, Some(64), &[]),
+        Duration::from_secs(20),
+    );
+    assert!(
+        String::from_utf8_lossy(&refused.stderr).contains("gateway.serve.descriptor-limit"),
+        "the default capacity of 64 needs 100 descriptors"
+    );
+
+    let mut child = serve_command(&root, Some(37), &["--app-capacity", "1"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("serve at the bound");
+    let mut ready = String::new();
+    BufReader::new(child.stdout.take().expect("stdout"))
+        .read_line(&mut ready)
+        .expect("readiness line");
+    let _ = child.kill();
+    let _ = child.wait();
+    assert!(ready.starts_with("app socket ready"), "{ready}");
 }

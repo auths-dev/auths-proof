@@ -35,7 +35,7 @@ struct ConnectionDatabase {
     encoded_record_bytes: usize,
 }
 
-/// Single-process crash-persistent `auths.provider-connection/1` store.
+/// Single-process crash-persistent `auths.provider-connection/2` store.
 ///
 /// Every mutation serializes a complete bounded canonical snapshot to an
 /// owner-selected directory, syncs it, atomically replaces the live file, and

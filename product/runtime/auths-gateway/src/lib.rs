@@ -11,11 +11,13 @@ pub mod app;
 mod audit;
 mod binding;
 mod bounds;
+mod connection;
 mod engine;
 #[cfg(unix)]
 pub mod listener;
 mod observer;
 mod onboarding;
+mod operator;
 mod pre_entry;
 pub mod recipe;
 mod separation;
@@ -49,10 +51,14 @@ pub use bounds::{
     MAX_BOUNDED_LINKS, MAX_LISTED_VALUE_BYTES, MAX_LISTED_VALUES, MAX_SUM_LIMIT, MAX_WINDOW_COUNT,
     MAX_WINDOW_SECONDS, gateway_evaluator_registrations,
 };
+pub use connection::{
+    LoadedConnection, SharedConnection, SharedConnectionError, authorizes_entry, connection_key,
+    install_connection, join_connection,
+};
 pub use engine::{
-    GatewayEngine, GatewayEngineConfigurationError, GatewayEvidenceSummary, GatewayObserveRequest,
-    GatewayObserveResult, GatewaySubmitResult, SLOT_SWEEP_INTERVAL_SECONDS, SLOT_SWEEP_LIMIT,
-    gateway_verifier_configuration,
+    GatewayAdminOutcome, GatewayAdminStatus, GatewayEngine, GatewayEngineConfigurationError,
+    GatewayEvidenceSummary, GatewayObserveRequest, GatewayObserveResult, GatewaySubmitResult,
+    SLOT_SWEEP_INTERVAL_SECONDS, SLOT_SWEEP_LIMIT, gateway_verifier_configuration,
 };
 pub use observer::{
     GatewayObserver, GatewayObserverError, GatewaySignedObservation, OBSERVATION_MEDIA_TYPE,
@@ -60,6 +66,11 @@ pub use observer::{
     READ_BACK_SCHEMA, operation_subject,
 };
 pub use onboarding::{OnboardingAccount, OnboardingFailure, check_candidate_credential};
+pub use operator::{
+    MAX_ISSUED_AHEAD_SECONDS, MAX_OPERATOR_ATTESTATION_BYTES, MAX_OPERATOR_EVIDENCE,
+    OPERATOR_ATTESTATION_SCHEMA, OperatorAttestation, OperatorAttestationError, OperatorEvidence,
+    OperatorInstallation, OperatorStatement, verify_operator_attestation,
+};
 pub use recipe::{
     ClosedActionRead, ClosedCredentialRead, ClosedCredentialReads, ClosedObservationRequest,
     ClosedProviderRequest, CompiledRecipe, CredentialReadMethod, CredentialRequirement,
@@ -69,7 +80,10 @@ pub use recipe::{
     RecoveryCapability, RecoveryClass, RecoveryDeclarations, RequestHeader, StateObservation,
     UnknownResolution, WriteMethod, echo_token, idempotency_key, recovery_capability,
 };
-pub use separation::{PrincipalSeparationError, check_principal_separation};
+pub use separation::{
+    PrincipalSeparationError, check_anchor_aliasing, check_principal_separation, key_identity,
+    principals_overlap,
+};
 pub use store::{
     ClaimedGatewayAttempt, FileGatewayAttemptStore, GatewayAttemptError, GatewayAttemptKey,
     GatewayAttemptSnapshot, GatewayAttemptStage, GatewayAttemptStore, GatewayAttempts,

@@ -252,10 +252,12 @@ digraph auths_architecture {
   "auths-gateway" -> "auths-gateway-kernel" [label="normal"];
   "auths-gateway" -> "auths-lifecycle" [label="normal"];
   "auths-gateway" -> "auths-model" [label="normal"];
+  "auths-gateway" -> "auths-multikey" [label="normal"];
   "auths-gateway" -> "auths-ports" [label="normal"];
   "auths-gateway" -> "auths-profile-api" [label="normal"];
   "auths-gateway" -> "auths-profile-mcp" [label="normal"];
   "auths-gateway" -> "auths-raw-key" [label="normal"];
+  "auths-gateway" -> "auths-raw-key-core" [label="normal"];
   "auths-gateway" -> "auths-registries" [label="normal"];
   "auths-gateway" -> "auths-sdk" [label="dev"];
   "auths-gateway" -> "auths-signature" [label="normal"];
