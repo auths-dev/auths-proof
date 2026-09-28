@@ -75,6 +75,17 @@ held which key, is operator evidence and is not produced by this code.
   compare-and-swap on the exact stored record. A second process that loses a
   race records nothing and answers `gateway.attempt.replay`. Gateway claims
   do not take the lifecycle store's singleton contract-row lock.
+- **Spend limits.** A grant's bounded policy (evaluator
+  `auths.gateway.argument-ceiling-window-count/2`) counts per link subject in
+  fixed, epoch-aligned windows, in the attempt store: every gateway process
+  sharing the store charges the same count and sum slots, reserved with the
+  claim. A namespace served from two stores, or a store that is wiped or
+  restored, counts separately; reinstall under a new namespace after a loss.
+  `serve` deletes count and sum slots one full window after their window
+  ends, at most 1 024 every 60 seconds, and never deletes a claim. Until the
+  local-agent Stripe vertical is retired, a Stripe account reachable through
+  both it and the gateway has two unrelated limits: neither bounds the other
+  path, so do not rely on either for both.
 - **Connection state is per process.** Each gateway process keeps its own
   connection and credential state, so a disable, rotate, or revoke made
   through one process's admin socket applies to that process only. Processes

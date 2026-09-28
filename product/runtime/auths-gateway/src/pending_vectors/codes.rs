@@ -5,7 +5,9 @@
 //!
 //! `case` is null where no fixture of this change can produce the code: the
 //! operator plane, installation, echo verification, and the audit's
-//! pre-entry and relative-ceiling checks. The inventory test that closes the
+//! pre-entry and relative-ceiling checks. The audit's counter-set check
+//! compares with the outcome's `counters-digest`, which only outcome `/2`
+//! carries, so it lands with outcome `/2`. The inventory test that closes the
 //! set against the owning enums arrives with the code inventory work; until
 //! then the test here requires exactly the codes of implemented epics.
 
@@ -93,7 +95,7 @@ const ROWS: &[&str] = &[
     "gateway.serve.accept-failed serve serve existing - -",
     "gateway.serve.descriptor-limit serve serve new 5 -",
     "audit.bound-exceeded audit audit new 4 B:audit-count-capacity-three-and-one",
-    "audit.counters-mismatch audit audit new 4 -",
+    "audit.counters-mismatch audit audit new 6 -",
     "audit.outcome-invalid audit audit existing - O:outcome-v1-schema",
     "audit.pre-entry-invalid audit audit new 6 -",
     "audit.pre-entry-missing audit audit new 6 -",
@@ -159,7 +161,7 @@ fn expected_codes(value: &Value, found: &mut BTreeSet<String>) {
 }
 
 /// The epics whose codes the crate defines.
-const IMPLEMENTED_EPICS: &[u64] = &[2, 3];
+const IMPLEMENTED_EPICS: &[u64] = &[2, 3, 4];
 
 /// Every code of an implemented epic exists in the crate and no code of a
 /// later epic does; every existing and changed code does, every named case

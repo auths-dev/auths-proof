@@ -337,7 +337,7 @@ allowed_external_symbols = [
 [[translations]]
 crate_name = "auths_bounded_policy"
 translation_json = "formal/qualification/aeneas/generated/bounded_policy/translation.json"
-local_functions = 8
+local_functions = 28
 external_functions = 0
 opaque_local_functions = 0
 required_symbols = [
@@ -349,6 +349,16 @@ required_symbols = [
   "auths_bounded_policy::kernel::ceiling_count_code",
   "auths_bounded_policy::kernel::ceiling_count_tightens",
   "auths_bounded_policy::kernel::window_index",
+  "auths_bounded_policy::kernel::chain_counts_admit",
+  "auths_bounded_policy::kernel::chain_sums_admit",
+  "auths_bounded_policy::kernel::bytes_equal",
+  "auths_bounded_policy::kernel::values_contain",
+  "auths_bounded_policy::kernel::values_subset",
+  "auths_bounded_policy::kernel::values_narrow",
+  "auths_bounded_policy::kernel::partition_narrows",
+  "auths_bounded_policy::kernel::sum_tightens",
+  "auths_bounded_policy::kernel::scope_tightens",
+  "auths_bounded_policy::kernel::argument_policy_tightens",
 ]
 allowed_external_symbols = []
 
