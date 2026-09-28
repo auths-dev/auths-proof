@@ -34,6 +34,7 @@ source_files = [
   "product/runtime/auths-gateway-kernel/src/lib.rs",
   "product/runtime/auths-gateway-kernel/src/construct.rs",
   "product/runtime/auths-gateway-kernel/src/order.rs",
+  "product/runtime/auths-gateway-kernel/src/outcome.rs",
   "product/runtime/auths-gateway-kernel/src/ratio.rs",
   "product/runtime/auths-gateway-kernel/src/recovery.rs",
   "product/runtime/auths-gateway-kernel/src/transition.rs",
