@@ -214,28 +214,108 @@ fn key_identity_vectors_are_current() {
     require_current(FILE, &document());
 }
 
-/// Today's separation check compares identifiers only: an operator that is a
-/// trusted root's own key under `did:key` passes, where key identity refuses
-/// it as the root.
+/// The principal of one entry of the vectors: an identifier given whole,
+/// or a key's principal under one method.
+fn principal_of(vectors: &Value, reference: &Value) -> auths_model::PrincipalId {
+    if let Some(principal) = reference["principal"].as_str() {
+        return auths_model::PrincipalId::parse(principal).expect("principal");
+    }
+    let key = vectors["keys"]
+        .as_array()
+        .expect("keys")
+        .iter()
+        .find(|key| key["id"] == reference["id"])
+        .expect("named key");
+    let entry = key["principals"]
+        .as_array()
+        .expect("principals")
+        .iter()
+        .find(|entry| entry["method"] == reference["method"])
+        .expect("named method");
+    let text = match entry["principal"].as_str() {
+        Some(principal) => principal.to_owned(),
+        None => format!(
+            "did:key:{}",
+            entry["multibase"].as_str().expect("multibase")
+        ),
+    };
+    auths_model::PrincipalId::parse(&text).expect("principal")
+}
+
+/// Every key's `raw-key-v1` and `did:key` principals have the key identity
+/// the vectors pin; every principal of another method has none; and every
+/// pair overlaps exactly as documented.
 #[test]
-fn current_separation_misses_one_key_under_two_methods() {
+fn key_identity_conformance() {
+    let vectors = load(FILE);
+    for key in vectors["keys"].as_array().expect("keys") {
+        let expected: [u8; 32] = hex::decode(key["key_identity_hex"].as_str().expect("hex"))
+            .expect("hex")
+            .try_into()
+            .expect("32 bytes");
+        for method in ["raw-key-v1", "did-key-v1"] {
+            let principal = principal_of(&vectors, &json!({"id": key["id"], "method": method}));
+            assert_eq!(
+                crate::key_identity(&principal),
+                Some(expected),
+                "{} {method}",
+                key["id"]
+            );
+        }
+    }
+    for other in vectors["no_key_identity"].as_array().expect("others") {
+        let principal = principal_of(&vectors, other);
+        assert_eq!(crate::key_identity(&principal), None, "{}", other["method"]);
+    }
+    for pair in vectors["overlaps"].as_array().expect("overlaps") {
+        let left = principal_of(&vectors, &pair["left"]);
+        let right = principal_of(&vectors, &pair["right"]);
+        let overlap = pair["overlap"].as_str().expect("overlap");
+        assert_eq!(
+            crate::principals_overlap(&left, &right),
+            overlap != "none",
+            "{pair}"
+        );
+        assert_eq!(
+            crate::principals_overlap(&right, &left),
+            overlap != "none",
+            "{pair}"
+        );
+        assert_eq!(
+            auths_model::principal_id_equal(&left, &right),
+            overlap == "identifier",
+            "{pair}"
+        );
+    }
+}
+
+/// An operator that is a trusted root's own key under `did:key` is refused
+/// as the root, and a trust that anchors one key under both methods is
+/// refused as aliased.
+#[test]
+fn separation_compares_one_key_under_two_methods() {
     let vectors = load(FILE);
     let key = &vectors["keys"][0];
     let seed = u8::try_from(key["seed_byte"].as_u64().expect("seed")).expect("byte");
     let root = harness::Signer::new(seed);
-    assert_eq!(key["principals"][0]["method"], "raw-key-v1");
-    assert_eq!(root.principal.as_str(), key["principals"][0]["principal"]);
-    assert_eq!(key["principals"][1]["method"], "did-key-v1");
-    let multibase = key["principals"][1]["multibase"]
-        .as_str()
-        .expect("multibase");
-    let operator =
-        auths_model::PrincipalId::parse(&format!("did:key:{multibase}")).expect("principal");
+    let raw = principal_of(&vectors, &json!({"id": key["id"], "method": "raw-key-v1"}));
+    assert_eq!(root.principal, raw);
+    let operator = principal_of(&vectors, &json!({"id": key["id"], "method": "did-key-v1"}));
     let observer = crate::GatewayObserver::from_test_seed(0x33);
     let trust = harness::context(&root, observer.principal(), None, super::NOW).expect("trust");
     assert_eq!(vectors["overlaps"][0]["overlap"], "key-identity");
     assert_eq!(
-        crate::check_principal_separation(&trust, &operator, None),
-        Ok(())
+        crate::check_principal_separation(&trust, Some(&operator), None),
+        Err(crate::PrincipalSeparationError::OperatorIsRoot)
+    );
+    assert_eq!(crate::check_anchor_aliasing(&trust), Ok(()));
+    let aliased = harness::context(&root, &operator, None, super::NOW).expect("trust");
+    assert_eq!(
+        crate::check_anchor_aliasing(&aliased),
+        Err(crate::PrincipalSeparationError::KeyAliased)
+    );
+    assert_eq!(
+        crate::check_principal_separation(&aliased, None, None),
+        Err(crate::PrincipalSeparationError::ObserverIsRoot)
     );
 }

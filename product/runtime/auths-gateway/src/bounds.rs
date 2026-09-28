@@ -304,14 +304,14 @@ pub(crate) struct WindowReservation {
 
 /// One authorized branch: its actor, its grant chain root to terminal, and
 /// its action envelope's validity window in seconds.
-struct AuthorizedBranch {
-    actor: auths_model::PrincipalId,
-    chain: Vec<SignedGrant>,
+pub(crate) struct AuthorizedBranch {
+    pub(crate) actor: auths_model::PrincipalId,
+    pub(crate) chain: Vec<SignedGrant>,
     validity_seconds: u64,
 }
 
 /// The authorized branch of every verified action.
-fn authorized_chains(
+pub(crate) fn authorized_chains(
     proof_cbor: &[u8],
     verified: &VerifiedAction,
 ) -> Result<Vec<AuthorizedBranch>, &'static str> {

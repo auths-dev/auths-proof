@@ -21,9 +21,9 @@ use crate::{
     ObservableGatewayAttempt, RequestHeader,
 };
 use auths_gateway_kernel::order::{
-    AccountResult, CeilingRead, ClaimResult, DeniedResult, Mode, PreEntryResult, Refusal,
-    ResponseRecord, Stop, SubmitAction, SubmitEvent, SubmitPlan, Verification, WriteResult,
-    next_step, start,
+    AccountResult, CeilingRead, ClaimResult, DeniedResult, Mode, Phase, PreEntryResult, Refusal,
+    ResponseRecord, Stop, SubmitAction, SubmitDecision, SubmitEvent, SubmitPlan, SubmitState,
+    Verification, WriteResult, next_step, start,
 };
 use auths_model::{ResourceId, TrustedContext};
 use serde_json::Value;
@@ -51,11 +51,20 @@ pub(crate) trait SubmitIo {
     /// value.
     fn bind_scope(&self, verified: &VerifiedCommand) -> Result<(), &'static str>;
 
-    /// Prepares the pinned transport.
-    fn prepare(&self) -> Result<(), &'static str>;
+    /// Loads the shared connection record, requires this process to hold
+    /// its current credential, and prepares the pinned transport.
+    async fn prepare(&self) -> Result<(), &'static str>;
 
-    /// Reloads the connection record and reports whether it is unchanged.
-    fn reload(&self) -> bool;
+    /// Reloads the shared connection record and reports whether it is
+    /// unchanged since [`Self::prepare`].
+    async fn reload(&self) -> bool;
+
+    /// Counts this submission in flight, before its final reload. An admin
+    /// change waits for this process's count to reach zero.
+    fn enter(&self) {}
+
+    /// Ends the count [`Self::enter`] took, once the entry is recorded.
+    fn leave(&self) {}
 
     /// Leases the credential.
     async fn lease(&self) -> Option<Self::Lease>;
@@ -196,6 +205,18 @@ pub(crate) fn denied_result(response: Option<&ProviderResponse>, refused: &[u16]
     }
 }
 
+/// Ends the in-flight count of one entry when dropped, so a count taken
+/// before the final reload is released on every path.
+struct InFlight<'a, I: SubmitIo> {
+    io: &'a I,
+}
+
+impl<I: SubmitIo> Drop for InFlight<'_, I> {
+    fn drop(&mut self) {
+        self.io.leave();
+    }
+}
+
 /// What one run has learned so far.
 struct Run<'a, I: SubmitIo> {
     cx: &'a SubmitContext<'a>,
@@ -212,37 +233,79 @@ struct Run<'a, I: SubmitIo> {
     written: Option<(u16, [u8; 32], Vec<u8>, bool)>,
     refusal: Option<&'static str>,
     result: Option<GatewaySubmitResult>,
+    in_flight: Option<InFlight<'a, I>>,
+}
+
+impl<'a, I: SubmitIo> Run<'a, I> {
+    fn new(cx: &'a SubmitContext<'a>, io: &'a I) -> Self {
+        Self {
+            cx,
+            io,
+            guard: cx.recipe.guard_checks(),
+            ceiling: cx.recipe.ceiling_check(),
+            evaluated_at: 0,
+            verified: None,
+            selected: Vec::new(),
+            claim: None,
+            observable: None,
+            lease: None,
+            pre_entry: GatewayPreEntry::default(),
+            written: None,
+            refusal: None,
+            result: None,
+            in_flight: None,
+        }
+    }
+
+    /// Performs each action `decision` names until the machine stops.
+    async fn drive(&mut self, mut decision: SubmitDecision) -> Stop {
+        for _ in 0..MAX_STEPS {
+            let event = match decision.action {
+                SubmitAction::Stop(stop) => return stop,
+                // Each step runs on the heap so a submission's future stays
+                // small wherever it is spawned.
+                action => Box::pin(self.perform(action)).await,
+            };
+            decision = next_step(decision.state, event);
+        }
+        Stop::Halted
+    }
 }
 
 /// Runs one submission to its stop.
 pub(crate) async fn run<I: SubmitIo>(cx: &SubmitContext<'_>, io: &I) -> GatewaySubmitResult {
-    let mut state = Run {
-        cx,
-        io,
-        guard: cx.recipe.guard_checks(),
-        ceiling: cx.recipe.ceiling_check(),
-        evaluated_at: 0,
-        verified: None,
-        selected: Vec::new(),
-        claim: None,
-        observable: None,
-        lease: None,
-        pre_entry: GatewayPreEntry::default(),
-        written: None,
-        refusal: None,
-        result: None,
+    let mut state = Run::new(cx, io);
+    let stop = state
+        .drive(next_step(start(plan(cx.recipe)), SubmitEvent::Start))
+        .await;
+    state.finish(stop)
+}
+
+/// Runs the operator's read-only re-observation of `attempt`, which
+/// [`GatewayAttempts::resume_observable_operation`] reopened, through the
+/// same step machine a replay takes: a reload, a fresh lease that passes
+/// every credential check, and one read-back from the stored plan. The
+/// caller has already prepared the entry. Returns the recorded result, or
+/// `None` when the read-back recorded nothing.
+pub(crate) async fn reobserve<I: SubmitIo>(
+    cx: &SubmitContext<'_>,
+    io: &I,
+    attempt: ObservableGatewayAttempt,
+) -> Option<GatewaySubmitResult> {
+    let mut state = Run::new(cx, io);
+    state.observable = Some(attempt);
+    let resumed = SubmitState {
+        plan: plan(cx.recipe),
+        phase: Phase::Resume,
+        argument: 0,
     };
-    let mut decision = next_step(start(plan(cx.recipe)), SubmitEvent::Start);
-    for _ in 0..MAX_STEPS {
-        let event = match decision.action {
-            SubmitAction::Stop(stop) => return state.finish(stop),
-            // Each step runs on the heap so a submission's future stays small
-            // wherever it is spawned.
-            action => Box::pin(state.perform(action)).await,
-        };
-        decision = next_step(decision.state, event);
+    match state
+        .drive(next_step(resumed, SubmitEvent::Resume(true)))
+        .await
+    {
+        Stop::Observed => state.result,
+        _ => None,
     }
-    state.finish(Stop::Halted)
 }
 
 impl<I: SubmitIo> Run<'_, I> {
@@ -280,7 +343,7 @@ impl<I: SubmitIo> Run<'_, I> {
                 SubmitEvent::Scope(bound.is_ok())
             }
             SubmitAction::Prepare => {
-                let prepared = self.io.prepare();
+                let prepared = self.io.prepare().await;
                 if let Err(code) = prepared {
                     self.refuse_before_claim(not_entered(code));
                 }
@@ -288,8 +351,14 @@ impl<I: SubmitIo> Run<'_, I> {
             }
             SubmitAction::Claim => SubmitEvent::Claim(self.claim().await),
             SubmitAction::Resume => SubmitEvent::Resume(self.resume().await),
-            SubmitAction::Reload(_) | SubmitAction::ReloadBeforeEntry => {
-                SubmitEvent::Reload(self.io.reload())
+            SubmitAction::Reload(_) => SubmitEvent::Reload(self.io.reload().await),
+            SubmitAction::ReloadBeforeEntry => {
+                // Counted before the reload, so an admin change committed
+                // after this point is seen by the reload, and one committed
+                // before it waits for this entry.
+                self.io.enter();
+                self.in_flight = Some(InFlight { io: self.io });
+                SubmitEvent::Reload(self.io.reload().await)
             }
             SubmitAction::Lease(_) => {
                 self.lease = self.io.lease().await;
@@ -320,13 +389,23 @@ impl<I: SubmitIo> Run<'_, I> {
                 SubmitEvent::Deadline(self.io.within_entry_deadline(self.evaluated_at))
             }
             SubmitAction::Send => SubmitEvent::Write(self.send().await),
-            SubmitAction::RecordResponse => SubmitEvent::Response(self.record_response().await),
-            SubmitAction::RecordUnknown => SubmitEvent::Recorded(match self.claim.take() {
-                Some(claim) => claim.record_unknown().await.is_ok(),
-                None => false,
-            }),
+            SubmitAction::RecordResponse => {
+                let recorded = self.record_response().await;
+                self.in_flight = None;
+                SubmitEvent::Response(recorded)
+            }
+            SubmitAction::RecordUnknown => {
+                let recorded = match self.claim.take() {
+                    Some(claim) => claim.record_unknown().await.is_ok(),
+                    None => false,
+                };
+                self.in_flight = None;
+                SubmitEvent::Recorded(recorded)
+            }
             SubmitAction::RecordNotEntered(refusal) => {
-                SubmitEvent::Recorded(self.record_not_entered(refusal).await)
+                let recorded = self.record_not_entered(refusal).await;
+                self.in_flight = None;
+                SubmitEvent::Recorded(recorded)
             }
             SubmitAction::ReadBack(mode) => SubmitEvent::Recorded(self.read_back(mode).await),
             SubmitAction::Stop(_) => SubmitEvent::Start,

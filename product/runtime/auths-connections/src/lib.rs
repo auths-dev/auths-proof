@@ -20,6 +20,7 @@ pub use qualification::{
 };
 
 mod credential;
+pub mod kernel;
 mod model;
 mod registry;
 

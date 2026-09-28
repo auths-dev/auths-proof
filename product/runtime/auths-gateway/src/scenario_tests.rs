@@ -196,11 +196,11 @@ impl<P: ProviderPort> SubmitIo for TestIo<'_, P> {
         Ok(())
     }
 
-    fn prepare(&self) -> Result<(), &'static str> {
+    async fn prepare(&self) -> Result<(), &'static str> {
         Ok(())
     }
 
-    fn reload(&self) -> bool {
+    async fn reload(&self) -> bool {
         true
     }
 

@@ -1,8 +1,9 @@
 //! Customer-operated gateway. The app socket accepts proof and action only;
 //! installation and administration require the operator channel. A
-//! development installation keeps attempts on one host; a production
-//! installation keeps them in the multi-host `PostgreSQL` store, whose
-//! production qualification is still open.
+//! development installation keeps attempts and the shared connection record
+//! in a file store on one host; a production installation keeps them in the
+//! multi-host `PostgreSQL` store, whose production qualification is still
+//! open. Every process keeps its own credential store.
 
 #[cfg(not(unix))]
 fn main() {
@@ -13,15 +14,14 @@ fn main() {
 #[cfg(unix)]
 mod unix {
     use auths_connections::{
-        ConnectionAlias, ConnectionCredentialStore, ConnectionId, ConnectionProfile,
-        ConnectionRecord, ConnectionState, PersistentCredentialStore, ProviderKind, RegistryLimits,
-        SecretBytes, SemanticId,
+        ConnectionAlias, ConnectionId, ConnectionProfile, ConnectionRecord, ConnectionState,
+        PersistentCredentialStore, ProviderKind, SecretBytes, SemanticId,
     };
     use auths_gateway::app::{
         APP_OBSERVE_SCHEMA, APP_REQUEST_SCHEMA, AppObservation, AppSubmission, SessionClock,
         SessionLimits, app_session, read_frame, write_frame,
     };
-    use auths_gateway::listener::{ADMIN_CAPACITY, APP_CAPACITY, serve_listener};
+    use auths_gateway::listener::{ADMIN_CAPACITY, serve_listener};
     use auths_gateway::{ArgumentCeilingPolicy, AuditPins, audit_bundle};
     use auths_gateway::{
         CompiledRecipe, FileGatewayAttemptStore, GatewayAttempts, GatewayConnectionDescriptor,
@@ -31,8 +31,13 @@ mod unix {
         PrincipalSeparationError, check_candidate_credential, check_principal_separation,
         gateway_verifier_configuration,
     };
+    use auths_gateway::{
+        GatewayAdminOutcome, GatewayAdminStatus, OperatorInstallation, OperatorStatement,
+        SharedConnection, check_anchor_aliasing, install_connection, join_connection,
+        verify_operator_attestation,
+    };
     use auths_model::PrincipalId;
-    use auths_stores::{PersistentConnectionStore, PostgresLifecycleStore, PostgresStoreConfig};
+    use auths_stores::{PostgresLifecycleStore, PostgresStoreConfig};
     use base64ct::{Base64UrlUnpadded, Encoding as _};
     use clap::{Parser, Subcommand, ValueEnum};
     use serde::{Deserialize, Serialize};
@@ -55,13 +60,21 @@ mod unix {
     };
     use zeroize::{Zeroize as _, Zeroizing};
 
-    const MANIFEST_SCHEMA: &str = "auths.gateway-installation/2";
+    const MANIFEST_SCHEMA: &str = "auths.gateway-installation/3";
     const OBSERVER_SEED: &str = "observer.seed";
+    const OPERATOR_ATTESTATION_FILE: &str = "operator-attestation.json";
+    const ADMIN_REQUEST_SCHEMA: &str = "auths.gateway-admin-request/1";
+    const ADMIN_RESPONSE_SCHEMA: &str = "auths.gateway-admin-response/1";
+    /// Descriptors `serve` keeps beyond its listeners' capacities and the
+    /// store pool: standard streams, listeners, store and state files.
+    const DESCRIPTOR_SLACK: u64 = 32;
 
-    /// Admin sessions: each frame within 5 seconds, the change within 45
-    /// seconds, and the response within 5 seconds, all inside one 60-second
-    /// session deadline. A change that has not answered by then still
-    /// completes; only its connection closes.
+    /// Admin sessions: each frame within 5 seconds; the change within 45
+    /// seconds, which covers a rotation's 20-second onboarding reads, the
+    /// commit within the store's statement timeout, and the 20-second drain;
+    /// and the response within 5 seconds, all inside one 60-second session
+    /// deadline. A change that has not answered by then still completes;
+    /// only its connection closes.
     const ADMIN_SESSION_LIMITS: SessionLimits = SessionLimits {
         frame_read: Duration::from_secs(5),
         result_wait: Duration::from_secs(45),
@@ -81,7 +94,9 @@ mod unix {
 
     #[derive(Subcommand)]
     enum Command {
-        /// Operator-only initial install; credential bytes enter through stdin.
+        /// Operator-only install; credential bytes enter through stdin. The
+        /// first host inserts the shared connection record; each further host
+        /// joins it with `--join` and the same secret.
         Install {
             #[arg(long)]
             state_dir: PathBuf,
@@ -97,22 +112,35 @@ mod unix {
             provider: String,
             #[arg(long)]
             alias: String,
-            #[arg(long)]
-            account_label: String,
+            /// The provider account the first install binds; a join reads the
+            /// record's commitment instead.
+            #[arg(long, required_unless_present = "join", conflicts_with = "join")]
+            account_label: Option<String>,
+            /// Join the connection record another host installed on the same
+            /// store, with the same recipe, trust, lock, provider, alias, and
+            /// deployment.
+            #[arg(long, default_value_t = false)]
+            join: bool,
             /// Operator-selected header; must match the recipe's requirement.
             #[arg(long, default_value = "Authorization")]
             credential_header: String,
             #[arg(long, default_value_t = false)]
             credential_stdin: bool,
-            /// `development` keeps attempts in a single-host file store;
-            /// `production` requires the `PostgreSQL` store, a
-            /// separate operator principal, and no software observer key.
+            /// `development` keeps attempts and the connection record in a
+            /// single-host file store; `production` requires the
+            /// `PostgreSQL` store, an authenticated operator, and no software
+            /// observer key.
             #[arg(long, value_enum, default_value_t = Deployment::Development)]
             deployment: Deployment,
-            /// The operator's principal, which must be neither a root nor an
-            /// observer of the installed trust. Required for production.
+            /// The signed operator attestation from `operator-request`.
+            /// Required for production.
             #[arg(long)]
-            operator_principal: Option<String>,
+            operator_attestation: Option<PathBuf>,
+            /// Development only: the absolute directory of the file store
+            /// the processes of one host share. Defaults to the state
+            /// directory's own store.
+            #[arg(long)]
+            attempt_store: Option<PathBuf>,
         },
         /// Serve a restricted application socket and private admin socket.
         Serve {
@@ -120,6 +148,10 @@ mod unix {
             state_dir: PathBuf,
             #[arg(long)]
             app_socket: PathBuf,
+            /// Application connections served at once, 1-1024; the default
+            /// is `APP_CAPACITY`.
+            #[arg(long, default_value_t = 64, value_parser = clap::value_parser!(u16).range(1..=1024))]
+            app_capacity: u16,
             /// Development builds only: send provider requests to a
             /// plain-HTTP provider double on 127.0.0.1:<port>.
             #[cfg(feature = "loopback-provider")]
@@ -169,10 +201,64 @@ mod unix {
             #[arg(long)]
             action: PathBuf,
         },
-        /// Ask the private operator socket to disable new writes.
+        /// Ask the private operator socket to disable new writes in every
+        /// process sharing the store.
         Disable {
             #[arg(long)]
             state_dir: PathBuf,
+        },
+        /// Ask the private operator socket to enable a disabled connection.
+        Enable {
+            #[arg(long)]
+            state_dir: PathBuf,
+        },
+        /// Ask the private operator socket for the connection state.
+        Status {
+            #[arg(long)]
+            state_dir: PathBuf,
+        },
+        /// Ask the private operator socket for one read-only re-observation
+        /// of a stored attempt.
+        Reobserve {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            operation_id: String,
+        },
+        /// Print the operator statement and the preimage the operator's own
+        /// signer signs for `install --operator-attestation`. Prints no
+        /// secret and contacts nothing.
+        OperatorRequest {
+            #[arg(long)]
+            recipe: PathBuf,
+            #[arg(long)]
+            profile_lock: PathBuf,
+            #[arg(long)]
+            trusted_context: PathBuf,
+            #[arg(long)]
+            provider: String,
+            #[arg(long)]
+            alias: String,
+            #[arg(long, value_enum)]
+            deployment: Deployment,
+            #[arg(long)]
+            operator_principal: String,
+            #[arg(long)]
+            principal_method: String,
+            #[arg(long)]
+            verification_method: String,
+            #[arg(long)]
+            signature_suite: String,
+        },
+        /// Offline, with every gateway process stopped: replace the operator
+        /// attestation of an installation.
+        OperatorAttest {
+            #[arg(long)]
+            state_dir: PathBuf,
+            #[arg(long)]
+            operator_attestation: PathBuf,
+            #[arg(long, required = true)]
+            replace: bool,
         },
         /// Ask the private operator socket to revoke the connection.
         Revoke {
@@ -236,6 +322,15 @@ mod unix {
         Production,
     }
 
+    impl Deployment {
+        const fn label(self) -> &'static str {
+            match self {
+                Self::Development => "development",
+                Self::Production => "production",
+            }
+        }
+    }
+
     #[derive(Deserialize, Serialize)]
     #[serde(deny_unknown_fields)]
     struct Installation {
@@ -246,21 +341,92 @@ mod unix {
         provider: String,
         alias: String,
         deployment: Deployment,
-        operator_principal: Option<String>,
+        /// SHA-256 of the operator attestation file; absent only for a
+        /// development installation, which then has no operator.
+        operator_attestation_sha256: Option<String>,
+        /// The development file store's absolute directory; absent for
+        /// production, which uses the `PostgreSQL` store.
+        attempt_store: Option<String>,
+    }
+
+    impl Installation {
+        fn operator_installation(&self) -> OperatorInstallation {
+            OperatorInstallation {
+                recipe_digest: self.recipe_digest.clone(),
+                profile_lock_sha256: self.profile_lock_sha256.clone(),
+                trusted_context_sha256: self.trusted_context_sha256.clone(),
+                provider: self.provider.clone(),
+                alias: self.alias.clone(),
+                deployment: self.deployment.label().to_owned(),
+            }
+        }
+    }
+
+    /// Parses one `auths.gateway-admin-request/1` frame: a JSON object with
+    /// exactly the schema, the command, and that command's arguments.
+    fn parse_admin_request(bytes: &[u8]) -> Result<AdminRequestCommand, &'static str> {
+        let invalid = "gateway.admin.invalid-frame";
+        let mut request: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_slice(bytes).map_err(|_| invalid)?;
+        if request.remove("schema") != Some(serde_json::Value::String(ADMIN_REQUEST_SCHEMA.into()))
+        {
+            return Err(invalid);
+        }
+        serde_json::from_value(serde_json::Value::Object(request)).map_err(|_| invalid)
     }
 
     #[derive(Deserialize)]
     #[serde(tag = "command", rename_all = "kebab-case", deny_unknown_fields)]
-    enum AdminRequest {
-        Disable,
-        Revoke,
-        Rotate,
+    enum AdminRequestCommand {
+        // Struct variants, so an argument the command does not take is
+        // refused: an internally tagged unit variant ignores extra members.
+        Disable {},
+        Enable {},
+        Revoke {},
+        Rotate {},
+        Status {},
+        Reobserve { operation_id: String },
     }
 
     #[derive(Serialize)]
     struct AdminResponse {
+        schema: &'static str,
         ok: bool,
         code: &'static str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        drained: Option<bool>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        in_flight: Option<u64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        status: Option<GatewayAdminStatus>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        result: Option<GatewaySubmitResult>,
+    }
+
+    impl AdminResponse {
+        const fn refused(code: &'static str) -> Self {
+            Self {
+                schema: ADMIN_RESPONSE_SCHEMA,
+                ok: false,
+                code,
+                drained: None,
+                in_flight: None,
+                status: None,
+                result: None,
+            }
+        }
+
+        fn of(result: Result<GatewayAdminOutcome, &'static str>) -> Self {
+            match result {
+                Ok(outcome) => Self {
+                    drained: Some(outcome.drained),
+                    in_flight: Some(outcome.in_flight),
+                    ok: true,
+                    ..Self::refused(outcome.code)
+                },
+                Err(code) => Self::refused(code),
+            }
+        }
     }
 
     fn private_root(path: &Path) -> Result<(), &'static str> {
@@ -328,14 +494,14 @@ mod unix {
         Ok(bytes)
     }
 
-    /// Reads the candidate secret and runs every credential check the recipe
-    /// declares before anything is stored: the prefix, the probe, the
-    /// account read against the operator's label, and the denied reads.
+    /// Runs every credential check the recipe declares on the candidate
+    /// secret before anything is stored: the prefix, the probe, the account
+    /// read against the operator's label, and the denied reads.
     async fn checked_install_credential(
         recipe: &CompiledRecipe,
+        mut candidate: Zeroizing<Vec<u8>>,
         account_label: &str,
     ) -> Result<SecretBytes, &'static str> {
-        let mut candidate = read_install_credential()?;
         check_candidate_credential(
             recipe,
             recipe.review().credential(),
@@ -348,26 +514,47 @@ mod unix {
             .map_err(|_| "gateway.install.invalid-credential")
     }
 
-    /// A production installation names an operator principal that is neither
-    /// a root nor an observer of the trust it installs.
-    fn separated_operator(
+    /// Verifies an operator attestation against the installation it must
+    /// name, and requires the authenticated operator to pass separation by
+    /// key from every root and observer of the trust.
+    fn authenticated_operator(
+        bytes: &[u8],
+        expected: &OperatorInstallation,
         context: &auths_model::TrustedContext,
-        deployment: Deployment,
-        operator: Option<&str>,
-    ) -> Result<(), &'static str> {
-        match (operator, deployment) {
-            (Some(operator), _) => {
-                let operator = PrincipalId::parse(operator)
-                    .map_err(|_| "gateway.install.invalid-operator-principal")?;
-                check_principal_separation(context, &operator, None)
-                    .map_err(PrincipalSeparationError::code)
-            }
-            (None, Deployment::Production) => Err("gateway.install.operator-principal-required"),
-            (None, Deployment::Development) => Ok(()),
+    ) -> Result<PrincipalId, &'static str> {
+        let operator = verify_operator_attestation(bytes, expected, now()?)
+            .map_err(auths_gateway::OperatorAttestationError::code)?;
+        check_principal_separation(context, Some(&operator), None)
+            .map_err(PrincipalSeparationError::code)?;
+        Ok(operator)
+    }
+
+    /// Reads an attestation file of at most 16 KiB that only its owner can
+    /// read.
+    fn read_attestation(path: &Path) -> Result<Vec<u8>, &'static str> {
+        let metadata = fs::symlink_metadata(path)
+            .map_err(|_| "gateway.install.operator-attestation-invalid")?;
+        if !metadata.file_type().is_file() || metadata.permissions().mode() & 0o077 != 0 {
+            return Err("gateway.install.operator-attestation-invalid");
+        }
+        read_bounded(path, auths_gateway::MAX_OPERATOR_ATTESTATION_BYTES)
+            .map_err(|_| "gateway.install.operator-attestation-invalid")
+    }
+
+    /// The development file store's directory: the one named, which must be
+    /// absolute, or the state directory's own.
+    fn development_store(
+        state_dir: &Path,
+        attempt_store: Option<PathBuf>,
+    ) -> Result<PathBuf, &'static str> {
+        match attempt_store {
+            Some(path) if path.is_absolute() => Ok(path),
+            Some(_) => Err("gateway.install.invalid-attempt-store"),
+            None => Ok(state_dir.join("attempts")),
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
     async fn install(
         state_dir: PathBuf,
         recipe_path: PathBuf,
@@ -376,11 +563,13 @@ mod unix {
         approved: String,
         provider_text: String,
         alias_text: String,
-        account_label: String,
+        account_label: Option<String>,
+        join: bool,
         credential_header: String,
         credential_stdin: bool,
         deployment: Deployment,
-        operator_principal: Option<String>,
+        operator_attestation: Option<PathBuf>,
+        attempt_store: Option<PathBuf>,
     ) -> Result<(), &'static str> {
         if !credential_stdin || std::io::stdin().is_terminal() {
             return Err("gateway.install.credential-must-be-piped-to-stdin");
@@ -390,7 +579,7 @@ mod unix {
         let trust = read_bounded(&context_path, 4 * 1024 * 1024)?;
         let context = auths_codec::decode_verifier_context(&trust)
             .map_err(|_| "gateway.install.invalid-trusted-context")?;
-        separated_operator(&context, deployment, operator_principal.as_deref())?;
+        check_anchor_aliasing(&context).map_err(PrincipalSeparationError::code)?;
         let recipe = installable_recipe(&source, &lock)?;
         if approved != recipe.digest_hex() {
             return Err("gateway.install.approval-digest-mismatch");
@@ -403,63 +592,14 @@ mod unix {
             .map_err(|_| "gateway.install.invalid-provider")?;
         let alias = ConnectionAlias::parse(alias_text.clone())
             .map_err(|_| "gateway.install.invalid-alias")?;
-        if account_label.is_empty() || account_label.len() > 256 {
-            return Err("gateway.install.invalid-account-label");
-        }
-        let secret = checked_install_credential(&recipe, &account_label).await?;
-        private_root(&state_dir)?;
-        if state_dir.join("installation.json").exists() {
-            return Err("gateway.install.already-installed");
-        }
-        let credentials = PersistentCredentialStore::open(state_dir.join("credentials.cbor"))
-            .map_err(|_| "gateway.install.credential-store-unavailable")?;
-        let connection_id =
-            ConnectionId::generate().map_err(|_| "gateway.install.randomness-unavailable")?;
-        let generation = NonZeroU64::new(1).ok_or("gateway.install.generation")?;
-        let reference = credentials
-            .install(&connection_id, generation, secret)
-            .await
-            .map_err(|_| "gateway.install.credential-store-unavailable")?;
-        let profile = ConnectionProfile::new(
-            SemanticId::parse("auths.mcp").map_err(|_| "gateway.install.profile")?,
-            2,
-        )
-        .map_err(|_| "gateway.install.profile")?;
-        let mut account_hash = Sha256::new();
-        account_hash.update(b"auths.gateway-account/1\0");
-        account_hash.update(account_label.as_bytes());
-        let timestamp = now()?;
-        let record = ConnectionRecord::new(
-            provider,
-            alias,
-            connection_id,
-            SemanticId::parse("auths.gateway-operation/1")
-                .map_err(|_| "gateway.install.contract")?,
-            SemanticId::parse("auths.gateway-connection-descriptor/1")
-                .map_err(|_| "gateway.install.descriptor-schema")?,
-            descriptor,
-            account_hash.finalize().into(),
-            *reference.as_bytes(),
-            generation,
-            ConnectionState::Active,
-            vec!["gateway".to_owned()],
-            vec![profile],
-            timestamp,
-            timestamp,
-            None,
-        )
-        .map_err(|_| "gateway.install.connection-invalid")?;
-        PersistentConnectionStore::open(
-            state_dir.join("connections.cbor"),
-            RegistryLimits::default(),
-        )
-        .map_err(|_| "gateway.install.connection-store-unavailable")?
-        .insert(record)
-        .map_err(|_| "gateway.install.connection-store-unavailable")?;
-        private_file(&state_dir.join("recipe.json"), &source)?;
-        private_file(&state_dir.join("profile.lock.json"), &lock)?;
-        private_file(&state_dir.join("trusted.context.cbor"), &trust)?;
-        let manifest = Installation {
+        let store_path = match deployment {
+            Deployment::Development => Some(development_store(&state_dir, attempt_store)?),
+            Deployment::Production if attempt_store.is_some() => {
+                return Err("gateway.install.invalid-attempt-store");
+            }
+            Deployment::Production => None,
+        };
+        let mut manifest = Installation {
             schema: MANIFEST_SCHEMA.to_owned(),
             recipe_digest: approved,
             profile_lock_sha256: digest(&lock),
@@ -467,13 +607,99 @@ mod unix {
             provider: provider_text,
             alias: alias_text,
             deployment,
-            operator_principal,
+            operator_attestation_sha256: None,
+            attempt_store: store_path.as_ref().map(|path| path.display().to_string()),
         };
+        let attestation = match (operator_attestation, deployment) {
+            (Some(path), _) => {
+                let bytes = read_attestation(&path)?;
+                authenticated_operator(&bytes, &manifest.operator_installation(), &context)?;
+                manifest.operator_attestation_sha256 = Some(digest(&bytes));
+                Some(bytes)
+            }
+            (None, Deployment::Production) => {
+                return Err("gateway.install.operator-attestation-required");
+            }
+            (None, Deployment::Development) => None,
+        };
+        let candidate = read_install_credential()?;
+        private_root(&state_dir)?;
+        if state_dir.join("installation.json").exists() {
+            return Err("gateway.install.already-installed");
+        }
+        let attempts = {
+            let store_path = store_path.clone();
+            tokio::task::spawn_blocking(move || open_attempts(deployment, store_path))
+                .await
+                .map_err(|_| "gateway.install.attempt-store-unavailable")?
+                .map_err(|_| "gateway.install.attempt-store-unavailable")?
+        };
+        let credentials = PersistentCredentialStore::open(state_dir.join("credentials.cbor"))
+            .map_err(|_| "gateway.install.credential-store-unavailable")?;
+        let shared = SharedConnection::new(attempts.store(), provider.clone(), alias.clone());
+        if join {
+            join_connection(&shared, &credentials, &recipe, &candidate).await?;
+        } else {
+            let account_label = account_label.ok_or("gateway.install.invalid-account-label")?;
+            if account_label.is_empty() || account_label.len() > 256 {
+                return Err("gateway.install.invalid-account-label");
+            }
+            let secret = checked_install_credential(&recipe, candidate, &account_label).await?;
+            let connection_id =
+                ConnectionId::generate().map_err(|_| "gateway.install.randomness-unavailable")?;
+            let profile = ConnectionProfile::new(
+                SemanticId::parse("auths.mcp").map_err(|_| "gateway.install.profile")?,
+                2,
+            )
+            .map_err(|_| "gateway.install.profile")?;
+            let mut account_hash = Sha256::new();
+            account_hash.update(b"auths.gateway-account/1\0");
+            account_hash.update(account_label.as_bytes());
+            let account_commitment: [u8; 32] = account_hash.finalize().into();
+            let timestamp = now()?;
+            let record_id = connection_id.clone();
+            install_connection(
+                &shared,
+                &credentials,
+                move |reference| {
+                    ConnectionRecord::new(
+                        provider,
+                        alias,
+                        record_id,
+                        SemanticId::parse("auths.gateway-operation/1")
+                            .map_err(|_| "gateway.install.contract")?,
+                        SemanticId::parse("auths.gateway-connection-descriptor/1")
+                            .map_err(|_| "gateway.install.descriptor-schema")?,
+                        descriptor,
+                        account_commitment,
+                        reference,
+                        NonZeroU64::MIN,
+                        ConnectionState::Active,
+                        vec!["gateway".to_owned()],
+                        vec![profile],
+                        timestamp,
+                        timestamp,
+                        None,
+                    )
+                    .map_err(|_| "gateway.install.connection-invalid")
+                },
+                &connection_id,
+                secret,
+            )
+            .await?;
+        }
+        private_file(&state_dir.join("recipe.json"), &source)?;
+        private_file(&state_dir.join("profile.lock.json"), &lock)?;
+        private_file(&state_dir.join("trusted.context.cbor"), &trust)?;
+        if let Some(bytes) = &attestation {
+            private_file(&state_dir.join(OPERATOR_ATTESTATION_FILE), bytes)?;
+        }
         let manifest_bytes = serde_json_canonicalizer::to_vec(&manifest)
             .map_err(|_| "gateway.install.manifest-invalid")?;
         private_file(&state_dir.join("installation.json"), &manifest_bytes)?;
         println!(
-            "installed recipe {} with separate gateway credential custody",
+            "{} recipe {} with separate gateway credential custody",
+            if join { "joined" } else { "installed" },
             manifest.recipe_digest
         );
         Ok(())
@@ -487,25 +713,27 @@ mod unix {
             || serde_json_canonicalizer::to_vec(&manifest)
                 .map_err(|_| "gateway.serve.invalid-installation")?
                 != manifest_bytes
+            || (manifest.deployment == Deployment::Production) != manifest.attempt_store.is_none()
         {
             return Err("gateway.serve.invalid-installation");
         }
         Ok(manifest)
     }
 
-    /// Opens the attempt store the installation names. Production uses the
-    /// `PostgreSQL` store from the reference deployment's secret
-    /// slots; it blocks, so the caller must not be on an async executor.
-    fn attempt_store(
-        state_dir: &Path,
+    /// Opens the store the installation names: the development file store
+    /// at its directory, or the production `PostgreSQL` store from the
+    /// reference deployment's secret slots. It blocks, so the caller must
+    /// not be on an async executor.
+    fn open_attempts(
         deployment: Deployment,
+        store_path: Option<PathBuf>,
     ) -> Result<GatewayAttempts, &'static str> {
-        Ok(GatewayAttempts::new(match deployment {
-            Deployment::Development => Arc::new(
-                FileGatewayAttemptStore::open(state_dir.join("attempts"))
+        Ok(GatewayAttempts::new(match (deployment, store_path) {
+            (Deployment::Development, Some(path)) => Arc::new(
+                FileGatewayAttemptStore::open(path)
                     .map_err(|_| "gateway.serve.attempt-store-unavailable")?,
             ),
-            Deployment::Production => {
+            (Deployment::Production, None) => {
                 let configuration = PostgresStoreConfig::from_env(Vec::new(), 1_000_000)
                     .map_err(|_| "gateway.serve.postgres-configuration")?;
                 Arc::new(PostgresGatewayAttemptStore::new(Arc::new(
@@ -513,7 +741,34 @@ mod unix {
                         .map_err(|_| "gateway.serve.attempt-store-unavailable")?,
                 )))
             }
+            _ => return Err("gateway.serve.invalid-installation"),
         }))
+    }
+
+    /// The store connections `serve` may hold: the `PostgreSQL` pool's
+    /// maximum, or none for the file store.
+    fn store_pool(deployment: Deployment) -> Result<u64, &'static str> {
+        match deployment {
+            Deployment::Development => Ok(0),
+            Deployment::Production => PostgresStoreConfig::from_env(Vec::new(), 1_000_000)
+                .map(|configuration| u64::from(configuration.summary().maximum_connections()))
+                .map_err(|_| "gateway.serve.postgres-configuration"),
+        }
+    }
+
+    /// Refuses to serve when the descriptor limit cannot hold both
+    /// listeners' capacities, the store pool, and the fixed slack.
+    fn check_descriptor_limit(app_capacity: usize, pool: u64) -> Result<(), &'static str> {
+        let needed = u64::try_from(app_capacity)
+            .ok()
+            .and_then(|app| app.checked_add(u64::try_from(ADMIN_CAPACITY).ok()?))
+            .and_then(|listeners| listeners.checked_add(pool))
+            .and_then(|total| total.checked_add(DESCRIPTOR_SLACK))
+            .ok_or("gateway.serve.descriptor-limit")?;
+        match rustix::process::getrlimit(rustix::process::Resource::Nofile).current {
+            Some(limit) if limit < needed => Err("gateway.serve.descriptor-limit"),
+            _ => Ok(()),
+        }
     }
 
     fn load_engine(state_dir: &Path) -> Result<GatewayEngine, &'static str> {
@@ -527,6 +782,26 @@ mod unix {
         {
             return Err("gateway.serve.installation-changed");
         }
+        let context = auths_codec::decode_verifier_context(&trust)
+            .map_err(|_| "gateway.serve.invalid-installation")?;
+        check_anchor_aliasing(&context).map_err(PrincipalSeparationError::code)?;
+        let operator = match (&manifest.operator_attestation_sha256, manifest.deployment) {
+            (Some(pinned), _) => {
+                let bytes = read_attestation(&state_dir.join(OPERATOR_ATTESTATION_FILE))?;
+                if digest(&bytes) != *pinned {
+                    return Err("gateway.install.operator-attestation-invalid");
+                }
+                Some(authenticated_operator(
+                    &bytes,
+                    &manifest.operator_installation(),
+                    &context,
+                )?)
+            }
+            (None, Deployment::Production) => {
+                return Err("gateway.install.operator-attestation-required");
+            }
+            (None, Deployment::Development) => None,
+        };
         let recipe =
             CompiledRecipe::compile(&source, &lock).map_err(|_| "gateway.serve.invalid-recipe")?;
         if recipe.digest_hex() != manifest.recipe_digest {
@@ -550,31 +825,27 @@ mod unix {
             recipe,
             approved,
             &trust,
-            ProviderKind::parse(manifest.provider).map_err(|_| "gateway.serve.invalid-provider")?,
-            ConnectionAlias::parse(manifest.alias).map_err(|_| "gateway.serve.invalid-alias")?,
+            ProviderKind::parse(manifest.provider.clone())
+                .map_err(|_| "gateway.serve.invalid-provider")?,
+            ConnectionAlias::parse(manifest.alias.clone())
+                .map_err(|_| "gateway.serve.invalid-alias")?,
             "gateway".to_owned(),
             profile,
-            PersistentConnectionStore::open(
-                state_dir.join("connections.cbor"),
-                RegistryLimits::default(),
-            )
-            .map_err(|_| "gateway.serve.connection-store-unavailable")?,
             PersistentCredentialStore::open(state_dir.join("credentials.cbor"))
                 .map_err(|_| "gateway.serve.credential-store-unavailable")?,
-            attempt_store(state_dir, manifest.deployment)?,
+            open_attempts(
+                manifest.deployment,
+                manifest.attempt_store.as_ref().map(PathBuf::from),
+            )?,
         )
         .map_err(|_| "gateway.serve.invalid-installation")?;
         let engine = match observer {
             Some(observer) => engine.with_observer(observer),
             None => engine,
         };
-        if let Some(operator) = &manifest.operator_principal {
-            let operator =
-                PrincipalId::parse(operator).map_err(|_| "gateway.serve.invalid-installation")?;
-            engine
-                .check_principal_separation(&operator)
-                .map_err(PrincipalSeparationError::code)?;
-        }
+        engine
+            .check_principal_separation(operator.as_ref())
+            .map_err(PrincipalSeparationError::code)?;
         Ok(engine)
     }
 
@@ -646,8 +917,11 @@ mod unix {
     /// One admin command, with the secret a rotation carries.
     enum AdminCommand {
         Disable,
+        Enable,
         Revoke,
         Rotate(Zeroizing<Vec<u8>>),
+        Status,
+        Reobserve(String),
     }
 
     /// Reads the command frame and, for a rotation, the secret frame, each
@@ -660,12 +934,15 @@ mod unix {
             .read_frame(stream)
             .await
             .map_err(|_| "gateway.admin.invalid-frame")?;
-        match serde_json::from_slice::<AdminRequest>(&bytes)
-            .map_err(|_| "gateway.admin.invalid-frame")?
-        {
-            AdminRequest::Disable => Ok(AdminCommand::Disable),
-            AdminRequest::Revoke => Ok(AdminCommand::Revoke),
-            AdminRequest::Rotate => {
+        match parse_admin_request(&bytes)? {
+            AdminRequestCommand::Disable {} => Ok(AdminCommand::Disable),
+            AdminRequestCommand::Enable {} => Ok(AdminCommand::Enable),
+            AdminRequestCommand::Revoke {} => Ok(AdminCommand::Revoke),
+            AdminRequestCommand::Status {} => Ok(AdminCommand::Status),
+            AdminRequestCommand::Reobserve { operation_id } => {
+                Ok(AdminCommand::Reobserve(operation_id))
+            }
+            AdminRequestCommand::Rotate {} => {
                 let mut secret = clock
                     .read_frame(stream)
                     .await
@@ -682,34 +959,40 @@ mod unix {
         }
     }
 
-    fn admin_response(result: Result<(), &'static str>, done: &'static str) -> AdminResponse {
-        match result {
-            Ok(()) => AdminResponse {
-                ok: true,
-                code: done,
-            },
-            Err(code) => AdminResponse { ok: false, code },
-        }
-    }
-
-    /// Serves one admin connection within [`ADMIN_SESSION_LIMITS`]. A change
-    /// the engine has started is never cancelled by a deadline.
+    /// Serves one admin connection within [`ADMIN_SESSION_LIMITS`]. The peer
+    /// check at accept alone authorizes every command, so custody
+    /// unavailability can never block the kill switch. A change the engine
+    /// has started is never cancelled by a deadline.
     async fn admin_session(mut stream: UnixStream, engine: Arc<GatewayEngine>) {
         let clock = SessionClock::start(ADMIN_SESSION_LIMITS);
         let command = read_admin_command(&clock, &mut stream).await;
         let change = async {
             match command {
-                Ok(AdminCommand::Disable) => {
-                    admin_response(engine.disable_connection().await, "gateway.admin.disabled")
+                Ok(AdminCommand::Disable) => AdminResponse::of(engine.disable_connection().await),
+                Ok(AdminCommand::Enable) => AdminResponse::of(engine.enable_connection().await),
+                Ok(AdminCommand::Revoke) => AdminResponse::of(engine.revoke_connection().await),
+                Ok(AdminCommand::Rotate(secret)) => {
+                    AdminResponse::of(engine.rotate_connection(secret).await)
                 }
-                Ok(AdminCommand::Revoke) => {
-                    admin_response(engine.revoke_connection().await, "gateway.admin.revoked")
+                Ok(AdminCommand::Status) => match engine.status().await {
+                    Ok(status) => AdminResponse {
+                        ok: true,
+                        status: Some(status),
+                        ..AdminResponse::refused("gateway.admin.status")
+                    },
+                    Err(code) => AdminResponse::refused(code),
+                },
+                Ok(AdminCommand::Reobserve(operation_id)) => {
+                    match engine.reobserve(&operation_id).await {
+                        Ok(result) => AdminResponse {
+                            ok: true,
+                            result: Some(result),
+                            ..AdminResponse::refused("gateway.admin.reobserved")
+                        },
+                        Err(code) => AdminResponse::refused(code),
+                    }
                 }
-                Ok(AdminCommand::Rotate(secret)) => admin_response(
-                    engine.rotate_connection(secret).await,
-                    "gateway.admin.rotated",
-                ),
-                Err(code) => AdminResponse { ok: false, code },
+                Err(code) => AdminResponse::refused(code),
             }
         };
         if let Some((mut stream, response)) = clock.complete(stream, change).await
@@ -773,12 +1056,17 @@ mod unix {
     async fn serve(
         state_dir: PathBuf,
         app_socket: PathBuf,
+        app_capacity: usize,
         loopback_provider: Option<u16>,
     ) -> Result<(), &'static str> {
         let loading = state_dir.clone();
-        let engine = tokio::task::spawn_blocking(move || load_engine(&loading))
-            .await
-            .map_err(|_| "gateway.serve.load-failed")??;
+        let engine = tokio::task::spawn_blocking(move || {
+            let deployment = installation(&loading)?.deployment;
+            check_descriptor_limit(app_capacity, store_pool(deployment)?)?;
+            load_engine(&loading)
+        })
+        .await
+        .map_err(|_| "gateway.serve.load-failed")??;
         #[cfg(feature = "loopback-provider")]
         let engine = match loopback_provider {
             Some(port) => {
@@ -811,7 +1099,7 @@ mod unix {
         let app_engine = Arc::clone(&engine);
         let app_listener = serve_listener(
             app,
-            Arc::new(Semaphore::new(APP_CAPACITY)),
+            Arc::new(Semaphore::new(app_capacity)),
             "app",
             |_: &UnixStream| true,
             move |stream, permit| {
@@ -994,14 +1282,21 @@ mod unix {
 
     async fn admin_command(
         state_dir: &Path,
-        command: &'static [u8],
+        command: serde_json::Value,
         secret: Option<&[u8]>,
     ) -> Result<(), &'static str> {
         private_root(state_dir)?;
+        let mut request = serde_json::json!({"schema": ADMIN_REQUEST_SCHEMA});
+        if let (Some(request), serde_json::Value::Object(fields)) =
+            (request.as_object_mut(), command)
+        {
+            request.extend(fields);
+        }
+        let frame = serde_json::to_vec(&request).map_err(|_| "gateway.admin.invalid-frame")?;
         let mut stream = UnixStream::connect(state_dir.join("admin.sock"))
             .await
             .map_err(|_| "gateway.admin.socket-unavailable")?;
-        write_frame(&mut stream, command).await?;
+        write_frame(&mut stream, &frame).await?;
         if let Some(secret) = secret {
             write_frame(&mut stream, secret).await?;
         }
@@ -1038,10 +1333,107 @@ mod unix {
         }
         admin_command(
             state_dir,
-            br#"{"command":"rotate"}"#,
+            serde_json::json!({"command": "rotate"}),
             Some(bytes.as_slice()),
         )
         .await
+    }
+
+    /// Prints the operator statement for an installation and the exact
+    /// preimage the operator's own signer signs. The signed result, with the
+    /// signer's control evidence, is the `--operator-attestation` file.
+    #[allow(clippy::too_many_arguments)]
+    fn operator_request(
+        recipe_path: &Path,
+        lock_path: &Path,
+        context_path: &Path,
+        provider: String,
+        alias: String,
+        deployment: Deployment,
+        operator_principal: String,
+        principal_method: String,
+        verification_method: String,
+        signature_suite: String,
+    ) -> Result<(), &'static str> {
+        let source = read_bounded(recipe_path, 65_536)?;
+        let lock = read_bounded(lock_path, 65_536)?;
+        let trust = read_bounded(context_path, 4 * 1024 * 1024)?;
+        let recipe = CompiledRecipe::compile(&source, &lock)
+            .map_err(|_| "gateway.operator.invalid-recipe")?;
+        let statement = OperatorStatement {
+            schema: auths_gateway::OPERATOR_ATTESTATION_SCHEMA.to_owned(),
+            operator_principal,
+            principal_method,
+            verification_method,
+            signature_suite,
+            installation: OperatorInstallation {
+                recipe_digest: recipe.digest_hex(),
+                profile_lock_sha256: digest(&lock),
+                trusted_context_sha256: digest(&trust),
+                provider,
+                alias,
+                deployment: deployment.label().to_owned(),
+            },
+            issued_at: now()?,
+        };
+        let preimage = statement
+            .preimage()
+            .map_err(auths_gateway::OperatorAttestationError::code)?;
+        let output = serde_json::json!({
+            "statement": statement,
+            "preimage_b64": Base64UrlUnpadded::encode_string(&preimage),
+        });
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&output).map_err(|_| "gateway.output")?
+        );
+        Ok(())
+    }
+
+    /// Atomically replaces an owner-only state file.
+    fn replace_private_file(path: &Path, bytes: &[u8]) -> Result<(), &'static str> {
+        let parent = path.parent().ok_or("gateway.state.invalid-path")?;
+        let mut pending =
+            tempfile::NamedTempFile::new_in(parent).map_err(|_| "gateway.state.write-failed")?;
+        pending
+            .as_file()
+            .set_permissions(fs::Permissions::from_mode(0o600))
+            .map_err(|_| "gateway.state.write-failed")?;
+        pending
+            .write_all(bytes)
+            .and_then(|()| pending.as_file().sync_all())
+            .map_err(|_| "gateway.state.write-failed")?;
+        pending
+            .persist(path)
+            .map_err(|_| "gateway.state.write-failed")?;
+        File::open(parent)
+            .and_then(|dir| dir.sync_all())
+            .map_err(|_| "gateway.state.sync-failed")
+    }
+
+    /// Replaces the operator attestation of a stopped installation. The new
+    /// operator must authenticate and pass separation by key.
+    fn operator_attest(state_dir: &Path, attestation: &Path) -> Result<(), &'static str> {
+        private_root(state_dir)?;
+        if std::os::unix::net::UnixStream::connect(state_dir.join("admin.sock")).is_ok() {
+            return Err("gateway.operator.gateway-running");
+        }
+        let mut manifest = installation(state_dir)?;
+        let trust = read_bounded(&state_dir.join("trusted.context.cbor"), 4 * 1024 * 1024)?;
+        if digest(&trust) != manifest.trusted_context_sha256 {
+            return Err("gateway.serve.installation-changed");
+        }
+        let context = auths_codec::decode_verifier_context(&trust)
+            .map_err(|_| "gateway.serve.invalid-installation")?;
+        let bytes = read_attestation(attestation)?;
+        authenticated_operator(&bytes, &manifest.operator_installation(), &context)?;
+        manifest.operator_attestation_sha256 = Some(digest(&bytes));
+        let manifest_bytes = serde_json_canonicalizer::to_vec(&manifest)
+            .map_err(|_| "gateway.install.manifest-invalid")?;
+        replace_private_file(&state_dir.join(OPERATOR_ATTESTATION_FILE), &bytes)?;
+        replace_private_file(&state_dir.join("installation.json"), &manifest_bytes)?;
+        println!("operator attestation replaced");
+        Ok(())
     }
 
     fn doctor(
@@ -1123,6 +1515,10 @@ mod unix {
         Ok(())
     }
 
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one arm per command keeps the command-to-handler mapping in one place"
+    )]
     pub async fn run() -> Result<(), &'static str> {
         match Cli::parse().command {
             Command::Install {
@@ -1134,10 +1530,12 @@ mod unix {
                 provider,
                 alias,
                 account_label,
+                join,
                 credential_header,
                 credential_stdin,
                 deployment,
-                operator_principal,
+                operator_attestation,
+                attempt_store,
             } => {
                 install(
                     state_dir,
@@ -1148,10 +1546,12 @@ mod unix {
                     provider,
                     alias,
                     account_label,
+                    join,
                     credential_header,
                     credential_stdin,
                     deployment,
-                    operator_principal,
+                    operator_attestation,
+                    attempt_store,
                 )
                 .await
             }
@@ -1159,13 +1559,23 @@ mod unix {
             Command::Serve {
                 state_dir,
                 app_socket,
+                app_capacity,
                 loopback_provider,
-            } => serve(state_dir, app_socket, loopback_provider).await,
+            } => {
+                serve(
+                    state_dir,
+                    app_socket,
+                    usize::from(app_capacity),
+                    loopback_provider,
+                )
+                .await
+            }
             #[cfg(not(feature = "loopback-provider"))]
             Command::Serve {
                 state_dir,
                 app_socket,
-            } => serve(state_dir, app_socket, None).await,
+                app_capacity,
+            } => serve(state_dir, app_socket, usize::from(app_capacity), None).await,
             Command::Review {
                 recipe,
                 profile_lock,
@@ -1187,11 +1597,56 @@ mod unix {
                 action,
             } => submit(app_socket, proof, action).await,
             Command::Disable { state_dir } => {
-                admin_command(&state_dir, br#"{"command":"disable"}"#, None).await
+                admin_command(&state_dir, serde_json::json!({"command": "disable"}), None).await
+            }
+            Command::Enable { state_dir } => {
+                admin_command(&state_dir, serde_json::json!({"command": "enable"}), None).await
             }
             Command::Revoke { state_dir } => {
-                admin_command(&state_dir, br#"{"command":"revoke"}"#, None).await
+                admin_command(&state_dir, serde_json::json!({"command": "revoke"}), None).await
             }
+            Command::Status { state_dir } => {
+                admin_command(&state_dir, serde_json::json!({"command": "status"}), None).await
+            }
+            Command::Reobserve {
+                state_dir,
+                operation_id,
+            } => {
+                admin_command(
+                    &state_dir,
+                    serde_json::json!({"command": "reobserve", "operation_id": operation_id}),
+                    None,
+                )
+                .await
+            }
+            Command::OperatorRequest {
+                recipe,
+                profile_lock,
+                trusted_context,
+                provider,
+                alias,
+                deployment,
+                operator_principal,
+                principal_method,
+                verification_method,
+                signature_suite,
+            } => operator_request(
+                &recipe,
+                &profile_lock,
+                &trusted_context,
+                provider,
+                alias,
+                deployment,
+                operator_principal,
+                principal_method,
+                verification_method,
+                signature_suite,
+            ),
+            Command::OperatorAttest {
+                state_dir,
+                operator_attestation,
+                replace: _,
+            } => operator_attest(&state_dir, &operator_attestation),
             Command::Rotate {
                 state_dir,
                 credential_stdin,
@@ -1219,6 +1674,102 @@ mod unix {
     #[cfg(test)]
     mod tests {
         use super::*;
+        use auths_gateway::listener::APP_CAPACITY;
+
+        fn serve_capacity(arguments: &[&str]) -> Result<usize, clap::Error> {
+            let mut command = vec![
+                "auths-gateway",
+                "serve",
+                "--state-dir",
+                "/state",
+                "--app-socket",
+                "/app.sock",
+            ];
+            command.extend_from_slice(arguments);
+            match Cli::try_parse_from(command)?.command {
+                Command::Serve { app_capacity, .. } => Ok(usize::from(app_capacity)),
+                _ => panic!("serve parses as serve"),
+            }
+        }
+
+        #[test]
+        fn app_capacity_defaults_to_the_listener_capacity_and_is_bounded() {
+            assert_eq!(serve_capacity(&[]).expect("default"), APP_CAPACITY);
+            assert_eq!(serve_capacity(&["--app-capacity", "1"]).expect("one"), 1);
+            assert_eq!(
+                serve_capacity(&["--app-capacity", "1024"]).expect("largest"),
+                1_024
+            );
+            for refused in ["0", "1025", "-1"] {
+                assert!(
+                    serve_capacity(&["--app-capacity", refused]).is_err(),
+                    "{refused}"
+                );
+            }
+        }
+
+        #[test]
+        fn the_descriptor_check_counts_both_capacities_the_pool_and_the_slack() {
+            let limit = rustix::process::getrlimit(rustix::process::Resource::Nofile).current;
+            if let Some(limit) = limit {
+                let pool = limit.saturating_sub(4 + 32);
+                assert_eq!(
+                    check_descriptor_limit(1, pool),
+                    Err("gateway.serve.descriptor-limit")
+                );
+                assert_eq!(check_descriptor_limit(1, pool.saturating_sub(1)), Ok(()));
+            }
+            assert_eq!(
+                check_descriptor_limit(1, u64::MAX),
+                Err("gateway.serve.descriptor-limit")
+            );
+        }
+
+        #[test]
+        fn admin_frames_are_closed_and_versioned() {
+            let parse = |value: serde_json::Value| {
+                parse_admin_request(&serde_json::to_vec(&value).expect("json"))
+            };
+            let disable =
+                parse(serde_json::json!({"schema": ADMIN_REQUEST_SCHEMA, "command": "disable"}))
+                    .expect("disable");
+            assert!(matches!(disable, AdminRequestCommand::Disable {}));
+            let reobserve = parse(serde_json::json!({
+                "schema": ADMIN_REQUEST_SCHEMA,
+                "command": "reobserve",
+                "operation_id": "op-1"
+            }))
+            .expect("reobserve");
+            assert!(matches!(
+                reobserve,
+                AdminRequestCommand::Reobserve { ref operation_id } if operation_id == "op-1"
+            ));
+            for refused in [
+                serde_json::json!({"command": "disable"}),
+                serde_json::json!({"schema": ADMIN_REQUEST_SCHEMA, "command": "delete"}),
+                serde_json::json!({"schema": ADMIN_REQUEST_SCHEMA, "command": "disable", "secret": "x"}),
+                serde_json::json!({"schema": "auths.gateway-admin-request/2", "command": "disable"}),
+                serde_json::json!({"schema": ADMIN_REQUEST_SCHEMA, "command": "reobserve"}),
+            ] {
+                assert!(parse(refused.clone()).is_err(), "{refused}");
+            }
+            let response = serde_json::to_value(AdminResponse::of(Ok(GatewayAdminOutcome {
+                code: "gateway.admin.disabled",
+                drained: false,
+                in_flight: 2,
+            })))
+            .expect("response");
+            assert_eq!(
+                response,
+                serde_json::json!({
+                    "schema": ADMIN_RESPONSE_SCHEMA,
+                    "ok": true,
+                    "code": "gateway.admin.disabled",
+                    "drained": false,
+                    "in_flight": 2
+                })
+            );
+        }
 
         #[test]
         fn application_frame_cannot_supply_provider_request_fields() {

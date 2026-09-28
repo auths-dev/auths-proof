@@ -979,7 +979,7 @@ bindings.
 ### 7.4 Provider connection registry
 
 The local agent owns a durable provider-connection registry with semantic
-identity `auths.provider-connection/1`. A connection is deployment data that
+identity `auths.provider-connection/2`. A connection is deployment data that
 binds a human-selected alias to one provider account/tenant and one versioned
 credential/configuration generation. It is not a profile, an Auths principal,
 or a generic executor plugin.
@@ -988,7 +988,7 @@ The canonical durable record is this closed canonical-CBOR map:
 
 ```cbor-diag
 {
-  1: 1,                              / auths.provider-connection/1 /
+  1: 2,                              / auths.provider-connection/2 /
   2: "<provider kind>",
   3: "<connection alias>",
   4: "<internal connection id>",
@@ -1004,7 +1004,8 @@ The canonical durable record is this closed canonical-CBOR map:
   14: [["<allowed profile id>", <version>], ...],
   15: <created-at unix seconds>,
   16: <updated-at unix seconds>,
-  17: null / <revoked-at unix seconds>
+  17: null / <revoked-at unix seconds>,
+  18: <positive credential generation>
 }
 ```
 
@@ -1014,7 +1015,14 @@ reference. The internal connection ID is `conn_` plus unpadded base64url for
 `[a-z][a-z0-9-]{0,63}`. Contract and descriptor-schema IDs use the manifest
 semantic-ID grammar. Generation is a positive unsigned 64-bit integer and
 increments for every credential, account, descriptor, or security-relevant
-configuration change. Descriptor bytes are 1-65,536 bytes; each workload ID is
+configuration change. The credential generation is the generation of the
+last install or rotation: install and rotation set it to the new
+generation, state and allowlist changes keep it, and it never exceeds the
+generation. It names the generation at which the current secret is stored
+and its reference commitment computed, so a process that joins or takes a
+rotation after any number of state changes can recompute that commitment
+(AP-SPEC-063 §7.3). A retired `auths.provider-connection/1` record is
+obsolete state and is refused, never converted. Descriptor bytes are 1-65,536 bytes; each workload ID is
 1-128 bytes; the workload list has 1-256 unique byte-sorted values; and the
 profile list has 1-32 unique byte-sorted ID/version pairs. The complete record
 is at most 262,144 bytes and has no unknown keys or trailing bytes.
@@ -2217,7 +2225,7 @@ These identities evolve independently:
 | `auths.error-projection/1` | negotiated registry subset shape/digest | bump projection schema |
 | `auths.profile-client-runtime/1` | generated-package/root-SDK extension ABI | bump runtime ABI |
 | `auths.local-agent/1` | session and local IPC contract | bump agent protocol |
-| `auths.provider-connection/1` | shared durable connection record and generation semantics | bump connection-record schema |
+| `auths.provider-connection/2` | shared durable connection record and generation semantics | bump connection-record schema |
 | `auths.provider-connection-admin/1` | privileged connection administration framing | bump admin protocol |
 | `auths.connection-credential-store/1` | secret storage/lease generation mechanics | bump mechanism contract |
 | `auths.profile-operation/1` | prepare/execute/status/recover envelopes | bump operation protocol |

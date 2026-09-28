@@ -1,12 +1,15 @@
 use crate::credential::CredentialReferenceCommitment;
+use crate::kernel::{self, Generations};
 use base64ct::{Base64UrlUnpadded, Encoding as _};
 use minicbor::{Decoder, Encoder};
 use sha2::{Digest as _, Sha256};
 use std::{fmt, num::NonZeroU64};
 use thiserror::Error;
 
-const RECORD_SCHEMA_VERSION: u8 = 1;
-const RECORD_FIELD_COUNT: u64 = 17;
+const RECORD_SCHEMA_VERSION: u8 = 2;
+/// The retired `auths.provider-connection/1`, refused as obsolete state.
+const OBSOLETE_RECORD_SCHEMA_VERSION: u8 = 1;
+const RECORD_FIELD_COUNT: u64 = 18;
 const MAX_RECORD_BYTES: usize = 262_144;
 const MAX_DESCRIPTOR_BYTES: usize = 65_536;
 const MAX_WORKLOADS: usize = 256;
@@ -213,7 +216,12 @@ impl ConnectionState {
     }
 }
 
-/// Exact durable provider-connection record (`auths.provider-connection/1`).
+/// Exact durable provider-connection record (`auths.provider-connection/2`).
+///
+/// The record carries the generation at which its current secret was
+/// installed or rotated in (`credential_generation`) beside `generation`, so
+/// a process that joins or accepts a rotation after any number of state
+/// changes can still recompute the credential-reference commitment.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConnectionRecord {
     provider_kind: ProviderKind,
@@ -226,6 +234,7 @@ pub struct ConnectionRecord {
     account_commitment: [u8; 32],
     credential_reference_commitment: [u8; 32],
     generation: NonZeroU64,
+    credential_generation: NonZeroU64,
     state: ConnectionState,
     allowed_workloads: Vec<String>,
     allowed_profiles: Vec<ConnectionProfile>,
@@ -235,7 +244,9 @@ pub struct ConnectionRecord {
 }
 
 impl ConnectionRecord {
-    /// Constructs and validates one exact durable connection record.
+    /// Constructs and validates one exact durable connection record whose
+    /// secret was installed at `generation`, so its credential generation
+    /// equals its generation.
     #[allow(clippy::too_many_arguments)]
     ///
     /// # Errors
@@ -259,9 +270,54 @@ impl ConnectionRecord {
         updated_at_unix_seconds: u64,
         revoked_at_unix_seconds: Option<u64>,
     ) -> Result<Self, ConnectionRecordError> {
+        Self::assemble(
+            provider_kind,
+            alias,
+            connection_id,
+            contract,
+            descriptor_schema,
+            descriptor,
+            account_commitment,
+            credential_reference_commitment,
+            Generations {
+                generation: generation.get(),
+                credential_generation: generation.get(),
+            },
+            state,
+            allowed_workloads,
+            allowed_profiles,
+            created_at_unix_seconds,
+            updated_at_unix_seconds,
+            revoked_at_unix_seconds,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn assemble(
+        provider_kind: ProviderKind,
+        alias: ConnectionAlias,
+        connection_id: ConnectionId,
+        contract: SemanticId,
+        descriptor_schema: SemanticId,
+        descriptor: Vec<u8>,
+        account_commitment: [u8; 32],
+        credential_reference_commitment: [u8; 32],
+        generations: Generations,
+        state: ConnectionState,
+        allowed_workloads: Vec<String>,
+        allowed_profiles: Vec<ConnectionProfile>,
+        created_at_unix_seconds: u64,
+        updated_at_unix_seconds: u64,
+        revoked_at_unix_seconds: Option<u64>,
+    ) -> Result<Self, ConnectionRecordError> {
         if !(1..=MAX_DESCRIPTOR_BYTES).contains(&descriptor.len()) {
             return Err(ConnectionRecordError::InvalidDescriptor);
         }
+        let generation = NonZeroU64::new(generations.generation)
+            .ok_or(ConnectionRecordError::InvalidGeneration)?;
+        let credential_generation = NonZeroU64::new(generations.credential_generation)
+            .filter(|value| *value <= generation)
+            .ok_or(ConnectionRecordError::InvalidGeneration)?;
         let descriptor_commitment = Sha256::digest(&descriptor).into();
         let record = Self {
             provider_kind,
@@ -274,6 +330,7 @@ impl ConnectionRecord {
             account_commitment,
             credential_reference_commitment,
             generation,
+            credential_generation,
             state,
             allowed_workloads,
             allowed_profiles,
@@ -286,6 +343,13 @@ impl ConnectionRecord {
             return Err(ConnectionRecordError::RecordTooLarge);
         }
         Ok(record)
+    }
+
+    const fn generations(&self) -> Generations {
+        Generations {
+            generation: self.generation.get(),
+            credential_generation: self.credential_generation.get(),
+        }
     }
 
     /// Encodes the exact integer-keyed canonical CBOR record.
@@ -359,6 +423,10 @@ impl ConnectionRecord {
                 encoder.null().map_err(encoding)?;
             }
         }
+        encoder
+            .u8(18)
+            .and_then(|value| value.u64(self.credential_generation.get()))
+            .map_err(encoding)?;
         Ok(encoder.into_writer())
     }
 
@@ -367,18 +435,23 @@ impl ConnectionRecord {
     /// # Errors
     ///
     /// Rejects indefinite/unknown maps, noncanonical values, unknown fields,
-    /// trailing bytes, and any invalid invariant.
+    /// trailing bytes, and any invalid invariant. A retired
+    /// `auths.provider-connection/1` record is obsolete state and is refused
+    /// with [`ConnectionRecordError::ObsoleteSchema`], never converted.
     pub fn from_canonical_cbor(bytes: &[u8]) -> Result<Self, ConnectionRecordError> {
         if bytes.len() > MAX_RECORD_BYTES {
             return Err(ConnectionRecordError::RecordTooLarge);
         }
         let mut decoder = Decoder::new(bytes);
-        if decoder.map().map_err(decoding)? != Some(RECORD_FIELD_COUNT) {
-            return Err(ConnectionRecordError::InvalidShape);
-        }
+        let fields = decoder.map().map_err(decoding)?;
         expect_key(&mut decoder, 1)?;
-        if decoder.u8().map_err(decoding)? != RECORD_SCHEMA_VERSION {
-            return Err(ConnectionRecordError::InvalidSchema);
+        match decoder.u8().map_err(decoding)? {
+            RECORD_SCHEMA_VERSION => {}
+            OBSOLETE_RECORD_SCHEMA_VERSION => return Err(ConnectionRecordError::ObsoleteSchema),
+            _ => return Err(ConnectionRecordError::InvalidSchema),
+        }
+        if fields != Some(RECORD_FIELD_COUNT) {
+            return Err(ConnectionRecordError::InvalidShape);
         }
         expect_key(&mut decoder, 2)?;
         let provider_kind = ProviderKind::parse(decoder.str().map_err(decoding)?)?;
@@ -419,10 +492,12 @@ impl ConnectionRecord {
             } else {
                 Some(decoder.u64().map_err(decoding)?)
             };
+        expect_key(&mut decoder, 18)?;
+        let credential_generation = decoder.u64().map_err(decoding)?;
         if decoder.position() != bytes.len() {
             return Err(ConnectionRecordError::TrailingBytes);
         }
-        let record = Self::new(
+        let record = Self::assemble(
             provider_kind,
             alias,
             connection_id,
@@ -431,7 +506,10 @@ impl ConnectionRecord {
             descriptor,
             account_commitment,
             credential_reference_commitment,
-            generation,
+            Generations {
+                generation: generation.get(),
+                credential_generation,
+            },
             state,
             allowed_workloads,
             allowed_profiles,
@@ -526,6 +604,13 @@ impl ConnectionRecord {
     #[must_use]
     pub const fn generation(&self) -> NonZeroU64 {
         self.generation
+    }
+    /// Returns the generation of the last install or rotation, at which the
+    /// current secret is stored and its reference commitment computed. It
+    /// never exceeds [`Self::generation`].
+    #[must_use]
+    pub const fn credential_generation(&self) -> NonZeroU64 {
+        self.credential_generation
     }
     /// Returns the administrative state.
     #[must_use]
@@ -639,14 +724,9 @@ impl ConnectionRecord {
         {
             return Err(ConnectionRecordError::InvalidState);
         }
-        let generation = NonZeroU64::new(
-            self.generation
-                .get()
-                .checked_add(1)
-                .ok_or(ConnectionRecordError::InvalidGeneration)?,
-        )
-        .ok_or(ConnectionRecordError::InvalidGeneration)?;
-        Self::new(
+        let generations = kernel::state_change(self.generations())
+            .ok_or(ConnectionRecordError::InvalidGeneration)?;
+        Self::assemble(
             self.provider_kind.clone(),
             self.alias.clone(),
             self.connection_id.clone(),
@@ -655,7 +735,7 @@ impl ConnectionRecord {
             self.descriptor.clone(),
             self.account_commitment,
             self.credential_reference_commitment,
-            generation,
+            generations,
             state,
             self.allowed_workloads.clone(),
             self.allowed_profiles.clone(),
@@ -665,7 +745,9 @@ impl ConnectionRecord {
         )
     }
 
-    /// Creates a generation-incrementing credential/descriptor rotation.
+    /// Creates a generation-incrementing credential/descriptor rotation. The
+    /// new secret is stored at the new generation, which becomes the
+    /// credential generation.
     ///
     /// # Errors
     ///
@@ -683,14 +765,9 @@ impl ConnectionRecord {
         {
             return Err(ConnectionRecordError::InvalidState);
         }
-        let generation = NonZeroU64::new(
-            self.generation
-                .get()
-                .checked_add(1)
-                .ok_or(ConnectionRecordError::InvalidGeneration)?,
-        )
-        .ok_or(ConnectionRecordError::InvalidGeneration)?;
-        Self::new(
+        let generations =
+            kernel::rotation(self.generations()).ok_or(ConnectionRecordError::InvalidGeneration)?;
+        Self::assemble(
             self.provider_kind.clone(),
             self.alias.clone(),
             self.connection_id.clone(),
@@ -699,7 +776,7 @@ impl ConnectionRecord {
             descriptor,
             account_commitment,
             credential_reference_commitment,
-            generation,
+            generations,
             self.state,
             self.allowed_workloads.clone(),
             self.allowed_profiles.clone(),
@@ -728,14 +805,9 @@ impl ConnectionRecord {
         {
             return Err(ConnectionRecordError::InvalidState);
         }
-        let generation = NonZeroU64::new(
-            self.generation
-                .get()
-                .checked_add(1)
-                .ok_or(ConnectionRecordError::InvalidGeneration)?,
-        )
-        .ok_or(ConnectionRecordError::InvalidGeneration)?;
-        Self::new(
+        let generations = kernel::state_change(self.generations())
+            .ok_or(ConnectionRecordError::InvalidGeneration)?;
+        Self::assemble(
             self.provider_kind.clone(),
             self.alias.clone(),
             self.connection_id.clone(),
@@ -744,7 +816,7 @@ impl ConnectionRecord {
             self.descriptor.clone(),
             self.account_commitment,
             self.credential_reference_commitment,
-            generation,
+            generations,
             self.state,
             allowed_workloads,
             allowed_profiles,
@@ -851,7 +923,8 @@ pub enum ConnectionRecordError {
     /// Opaque descriptor is empty or oversized.
     #[error("invalid connection descriptor")]
     InvalidDescriptor,
-    /// Generation is zero.
+    /// Generation is zero or would overflow, or the credential generation is
+    /// zero or exceeds the generation.
     #[error("invalid connection generation")]
     InvalidGeneration,
     /// State token is unknown.
@@ -878,6 +951,10 @@ pub enum ConnectionRecordError {
     /// CBOR schema version is unknown.
     #[error("unknown connection record schema")]
     InvalidSchema,
+    /// The record is a retired `auths.provider-connection/1` record, which
+    /// no reader accepts; the state must be recreated.
+    #[error("obsolete connection record schema")]
+    ObsoleteSchema,
     /// Encoded record is not byte-canonical or a commitment changed.
     #[error("noncanonical connection record")]
     Noncanonical,
@@ -1054,6 +1131,78 @@ pub(crate) mod tests {
                 .transition_state(ConnectionState::Revoked, 14)
                 .unwrap_err(),
             ConnectionRecordError::InvalidState
+        );
+    }
+
+    #[test]
+    fn state_changes_keep_and_rotations_set_the_credential_generation() {
+        let installed = record();
+        assert_eq!(installed.credential_generation().get(), 1);
+        let disabled = installed
+            .transition_state(ConnectionState::Disabled, 11)
+            .unwrap();
+        let enabled = disabled
+            .transition_state(ConnectionState::Active, 12)
+            .unwrap();
+        let widened = enabled
+            .with_authorization(
+                vec!["workload-a".to_owned(), "workload-b".to_owned()],
+                enabled.allowed_profiles().to_vec(),
+                13,
+            )
+            .unwrap();
+        for changed in [&disabled, &enabled, &widened] {
+            assert_eq!(changed.credential_generation().get(), 1);
+        }
+        assert_eq!(widened.generation().get(), 4);
+        let rotated = widened
+            .rotated(widened.descriptor().to_vec(), [2; 32], [5; 32], 14)
+            .unwrap();
+        assert_eq!(rotated.generation().get(), 5);
+        assert_eq!(rotated.credential_generation().get(), 5);
+        let later = rotated
+            .transition_state(ConnectionState::Disabled, 15)
+            .unwrap()
+            .transition_state(ConnectionState::Active, 16)
+            .unwrap();
+        assert_eq!(later.generation().get(), 7);
+        assert_eq!(later.credential_generation().get(), 5);
+        let bytes = later.to_canonical_cbor().unwrap();
+        assert_eq!(
+            ConnectionRecord::from_canonical_cbor(&bytes).unwrap(),
+            later
+        );
+    }
+
+    #[test]
+    fn an_obsolete_version_one_record_is_refused_not_converted() {
+        let mut bytes = record().to_canonical_cbor().unwrap();
+        // A version-one record has seventeen fields and no credential
+        // generation: the map header, the schema value, and the last pair.
+        assert_eq!(bytes[0], 0xb2);
+        assert_eq!(&bytes[bytes.len() - 2..], &[0x12, 0x01]);
+        bytes[0] = 0xb1;
+        bytes[2] = 0x01;
+        bytes.truncate(bytes.len() - 2);
+        assert_eq!(
+            ConnectionRecord::from_canonical_cbor(&bytes).unwrap_err(),
+            ConnectionRecordError::ObsoleteSchema
+        );
+    }
+
+    #[test]
+    fn a_credential_generation_above_the_generation_is_refused() {
+        let mut bytes = record().to_canonical_cbor().unwrap();
+        let last = bytes.len() - 1;
+        bytes[last] = 0x02;
+        assert_eq!(
+            ConnectionRecord::from_canonical_cbor(&bytes).unwrap_err(),
+            ConnectionRecordError::InvalidGeneration
+        );
+        bytes[last] = 0x00;
+        assert_eq!(
+            ConnectionRecord::from_canonical_cbor(&bytes).unwrap_err(),
+            ConnectionRecordError::InvalidGeneration
         );
     }
 

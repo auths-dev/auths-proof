@@ -259,11 +259,11 @@ refuses an overlap between identical principal identifiers:
 - **Observer.** It signs observations. The kernel already refuses an
   observer that appears in an authority chain.
 
-The separation checks compare principal identifiers exactly. They cannot
-detect one key anchored under two principal methods (for example
-`did:key` and `raw-key-v1`), and the operator principal is a declaration
-given at install (`--operator-principal`) that the gateway does not
-authenticate. Separating custody remains a human gate (§9.3).
+The separation checks compare identifiers and, for `raw-key-v1` and
+`did:key` principals, key identities, so one key anchored under both methods
+is refused (AP-SPEC-063 §7.5). The operator is authenticated by a signed
+operator attestation at install and every `serve` start (AP-SPEC-063 §7.6).
+Separating custody of persons remains a human gate (§9.3).
 
 **Observer quorum.** A grant MAY require a K-of-N quorum of observers from
 distinct operator domains (AP-SPEC-060 §16), for example the gateway plus a
