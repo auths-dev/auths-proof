@@ -1,5 +1,5 @@
 {
-  "schema": "auths.gateway-recipe-source/1",
+  "schema": "auths.gateway-recipe-source/2",
   "profile_schema_digest": "d2929455f9e255caf23629daa0db125c73565a2a55b4db13fbe0fbea731d10f3",
   "service": "todoist-gateway-demo",
   "tool": "create_task_v1",

@@ -1,6 +1,6 @@
 {
-  "schema": "auths.gateway-recipe-review/1",
-  "digest": "e30c18db45c26ed42d223dc66247b2930424c32c765d8c1b9965f83bfe15b341",
+  "schema": "auths.gateway-recipe-review/2",
+  "digest": "908b73ab7bed251e2600fe2ca95e0504646e8ccb9147a8952b20af0a3354a72d",
   "operator_namespace": "notes-demo",
   "service": "notes",
   "tool": "renameNote_v1",
@@ -14,6 +14,31 @@
   "credential": {
     "kind": "bearer"
   },
-  "operator_credential_header": "Authorization",
-  "has_observation": false
+  "maximum_body_bytes": 16384,
+  "has_observation": false,
+  "sends_idempotency_key": false,
+  "echo": null,
+  "preconditions": null,
+  "recovery": {
+    "schema": "auths.gateway-recovery-capability/1",
+    "class": "recorded",
+    "state_observation": "none",
+    "provider_link": "none",
+    "unknown_resolution": "none",
+    "lost_claim_reentry": {
+      "deduplication": "none"
+    },
+    "pre_entry_reread": false,
+    "write_is_conditional": false
+  },
+  "write_is_conditional": false,
+  "provider_headers": null,
+  "credential_guard": null,
+  "idempotency": null,
+  "observation": null,
+  "pre_entry": null,
+  "account_scope": null,
+  "relative_ceiling": null,
+  "bounds": null,
+  "operator_credential_header": "Authorization"
 }

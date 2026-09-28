@@ -31,6 +31,7 @@ auths-codec.workspace = true
 auths-did-keri.workspace = true
 auths-custody.workspace = true
 auths-did-key.workspace = true
+auths-gateway-kernel.workspace = true
 auths-lifecycle.workspace = true
 auths-model.workspace = true
 auths-ports.workspace = true
@@ -67,6 +68,7 @@ auths-custody-aws-kms.workspace = true
 auths-custody-pkcs11.workspace = true
 p256.workspace = true
 postgres.workspace = true
+proptest.workspace = true
 rustls.workspace = true
 rustls-pki-types = { workspace = true, features = ["std"] }
 tokio-postgres-rustls.workspace = true

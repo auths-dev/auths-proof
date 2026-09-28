@@ -1,6 +1,6 @@
 {
-  "schema": "auths.gateway-recipe-review/1",
-  "digest": "177f96164092417eb3711b5aa9d86db50a134cb3d3faf4f9721c45886245ea3d",
+  "schema": "auths.gateway-recipe-review/2",
+  "digest": "757cef6f42c1e80d6d6fe5173e6e7aaf590b4cd137784e2df98fdb9a03762580",
   "operator_namespace": "hostile",
   "service": "hostile",
   "tool": "hIntegerPath_v1",
@@ -13,6 +13,31 @@
   "credential": {
     "kind": "bearer"
   },
-  "operator_credential_header": "Authorization",
-  "has_observation": false
+  "maximum_body_bytes": 16384,
+  "has_observation": false,
+  "sends_idempotency_key": false,
+  "echo": null,
+  "preconditions": null,
+  "recovery": {
+    "schema": "auths.gateway-recovery-capability/1",
+    "class": "recorded",
+    "state_observation": "none",
+    "provider_link": "none",
+    "unknown_resolution": "none",
+    "lost_claim_reentry": {
+      "deduplication": "none"
+    },
+    "pre_entry_reread": false,
+    "write_is_conditional": false
+  },
+  "write_is_conditional": false,
+  "provider_headers": null,
+  "credential_guard": null,
+  "idempotency": null,
+  "observation": null,
+  "pre_entry": null,
+  "account_scope": null,
+  "relative_ceiling": null,
+  "bounds": null,
+  "operator_credential_header": "Authorization"
 }

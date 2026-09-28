@@ -281,10 +281,11 @@ soundness. No hosted CI result is cited here.
 
 ### Derived idempotency key for recipe writes (AP-SPEC-053 §3.2.1, repository-local only)
 
-**Claim.** A recipe that sets `write.idempotency_key` makes the gateway send
-an `Idempotency-Key` header on the write request, derived from the verified
-operator namespace and logical operation ID. The application never supplies
-it, a recipe cannot name any other header, and read-backs never send it. If
+**Claim.** A recipe that declares `write.idempotency` of kind
+`derived-header` makes the gateway send an `Idempotency-Key` header on the
+write request, derived from the verified operator namespace and logical
+operation ID. The application never supplies it, a recipe cannot name it,
+and read-backs never send it. If
 the gateway's durable claim for a logical operation is lost and the same
 operation is submitted again, a provider that honors the header returns the
 first result instead of applying the write twice, within that provider's

@@ -62,7 +62,7 @@ impl Derived {
         &self.profile_toml
     }
 
-    /// Returns the gateway recipe source (`auths.gateway-recipe-source/1`).
+    /// Returns the gateway recipe source (`auths.gateway-recipe-source/2`).
     #[must_use]
     pub fn recipe_json(&self) -> &str {
         &self.recipe_json

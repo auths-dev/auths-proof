@@ -1,6 +1,6 @@
 {
-  "schema": "auths.gateway-recipe-review/1",
-  "digest": "731ceb3a2f5661fefaf32b0c841c4b49b5b54dc700d627125428a1aaf8bca4ac",
+  "schema": "auths.gateway-recipe-review/2",
+  "digest": "1bdf7a75cf7806c4c806e1319c31ff2a52bb2b145451320300e3db044ad6aa60",
   "operator_namespace": "airtable-demo",
   "service": "airtable-gateway-demo",
   "tool": "set_demo_status_v1",
@@ -15,6 +15,31 @@
   "credential": {
     "kind": "bearer"
   },
-  "operator_credential_header": "Authorization",
-  "has_observation": false
+  "maximum_body_bytes": 16384,
+  "has_observation": false,
+  "sends_idempotency_key": false,
+  "echo": null,
+  "preconditions": null,
+  "recovery": {
+    "schema": "auths.gateway-recovery-capability/1",
+    "class": "recorded",
+    "state_observation": "none",
+    "provider_link": "none",
+    "unknown_resolution": "none",
+    "lost_claim_reentry": {
+      "deduplication": "none"
+    },
+    "pre_entry_reread": false,
+    "write_is_conditional": false
+  },
+  "write_is_conditional": false,
+  "provider_headers": null,
+  "credential_guard": null,
+  "idempotency": null,
+  "observation": null,
+  "pre_entry": null,
+  "account_scope": null,
+  "relative_ceiling": null,
+  "bounds": null,
+  "operator_credential_header": "Authorization"
 }

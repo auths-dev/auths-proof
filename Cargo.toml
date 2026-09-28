@@ -83,6 +83,7 @@ members = [
     "product/runtime/auths-profile-runtime",
     "product/runtime/auths-connections",
     "product/runtime/auths-gateway",
+    "product/runtime/auths-gateway-kernel",
     "product/runtime/auths-node",
     "product/runtime/auths-runtime",
     "product/receipts/auths-receipts",
@@ -194,6 +195,7 @@ auths-production-client = { version = "1.0.0-rc.1", path = "product/runtime/auth
 auths-profile-runtime = { version = "1.0.0-rc.1", path = "product/runtime/auths-profile-runtime" }
 auths-connections = { version = "1.0.0-rc.1", path = "product/runtime/auths-connections" }
 auths-gateway = { version = "1.0.0-rc.1", path = "product/runtime/auths-gateway" }
+auths-gateway-kernel = { version = "1.0.0-rc.1", path = "product/runtime/auths-gateway-kernel" }
 auths-node = { version = "1.0.0-rc.1", path = "product/runtime/auths-node" }
 auths-runtime = { version = "1.0.0-rc.1", path = "product/runtime/auths-runtime" }
 auths-receipts = { version = "1.0.0-rc.1", path = "product/receipts/auths-receipts" }

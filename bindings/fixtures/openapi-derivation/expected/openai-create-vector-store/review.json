@@ -1,6 +1,6 @@
 {
-  "schema": "auths.gateway-recipe-review/1",
-  "digest": "2dc56b8969c5312a9dbeaafa33bb53e883d914c8d686ac2bdfac68fa4bcb9fea",
+  "schema": "auths.gateway-recipe-review/2",
+  "digest": "03f3497a3e815338994fb385b5876783bfb742ca049ec8aecf4be0cf6fb44d8f",
   "operator_namespace": "openai-demo",
   "service": "openai-vector-stores",
   "tool": "createVectorStore_v1",
@@ -13,6 +13,31 @@
   "credential": {
     "kind": "bearer"
   },
-  "operator_credential_header": "Authorization",
-  "has_observation": false
+  "maximum_body_bytes": 16384,
+  "has_observation": false,
+  "sends_idempotency_key": false,
+  "echo": null,
+  "preconditions": null,
+  "recovery": {
+    "schema": "auths.gateway-recovery-capability/1",
+    "class": "recorded",
+    "state_observation": "none",
+    "provider_link": "none",
+    "unknown_resolution": "none",
+    "lost_claim_reentry": {
+      "deduplication": "none"
+    },
+    "pre_entry_reread": false,
+    "write_is_conditional": false
+  },
+  "write_is_conditional": false,
+  "provider_headers": null,
+  "credential_guard": null,
+  "idempotency": null,
+  "observation": null,
+  "pre_entry": null,
+  "account_scope": null,
+  "relative_ceiling": null,
+  "bounds": null,
+  "operator_credential_header": "Authorization"
 }

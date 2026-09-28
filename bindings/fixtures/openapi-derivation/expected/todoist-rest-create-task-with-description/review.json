@@ -1,6 +1,6 @@
 {
-  "schema": "auths.gateway-recipe-review/1",
-  "digest": "17ce51c68cd9ebcc1564ded16bd86cd6158b684bfcda8e13d89a36f33a4952c5",
+  "schema": "auths.gateway-recipe-review/2",
+  "digest": "7128697129a7e1fe680b0706b7d4ad014c351fa05925a7de9af980bd2a193f60",
   "operator_namespace": "todoist-demo",
   "service": "todoist-gateway-demo",
   "tool": "create_task_v2",
@@ -14,6 +14,31 @@
   "credential": {
     "kind": "bearer"
   },
-  "operator_credential_header": "Authorization",
-  "has_observation": false
+  "maximum_body_bytes": 16384,
+  "has_observation": false,
+  "sends_idempotency_key": false,
+  "echo": null,
+  "preconditions": null,
+  "recovery": {
+    "schema": "auths.gateway-recovery-capability/1",
+    "class": "recorded",
+    "state_observation": "none",
+    "provider_link": "none",
+    "unknown_resolution": "none",
+    "lost_claim_reentry": {
+      "deduplication": "none"
+    },
+    "pre_entry_reread": false,
+    "write_is_conditional": false
+  },
+  "write_is_conditional": false,
+  "provider_headers": null,
+  "credential_guard": null,
+  "idempotency": null,
+  "observation": null,
+  "pre_entry": null,
+  "account_scope": null,
+  "relative_ceiling": null,
+  "bounds": null,
+  "operator_credential_header": "Authorization"
 }

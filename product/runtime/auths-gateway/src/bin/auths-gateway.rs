@@ -371,8 +371,7 @@ mod unix {
         let context = auths_codec::decode_verifier_context(&trust)
             .map_err(|_| "gateway.install.invalid-trusted-context")?;
         separated_operator(&context, deployment, operator_principal.as_deref())?;
-        let recipe = CompiledRecipe::compile(&source, &lock)
-            .map_err(|_| "gateway.install.invalid-recipe")?;
+        let recipe = installable_recipe(&source, &lock)?;
         if approved != recipe.digest_hex() {
             return Err("gateway.install.approval-digest-mismatch");
         }
@@ -822,26 +821,31 @@ mod unix {
         }
     }
 
+    /// Compiles a recipe this gateway can run. A recipe that declares a
+    /// capability whose runtime step the gateway does not perform is refused,
+    /// because installing it would skip a check the operator approves.
+    fn installable_recipe(source: &[u8], lock: &[u8]) -> Result<CompiledRecipe, &'static str> {
+        let recipe =
+            CompiledRecipe::compile(source, lock).map_err(|_| "gateway.install.invalid-recipe")?;
+        if recipe.declares_unexecuted_capability() {
+            return Err("gateway.install.invalid-recipe");
+        }
+        Ok(recipe)
+    }
+
     fn review(recipe_path: &Path, lock_path: &Path) -> Result<(), &'static str> {
         let recipe = CompiledRecipe::compile(
             &read_bounded(recipe_path, 65_536)?,
             &read_bounded(lock_path, 65_536)?,
         )
         .map_err(|_| "gateway.review.invalid-recipe")?;
-        let review = recipe.review();
-        let output = serde_json::json!({
-            "recipe_digest": recipe.digest_hex(),
-            "operator_namespace": recipe.namespace().as_str(),
-            "service": review.service(),
-            "tool": review.tool(),
-            "origin": review.origin(),
-            "method": review.method().as_str(),
-            "path": review.path(),
-            "sends_idempotency_key": review.sends_idempotency_key(),
-            "verifier_configuration": hex::encode(gateway_verifier_configuration()?.as_bytes()),
-            "profile_policy": auths_profile_mcp::MCP_ARGUMENTS_V1,
-            "bounded_policy_extension": auths_registries::BOUNDED_POLICY_COMMITMENT_EXTENSION_V1,
-        });
+        let mut output = recipe.review_document();
+        output["recipe_digest"] = serde_json::json!(recipe.digest_hex());
+        output["verifier_configuration"] =
+            serde_json::json!(hex::encode(gateway_verifier_configuration()?.as_bytes()));
+        output["profile_policy"] = serde_json::json!(auths_profile_mcp::MCP_ARGUMENTS_V1);
+        output["bounded_policy_extension"] =
+            serde_json::json!(auths_registries::BOUNDED_POLICY_COMMITMENT_EXTENSION_V1);
         println!(
             "{}",
             serde_json::to_string_pretty(&output).map_err(|_| "gateway.output")?

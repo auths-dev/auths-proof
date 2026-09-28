@@ -172,7 +172,7 @@ fn recipe_json(request: &Request, mapping: &Mapping, digest: &str, method: &str)
         }
     };
     let recipe = json!({
-        "schema": "auths.gateway-recipe-source/1",
+        "schema": "auths.gateway-recipe-source/2",
         "profile_schema_digest": digest,
         "service": request.service,
         "tool": format!("{}_v{}", mapping.tool, request.version),

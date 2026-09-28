@@ -609,6 +609,7 @@ dependencies = [
  "auths-custody-pkcs11",
  "auths-did-keri",
  "auths-did-key",
+ "auths-gateway-kernel",
  "auths-lifecycle",
  "auths-model",
  "auths-ports",
@@ -628,6 +629,7 @@ dependencies = [
  "minicbor",
  "p256",
  "postgres",
+ "proptest",
  "reqwest",
  "rustix",
  "rustls",
@@ -643,6 +645,10 @@ dependencies = [
  "url",
  "zeroize",
 ]
+
+[[package]]
+name = "auths-gateway-kernel"
+version = "1.0.0-rc.1"
 
 [[package]]
 name = "auths-git-signing"

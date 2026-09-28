@@ -51,6 +51,10 @@ pub enum GatewayEngineConfigurationError {
     /// The installed recipe differs from the operator-approved digest.
     #[error("gateway recipe approval digest mismatch")]
     UnapprovedRecipe,
+    /// The recipe declares a capability whose runtime step this gateway does
+    /// not perform. Running it would skip a check the operator approved.
+    #[error("gateway recipe declares a capability this gateway does not execute")]
+    UnexecutedCapability,
 }
 
 /// Closed, secret-free application result. A recorded response or matching
@@ -182,7 +186,8 @@ impl GatewayEngine {
     /// The caller must be the separately deployed gateway, never the app.
     ///
     /// # Errors
-    /// Refuses missing trust or a changed recipe.
+    /// Refuses missing trust, a changed recipe, or a recipe that declares a
+    /// capability whose runtime step this gateway does not perform.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         recipe: CompiledRecipe,
@@ -203,6 +208,9 @@ impl GatewayEngine {
             .map_err(|_| GatewayEngineConfigurationError::InvalidTrust)?;
         if *recipe.digest() != approved_digest {
             return Err(GatewayEngineConfigurationError::UnapprovedRecipe);
+        }
+        if recipe.declares_unexecuted_capability() {
+            return Err(GatewayEngineConfigurationError::UnexecutedCapability);
         }
         Ok(Self {
             recipe,
@@ -1365,7 +1373,8 @@ mod tests {
             "../../../../bindings/fixtures/gateway/airtable/recipe.json"
         ))
         .expect("source");
-        source["write"]["idempotency_key"] = json!(true);
+        source["write"]["idempotency"] =
+            json!({"kind": "derived-header", "retention_seconds": 86_400});
         let recipe = CompiledRecipe::compile(
             &serde_json::to_vec(&source).expect("source"),
             include_bytes!("../../../../bindings/fixtures/gateway/airtable/profile.lock.json"),
