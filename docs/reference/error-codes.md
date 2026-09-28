@@ -22,27 +22,6 @@ Every row is generated from the Rust-owned registry. `possible` effects are neve
 | `core.authorization-denied` | `verify` | notapplied / never | `SatisfyCondition` | Available facts prove the supplied proof does not authorize the exact action. |
 | `core.authorization-indeterminate` | `verify` | notapplied / conditional | `SatisfyCondition` | A required authorization fact was unavailable, so no decision was reached before any effect. |
 | `core.unauthenticated-principal` | `create` | notapplied / never | `CorrectInput` | The request asserts a principal the runtime cannot authenticate, so no authority is issued. |
-| `client.agent-unavailable` | `connect` | notapplied / conditional | `CorrectConfiguration` | The SDK could not establish an authenticated local-agent session. |
-| `client.profile-unavailable` | `connect` | notapplied / never | `InstallCompatibleRuntime` | The local agent did not advertise the required profile and version. |
-| `client.profile-contract-mismatch` | `connect` | notapplied / never | `InstallCompatibleRuntime` | The generated client and runtime do not share the same profile contract digest. |
-| `connection.contract-mismatch` | `execute` | notapplied / never | `InstallCompatibleRuntime` | The profile runtime and selected provider connection do not share the required immutable connection contract. |
-| `connection.credential-unavailable` | `execute` | notapplied / safe | `RetryExecution` | The bound provider credential could not be leased and durable state proves that the provider was not entered. |
-| `connection.unavailable` | `execute` | notapplied / never | `CorrectConfiguration` | No active provider connection matching the requested or default alias is authorized for this workload and profile. |
-| `operation.admission-exhausted` | `execute` | notapplied / conditional | `RetryExecution` | The bounded operation capacity was exhausted before provider entry. |
-| `operation.idempotency-conflict` | `execute` | possible / unknown | `ResumeAndReconcile` | The key names an existing operation with a different commitment; recover that operation. |
-| `operation.outcome-unknown` | `execute` | possible / unknown | `ResumeAndReconcile` | The provider may have applied the exact operation; recover it instead of retrying. |
-| `operation.recovery-unavailable` | `recover` | possible / unknown | `ResumeAndReconcile` | Recovery could not establish the effect and the original operation remains possible. |
-| `operation.timed-out` | `execute` | notapplied / safe | `RetryExecution` | The bounded deadline expired and durable state proves that the provider was not entered. |
-| `opentofu.plan-preflight-denied` | `execute` | notapplied / never | `SatisfyCondition` | The OpenTofu plan preflight failed its exact profile evaluation or protected-planner checks. |
-| `opentofu.plan-preflight-outcome-unknown` | `execute` | possible / unknown | `ResumeAndReconcile` | Recovery must establish whether the OpenTofu prepared-plan record and artifact became ready. |
-| `opentofu.saved-plan-denied` | `execute` | notapplied / never | `SatisfyCondition` | The saved plan failed its exact OpenTofu profile evaluation. |
-| `opentofu.apply-outcome-unknown` | `execute` | possible / unknown | `ResumeAndReconcile` | The OpenTofu apply must be reconciled before another execution. |
-| `postgresql.preflight-denied` | `execute` | notapplied / never | `SatisfyCondition` | The PostgreSQL update preflight failed its exact profile evaluation or protected discovery checks. |
-| `postgresql.preflight-outcome-unknown` | `execute` | possible / unknown | `ResumeAndReconcile` | Recovery must establish whether the PostgreSQL prepared-update record became ready. |
-| `postgresql.update-denied` | `execute` | notapplied / never | `SatisfyCondition` | The bounded PostgreSQL update failed its exact profile evaluation. |
-| `postgresql.update-outcome-unknown` | `execute` | possible / unknown | `ResumeAndReconcile` | The PostgreSQL transaction outcome must be reconciled before another execution. |
-| `stripe.refund-denied` | `execute` | notapplied / never | `SatisfyCondition` | The exact Stripe refund was not authorized by the bounded profile. |
-| `stripe.refund-outcome-unknown` | `execute` | possible / unknown | `ResumeAndReconcile` | The Stripe refund outcome requires recovery before another execution. |
 | `core.receipt-malformed` | `verify` | notapplied / never | `CorrectInput` | The registered Auths contract rejected or classified this bounded operation. |
 | `core.receipt-signature-invalid` | `verify` | notapplied / never | `InspectReceipt` | The registered Auths contract rejected or classified this bounded operation. |
 | `core.receipt-signer-untrusted` | `verify` | notapplied / never | `CorrectConfiguration` | The registered Auths contract rejected or classified this bounded operation. |

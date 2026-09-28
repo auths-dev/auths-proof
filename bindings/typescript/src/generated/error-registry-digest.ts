@@ -1,2 +1,2 @@
 /** Generated SHA-256 of canonical compact JSON for the error registry. */
-export const ERROR_REGISTRY_SHA256 = "0c8aa6f45088739df96e2946c9be4396b6f7e7640bbe568bd31a3565af0cb01c" as const;
+export const ERROR_REGISTRY_SHA256 = "92e6dc23f76b27641318f64228f7f94e8db7bdd006e75e6d479521ec463fee17" as const;
