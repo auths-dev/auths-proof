@@ -362,6 +362,10 @@ pub enum GatewayRecipeError {
     /// Verified action does not match the approved profile or recipe.
     #[error("verified action does not match approved recipe")]
     ActionMismatch,
+    /// The verified account-scope value is outside its header's registered
+    /// grammar, so it could end or add a header line.
+    #[error("account-scope value outside its registered grammar")]
+    InvalidAccountScopeValue,
     /// An echo field was declared without a read-only observation.
     #[error("recipe echo requires an observation")]
     EchoWithoutObservation,
@@ -408,6 +412,7 @@ impl GatewayRecipeError {
             Self::InvalidNamespace => "gateway.recipe.invalid-namespace",
             Self::InvalidOperationId => "gateway.recipe.invalid-operation-id",
             Self::ActionMismatch => "gateway.recipe.action-mismatch",
+            Self::InvalidAccountScopeValue => "gateway.account-scope.invalid-value",
             Self::EchoWithoutObservation => "gateway.recipe.echo-without-observation",
             Self::EchoConflict => "gateway.recipe.echo-conflict",
             Self::PreconditionWithoutObservation => {
@@ -420,7 +425,8 @@ impl GatewayRecipeError {
 
     const fn from_construct(error: ConstructError) -> Self {
         match error {
-            ConstructError::ArgumentMismatch | ConstructError::HeaderValue => Self::ActionMismatch,
+            ConstructError::ArgumentMismatch => Self::ActionMismatch,
+            ConstructError::HeaderValue => Self::InvalidAccountScopeValue,
             ConstructError::UnsafeSegment | ConstructError::PathTooLong => Self::UnsafePath,
             ConstructError::BodySize => Self::UnsafeTemplate,
         }
@@ -614,16 +620,6 @@ impl CompiledRecipe {
             idempotency,
             pre_entry: self.source.pre_entry.is_some(),
         }
-    }
-
-    /// Reports whether the recipe declares a capability whose runtime step
-    /// this gateway does not perform yet: an account-scope header, whose
-    /// value must be bound to a grant-listed scope, or a sum bound. Such a
-    /// recipe compiles and can be reviewed, but an engine refuses to run it
-    /// rather than skip a declared check.
-    #[must_use]
-    pub fn declares_unexecuted_capability(&self) -> bool {
-        self.source.account_scope.is_some() || self.source.bounds.is_some()
     }
 
     /// The credential reads the recipe declares: the probe, the account read,

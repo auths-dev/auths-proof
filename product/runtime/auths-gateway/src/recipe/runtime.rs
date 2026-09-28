@@ -387,6 +387,27 @@ impl CompiledRecipe {
         self.source.account_scope.is_some()
     }
 
+    /// The profile field whose verified value the account-scope header
+    /// carries, when the recipe declares one.
+    pub(crate) fn account_scope_field(&self) -> Option<&str> {
+        self.source
+            .account_scope
+            .as_ref()
+            .map(|scope| scope.field.as_str())
+    }
+
+    /// The sum limit `bounds.sum` requires of every link, when declared.
+    pub(crate) fn sum_requirement(&self) -> Option<crate::bounds::SumRequirement> {
+        self.source
+            .bounds
+            .as_ref()
+            .and_then(|bounds| bounds.sum.as_ref())
+            .map(|sum| crate::bounds::SumRequirement {
+                argument: sum.argument.clone(),
+                partition: sum.partition.clone(),
+            })
+    }
+
     /// The observation template of a request built from `values`, or `None`
     /// without an observation.
     pub(crate) fn observation_template(

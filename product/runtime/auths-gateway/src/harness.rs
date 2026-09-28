@@ -735,8 +735,12 @@ impl SubmitIo for HarnessIo<'_> {
         )
     }
 
-    fn bind_scope(&self, _verified: &VerifiedCommand) -> Result<(), &'static str> {
-        Err("gateway.engine.unexecuted-capability")
+    fn bind_scope(&self, verified: &VerifiedCommand) -> Result<(), &'static str> {
+        crate::bounds::bind_account_scope(
+            &self.harness.recipe,
+            verified.bound.as_ref(),
+            &verified.arguments,
+        )
     }
 
     async fn prepare(&self) -> Result<(), &'static str> {

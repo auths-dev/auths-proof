@@ -25,6 +25,8 @@ mod store;
 mod submit;
 mod transport;
 
+#[cfg(test)]
+mod bounds_aggregate_tests;
 #[cfg(any(test, feature = "testkit-harness"))]
 pub mod harness;
 #[cfg(test)]
@@ -44,10 +46,10 @@ pub use audit::{
 };
 pub use binding::{GatewayConnectionDescriptor, GatewayConnectionError};
 pub use bounds::{
-    ARGUMENT_CEILING_CANONICALIZATION_V1, ARGUMENT_CEILING_EVALUATOR_V1,
-    ARGUMENT_CEILING_POLICY_TYPE_V1, ARGUMENT_CEILING_POLICY_VERSION, ArgumentCeilingPolicy,
-    BoundedCountStore, BoundedPolicyError, MAX_WINDOW_COUNT, MAX_WINDOW_SECONDS,
-    gateway_evaluator_registrations,
+    ARGUMENT_CEILING_CANONICALIZATION, ARGUMENT_CEILING_EVALUATOR, ARGUMENT_CEILING_POLICY_TYPE,
+    ARGUMENT_CEILING_POLICY_VERSION, ArgumentCeilingPolicy, BoundedPolicyError, ListedValues,
+    MAX_BOUNDED_LINKS, MAX_LISTED_VALUE_BYTES, MAX_LISTED_VALUES, MAX_SUM_LIMIT, MAX_WINDOW_COUNT,
+    MAX_WINDOW_SECONDS, gateway_evaluator_registrations,
 };
 pub use connection::{
     LoadedConnection, SharedConnection, SharedConnectionError, authorizes_entry, connection_key,
@@ -56,7 +58,7 @@ pub use connection::{
 pub use engine::{
     GatewayAdminOutcome, GatewayAdminStatus, GatewayEngine, GatewayEngineConfigurationError,
     GatewayEvidenceSummary, GatewayObserveRequest, GatewayObserveResult, GatewaySubmitResult,
-    gateway_verifier_configuration,
+    SLOT_SWEEP_INTERVAL_SECONDS, SLOT_SWEEP_LIMIT, gateway_verifier_configuration,
 };
 pub use observer::{
     GatewayObserver, GatewayObserverError, GatewaySignedObservation, OBSERVATION_MEDIA_TYPE,

@@ -1,5 +1,9 @@
 //! One spend limit: count and sum cases for evaluator `/2` and policy `/2`,
-//! run through both stores.
+//! run through both stores by `bounds_aggregate_tests`.
+//!
+//! Every child's count is at most its parent's, because the tightening
+//! decider is unchanged: the parent's counter bounds its delegates, and
+//! each child's own bound stays no wider than its parent's.
 //!
 //! Grants form chains from the root's grant to the actor's. Each grant's
 //! policy is given as members and as its canonical CBOR. Submissions run in
@@ -7,11 +11,11 @@
 //! submission leases nothing and enters nothing. Slot tables list the
 //! counters of the case's subjects after the last submission, zero included.
 
-use super::{NOW, keys, load, recipes, require_current};
+use super::{NOW, keys, recipes, require_current};
 use minicbor::Encoder;
 use serde_json::{Value, json};
 
-pub(super) const FILE: &str = "bounds-aggregate.json";
+pub(crate) const FILE: &str = "bounds-aggregate.json";
 const SCHEMA: &str = "auths.gateway-bounds-aggregate/1";
 const EVALUATOR_V2: &str = "auths.gateway.argument-ceiling-window-count/2";
 const POLICY_V2: &str = "auths.gateway.argument-ceiling-policy/2";
@@ -275,7 +279,7 @@ fn delegation_count_cases() -> Vec<Value> {
             "stripe-plain",
             vec![
                 parent(&count(1000, 2)),
-                child("g-a", "child-a", &count(1000, 5)),
+                child("g-a", "child-a", &count(1000, 2)),
             ],
             vec![
                 entered("g-parent", amount(100)),
@@ -289,7 +293,7 @@ fn delegation_count_cases() -> Vec<Value> {
             "stripe-plain",
             vec![
                 parent(&count(1000, 1)),
-                child("g-self", "parent-did-key", &count(1000, 5)),
+                child("g-self", "parent-did-key", &count(1000, 1)),
             ],
             vec![
                 entered("g-self", amount(100)),
@@ -306,7 +310,7 @@ fn delegation_count_cases() -> Vec<Value> {
             "stripe-plain",
             vec![
                 parent(&count(1000, 1)),
-                child("g-a", "child-a", &count(1000, 5)),
+                child("g-a", "child-a", &count(1000, 1)),
             ],
             vec![
                 entered("g-parent", amount(100)),
@@ -802,43 +806,4 @@ fn document() -> Value {
 #[test]
 fn bounds_aggregate_vectors_are_current() {
     require_current(FILE, &document());
-}
-
-/// Today's registry holds only evaluator `/1` over policy `/1`, and today's
-/// policy decoder refuses every policy that carries a sum, partition, or
-/// scope member.
-#[test]
-fn current_registry_and_decoder_lack_evaluator_v2() {
-    let vectors = load(FILE);
-    let registrations = crate::gateway_evaluator_registrations().expect("registry");
-    let evaluators: Vec<&str> = registrations
-        .iter()
-        .map(|registration| registration.evaluator_semantic_id.as_str())
-        .collect();
-    let policies: Vec<&str> = registrations
-        .iter()
-        .map(|registration| registration.policy_type.as_str())
-        .collect();
-    assert_eq!(evaluators, [EVALUATOR_V1]);
-    assert_eq!(policies, [POLICY_V1]);
-    assert_eq!(vectors["evaluator"], EVALUATOR_V2);
-    let mut extended = 0;
-    for case in vectors["cases"].as_array().expect("cases") {
-        for grant in case["grants"].as_array().into_iter().flatten() {
-            let Some(bytes) = grant["policy_cbor_hex"].as_str() else {
-                continue;
-            };
-            let bytes = hex::decode(bytes).expect("hex");
-            let members = grant["policy"].as_object().expect("policy").len();
-            if members > 4 {
-                extended += 1;
-                assert!(
-                    crate::ArgumentCeilingPolicy::decode(&bytes).is_err(),
-                    "{}",
-                    case["id"]
-                );
-            }
-        }
-    }
-    assert!(extended > 0);
 }

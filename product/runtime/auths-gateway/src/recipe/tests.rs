@@ -1045,16 +1045,31 @@ fn account_scope_value_outside_its_grammar_is_refused() {
         "acct_TEST ACCOUNT",
         "acct_TEST-ACCOUNT",
         "cust_TESTACCOUNT01",
-        "acct_SHORT12",
     ] {
+        let refused = recipe
+            .closed_request_from_arguments(&stripe_arguments(&recipe, Some(hostile)), [4; 32])
+            .err();
         assert_eq!(
-            recipe
-                .closed_request_from_arguments(&stripe_arguments(&recipe, Some(hostile)), [4; 32])
-                .err(),
-            Some(GatewayRecipeError::ActionMismatch),
+            refused,
+            Some(GatewayRecipeError::InvalidAccountScopeValue),
             "{hostile:?}"
         );
+        assert_eq!(
+            refused.map(GatewayRecipeError::code),
+            Some("gateway.account-scope.invalid-value")
+        );
     }
+    // A value shorter than the profile field's minimum fails the profile
+    // schema before the header grammar is reached.
+    assert_eq!(
+        recipe
+            .closed_request_from_arguments(
+                &stripe_arguments(&recipe, Some("acct_SHORT12")),
+                [4; 32]
+            )
+            .err(),
+        Some(GatewayRecipeError::ActionMismatch)
+    );
 }
 
 #[test]
@@ -1103,32 +1118,6 @@ fn credential_reads_are_fixed_and_carry_no_action_value() {
             .denied()
             .is_empty()
     );
-}
-
-#[test]
-fn only_executed_capabilities_run_in_an_engine() {
-    for name in ["airtable", "todoist", "github"] {
-        assert!(!compiled(name).declares_unexecuted_capability(), "{name}");
-    }
-    for base in [
-        "stripe-plain",
-        "todoist-operation-id",
-        "airtable-pre-entry",
-        "github-response-locator",
-    ] {
-        assert!(
-            !corpus_recipe(base).declares_unexecuted_capability(),
-            "{base}"
-        );
-    }
-    // An account-scope header and a sum bound need grant policy that can
-    // carry a scope and a sum; until then an engine refuses to run them.
-    for base in ["stripe", "stripe-platform"] {
-        assert!(
-            corpus_recipe(base).declares_unexecuted_capability(),
-            "{base}"
-        );
-    }
 }
 
 /// The serde renderer the construction leaf replaced, kept only as a test

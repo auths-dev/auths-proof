@@ -1,10 +1,11 @@
-//! Per-principal bounded-policy cases of the hostile suite.
+//! Bounded-policy cases of the hostile suite, with real proofs.
 //!
 //! Two agents share one contract under one root, each with its own bound, and
-//! an agent may delegate a narrower bound to a sub-agent. Every case runs the
-//! engine's dispatch against the counting provider: an authorized case enters
-//! the provider once, and every refused case leaves zero provider entries and
-//! zero credential leases.
+//! an agent may delegate a narrower bound to a sub-agent, whose actions also
+//! charge the agent's counter. Every case runs the engine's dispatch against
+//! the counting provider: an authorized case enters the provider once, and
+//! every refused case leaves zero provider entries and zero credential
+//! leases.
 
 use super::*;
 use crate::ArgumentCeilingPolicy;
@@ -207,10 +208,10 @@ impl Principals {
 fn unregistered_body(policy: &ArgumentCeilingPolicy) -> Vec<u8> {
     let policy = policy.encode().expect("policy");
     let commitment = auths_model::PolicyCommitment::new(
-        auths_model::PolicyIdentifier::parse(crate::ARGUMENT_CEILING_POLICY_TYPE_V1, 128)
+        auths_model::PolicyIdentifier::parse(crate::ARGUMENT_CEILING_POLICY_TYPE, 128)
             .expect("type"),
         1,
-        auths_model::PolicyIdentifier::parse(crate::ARGUMENT_CEILING_CANONICALIZATION_V1, 64)
+        auths_model::PolicyIdentifier::parse(crate::ARGUMENT_CEILING_CANONICALIZATION, 64)
             .expect("canonicalization"),
         auths_codec::bounded_policy_digest(&policy).expect("digest"),
         auths_model::PolicyIdentifier::parse("auths.gateway.unregistered/1", 128)
@@ -338,6 +339,69 @@ async fn run(id: &str, backend: Backend) -> (String, Option<String>, (usize, usi
         | GatewaySubmitResult::ObservedByProvider { .. } => ("entered".to_owned(), None),
     };
     (decision, code, principals.harness.provider.counts())
+}
+
+/// Two sub-agents under one agent's bound: each action charges the agent's
+/// counter as well as the sub-agent's own, so together they get the agent's
+/// count and no more, although each sub-agent's own counter has room.
+#[tokio::test]
+async fn delegates_share_their_parent_counter() {
+    let principals = Principals::open(Backend::File);
+    let root = &principals.harness.root;
+    let second = Signer::new(0x77);
+    let a_grant = principals.root_grant(&principals.a, &bound(500, 2));
+    let child = |subject: &Signer| {
+        bounded_grant(
+            &principals.a,
+            subject,
+            Some(&a_grant),
+            0,
+            Some(
+                bound(100, 2)
+                    .extension_body(Some(link(&a_grant)))
+                    .expect("body"),
+            ),
+        )
+    };
+    let (first_grant, second_grant) = (child(&principals.sub), child(&second));
+    let submit = |grant: &SignedGrant, agent: &Signer, operation: &str| {
+        chain_submission(
+            &[root, &principals.a],
+            &[a_grant.clone(), grant.clone()],
+            agent,
+            &principals.arguments(operation, 50),
+        )
+    };
+    let mut verdicts = Vec::new();
+    for (grant, agent, operation) in [
+        (&first_grant, &principals.sub, "delegate-1"),
+        (&second_grant, &second, "delegate-2"),
+        (&first_grant, &principals.sub, "delegate-3"),
+    ] {
+        let result = principals
+            .harness
+            .submit(&submit(grant, agent, operation), NOW)
+            .await;
+        let (decision, code) = verdict(&result);
+        verdicts.push((decision, code.map(str::to_owned)));
+    }
+    assert_eq!(
+        verdicts,
+        [
+            ("entered", None),
+            ("entered", None),
+            (
+                "not-entered",
+                Some("gateway.policy.window-exhausted".to_owned())
+            ),
+        ]
+    );
+    let (writes, _reads, leases) = principals.harness.provider.counts();
+    assert_eq!(
+        (writes, leases),
+        (2, 4),
+        "the exhausted action never leases"
+    );
 }
 
 /// Drives the pre-generated bounded hostile suite against `backend`; the
@@ -783,6 +847,50 @@ async fn offline_audit_detects_a_tampered_bundle() {
     assert_eq!(
         crate::audit_bundle(&serde_json::to_vec(&bundle).expect("bundle"), &other_trust).err(),
         Some("audit.trust-pin-mismatch")
+    );
+}
+
+/// A namespace served from two stores counts separately: a second gateway
+/// with its own store enters the refund the first refused. The audit finds
+/// two entered refunds on a counter of capacity one, which no arrival order
+/// allows, and flags both without relying on any order.
+#[tokio::test]
+async fn offline_audit_flags_an_over_admission_without_any_order() {
+    use crate::AuditStatus::{Inconsistent, Refused};
+    let first = RefundQuorum::open(500, 1, 3);
+    let mut bundle = journey_bundle(&first).await;
+    let second = RefundQuorum::open(500, 1, 3);
+    let (operation, submission) = second.journey().remove(3);
+    assert_eq!(
+        verdict(&second.harness.submit(&submission, NOW).await),
+        ("entered", None)
+    );
+    let GatewayObserveResult::Signed {
+        observation_b64, ..
+    } = second.harness.outcome(operation, NOW + 1).await
+    else {
+        panic!("the second gateway signs its outcome");
+    };
+    bundle["entries"][3]["outcome_b64"] = json!(observation_b64);
+    let report = audit(&bundle, &pins(&first));
+    assert_eq!(
+        statuses(&report),
+        vec![
+            (Inconsistent, "audit.bound-exceeded".to_owned()),
+            (Refused, "composition-requirement-not-met".to_owned()),
+            (Refused, "gateway.policy.above-ceiling".to_owned()),
+            (Inconsistent, "audit.bound-exceeded".to_owned()),
+        ]
+    );
+    let mut reordered = bundle.clone();
+    let entries = reordered["entries"].as_array_mut().expect("entries");
+    entries.reverse();
+    let mut reversed = statuses(&audit(&reordered, &pins(&first)));
+    reversed.reverse();
+    assert_eq!(
+        reversed,
+        statuses(&report),
+        "the verdicts do not depend on order"
     );
 }
 

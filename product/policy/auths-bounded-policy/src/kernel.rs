@@ -1,8 +1,12 @@
 //! Aeneas-shaped pure production primitives.
 //!
-//! These functions contain no allocation, strings, callbacks, I/O, or hidden
-//! state. Public carriers validate and project their rich values into this
-//! boundary; the same functions execute in production and are translated.
+//! These functions allocate nothing and contain no strings, callbacks, I/O,
+//! or hidden state; the tightening decider reads owned byte vectors its
+//! caller projects. Public carriers validate and project their rich values
+//! into this boundary; the same functions execute in production and are
+//! translated.
+
+use alloc::vec::Vec;
 
 /// Stable projection result for the configuration gate.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -118,11 +122,213 @@ pub const fn ceiling_count_tightens(
     child_max_count <= parent_max_count
 }
 
-/// The index of the window of `window_seconds` that contains `now`; `None`
-/// for a zero-length window.
+/// The index of the fixed, epoch-aligned window of `window_seconds` that
+/// contains `now`; `None` for a zero-length window.
 #[must_use]
 pub const fn window_index(now: u64, window_seconds: u64) -> Option<u64> {
     now.checked_div(window_seconds)
+}
+
+/// Whether every distinct count counter of a chain has room: `counts[i]` is
+/// the number of slots counter `i` already holds in the current window and
+/// `capacities[i]` the smallest maximum count of the links that share it.
+/// Slices of different lengths never admit.
+#[must_use]
+pub fn chain_counts_admit(counts: &[u64], capacities: &[u64]) -> bool {
+    if counts.len() != capacities.len() {
+        return false;
+    }
+    let mut index = 0;
+    while index < counts.len() {
+        if counts[index] >= capacities[index] {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+/// Whether every distinct sum counter of a chain has room for `argument`:
+/// `sums[i]` is counter `i`'s running sum in the current window and
+/// `capacities[i]` the smallest sum limit of the links that share it. Each
+/// addition is checked, and an overflow refuses. Slices of different lengths
+/// never admit.
+#[must_use]
+pub fn chain_sums_admit(sums: &[u64], argument: u64, capacities: &[u64]) -> bool {
+    if sums.len() != capacities.len() {
+        return false;
+    }
+    let mut index = 0;
+    while index < sums.len() {
+        match sums[index].checked_add(argument) {
+            None => return false,
+            Some(total) => {
+                if total > capacities[index] {
+                    return false;
+                }
+            }
+        }
+        index += 1;
+    }
+    true
+}
+
+/// A policy's list of admitted values for one named verified argument.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ValueList {
+    /// The UTF-8 bytes of the argument name.
+    pub argument: Vec<u8>,
+    /// The admitted values' bytes.
+    pub values: Vec<Vec<u8>>,
+}
+
+/// A policy's sum limit and optional partition.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SumBound {
+    /// The largest window sum of the bounded argument.
+    pub limit: u64,
+    /// The argument whose value selects the sum counter, and the values a
+    /// grant lists for it.
+    pub partition: Option<ValueList>,
+}
+
+/// The members of one argument-ceiling policy the tightening decider reads.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PolicyMembers {
+    /// The UTF-8 bytes of the bounded argument's name.
+    pub argument: Vec<u8>,
+    /// The largest admitted argument value.
+    pub ceiling: u64,
+    /// The fixed window length, in seconds.
+    pub window: u64,
+    /// The largest number of actions per counter per window.
+    pub max_count: u64,
+    /// The optional sum limit and partition.
+    pub sum: Option<SumBound>,
+    /// The optional scope.
+    pub scope: Option<ValueList>,
+}
+
+/// Byte equality of two slices.
+#[must_use]
+pub fn bytes_equal(left: &[u8], right: &[u8]) -> bool {
+    if left.len() != right.len() {
+        return false;
+    }
+    let mut index = 0;
+    while index < left.len() {
+        if left[index] != right[index] {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+/// Whether `values` holds `value`.
+#[must_use]
+pub fn values_contain(values: &[Vec<u8>], value: &[u8]) -> bool {
+    let mut index = 0;
+    while index < values.len() {
+        if bytes_equal(&values[index], value) {
+            return true;
+        }
+        index += 1;
+    }
+    false
+}
+
+/// Whether every value of `child` is in `parent`.
+#[must_use]
+pub fn values_subset(child: &[Vec<u8>], parent: &[Vec<u8>]) -> bool {
+    let mut index = 0;
+    while index < child.len() {
+        if !values_contain(parent, &child[index]) {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+/// The same argument, and a subset of the parent's values.
+#[must_use]
+pub fn values_narrow(child: &ValueList, parent: &ValueList) -> bool {
+    bytes_equal(&child.argument, &parent.argument) && values_subset(&child.values, &parent.values)
+}
+
+/// Whether a child partition narrows its parent's: none under none, or the
+/// same argument with a subset of the values.
+#[must_use]
+#[allow(
+    clippy::redundant_pattern_matching,
+    reason = "a match translates without a model of `Option::is_none`"
+)]
+pub fn partition_narrows(child: &Option<ValueList>, parent: &Option<ValueList>) -> bool {
+    match parent {
+        None => match child {
+            None => true,
+            Some(_) => false,
+        },
+        Some(parent) => match child {
+            None => false,
+            Some(child) => values_narrow(child, parent),
+        },
+    }
+}
+
+/// A parent without a sum accepts any child; otherwise the child keeps a sum
+/// no larger, with the parent's partition argument and a subset of its
+/// values, or no partition when the parent has none.
+#[must_use]
+pub fn sum_tightens(child: &Option<SumBound>, parent: &Option<SumBound>) -> bool {
+    match parent {
+        None => true,
+        Some(parent) => match child {
+            None => false,
+            Some(child) => {
+                child.limit <= parent.limit
+                    && partition_narrows(&child.partition, &parent.partition)
+            }
+        },
+    }
+}
+
+/// A parent without a scope accepts any child; otherwise the child keeps a
+/// scope on the same argument with a subset of its values.
+#[must_use]
+pub fn scope_tightens(child: &Option<ValueList>, parent: &Option<ValueList>) -> bool {
+    match parent {
+        None => true,
+        Some(parent) => match child {
+            None => false,
+            Some(child) => values_narrow(child, parent),
+        },
+    }
+}
+
+/// The registered tightening decider of policy `/2`: the same argument,
+/// [`ceiling_count_tightens`], and the sum, partition, and scope rules. A
+/// child that adds a sum or scope under a parent without one only narrows.
+#[must_use]
+pub fn argument_policy_tightens(child: &PolicyMembers, parent: &PolicyMembers) -> bool {
+    if !bytes_equal(&child.argument, &parent.argument) {
+        return false;
+    }
+    if !ceiling_count_tightens(
+        child.ceiling,
+        child.max_count,
+        child.window,
+        parent.ceiling,
+        parent.max_count,
+        parent.window,
+    ) {
+        return false;
+    }
+    if !sum_tightens(&child.sum, &parent.sum) {
+        return false;
+    }
+    scope_tightens(&child.scope, &parent.scope)
 }
 
 #[cfg(kani)]
@@ -246,6 +452,93 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn chain_counts_admit_only_when_every_counter_has_room() {
+        assert!(chain_counts_admit(&[], &[]));
+        assert!(chain_counts_admit(&[0, 2], &[1, 3]));
+        assert!(!chain_counts_admit(&[0, 3], &[1, 3]));
+        assert!(!chain_counts_admit(&[0], &[1, 3]));
+        assert!(!chain_counts_admit(&[0, 0], &[1]));
+    }
+
+    #[test]
+    fn chain_sums_admit_is_inclusive_and_refuses_overflow() {
+        assert!(chain_sums_admit(&[400], 600, &[1_000]));
+        assert!(!chain_sums_admit(&[400], 601, &[1_000]));
+        assert!(!chain_sums_admit(&[u64::MAX], 1, &[u64::MAX]));
+        assert!(!chain_sums_admit(&[0, 0], 1, &[1]));
+        assert!(chain_sums_admit(&[0, 900], 100, &[100, 1_000]));
+    }
+
+    fn list(argument: &str, values: &[&str]) -> ValueList {
+        ValueList {
+            argument: argument.as_bytes().to_vec(),
+            values: values
+                .iter()
+                .map(|value| value.as_bytes().to_vec())
+                .collect(),
+        }
+    }
+
+    fn members(sum: Option<SumBound>, scope: Option<ValueList>) -> PolicyMembers {
+        PolicyMembers {
+            argument: b"amount".to_vec(),
+            ceiling: 1_000,
+            window: 86_400,
+            max_count: 10,
+            sum,
+            scope,
+        }
+    }
+
+    #[test]
+    fn argument_policy_tightening_follows_the_sum_partition_and_scope_rules() {
+        let usd = Some(list("currency", &["usd"]));
+        let eur_usd = Some(list("currency", &["eur", "usd"]));
+        let sum = |limit, partition: &Option<ValueList>| {
+            Some(SumBound {
+                limit,
+                partition: partition.clone(),
+            })
+        };
+        let parent = members(sum(1_000, &usd), Some(list("connect_account", &["acct_1"])));
+        assert!(argument_policy_tightens(&parent, &parent));
+        let narrower = members(sum(500, &usd), Some(list("connect_account", &["acct_1"])));
+        assert!(argument_policy_tightens(&narrower, &parent));
+        for expanded in [
+            members(None, parent.scope.clone()),
+            members(sum(2_000, &usd), parent.scope.clone()),
+            members(sum(1_000, &eur_usd), parent.scope.clone()),
+            members(sum(1_000, &None), parent.scope.clone()),
+            members(
+                sum(1_000, &Some(list("operation_id", &["usd"]))),
+                parent.scope.clone(),
+            ),
+            members(sum(1_000, &usd), None),
+            members(
+                sum(1_000, &usd),
+                Some(list("connect_account", &["acct_1", "acct_2"])),
+            ),
+        ] {
+            assert!(!argument_policy_tightens(&expanded, &parent));
+        }
+        let unpartitioned = members(sum(1_000, &None), None);
+        assert!(!argument_policy_tightens(
+            &members(sum(1_000, &usd), None),
+            &unpartitioned
+        ));
+        assert!(argument_policy_tightens(
+            &members(sum(500, &usd), None),
+            &members(None, None)
+        ));
+        let mut other_argument = parent.clone();
+        other_argument.argument = b"quantity".to_vec();
+        assert!(!argument_policy_tightens(&other_argument, &parent));
+        let mut other_window = parent.clone();
+        other_window.window = 3_600;
+        assert!(!argument_policy_tightens(&other_window, &parent));
     }
 
     #[test]

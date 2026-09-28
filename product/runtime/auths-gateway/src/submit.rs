@@ -12,6 +12,7 @@
 use crate::engine::{GatewaySubmitResult, VerifiedCommand, not_entered, replay_refused};
 use crate::pre_entry::{self, PreEntryObservation, SelectedRequirement};
 use crate::recipe::{CeilingCheck, CeilingReading, GuardChecks, MAX_ACCOUNT_BYTES, ReadBack};
+use crate::store::BoundedClaim;
 use crate::transport::{
     GatewayTransportError, ProviderPort, ProviderResponse, WriteTransportOutcome,
 };
@@ -481,40 +482,33 @@ impl<I: SubmitIo> Run<'_, I> {
         let Some(verified) = &self.verified else {
             return ClaimResult::Unavailable;
         };
-        let attempts = self.cx.attempts;
-        let claim = match attempts
-            .claim(
+        match self
+            .cx
+            .attempts
+            .claim_bounded(
                 &verified.request,
                 *self.cx.recipe.digest(),
                 self.evaluated_at,
+                verified.bound.as_ref(),
             )
             .await
         {
-            Ok(claim) => claim,
-            Err(GatewayAttemptError::Replay) => return ClaimResult::Replay,
-            Err(_) => {
-                self.refuse_before_claim(not_entered("gateway.attempt.unavailable"));
-                return ClaimResult::Unavailable;
-            }
-        };
-        let Some(bound) = &verified.bound else {
-            self.claim = Some(claim);
-            return ClaimResult::Inserted;
-        };
-        match attempts
-            .reserve_window(bound, verified.request.operation_id())
-            .await
-        {
-            Ok(()) => {
-                self.claim = Some(claim);
+            Ok(BoundedClaim::Claimed(claim)) => {
+                self.claim = Some(*claim);
                 ClaimResult::Inserted
             }
-            Err(refusal) => {
-                self.result = Some(match claim.record_not_entered(refusal.code(), None).await {
-                    Ok(_) => not_entered(refusal.code()),
-                    Err(_) => GatewaySubmitResult::Unknown,
-                });
+            Ok(BoundedClaim::Exhausted(code)) => {
+                self.result = Some(not_entered(code));
                 ClaimResult::Refused
+            }
+            Ok(BoundedClaim::Contended) => {
+                self.refuse_before_claim(not_entered("gateway.policy.count-unavailable"));
+                ClaimResult::Unavailable
+            }
+            Err(GatewayAttemptError::Replay) => ClaimResult::Replay,
+            Err(_) => {
+                self.refuse_before_claim(not_entered("gateway.attempt.unavailable"));
+                ClaimResult::Unavailable
             }
         }
     }

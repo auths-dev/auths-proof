@@ -6,7 +6,7 @@
 // distinct public stage; `let...else` would obscure those boundary decisions.
 #![allow(clippy::manual_let_else)]
 
-use crate::bounds::{WindowReservation, admit_bounds};
+use crate::bounds::{BoundAdmission, admit_bounds};
 use crate::connection::{
     LoadedConnection, SharedConnection, SharedConnectionError, authorizes_entry,
 };
@@ -48,6 +48,10 @@ use thiserror::Error;
 const MAX_PROOF_BYTES: usize = 4 * 1024 * 1024;
 const MAX_ACTION_BYTES: usize = 64 * 1024;
 const MAX_CONTEXT_BYTES: usize = 4 * 1024 * 1024;
+/// How often `serve` sweeps expired count and sum slots.
+pub const SLOT_SWEEP_INTERVAL_SECONDS: u64 = 60;
+/// The most expired slots one sweep deletes.
+pub const SLOT_SWEEP_LIMIT: usize = 1_024;
 
 /// Installation failure before an application socket can be served.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Error)]
@@ -58,10 +62,6 @@ pub enum GatewayEngineConfigurationError {
     /// The installed recipe differs from the operator-approved digest.
     #[error("gateway recipe approval digest mismatch")]
     UnapprovedRecipe,
-    /// The recipe declares a capability whose runtime step this gateway does
-    /// not perform. Running it would skip a check the operator approved.
-    #[error("gateway recipe declares a capability this gateway does not execute")]
-    UnexecutedCapability,
 }
 
 /// Closed, secret-free application result. A recorded response or matching
@@ -200,7 +200,8 @@ pub struct GatewayAdminStatus {
     pub credential_held: bool,
     /// This process's in-flight entries.
     pub in_flight: u64,
-    /// The gateway clock of the last slot sweep; absent until one runs.
+    /// The gateway clock of this process's last successful slot sweep;
+    /// absent until one completes.
     pub last_sweep: Option<u64>,
     /// The gateway clock when the status was read; not authenticated.
     pub gateway_clock: u64,
@@ -225,6 +226,8 @@ pub struct GatewayEngine {
     credentials: PersistentCredentialStore,
     attempts: GatewayAttempts,
     in_flight: AtomicU64,
+    /// The gateway clock of the last successful slot sweep; zero before one.
+    last_sweep: AtomicU64,
     drain_limit: Duration,
     #[cfg(feature = "loopback-provider")]
     loopback_port: Option<u16>,
@@ -264,9 +267,6 @@ impl GatewayEngine {
         if *recipe.digest() != approved_digest {
             return Err(GatewayEngineConfigurationError::UnapprovedRecipe);
         }
-        if recipe.declares_unexecuted_capability() {
-            return Err(GatewayEngineConfigurationError::UnexecutedCapability);
-        }
         Ok(Self {
             recipe,
             trusted_context,
@@ -277,6 +277,7 @@ impl GatewayEngine {
             credentials,
             attempts,
             in_flight: AtomicU64::new(0),
+            last_sweep: AtomicU64::new(0),
             drain_limit: DRAIN_LIMIT,
             #[cfg(feature = "loopback-provider")]
             loopback_port: None,
@@ -610,7 +611,7 @@ impl GatewayEngine {
             credential_generation: record.credential_generation().get(),
             credential_held: self.credentials.holds_record_credential(record).is_ok(),
             in_flight: self.in_flight(),
-            last_sweep: None,
+            last_sweep: Some(self.last_sweep.load(Ordering::SeqCst)).filter(|clock| *clock != 0),
             gateway_clock,
         })
     }
@@ -661,6 +662,24 @@ impl GatewayEngine {
             Ok(Some(snapshot)) => Ok(stored_result(&snapshot)),
             Ok(None) | Err(_) => Err(not_observable),
         }
+    }
+
+    /// Deletes at most [`SLOT_SWEEP_LIMIT`] count and sum slots whose expiry,
+    /// one full window after their window ends, is at or before the gateway
+    /// clock, and returns how many were deleted. Claims are never swept.
+    ///
+    /// # Errors
+    /// `gateway.sweep.clock-unavailable` without a clock, and
+    /// `gateway.sweep.unavailable` when the store fails.
+    pub async fn sweep_expired_slots(&self) -> Result<usize, &'static str> {
+        let now = wall_clock_seconds().ok_or("gateway.sweep.clock-unavailable")?;
+        let deleted = self
+            .attempts
+            .sweep_expired(now, SLOT_SWEEP_LIMIT)
+            .await
+            .map_err(|_| "gateway.sweep.unavailable")?;
+        self.last_sweep.store(now, Ordering::SeqCst);
+        Ok(deleted)
     }
 
     /// Verifies and attempts one exact action. Only proof and action bytes are
@@ -851,10 +870,12 @@ impl SubmitIo for EngineIo<'_> {
         )
     }
 
-    fn bind_scope(&self, _verified: &VerifiedCommand) -> Result<(), &'static str> {
-        // An engine is never constructed for a recipe that declares an
-        // account-scope header until grants can carry a scope.
-        Err("gateway.engine.unexecuted-capability")
+    fn bind_scope(&self, verified: &VerifiedCommand) -> Result<(), &'static str> {
+        crate::bounds::bind_account_scope(
+            &self.engine.recipe,
+            verified.bound.as_ref(),
+            &verified.arguments,
+        )
     }
 
     async fn prepare(&self) -> Result<(), &'static str> {
@@ -1000,7 +1021,7 @@ pub fn gateway_verifier_configuration() -> Result<VerifierConfigurationId, &'sta
 /// installed challenge and audience come from the operator; only the
 /// evaluation time is the gateway's own, so observation freshness, grant
 /// validity, and the counting window are judged when the request arrives.
-/// The returned reservation, if any, is taken after the claim.
+/// The returned admission, if any, is reserved atomically with the claim.
 #[cfg(test)]
 pub(crate) fn verify_command(
     recipe: &CompiledRecipe,
@@ -1008,7 +1029,7 @@ pub(crate) fn verify_command(
     now: u64,
     proof_cbor: &[u8],
     action_cbor: &[u8],
-) -> Result<(ClosedProviderRequest, Option<WindowReservation>), GatewaySubmitResult> {
+) -> Result<(ClosedProviderRequest, Option<BoundAdmission>), GatewaySubmitResult> {
     verify_detailed(recipe, context, now, proof_cbor, action_cbor)
         .map(|verified| (verified.request, verified.bound))
 }
@@ -1018,7 +1039,8 @@ pub(crate) fn verify_command(
 #[derive(Clone, Debug)]
 pub(crate) struct VerifiedCommand {
     pub(crate) request: ClosedProviderRequest,
-    pub(crate) bound: Option<WindowReservation>,
+    /// The bounded branch's links and the counters its claim reserves.
+    pub(crate) bound: Option<BoundAdmission>,
     pub(crate) actors: Vec<auths_model::PrincipalId>,
     pub(crate) arguments: Map<String, Value>,
     /// Every observation requirement of every grant of every authorized
@@ -1075,7 +1097,7 @@ pub(crate) fn verify_detailed(
             }
         });
     };
-    let bound = admit_bounds(proof_cbor, action, recipe.namespace(), now)?;
+    let bound = admit_bounds(proof_cbor, action, recipe, now)?;
     let command = McpProfile
         .decode_verified(action)
         .map_err(|_| not_entered("gateway.action.projection"))?;
@@ -1705,6 +1727,17 @@ mod tests {
             let outcome = host.engine.enable_connection().await.expect("enable");
             assert!(outcome.drained);
             assert_eq!(outcome.in_flight, 0);
+        }
+
+        #[tokio::test]
+        async fn status_reports_the_last_slot_sweep() {
+            let installation = installation(8).await;
+            let host = &installation.first;
+            assert_eq!(host.engine.status().await.expect("status").last_sweep, None);
+            host.engine.sweep_expired_slots().await.expect("sweep");
+            let status = host.engine.status().await.expect("status");
+            let swept = status.last_sweep.expect("a completed sweep is reported");
+            assert!(swept <= status.gateway_clock);
         }
 
         #[tokio::test]

@@ -250,34 +250,48 @@ marker cases), native unit tests, and Lean theorems that delegation never
 widens authority given narrowing laws, with the marker and observation laws
 proved narrowing. No hosted CI result is cited here.
 
-### Per-principal bounds in the gateway path (AP-SPEC-025 §24, repository-local only)
+### One spend limit in the gateway path (AP-SPEC-025 §24, AP-SPEC-063 §6, repository-local only)
 
-**Claim.** A grant can carry a bounded-policy commitment: a ceiling on one
-named verified MCP argument and a maximum number of authorized actions per
-principal per window. Two agents under one contract can hold different
-bounds, each readable from the proof and grant alone. The gateway refuses,
-before any durable claim or credential lease, an action above any bound in
-its chain, a bound whose evaluator is unregistered or mismatched, and a
-delegated bound its registered decider cannot prove tighter than the
-parent's. It refuses an action past the window count after the claim and
-before any lease. A delegated bound must link its parent's; the native
-verifier refuses one that does not.
+**Claim.** A grant can carry a bounded-policy commitment under evaluator
+`auths.gateway.argument-ceiling-window-count/2`: a ceiling on one named
+verified MCP argument, a maximum count per fixed, epoch-aligned window,
+and optionally a sum limit on that argument per listed partition value and
+a scope that lists the values one verified argument may take. Every bounded
+grant of the authorized branch is a link, and each link's count and sum
+counters are keyed by its subject, so within one namespace and one store a
+link's count bounds its subject and delegates together in each fixed
+window, the ceiling times the count bounds their argument sum, and a link's
+sum limit bounds the sum of the bounded argument over its subject and
+delegates, per listed partition value. The gateway refuses, before any
+durable claim or credential lease, an action above any ceiling or the
+smallest sum limit, a scope or partition value a link does not list, a
+bound whose evaluator is unregistered or mismatched, a chain of more than
+16 links, and a delegated bound its registered decider cannot prove tighter
+than the parent's. It reserves one slot of every count and sum counter
+atomically with the claim, and a full counter records the claim
+`not-entered` with no slot taken. A recipe with an account-scope header
+sends only a value every link's scope lists.
 
-**Not a claim.** That the count is exact across hosts (the file attempt
-store is single-host; a multi-host store supplies the same insert-once
-primitive), that a verifier without the gateway's product layer checks
+**Not a claim.** A rolling limit: fixed windows admit up to twice a count
+across a window boundary. Counts across stores or after store loss: a
+namespace served from two stores, or a wiped or restored store, counts
+separately. That a verifier without the gateway's product layer checks
 anything about the policy beyond the link, or that the argument's value
-reflects provider state.
+reflects provider state; the sum is of verified arguments, not amounts the
+provider settled, and capacity is never released. Until the local-agent
+Stripe vertical is retired, a Stripe account reachable through both it and
+the gateway has two unrelated limits, and neither bounds the other path.
 
 Current evidence is the canonical corpus (Rust, Go, and TypeScript agree on
-the bounded-policy vectors), the gateway's per-principal hostile suite
-against the counting provider (`bindings/fixtures/gateway/bounds-hostile.json`:
-agent A inside and outside A's bound, A presenting B's larger bound, a
-sub-agent inside a narrower delegated bound, a sub-agent claiming a wider
-bound, an unlinked bound, an exhausted window, and an unregistered
-evaluator; every refused case has zero provider entries and zero leases),
-and Lean theorems for the evaluator's fixed-context tightening and decider
-soundness. No hosted CI result is cited here.
+the bounded-policy vectors), `bindings/fixtures/gateway/bounds-aggregate.json`
+through the file store with its two races (the PostgreSQL variant runs in
+the PostgreSQL workflow), the hostile suite against the counting provider
+(`bindings/fixtures/gateway/bounds-hostile.json`; every refused case has
+zero provider entries and zero leases), the audit's order-free recount, and
+Lean theorems for the fixed-window count and sum bounds, delegation never
+multiplying either, all-or-none reservation, fixed-context tightening, and
+decider soundness, with the chain leaves translated and refined. No hosted
+CI result is cited here.
 
 ### Derived idempotency key for recipe writes (AP-SPEC-053 §3.2.1, repository-local only)
 

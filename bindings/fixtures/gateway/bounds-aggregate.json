@@ -287,9 +287,9 @@
             "argument": "amount",
             "ceiling": 1000,
             "window_seconds": 86400,
-            "max_count": 5
+            "max_count": 2
           },
-          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800302"
         }
       ],
       "submissions": [
@@ -369,9 +369,9 @@
             "argument": "amount",
             "ceiling": 1000,
             "window_seconds": 86400,
-            "max_count": 5
+            "max_count": 1
           },
-          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800301"
         }
       ],
       "submissions": [
@@ -451,9 +451,9 @@
             "argument": "amount",
             "ceiling": 1000,
             "window_seconds": 86400,
-            "max_count": 5
+            "max_count": 1
           },
-          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800305"
+          "policy_cbor_hex": "a40066616d6f756e74011903e8021a000151800301"
         }
       ],
       "submissions": [

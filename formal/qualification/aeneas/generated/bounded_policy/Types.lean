@@ -15,7 +15,7 @@ set_option maxRecDepth 2048
 namespace auths_bounded_policy
 
 /-- [auths_bounded_policy::kernel::ConfigurationMatchCode]
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 9:0-20:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 13:0-24:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.ConfigurationMatchCode where
@@ -26,12 +26,37 @@ inductive kernel.ConfigurationMatchCode where
 | ImplementationMismatch : kernel.ConfigurationMatchCode
 
 /-- [auths_bounded_policy::kernel::CeilingCountCode]
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 73:0-80:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 77:0-84:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.CeilingCountCode where
 | Eligible : kernel.CeilingCountCode
 | AboveCeiling : kernel.CeilingCountCode
 | WindowExhausted : kernel.CeilingCountCode
+
+/-- [auths_bounded_policy::kernel::ValueList]
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 178:0-183:1
+    Visibility: public -/
+structure kernel.ValueList where
+  argument : alloc.vec.Vec Std.U8
+  values : alloc.vec.Vec (alloc.vec.Vec Std.U8)
+
+/-- [auths_bounded_policy::kernel::SumBound]
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 187:0-193:1
+    Visibility: public -/
+structure kernel.SumBound where
+  limit : Std.U64
+  partition : Option kernel.ValueList
+
+/-- [auths_bounded_policy::kernel::PolicyMembers]
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 197:0-210:1
+    Visibility: public -/
+structure kernel.PolicyMembers where
+  argument : alloc.vec.Vec Std.U8
+  ceiling : Std.U64
+  window : Std.U64
+  max_count : Std.U64
+  sum : Option kernel.SumBound
+  scope : Option kernel.ValueList
 
 end auths_bounded_policy

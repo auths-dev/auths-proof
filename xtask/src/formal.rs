@@ -2083,6 +2083,8 @@ const AUTHORITY_TRANSLATION: &str = "formal/qualification/aeneas/generated/autho
 const MODEL_TRANSLATION: &str = "formal/qualification/aeneas/generated/model/Funs.lean";
 const GATEWAY_TRANSLATION: &str = "formal/qualification/aeneas/generated/gateway/Funs.lean";
 const CONNECTIONS_TRANSLATION: &str = "formal/qualification/aeneas/generated/connections/Funs.lean";
+const BOUNDED_POLICY_TRANSLATION: &str =
+    "formal/qualification/aeneas/generated/bounded_policy/Funs.lean";
 
 /// Qualified refinement metadata together with the generated translation the
 /// claim must cite: the authority evaluators live in the authority crate's
@@ -2099,6 +2101,10 @@ fn qualified_refinement_metadata(
         })
         .or_else(|| {
             gateway_refinement_metadata(declaration).map(|metadata| (metadata, GATEWAY_TRANSLATION))
+        })
+        .or_else(|| {
+            bounded_policy_refinement_metadata(declaration)
+                .map(|metadata| (metadata, BOUNDED_POLICY_TRANSLATION))
         })
         .or_else(|| {
             connections_refinement_metadata(declaration)
@@ -2148,6 +2154,50 @@ fn connections_refinement_metadata(declaration: &str) -> Option<ProductionRefine
         rust_symbols,
         scope,
         residual_assumptions: RESIDUAL,
+        translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+    })
+}
+
+fn bounded_policy_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    const UNCONDITIONAL: &str = "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, and the listed foundational axioms are trusted; the theorem has no premise.";
+    const CHAIN_BOUNDARY: &str = "Deriving the chain's distinct counters, their smallest capacities, and their current values from the grant chain and the store is outside this theorem; chain_counts_part and chain_sums_part show that the leaves decide exactly the count and sum parts of chainAdmits over those inputs. The atomicity and linearizability of the store's insert_all, and the unauthenticated gateway clock that selects the fixed window, are assumed and covered by the store conformance suite.";
+    const DECIDER_BOUNDARY: &str = "Decoding the canonical policy bytes and projecting them onto the decider's members is outside this theorem; it is covered by the policy codec tests and the bounds fixtures.";
+    const CHAIN_RESIDUAL: &[&str] = &[UNCONDITIONAL, CHAIN_BOUNDARY];
+    const DECIDER_RESIDUAL: &[&str] = &[UNCONDITIONAL, DECIDER_BOUNDARY];
+    let (claim_text, rust_symbols, scope, residual_assumptions): (
+        &str,
+        &[&str],
+        &str,
+        &'static [&'static str],
+    ) = match declaration {
+        "Auths.Product.Refinement.translated_chain_counts_admit_refines_model" => (
+            "The mechanically translated count leaf returns exactly the model's count part of chain admission: every distinct counter of the fixed window below its capacity.",
+            &["auths_bounded_policy::kernel::chain_counts_admit"],
+            "Every pair of u64 slices of counter values and capacities, including slices of different lengths.",
+            CHAIN_RESIDUAL,
+        ),
+        "Auths.Product.Refinement.translated_chain_sums_admit_refines_model" => (
+            "The mechanically translated sum leaf returns exactly the model's sum part of chain admission: every distinct running sum of the fixed window plus the argument within its capacity, with an overflowing addition refused.",
+            &["auths_bounded_policy::kernel::chain_sums_admit"],
+            "Every u64 argument and pair of u64 slices of running sums and capacities, including slices of different lengths.",
+            CHAIN_RESIDUAL,
+        ),
+        "Auths.Product.Refinement.translated_argument_policy_tightens_refines_model" => (
+            "The mechanically translated tightening decider of policy /2 returns exactly the model's decider: the same argument, the unchanged ceiling and count rule, and the sum, partition, and scope rules.",
+            &[
+                "auths_bounded_policy::kernel::argument_policy_tightens",
+                "auths_bounded_policy::kernel::ceiling_count_tightens",
+            ],
+            "Every pair of policy members: argument names, ceilings, windows, counts, optional sums with optional partitions, and optional scopes with value lists of any length.",
+            DECIDER_RESIDUAL,
+        ),
+        _ => return None,
+    };
+    Some(ProductionRefinementMetadata {
+        claim_text,
+        rust_symbols,
+        scope,
+        residual_assumptions,
         translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
     })
 }
@@ -2889,6 +2939,38 @@ mod phase_ordering {
                 );
             }
         }
+    }
+
+    #[test]
+    fn bounded_policy_refinement_metadata_binds_every_claim_to_its_translation() {
+        let qualification = include_str!("../../formal/qualification/aeneas/qualification.toml");
+        for declaration in [
+            "Auths.Product.Refinement.translated_chain_counts_admit_refines_model",
+            "Auths.Product.Refinement.translated_chain_sums_admit_refines_model",
+            "Auths.Product.Refinement.translated_argument_policy_tightens_refines_model",
+        ] {
+            let (metadata, artifact) = qualified_refinement_metadata(declaration)
+                .unwrap_or_else(|| panic!("{declaration} lacks qualified metadata"));
+            assert_eq!(artifact, BOUNDED_POLICY_TRANSLATION);
+            for symbol in metadata.rust_symbols {
+                assert!(
+                    qualification.contains(&format!("\"{symbol}\"")),
+                    "{declaration} cites {symbol}, which is not a qualified translation symbol"
+                );
+            }
+            assert!(
+                metadata
+                    .residual_assumptions
+                    .join(" ")
+                    .contains("no premise")
+            );
+        }
+        assert!(
+            qualified_refinement_metadata(
+                "Auths.Product.Refinement.translated_ceiling_count_refines_model"
+            )
+            .is_none()
+        );
     }
 
     #[test]

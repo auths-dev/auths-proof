@@ -135,7 +135,7 @@ gates do not shrink.
     `audit-2026-09-24-gateway-epic5`, awaiting owner review: connection
     record `/2` in the shared store, admin commands `/1`, key-identity
     separation, the authenticated operator, and `ConnectionGenerations.lean`
-    with its translated leaves. §13 readings 24–31 are PROVISIONAL.
+    with its translated leaves. §13 readings 26–33 are PROVISIONAL.
   - It covers five things: per-recipe recovery capability, the provider
     capabilities the Stripe vertical proved necessary, one spend limit, an
     operator plane the application cannot interfere with, and evidence and

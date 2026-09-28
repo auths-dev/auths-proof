@@ -13,7 +13,7 @@ use std::{
 const QUALIFICATION_PATH: &str = "formal/qualification/aeneas/qualification.toml";
 const QUALIFICATION_SCHEMA: &str = "auths-proof-aeneas-qualification/v1";
 const QUALIFICATION_BOUNDARY_CONTRACT_SHA256: &str =
-    "ef28a78745e428e571e8b8e05b0d6d21c558f5f9f052e3e35fdb98de2cd42cbc";
+    "7c98dc9ce72d4d7045506325206debb0fe56df9f1820e2f23cf84bd5e6d5f706";
 
 const AENEAS_OUTPUT_MAPPINGS: &[(&str, &str)] = &[
     (
@@ -1960,7 +1960,7 @@ fn reproduce(
     run_checked(
         charon,
         &charon_arguments(
-            "auths_bounded_policy::kernel::configuration_match_code,auths_bounded_policy::kernel::checked_add_u64,auths_bounded_policy::kernel::checked_sub_u64,auths_bounded_policy::kernel::checked_mul_u64,auths_bounded_policy::kernel::checked_div_u64,auths_bounded_policy::kernel::ceiling_count_code,auths_bounded_policy::kernel::ceiling_count_tightens,auths_bounded_policy::kernel::window_index",
+            "auths_bounded_policy::kernel::configuration_match_code,auths_bounded_policy::kernel::checked_add_u64,auths_bounded_policy::kernel::checked_sub_u64,auths_bounded_policy::kernel::checked_mul_u64,auths_bounded_policy::kernel::checked_div_u64,auths_bounded_policy::kernel::ceiling_count_code,auths_bounded_policy::kernel::ceiling_count_tightens,auths_bounded_policy::kernel::window_index,auths_bounded_policy::kernel::chain_counts_admit,auths_bounded_policy::kernel::chain_sums_admit,auths_bounded_policy::kernel::argument_policy_tightens",
             &stable_llbc.join("auths_bounded_policy.llbc"),
             "product/policy/auths-bounded-policy/Cargo.toml",
             &[],

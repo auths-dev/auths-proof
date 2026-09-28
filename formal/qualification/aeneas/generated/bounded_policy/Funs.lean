@@ -16,7 +16,7 @@ set_option maxRecDepth 2048
 namespace auths_bounded_policy
 
 /-- [auths_bounded_policy::kernel::configuration_match_code]:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 28:0-45:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 32:0-49:1
     Visibility: public -/
 def kernel.configuration_match_code
   (semantic_equal : Bool) (canonicalization_equal : Bool) (digest_equal : Bool)
@@ -37,35 +37,35 @@ def kernel.configuration_match_code
   else ok kernel.ConfigurationMatchCode.SemanticMismatch
 
 /-- [auths_bounded_policy::kernel::checked_add_u64]:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 49:0-51:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 53:0-55:1
     Visibility: public -/
 def kernel.checked_add_u64
   (left : Std.U64) (right : Std.U64) : Result (Option Std.U64) := do
   ok (U64.checked_add left right)
 
 /-- [auths_bounded_policy::kernel::checked_sub_u64]:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 55:0-57:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 59:0-61:1
     Visibility: public -/
 def kernel.checked_sub_u64
   (left : Std.U64) (right : Std.U64) : Result (Option Std.U64) := do
   ok (U64.checked_sub left right)
 
 /-- [auths_bounded_policy::kernel::checked_mul_u64]:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 61:0-63:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 65:0-67:1
     Visibility: public -/
 def kernel.checked_mul_u64
   (left : Std.U64) (right : Std.U64) : Result (Option Std.U64) := do
   ok (U64.checked_mul left right)
 
 /-- [auths_bounded_policy::kernel::checked_div_u64]:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 67:0-69:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 71:0-73:1
     Visibility: public -/
 def kernel.checked_div_u64
   (left : Std.U64) (right : Std.U64) : Result (Option Std.U64) := do
   ok (U64.checked_div left right)
 
 /-- [auths_bounded_policy::kernel::ceiling_count_code]:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 86:0-99:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 90:0-103:1
     Visibility: public -/
 def kernel.ceiling_count_code
   (value : Std.U64) (ceiling : Std.U64) (count : Std.U64) (max_count : Std.U64)
@@ -80,7 +80,7 @@ def kernel.ceiling_count_code
     else ok kernel.CeilingCountCode.Eligible
 
 /-- [auths_bounded_policy::kernel::ceiling_count_tightens]:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 104:0-119:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 108:0-123:1
     Visibility: public -/
 def kernel.ceiling_count_tightens
   (child_ceiling : Std.U64) (child_max_count : Std.U64)
@@ -96,10 +96,321 @@ def kernel.ceiling_count_tightens
     else ok (child_max_count <= parent_max_count)
 
 /-- [auths_bounded_policy::kernel::window_index]:
-    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 124:0-126:1
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 128:0-130:1
     Visibility: public -/
 def kernel.window_index
   (now : Std.U64) (window_seconds : Std.U64) : Result (Option Std.U64) := do
   ok (U64.checked_div now window_seconds)
+
+/-- [auths_bounded_policy::kernel::chain_counts_admit]: loop body 0:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 142:4-149:1
+    Visibility: public -/
+@[rust_loop_body]
+def kernel.chain_counts_admit_loop.body
+  (counts : Slice Std.U64) (capacities : Slice Std.U64) (index : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i := Slice.len counts
+  if index < i
+  then
+    let i1 ← Slice.index_usize counts index
+    let i2 ← Slice.index_usize capacities index
+    if i1 >= i2
+    then ok (done false)
+    else let index1 ← index + 1#usize
+         ok (cont index1)
+  else ok (done true)
+
+/-- [auths_bounded_policy::kernel::chain_counts_admit]: loop 0:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 142:4-149:1
+    Visibility: public -/
+@[rust_loop]
+def kernel.chain_counts_admit_loop
+  (counts : Slice Std.U64) (capacities : Slice Std.U64) (index : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun index1 => kernel.chain_counts_admit_loop.body counts capacities
+      index1)
+    index
+
+/-- [auths_bounded_policy::kernel::chain_counts_admit]:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 137:0-149:1
+    Visibility: public -/
+def kernel.chain_counts_admit
+  (counts : Slice Std.U64) (capacities : Slice Std.U64) : Result Bool := do
+  let i := Slice.len counts
+  let i1 := Slice.len capacities
+  if i != i1
+  then ok false
+  else kernel.chain_counts_admit_loop counts capacities 0#usize
+
+/-- [auths_bounded_policy::kernel::chain_sums_admit]: loop body 0:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 162:4-174:1
+    Visibility: public -/
+@[rust_loop_body]
+def kernel.chain_sums_admit_loop.body
+  (sums : Slice Std.U64) (argument : Std.U64) (capacities : Slice Std.U64)
+  (index : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i := Slice.len sums
+  if index < i
+  then
+    let i1 ← Slice.index_usize sums index
+    let o ← lift (U64.checked_add i1 argument)
+    match o with
+    | none => ok (done false)
+    | some total =>
+      let i2 ← Slice.index_usize capacities index
+      if total > i2
+      then ok (done false)
+      else let index1 ← index + 1#usize
+           ok (cont index1)
+  else ok (done true)
+
+/-- [auths_bounded_policy::kernel::chain_sums_admit]: loop 0:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 162:4-174:1
+    Visibility: public -/
+@[rust_loop]
+def kernel.chain_sums_admit_loop
+  (sums : Slice Std.U64) (argument : Std.U64) (capacities : Slice Std.U64)
+  (index : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun index1 => kernel.chain_sums_admit_loop.body sums argument capacities
+      index1)
+    index
+
+/-- [auths_bounded_policy::kernel::chain_sums_admit]:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 157:0-174:1
+    Visibility: public -/
+def kernel.chain_sums_admit
+  (sums : Slice Std.U64) (argument : Std.U64) (capacities : Slice Std.U64) :
+  Result Bool
+  := do
+  let i := Slice.len sums
+  let i1 := Slice.len capacities
+  if i != i1
+  then ok false
+  else kernel.chain_sums_admit_loop sums argument capacities 0#usize
+
+/-- [auths_bounded_policy::kernel::bytes_equal]: loop body 0:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 219:4-226:1
+    Visibility: public -/
+@[rust_loop_body]
+def kernel.bytes_equal_loop.body
+  (left : Slice Std.U8) (right : Slice Std.U8) (index : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i := Slice.len left
+  if index < i
+  then
+    let i1 ← Slice.index_usize left index
+    let i2 ← Slice.index_usize right index
+    if i1 != i2
+    then ok (done false)
+    else let index1 ← index + 1#usize
+         ok (cont index1)
+  else ok (done true)
+
+/-- [auths_bounded_policy::kernel::bytes_equal]: loop 0:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 219:4-226:1
+    Visibility: public -/
+@[rust_loop]
+def kernel.bytes_equal_loop
+  (left : Slice Std.U8) (right : Slice Std.U8) (index : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun index1 => kernel.bytes_equal_loop.body left right index1)
+    index
+
+/-- [auths_bounded_policy::kernel::bytes_equal]:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 214:0-226:1
+    Visibility: public -/
+def kernel.bytes_equal
+  (left : Slice Std.U8) (right : Slice Std.U8) : Result Bool := do
+  let i := Slice.len left
+  let i1 := Slice.len right
+  if i != i1
+  then ok false
+  else kernel.bytes_equal_loop left right 0#usize
+
+/-- [auths_bounded_policy::kernel::values_contain]: loop body 0:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 232:4-239:1
+    Visibility: public -/
+@[rust_loop_body]
+def kernel.values_contain_loop.body
+  (values : Slice (alloc.vec.Vec Std.U8)) (value : Slice Std.U8)
+  (index : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i := Slice.len values
+  if index < i
+  then
+    let v ← Slice.index_usize values index
+    let s := alloc.vec.Vec.deref v
+    let b ← kernel.bytes_equal s value
+    if b
+    then ok (done true)
+    else let index1 ← index + 1#usize
+         ok (cont index1)
+  else ok (done false)
+
+/-- [auths_bounded_policy::kernel::values_contain]: loop 0:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 232:4-239:1
+    Visibility: public -/
+@[rust_loop]
+def kernel.values_contain_loop
+  (values : Slice (alloc.vec.Vec Std.U8)) (value : Slice Std.U8)
+  (index : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun index1 => kernel.values_contain_loop.body values value index1)
+    index
+
+/-- [auths_bounded_policy::kernel::values_contain]:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 230:0-239:1
+    Visibility: public -/
+@[reducible]
+def kernel.values_contain
+  (values : Slice (alloc.vec.Vec Std.U8)) (value : Slice Std.U8) :
+  Result Bool
+  := do
+  kernel.values_contain_loop values value 0#usize
+
+/-- [auths_bounded_policy::kernel::values_subset]: loop body 0:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 245:4-252:1
+    Visibility: public -/
+@[rust_loop_body]
+def kernel.values_subset_loop.body
+  (child : Slice (alloc.vec.Vec Std.U8))
+  (parent : Slice (alloc.vec.Vec Std.U8)) (index : Std.Usize) :
+  Result (ControlFlow Std.Usize Bool)
+  := do
+  let i := Slice.len child
+  if index < i
+  then
+    let v ← Slice.index_usize child index
+    let s := alloc.vec.Vec.deref v
+    let b ← kernel.values_contain parent s
+    if b
+    then let index1 ← index + 1#usize
+         ok (cont index1)
+    else ok (done false)
+  else ok (done true)
+
+/-- [auths_bounded_policy::kernel::values_subset]: loop 0:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 245:4-252:1
+    Visibility: public -/
+@[rust_loop]
+def kernel.values_subset_loop
+  (child : Slice (alloc.vec.Vec Std.U8))
+  (parent : Slice (alloc.vec.Vec Std.U8)) (index : Std.Usize) :
+  Result Bool
+  := do
+  loop
+    (fun index1 => kernel.values_subset_loop.body child parent index1)
+    index
+
+/-- [auths_bounded_policy::kernel::values_subset]:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 243:0-252:1
+    Visibility: public -/
+@[reducible]
+def kernel.values_subset
+  (child : Slice (alloc.vec.Vec Std.U8))
+  (parent : Slice (alloc.vec.Vec Std.U8)) :
+  Result Bool
+  := do
+  kernel.values_subset_loop child parent 0#usize
+
+/-- [auths_bounded_policy::kernel::values_narrow]:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 256:0-258:1
+    Visibility: public -/
+def kernel.values_narrow
+  (child : kernel.ValueList) (parent : kernel.ValueList) : Result Bool := do
+  let s := alloc.vec.Vec.deref child.argument
+  let s1 := alloc.vec.Vec.deref parent.argument
+  let b ← kernel.bytes_equal s s1
+  if b
+  then
+    let s2 := alloc.vec.Vec.deref child.values
+    let s3 := alloc.vec.Vec.deref parent.values
+    kernel.values_subset s2 s3
+  else ok false
+
+/-- [auths_bounded_policy::kernel::partition_narrows]:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 267:0-278:1
+    Visibility: public -/
+def kernel.partition_narrows
+  (child : Option kernel.ValueList) (parent : Option kernel.ValueList) :
+  Result Bool
+  := do
+  match parent with
+  | none => match child with
+            | none => ok true
+            | some _ => ok false
+  | some parent1 =>
+    match child with
+    | none => ok false
+    | some child1 => kernel.values_narrow child1 parent1
+
+/-- [auths_bounded_policy::kernel::sum_tightens]:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 284:0-295:1
+    Visibility: public -/
+def kernel.sum_tightens
+  (child : Option kernel.SumBound) (parent : Option kernel.SumBound) :
+  Result Bool
+  := do
+  match parent with
+  | none => ok true
+  | some parent1 =>
+    match child with
+    | none => ok false
+    | some child1 =>
+      if child1.limit <= parent1.limit
+      then kernel.partition_narrows child1.partition parent1.partition
+      else ok false
+
+/-- [auths_bounded_policy::kernel::scope_tightens]:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 300:0-308:1
+    Visibility: public -/
+def kernel.scope_tightens
+  (child : Option kernel.ValueList) (parent : Option kernel.ValueList) :
+  Result Bool
+  := do
+  match parent with
+  | none => ok true
+  | some parent1 =>
+    match child with
+    | none => ok false
+    | some child1 => kernel.values_narrow child1 parent1
+
+/-- [auths_bounded_policy::kernel::argument_policy_tightens]:
+    Source: 'product/policy/auths-bounded-policy/src/kernel.rs', lines 314:0-332:1
+    Visibility: public -/
+def kernel.argument_policy_tightens
+  (child : kernel.PolicyMembers) (parent : kernel.PolicyMembers) :
+  Result Bool
+  := do
+  let s := alloc.vec.Vec.deref child.argument
+  let s1 := alloc.vec.Vec.deref parent.argument
+  let b ← kernel.bytes_equal s s1
+  if b
+  then
+    let b1 ←
+      kernel.ceiling_count_tightens child.ceiling child.max_count child.window
+        parent.ceiling parent.max_count parent.window
+    if b1
+    then
+      let b2 ← kernel.sum_tightens child.sum parent.sum
+      if b2
+      then kernel.scope_tightens child.scope parent.scope
+      else ok false
+    else ok false
+  else ok false
 
 end auths_bounded_policy
