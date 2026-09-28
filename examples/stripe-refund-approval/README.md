@@ -165,26 +165,42 @@ python refunds.py submit --state "$WORK/state" --socket "$WORK/app.sock" \
   --operation-id refund-1 --responses "$WORK/refund-1"
 ```
 
-The result is `{"outcome": "observed-by-provider", "status": 200, ...}`: the
-gateway checked the key and the PaymentIntent (60.00 received, so at most
-30.00 refundable here), sent the refund, and found its echo token in the
-refund it read back. The ledger has one write.
+`submit` sends every request whose approvals are all in to the gateway, and
+decides nothing itself: only the gateway enforces the approval threshold,
+the ceiling, the per-window count and sum, and at most one run per operation
+ID. It prints the gateway's result with `"decided_by": "gateway"`, here
+`{"outcome": "observed-by-provider", "status": 200, "decided_by": "gateway",
+"bundle": "appended", ...}`: the gateway checked the key and the
+PaymentIntent (60.00 received, so at most 30.00 refundable here), sent the
+refund, and found its echo token in the refund it read back. The ledger has
+one write. When a manager declines, or a response is missing, no approved
+request exists and nothing is sent: `submit` prints
+`"outcome": "not-submitted"` with `"decided_by": "approver"` or `"client"`
+and a `reason`, never a gateway code.
 
 **7. Watch the refusals.** These happen before any credential lease:
 
-| Attempt | Result | Stripe calls |
-| --- | --- | --- |
-| Manager B runs `auths approve … --decline` | `submit` reports `declined` and submits nothing | 0 |
-| A request edited to show another amount | `auths approve` refuses `approval.action-mismatch` and signs nothing | 0 |
-| 90.00, above the 50.00 ceiling | `not-entered` `gateway.policy.above-ceiling` | 0 |
-| Only manager A approves | `denied` `composition-requirement-not-met` | 0 |
-| `--connect-account acct_1AuthsOtherAcct`, which the grant does not list | `not-entered` `gateway.policy.scope-denied` | 0 |
-| 50.00 when 45.00 of the day's 60.00 USD is left | `not-entered` `gateway.policy.sum-exhausted` | 0 |
-| A third refund on the same UTC day | `not-entered` `gateway.policy.window-exhausted` | 0 |
+| Attempt | Decided by | Result | Stripe calls |
+| --- | --- | --- | --- |
+| Only manager A approves | gateway | `denied` `composition-requirement-not-met` | 0 |
+| No manager: only the agent (`--approvers ""`) | gateway | `denied` `composition-requirement-not-met` | 0 |
+| Manager A listed twice | gateway, on the threshold. `request` drops the repeat, because a proposal cannot name one approver twice, and sends a one-manager request; the gateway never sees a duplicate | `denied` `composition-requirement-not-met` | 0 |
+| 90.00, above the 50.00 ceiling | gateway | `not-entered` `gateway.policy.above-ceiling` | 0 |
+| `--connect-account acct_1AuthsOtherAcct`, which the grant does not list | gateway | `not-entered` `gateway.policy.scope-denied` | 0 |
+| 50.00 when 45.00 of the day's 60.00 USD is left | gateway | `not-entered` `gateway.policy.sum-exhausted` | 0 |
+| A third refund on the same UTC day | gateway | `not-entered` `gateway.policy.window-exhausted` | 0 |
+| `refund-1` requested again, with fresh approvals | gateway | `not-entered` `gateway.attempt.replay` | 0 |
+| `refund-1`'s proof sent for another refund | gateway | `denied` `action-body-mismatch` | 0 |
+| A refused refund requested again, after the window is full | gateway | `not-entered` `gateway.policy.window-exhausted`: a verification denial claims nothing, so this is not a replay | 0 |
+| Manager B runs `auths approve … --decline` | manager B | `not-submitted`: no approved request exists, so nothing is sent | 0 |
+| A request edited to show another amount | manager A's `auths approve` | refuses `approval.action-mismatch` and signs nothing | 0 |
 
-The agent's collection checks that every response signs its own request's
-envelope byte for byte; the gateway's verifier checks every signature and the
-threshold of its installed trust.
+`request` accepts an operation ID it requested before: it keeps the earlier
+request as `pending/<id>.json.N` and says on stderr that the gateway's
+attempt store decides whether the ID may run again. The agent's collection
+checks that every response signs its own request's envelope byte for byte;
+the gateway's verifier checks every signature and the threshold of its
+installed trust.
 
 Refund 4 (40.00, approved by managers B and C) names a PaymentIntent whose
 charge is already fully refunded. It is authorized and within half of that
@@ -193,8 +209,8 @@ PaymentIntent's 100.00, so the gateway enters it and records
 refund. It still uses the agent's second refund of the day, which is why the
 third refund above is refused.
 
-These are refused by the recipe's checks after the gateway takes the key
-from its store, and before any write. Each such refusal still uses a count
+These are also decided by the gateway, by the recipe's checks after it takes
+the key from its store, and before any write. Each such refusal still uses a count
 slot, which is never released, so step 10 makes them as a second agent with
 its own grant (`python refunds.py grant --agent agent-checks --max-count 4`):
 
@@ -211,8 +227,12 @@ its own grant (`python refunds.py grant --agent agent-checks --max-count 4`):
 python refunds.py export --state "$WORK/state" --out audit-bundle.json
 ```
 
-It holds every submitted proof and action, the gateway-signed outcome of
-each, every approval response the agent collected (declines included), and
+It holds one entry per operation ID: the first submission, or a later one
+that the gateway recorded (a signed outcome) in place of a first one it did
+not. Resubmissions of an operation ID are not in the bundle; the gateway's
+attempt store is the complete record. Each entry carries the proof, the
+action, and the gateway-signed outcome where there is one. The bundle also
+holds every approval response the agent collected (declines included), and
 the installed recipe and trusted context.
 
 **9. Audit offline.** With the gateway stopped and the network off:
@@ -257,8 +277,15 @@ python journey.py --gateway "$(command -v auths-gateway)"
 
 This runs steps 3–9 with every manager answering through `auths approve`:
 a declined manager, a tampered request, a key without `rk_test_` refused at
-install, the refusals of step 7 before and after the credential lease, and
-the four tampering cases. It checks every result, including exactly two
+install, every refusal of step 7 before and after the credential lease, and
+the four tampering cases. Every submission goes through
+`gateway_witness.py`, a relay on the application socket that runs as its own
+process and records each exchange. The journey fails if a hostile request is
+refused anywhere but at the gateway: each must print
+`"decided_by": "gateway"` with the expected result, and the witness must have
+seen exactly one submission to the gateway for it, answered with that same
+result. A negative control refused by `request --precheck` must fail that
+check. It checks every result, including exactly two
 Stripe writes (refund 1, and the rejected refund 4), no write for any
 refusal and no Stripe call at all for the refusals before the lease, the
 `Idempotency-Key` each write carried, `Stripe-Version` on every request,
@@ -270,6 +297,18 @@ claim, and resubmits refund 1's approved proof. With the claim gone the
 gateway sends it again, with the same key, and the double answers with the
 first refund: three writes, one refund. CI runs it from the packed wheel
 (`.github/workflows/sdk-recipes.yml`, job `stripe-refund-journey`).
+
+### Optional: a client-side pre-check
+
+`python refunds.py request --precheck` refuses, before it writes any request,
+a refund whose agent and distinct managers number fewer than the gateway's
+threshold (`approvals_required` in `setup.json`), whose managers repeat, or
+whose amount is above the recorded ceiling. It prints
+`{"outcome": "not-submitted", "decided_by": "client", "reason": "precheck", ...}`
+and exits 0. It is a client-side pre-check, not an enforcement boundary: it
+only spares managers a request the gateway would refuse, and the gateway
+enforces every one of these rules whether or not it runs. It is off unless
+you pass the flag, and the journey's hostile cases run without it.
 
 ## From npm
 
@@ -294,10 +333,11 @@ node build/journey.js --gateway "$(command -v auths-gateway)"
 
 The last command took 7.0 s on an Apple-silicon laptop once the package and
 gateway were built. Each `python refunds.py …` step above is
-`node build/refunds.js …` with the same flags, each manager runs
-`npx auths approve …` with the same flags, and `journey.js` takes the same
-test-mode options as `journey.py`. It makes the same checks except the
-state-loss resubmission. The package installs from the tarball you packed,
+`node build/refunds.js …` with the same flags (`--precheck` included) and
+prints the same JSON records, each manager runs `npx auths approve …` with
+the same flags, and `journey.js` takes the same test-mode options as
+`journey.py`. It makes the same checks, through the same
+`gateway_witness.py` process, except the state-loss resubmission. The package installs from the tarball you packed,
 so this directory keeps no lockfile. CI runs it from the packed tarball as
 job `stripe-refund-journey-npm`.
 
