@@ -11,7 +11,7 @@ def test_every_cutover_evidence_reference_is_live_and_unique() -> None:
     )
     removed = manifest["removedTests"]
     paths = [entry["path"] for entry in removed]
-    assert len(paths) == len(set(paths)) == 32
+    assert len(paths) == len(set(paths)) == 40
     assert all(entry["evidence"] for entry in removed)
     referenced = {
         path

@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-import asyncio
 import inspect
 from types import SimpleNamespace
 
 import pytest
 
 import auths._native as native
-from auths._cbor import encode
 from auths._public import parse_portable_receipt
-from auths._session import Operations
 from auths.verify import ReceiptTrustPolicy, RejectedReceipt, verify_receipt
 
 
@@ -87,15 +84,4 @@ def test_portable_receipt_bound_is_enforced_before_every_native_crossing(
     trust = object.__new__(ReceiptTrustPolicy)
     rejected = verify_receipt(oversized, trust=trust)
     assert isinstance(rejected, RejectedReceipt)
-    assert calls == 1
-
-    class ReceiptClient:
-        async def _request(self, method: str, path: str, body: bytes, timeout: object) -> bytes:
-            return encode({
-                1: 1, 2: "op_" + "A" * 22,
-                3: [{1: "rcpt_" + "A" * 43, 2: oversized}],
-            })
-
-    with pytest.raises(ValueError, match="outside bounds"):
-        asyncio.run(Operations(ReceiptClient()).receipts("op_" + "A" * 22))  # type: ignore[arg-type]
     assert calls == 1

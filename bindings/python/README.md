@@ -1,131 +1,85 @@
 # `auths`
 
-Auths lets an application call a protected provider operation through a local
-agent. The application selects a non-secret connection alias; the agent owns
-authorization, provider credentials, durable execution, recovery, and
-receipts.
+Auths lets an application request a protected provider write without holding
+the provider credential. The application authors a proof for one exact action
+and submits the proof and the action to an operator-run Auths gateway. The
+gateway holds the provider credential, verifies the proof against its
+installed trust, performs the write, and returns a closed result.
 
 ## Install
 
 ```bash
-pip install auths auths-profile-stripe
+pip install auths
 ```
 
 Published wheels include the native implementation. Consumers do not need a
 Rust toolchain.
 
-## Application API shape
+## Submit one exact write through the gateway
 
-The generated clients below are the intended Stripe-like application surface.
-In this revision the real Stripe, PostgreSQL, and OpenTofu routes remain
-unqualified and are therefore not advertised by a production agent. Only the
-separately built synthetic testkit agent exposes the Stripe-shaped route.
-
-```python
-import auths
-from auths_profiles.stripe import Stripe
-
-
-async with auths.connect() as session:
-    stripe = Stripe(session, connection="billing")
-    refund = await stripe.refunds.create(
-        payment_intent="pi_123",
-        amount=2_000,
-        currency="usd",
-    )
-    print(refund.id, refund.auths.receipt_ids)
-```
-
-That is the application contract: connect to the local Auths agent, choose
-a generated domain client and optional connection alias, then call the domain
-method. There is no Auths application token, remote executor URL, or provider
-credential in application code. `AUTHS_AGENT_SOCKET` is optional non-secret
-local discovery configuration.
-
-The same open session can be shared by generated Stripe, PostgreSQL, OpenTofu,
-and future domain packages. Each package owns its domain vocabulary and typed
-results; the root SDK stays domain-neutral.
-
-Profiles that need trusted provider-derived evidence expose a typed preflight
-instead of accepting an untrusted provider artifact. For example, OpenTofu
-protects planning before it permits apply:
+The gateway is the single provider-write path. The application never sends a
+URL, method, header, body, or token to it: only proof bytes and the exact
+action bytes that proof authorizes.
 
 ```python
-from auths_profiles.opentofu import OpenTofu, SourceFile
+from pathlib import Path
+
+from auths.gateway import GatewayClient, GatewayEndpoint, GatewayUnknown
 
 
-opentofu = OpenTofu(session, connection="production")
-plan = await opentofu.plans.create(
-    source_files=(SourceFile(path="main.tf", contents="..."),),
-    variables=(),
-    dependency_lock="...",
-    modules=(),
-    workspace="production",
-)
-result = await opentofu.saved_plans.apply(prepared_plan=plan.prepared_plan)
+gateway = GatewayClient(GatewayEndpoint(Path("/run/auths/gateway.sock")))
+result = await gateway.submit(proof=proof, action=action)
+if isinstance(result, GatewayUnknown):
+    # The write may have happened. Ask the gateway, never retry blindly.
+    outcome = await gateway.observe_outcome(operation_id)
+print(result.outcome)
 ```
 
-The opaque prepared-plan token is bound to the workload, connection generation,
-configuration, backend state, and exact plan. The application never supplies
-provider credentials or asserts that its own plan is trusted.
+There is no Auths application token, remote executor URL, or provider
+credential in application code. The gateway endpoint is an
+operator-provisioned local socket. Every result is one closed dataclass:
+`GatewayDenied`, `GatewayIndeterminate`, `GatewayNotEntered`,
+`GatewayUnknown`, `GatewayResponseRecorded`, `GatewayObserved`, or
+`GatewayObservedByProvider`. The gateway can also sign a read-only observation
+of a provider field (`observe_read_back`), of an operation's stored outcome
+(`observe_outcome`), or return the pre-entry observations it stored for an
+operation (`observe_pre_entry`).
 
-For operator provisioning and clean-machine setup, see the
-[local-agent quickstart](../../docs/product/LOCAL_AGENT_SDK_QUICKSTART.md).
-For a new domain or provider kind, follow the
-[profile authoring guide](../../docs/product/PROFILE_AUTHORING.md).
+The [Stripe refund example](../../examples/stripe-refund-approval/README.md)
+runs the whole journey: a grant with limits, a 2-of-3 approval quorum, gateway
+submission, and an offline audit.
+
+## Author the proof
+
+`auths.authoring` and `auths.self_hosted` generate an exact MCP-shaped tool
+from a `profile.toml` and author its proof; `auths.identity` authors
+identities. To require that a threshold of named approvers sign one exact
+action before it is submitted, see
+[approval quorum](../../docs/product/APPROVAL_QUORUM.md). The installed `auths`
+command runs `auths generate` for exact-tool code and `auths approve` for
+approval requests.
 
 For an application-owned provider adapter that is not an Auths-qualified
-vertical, use the installed `auths` command and see the
+vertical, see the
 [self-hosted exact-operation quickstart](../../docs/product/SELF_HOSTED_PROFILE_QUICKSTART.md).
-The same `auths` command runs `auths approve` for approval requests; the Rust
-deployment CLI is a separate binary named `auths-node`. An application holding its own provider token can bypass
-`auths.execution.run_once`, so this path is not credential-isolated.
-
-To require that a threshold of named approvers sign one exact action before
-it is submitted, see [approval quorum](../../docs/product/APPROVAL_QUORUM.md).
-
-## Outcomes and recovery
-
-The ordinary domain method returns its success DTO directly. Use the adjacent
-`*_outcome` method when the application needs exhaustive handling of denial,
-conflict, partial completion, or durable recovery. Recovery handles and
-receipts are opaque SDK values and cannot be forged by constructing a dict.
-Each execution receipt is one canonical, self-contained container with its
-linked signed decision embedded; offline verification never needs a separate
-companion receipt argument.
-
-```python
-outcome = await stripe.refunds.create_outcome(
-    payment_intent="pi_123",
-    amount=2_000,
-    currency="usd",
-)
-if isinstance(outcome, Completed):
-    print(outcome.value.id)
-elif isinstance(outcome, RecoveryRequired):
-    recovered = await stripe.refunds.recover(outcome.recovery)
-```
+An application holding its own provider token can bypass
+`auths.execution.run_once`, so that path is not credential-isolated; the
+gateway path is.
 
 ## Public compatibility surfaces
 
-`auths` contains the stable application session, operation, error, receipt,
-and recovery types. `auths.profile_runtime` is also public and versioned, but
-it is an extension compatibility surface for generated domain distributions,
-not a generic caller-defined execution API. Applications normally import only
-`auths` and one or more `auths_profiles.<domain>` packages.
-
-Effect-free verification and identity helpers remain available at
-`auths.verify` and `auths.identity`. The exact installed module inventory is
-frozen in `api/public-api.txt` and `bindings/public-topology-v1.json`.
+`auths` contains the stable shared error, receipt, and runtime-fact types.
+`auths.gateway` is the provider-write client. Effect-free verification and
+identity helpers are available at `auths.verify` and `auths.identity`. The
+exact installed module inventory is frozen in `api/public-api.txt` and
+`bindings/public-topology-v1.json`.
 
 Run `python -m auths doctor` to inspect bounded installed runtime, ABI, and
 profile facts. The report never reads application secrets or prints protocol
 payloads.
 
-The wheel's effect-free APIs support Windows. The stateful Unix-socket
-transport is implemented on macOS and Linux, while real provider profiles
-remain qualification-gated. Windows fails closed pending the named-pipe
-security implementation.
+The wheel's effect-free APIs support Windows. The gateway client uses a Unix
+socket and is available on macOS and Linux.
 
 ## Capability status
 

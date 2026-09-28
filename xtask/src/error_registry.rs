@@ -35,15 +35,6 @@ pub(crate) fn error_registry(update: bool) -> Result<(), String> {
     auths_errors::validate_registry()
         .map_err(|error| format!("invalid Rust error registry: {error:?}"))?;
     let definitions: Vec<_> = auths_errors::registry().collect();
-    let registration_schema = root().join("product/errors/v1/profile-registration.schema.json");
-    let schema: Value =
-        serde_json::from_slice(&fs::read(&registration_schema).map_err(|error| {
-            format!("could not read {}: {error}", registration_schema.display())
-        })?)
-        .map_err(|error| format!("invalid {}: {error}", registration_schema.display()))?;
-    if schema["properties"]["schema"]["const"] != "auths.profile-error-registration/1" {
-        return Err("profile error registration schema has the wrong identity".to_owned());
-    }
     let registry = RegistryDocument {
         schema: auths_errors::REGISTRY_SCHEMA,
         definitions,

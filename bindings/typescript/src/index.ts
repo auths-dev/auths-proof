@@ -1,4 +1,4 @@
-/** Stable shared values for the Auths profile-first SDK. */
+/** Stable shared values for the Auths SDK. */
 export {
   AuthsError,
   isAuthsError,
@@ -59,10 +59,10 @@ export async function runtimeInfo(): Promise<RuntimeInfo> {
     errorRegistryDigest: ERROR_REGISTRY_SHA256,
     compatible: report.runtimeContract.satisfied,
     semanticSubjects: Object.freeze([
-      "auths.profile-operation/1",
+      "auths.gateway-submit/1",
     ]),
-    // Concrete profile inventory belongs to installed generated domain
-    // packages and the authenticated agent negotiation, never the root SDK.
+    // Provider profiles are compiled into the operator's gateway recipes,
+    // never embedded in the root SDK.
     profiles: Object.freeze([]),
     capabilities: Object.freeze([...report.wasm.capabilities]),
     warnings: Object.freeze(
@@ -70,26 +70,3 @@ export async function runtimeInfo(): Promise<RuntimeInfo> {
     ),
   });
 }
-
-export {
-  AuthsOperationError,
-  ClientStateError,
-  ConflictError,
-  DeniedError,
-  NotAppliedError,
-  PartialError,
-  ReceiptIntegrityError,
-  RecoveryRequiredError,
-  UnavailableError,
-  connect,
-  recoveryHandleFromBytes,
-  type Client,
-  type ClientOptions,
-  type OperationMetadata,
-  type OperationOptions,
-  type OperationState,
-  type OperationStatus,
-  type Operations,
-  type RecoveryHandle,
-  type RecoveryOptions,
-} from "./session.js";

@@ -1,105 +1,82 @@
 # `@auths-dev/sdk`
 
-Auths lets an application call a protected provider operation through a local
-agent. The application selects a non-secret connection alias; the agent owns
-authorization, provider credentials, durable execution, recovery, and
-receipts.
+Auths lets an application request a protected provider write without holding
+the provider credential. The application authors a proof for one exact action
+and submits the proof and the action to an operator-run Auths gateway. The
+gateway holds the provider credential, verifies the proof against its
+installed trust, performs the write, and returns a closed result.
 
 ## Install
 
 ```bash
-npm install @auths-dev/sdk @auths-dev/profile-stripe
+npm install @auths-dev/sdk
 ```
 
 The package includes its WASM implementation. Consumers do not need Rust.
 
-## Application API shape
+## Submit one exact write through the gateway
 
-The generated clients below are the intended Stripe-like application surface.
-In this revision the real Stripe, PostgreSQL, and OpenTofu routes remain
-unqualified and are therefore not advertised by a production agent. Only the
-separately built synthetic testkit agent exposes the Stripe-shaped route.
-
-```ts
-import { connect } from "@auths-dev/sdk";
-import { Stripe } from "@auths-dev/profile-stripe";
-
-await using session = await connect();
-const stripe = new Stripe(session, { connection: "billing" });
-const refund = await stripe.refunds.create({
-  paymentIntent: "pi_123",
-  amount: 2_000,
-  currency: "usd",
-});
-console.log(refund.id, refund.auths.receiptIds);
-```
-
-That is the application contract: connect to the local Auths agent, choose
-a generated domain client and optional connection alias, then call the domain
-method. There is no Auths application token, remote executor URL, or provider
-credential in application code. `AUTHS_AGENT_SOCKET` is optional non-secret
-local discovery configuration.
-
-The same open session can be shared by generated Stripe, PostgreSQL, OpenTofu,
-and future domain packages. Each package owns its domain vocabulary and typed
-results; the root SDK stays domain-neutral.
-
-For operator provisioning and clean-machine setup, see the
-[local-agent quickstart](../../docs/product/LOCAL_AGENT_SDK_QUICKSTART.md).
-For a new domain or provider kind, follow the
-[profile authoring guide](../../docs/product/PROFILE_AUTHORING.md).
-
-For an application-owned provider adapter that is not an Auths-qualified
-vertical, use the installed `auths` command and see the
-[self-hosted exact-operation quickstart](../../docs/product/SELF_HOSTED_PROFILE_QUICKSTART.md).
-The same `auths` command runs `auths approve` for approval requests; the Rust
-deployment CLI is a separate binary named `auths-node`. An application holding its own provider token can bypass
-`runOnce`, so this path is not credential-isolated.
-
-To require that a threshold of named approvers sign one exact action before
-it is submitted, see [approval quorum](../../docs/product/APPROVAL_QUORUM.md).
-
-## Outcomes and recovery
-
-The ordinary domain method returns its success DTO directly. Use the adjacent
-`*Outcome` method when the application needs exhaustive handling of denial,
-conflict, partial completion, or durable recovery. Recovery handles and
-receipts are opaque SDK values. Each execution receipt is one canonical,
-self-contained container with its linked signed decision embedded; offline
-verification never needs a separate companion receipt argument.
+The gateway is the single provider-write path. The application never sends a
+URL, method, header, body, or token to it: only proof bytes and the exact
+action bytes that proof authorizes.
 
 ```ts
-const outcome = await stripe.refunds.createOutcome({
-  paymentIntent: "pi_123",
-  amount: 2_000,
-  currency: "usd",
-});
-if (outcome.kind === "completed") {
-  console.log(outcome.value.id);
-} else if (outcome.kind === "recovery-required") {
-  await stripe.refunds.recover(outcome.recovery);
+import { GatewayClient, GatewayEndpoint } from "@auths-dev/sdk/gateway";
+
+const gateway = new GatewayClient(new GatewayEndpoint("/run/auths/gateway.sock"));
+const result = await gateway.submit({ proof, action });
+switch (result.outcome) {
+  case "denied":
+  case "indeterminate":
+  case "not-entered":
+    console.log("no provider write:", result.code);
+    break;
+  case "unknown":
+    // The write may have happened. Ask the gateway, never retry blindly.
+    break;
+  default:
+    console.log(result.outcome, result.status);
 }
 ```
 
+There is no Auths application token, remote executor URL, or provider
+credential in application code. The gateway endpoint is an
+operator-provisioned local socket. The gateway can also sign a read-only
+observation of a provider field (`observeReadBack`), of an operation's stored
+outcome (`observeOutcome`), or return the pre-entry observations it stored for
+an operation (`observePreEntry`).
+
+The [Stripe refund example](../../examples/stripe-refund-approval/README.md)
+runs the whole journey: a grant with limits, a 2-of-3 approval quorum, gateway
+submission, and an offline audit.
+
+## Author the proof
+
+`@auths-dev/sdk/self-hosted` generates an exact MCP-shaped tool from a
+`profile.toml`, and `@auths-dev/sdk/identity` authors identities. To require
+that a threshold of named approvers sign one exact action before it is
+submitted, see [approval quorum](../../docs/product/APPROVAL_QUORUM.md). The
+installed `auths` command runs `auths generate` for exact-tool code and
+`auths approve` for approval requests.
+
+For an application-owned provider adapter that is not an Auths-qualified
+vertical, see the
+[self-hosted exact-operation quickstart](../../docs/product/SELF_HOSTED_PROFILE_QUICKSTART.md).
+An application holding its own provider token can bypass `runOnce`, so that
+path is not credential-isolated; the gateway path is.
+
 ## Public compatibility surfaces
 
-`@auths-dev/sdk` contains the stable application session, operation, error,
-receipt, and recovery types. `@auths-dev/sdk/profile-runtime` is also public
-and versioned, but it is an extension compatibility surface for generated
-domain packages, not a generic caller-defined execution API. Applications
-normally import only the root SDK and one or more
-`@auths-dev/profile-<domain>` packages.
-
-Effect-free verification and identity helpers remain available at
+`@auths-dev/sdk` contains the stable shared error, receipt, and runtime-fact
+types. `@auths-dev/sdk/gateway` is the provider-write client.
+Effect-free verification and identity helpers are available at
 `@auths-dev/sdk/verify` and `@auths-dev/sdk/identity`. The exact installed
 entry-point inventory is frozen in `api/public-api.txt` and
 `bindings/public-topology-v1.json`.
 
 The minimum consumer toolchain is TypeScript 5.2 with `ES2022` and
-`ESNext.Disposable`, on Node 20.6.0 or newer. The stateful Unix-socket
-transport is implemented on macOS and Linux, while real provider profiles
-remain qualification-gated. Windows fails closed pending its named-pipe
-security implementation.
+`ESNext.Disposable`, on Node 20.6.0 or newer. The gateway client uses a Unix
+socket and is available on macOS and Linux.
 
 ## Capability status
 

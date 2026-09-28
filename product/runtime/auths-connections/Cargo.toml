@@ -9,9 +9,6 @@ homepage.workspace = true
 publish = false
 description = "Bounded provider-connection registry and credential-store mechanism for Auths"
 
-[features]
-qualification-broker = []
-
 [dependencies]
 async-trait.workspace = true
 base64ct.workspace = true

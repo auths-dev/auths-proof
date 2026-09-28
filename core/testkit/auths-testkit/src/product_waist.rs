@@ -162,7 +162,7 @@ fn product_waist_cases() -> Vec<ProductWaistCase> {
     let delegation_python = "bindings/python/tests/test_workflow.py";
     let lifecycle_rust = "product/runtime/auths-lifecycle/src/transition.rs";
     let runtime_typescript = "bindings/typescript/test/unit/runtime-contract.test.js";
-    let runtime_python = "bindings/python/tests/test_profile_runtime_v1.py";
+    let runtime_python = "bindings/python/tests/test_self_hosted_attempts.py";
     let receipt_rust = "product/receipts/auths-receipts/src/lib.rs";
     let fixture_rust = "bindings/wasm/auths-proof-wasm/examples/generate-node-vectors.rs";
 

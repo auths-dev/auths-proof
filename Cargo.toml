@@ -56,7 +56,6 @@ members = [
     "exchange/testkit/auths-proof-exchange-testkit",
     "product/sdk/auths-sdk",
     "product/sdk/auths-approval-quorum",
-    "product/sdk/auths-profile-kit",
     "product/errors/auths-errors",
     "product/policy/auths-bounded-policy",
     "product/policy/auths-bounded-policy/fuzz",
@@ -81,7 +80,6 @@ members = [
     "product/runtime/auths-lifecycle",
     "product/runtime/auths-kernel-runtime",
     "product/runtime/auths-production-client",
-    "product/runtime/auths-profile-runtime",
     "product/runtime/auths-connections",
     "product/runtime/auths-gateway",
     "product/runtime/auths-gateway-kernel",
@@ -93,8 +91,6 @@ members = [
     "product/cache/auths-cache",
     "product/operations/auths-operations",
     "product/operations/auths-operations-otel",
-    "product/qualification/auths-qualification-supervisor",
-    "product/qualification/auths-qualification-evidence-source",
     "product/tools/auths-explain",
     "product/tools/auths-openapi-derive",
     "product/tools/auths-sigstore-bundle-import",
@@ -193,7 +189,6 @@ auths-profile-domains = { version = "1.0.0-rc.1", path = "product/profiles/auths
 auths-lifecycle = { version = "1.0.0-rc.1", path = "product/runtime/auths-lifecycle", default-features = false }
 auths-kernel-runtime = { version = "1.0.0-rc.1", path = "product/runtime/auths-kernel-runtime" }
 auths-production-client = { version = "1.0.0-rc.1", path = "product/runtime/auths-production-client" }
-auths-profile-runtime = { version = "1.0.0-rc.1", path = "product/runtime/auths-profile-runtime" }
 auths-connections = { version = "1.0.0-rc.1", path = "product/runtime/auths-connections" }
 auths-gateway = { version = "1.0.0-rc.1", path = "product/runtime/auths-gateway" }
 auths-gateway-kernel = { version = "1.0.0-rc.1", path = "product/runtime/auths-gateway-kernel" }
@@ -207,7 +202,6 @@ auths-operations = { version = "1.0.0-rc.1", path = "product/operations/auths-op
 auths-operations-otel = { version = "1.0.0-rc.1", path = "product/operations/auths-operations-otel" }
 auths-sdk = { version = "1.0.0-rc.1", path = "product/sdk/auths-sdk" }
 auths-approval-quorum = { version = "1.0.0-rc.1", path = "product/sdk/auths-approval-quorum" }
-auths-profile-kit = { version = "1.0.0-rc.1", path = "product/sdk/auths-profile-kit" }
 auths-errors = { version = "1.0.0-rc.1", path = "product/errors/auths-errors", default-features = false }
 auths-sigstore-bundle-import = { version = "1.0.0-rc.1", path = "product/tools/auths-sigstore-bundle-import" }
 auths-openapi-derive = { version = "1.0.0-rc.1", path = "product/tools/auths-openapi-derive" }

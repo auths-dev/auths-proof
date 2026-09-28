@@ -6,36 +6,26 @@ import * as verify from "../../dist/verify.js";
 import * as selfHosted from "../../dist/self-hosted.js";
 import * as identity from "../../dist/identity.js";
 import * as protocol from "../../dist/protocol.js";
-import * as profileRuntime from "../../dist/profile-runtime.js";
 import * as adapters from "../../dist/adapters.js";
 import { conformance, ephemeralEd25519Signer } from "../../dist/testkit/index.js";
 
 test("clean-cut modules expose the intended domain-neutral surface", () => {
-  assert.deepEqual(Object.keys(root).sort(), [
-    "AuthsError", "AuthsOperationError", "ClientStateError", "ConflictError",
-    "DeniedError", "NotAppliedError", "PartialError", "ReceiptIntegrityError", "RecoveryRequiredError",
-    "UnavailableError", "connect", "isAuthsError", "recoveryHandleFromBytes", "runtimeInfo",
-  ]);
+  assert.deepEqual(Object.keys(root).sort(), ["AuthsError", "isAuthsError", "runtimeInfo"]);
   assert.equal(typeof verify.createVerifier, "function");
   assert.equal(typeof selfHosted.exactMcpTool, "function");
   assert.equal(typeof selfHosted.verifyCommand, "function");
   assert.equal(typeof identity.createRawKeyEd25519IdentityClient, "function");
   assert.equal(typeof protocol.connectRemoteVerifier, "function");
-  assert.deepEqual(Object.keys(profileRuntime).sort(), [
-    "PROFILE_CLIENT_RUNTIME", "bindProfile",
-  ]);
   assert.equal(typeof adapters, "object");
 });
 
-test("operation errors cannot be forged by application code", () => {
+test("the root carries no local-agent connector or operation errors", () => {
   for (const name of [
+    "connect", "recoveryHandleFromBytes", "ClientStateError", "AuthsOperationError",
     "DeniedError", "UnavailableError", "ConflictError", "NotAppliedError",
     "PartialError", "ReceiptIntegrityError", "RecoveryRequiredError",
   ]) {
-    assert.throws(
-      () => Reflect.construct(root[name], [{}, "op_AAAAAAAAAAAAAAAAAAAAAA", []]),
-      /SDK-constructible only/,
-    );
+    assert.equal(Object.hasOwn(root, name), false, name);
   }
 });
 

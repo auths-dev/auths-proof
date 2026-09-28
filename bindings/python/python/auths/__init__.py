@@ -1,4 +1,4 @@
-"""Stable shared values for the Auths profile-first SDK."""
+"""Stable shared values for the Auths SDK."""
 
 from ._public import (
     AuthsError,
@@ -12,26 +12,6 @@ from ._public import (
     RuntimeInfo,
     runtime_info,
 )
-from ._session import (
-    Client,
-    ClientOptions,
-    ClientStateError,
-    ConflictError,
-    DeniedError,
-    NotAppliedError,
-    OperationMetadata,
-    OperationOptions,
-    OperationState,
-    OperationStatus,
-    Operations,
-    PartialError,
-    RecoveryHandle,
-    RecoveryOptions,
-    RecoveryRequired,
-    ReceiptIntegrityError,
-    UnavailableError,
-    connect,
-)
 
 __all__ = [
     "AuthsError",
@@ -44,22 +24,4 @@ __all__ = [
     "RetryClass",
     "RuntimeInfo",
     "runtime_info",
-    "Client",
-    "ClientOptions",
-    "ClientStateError",
-    "ConflictError",
-    "DeniedError",
-    "NotAppliedError",
-    "OperationMetadata",
-    "OperationOptions",
-    "OperationState",
-    "OperationStatus",
-    "Operations",
-    "PartialError",
-    "RecoveryHandle",
-    "RecoveryOptions",
-    "RecoveryRequired",
-    "ReceiptIntegrityError",
-    "UnavailableError",
-    "connect",
 ]

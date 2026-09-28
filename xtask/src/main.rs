@@ -21,11 +21,6 @@ mod mechanism_conformance;
 mod prelude;
 mod process;
 mod product_waist;
-mod profile_codegen;
-mod profile_qualification;
-mod profile_qualification_adapters;
-mod profile_qualification_evidence;
-mod profile_qualification_reports;
 mod public_naming;
 mod release;
 mod release_control;
@@ -52,8 +47,6 @@ pub(crate) use mechanism_conformance::*;
 pub(crate) use prelude::*;
 pub(crate) use process::*;
 pub(crate) use product_waist::*;
-pub(crate) use profile_codegen::*;
-pub(crate) use profile_qualification::*;
 pub(crate) use public_naming::*;
 pub(crate) use release::*;
 pub(crate) use release_control::*;
@@ -62,7 +55,7 @@ pub(crate) use sdk_vocabulary::*;
 pub(crate) use semantic_freeze::*;
 pub(crate) use stripe::*;
 
-const USAGE: &str = "usage: cargo xtask <profile <new|generate|check|qualification> ...|fmt|arch [--update]|semantic-freeze [--update]|evolution-policy [--update]|sdk-experience [--update]|sdk-vocabulary|error-registry [--update]|mcp-session-contract [--update]|mechanism-conformance [--update]|product-waist-conformance [--update]|public-naming|release-contract|release-control <finalize|compare|verify-promotion|assemble-qualification-build|canonicalize-qualification-build|verify-qualification-release-build> ...|binding-semantics|core-boundary|workspace-msrv|abi|core|exchange|product|bindings|demos|package|wire [--update]|spec-sync|conformance|exchange-conformance|product-conformance|stripe-profiles|bounded-domains|compliance|matrix|cross-language|product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|fuzz-campaign --shard <0|1> --seconds <n> [--toolchain <name>]|platform-artifact [output]|formal [--skip-kani] [--update]|formal qualify aeneas [--update]|adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|bench <prepare|run|report|compare|verify-artifact|bounded>|ci [preflight|authoritative|formal-proof-fast|formal-translation-reproduce|formal-translation-reuse|formal-lean-authoritative|formal-kani|formal-evidence|compliance]|release-check>";
+const USAGE: &str = "usage: cargo xtask <fmt|arch [--update]|semantic-freeze [--update]|evolution-policy [--update]|sdk-experience [--update]|sdk-vocabulary|error-registry [--update]|mcp-session-contract [--update]|mechanism-conformance [--update]|product-waist-conformance [--update]|public-naming|release-contract|release-control <finalize|compare|verify-promotion> ...|binding-semantics|core-boundary|workspace-msrv|abi|core|exchange|product|bindings|demos|package|wire [--update]|spec-sync|conformance|exchange-conformance|product-conformance|stripe-profiles|bounded-domains|compliance|matrix|cross-language|product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|fuzz-campaign --shard <0|1> --seconds <n> [--toolchain <name>]|platform-artifact [output]|formal [--skip-kani] [--update]|formal qualify aeneas [--update]|adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|bench <prepare|run|report|compare|verify-artifact|bounded>|ci [preflight|authoritative|formal-proof-fast|formal-translation-reproduce|formal-translation-reuse|formal-lean-authoritative|formal-kani|formal-evidence|compliance]|release-check>";
 
 fn main() -> ExitCode {
     match run() {
@@ -82,7 +75,6 @@ fn dispatch(arguments: impl IntoIterator<Item = String>) -> Result<(), String> {
     let mut args = arguments.into_iter();
     let command = args.next().unwrap_or_else(|| "help".into());
     match command.as_str() {
-        "profile" => profile_command(args.collect()),
         "ci" => {
             let arguments: Vec<_> = args.collect();
             match arguments.as_slice() {
@@ -187,7 +179,7 @@ mod tests {
     fn help_output_is_stable() {
         assert_eq!(
             USAGE,
-            "usage: cargo xtask <profile <new|generate|check|qualification> ...|fmt|arch [--update]|semantic-freeze [--update]|evolution-policy [--update]|sdk-experience [--update]|sdk-vocabulary|error-registry [--update]|mcp-session-contract [--update]|mechanism-conformance [--update]|product-waist-conformance [--update]|public-naming|release-contract|release-control <finalize|compare|verify-promotion|assemble-qualification-build|canonicalize-qualification-build|verify-qualification-release-build> ...|binding-semantics|core-boundary|workspace-msrv|abi|core|exchange|product|bindings|demos|package|wire [--update]|spec-sync|conformance|exchange-conformance|product-conformance|stripe-profiles|bounded-domains|compliance|matrix|cross-language|product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|fuzz-campaign --shard <0|1> --seconds <n> [--toolchain <name>]|platform-artifact [output]|formal [--skip-kani] [--update]|formal qualify aeneas [--update]|adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|bench <prepare|run|report|compare|verify-artifact|bounded>|ci [preflight|authoritative|formal-proof-fast|formal-translation-reproduce|formal-translation-reuse|formal-lean-authoritative|formal-kani|formal-evidence|compliance]|release-check>"
+            "usage: cargo xtask <fmt|arch [--update]|semantic-freeze [--update]|evolution-policy [--update]|sdk-experience [--update]|sdk-vocabulary|error-registry [--update]|mcp-session-contract [--update]|mechanism-conformance [--update]|product-waist-conformance [--update]|public-naming|release-contract|release-control <finalize|compare|verify-promotion> ...|binding-semantics|core-boundary|workspace-msrv|abi|core|exchange|product|bindings|demos|package|wire [--update]|spec-sync|conformance|exchange-conformance|product-conformance|stripe-profiles|bounded-domains|compliance|matrix|cross-language|product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|fuzz-campaign --shard <0|1> --seconds <n> [--toolchain <name>]|platform-artifact [output]|formal [--skip-kani] [--update]|formal qualify aeneas [--update]|adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|bench <prepare|run|report|compare|verify-artifact|bounded>|ci [preflight|authoritative|formal-proof-fast|formal-translation-reproduce|formal-translation-reuse|formal-lean-authoritative|formal-kani|formal-evidence|compliance]|release-check>"
         );
     }
 

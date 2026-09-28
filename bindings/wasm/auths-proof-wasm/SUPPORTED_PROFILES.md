@@ -5,19 +5,14 @@
 This package is a **consumer** transport. It ships no generic domain parser,
 no generic canonicalizer, and no reference action profile.
 
-`bindings/public-topology-v1.json` currently declares no qualified effect
-profiles. The entries below are legacy transport/codec capabilities; they do
-not advertise or activate a local-agent provider route:
+`bindings/public-topology-v1.json` declares no qualified effect profiles.
+Provider writes go only through the gateway (`product/runtime/auths-gateway`),
+which this module neither embeds nor reaches. The one profile-shaped codec
+exposed here is the MCP authoring and session codec:
 
 | Profile-shaped codec | Exposed here | How |
 |---|---|---|
 | `auths.mcp/1` | yes | `prepareMcpActionV1`, `canonicalizeMcpPlanMemberV1`, `beginMcpExecutionV1`, `resumeMcpExecutionV1` |
-| `auths.opentofu.saved-plan-apply/1` | routed only | as above |
-| `auths.postgresql.bounded-update/1` | routed only | as above |
-
-"Routed only" means this module encodes and decodes the bounded production
-request and response for that profile. It does not canonicalize the profile's
-action; the service that owns the vertical does.
 
 ### Removed in v1.0
 
@@ -32,19 +27,15 @@ their five `parseCanonical…ActionV1` counterparts, and the
 `product-abi-v1.json` records the removal and `tests/node-smoke.cjs` fails if
 any of them reappears.
 
-### Qualification boundary
+### Profile identifier boundary
 
-1. Generated client distributions and codec support are not qualification
-   evidence. Production agents advertise only build-time-qualified routes.
-2. `prepareProfileActionV1`, `canonicalizeProfilePlanMemberV1`, and
-   `commitProfilePlanV1` accept an arbitrary `profileId` string from
-   JavaScript. `canonical_profile_action_native`
-   (`src/lib.rs:4189`) consults no Rust profile: it parses the identifier and
-   accepts the supplied body as already canonical. A JavaScript caller can
-   therefore name a vertical this package does not implement — the same
-   structural hole the v1 contract §6.3 records for the Python
-   `define_profile` surface. Closing it belongs with the TypeScript
-   `defineProfile` / profile-kit deletion, because those are its only callers.
+`prepareProfileActionV1`, `canonicalizeProfilePlanMemberV1`, and
+`commitProfilePlanV1` accept an arbitrary `profileId` string from JavaScript.
+`canonical_profile_action_native` in `src/lib.rs` consults no Rust profile: it
+parses the identifier and accepts the supplied body as already canonical. A
+JavaScript caller can therefore name a vertical this package does not
+implement. Closing it belongs with the TypeScript `defineProfile` /
+profile-kit deletion, because those are its only callers.
 
 ## Principal methods and signature suites
 
@@ -78,8 +69,8 @@ set equality in both directions.
 | Manifest | Schema | Exports | Result types |
 |---|---|---|---|
 | [`identity-abi-v1.json`](identity-abi-v1.json) | `auths.identity-wasm-abi/1` | 12 | 3 |
-| [`authoring-abi-v1.json`](authoring-abi-v1.json) | `auths.wasm-authoring-abi/1` | 42 | 14 |
-| [`product-abi-v1.json`](product-abi-v1.json) | `auths.wasm-product-abi/1` | 20 | 2 |
+| [`authoring-abi-v1.json`](authoring-abi-v1.json) | `auths.wasm-authoring-abi/1` | 45 | 19 |
+| [`product-abi-v1.json`](product-abi-v1.json) | `auths.wasm-product-abi/1` | 20 | 3 |
 
 The authoring boundary validates principal identifiers, encodes unsigned
 root grants, plans child grants through `auths-author`, builds trusted-context

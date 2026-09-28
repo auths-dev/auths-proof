@@ -1,6 +1,5 @@
 {
   "include": [
-    "profile_runtime_consumer.py",
     "workflow_consumer.py",
     "pyright_negative.py"
   ],

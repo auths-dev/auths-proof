@@ -3,32 +3,14 @@
 # public root. Never hand-edit: a name only a human remembered to add
 # here would not exist at runtime.
 from auths._public import AuthsError as AuthsError
-from auths._session import Client as Client
-from auths._session import ClientOptions as ClientOptions
-from auths._session import ClientStateError as ClientStateError
-from auths._session import ConflictError as ConflictError
-from auths._session import DeniedError as DeniedError
 from auths._public import EffectState as EffectState
 from auths._public import EnteredBoundaries as EnteredBoundaries
 from auths._public import ErrorInfo as ErrorInfo
 from auths._public import KnownAuthsErrorCode as KnownAuthsErrorCode
-from auths._session import NotAppliedError as NotAppliedError
-from auths._session import OperationMetadata as OperationMetadata
-from auths._session import OperationOptions as OperationOptions
-from auths._session import OperationState as OperationState
-from auths._session import OperationStatus as OperationStatus
-from auths._session import Operations as Operations
-from auths._session import PartialError as PartialError
 from auths._public import Receipt as Receipt
-from auths._session import ReceiptIntegrityError as ReceiptIntegrityError
 from auths._public import RecommendedAction as RecommendedAction
-from auths._session import RecoveryHandle as RecoveryHandle
-from auths._session import RecoveryOptions as RecoveryOptions
-from auths._session import RecoveryRequired as RecoveryRequired
 from auths._public import RetryClass as RetryClass
 from auths._public import RuntimeInfo as RuntimeInfo
-from auths._session import UnavailableError as UnavailableError
-from auths._session import connect as connect
 from auths._public import runtime_info as runtime_info
 
 __all__: list[str]

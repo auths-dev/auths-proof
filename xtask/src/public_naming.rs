@@ -907,11 +907,7 @@ mod tests {
         [
             ("pypi:auths", PACKAGED_CLI, PYTHON_CLI_ENTRY),
             ("npm:@auths-dev/sdk", PACKAGED_CLI, NPM_CLI_ENTRY),
-            (
-                "cargo:auths-node",
-                DEPLOYMENT_CLI,
-                "src/bin/auths-production.rs",
-            ),
+            ("cargo:auths-node", DEPLOYMENT_CLI, "src/main.rs"),
             (
                 "cargo:auths-gateway",
                 "auths-gateway",

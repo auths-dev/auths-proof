@@ -23,10 +23,6 @@ def projection() -> str:
         # Dynamically generated enums deliberately advertise the public root
         # for repr/pickle stability, while their import owner remains _public.
         owners[name] = "auths._public" if owner == root.__name__ else owner
-        # Runtime type aliases report their implementation owner as `typing`,
-        # which is not where the public name can be imported from.
-        if name == "OperationState":
-            owners[name] = "auths._session"
     lines = [_HEADER.replace("auths.__init__._OWNERS", "auths.__all__")]
     for name in sorted(owners):
         lines.append(f"from {owners[name]} import {name} as {name}\n")

@@ -29,10 +29,7 @@ use auths_model::{
     VerificationMethod, VerifierConfigurationId, VerifierLimits,
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
-use auths_production_client::{
-    encode_qualification_client_result_frame, project_sdk_event_v2,
-    qualification_client_cancellation_result,
-};
+use auths_production_client::project_sdk_event_v2;
 use auths_profile_api::ActionProfile;
 // The generic reference domain profiles (HTTP, Git, deployment, supply-chain,
 // edge) are no longer projected to JavaScript: this consumer package exposes
@@ -91,37 +88,6 @@ pub fn project_sdk_event(input: JsValue) -> Result<String, JsValue> {
     let value: Value =
         serde_wasm_bindgen::from_value(input).map_err(|_| js_error("client.malformed"))?;
     project_sdk_event_v2(&value.to_string()).map_err(js_error)
-}
-
-/// Derives the Rust-owned cancellation result for a qualification request.
-///
-/// # Errors
-///
-/// Returns a JavaScript error unless `request_id` is exactly 16 bytes.
-#[wasm_bindgen(js_name = qualificationClientCancellationResultV1)]
-pub fn qualification_client_cancellation_result_v1(request_id: &[u8]) -> Result<Vec<u8>, JsValue> {
-    let request_id: &[u8; 16] = request_id
-        .try_into()
-        .map_err(|_| js_error(EngineError::Abi("invalid qualification request ID")))?;
-    Ok(qualification_client_cancellation_result(request_id).to_vec())
-}
-
-/// Encodes the Rust-owned qualification result transport frame.
-///
-/// # Errors
-///
-/// Returns a JavaScript error for a malformed request ID, mode, or result.
-#[wasm_bindgen(js_name = encodeQualificationClientResultFrameV1)]
-pub fn encode_qualification_client_result_frame_v1(
-    mode: u8,
-    request_id: &[u8],
-    result: &[u8],
-) -> Result<Vec<u8>, JsValue> {
-    let request_id: &[u8; 16] = request_id
-        .try_into()
-        .map_err(|_| js_error(EngineError::Abi("invalid qualification request ID")))?;
-    encode_qualification_client_result_frame(mode, request_id, result)
-        .map_err(|_| js_error(EngineError::Abi("invalid qualification result frame")))
 }
 
 const MAX_VERIFICATION_BATCH_ITEMS: usize = 256;

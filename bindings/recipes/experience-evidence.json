@@ -5,20 +5,6 @@
     "languages": ["typescript", "python"],
     "recipesPerLanguage": 2,
     "crossLanguageReceiptVerification": true,
-    "localAgentInstalledProof": {
-      "runner": "bindings/testkit/local-agent/run.mjs",
-      "provider": "synthetic-stripe-testkit",
-      "languages": ["python", "typescript"],
-      "assertions": [
-        "fresh-generated-call",
-        "cross-language-replay",
-        "changed-input-conflict-preserves-possible-effect",
-        "portable-receipt-pair-verifies-in-both-sdks",
-        "restart-safe-replay"
-      ],
-      "status": "passed-locally",
-      "evidence": "hand-recorded from a local run; no CI job runs this proof"
-    },
     "timings": [
       { "language": "typescript", "recipe": "01", "elapsedMs": 165 },
       { "language": "python", "recipe": "01", "elapsedMs": 161 },
@@ -28,7 +14,7 @@
     "measurement": "local clean temporary consumers; installed npm tarball and wheel; Apple arm64"
   },
   "cleanMachineLaunchCohort": {
-    "status": "awaiting-operator-provisioned-agent",
+    "status": "awaiting-operator-provisioned-gateway",
     "requiredCompletions": 4,
     "requiredCohort": 5,
     "maximumMinutes": 15,

@@ -10,7 +10,6 @@
     "implementation": "CPython",
     "versions": ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"],
     "operatingSystems": ["linux", "macos", "windows"],
-    "localAgentOperatingSystems": ["linux", "macos"],
     "freeThreaded": false
   },
   "distribution": {
@@ -21,7 +20,7 @@
   "semanticSubjects": {
     "identity": "auths-identity/v1",
     "authority": "auths-proof-protocol/v1",
-    "profileOperation": "auths.profile-operation/1",
+    "gatewaySubmission": "auths.gateway-submit/1",
     "remoteVerification": "auths.remote-verification/1",
     "lifecycle": "auths.product.reservation-execution-contract/2"
   },
@@ -30,9 +29,6 @@
     "gateway.client-v1",
     "identity.descriptor-v1",
     "identity.resolution",
-    "local-agent.session-v1",
-    "profile-operation.v1",
-    "profile-runtime.v1",
     "verification.batch-v1",
     "verification.single-v1"
   ],
@@ -47,7 +43,6 @@
     "auths.identity.adapters",
     "auths.identity.authoring",
     "auths.protocol",
-    "auths.profile_runtime",
     "auths.adapters",
     "auths.adapters.custody",
     "auths.adapters.reservations",
@@ -68,6 +63,7 @@
     "auths.observability",
     "auths.product_errors",
     "auths.profile_kit",
+    "auths.profile_runtime",
     "auths.profiles",
     "auths.profiles.domains",
     "auths.profiles.http",

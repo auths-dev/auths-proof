@@ -15,16 +15,12 @@
   ],
   "claims": {
     "supported": [
-      "ambient local-agent session establishment without an application token",
-      "non-secret provider connection aliases selected on generated domain clients",
-      "generated Stripe, PostgreSQL, and OpenTofu domain packages",
-      "typed success, refusal, conflict, partial, and recovery outcomes",
-      "opaque durable recovery handles and portable receipts",
-      "public versioned profile-runtime compatibility surface for generated packages",
+      "the operator-run gateway as the single provider-write path; the SDK submits a proof and canonical action and holds no provider credential",
+      "proof/action-only local gateway client with distinct refusal, unknown, response, observation, and echo-bound observed-by-provider outcomes, plus read-only requests for gateway-signed read-back and outcome observations returned as attachable bytes and for an operation's stored pre-entry observations; deployment isolation is operator-owned",
+      "portable receipts verified offline against pinned trust",
       "generated error-registry digest without root-load registry hashing",
       "effect-free identity and verification utilities",
       "self-hosted exact MCP authorization with application-owned provider credentials and unqualified effects",
-      "proof/action-only local gateway client with distinct refusal, unknown, response, observation, and echo-bound observed-by-provider outcomes, plus read-only requests for gateway-signed read-back and outcome observations returned as attachable bytes and for an operation's stored pre-entry observations; deployment isolation is operator-owned",
       "closed bounded enumeration fields in self-hosted exact MCP argument contracts"
     ],
     "excluded": [
@@ -34,22 +30,23 @@
       "qualified execution claims for self-hosted application-owned provider calls",
       "credential-isolation claims from an SDK client without a separately tested gateway deployment",
       "caller-defined profile callbacks or dynamic runtime plugins",
+      "an in-process or local-agent provider-write path that bypasses the gateway",
       "independent review, production readiness, and package publication authorization"
     ]
   },
   "eliteScorecard": {
-    "timeToValue": { "status": "verified", "evidence": ["README.md", "../../docs/product/LOCAL_AGENT_SDK_QUICKSTART.md"] },
+    "timeToValue": { "status": "verified", "evidence": ["README.md", "../../examples/stripe-refund-approval/README.md"] },
     "progressiveAdoption": { "status": "verified", "evidence": ["package.json", "../../bindings/public-topology-v1.json"] },
     "semanticSafety": { "status": "verified", "evidence": ["test/contract/nonforgeability.ts", "test/contract/effect-axis.ts"] },
-    "typeSafety": { "status": "verified", "evidence": ["test/contract/nonforgeability.ts", "src/profile-runtime.ts"] },
+    "typeSafety": { "status": "verified", "evidence": ["test/contract/nonforgeability.ts", "test/contract/self-hosted.ts"] },
     "productionIntegration": { "status": "external-review-required", "evidence": ["../../docs/specs/0040-generic-profile-sdk-and-contributor-system.md"] },
-    "operationalCompleteness": { "status": "external-review-required", "evidence": ["test/contract/profile-runtime.ts", "../../product/runtime/auths-node/src/journal_executor.rs"] },
+    "operationalCompleteness": { "status": "external-review-required", "evidence": ["test/integration/gateway-outcome-v2.test.js", "../../product/runtime/auths-gateway/src/engine.rs"] },
     "debuggability": { "status": "verified", "evidence": ["src/doctor.ts", "README.md"] },
-    "extensibility": { "status": "verified", "evidence": ["src/profile-runtime.ts", "../../bindings/generated/stripe/typescript/src/index.ts"] },
+    "extensibility": { "status": "verified", "evidence": ["src/self-hosted.ts", "src/testkit/self-hosted-conformance.ts"] },
     "portability": { "status": "verified", "evidence": ["test/package/packed-node.test.js", "test/package/packed-browser.mjs"] },
     "runtimeContract": { "status": "verified", "evidence": ["sdk-runtime-contract.json", "tools/runtime-contract.mjs"] },
     "securityEvidence": { "status": "external-review-required", "evidence": ["test/contract/nonforgeability.ts", "../../bindings/security-evidence-cutover-v1.json"] },
-    "documentation": { "status": "verified", "evidence": ["README.md", "../../docs/product/LOCAL_AGENT_SDK_QUICKSTART.md"] },
+    "documentation": { "status": "verified", "evidence": ["README.md", "docs/api-contract.md"] },
     "crossSdkParity": { "status": "verified", "evidence": ["../customer-journey-matrix-v1.json", "../public-topology-v1.json"] }
   }
 }

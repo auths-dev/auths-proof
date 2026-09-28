@@ -8,6 +8,8 @@ publicRoot.registerProfileRuntime;
 publicRoot.ReservationStore;
 // @ts-expect-error conformance is confined to testkit
 publicRoot.conformance;
+// @ts-expect-error provider writes go through the gateway client, not a root connector
+publicRoot.connect;
 
 // @ts-expect-error receipts cannot be forged structurally
 const receipt: Receipt = { id: "forged", toBytes: () => new Uint8Array(), toJSON: () => { throw new Error(); } };

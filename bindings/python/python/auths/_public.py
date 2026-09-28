@@ -143,121 +143,6 @@ _DEFINITIONS: Mapping[str, Mapping[str, Any]] = {
     cast(str, item["code"]): item
     for item in cast(Iterable[Mapping[str, Any]], ERROR_REGISTRY["definitions"])
 }
-_ERROR_KEYS = {
-    "schema", "family", "code", "operation", "stage", "summary",
-    "correlationId", "retry", "effect", "entered", "recommendedAction",
-    "executionReference", "decisionReference", "receiptReference", "causes",
-}
-_ENTERED_KEYS = {"approval", "signer", "state", "credential", "provider"}
-_CAUSES = {
-    "cancelled", "conflict", "corrupt-state", "invalid-response",
-    "limit-exceeded", "timeout", "unavailable", "unknown",
-}
-_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}")
-
-
-def parse_error_info(value: object) -> ErrorInfo:
-    """Parse one exact registry-bound ``auths.error/1`` host projection."""
-    if not isinstance(value, Mapping):
-        raise ValueError("Auths error envelope has unknown or missing fields")
-    untyped_envelope = cast(Mapping[Any, Any], cast(object, value))
-    if set(untyped_envelope) != _ERROR_KEYS:
-        raise ValueError("Auths error envelope has unknown or missing fields")
-    envelope = cast(Mapping[str, Any], value)
-    if envelope["schema"] != "auths.error/1":
-        raise ValueError("unsupported Auths error schema")
-    code = envelope["code"]
-    if not isinstance(code, str) or not _TOKEN.fullmatch(code):
-        raise ValueError("invalid Auths error code")
-    definition = _DEFINITIONS.get(code)
-    if definition is None or envelope["family"] != definition["family"]:
-        raise ValueError("unknown or contradictory Auths error code")
-    operation, stage = envelope["operation"], envelope["stage"]
-    if operation != definition["operation"] or stage not in definition["stages"]:
-        raise ValueError("Auths error operation or stage is not registered")
-    for token in (operation, stage, envelope["correlationId"]):
-        if not isinstance(token, str) or not _TOKEN.fullmatch(token):
-            raise ValueError("invalid Auths error token")
-    operation = cast(str, operation)
-    stage = cast(str, stage)
-    correlation_id = cast(str, envelope["correlationId"])
-    summary = envelope["summary"]
-    if not isinstance(summary, str) or not 1 <= len(summary.encode("utf-8")) <= 256:
-        raise ValueError("invalid Auths error summary")
-    try:
-        retry = RetryClass(envelope["retry"])
-        effect = EffectState(envelope["effect"])
-        action = RecommendedAction(envelope["recommendedAction"])
-    except (TypeError, ValueError) as error:
-        raise ValueError("invalid Auths recovery classification") from error
-    if not any(
-        item["retry"] == retry.value and item["effect"] == effect.value
-        for item in definition["outcomes"]
-    ) or action.value != definition["recommendedAction"]:
-        raise ValueError("Auths recovery classification is not registered")
-    entered_value = envelope["entered"]
-    if not isinstance(entered_value, Mapping):
-        raise ValueError("invalid Auths entered-boundary projection")
-    untyped_entered = cast(Mapping[Any, Any], cast(object, entered_value))
-    if set(untyped_entered) != _ENTERED_KEYS or any(
-        type(untyped_entered[key]) is not bool for key in _ENTERED_KEYS
-    ):
-        raise ValueError("invalid Auths entered-boundary projection")
-    entered = cast(Mapping[str, bool], untyped_entered)
-    references: list[Optional[str]] = []
-    for name in ("executionReference", "decisionReference", "receiptReference"):
-        reference = envelope[name]
-        if reference is not None and (
-            not isinstance(reference, str) or not _TOKEN.fullmatch(reference)
-        ):
-            raise ValueError("invalid Auths error reference")
-        references.append(reference)
-    execution, decision, receipt = references
-    if (execution is not None) != bool(definition["allowsExecutionReference"]):
-        raise ValueError("invalid Auths execution reference")
-    if decision is not None and not definition["allowsDecisionReference"]:
-        raise ValueError("invalid Auths decision reference")
-    if receipt is not None and not definition["allowsReceiptReference"]:
-        raise ValueError("invalid Auths receipt reference")
-    if retry is RetryClass.SAFE and effect is not EffectState.NOT_APPLIED:
-        raise ValueError("unsafe Auths retry classification")
-    terminal_integrity_failure = (
-        code == "core.terminal-receipt-integrity-failed"
-        and retry is RetryClass.NEVER
-        and action is RecommendedAction.CONTACT_SUPPORT
-        and execution is not None
-        and entered["provider"] is True
-    )
-    if effect is EffectState.POSSIBLE and not terminal_integrity_failure and (
-        retry is not RetryClass.UNKNOWN
-        or action is not RecommendedAction.RESUME_AND_RECONCILE
-        or execution is None
-        or entered["provider"] is not True
-        or receipt is not None
-    ):
-        raise ValueError("possible Auths effect lacks recovery invariants")
-    if effect is EffectState.NOT_APPLIED and receipt is not None:
-        raise ValueError("not-applied Auths error cannot name an execution receipt")
-    causes_value = envelope["causes"]
-    if not isinstance(causes_value, list):
-        raise ValueError("invalid Auths cause categories")
-    untyped_causes = cast(list[Any], cast(object, causes_value))
-    if len(untyped_causes) > 8 or any(
-        not isinstance(item, str) or item not in _CAUSES for item in untyped_causes
-    ):
-        raise ValueError("invalid Auths cause categories")
-    causes = tuple(cast(str, item) for item in untyped_causes)
-    return ErrorInfo(
-        "auths.error/1", KnownAuthsErrorCode(code), definition["family"], operation,
-        stage, summary, correlation_id, effect, retry, action,
-        EnteredBoundaries(
-            entered["approval"], entered["signer"], entered["state"],
-            entered["credential"], entered["provider"],
-        ),
-        execution, decision, receipt, causes,
-    )
-
-
 def error_info(
     code: str,
     *,
@@ -410,13 +295,8 @@ def runtime_info() -> RuntimeInfo:
         1,
         digest,
         native == 2,
-        (
-            "auths.profile-operation/1",
-        ),
+        ("auths.gateway-submit/1",),
         (),
-        (
-            "verification", "identity", "local-agent.session-v1",
-            "profile-operation.v1", "profile-runtime.v1",
-        ),
+        ("verification", "identity", "gateway.client-v1"),
         () if native == 2 else ("native ABI mismatch",),
     )

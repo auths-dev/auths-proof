@@ -2,19 +2,8 @@
 
 #![forbid(unsafe_code)]
 
-/// Build-time sentinel used by the production agent to reject accidental
-/// linkage of its qualification-only journal evidence surface.
-#[doc(hidden)]
-pub const __QUALIFICATION_EVIDENCE_ENABLED: bool = cfg!(feature = "qualification-evidence");
-
-mod connection;
 mod gateway_attempt;
 mod lifecycle;
-mod operation;
-
-pub use connection::{
-    ConnectionStoreConfigurationError, PersistentConnectionStore, PersistentConnectionStoreError,
-};
 
 pub use gateway_attempt::{
     GatewayRecordEntry, GatewayRecordInsert, GatewayRecordKind, MAX_GATEWAY_BATCH_ENTRIES,
@@ -25,25 +14,6 @@ pub use lifecycle::{
     PersistentLifecycleStore, PostgresLifecycleStore, PostgresPoolConfig, PostgresServerName,
     PostgresStoreConfig, PostgresStoreHealth, PostgresStoreSummary, PostgresTlsConfig,
     SecretConnectionString,
-};
-#[cfg(all(unix, feature = "qualification-evidence"))]
-pub use operation::read_persisted_qualification_boundaries_from_snapshot;
-pub use operation::{
-    JournalCompletionV1, JournalDecisionClassV1, JournalExecutionOutcomeV1,
-    JournalExecutionReceiptBasisV1, JournalReceiptV1, JournalRecordV1, JournalStatusV1,
-    OperationJournalConfigurationError, OperationJournalError, OperationJournalLimitsV1,
-    OperationMutationV1, PersistentOperationJournal, PreparationIdentityLookup,
-    PrepareJournalResult, TombstoneV1, generate_operation_id,
-};
-#[cfg(feature = "qualification-evidence")]
-pub use operation::{QualificationJournalBoundaryKindV1, QualificationJournalBoundaryV1};
-#[cfg(all(unix, any(feature = "qualification-evidence", test)))]
-pub use operation::{
-    open_persisted_operation_snapshot_at_for_qualification,
-    open_persisted_operation_snapshot_for_qualification,
-    read_persisted_operation_record_for_qualification,
-    read_persisted_operation_record_from_qualification_snapshot,
-    read_persisted_operation_records_from_qualification_snapshot,
 };
 
 use auths_model::{ActionId, BudgetCeiling, ReceiptId};

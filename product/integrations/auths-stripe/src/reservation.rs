@@ -1344,19 +1344,6 @@ fn load_database(path: &Path) -> Result<ReservationDatabase, ReservationError> {
     })
 }
 
-#[cfg(feature = "qualification")]
-pub(crate) fn decode_qualification_records(
-    bytes: &[u8],
-) -> Result<Vec<RefundReservationRecord>, ReservationError> {
-    if bytes.is_empty() || bytes.len() > MAX_STATE_BYTES {
-        return Err(ReservationError::Corrupt);
-    }
-    let state: ReservationStateFile =
-        serde_json::from_slice(bytes).map_err(|_| ReservationError::Corrupt)?;
-    validate_database_state(&state, bytes)?;
-    Ok(state.records.into_values().collect())
-}
-
 fn validate_database_state(
     state: &ReservationStateFile,
     canonical_bytes: &[u8],
@@ -2307,16 +2294,6 @@ mod tests {
             reconciled.state(),
             RefundReservationState::ReconciledReleased
         );
-        #[cfg(feature = "qualification")]
-        {
-            let bytes = fs::read(&path).unwrap();
-            let decoded = decode_qualification_records(&bytes).unwrap();
-            assert_eq!(decoded.len(), 1);
-            assert_eq!(decoded[0].workflow_id(), "bounded-restart-01");
-            let mut noncanonical = bytes;
-            noncanonical.push(b'\n');
-            assert!(decode_qualification_records(&noncanonical).is_err());
-        }
     }
 
     #[test]

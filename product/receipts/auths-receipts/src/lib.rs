@@ -3,18 +3,12 @@
 #![forbid(unsafe_code)]
 
 mod disclosure;
-mod trust_anchors;
 
 pub use disclosure::{
     ReceiptDisclosure, ReceiptDisclosureLocator, ReceiptDisclosureProtector,
     ReceiptDisclosureStore, ReceiptInspection, ReceiptInspectionError, ReceiptProfileInspector,
     ReceiptProjection, ReceiptViewMode, VerifiedReceiptMetadata, decode_receipt_disclosure,
     encode_receipt_disclosure, inspect_attested_execution_receipt,
-};
-pub use trust_anchors::{
-    ReceiptTrustAnchor, ReceiptTrustAnchorRole, ReceiptTrustAnchors, ReceiptTrustAnchorsError,
-    VerifiedPortableReceipt, decode_receipt_trust_anchors, encode_receipt_trust_anchors,
-    verified_portable_receipt_claims_digest, verify_portable_receipt_with_anchors,
 };
 
 use auths_model::{
@@ -240,7 +234,7 @@ pub fn decode_profile_receipt_claims(input: &[u8]) -> Result<ProfileReceiptClaim
     })
 }
 
-/// Canonical linked receipt container used at the local-agent boundary.
+/// Canonical linked receipt container.
 ///
 /// The execution variant embeds the complete decision attestation it names,
 /// so an offline verifier never depends on a receipt store lookup.

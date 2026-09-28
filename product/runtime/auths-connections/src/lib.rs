@@ -6,19 +6,6 @@
 
 #![forbid(unsafe_code)]
 
-/// Build-time sentinel used by the production agent to reject accidental
-/// linkage of its qualification-only credential broker surface.
-#[doc(hidden)]
-pub const __QUALIFICATION_BROKER_ENABLED: bool = cfg!(feature = "qualification-broker");
-
-#[cfg(feature = "qualification-broker")]
-mod qualification;
-#[cfg(feature = "qualification-broker")]
-pub use qualification::{
-    QualificationCredentialLeaseRequest, QualificationProviderCallKind,
-    QualificationProviderCallRequest, QualificationProviderCallResponse,
-};
-
 mod credential;
 pub mod kernel;
 mod model;

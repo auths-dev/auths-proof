@@ -39,8 +39,8 @@ def doctor(
         native_abi=abi,
         native_abi_compatible=compatible,
         semantic_subject="packaged-exact" if compatible else "incompatible",
-        # Concrete profiles are supplied by generated domain distributions and
-        # authenticated agent negotiation, not a root-SDK inventory.
+        # Provider profiles are compiled into the operator's gateway recipes,
+        # not a root-SDK inventory.
         profiles=(),
         mode=mode,
         state=state,

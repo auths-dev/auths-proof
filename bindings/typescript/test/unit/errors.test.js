@@ -42,11 +42,11 @@ test("Rust error tokens accept base64url operation references", () => {
   const operation = "op_Gf0wzqCl4vdf_IjnYcNMzA";
   const error = parseAuthsErrorEnvelope({
     schema: "auths.error/1",
-    family: "state",
-    code: "operation.idempotency-conflict",
+    family: "provider",
+    code: "core.outcome-unknown",
     operation: "execute",
-    stage: "reservation",
-    summary: "The idempotency key is bound to another commitment.",
+    stage: "provider-result",
+    summary: "The provider outcome must be reconciled.",
     correlationId: operation,
     retry: "unknown",
     effect: "possible",
@@ -61,7 +61,7 @@ test("Rust error tokens accept base64url operation references", () => {
     executionReference: operation,
     decisionReference: null,
     receiptReference: null,
-    causes: ["conflict"],
+    causes: ["unknown"],
   });
   assert.equal(error.executionReference, operation);
   assert.equal(error.effect, "possible");

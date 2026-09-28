@@ -13,42 +13,6 @@
   ],
   "errors": [
     {
-      "code": "client.agent-unavailable",
-      "status": "active",
-      "replacement": null,
-      "finalProducingVersion": null
-    },
-    {
-      "code": "client.profile-contract-mismatch",
-      "status": "active",
-      "replacement": null,
-      "finalProducingVersion": null
-    },
-    {
-      "code": "client.profile-unavailable",
-      "status": "active",
-      "replacement": null,
-      "finalProducingVersion": null
-    },
-    {
-      "code": "connection.contract-mismatch",
-      "status": "active",
-      "replacement": null,
-      "finalProducingVersion": null
-    },
-    {
-      "code": "connection.credential-unavailable",
-      "status": "active",
-      "replacement": null,
-      "finalProducingVersion": null
-    },
-    {
-      "code": "connection.unavailable",
-      "status": "active",
-      "replacement": null,
-      "finalProducingVersion": null
-    },
-    {
       "code": "core.authorization-denied",
       "status": "active",
       "replacement": null,
@@ -691,60 +655,6 @@
       "finalProducingVersion": null
     },
     {
-      "code": "opentofu.apply-outcome-unknown",
-      "status": "active",
-      "replacement": null,
-      "finalProducingVersion": null
-    },
-    {
-      "code": "opentofu.plan-preflight-denied",
-      "status": "active",
-      "replacement": null,
-      "finalProducingVersion": null
-    },
-    {
-      "code": "opentofu.plan-preflight-outcome-unknown",
-      "status": "active",
-      "replacement": null,
-      "finalProducingVersion": null
-    },
-    {
-      "code": "opentofu.saved-plan-denied",
-      "status": "active",
-      "replacement": null,
-      "finalProducingVersion": null
-    },
-    {
-      "code": "operation.admission-exhausted",
-      "status": "active",
-      "replacement": null,
-      "finalProducingVersion": null
-    },
-    {
-      "code": "operation.idempotency-conflict",
-      "status": "active",
-      "replacement": null,
-      "finalProducingVersion": null
-    },
-    {
-      "code": "operation.outcome-unknown",
-      "status": "active",
-      "replacement": null,
-      "finalProducingVersion": null
-    },
-    {
-      "code": "operation.recovery-unavailable",
-      "status": "active",
-      "replacement": null,
-      "finalProducingVersion": null
-    },
-    {
-      "code": "operation.timed-out",
-      "status": "active",
-      "replacement": null,
-      "finalProducingVersion": null
-    },
-    {
       "code": "plan.action-substituted",
       "status": "active",
       "replacement": null,
@@ -775,30 +685,6 @@
       "finalProducingVersion": null
     },
     {
-      "code": "postgresql.preflight-denied",
-      "status": "active",
-      "replacement": null,
-      "finalProducingVersion": null
-    },
-    {
-      "code": "postgresql.preflight-outcome-unknown",
-      "status": "active",
-      "replacement": null,
-      "finalProducingVersion": null
-    },
-    {
-      "code": "postgresql.update-denied",
-      "status": "active",
-      "replacement": null,
-      "finalProducingVersion": null
-    },
-    {
-      "code": "postgresql.update-outcome-unknown",
-      "status": "active",
-      "replacement": null,
-      "finalProducingVersion": null
-    },
-    {
       "code": "remote.authentication-failed",
       "status": "active",
       "replacement": null,
@@ -818,18 +704,6 @@
     },
     {
       "code": "remote.transport-unavailable",
-      "status": "active",
-      "replacement": null,
-      "finalProducingVersion": null
-    },
-    {
-      "code": "stripe.refund-denied",
-      "status": "active",
-      "replacement": null,
-      "finalProducingVersion": null
-    },
-    {
-      "code": "stripe.refund-outcome-unknown",
       "status": "active",
       "replacement": null,
       "finalProducingVersion": null
