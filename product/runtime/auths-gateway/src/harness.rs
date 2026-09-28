@@ -10,7 +10,8 @@
 
 use crate::engine::{
     GatewayObserveRequest, GatewayObserveResult, GatewaySubmitResult, VerifiedCommand,
-    gateway_verifier_configuration, observe_outcome, observe_read_back, verify_detailed,
+    gateway_verifier_configuration, observe_outcome, observe_pre_entry, observe_read_back,
+    verify_detailed,
 };
 use crate::observer::{OUTCOME_SCHEMA, READ_BACK_SCHEMA};
 use crate::recipe::GuardChecks;
@@ -868,7 +869,8 @@ impl Harness {
     }
 
     /// Mirrors the engine's observation request at `now`: a read-back leases
-    /// the credential for one read-only GET; an outcome reads only the store.
+    /// the credential for one read-only GET; an outcome or the pre-entry
+    /// observations read only the store.
     pub(crate) async fn observe(
         &self,
         request: &GatewayObserveRequest,
@@ -884,6 +886,9 @@ impl Harness {
                     now,
                 )
                 .await
+            }
+            GatewayObserveRequest::PreEntry { operation_id } => {
+                observe_pre_entry(&self.store, self.recipe.namespace(), operation_id).await
             }
             GatewayObserveRequest::ReadBack { arguments } => {
                 let Ok(target) = self.recipe.read_back_target(arguments) else {

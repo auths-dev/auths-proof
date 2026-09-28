@@ -4,7 +4,8 @@ This client does not accept a provider URL, method, body, header, or credential.
 It does not establish deployment isolation: that is an operator property.
 Besides submission, it can ask the gateway for one signed observation (a
 read-back of the recipe's observed field, or the stored outcome of a logical
-operation) to attach to a later action; an observation request never writes.
+operation) to attach to a later action, or for the signed pre-entry
+observations stored for one operation; an observation request never writes.
 """
 
 from __future__ import annotations
@@ -19,17 +20,19 @@ from pathlib import Path
 from typing import Final, Literal, Mapping, Optional, Union, cast
 
 _REQUEST_SCHEMA = "auths.gateway-submit/1"
-_OBSERVE_SCHEMA = "auths.gateway-observe/1"
+_OBSERVE_SCHEMA = "auths.gateway-observe/2"
 _READ_BACK_SCHEMA: Final = "auths.gateway-readback/1"
-_OUTCOME_SCHEMA: Final = "auths.gateway-outcome/1"
+_OUTCOME_SCHEMA: Final = "auths.gateway-outcome/2"
 _OBSERVATION_MEDIA_TYPE = "application/vnd.auths.observation.v1+cbor"
 _MAX_OBSERVATION_BYTES = 4_096
+_MAX_PRE_ENTRY_OBSERVATIONS = 4
 _MAX_SUBJECT_BYTES = 1_024
 _MAX_READ_BACK_ARGUMENTS = 16
 _MAX_ARGUMENT_BYTES = 128
 _MAX_PROOF_BYTES = 4 * 1024 * 1024
 _MAX_ACTION_BYTES = 64 * 1024
-_MAX_RESPONSE_BYTES = 8 * 1024
+# Room for four maximal pre-entry observations in one base64url response.
+_MAX_RESPONSE_BYTES = 32 * 1024
 _ECHO = re.compile(r"auths-e1-[0-9a-f]{64}")
 _DIGEST = re.compile(r"[0-9a-f]{64}")
 _FIELD_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}")
@@ -238,11 +241,11 @@ class GatewaySignedObservation:
     observation asserts only what the gateway saw at ``observed_at`` (gateway
     wall-clock seconds, covered by the signature); it is not a write receipt
     and does not prove the fact still holds. ``schema`` is
-    ``auths.gateway-readback/1`` for a read-back and ``auths.gateway-outcome/1``
+    ``auths.gateway-readback/1`` for a read-back and ``auths.gateway-outcome/2``
     for an operation outcome.
     """
 
-    schema: Literal["auths.gateway-readback/1", "auths.gateway-outcome/1"]
+    schema: Literal["auths.gateway-readback/1", "auths.gateway-outcome/2"]
     subject: str
     observed_at: int
     media_type: Literal["application/vnd.auths.observation.v1+cbor"]
@@ -258,7 +261,24 @@ class GatewayObservationRefused:
     outcome: Literal["refused"] = "refused"
 
 
+@dataclass(frozen=True)
+class GatewayPreEntryObservations:
+    """The signed pre-entry observations the gateway stored for one operation.
+
+    Each item is the exact canonical ``auths.gateway-readback/1`` observation
+    the gateway signed after the credential lease and before the write, in
+    pointer order; the tuple is empty when none were recorded. The gateway
+    signs nothing new to answer and contacts no provider. An audit bundle
+    carries them as an entry's ``pre_entry_b64``.
+    """
+
+    operation_id: str
+    observations: tuple[bytes, ...]
+    outcome: Literal["pre-entry"] = "pre-entry"
+
+
 GatewayObserveResult = Union[GatewaySignedObservation, GatewayObservationRefused]
+GatewayPreEntryResult = Union[GatewayPreEntryObservations, GatewayObservationRefused]
 
 
 def _encode_base64url(value: bytes) -> str:
@@ -280,7 +300,7 @@ def _decode_base64url(text: str, maximum: int) -> bytes:
 
 
 def _parse_observe_result(
-    raw: bytes, schema: Literal["auths.gateway-readback/1", "auths.gateway-outcome/1"]
+    raw: bytes, schema: Literal["auths.gateway-readback/1", "auths.gateway-outcome/2"]
 ) -> GatewayObserveResult:
     try:
         decoded: object = json.loads(raw)
@@ -291,14 +311,7 @@ def _parse_observe_result(
     value = cast(Mapping[str, object], decoded)
     outcome = value.get("outcome")
     if outcome == "refused":
-        code = value.get("code")
-        if (
-            set(value) != {"outcome", "code"}
-            or not isinstance(code, str)
-            or not 1 <= len(code) <= 128
-        ):
-            raise GatewayProtocolError("gateway returned invalid refusal")
-        return GatewayObservationRefused(code)
+        return _parse_refusal(value)
     if outcome != "signed":
         raise GatewayProtocolError("gateway returned unknown observation result")
     subject = value.get("subject")
@@ -330,6 +343,50 @@ def _parse_observe_result(
         observed_at,
         "application/vnd.auths.observation.v1+cbor",
         _decode_base64url(encoded, _MAX_OBSERVATION_BYTES),
+    )
+
+
+def _parse_refusal(value: Mapping[str, object]) -> GatewayObservationRefused:
+    code = value.get("code")
+    if (
+        set(value) != {"outcome", "code"}
+        or not isinstance(code, str)
+        or not 1 <= len(code) <= 128
+    ):
+        raise GatewayProtocolError("gateway returned invalid refusal")
+    return GatewayObservationRefused(code)
+
+
+def _parse_pre_entry_result(raw: bytes, operation_id: str) -> GatewayPreEntryResult:
+    try:
+        decoded: object = json.loads(raw)
+    except (UnicodeDecodeError, ValueError) as error:
+        raise GatewayProtocolError("gateway returned invalid JSON") from error
+    if not isinstance(decoded, dict):
+        raise GatewayProtocolError("gateway returned invalid pre-entry result")
+    value = cast(Mapping[str, object], decoded)
+    outcome = value.get("outcome")
+    if outcome == "refused":
+        return _parse_refusal(value)
+    encoded = value.get("observations_b64")
+    if (
+        outcome != "pre-entry"
+        or set(value) != {"outcome", "operation_id", "observations_b64"}
+        or value.get("operation_id") != operation_id
+        or not isinstance(encoded, list)
+    ):
+        raise GatewayProtocolError("gateway returned invalid pre-entry observations")
+    items = cast("list[object]", encoded)
+    if len(items) > _MAX_PRE_ENTRY_OBSERVATIONS or not all(
+        isinstance(item, str) for item in items
+    ):
+        raise GatewayProtocolError("gateway returned invalid pre-entry observations")
+    return GatewayPreEntryObservations(
+        operation_id,
+        tuple(
+            _decode_base64url(cast(str, item), _MAX_OBSERVATION_BYTES)
+            for item in items
+        ),
     )
 
 
@@ -422,10 +479,37 @@ class GatewayClient:
             {"kind": "outcome", "operation_id": operation_id}, _OUTCOME_SCHEMA
         )
 
+    async def observe_pre_entry(self, operation_id: str) -> GatewayPreEntryResult:
+        """Ask the gateway for one operation's stored pre-entry observations.
+
+        The gateway reads only its own attempt store: it signs nothing new
+        and contacts no provider. ``operation_id`` is the 1-128-byte
+        canonical ASCII token used when the operation was submitted.
+
+        Raises ``ValueError`` for a noncanonical operation ID and
+        ``GatewayProtocolError`` for an unavailable or malformed exchange.
+        """
+        if (
+            not isinstance(operation_id, str)
+            or _OPERATION_ID.fullmatch(operation_id) is None
+        ):
+            raise ValueError("operation ID must be a canonical 1-128-byte token")
+        payload = json.dumps(
+            {
+                "schema": _OBSERVE_SCHEMA,
+                "request": {"kind": "pre-entry", "operation_id": operation_id},
+            },
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return _parse_pre_entry_result(
+            await self._exchange(payload, "gateway observation exchange unavailable"),
+            operation_id,
+        )
+
     async def _observe(
         self,
         request: Mapping[str, object],
-        schema: Literal["auths.gateway-readback/1", "auths.gateway-outcome/1"],
+        schema: Literal["auths.gateway-readback/1", "auths.gateway-outcome/2"],
     ) -> GatewayObserveResult:
         payload = json.dumps(
             {"schema": _OBSERVE_SCHEMA, "request": request},
@@ -469,6 +553,8 @@ __all__ = [
     "GatewayObserveResult",
     "GatewayObserved",
     "GatewayObservedByProvider",
+    "GatewayPreEntryObservations",
+    "GatewayPreEntryResult",
     "GatewayProtocolError",
     "GatewayProviderEvidence",
     "GatewayResponseRecorded",

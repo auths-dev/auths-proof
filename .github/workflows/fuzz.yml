@@ -60,7 +60,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1]
+        shard: [0, 1, 2]
     env:
       AUTHS_FUZZ_SECONDS: ${{ github.event_name == 'workflow_dispatch' && inputs.duration_seconds || (github.event.schedule == '41 3 * * 0' && '600' || '120') }}
     steps:
@@ -73,9 +73,10 @@ jobs:
           compiler-cache: "false"
       - name: Install pinned cargo-fuzz
         run: cargo install cargo-fuzz --version 0.13.1 --locked
-      # The campaign seeds every target from core/fixtures/v1, runs each
-      # target on the shard even after another fails, and fails the shard on
-      # any crash or on missing execution evidence.
+      # The campaign seeds every target from core/fixtures/v1 (a gateway
+      # target from bindings/fixtures/gateway), runs each target on the shard
+      # even after another fails, and fails the shard on any crash or on
+      # missing execution evidence.
       - name: Run deterministic target shard and prove execution
         env:
           AUTHS_FUZZ_SHARD: ${{ matrix.shard }}

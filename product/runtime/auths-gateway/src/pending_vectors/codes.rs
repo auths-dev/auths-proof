@@ -5,11 +5,13 @@
 //!
 //! `case` is null where no fixture of this change can produce the code: the
 //! operator plane, installation, echo verification, and the audit's
-//! pre-entry and relative-ceiling checks. The audit's counter-set check
-//! compares with the outcome's `counters-digest`, which only outcome `/2`
-//! carries, so it lands with outcome `/2`. The inventory test that closes the
-//! set against the owning enums arrives with the code inventory work; until
-//! then the test here requires exactly the codes of implemented epics.
+//! counter-set, pre-entry, and relative-ceiling checks, each of which unit
+//! tests in its owning module drive instead.
+//!
+//! Every epic of the revision is implemented, so the inventory is closed in
+//! both directions: every listed code exists in the crate and every named
+//! case produces it; every code a fixture expects is listed; and every code
+//! of a family the revision introduced whole is listed.
 
 use super::{
     attempts, bounds, crate_defines_code, crate_sources, load, outcomes, recipes, require_current,
@@ -160,32 +162,50 @@ fn expected_codes(value: &Value, found: &mut BTreeSet<String>) {
     }
 }
 
-/// The epics whose codes the crate defines.
-const IMPLEMENTED_EPICS: &[u64] = &[2, 3, 4, 5];
+/// Code families the revision introduced whole: every code under one of
+/// these prefixes that the crate defines must be in the inventory.
+const REVISION_FAMILIES: &[&str] = &[
+    "gateway.account-scope.",
+    "gateway.echo-verify.",
+    "gateway.pre-entry.",
+    "gateway.relative-ceiling.",
+];
 
-/// Every code of an implemented epic exists in the crate and no code of a
-/// later epic does; every existing and changed code does, every named case
-/// produces its code, and every code a pending vector expects is in the
-/// inventory.
+/// Every string literal in `text` that starts with `prefix` and continues
+/// with code characters.
+fn literals_with_prefix(text: &str, prefix: &str) -> BTreeSet<String> {
+    let quoted = format!("\"{prefix}");
+    let mut found = BTreeSet::new();
+    let mut rest = text;
+    while let Some(index) = rest.find(&quoted) {
+        let tail = &rest[index + 1..];
+        let end = tail
+            .find(|character: char| {
+                !(character.is_ascii_lowercase()
+                    || character.is_ascii_digit()
+                    || matches!(character, '.' | '-'))
+            })
+            .unwrap_or(tail.len());
+        if tail[end..].starts_with('"') {
+            found.insert(tail[..end].to_owned());
+        }
+        rest = &tail[end..];
+    }
+    found
+}
+
+/// Every listed code exists in the crate and every named case produces it;
+/// every code a vector expects is listed; and every code the crate defines
+/// in a family the revision introduced whole is listed.
 #[test]
-fn codes_exist_exactly_for_implemented_epics() {
+fn gateway_codes_inventory_is_closed() {
     let inventory = load(FILE);
     let sources = crate_sources();
     let mut listed = BTreeSet::new();
-    let mut absent = 0;
     for entry in inventory["codes"].as_array().expect("codes") {
         let code = entry["code"].as_str().expect("code");
         assert!(listed.insert(code.to_owned()), "duplicate {code}");
-        let defined = crate_defines_code(&sources, code);
-        let implemented = entry["epic"]
-            .as_u64()
-            .is_some_and(|epic| IMPLEMENTED_EPICS.contains(&epic));
-        if entry["status"] == "new" && !implemented {
-            assert!(!defined, "{code} already exists");
-            absent += 1;
-        } else {
-            assert!(defined, "{code} is missing");
-        }
+        assert!(crate_defines_code(&sources, code), "{code} is missing");
         if let Some(case) = entry["case"].as_object() {
             let fixture = load(case["fixture"].as_str().expect("fixture"));
             let cases = fixture
@@ -206,14 +226,29 @@ fn codes_exist_exactly_for_implemented_epics() {
             );
         }
     }
-    assert!(absent > 0);
     let mut expected = BTreeSet::new();
     for name in [recipes::FILE, attempts::FILE, bounds::FILE, outcomes::FILE] {
-        expected_codes(&load(name), &mut expected);
+        let mut fixture = load(name);
+        // Verdict cases carry the native verifier's codes, not gateway codes.
+        if let Some(object) = fixture.as_object_mut() {
+            object.remove("verdicts");
+        }
+        expected_codes(&fixture, &mut expected);
     }
     let missing: Vec<_> = expected.difference(&listed).collect();
     assert!(
         missing.is_empty(),
         "codes without an inventory entry: {missing:?}"
+    );
+    let mut defined = BTreeSet::new();
+    for (_, text) in &sources {
+        for prefix in REVISION_FAMILIES {
+            defined.extend(literals_with_prefix(text, prefix));
+        }
+    }
+    let unlisted: Vec<_> = defined.difference(&listed).collect();
+    assert!(
+        unlisted.is_empty(),
+        "revision codes the inventory does not list: {unlisted:?}"
     );
 }

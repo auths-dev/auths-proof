@@ -1368,6 +1368,31 @@ security_state = []
 [packages.auths-bounded-policy-fuzz.claims]
 demo-conformance-fixture = ["product/policy/auths-bounded-policy/fuzz/tests/corpus.rs#seventeen_byte_boundary_seed_is_pinned"]
 
+[packages.auths-gateway-fuzz]
+kind = "cargo"
+layer = "product"
+path = "product/runtime/auths-gateway/fuzz"
+core_apis = ["auths-codec", "auths-model"]
+protocol_versions = ["auths.gateway-recipe-source/2", "auths.gateway-attempt/3", "auths.gateway-outcome/2", "auths.gateway-observe/2", "auths.gateway-admin-request/1"]
+wire_objects = ["CompiledRecipe", "ClosedProviderRequest", "GatewayAttemptSnapshot", "SignedObservation", "AdminRequestCommand"]
+fixture_suites = ["bindings/fixtures/gateway", "product/runtime/auths-gateway/fuzz/corpus"]
+principal_families = ["raw-key-v1"]
+signature_families = ["ed25519-v1"]
+profiles = ["auths.mcp/2"]
+transports = []
+configuration_inputs = ["operator-approved-recipe", "profile-lock"]
+security_state = ["logical-operation-claims", "attempt-stage-transitions"]
+
+[packages.auths-gateway-fuzz.claims]
+demo-conformance-fixture = [
+  "product/runtime/auths-gateway/fuzz/tests/corpus.rs#every_target_has_committed_seeds",
+  "product/runtime/auths-gateway/fuzz/tests/corpus.rs#recipe_seeds_compile",
+  "product/runtime/auths-gateway/fuzz/tests/corpus.rs#request_seeds_build_a_closed_request",
+  "product/runtime/auths-gateway/fuzz/tests/corpus.rs#attempt_seeds_are_records_and_valid_transitions",
+  "product/runtime/auths-gateway/fuzz/tests/corpus.rs#outcome_seeds_verify_or_are_refused_as_named",
+  "product/runtime/auths-gateway/fuzz/tests/corpus.rs#frame_seeds_parse_as_their_closed_schemas",
+]
+
 [packages.auths-lifecycle]
 kind = "cargo"
 layer = "product"
@@ -1481,7 +1506,7 @@ security_state = ["opaque-recovery-handle", "portable-linked-receipts", "profile
 
 [packages.auths-proof-python.claims]
 core-wire-consumer = ["bindings/python/tests/test_native_boundary_contract.py#test_every_registry_code_classifies_through_the_native_layer", "bindings/python/tests/test_portable_receipt_v1.py#test_portable_receipt_v1_projection_is_self_contained", "bindings/python/tests/test_native_authoring.py#test_child_planning_matches_the_shared_rust_typescript_fixture", "bindings/python/tests/test_workflow.py#test_attach_and_delegate_use_native_authority_without_protocol_bytes"]
-language-binding = ["bindings/python/tests/test_remote_approval.py#test_python_issues_the_native_requests", "bindings/python/tests/test_remote_approval.py#test_python_opens_every_request_vector", "bindings/python/tests/test_remote_approval.py#test_python_collects_every_vector", "bindings/python/tests/test_approval_quorum.py#test_python_authors_the_exact_gateway_quorum_bytes", "bindings/python/tests/test_approval_quorum.py#test_python_verifier_decides_every_gateway_vector_identically", "bindings/python/tests/test_openapi_derivation.py#test_native_route_reproduces_the_corpus", "bindings/python/tests/test_openapi_derivation.py#test_derive_generate_check_and_hand_edit", "bindings/python/tests/test_public_api_v2.py#test_exact_public_inventory", "bindings/python/tests/test_profile_runtime_v1.py#test_generated_profile_shape_uses_alias_and_returns_typed_success", "bindings/python/tests/test_profile_runtime_v1.py#test_ambiguous_execute_uses_issued_recovery_handle_without_reentry", "bindings/python/tests/test_portable_receipt_v1.py#test_portable_receipt_v1_rejects_contradictory_projection"]
+language-binding = ["bindings/python/tests/test_remote_approval.py#test_python_issues_the_native_requests", "bindings/python/tests/test_remote_approval.py#test_python_opens_every_request_vector", "bindings/python/tests/test_remote_approval.py#test_python_collects_every_vector", "bindings/python/tests/test_approval_quorum.py#test_python_authors_the_exact_gateway_quorum_bytes", "bindings/python/tests/test_approval_quorum.py#test_python_verifier_decides_every_gateway_vector_identically", "bindings/python/tests/test_openapi_derivation.py#test_native_route_reproduces_the_corpus", "bindings/python/tests/test_openapi_derivation.py#test_derive_generate_check_and_hand_edit", "bindings/python/tests/test_public_api_v2.py#test_exact_public_inventory", "bindings/python/tests/test_profile_runtime_v1.py#test_generated_profile_shape_uses_alias_and_returns_typed_success", "bindings/python/tests/test_profile_runtime_v1.py#test_ambiguous_execute_uses_issued_recovery_handle_without_reentry", "bindings/python/tests/test_portable_receipt_v1.py#test_portable_receipt_v1_rejects_contradictory_projection", "bindings/python/tests/test_gateway_outcome_v2.py#test_python_client_accepts_every_signed_outcome", "bindings/python/tests/test_gateway_outcome_v2.py#test_python_verifier_reaches_the_gateway_verdict"]
 runtime-enforcement-boundary = ["bindings/python/tests/test_public_api_v2.py#test_receipts_reject_direct_construction", "bindings/python/tests/test_profile_runtime_v1.py#test_operation_errors_are_not_caller_constructible", "bindings/python/tests/test_profile_runtime_v1.py#test_outcomes_and_error_envelopes_are_closed", "bindings/python/tests/test_native_boundary_contract.py#test_a_python_caller_cannot_mint_a_canonical_action_for_its_own_profile", "bindings/python/tests/test_native_boundary_contract.py#test_no_native_symbol_is_exported_without_being_declared"]
 
 [packages.auths-proof-wasm]
@@ -1501,7 +1526,7 @@ security_state = []
 
 [packages.auths-proof-wasm.claims]
 core-wire-consumer = ["bindings/wasm/auths-proof-wasm/src/lib.rs#authoring_abi_planning_matches_the_native_owner", "bindings/wasm/auths-proof-wasm/src/lib.rs#native_mcp_authorization_assembly_matches_profile_and_core_owners", "bindings/wasm/auths-proof-wasm/src/lib.rs#native_wasm_boundary_matches_the_portable_contract", "bindings/wasm/auths-proof-wasm/src/lib.rs#root_grant_statement_matches_the_native_model", "bindings/wasm/auths-proof-wasm/src/lib.rs#trusted_context_template_matches_the_rust_sdk_builder"]
-language-binding = ["bindings/typescript/test/integration/remote-approval.test.js#TypeScript issues the native requests", "bindings/typescript/test/integration/remote-approval.test.js#TypeScript opens every request vector with the native code", "bindings/typescript/test/integration/remote-approval.test.js#TypeScript collects every vector with the native statuses and proof", "bindings/typescript/test/integration/approval-quorum.test.js#TypeScript authors the exact gateway quorum bytes", "bindings/typescript/test/integration/approval-quorum.test.js#the TypeScript verifier decides every gateway vector identically", "bindings/typescript/test/unit/portable-receipt-v1.test.js#packaged WASM exposes the canonical portable receipt decoder", "bindings/typescript/test/unit/public-api-v2.test.js#clean-cut modules expose the intended domain-neutral surface", "bindings/typescript/test/unit/self-hosted-authority.test.js#compileTrustedContext reproduces the Rust SDK builder's quorum template byte for byte", "bindings/typescript/test/unit/self-hosted-authority.test.js#a root grant's critical extension reaches the verifier, which enforces it"]
+language-binding = ["bindings/typescript/test/integration/remote-approval.test.js#TypeScript issues the native requests", "bindings/typescript/test/integration/remote-approval.test.js#TypeScript opens every request vector with the native code", "bindings/typescript/test/integration/remote-approval.test.js#TypeScript collects every vector with the native statuses and proof", "bindings/typescript/test/integration/approval-quorum.test.js#TypeScript authors the exact gateway quorum bytes", "bindings/typescript/test/integration/approval-quorum.test.js#the TypeScript verifier decides every gateway vector identically", "bindings/typescript/test/unit/portable-receipt-v1.test.js#packaged WASM exposes the canonical portable receipt decoder", "bindings/typescript/test/unit/public-api-v2.test.js#clean-cut modules expose the intended domain-neutral surface", "bindings/typescript/test/unit/self-hosted-authority.test.js#compileTrustedContext reproduces the Rust SDK builder's quorum template byte for byte", "bindings/typescript/test/unit/self-hosted-authority.test.js#a root grant's critical extension reaches the verifier, which enforces it", "bindings/typescript/test/integration/gateway-outcome-v2.test.js#the TypeScript client accepts every signed outcome /2", "bindings/typescript/test/integration/gateway-outcome-v2.test.js#the TypeScript verifier reaches the gateway verdict on every outcome /2 case"]
 
 [packages.auths-openapi-derive-wasm]
 kind = "cargo"
@@ -1661,8 +1686,8 @@ kind = "cargo"
 layer = "product"
 path = "product/runtime/auths-gateway"
 core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-model", "auths-multikey", "auths-ports", "auths-raw-key", "auths-raw-key-core", "auths-registries", "auths-signature", "auths-verifier"]
-protocol_versions = ["auths.gateway-installation/3", "auths.gateway-operator-attestation/1", "auths.gateway-admin-request/1", "auths.gateway-admin-response/1", "auths.gateway-connection/1", "auths.provider-connection/2", "auths.gateway-key-identity/1", "auths.lifecycle.transactional-store/4", "auths.gateway-recipe-source/2", "auths.gateway-compiled-recipe/2", "auths.gateway-recipe-review/2", "auths.gateway-recovery-capability/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/3", "auths.gateway-pre-entry/1", "auths.lifecycle.postgresql/5", "auths.gateway-echo/1", "auths.gateway-idempotency-key/1", "auths.gateway-observe/1", "auths.gateway-outcome/1", "auths.gateway-readback/1", "auths.self-hosted-profile-lock/1", "mcp-arguments-v1", "auths.gateway-audit-bundle/1", "auths.gateway-audit-report/1", "bounded-policy-commitment-v1", "auths.approval-response/1", "auths.gateway-bounded-count/2", "auths.gateway-bounded-sum/1", "auths.gateway.argument-ceiling-window-count/2", "auths.gateway.argument-ceiling-policy/2"]
-wire_objects = ["CompiledRecipe", "ClosedProviderRequest", "ClosedCredentialReads", "RecipeReview", "RecoveryCapability", "GatewayAttemptSnapshot", "GatewayPreEntry", "GatewayRecordEntry", "GatewayConnectionDescriptor", "ConnectionRecord", "OperatorAttestation", "OperatorStatement", "GatewayAdminStatus", "GatewayEvidenceSummary", "GatewayObserveRequest", "GatewayObserveResult", "GatewayProviderEvidence", "GatewaySubmitResult", "SignedObservation", "ArgumentCeilingPolicy", "BoundedPolicyCommitment", "AuditReport", "ListedValues"]
+protocol_versions = ["auths.gateway-installation/3", "auths.gateway-operator-attestation/1", "auths.gateway-admin-request/1", "auths.gateway-admin-response/1", "auths.gateway-connection/1", "auths.provider-connection/2", "auths.gateway-key-identity/1", "auths.lifecycle.transactional-store/4", "auths.gateway-recipe-source/2", "auths.gateway-compiled-recipe/2", "auths.gateway-recipe-review/2", "auths.gateway-recovery-capability/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/3", "auths.gateway-pre-entry/1", "auths.lifecycle.postgresql/5", "auths.gateway-echo/1", "auths.gateway-idempotency-key/1", "auths.gateway-observe/2", "auths.gateway-outcome/2", "auths.gateway-readback/1", "auths.self-hosted-profile-lock/1", "mcp-arguments-v1", "auths.gateway-audit-bundle/2", "auths.gateway-audit-report/2", "auths.gateway-counter-set/1", "auths.gateway-echo-verification/1", "auths.gateway-codes/1", "auths.gateway-outcome-vectors/1", "bounded-policy-commitment-v1", "auths.approval-response/1", "auths.gateway-bounded-count/2", "auths.gateway-bounded-sum/1", "auths.gateway.argument-ceiling-window-count/2", "auths.gateway.argument-ceiling-policy/2"]
+wire_objects = ["CompiledRecipe", "ClosedProviderRequest", "ClosedCredentialReads", "RecipeReview", "RecoveryCapability", "GatewayAttemptSnapshot", "GatewayPreEntry", "GatewayRecordEntry", "GatewayConnectionDescriptor", "ConnectionRecord", "OperatorAttestation", "OperatorStatement", "GatewayAdminStatus", "GatewayEvidenceSummary", "GatewayObserveRequest", "GatewayObserveResult", "GatewayProviderEvidence", "GatewaySubmitResult", "SignedObservation", "ArgumentCeilingPolicy", "BoundedPolicyCommitment", "AuditReport", "ProviderResult", "AuditedPreEntry", "EchoVerification", "AdminRequestCommand", "ListedValues"]
 fixture_suites = ["bindings/fixtures/approval", "bindings/fixtures/gateway"]
 principal_families = ["raw-key-v1", "did-key-v1", "did-keri-v1"]
 signature_families = ["ed25519-v1", "p256-sha256-v1"]
@@ -1715,6 +1740,19 @@ principal-evidence-integration = [
   "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_detects_a_tampered_bundle",
   "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_lists_recorded_approval_responses_without_changing_verdicts",
   "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_flags_an_over_admission_without_any_order",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#offline_audit_reports_an_exhaustion_the_bundle_does_not_show",
+  "product/runtime/auths-gateway/src/audit_tests.rs#audit_flags_a_basis_that_does_not_admit_its_argument",
+  "product/runtime/auths-gateway/src/audit_tests.rs#audit_requires_the_counter_set_the_audit_derives",
+  "product/runtime/auths-gateway/src/audit_tests.rs#audit_checks_the_pre_entry_observations",
+  "product/runtime/auths-gateway/src/pending_vectors/outcomes.rs#outcome_v2_vectors_are_current",
+  "product/runtime/auths-gateway/src/pending_vectors/outcomes.rs#outcome_verifier_accepts_every_vector_with_its_facts_and_refuses_the_rest",
+  "product/runtime/auths-gateway/src/pending_vectors/outcomes.rs#outcome_verdicts_follow_the_stage_condition",
+  "product/runtime/auths-gateway/src/pending_vectors/codes.rs#gateway_codes_inventory_is_closed",
+  "product/runtime/auths-gateway/src/echo_verify.rs#match_mismatch_and_absent_each_have_their_code",
+  "product/runtime/auths-gateway/src/echo_verify.rs#invalid_inputs_are_refused_with_their_codes",
+  "product/runtime/auths-gateway/tests/echo_verify.rs#echo_verify_exits_zero_only_on_a_match",
+  "product/runtime/auths-gateway/src/property_tests.rs#outcome_facts_round_trip_through_signing",
+  "product/runtime/auths-gateway/src/property_tests.rs#audit_conditions_agree_with_every_arrival_order",
 ]
 runtime-enforcement-boundary = [
   "product/runtime/auths-gateway/src/quorum_tests.rs#approval_quorum_hostile_cases_admit_only_a_two_manager_quorum",
@@ -1774,6 +1812,11 @@ stateful-replay-budget-component = [
   "product/runtime/auths-gateway/src/bounds_aggregate_tests.rs#file_store_passes_bounds_aggregate",
   "product/runtime/auths-gateway/src/bounds_aggregate_tests.rs#postgres_store_passes_bounds_aggregate",
   "product/runtime/auths-gateway/src/bounds_aggregate_tests.rs#recount_agrees_with_every_arrival_order",
+  "product/runtime/auths-gateway/src/property_tests.rs#attempt_store_follows_the_model",
+  "product/runtime/auths-gateway/src/property_tests.rs#key_order_never_changes_a_digest",
+  "product/runtime/auths-gateway/src/property_tests.rs#echo_token_and_key_are_injective",
+  "product/runtime/auths-gateway/src/property_tests.rs#path_values_decode_back_and_never_add_a_segment",
+  "product/runtime/auths-gateway/src/property_tests.rs#relative_ceiling_agrees_with_floor_division",
 ]
 
 [packages.auths-gateway-kernel]
@@ -1781,8 +1824,8 @@ kind = "cargo"
 layer = "product"
 path = "product/runtime/auths-gateway-kernel"
 core_apis = []
-protocol_versions = ["auths.gateway-recovery-capability/1"]
-wire_objects = ["BuiltRequest", "RecoveryCapability", "SubmitDecision", "AttemptView"]
+protocol_versions = ["auths.gateway-recovery-capability/1", "auths.gateway-outcome/2"]
+wire_objects = ["BuiltRequest", "RecoveryCapability", "SubmitDecision", "AttemptView", "OutcomeFacts"]
 fixture_suites = ["bindings/fixtures/gateway"]
 principal_families = []
 signature_families = []
@@ -1794,6 +1837,8 @@ security_state = ["attempt-stage-transitions", "admission-order"]
 [packages.auths-gateway-kernel.claims]
 configuration-compiler = [
   "product/runtime/auths-gateway-kernel/src/recovery.rs#recovery_capability_matches_its_table_for_every_declaration",
+  "product/runtime/auths-gateway-kernel/src/outcome.rs#each_stage_accepts_its_documented_minimum",
+  "product/runtime/auths-gateway-kernel/src/outcome.rs#broken_pairs_and_misplaced_facts_are_refused",
   "product/runtime/auths-gateway-kernel/src/construct.rs#json_strings_follow_rfc_8785_escaping",
   "product/runtime/auths-gateway-kernel/src/construct.rs#path_and_form_encoding_never_pass_a_separator",
   "product/runtime/auths-gateway-kernel/src/construct.rs#account_scope_grammar_admits_only_account_identifiers",

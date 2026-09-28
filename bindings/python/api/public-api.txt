@@ -109,6 +109,8 @@ GatewayObservationRefused
 GatewayObserveResult
 GatewayObserved
 GatewayObservedByProvider
+GatewayPreEntryObservations
+GatewayPreEntryResult
 GatewayProtocolError
 GatewayProviderEvidence
 GatewayResponseRecorded

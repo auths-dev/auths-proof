@@ -1,14 +1,15 @@
 /**
  * Proof/action-only client for a separately operated local Auths gateway. It can also
- * ask the gateway for one read-only signed observation to attach to a later action.
+ * ask the gateway for one read-only signed observation to attach to a later action, or
+ * for the signed pre-entry observations stored for one operation.
  */
 
 import { createConnection } from "node:net";
 
 const REQUEST_SCHEMA = "auths.gateway-submit/1";
-const OBSERVE_SCHEMA = "auths.gateway-observe/1";
+const OBSERVE_SCHEMA = "auths.gateway-observe/2";
 const READ_BACK_SCHEMA = "auths.gateway-readback/1";
-const OUTCOME_SCHEMA = "auths.gateway-outcome/1";
+const OUTCOME_SCHEMA = "auths.gateway-outcome/2";
 const OBSERVATION_MEDIA_TYPE = "application/vnd.auths.observation.v1+cbor";
 const MAX_OBSERVATION_BYTES = 4_096;
 const MAX_SUBJECT_BYTES = 1_024;
@@ -16,7 +17,9 @@ const MAX_READ_BACK_ARGUMENTS = 16;
 const MAX_ARGUMENT_BYTES = 128;
 const MAX_PROOF_BYTES = 4 * 1024 * 1024;
 const MAX_ACTION_BYTES = 64 * 1024;
-const MAX_RESPONSE_BYTES = 8 * 1024;
+const MAX_PRE_ENTRY_OBSERVATIONS = 4;
+// Room for four maximal pre-entry observations in one base64url response.
+const MAX_RESPONSE_BYTES = 32 * 1024;
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 const ECHO = /^auths-e1-[0-9a-f]{64}$/;
@@ -83,7 +86,7 @@ export type GatewayResult =
  */
 export type GatewaySignedObservation = Readonly<{
   outcome: "signed";
-  schema: "auths.gateway-readback/1" | "auths.gateway-outcome/1";
+  schema: "auths.gateway-readback/1" | "auths.gateway-outcome/2";
   subject: string;
   observedAt: number;
   mediaType: "application/vnd.auths.observation.v1+cbor";
@@ -93,6 +96,24 @@ export type GatewaySignedObservation = Readonly<{
 /** Closed result of an observation request: signed bytes, or a refusal that signed nothing. */
 export type GatewayObserveResult =
   | GatewaySignedObservation
+  | Readonly<{ outcome: "refused"; code: string }>;
+
+/**
+ * The signed pre-entry observations the gateway stored for one operation: each the exact
+ * canonical `auths.gateway-readback/1` observation it signed after the credential lease
+ * and before the write, in pointer order, and empty when none were recorded. The
+ * gateway signs nothing new to answer and contacts no provider. An audit bundle carries
+ * them as an entry's `pre_entry_b64`.
+ */
+export type GatewayPreEntryObservations = Readonly<{
+  outcome: "pre-entry";
+  operationId: string;
+  observations: readonly Uint8Array[];
+}>;
+
+/** Closed result of a pre-entry request: the stored observations, or a refusal. */
+export type GatewayPreEntryResult =
+  | GatewayPreEntryObservations
   | Readonly<{ outcome: "refused"; code: string }>;
 
 function encodeBase64Url(bytes: Uint8Array): string {
@@ -224,10 +245,7 @@ function parseObserveResult(bytes: Uint8Array, schema: ObservationSchema): Gatew
   }
   const value = decoded as Record<string, unknown>;
   if (value.outcome === "refused") {
-    if (!exactKeys(value, ["outcome", "code"]) || typeof value.code !== "string" || value.code.length < 1 || value.code.length > 128) {
-      throw new GatewayProtocolError("gateway returned invalid refusal");
-    }
-    return { outcome: "refused", code: value.code };
+    return parseRefusal(value);
   }
   if (value.outcome !== "signed") {
     throw new GatewayProtocolError("gateway returned unknown observation result");
@@ -250,6 +268,45 @@ function parseObserveResult(bytes: Uint8Array, schema: ObservationSchema): Gatew
     observedAt,
     mediaType: OBSERVATION_MEDIA_TYPE,
     observation: decodeBase64Url(encoded, MAX_OBSERVATION_BYTES),
+  };
+}
+
+function parseRefusal(value: Record<string, unknown>): Readonly<{ outcome: "refused"; code: string }> {
+  if (!exactKeys(value, ["outcome", "code"]) || typeof value.code !== "string" || value.code.length < 1 || value.code.length > 128) {
+    throw new GatewayProtocolError("gateway returned invalid refusal");
+  }
+  return { outcome: "refused", code: value.code };
+}
+
+function parsePreEntryResult(bytes: Uint8Array, operationId: string): GatewayPreEntryResult {
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  } catch {
+    throw new GatewayProtocolError("gateway returned invalid JSON");
+  }
+  if (typeof decoded !== "object" || decoded === null || Array.isArray(decoded)) {
+    throw new GatewayProtocolError("gateway returned invalid pre-entry result");
+  }
+  const value = decoded as Record<string, unknown>;
+  if (value.outcome === "refused") {
+    return parseRefusal(value);
+  }
+  const encoded = value.observations_b64;
+  if (
+    value.outcome !== "pre-entry"
+    || !exactKeys(value, ["outcome", "operation_id", "observations_b64"])
+    || value.operation_id !== operationId
+    || !Array.isArray(encoded)
+    || encoded.length > MAX_PRE_ENTRY_OBSERVATIONS
+    || !encoded.every((item) => typeof item === "string")
+  ) {
+    throw new GatewayProtocolError("gateway returned invalid pre-entry observations");
+  }
+  return {
+    outcome: "pre-entry",
+    operationId,
+    observations: (encoded as string[]).map((item) => decodeBase64Url(item, MAX_OBSERVATION_BYTES)),
   };
 }
 
@@ -335,6 +392,22 @@ export class GatewayClient {
       throw new TypeError("operation ID must be a canonical 1-128-byte token");
     }
     return this.#observe({ kind: "outcome", operation_id: operationId }, OUTCOME_SCHEMA);
+  }
+
+  /**
+   * Asks the gateway for one operation's stored pre-entry observations. The gateway reads
+   * only its own attempt store: it signs nothing new and contacts no provider. Throws
+   * `TypeError` for a noncanonical 1-128-byte operation ID.
+   */
+  async observePreEntry(operationId: string): Promise<GatewayPreEntryResult> {
+    if (typeof operationId !== "string" || !OPERATION_ID.test(operationId)) {
+      throw new TypeError("operation ID must be a canonical 1-128-byte token");
+    }
+    const payload = new TextEncoder().encode(JSON.stringify({
+      schema: OBSERVE_SCHEMA,
+      request: { kind: "pre-entry", operation_id: operationId },
+    }));
+    return this.#exchange(payload, "observations not obtained", (bytes) => parsePreEntryResult(bytes, operationId));
   }
 
   #observe(request: Record<string, unknown>, schema: ObservationSchema): Promise<GatewayObserveResult> {

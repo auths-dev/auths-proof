@@ -9,8 +9,13 @@
  * `--features loopback-provider` and a `python3` (or `--python`). With
  * `--stripe-test-mode` the same journey calls Stripe's test mode instead,
  * using the developer's own STRIPE_TEST_SECRET_KEY (sk_test_ only) and a
- * refundable `--payment-intent` of at least 55.00 USD. The key is piped to the
+ * refundable `--payment-intent` of at least 15.00 USD. The key is piped to the
  * gateway install and nowhere else.
+ *
+ * Refund 4 names a PaymentIntent the provider does not hold, so the provider
+ * rejects it with 400 after the gateway entered it. The offline audit reports
+ * it `verified` (authorized and entered) with its `http_status` of 400 beside
+ * the verdict, and it still consumes the agent's second refund of the window.
  */
 
 import { type ChildProcess, spawn, spawnSync, type SpawnSyncReturns } from "node:child_process";
@@ -28,6 +33,8 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { EXAMPLE, type SetupFacts } from "./refunds.js";
 
 const REFUNDS = fileURLToPath(new URL("./refunds.js", import.meta.url));
+// A PaymentIntent neither the double nor a Stripe test account holds.
+const MISSING_PAYMENT_INTENT = "pi_auths_journey_missing";
 // The packaged approval CLI installed with @auths-dev/sdk.
 const APPROVE_CLI = fileURLToPath(new URL("../node_modules/@auths-dev/sdk/tools/profile-cli.mjs", import.meta.url));
 
@@ -217,6 +224,7 @@ async function main(): Promise<void> {
       if (!live) {
         const mock = journey.background(journey.python, [
           "mock_stripe.py", "--ledger", journey.ledger, "--token-sha256", mockTokenSha256,
+          "--payment-intent", paymentIntent,
         ], "pipe");
         const port = await Promise.race([
           new Promise<string>((done) => createInterface({ input: mock.stdout! }).once("line", done)),
@@ -234,9 +242,12 @@ async function main(): Promise<void> {
     });
 
     const results: Record<string, Json> = {};
-    const submit = (operation: string, amount: number, approvers: string, declines: readonly string[] = []): void => {
+    const submit = (
+      operation: string, amount: number, approvers: string, declines: readonly string[] = [],
+      intent: string = paymentIntent,
+    ): void => {
       const before = journey.providerEntries().length;
-      results[operation] = journey.refund(operation, amount, approvers, paymentIntent, declines);
+      results[operation] = journey.refund(operation, amount, approvers, intent, declines);
       results[operation]!.provider_entries = journey.providerEntries().length - before;
     };
 
@@ -266,14 +277,14 @@ async function main(): Promise<void> {
       () => submit("refund-2-one-approval", 1_200, "manager-a"));
     await journey.step("hostile: over the 50.00 ceiling",
       () => submit("refund-3-over-ceiling", 9_000, "manager-a,manager-b"));
-    await journey.step("refund 4: 40.00, agent + manager-b + manager-c",
-      () => submit("refund-4", 4_000, "manager-b,manager-c"));
+    await journey.step("refund 4: 40.00 of a PaymentIntent the provider does not hold (rejected)",
+      () => submit("refund-4", 4_000, "manager-b,manager-c", [], MISSING_PAYMENT_INTENT));
     await journey.step("hostile: third refund in the window",
       () => submit("refund-5-window", 1_000, "manager-a,manager-c"));
 
-    for (const operation of ["refund-1", "refund-4"]) {
+    for (const [operation, status] of [["refund-1", 200], ["refund-4", 400]] as const) {
       const got = results[operation]!;
-      expect(got.outcome === "response-recorded" && got.status === 200, `${operation}: ${JSON.stringify(got)}`);
+      expect(got.outcome === "response-recorded" && got.status === status, `${operation}: ${JSON.stringify(got)}`);
     }
     const declined = results["refund-declined"]!;
     expect(declined.outcome === "declined" && JSON.stringify(declined.declined) === JSON.stringify(["manager-b"]) &&
@@ -314,7 +325,14 @@ async function main(): Promise<void> {
     expect(audited.status === 0, `audit failed: ${audited.stderr}`);
     const report = JSON.parse(audited.stdout) as {
       verified: number; refused: number; inconsistent: number;
-      entries: { operation_id: string; status: string; code: string; approvals: string[] }[];
+      recovery: { class: string };
+      entries: {
+        operation_id: string; status: string; code: string; approvals: string[];
+        provider_result: {
+          stage: string; http_status: number | null; response_digest: string | null;
+          refusal: string | null; recount: string | null;
+        } | null;
+      }[];
       approval_responses: { operation_id: string; approver: string; decision: string }[];
     };
     const verdicts = Object.fromEntries(report.entries.map((entry) =>
@@ -324,6 +342,23 @@ async function main(): Promise<void> {
     for (const [operation, [, code]] of Object.entries(expectedRefusals)) {
       expect(verdicts[operation] === `refused ${code}`, `audit ${operation}: ${verdicts[operation]}`);
     }
+    // Every entered refund shows the provider's result beside its verdict, the
+    // one the provider rejected included.
+    const providerResults = Object.fromEntries(report.entries.map((entry) =>
+      [entry.operation_id, entry.provider_result]));
+    const entered = report.entries.filter((entry) => entry.status === "verified").map((entry) => entry.operation_id);
+    expect(JSON.stringify(entered) === JSON.stringify(["refund-1", "refund-4"]), `audit entered ${JSON.stringify(entered)}`);
+    for (const [operation, status] of [["refund-1", 200], ["refund-4", 400]] as const) {
+      const result = providerResults[operation];
+      expect(result !== null && result !== undefined && result.stage === "response-recorded" &&
+        result.http_status === status && result.response_digest !== null,
+      `audit provider result ${operation}: ${JSON.stringify(result)}`);
+    }
+    const exhausted = providerResults["refund-5-window"];
+    expect(exhausted !== null && exhausted !== undefined &&
+      exhausted.refusal === "gateway.policy.window-exhausted" && exhausted.recount === null,
+    `audit provider result refund-5-window: ${JSON.stringify(exhausted)}`);
+    expect(report.recovery.class === "recorded", `audit recovery ${JSON.stringify(report.recovery)}`);
     const verified = report.entries.find((entry) => entry.operation_id === "refund-1")!;
     expect(verified.approvals.length === 3, "refund-1 should carry the agent and two managers");
     expect(
@@ -385,7 +420,10 @@ async function main(): Promise<void> {
       refunds: results,
       tampered_request: tamperedRun,
       provider_entries: live ? null : journey.providerEntries().length,
-      audit: { verified: report.verified, refused: report.refused, inconsistent: report.inconsistent },
+      audit: {
+        verified: report.verified, refused: report.refused, inconsistent: report.inconsistent,
+        http_status: Object.fromEntries(entered.map((operation) => [operation, providerResults[operation]!.http_status])),
+      },
       tamper_detected: detections,
     };
     const text = JSON.stringify(summary, null, 2);

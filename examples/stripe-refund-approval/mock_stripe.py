@@ -6,14 +6,17 @@ object, and appends one line per request to a ledger so a test can count
 provider entries. The expected secret is given as its SHA-256, so this
 process never needs the key itself.
 
-Like Stripe, it keeps the response to an authorized, well-formed request
-under the request's ``Idempotency-Key``. A later request with the same key
+Like Stripe, it refuses a refund of a PaymentIntent it does not hold with
+``400 resource_missing``; it holds only the ``--payment-intent`` it was
+started with. Like Stripe, it keeps the response to an authorized,
+well-formed refund under the request's ``Idempotency-Key``. A later request with the same key
 and the same parameters gets that response back instead of creating a second
 refund; the same key with other parameters is refused. Each ledger line
 records the key and whether the response was a replay. Stored responses last
 only as long as this process.
 
-    python mock_stripe.py --ledger ledger.jsonl --token-sha256 HEX [--port 0]
+    python mock_stripe.py --ledger ledger.jsonl --token-sha256 HEX \
+        [--payment-intent pi_mock_journey] [--port 0]
 
 The chosen port is printed on the first stdout line.
 """
@@ -33,7 +36,9 @@ from urllib.parse import parse_qs
 MAX_BODY = 16_384
 
 
-def serve(ledger: Path, token_sha256: str, port: int) -> ThreadingHTTPServer:
+def serve(
+    ledger: Path, token_sha256: str, port: int, payment_intent: str
+) -> ThreadingHTTPServer:
     lock = threading.Lock()
     expected = bytes.fromhex(token_sha256)
     sequence = [0]
@@ -71,13 +76,14 @@ def serve(ledger: Path, token_sha256: str, port: int) -> ThreadingHTTPServer:
                 and all(len(values) == 1 for values in form.values())
                 and form["amount"][0].isdigit()
             )
+            known = well_formed and form["payment_intent"][0] == payment_intent
             key: Optional[str] = self.headers.get("Idempotency-Key")
             parameters = (self.path, sorted(form.items()))
             response: Optional[Dict[str, Any]] = None
             replayed = conflict = False
             with lock:
                 sequence[0] += 1
-                if authorized and well_formed:
+                if authorized and known:
                     previous = stored.get(key) if key is not None else None
                     if previous is None:
                         refunds[0] += 1
@@ -122,6 +128,18 @@ def serve(ledger: Path, token_sha256: str, port: int) -> ThreadingHTTPServer:
                 self._reply(
                     400, {"error": {"type": "invalid_request_error", "message": "Malformed refund"}}
                 )
+            elif not known:
+                self._reply(
+                    400,
+                    {
+                        "error": {
+                            "type": "invalid_request_error",
+                            "code": "resource_missing",
+                            "param": "payment_intent",
+                            "message": f"No such payment_intent: '{form['payment_intent'][0]}'",
+                        }
+                    },
+                )
             elif conflict or response is None:
                 self._reply(
                     400,
@@ -143,9 +161,10 @@ def main() -> None:
     parser.add_argument("--ledger", type=Path, required=True)
     parser.add_argument("--token-sha256", required=True)
     parser.add_argument("--port", type=int, default=0)
+    parser.add_argument("--payment-intent", default="pi_mock_journey")
     args = parser.parse_args()
     args.ledger.touch()
-    server = serve(args.ledger, args.token_sha256, args.port)
+    server = serve(args.ledger, args.token_sha256, args.port, args.payment_intent)
     print(server.server_address[1], flush=True)
     server.serve_forever()
 

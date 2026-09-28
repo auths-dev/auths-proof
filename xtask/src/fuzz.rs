@@ -19,7 +19,14 @@ pub(crate) const FUZZ_TARGETS: [&str; 7] = [
     "target_principal_parsers",
     "target_portable_abi",
 ];
-pub(crate) const PRODUCT_FUZZ_TARGETS: [&str; 1] = ["target_bounded_policy"];
+pub(crate) const PRODUCT_FUZZ_TARGETS: [&str; 6] = [
+    "target_bounded_policy",
+    "target_gateway_recipe",
+    "target_gateway_request",
+    "target_gateway_attempt",
+    "target_gateway_outcome",
+    "target_gateway_app_frame",
+];
 
 /// The nightly toolchain the scheduled campaign builds fuzz targets with. The
 /// repository's `rust-toolchain.toml` outranks rustup's default toolchain, so
@@ -29,15 +36,24 @@ pub(crate) const FUZZ_TOOLCHAIN: &str = "nightly-2026-07-20";
 /// The cargo-fuzz release the Fuzz workflow installs.
 const CARGO_FUZZ_VERSION: &str = "0.13.1";
 /// Scheduled shards; `CAMPAIGN_TARGETS[i]` runs on shard `i % CAMPAIGN_SHARDS`.
-const CAMPAIGN_SHARDS: usize = 2;
+/// Three keep the weekly 600-second run of at most five targets per shard
+/// inside the job's 75-minute limit.
+const CAMPAIGN_SHARDS: usize = 3;
 /// Upper bound on the per-target fuzzing time a caller may request.
 const MAX_CAMPAIGN_SECONDS: u64 = 3_600;
 const CORE_FUZZ_DIR: &str = "core/fuzz";
 const BOUNDED_POLICY_FUZZ_DIR: &str = "product/policy/auths-bounded-policy/fuzz";
+const GATEWAY_FUZZ_DIR: &str = "product/runtime/auths-gateway/fuzz";
+/// Every product fuzz directory, each with the targets its manifest declares.
+const PRODUCT_FUZZ_DIRS: [&str; 2] = [BOUNDED_POLICY_FUZZ_DIR, GATEWAY_FUZZ_DIR];
+const GATEWAY_FIXTURES: &str = "bindings/fixtures/gateway";
+/// The gateway fixture recipes, in the order the request target's selector
+/// byte names them.
+const GATEWAY_FIXTURE_RECIPES: [&str; 3] = ["airtable", "github", "todoist"];
 const CORE_FIXTURES: &str = "core/fixtures/v1";
 const CAMPAIGN_OUTPUT: &str = "target/fuzz-campaign";
 const FUZZ_CAMPAIGN_USAGE: &str =
-    "usage: cargo xtask fuzz-campaign --shard <0|1> --seconds <1..=3600> [--toolchain <name>]";
+    "usage: cargo xtask fuzz-campaign --shard <0|1|2> --seconds <1..=3600> [--toolchain <name>]";
 /// libFuzzer and sanitizer lines that mean the run found or hit a failure.
 const FAILURE_MARKERS: [&str; 3] = [
     "ERROR: libFuzzer:",
@@ -88,6 +104,25 @@ enum FixtureSeeds {
     /// the verifier stages behind the configuration check instead of stopping
     /// there.
     FramedAbiTuples,
+    /// Inputs a gateway target parses, derived from the gateway fixtures
+    /// under `bindings/fixtures/gateway`.
+    Gateway(GatewaySeeds),
+}
+
+/// Which gateway input a gateway target's seeds are.
+#[derive(Clone, Copy, Debug)]
+enum GatewaySeeds {
+    /// A length-prefixed recipe source followed by its profile lock.
+    Recipe,
+    /// A fixture-recipe selector byte followed by valid arguments.
+    Request,
+    /// The gateway fixture documents themselves, as record decoding input.
+    Attempt,
+    /// Every signed outcome vector, accepted and refused.
+    Outcome,
+    /// Submission frames of the outcome verdict cases, and observation
+    /// frames for each vector's operation.
+    AppFrame,
 }
 
 struct CampaignTarget {
@@ -97,7 +132,7 @@ struct CampaignTarget {
 }
 
 /// Every scheduled target, in the order that fixes its shard.
-static CAMPAIGN_TARGETS: [CampaignTarget; 8] = [
+static CAMPAIGN_TARGETS: [CampaignTarget; 13] = [
     CampaignTarget {
         name: "target_codec",
         fuzz_dir: CORE_FUZZ_DIR,
@@ -141,6 +176,31 @@ static CAMPAIGN_TARGETS: [CampaignTarget; 8] = [
         name: "target_bounded_policy",
         fuzz_dir: BOUNDED_POLICY_FUZZ_DIR,
         seeds: FixtureSeeds::Roles(&[FixtureRole::Body]),
+    },
+    CampaignTarget {
+        name: "target_gateway_recipe",
+        fuzz_dir: GATEWAY_FUZZ_DIR,
+        seeds: FixtureSeeds::Gateway(GatewaySeeds::Recipe),
+    },
+    CampaignTarget {
+        name: "target_gateway_request",
+        fuzz_dir: GATEWAY_FUZZ_DIR,
+        seeds: FixtureSeeds::Gateway(GatewaySeeds::Request),
+    },
+    CampaignTarget {
+        name: "target_gateway_attempt",
+        fuzz_dir: GATEWAY_FUZZ_DIR,
+        seeds: FixtureSeeds::Gateway(GatewaySeeds::Attempt),
+    },
+    CampaignTarget {
+        name: "target_gateway_outcome",
+        fuzz_dir: GATEWAY_FUZZ_DIR,
+        seeds: FixtureSeeds::Gateway(GatewaySeeds::Outcome),
+    },
+    CampaignTarget {
+        name: "target_gateway_app_frame",
+        fuzz_dir: GATEWAY_FUZZ_DIR,
+        seeds: FixtureSeeds::Gateway(GatewaySeeds::AppFrame),
     },
 ];
 
@@ -230,7 +290,8 @@ impl CampaignOptions {
 /// Every target on the shard runs even after another fails, so one crash
 /// cannot hide the rest; the shard fails if any target failed or reported no
 /// executed inputs. Each target starts from its committed corpus plus seeds
-/// derived from the canonical core fixtures. Logs, evidence, reproducers and
+/// derived from the canonical core fixtures or, for a gateway target, the
+/// gateway fixtures. Logs, evidence, reproducers and
 /// newly discovered units go under `target/fuzz-campaign/`; the committed
 /// corpora are passed read-only and never modified.
 pub(crate) fn fuzz_campaign(arguments: &[String]) -> Result<(), String> {
@@ -681,6 +742,7 @@ fn fixture_seeds(
                 }
             }
         }
+        FixtureSeeds::Gateway(kind) => derived.extend(gateway_seeds(kind)?),
         FixtureSeeds::FramedAbiTuples => {
             let configuration = portable_abi_configuration()?;
             for files in corpus.cases.values() {
@@ -704,6 +766,106 @@ fn fixture_seeds(
         .filter(|seed| !seed.is_empty())
         .map(|seed| (hex::encode(Sha256::digest(&seed)), seed))
         .collect())
+}
+
+fn read_gateway_fixture(relative: &str) -> Result<Vec<u8>, String> {
+    let path = root().join(GATEWAY_FIXTURES).join(relative);
+    fs::read(&path).map_err(|error| format!("could not read {}: {error}", path.display()))
+}
+
+fn gateway_fixture_json(relative: &str) -> Result<serde_json::Value, String> {
+    serde_json::from_slice(&read_gateway_fixture(relative)?)
+        .map_err(|error| format!("{GATEWAY_FIXTURES}/{relative} is not JSON: {error}"))
+}
+
+/// A four-byte big-endian length, `first`, then `rest`, as the recipe and
+/// attempt targets split their input.
+fn length_framed(first: &[u8], rest: &[u8]) -> Result<Vec<u8>, String> {
+    let length = u32::try_from(first.len())
+        .map_err(|_| "a gateway fixture exceeds the length field".to_owned())?;
+    let mut framed = Vec::with_capacity(4 + first.len() + rest.len());
+    framed.extend_from_slice(&length.to_be_bytes());
+    framed.extend_from_slice(first);
+    framed.extend_from_slice(rest);
+    Ok(framed)
+}
+
+/// Seeds for one gateway target from the gateway fixtures.
+fn gateway_seeds(kind: GatewaySeeds) -> Result<Vec<Vec<u8>>, String> {
+    let mut seeds = Vec::new();
+    match kind {
+        GatewaySeeds::Recipe => {
+            for service in GATEWAY_FIXTURE_RECIPES {
+                seeds.push(length_framed(
+                    &read_gateway_fixture(&format!("{service}/recipe.json"))?,
+                    &read_gateway_fixture(&format!("{service}/profile.lock.json"))?,
+                )?);
+            }
+        }
+        GatewaySeeds::Request => {
+            for (index, service) in GATEWAY_FIXTURE_RECIPES.iter().enumerate() {
+                let vectors = gateway_fixture_json(&format!("{service}/vectors.json"))?;
+                let arguments = vectors["valid_arguments_json"]
+                    .as_str()
+                    .ok_or_else(|| format!("{service}/vectors.json has no valid arguments"))?;
+                let mut seed = vec![u8::try_from(index).map_err(|_| "too many recipes")?];
+                seed.extend_from_slice(arguments.as_bytes());
+                seeds.push(seed);
+            }
+        }
+        GatewaySeeds::Attempt => {
+            for name in ["attempt-scenarios-v3.json", "outcome-v2.json", "codes.json"] {
+                seeds.push(read_gateway_fixture(name)?);
+            }
+        }
+        GatewaySeeds::Outcome | GatewaySeeds::AppFrame => {
+            let vectors = gateway_fixture_json("outcome-v2.json")?;
+            let entries = ["accepted", "refused"]
+                .iter()
+                .filter_map(|list| vectors[*list].as_array())
+                .flatten();
+            for entry in entries {
+                let encoded = entry["observation_b64"]
+                    .as_str()
+                    .ok_or("an outcome vector has no observation")?;
+                if matches!(kind, GatewaySeeds::Outcome) {
+                    seeds.push(
+                        <base64ct::Base64 as base64ct::Encoding>::decode_vec(encoded)
+                            .map_err(|_| "an outcome vector is not base64".to_owned())?,
+                    );
+                    continue;
+                }
+                let operation = entry["subject"]
+                    .as_str()
+                    .and_then(|subject| subject.rsplit('/').next())
+                    .ok_or("an outcome vector has no subject")?;
+                for kind in ["outcome", "pre-entry"] {
+                    seeds.push(
+                        serde_json::json!({
+                            "schema": "auths.gateway-observe/2",
+                            "request": {"kind": kind, "operation_id": operation},
+                        })
+                        .to_string()
+                        .into_bytes(),
+                    );
+                }
+            }
+            if matches!(kind, GatewaySeeds::AppFrame) {
+                for case in vectors["verdicts"].as_array().into_iter().flatten() {
+                    seeds.push(
+                        serde_json::json!({
+                            "schema": "auths.gateway-submit/1",
+                            "proof_b64": case["proof_b64"],
+                            "action_b64": case["action_b64"],
+                        })
+                        .to_string()
+                        .into_bytes(),
+                    );
+                }
+            }
+        }
+    }
+    Ok(seeds)
 }
 
 /// The registry configuration `target_portable_abi` verifies under: the same
@@ -810,11 +972,13 @@ pub(crate) fn fuzz_smoke() -> Result<(), String> {
         ])?;
     }
     for target in PRODUCT_FUZZ_TARGETS {
-        let corpus = format!("product/policy/auths-bounded-policy/fuzz/corpus/{target}");
+        let directory = product_fuzz_dir(target);
+        let corpus = format!("{directory}/corpus/{target}");
+        let manifest = format!("{directory}/Cargo.toml");
         cargo(&[
             "run",
             "--manifest-path",
-            "product/policy/auths-bounded-policy/fuzz/Cargo.toml",
+            &manifest,
             "--bin",
             target,
             "--",
@@ -827,47 +991,54 @@ pub(crate) fn fuzz_smoke() -> Result<(), String> {
     Ok(())
 }
 
+/// The product fuzz directory that owns `target`.
+fn product_fuzz_dir(target: &str) -> &'static str {
+    if target.starts_with("target_gateway_") {
+        GATEWAY_FUZZ_DIR
+    } else {
+        BOUNDED_POLICY_FUZZ_DIR
+    }
+}
+
+/// The `target_` binaries a fuzz manifest declares.
+fn manifest_targets(source: &str) -> BTreeSet<&str> {
+    source
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("name = \""))
+        .filter_map(|value| value.strip_suffix('"'))
+        .filter(|name| name.starts_with("target_"))
+        .collect()
+}
+
 /// Checks that every fuzz target is declared, seeded and scheduled by a
 /// campaign the pinned tools can run.
 pub(crate) fn fuzz_inventory() -> Result<(), String> {
     let manifest = fs::read_to_string(root().join("core/fuzz/Cargo.toml"))
         .map_err(|error| format!("could not read fuzz manifest: {error}"))?;
-    let manifest_targets: BTreeSet<_> = manifest
-        .lines()
-        .filter_map(|line| line.trim().strip_prefix("name = \""))
-        .filter_map(|value| value.strip_suffix('"'))
-        .filter(|name| name.starts_with("target_"))
-        .collect();
+    let core_targets = manifest_targets(&manifest);
     let expected: BTreeSet<_> = FUZZ_TARGETS.into_iter().collect();
-    if manifest_targets != expected {
+    if core_targets != expected {
         return Err(format!(
-            "fuzz manifest and authoritative inventory differ: manifest={manifest_targets:?}, expected={expected:?}"
+            "fuzz manifest and authoritative inventory differ: manifest={core_targets:?}, expected={expected:?}"
         ));
     }
 
-    let product_manifest =
-        fs::read_to_string(root().join("product/policy/auths-bounded-policy/fuzz/Cargo.toml"))
-            .map_err(|error| format!("could not read bounded-policy fuzz manifest: {error}"))?;
-    let product_manifest_targets: BTreeSet<_> = product_manifest
-        .lines()
-        .filter_map(|line| line.trim().strip_prefix("name = \""))
-        .filter_map(|value| value.strip_suffix('"'))
-        .filter(|name| name.starts_with("target_"))
-        .collect();
-    let expected_product: BTreeSet<_> = PRODUCT_FUZZ_TARGETS.into_iter().collect();
-    if product_manifest_targets != expected_product {
-        return Err(format!(
-            "bounded-policy fuzz manifest and inventory differ: manifest={product_manifest_targets:?}, expected={expected_product:?}"
-        ));
-    }
-    for (path, source) in [
-        ("core/fuzz/Cargo.toml", &manifest),
-        (
-            "product/policy/auths-bounded-policy/fuzz/Cargo.toml",
-            &product_manifest,
-        ),
-    ] {
-        require_cargo_fuzz_manifest(path, source)?;
+    require_cargo_fuzz_manifest("core/fuzz/Cargo.toml", &manifest)?;
+    for directory in PRODUCT_FUZZ_DIRS {
+        let path = format!("{directory}/Cargo.toml");
+        let product_manifest = fs::read_to_string(root().join(&path))
+            .map_err(|error| format!("could not read {path}: {error}"))?;
+        let declared = manifest_targets(&product_manifest);
+        let expected_product: BTreeSet<_> = PRODUCT_FUZZ_TARGETS
+            .into_iter()
+            .filter(|target| product_fuzz_dir(target) == directory)
+            .collect();
+        if declared != expected_product {
+            return Err(format!(
+                "{path} and the product fuzz inventory differ: manifest={declared:?}, expected={expected_product:?}"
+            ));
+        }
+        require_cargo_fuzz_manifest(&path, &product_manifest)?;
     }
 
     let scheduled = CAMPAIGN_TARGETS
@@ -887,7 +1058,7 @@ pub(crate) fn fuzz_inventory() -> Result<(), String> {
         let expected_dir = if FUZZ_TARGETS.contains(&target.name) {
             CORE_FUZZ_DIR
         } else {
-            BOUNDED_POLICY_FUZZ_DIR
+            product_fuzz_dir(target.name)
         };
         if target.fuzz_dir != expected_dir {
             return Err(format!(
@@ -1097,18 +1268,28 @@ Error: Fuzz target exited with exit status: 77
             names(0),
             [
                 "target_codec",
-                "target_model_state",
-                "target_registry_handlers",
-                "target_portable_abi"
+                "target_composition",
+                "target_portable_abi",
+                "target_gateway_request",
+                "target_gateway_app_frame"
             ]
         );
         assert_eq!(
             names(1),
             [
                 "target_portable_codecs",
-                "target_composition",
+                "target_registry_handlers",
+                "target_bounded_policy",
+                "target_gateway_attempt"
+            ]
+        );
+        assert_eq!(
+            names(2),
+            [
+                "target_model_state",
                 "target_principal_parsers",
-                "target_bounded_policy"
+                "target_gateway_recipe",
+                "target_gateway_outcome"
             ]
         );
         assert_eq!(shard_targets(CAMPAIGN_SHARDS).count(), 0);
@@ -1139,7 +1320,7 @@ Error: Fuzz target exited with exit status: 77
             "nightly"
         );
         for invalid in [
-            &["--shard", "2", "--seconds", "5"][..],
+            &["--shard", "3", "--seconds", "5"][..],
             &["--shard", "0", "--seconds", "0"],
             &["--shard", "0", "--seconds", "3601"],
             &["--shard", "0", "--seconds", "soon"],

@@ -22,19 +22,30 @@
 //! - `auths.gateway-readback/1`, subject the closed observation URL with the
 //!   observed JSON pointer as fragment, facts `value` and, when the recipe
 //!   declares an echo field and the record carries one, `echo`;
-//! - `auths.gateway-outcome/1`, subject
-//!   `auths-gateway://<namespace>/operations/<operation-id>`, facts
-//!   `commitment` (lowercase hex of the stored action commitment) and `stage`
-//!   (the stored attempt stage, kebab-case).
+//! - `auths.gateway-outcome/2`, subject
+//!   `auths-gateway://<namespace>/operations/<operation-id>`, whose facts
+//!   are the stored attempt's commitment, stage (a stored `attempting` is
+//!   reported as `unknown`), evaluation time, and recipe digest, and, as the
+//!   record holds them, its counter-set digest, refusal, response status and
+//!   digest, read-back comparison, evidence digest, pre-entry digest, and
+//!   relative-ceiling basis with its response digest. Which facts accompany
+//!   which stage is the kernel's presence rule
+//!   ([`auths_gateway_kernel::outcome::outcome_facts_present`]); the gateway
+//!   refuses to sign, and an auditor refuses to accept, any other set.
 
-use crate::{GatewayAttemptSnapshot, LogicalOperationId, OperatorNamespace};
+use crate::{
+    GatewayAttemptSnapshot, GatewayAttemptStage, GatewayObservationFact, GatewayPreEntry,
+    LogicalOperationId, OperatorNamespace,
+};
 use auths_codec::{encode_signed_observation, evidence_id, observation_signing_preimage};
 use auths_custody::{CustodyError, CustodyKey, CustodyKind};
+use auths_gateway_kernel::outcome::{OutcomeFacts, outcome_facts_present};
+use auths_gateway_kernel::transition::Stage;
 use auths_model::{
-    EvidenceId, EvidenceObject, EvidenceTypeId, FactName, FactText, FactValue, MediaType,
-    ObservationFact, ObservationFacts, ObservationSchemaId, ObservationStatement, PrincipalId,
-    PrincipalMethodId, ResourceId, SignatureBytes, SignatureDescriptor, SignatureEnvelope,
-    SignatureSuiteId, SignedObservation, Timestamp, VerificationMethod,
+    EvidenceId, EvidenceObject, EvidenceTypeId, FactBytes, FactName, FactText, FactValue,
+    MediaType, ObservationFact, ObservationFacts, ObservationSchemaId, ObservationStatement,
+    PrincipalId, PrincipalMethodId, ResourceId, SignatureBytes, SignatureDescriptor,
+    SignatureEnvelope, SignatureSuiteId, SignedObservation, Timestamp, VerificationMethod,
 };
 use auths_raw_key::{RAW_KEY_MEDIA_TYPE, RAW_KEY_V1, RawKeyDescriptor, RawKeyType};
 use ed25519_dalek::{Signer as _, SigningKey};
@@ -46,8 +57,14 @@ use zeroize::Zeroizing;
 
 /// Schema of an observation of a provider record the gateway read.
 pub const READ_BACK_SCHEMA: &str = "auths.gateway-readback/1";
-/// Schema of an observation of the gateway's own stored attempt stage.
-pub const OUTCOME_SCHEMA: &str = "auths.gateway-outcome/1";
+/// Schema of an observation of the gateway's own stored attempt record.
+pub const OUTCOME_SCHEMA: &str = "auths.gateway-outcome/2";
+/// Domain of the counter-set digest an outcome carries.
+const COUNTER_SET_DOMAIN: &[u8] = b"auths.gateway-counter-set/1\0";
+/// Largest integer a JSON reader represents exactly.
+const MAX_JSON_INTEGER: u64 = (1 << 53) - 1;
+/// Largest refusal code an outcome carries, in bytes.
+const MAX_REFUSAL_BYTES: usize = 128;
 /// Scheme of logical-operation subjects.
 pub const OPERATION_SUBJECT_SCHEME: &str = "auths-gateway";
 /// Media type an agent gives the attachment descriptor of a signed observation.
@@ -273,9 +290,18 @@ impl GatewayObserver {
     }
 
     /// Builds an observer from a fixed seed so tests reproduce exactly.
-    #[cfg(any(test, feature = "testkit-harness"))]
+    #[cfg(any(test, feature = "testkit-harness", feature = "fuzzing"))]
+    // INVARIANT: every 32-byte seed is an Ed25519 key with a raw-key
+    // principal, so derivation from a fixed seed cannot fail.
+    #[allow(clippy::expect_used)]
     pub(crate) fn from_test_seed(seed: u8) -> Self {
         Self::from_seed(&[seed; 32]).expect("a fixed seed yields an observer")
+    }
+
+    /// The principal of the observer [`Self::from_test_seed`] builds.
+    #[cfg(feature = "fuzzing")]
+    pub(crate) fn test_principal(seed: u8) -> PrincipalId {
+        Self::from_test_seed(seed).principal
     }
 
     /// Returns the observer principal an operator puts in an observer anchor.
@@ -471,25 +497,318 @@ pub(crate) fn read_back_facts(
     Ok(facts)
 }
 
-/// Facts of an outcome observation: the stored commitment and stage.
+/// The counter-set digest: SHA-256 of `auths.gateway-counter-set/1`, NUL,
+/// and the sorted keys of every count and sum counter a claim reserved.
+/// `None` when nothing was reserved. The two kinds hash under distinct
+/// domains, so their keys never collide.
+#[must_use]
+pub(crate) fn counter_set_digest(keys: impl IntoIterator<Item = [u8; 32]>) -> Option<[u8; 32]> {
+    let mut keys: Vec<[u8; 32]> = keys.into_iter().collect();
+    if keys.is_empty() {
+        return None;
+    }
+    keys.sort_unstable();
+    let mut hash = <sha2::Sha256 as sha2::Digest>::new();
+    sha2::Digest::update(&mut hash, COUNTER_SET_DOMAIN);
+    for key in &keys {
+        sha2::Digest::update(&mut hash, key);
+    }
+    Some(sha2::Digest::finalize(hash).into())
+}
+
+fn bytes_fact(value: &[u8; 32]) -> Result<FactValue, GatewayObserverError> {
+    FactBytes::new(value.to_vec())
+        .map(FactValue::Bytes)
+        .map_err(|_| GatewayObserverError::Unrepresentable)
+}
+
+/// The stage an outcome names for a stored stage: a stored `attempting`
+/// record is reported as `unknown`, because transport may have been entered.
+const fn outcome_stage(stage: GatewayAttemptStage) -> GatewayAttemptStage {
+    match stage {
+        GatewayAttemptStage::Attempting => GatewayAttemptStage::Unknown,
+        other => other,
+    }
+}
+
+const fn kernel_stage(stage: GatewayAttemptStage) -> Stage {
+    match stage {
+        GatewayAttemptStage::NotEntered => Stage::NotEntered,
+        GatewayAttemptStage::Attempting => Stage::Attempting,
+        GatewayAttemptStage::ResponseRecorded => Stage::ResponseRecorded,
+        GatewayAttemptStage::Unknown => Stage::Unknown,
+        GatewayAttemptStage::Observed => Stage::Observed,
+        GatewayAttemptStage::ObservedByProvider => Stage::ObservedByProvider,
+    }
+}
+
+fn stage_name(stage: GatewayAttemptStage) -> &'static str {
+    match stage {
+        GatewayAttemptStage::NotEntered => "not-entered",
+        GatewayAttemptStage::Attempting => "attempting",
+        GatewayAttemptStage::ResponseRecorded => "response-recorded",
+        GatewayAttemptStage::Unknown => "unknown",
+        GatewayAttemptStage::Observed => "observed",
+        GatewayAttemptStage::ObservedByProvider => "observed-by-provider",
+    }
+}
+
+fn parse_stage(name: &str) -> Option<GatewayAttemptStage> {
+    Some(match name {
+        "not-entered" => GatewayAttemptStage::NotEntered,
+        "unknown" => GatewayAttemptStage::Unknown,
+        "response-recorded" => GatewayAttemptStage::ResponseRecorded,
+        "observed" => GatewayAttemptStage::Observed,
+        "observed-by-provider" => GatewayAttemptStage::ObservedByProvider,
+        _ => return None,
+    })
+}
+
+/// Everything a signed outcome states about one stored attempt, in typed
+/// form. Building it from a record and reading it back from verified bytes
+/// meet in the same value, so signing and verification cannot drift.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct OutcomeRecord {
+    /// Lowercase hex of the stored action commitment.
+    pub(crate) commitment: String,
+    /// The stage the outcome names; never `attempting`.
+    pub(crate) stage: GatewayAttemptStage,
+    /// The gateway clock when native verification ran.
+    pub(crate) evaluated_at: u64,
+    /// Lowercase hex of the installed recipe digest.
+    pub(crate) recipe_digest: String,
+    /// The counter-set digest, when a slot was reserved.
+    pub(crate) counters_digest: Option<[u8; 32]>,
+    /// The stable refusal code, exactly when `not-entered`.
+    pub(crate) refusal: Option<String>,
+    /// The response status, when a complete response was recorded.
+    pub(crate) http_status: Option<u16>,
+    /// SHA-256 of that response.
+    pub(crate) response_digest: Option<[u8; 32]>,
+    /// `match`, `mismatch`, or `echo-mismatch`, exactly when `observed`.
+    pub(crate) observation: Option<&'static str>,
+    /// SHA-256 of the provider evidence, exactly when
+    /// `observed-by-provider`.
+    pub(crate) evidence_digest: Option<[u8; 32]>,
+    /// The pre-entry digest, when pre-entry observations were recorded.
+    pub(crate) pre_entry_digest: Option<[u8; 32]>,
+    /// The relative-ceiling basis, when one was recorded.
+    pub(crate) relative_basis: Option<u64>,
+    /// SHA-256 of the basis response, with the basis.
+    pub(crate) relative_basis_digest: Option<[u8; 32]>,
+}
+
+impl OutcomeRecord {
+    /// The outcome a stored attempt signs.
+    pub(crate) fn from_snapshot(snapshot: &GatewayAttemptSnapshot) -> Self {
+        let stage = outcome_stage(snapshot.stage());
+        let observation = (stage == GatewayAttemptStage::Observed).then(|| {
+            match (snapshot.observation_match(), snapshot.observation_fact()) {
+                (_, Some(GatewayObservationFact::EchoMismatch)) => "echo-mismatch",
+                (Some(true), None) => "match",
+                (Some(false) | None, None) => "mismatch",
+            }
+        });
+        let pre_entry = snapshot.pre_entry();
+        let basis = pre_entry.and_then(|record| record.basis);
+        Self {
+            commitment: hex::encode(snapshot.action_commitment()),
+            stage,
+            evaluated_at: snapshot.evaluated_at(),
+            recipe_digest: hex::encode(snapshot.recipe_digest()),
+            counters_digest: counter_set_digest(
+                snapshot.counters().iter().map(|entry| entry.counter),
+            ),
+            refusal: snapshot.refusal().map(str::to_owned),
+            http_status: snapshot.response_status(),
+            response_digest: snapshot.response_digest().copied(),
+            observation,
+            evidence_digest: snapshot
+                .provider_evidence()
+                .map(|evidence| *evidence.evidence_digest()),
+            pre_entry_digest: pre_entry.and_then(GatewayPreEntry::digest),
+            relative_basis: basis.map(|basis| basis.value),
+            relative_basis_digest: basis.map(|basis| basis.response_digest),
+        }
+    }
+
+    /// Whether this fact set is one an outcome of its stage may carry, and
+    /// every value is inside its bound.
+    pub(crate) fn well_formed(&self) -> bool {
+        let present = OutcomeFacts {
+            counters_digest: self.counters_digest.is_some(),
+            refusal: self.refusal.is_some(),
+            http_status: self.http_status.is_some(),
+            response_digest: self.response_digest.is_some(),
+            observation: self.observation.is_some(),
+            evidence_digest: self.evidence_digest.is_some(),
+            pre_entry_digest: self.pre_entry_digest.is_some(),
+            relative_basis: self.relative_basis.is_some(),
+            relative_basis_digest: self.relative_basis_digest.is_some(),
+        };
+        outcome_facts_present(kernel_stage(self.stage), present)
+            && lower_hex_digest(&self.commitment)
+            && lower_hex_digest(&self.recipe_digest)
+            && self
+                .refusal
+                .as_deref()
+                .is_none_or(|code| !code.is_empty() && code.len() <= MAX_REFUSAL_BYTES)
+            && self
+                .http_status
+                .is_none_or(|status| (100..=599).contains(&status))
+            && self
+                .relative_basis
+                .is_none_or(|basis| basis <= MAX_JSON_INTEGER)
+    }
+
+    /// The observation facts, in the model's canonical order.
+    ///
+    /// # Errors
+    /// Returns [`GatewayObserverError::Unrepresentable`] for a fact set the
+    /// presence rule refuses or a value outside its bound.
+    pub(crate) fn facts(&self) -> Result<Vec<ObservationFact>, GatewayObserverError> {
+        if !self.well_formed() {
+            return Err(GatewayObserverError::Unrepresentable);
+        }
+        let mut facts = vec![
+            fact("commitment", text(&self.commitment)?)?,
+            fact("stage", text(stage_name(self.stage))?)?,
+            fact("evaluated-at", FactValue::Uint(self.evaluated_at))?,
+            fact("recipe-digest", text(&self.recipe_digest)?)?,
+        ];
+        let digests = [
+            ("counters-digest", self.counters_digest),
+            ("response-digest", self.response_digest),
+            ("evidence-digest", self.evidence_digest),
+            ("pre-entry-digest", self.pre_entry_digest),
+            ("relative-basis-digest", self.relative_basis_digest),
+        ];
+        for (name, value) in digests {
+            if let Some(value) = value {
+                facts.push(fact(name, bytes_fact(&value)?)?);
+            }
+        }
+        if let Some(code) = &self.refusal {
+            facts.push(fact("refusal", text(code)?)?);
+        }
+        if let Some(status) = self.http_status {
+            facts.push(fact("http-status", FactValue::Uint(u64::from(status)))?);
+        }
+        if let Some(observation) = self.observation {
+            facts.push(fact("observation", text(observation)?)?);
+        }
+        if let Some(basis) = self.relative_basis {
+            facts.push(fact("relative-basis", FactValue::Uint(basis))?);
+        }
+        Ok(facts)
+    }
+
+    /// Reads the typed record back from verified observation facts. Every
+    /// fact must be registered, of its registered type, and present at most
+    /// once; the set must satisfy the presence rule.
+    fn from_facts(facts: &[ObservationFact]) -> Option<Self> {
+        let mut record = Self {
+            commitment: String::new(),
+            stage: GatewayAttemptStage::Attempting,
+            evaluated_at: 0,
+            recipe_digest: String::new(),
+            counters_digest: None,
+            refusal: None,
+            http_status: None,
+            response_digest: None,
+            observation: None,
+            evidence_digest: None,
+            pre_entry_digest: None,
+            relative_basis: None,
+            relative_basis_digest: None,
+        };
+        let mut seen = std::collections::BTreeSet::new();
+        let mut evaluated = false;
+        for item in facts {
+            let name = item.name().as_str();
+            if !seen.insert(name.to_owned()) {
+                return None;
+            }
+            let digest = || match item.value() {
+                FactValue::Bytes(bytes) => <[u8; 32]>::try_from(bytes.as_slice()).ok(),
+                FactValue::Text(_) | FactValue::Uint(_) => None,
+            };
+            let text = || match item.value() {
+                FactValue::Text(value) => Some(value.as_str().to_owned()),
+                FactValue::Uint(_) | FactValue::Bytes(_) => None,
+            };
+            let uint = || match item.value() {
+                FactValue::Uint(value) => Some(*value),
+                FactValue::Text(_) | FactValue::Bytes(_) => None,
+            };
+            match name {
+                "commitment" => record.commitment = text()?,
+                "stage" => record.stage = parse_stage(&text()?)?,
+                "evaluated-at" => {
+                    record.evaluated_at = uint()?;
+                    evaluated = true;
+                }
+                "recipe-digest" => record.recipe_digest = text()?,
+                "counters-digest" => record.counters_digest = Some(digest()?),
+                "refusal" => record.refusal = Some(text()?),
+                "http-status" => record.http_status = Some(u16::try_from(uint()?).ok()?),
+                "response-digest" => record.response_digest = Some(digest()?),
+                "observation" => {
+                    record.observation = Some(match text()?.as_str() {
+                        "match" => "match",
+                        "mismatch" => "mismatch",
+                        "echo-mismatch" => "echo-mismatch",
+                        _ => return None,
+                    });
+                }
+                "evidence-digest" => record.evidence_digest = Some(digest()?),
+                "pre-entry-digest" => record.pre_entry_digest = Some(digest()?),
+                "relative-basis" => record.relative_basis = Some(uint()?),
+                "relative-basis-digest" => record.relative_basis_digest = Some(digest()?),
+                _ => return None,
+            }
+        }
+        (evaluated && record.well_formed()).then_some(record)
+    }
+}
+
+/// The facts of `record` in the vector notation: `{"text": ...}`,
+/// `{"uint": ...}`, or `{"bytes_hex": ...}` by fact name.
+#[cfg(test)]
+pub(crate) fn outcome_record_json(record: &OutcomeRecord) -> serde_json::Map<String, Value> {
+    record
+        .facts()
+        .unwrap_or_default()
+        .iter()
+        .map(|fact| {
+            let value = match fact.value() {
+                FactValue::Text(text) => serde_json::json!({"text": text.as_str()}),
+                FactValue::Uint(value) => serde_json::json!({"uint": value}),
+                FactValue::Bytes(bytes) => {
+                    serde_json::json!({"bytes_hex": hex::encode(bytes.as_slice())})
+                }
+            };
+            (fact.name().as_str().to_owned(), value)
+        })
+        .collect()
+}
+
+fn lower_hex_digest(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+/// Facts of an outcome observation of one stored attempt.
 ///
 /// # Errors
-/// Returns [`GatewayObserverError::Unrepresentable`] only if a stage has no
-/// kebab-case spelling.
+/// Returns [`GatewayObserverError::Unrepresentable`] only for a stored record
+/// whose fields the presence rule refuses, which a store never returns.
 pub(crate) fn outcome_facts(
     snapshot: &GatewayAttemptSnapshot,
 ) -> Result<Vec<ObservationFact>, GatewayObserverError> {
-    let stage = serde_json::to_value(snapshot.stage())
-        .ok()
-        .and_then(|value| value.as_str().map(str::to_owned))
-        .ok_or(GatewayObserverError::Unrepresentable)?;
-    Ok(vec![
-        fact(
-            "commitment",
-            text(&hex::encode(snapshot.action_commitment()))?,
-        )?,
-        fact("stage", text(&stage)?)?,
-    ])
+    OutcomeRecord::from_snapshot(snapshot).facts()
 }
 
 /// A signed outcome observation whose signature verified under a pinned
@@ -498,38 +817,52 @@ pub(crate) fn outcome_facts(
 pub(crate) struct VerifiedOutcome {
     pub(crate) subject: String,
     pub(crate) observed_at: u64,
-    pub(crate) commitment: String,
-    pub(crate) stage: String,
+    pub(crate) record: OutcomeRecord,
 }
 
-/// Verifies one `auths.gateway-outcome/1` observation offline: canonical
-/// bytes, the pinned observer as signer, raw-key control evidence opening to
-/// that principal, and the Ed25519 signature over the canonical preimage.
-///
-/// # Errors
-/// Returns `audit.outcome-invalid` for any failure; the reason is not
-/// distinguished because every failure means the gateway did not sign it.
-pub(crate) fn verify_outcome(
+impl VerifiedOutcome {
+    /// Lowercase hex of the attested action commitment.
+    pub(crate) fn commitment(&self) -> &str {
+        &self.record.commitment
+    }
+
+    /// The attested stage, kebab-case.
+    pub(crate) fn stage(&self) -> &'static str {
+        stage_name(self.record.stage)
+    }
+
+    /// Whether the gateway entered provider transport, or may have.
+    pub(crate) fn entered(&self) -> bool {
+        self.record.stage != GatewayAttemptStage::NotEntered
+    }
+}
+
+/// Verifies one signed observation of `schema` offline: canonical bytes,
+/// the pinned observer as signer, raw-key control evidence opening to that
+/// principal, and the Ed25519 signature over the canonical preimage. `None`
+/// on any failure, because every failure means the observer did not sign
+/// these bytes.
+pub(crate) fn verify_signed(
     bytes: &[u8],
     observer: &PrincipalId,
-) -> Result<VerifiedOutcome, &'static str> {
+    schema: &str,
+) -> Option<SignedObservation> {
     use auths_ports::{SignatureInput, SignatureSuite as _};
-    let invalid = "audit.outcome-invalid";
     let signed =
         auths_codec::decode_signed_observation(bytes, &auths_model::VerifierLimits::default())
-            .map_err(|_| invalid)?;
-    if auths_codec::encode_signed_observation(&signed).map_err(|_| invalid)? != bytes {
-        return Err(invalid);
+            .ok()?;
+    if auths_codec::encode_signed_observation(&signed).ok()? != bytes {
+        return None;
     }
     let statement = signed.statement();
     let descriptor = signed.signature().descriptor();
     if statement.observer() != observer
-        || statement.schema().as_str() != OUTCOME_SCHEMA
+        || statement.schema().as_str() != schema
         || descriptor.principal_method().as_str() != RAW_KEY_V1
         || descriptor.verification_method().as_str() != observer.as_str()
         || descriptor.suite().as_str() != auths_signature::ED25519_V1
     {
-        return Err(invalid);
+        return None;
     }
     let key = signed
         .evidence()
@@ -539,34 +872,38 @@ pub(crate) fn verify_outcome(
             RawKeyDescriptor::decode(object.bytes())
                 .ok()
                 .filter(|key| key.principal().is_ok_and(|found| &found == observer))
-        })
-        .ok_or(invalid)?;
-    let preimage = observation_signing_preimage(statement, descriptor).map_err(|_| invalid)?;
+        })?;
+    let preimage = observation_signing_preimage(statement, descriptor).ok()?;
     auths_signature::Ed25519Suite::new()
-        .map_err(|_| invalid)?
+        .ok()?
         .verify(SignatureInput {
             verification_key: key.public_key(),
             signing_preimage: &preimage,
             signature: signed.signature().signature().as_slice(),
         })
-        .map_err(|_| invalid)?;
-    let text_fact = |name: &str| {
-        statement
-            .facts()
-            .as_slice()
-            .iter()
-            .find(|fact| fact.name().as_str() == name)
-            .and_then(|fact| match fact.value() {
-                FactValue::Text(value) => Some(value.as_str().to_owned()),
-                FactValue::Uint(_) | FactValue::Bytes(_) => None,
-            })
-            .ok_or(invalid)
-    };
+        .ok()?;
+    Some(signed)
+}
+
+/// Verifies one `auths.gateway-outcome/2` observation offline: a valid
+/// signature of the pinned observer (see [`verify_signed`]) over a fact set
+/// the presence rule accepts, with every value in its bound.
+///
+/// # Errors
+/// Returns `audit.outcome-invalid` for any failure; the reason is not
+/// distinguished because every failure means the gateway did not sign it.
+pub(crate) fn verify_outcome(
+    bytes: &[u8],
+    observer: &PrincipalId,
+) -> Result<VerifiedOutcome, &'static str> {
+    let invalid = "audit.outcome-invalid";
+    let signed = verify_signed(bytes, observer, OUTCOME_SCHEMA).ok_or(invalid)?;
+    let statement = signed.statement();
+    let record = OutcomeRecord::from_facts(statement.facts().as_slice()).ok_or(invalid)?;
     Ok(VerifiedOutcome {
         subject: statement.subject().as_str().to_owned(),
         observed_at: statement.observed_at().get(),
-        commitment: text_fact("commitment")?,
-        stage: text_fact("stage")?,
+        record,
     })
 }
 

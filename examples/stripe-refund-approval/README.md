@@ -156,6 +156,12 @@ The agent's collection checks that every response signs its own request's
 envelope byte for byte; the gateway's verifier checks every signature and the
 threshold of its installed trust.
 
+Refund 4 (40.00, approved by managers B and C) names a PaymentIntent Stripe
+does not hold. It is authorized, so the gateway enters it and records
+`{"outcome": "response-recorded", "status": 400}`: one Stripe call, no refund.
+It still uses the agent's second refund of the day, which is why the third
+refund above is refused.
+
 **8. Export the audit bundle.**
 
 ```sh
@@ -181,7 +187,11 @@ For every refund it re-verifies, with the gateway's own verifier:
 - the ceiling, and the per-window count recounted across the bundle
   without relying on the order of the entries;
 - the gateway-signed outcome: signed by the pinned observer, for this exact
-  action, with its recorded stage.
+  action, with its recorded stage, the time the gateway evaluated it, and the
+  counters it reserved, which must match the ones the audit derives;
+- the provider's result, reported beside the verdict as `provider_result`:
+  the HTTP status and response digest the gateway recorded. Refund 4 is
+  `verified` (authorized and entered) with `http_status` 400 beside it.
 
 The report also lists each recorded approval response, so it shows who
 approved and who declined. Responses never change a verdict: only the verified
@@ -203,13 +213,14 @@ python journey.py --gateway "$(command -v auths-gateway)"
 This runs steps 3–9 with every manager answering through
 `auths approve`, a declined manager, a tampered request, the three
 refusals, and the four tampering cases,
-checks every result, including exactly two Stripe calls and the
-`Idempotency-Key` each one carried, and prints timings. It then restores the
-gateway's store from a backup taken before the first refund, which keeps the
-shared connection record but no claim, and resubmits refund 1's approved
-proof. With the claim gone the gateway sends it again,
-with the same key, and the double answers with the first refund: three calls,
-two refunds. CI runs it from the packed wheel
+checks every result, including exactly two Stripe calls (refund 1, and the
+rejected refund 4) and the `Idempotency-Key` each one carried, and the
+audit's `http_status` of 200 and 400 for them, and prints timings. It then
+restores the gateway's store from a backup taken before the first refund,
+which keeps the shared connection record but no claim, and resubmits refund
+1's approved proof. With the claim gone the gateway sends it again, with the
+same key, and the double answers with the first refund: three calls, one
+refund. CI runs it from the packed wheel
 (`.github/workflows/sdk-recipes.yml`, job `stripe-refund-journey`).
 
 ## From npm
@@ -246,8 +257,9 @@ lockfile. CI runs it from the packed tarball as job
 
 The same journey runs against Stripe's test mode with your own test key.
 Automated runs here never call Stripe; run this yourself. It makes exactly
-two refunds (15.00 and 40.00) against one PaymentIntent, and refuses live
-keys. The state-loss resubmission runs only against the double.
+one refund (15.00) against your PaymentIntent, one 40.00 refund request that
+Stripe rejects because it names a PaymentIntent your account does not hold,
+and refuses live keys. The state-loss resubmission runs only against the double.
 
 ```sh
 export STRIPE_TEST_SECRET_KEY=sk_test_...        # your own test-mode key
@@ -280,15 +292,17 @@ on stdin.
   applies to it.
 - The audit checks the entries in the bundle. It cannot show that none were
   left out; the gateway's attempt store is the complete record.
-- The per-window count is recounted at the time the gateway signed each
-  outcome, so the app requests that outcome right after submitting. An
-  outcome signed in a later window than its submission is counted there.
+- The per-window count is recounted at the time the gateway evaluated each
+  submission, which its signed outcome carries, so an outcome requested in a
+  later window still counts in its submission's window.
 - Windows are fixed UTC days, not rolling: up to four refunds can land
   within 24 hours across midnight UTC.
 - Stripe returns the refund object to the gateway, which records its status
-  and a digest. The response body is not in the bundle, and the gateway does
-  not read the refund back, so the audit shows what the gateway recorded,
-  not what Stripe settled.
+  and a digest, and the audit shows both beside the verdict. The response
+  body is not in the bundle, and the gateway does not read the refund back,
+  so the audit shows what the gateway recorded, under observer trust, not
+  what Stripe settled. `verified` means authorized and entered, never
+  accepted.
 - The gateway's attempt store stops a second submission of the same
   operation ID: at most one Stripe call per operation ID on a single host,
   and an `unknown` outcome needs reconciliation. The `Idempotency-Key`

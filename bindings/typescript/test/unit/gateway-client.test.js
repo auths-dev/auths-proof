@@ -165,20 +165,20 @@ test("gateway client requests a read-back and returns the signed observation byt
     observation: OBSERVATION,
   });
   assert.deepEqual(seen, [{
-    schema: "auths.gateway-observe/1",
+    schema: "auths.gateway-observe/2",
     request: { kind: "read-back", arguments: { record_id: "recTEST0000000001" } },
   }]);
 });
 
 test("gateway client requests an outcome and surfaces a refusal as a result", { skip: process.platform === "win32" }, async () => {
   const subject = "auths-gateway://ns/operations/step-1";
-  const signedOutcome = await observeOnce(signed({ schema: "auths.gateway-outcome/1", subject }), outcome);
+  const signedOutcome = await observeOnce(signed({ schema: "auths.gateway-outcome/2", subject }), outcome);
   assert.equal(signedOutcome.result.outcome, "signed");
-  assert.equal(signedOutcome.result.schema, "auths.gateway-outcome/1");
+  assert.equal(signedOutcome.result.schema, "auths.gateway-outcome/2");
   assert.equal(signedOutcome.result.subject, subject);
   assert.deepEqual(signedOutcome.result.observation, OBSERVATION);
   assert.deepEqual(signedOutcome.seen, [{
-    schema: "auths.gateway-observe/1",
+    schema: "auths.gateway-observe/2",
     request: { kind: "outcome", operation_id: "step-1" },
   }]);
   const refused = await observeOnce('{"outcome":"refused","code":"gateway.observer.not-provisioned"}', outcome);
@@ -189,7 +189,7 @@ test("gateway client rejects malformed observation frames", { skip: process.plat
   // A signed read-back is not accepted as the answer to an outcome request.
   await assert.rejects(observeOnce(signed(), outcome), GatewayProtocolError);
   for (const hostile of [
-    signed({ schema: "auths.gateway-outcome/1" }),
+    signed({ schema: "auths.gateway-outcome/2" }),
     signed({ media_type: "application/cbor" }),
     signed({ subject: "" }),
     signed({ subject: "s".repeat(1025) }),
@@ -217,6 +217,34 @@ test("gateway client rejects malformed observation frames", { skip: process.plat
   }
 });
 
+test("gateway client requests stored pre-entry observations and refuses malformed replies", { skip: process.platform === "win32" }, async () => {
+  const preEntry = (client) => client.observePreEntry("step-1");
+  const reply = (overrides = {}) => JSON.stringify({
+    outcome: "pre-entry",
+    operation_id: "step-1",
+    observations_b64: [Buffer.from(OBSERVATION).toString("base64url")],
+    ...overrides,
+  });
+  const { result, seen } = await observeOnce(reply(), preEntry);
+  assert.deepEqual(result, { outcome: "pre-entry", operationId: "step-1", observations: [OBSERVATION] });
+  assert.deepEqual(seen, [{ schema: "auths.gateway-observe/2", request: { kind: "pre-entry", operation_id: "step-1" } }]);
+  const empty = await observeOnce(reply({ observations_b64: [] }), preEntry);
+  assert.deepEqual(empty.result, { outcome: "pre-entry", operationId: "step-1", observations: [] });
+  const refused = await observeOnce('{"outcome":"refused","code":"gateway.observer.operation-unknown"}', preEntry);
+  assert.deepEqual(refused.result, { outcome: "refused", code: "gateway.observer.operation-unknown" });
+  for (const hostile of [
+    reply({ operation_id: "step-2" }),
+    reply({ observations_b64: Array(5).fill(Buffer.from(OBSERVATION).toString("base64url")) }),
+    reply({ observations_b64: [""] }),
+    reply({ observations_b64: [`${Buffer.from(OBSERVATION).toString("base64url")}=`] }),
+    reply({ observations_b64: "AAAA" }),
+    reply({ signed: true }),
+    signed(),
+  ]) {
+    await assert.rejects(observeOnce(hostile, preEntry), GatewayProtocolError, hostile.slice(0, 80));
+  }
+});
+
 test("gateway client refuses unbounded observation requests before connecting", async () => {
   const client = new GatewayClient(new GatewayEndpoint("/tmp/auths-test.sock"));
   for (const argumentsMap of [
@@ -234,5 +262,6 @@ test("gateway client refuses unbounded observation requests before connecting", 
   }
   for (const operation of ["", "-step", "step 1", "s".repeat(129), "stép", 7]) {
     await assert.rejects(client.observeOutcome(operation), TypeError);
+    await assert.rejects(client.observePreEntry(operation), TypeError);
   }
 });

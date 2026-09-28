@@ -216,3 +216,61 @@ mod tests {
         }
     }
 }
+
+#[cfg(kani)]
+mod proofs {
+    use super::*;
+
+    /// Exhaustive over every declaration set, every retention included: the
+    /// capability follows the derivation table and never makes the write
+    /// conditional.
+    #[kani::proof]
+    fn recovery_capability_matches_the_derivation_table() {
+        let observation = match kani::any::<u8>() % 3 {
+            0 => StateObservation::None,
+            1 => StateObservation::VerifiedLocator,
+            _ => StateObservation::ResponseLocator,
+        };
+        let echo: bool = kani::any();
+        let idempotency = if kani::any() {
+            LostClaimReentry::None
+        } else {
+            LostClaimReentry::Declared {
+                kind: if kani::any() {
+                    IdempotencyKind::DerivedHeader
+                } else {
+                    IdempotencyKind::OperationIdField
+                },
+                retention_seconds: kani::any(),
+            }
+        };
+        let pre_entry: bool = kani::any();
+        let capability = recovery_capability(RecoveryDeclarations {
+            observation,
+            echo,
+            idempotency,
+            pre_entry,
+        });
+        let link = if echo {
+            observation
+        } else {
+            StateObservation::None
+        };
+        let class = match (observation, echo) {
+            (StateObservation::VerifiedLocator, true) => RecoveryClass::Linked,
+            (StateObservation::ResponseLocator, true) => RecoveryClass::LinkedAfterResponse,
+            (StateObservation::None, _) => RecoveryClass::Recorded,
+            (_, false) => RecoveryClass::Observed,
+        };
+        assert_eq!(capability.class, class);
+        assert_eq!(capability.state_observation, observation);
+        assert_eq!(capability.provider_link, link);
+        assert_eq!(
+            capability.unknown_resolution == UnknownResolution::GatewayReobservation,
+            class == RecoveryClass::Linked
+        );
+        assert_eq!(capability.lost_claim_reentry, idempotency);
+        assert_eq!(capability.pre_entry_reread, pre_entry);
+        assert!(!capability.write_is_conditional);
+    }
+}

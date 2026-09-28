@@ -6,13 +6,17 @@
 
 #![forbid(unsafe_code)]
 
+pub mod admin;
 #[cfg(unix)]
 pub mod app;
 mod audit;
 mod binding;
 mod bounds;
 mod connection;
+mod echo_verify;
 mod engine;
+#[cfg(feature = "fuzzing")]
+pub mod fuzzing;
 #[cfg(unix)]
 pub mod listener;
 mod observer;
@@ -34,6 +38,8 @@ mod observed_tests;
 #[cfg(test)]
 mod pending_vectors;
 #[cfg(test)]
+mod property_tests;
+#[cfg(test)]
 mod quorum_tests;
 #[cfg(test)]
 mod scenario_tests;
@@ -41,8 +47,9 @@ mod scenario_tests;
 mod store_testkit;
 
 pub use audit::{
-    AUDIT_BUNDLE_SCHEMA, AUDIT_REPORT_SCHEMA, AuditPins, AuditReport, AuditStatus, AuditedEntry,
-    MAX_AUDIT_BUNDLE_BYTES, MAX_AUDIT_ENTRIES, audit_bundle,
+    AUDIT_BUNDLE_SCHEMA, AUDIT_REPORT_SCHEMA, AuditPins, AuditReport, AuditStatus,
+    AuditedApprovalResponse, AuditedEntry, AuditedPreEntry, MAX_AUDIT_BUNDLE_BYTES,
+    MAX_AUDIT_ENTRIES, MAX_AUDIT_PRE_ENTRY_OBSERVATIONS, ProviderResult, audit_bundle,
 };
 pub use binding::{GatewayConnectionDescriptor, GatewayConnectionError};
 pub use bounds::{
@@ -54,6 +61,11 @@ pub use bounds::{
 pub use connection::{
     LoadedConnection, SharedConnection, SharedConnectionError, authorizes_entry, connection_key,
     install_connection, join_connection,
+};
+pub use echo_verify::{
+    ECHO_VERIFICATION_NOTE, ECHO_VERIFICATION_SCHEMA, EchoResult, EchoVerification,
+    EchoVerifyError, MAX_ECHO_POINTER_BYTES, MAX_ECHO_RECORD_BYTES, canonical_action_commitment,
+    echo_verify, echo_verify_bundle,
 };
 pub use engine::{
     GatewayAdminOutcome, GatewayAdminStatus, GatewayEngine, GatewayEngineConfigurationError,

@@ -6,11 +6,28 @@
 //! Digest facts are fixed test bytes derived from their labels; they are not
 //! recomputed from a store, because these vectors pin the signed encoding
 //! and the presence rule, not a gateway run.
+//!
+//! Each verdict case attaches one vector's exact observation bytes to an
+//! action whose grant requires `member("stage", ["observed-by-provider"])`
+//! of that outcome, under a trusted context pinned to the packaged verifier
+//! configuration, with the decision the native verifier reaches. The Python
+//! (native) and TypeScript (WASM) verifiers must reach the same decision on
+//! every case.
 
 use super::{NOW, load, require_current};
 use crate::GatewayObserver;
-use auths_model::{FactBytes, FactName, FactText, FactValue, ObservationFact};
-use base64ct::{Base64, Encoding as _};
+use crate::harness::{self as h, Signer};
+use auths_model::{
+    AssuranceClaimId, AssurancePolicy, AssurancePolicyId, AssuranceQuantifier,
+    AssuranceRequirement, AudienceSet, Challenge, CompositionRequirement, ConditionTest,
+    EvidenceTypeId, ExtensionId, FactBytes, FactName, FactText, FactValue, MemberValues,
+    ObservationCondition, ObservationFact, ObservationRequirement, ObservationSchemaId,
+    ObservationSubject, ObserverAnchor, ObserverAnchorId, ParticipantRole, PermissionSet,
+    PrincipalMethodId, ResourceId, StatusPolicy, Timestamp, TrustAnchor, TrustAnchorId,
+};
+use auths_ports::{PrincipalMethod, SignatureSuite};
+use auths_registries::ImmutableRegistries;
+use base64ct::{Base64, Base64UrlUnpadded, Encoding as _};
 use serde_json::{Map, Value, json};
 use sha2::{Digest as _, Sha256};
 
@@ -351,6 +368,176 @@ fn signed(
     })
 }
 
+const ROOT_SEED: u8 = 0x11;
+const AGENT_SEED: u8 = 0x22;
+/// The verifier's clock for every verdict case: one second after signing.
+const VERDICT_AT: u64 = OBSERVED_AT + 1;
+
+/// The packaged verifier configuration the Python and TypeScript SDKs
+/// verify under.
+fn packaged_registries<R>(use_registries: impl FnOnce(&ImmutableRegistries<'_>) -> R) -> R {
+    let raw_key = auths_raw_key::RawKeyMethod::new().expect("raw key");
+    let did_key = auths_did_key::DidKeyMethod::new().expect("did:key");
+    let did_keri = auths_did_keri::DidKeriMethod::new().expect("did:keri");
+    let ed25519 = auths_signature::Ed25519Suite::new().expect("ed25519");
+    let p256 = auths_signature::P256Sha256Suite::new().expect("p256");
+    let methods: [&dyn PrincipalMethod; 3] = [&raw_key, &did_key, &did_keri];
+    let suites: [&dyn SignatureSuite; 2] = [&ed25519, &p256];
+    let registries = ImmutableRegistries::new(&methods, &suites).expect("packaged registries");
+    use_registries(&registries)
+}
+
+/// Trust compiled as the SDKs compile it, pinned to the packaged
+/// configuration and bound to the verdict clock, whose observer anchor for
+/// the vector observer covers both vector namespaces.
+fn verdict_context(root: &Signer, observer: &GatewayObserver) -> Vec<u8> {
+    #[allow(
+        clippy::redundant_closure_for_method_calls,
+        reason = "the method path cannot name the registries' own lifetime"
+    )]
+    let configuration = packaged_registries(|registries| registries.configuration_id());
+    let unbound = h::call(&serde_json::Map::new()).expect("call");
+    let assurance = AssurancePolicyId::parse(h::ASSURANCE).expect("assurance");
+    let trust = TrustAnchor::new(
+        TrustAnchorId::parse("root").expect("anchor ID"),
+        root.principal.clone(),
+        vec![PrincipalMethodId::parse(auths_raw_key::RAW_KEY_V1).expect("method")],
+        vec![unbound.profile_ref().expect("profile")],
+        PermissionSet::new(vec![unbound.permission().expect("permission")]).expect("permissions"),
+        vec![ResourceId::parse(&format!("mcp://{}/", h::SERVICE)).expect("namespace")],
+        AudienceSet::new(vec![h::audience().expect("audience")]).expect("audiences"),
+        h::window(NOW - 86_400, NOW + 86_400).expect("window"),
+        None,
+        1,
+        assurance.clone(),
+        StatusPolicy::ExpiryOnly,
+    )
+    .expect("trust anchor");
+    let anchor = ObserverAnchor::new(
+        ObserverAnchorId::parse(h::ANCHOR).expect("anchor ID"),
+        observer.principal().clone(),
+        vec![PrincipalMethodId::parse(auths_raw_key::RAW_KEY_V1).expect("method")],
+        vec![ObservationSchemaId::parse(OUTCOME_V2).expect("schema")],
+        ["stripe-refunds", "airtable-demo"]
+            .iter()
+            .map(|namespace| {
+                ResourceId::parse(&format!("auths-gateway://{namespace}/operations/"))
+                    .expect("namespace")
+            })
+            .collect(),
+        h::window(NOW - 86_400, NOW + 86_400).expect("window"),
+    )
+    .expect("observer anchor");
+    let template = auths_sdk::TrustedContextBuilder::new(
+        configuration,
+        CompositionRequirement::new(None, 1, 1, 1).expect("composition"),
+        vec![trust],
+        AssurancePolicy::new(
+            assurance,
+            [ParticipantRole::Root, ParticipantRole::Actor]
+                .into_iter()
+                .flat_map(|role| {
+                    ["self-certifying-identifier", "offline-verifiable"]
+                        .into_iter()
+                        .map(move |claim| {
+                            AssuranceRequirement::new(
+                                role,
+                                AssuranceQuantifier::Every,
+                                AssuranceClaimId::parse(claim).expect("claim"),
+                                None,
+                            )
+                        })
+                })
+                .collect(),
+        )
+        .expect("assurance policy"),
+    )
+    .expect("builder")
+    .accept_evidence_type(EvidenceTypeId::parse(auths_raw_key::RAW_KEY_V1).expect("evidence"))
+    .accept_critical_extension(
+        ExtensionId::parse(auths_registries::OBSERVATION_REQUIREMENT_EXTENSION_V1)
+            .expect("extension"),
+    )
+    .build()
+    .expect("SDK template")
+    .with_observer_anchors(vec![anchor])
+    .expect("observer anchors");
+    let context = template
+        .for_request(
+            h::audience().expect("audience"),
+            Challenge::new([0; 32]),
+            Timestamp::new(VERDICT_AT),
+        )
+        .expect("bound context");
+    auths_codec::encode_verifier_context(&context).expect("context bytes")
+}
+
+/// The grant requirement every verdict case carries: the outcome of
+/// `subject`, at most an hour old, in stage `observed-by-provider`.
+fn stage_requirement(subject: &str) -> ObservationRequirement {
+    ObservationRequirement::new(
+        ObserverAnchorId::parse(h::ANCHOR).expect("anchor"),
+        ObservationSchemaId::parse(OUTCOME_V2).expect("schema"),
+        ObservationSubject::Resource(ResourceId::parse(subject).expect("subject")),
+        3_600,
+        vec![ObservationCondition::new(
+            FactName::parse("stage").expect("fact name"),
+            ConditionTest::Member(
+                MemberValues::new(vec![FactValue::Text(
+                    FactText::new("observed-by-provider").expect("text"),
+                )])
+                .expect("members"),
+            ),
+        )],
+    )
+    .expect("requirement")
+}
+
+/// One verdict case over the vector `entry`: its exact observation bytes
+/// attached to an action whose grant requires its subject's outcome in stage
+/// `observed-by-provider`.
+fn verdict(entry: &Value, context: &[u8], root: &Signer, agent: &Signer) -> Value {
+    let id = entry["id"].as_str().expect("id");
+    let subject = entry["subject"].as_str().expect("subject");
+    let observation =
+        Base64::decode_vec(entry["observation_b64"].as_str().expect("bytes")).expect("base64");
+    let grant = h::grant(
+        root,
+        &agent.principal,
+        Some(stage_requirement(subject)),
+        NOW,
+    )
+    .expect("grant");
+    let arguments = json!({"operation_id": format!("verdict-{id}")})
+        .as_object()
+        .expect("arguments")
+        .clone();
+    let submission =
+        crate::observed_tests::submission(root, agent, &grant, &arguments, &[observation]);
+    let (decision, code) = packaged_registries(|registries| {
+        let sealed = auths_verifier::verify_v1_sealed(
+            &submission.proof,
+            &submission.action,
+            context,
+            registries,
+        )
+        .expect("verifiable input");
+        let decision = match sealed.portable().decision() {
+            auths_model::VerificationDecision::Authorized => "authorized",
+            auths_model::VerificationDecision::Denied => "denied",
+            auths_model::VerificationDecision::Indeterminate => "indeterminate",
+        };
+        (decision, sealed.portable().code().code().to_owned())
+    });
+    json!({
+        "id": id,
+        "proof_b64": Base64UrlUnpadded::encode_string(&submission.proof),
+        "action_b64": Base64UrlUnpadded::encode_string(&submission.action),
+        "decision": decision,
+        "code": code,
+    })
+}
+
 fn document() -> Value {
     let observer = GatewayObserver::from_test_seed(OBSERVER_SEED);
     let accepted: Vec<Value> = [not_entered_and_unknown(), recorded_and_observed()]
@@ -366,6 +553,19 @@ fn document() -> Value {
             entry
         })
         .collect();
+    let root = Signer::new(ROOT_SEED);
+    let agent = Signer::new(AGENT_SEED);
+    let context = verdict_context(&root, &observer);
+    let verdicts: Vec<Value> = accepted
+        .iter()
+        .chain(refused.iter().filter(|entry| {
+            matches!(
+                entry["id"].as_str(),
+                Some("other-signer" | "outcome-v1-schema")
+            )
+        }))
+        .map(|entry| verdict(entry, &context, &root, &agent))
+        .collect();
     json!({
         "schema": SCHEMA,
         "outcome_schema": OUTCOME_V2,
@@ -373,6 +573,8 @@ fn document() -> Value {
         "observed_at": OBSERVED_AT,
         "accepted": accepted,
         "refused": refused,
+        "verdict_trusted_context_b64": Base64UrlUnpadded::encode_string(&context),
+        "verdicts": verdicts,
     })
 }
 
@@ -381,27 +583,67 @@ fn outcome_v2_vectors_are_current() {
     require_current(FILE, &document());
 }
 
-/// Today's outcome verifier reads only `/1`, so it refuses every outcome
-/// `/2` vector that the revised verifier must accept.
-#[test]
-fn current_outcome_verifier_refuses_every_outcome_v2() {
-    let vectors = load(FILE);
-    let observer = auths_model::PrincipalId::parse(
+fn pinned_observer(vectors: &Value) -> auths_model::PrincipalId {
+    auths_model::PrincipalId::parse(
         vectors["observer"]["principal"]
             .as_str()
             .expect("principal"),
     )
-    .expect("observer");
+    .expect("observer")
+}
+
+/// The outcome verifier accepts every accepted vector with exactly its
+/// expected facts, and refuses every refused vector with its code.
+#[test]
+fn outcome_verifier_accepts_every_vector_with_its_facts_and_refuses_the_rest() {
+    let vectors = load(FILE);
+    let observer = pinned_observer(&vectors);
     let accepted = vectors["accepted"].as_array().expect("accepted");
     assert!(!accepted.is_empty());
     for entry in accepted {
         let bytes =
             Base64::decode_vec(entry["observation_b64"].as_str().expect("bytes")).expect("base64");
+        let verified = crate::observer::verify_outcome(&bytes, &observer)
+            .unwrap_or_else(|code| panic!("{}: {code}", entry["id"]));
+        assert_eq!(verified.subject, entry["subject"], "{}", entry["id"]);
+        assert_eq!(verified.observed_at, OBSERVED_AT);
+        let facts = crate::observer::outcome_record_json(&verified.record);
+        assert_eq!(Value::Object(facts), entry["facts"], "{}", entry["id"]);
+        let signed = crate::observer::OutcomeRecord::facts(&verified.record).expect("facts");
+        let resigned = GatewayObserver::from_test_seed(OBSERVER_SEED)
+            .sign(OUTCOME_V2, &verified.subject, OBSERVED_AT, signed)
+            .expect("re-signed");
+        assert_eq!(resigned.bytes(), bytes.as_slice(), "{}", entry["id"]);
+    }
+    for entry in vectors["refused"].as_array().expect("refused") {
+        let bytes =
+            Base64::decode_vec(entry["observation_b64"].as_str().expect("bytes")).expect("base64");
         assert_eq!(
-            crate::observer::verify_outcome(&bytes, &observer),
-            Err("audit.outcome-invalid"),
+            crate::observer::verify_outcome(&bytes, &observer).err(),
+            entry["code"].as_str(),
             "{}",
             entry["id"]
+        );
+    }
+}
+
+/// Every verdict case is authorized exactly when its outcome is signed by
+/// the anchored observer in stage `observed-by-provider`.
+#[test]
+fn outcome_verdicts_follow_the_stage_condition() {
+    let vectors = load(FILE);
+    let accepted = vectors["accepted"].as_array().expect("accepted");
+    let verdicts = vectors["verdicts"].as_array().expect("verdicts");
+    assert_eq!(verdicts.len(), accepted.len() + 2);
+    for case in verdicts {
+        let id = case["id"].as_str().expect("id");
+        let provider_bound = accepted.iter().any(|entry| {
+            entry["id"] == id && entry["facts"]["stage"]["text"] == "observed-by-provider"
+        });
+        assert_eq!(
+            case["decision"] == "authorized",
+            provider_bound,
+            "{id}: {case}"
         );
     }
 }

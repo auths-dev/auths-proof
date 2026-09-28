@@ -44,6 +44,8 @@ use base64ct::{Base64UrlUnpadded, Encoding as _};
 use serde_json::{Map, Value, json};
 use std::ops::Deref;
 
+#[path = "audit_tests.rs"]
+mod audit_tests;
 #[path = "bounds_tests.rs"]
 mod bounds_tests;
 
@@ -154,10 +156,10 @@ fn outcome_requirement() -> ObservationRequirement {
 }
 
 /// One signed submission: proof bytes, canonical action bytes, commitment.
-struct Submission {
-    proof: Vec<u8>,
-    action: Vec<u8>,
-    commitment: [u8; 32],
+pub(crate) struct Submission {
+    pub(crate) proof: Vec<u8>,
+    pub(crate) action: Vec<u8>,
+    pub(crate) commitment: [u8; 32],
 }
 
 fn attachments(observations: &[Vec<u8>]) -> (Vec<AttachmentDescriptor>, Vec<DetachedAttachment>) {
@@ -213,7 +215,7 @@ fn envelope(
     )
 }
 
-fn submission(
+pub(crate) fn submission(
     root: &Signer,
     agent: &Signer,
     grant: &SignedGrant,

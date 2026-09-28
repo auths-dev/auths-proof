@@ -1,5 +1,5 @@
 # Installed @auths-dev/sdk public API v1
-# declaration-sha256 8903c48a5f3294e8159548643b216cbd756b71fbdca11ca1039911cae458236e
+# declaration-sha256 880af640d9b5a01d0e1d5a75c1d4175a7c02e47b38ee933febc9935b00d277eb
 .	AuthsError	value+type
 .	AuthsIssue	type
 .	AuthsOperationError	value+type
@@ -117,6 +117,8 @@
 ./gateway	GatewayClient	value+type
 ./gateway	GatewayEndpoint	value+type
 ./gateway	GatewayObserveResult	type
+./gateway	GatewayPreEntryObservations	type
+./gateway	GatewayPreEntryResult	type
 ./gateway	GatewayProtocolError	value+type
 ./gateway	GatewayProviderEvidence	type
 ./gateway	GatewayResult	type

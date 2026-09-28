@@ -416,7 +416,7 @@ def export(args: argparse.Namespace) -> None:
         json.loads(line) for line in approvals.read_text().splitlines() if line
     ] if approvals.exists() else []
     bundle = {
-        "schema": "auths.gateway-audit-bundle/1",
+        "schema": "auths.gateway-audit-bundle/2",
         "recipe_b64": _b64(RECIPE.read_bytes()),
         "profile_lock_b64": _b64(PROFILE_LOCK.read_bytes()),
         "trusted_context_b64": _b64((state / "trust" / "gateway.context.cbor").read_bytes()),
