@@ -6,11 +6,17 @@
  *   node build/refunds.js setup   --state DIR --gateway auths-gateway
  *   node build/refunds.js request --state DIR --operation-id ID --payment-intent PI \
  *                                 --amount CENTS --approvers a,b --out REQUESTS \
- *                                 [--currency usd] [--connect-account acct_...]
+ *                                 [--currency usd] [--connect-account acct_...] [--precheck]
  *   npx auths approve REQUESTS/manager-a.request \
  *                                 --signer DIR/signers/manager-a.json --out REQUESTS/manager-a.response
  *   node build/refunds.js submit  --state DIR --socket SOCK --operation-id ID --responses REQUESTS
  *   node build/refunds.js export  --state DIR --out audit-bundle.json
+ *
+ * `submit` sends every assembled proof to the gateway: only the gateway decides
+ * the approval threshold, the ceiling, the per-window count, and whether an
+ * operation ID may run again. `request --precheck` is an opt-in, client-side
+ * pre-check and not an enforcement boundary. Every outcome record says who
+ * decided it in `decided_by`: `gateway`, `approver`, or `client`.
  *
  * `node build/refunds.js grant --state DIR --agent NAME --max-count N` issues
  * one more agent its own grant with the same limits and another count; the
@@ -28,7 +34,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import {
-  appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, writeFileSync,
+  appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -52,6 +58,9 @@ export const EXAMPLE = resolve(dirname(fileURLToPath(import.meta.url)), "../..")
 const RECIPE = join(EXAMPLE, "recipe.json");
 const PROFILE_LOCK = join(EXAMPLE, "profile.lock.json");
 export const MANAGERS = ["manager-a", "manager-b", "manager-c"] as const;
+// The gateway's trusted context requires this many authorized approvals from
+// as many distinct actors and roots: the agent and two managers.
+const APPROVALS_REQUIRED = 3;
 const ROLES = ["root", "agent", ...MANAGERS] as const;
 const DAY = 86_400n;
 // The test connected account the grant's scope lists; the gateway sends it as
@@ -93,9 +102,10 @@ export interface SetupFacts {
   readonly challenge_hex: string;
   readonly trusted_context_sha256: string;
   readonly principals: Readonly<Record<string, string>>;
+  readonly approvals_required: number;
   readonly connect_account: string;
   readonly limits: Limits;
-  readonly bound: Readonly<Record<string, unknown>>;
+  readonly bound: Readonly<Record<string, unknown>> & { readonly ceiling: number };
 }
 
 const b64 = (bytes: Uint8Array): string => Buffer.from(bytes).toString("base64url");
@@ -321,7 +331,7 @@ async function setup(options: Readonly<{
   const extension = bound.extension_id;
   // Three authorized approvals from three distinct roots: the agent's
   // authority descends from the root and counts once, so two must be managers.
-  const common = { anchors, audience, challenge, now, required: 3, extension };
+  const common = { anchors, audience, challenge, now, required: APPROVALS_REQUIRED, extension };
   const gatewayContext = await trustedContext({
     ...common, configuration: hexBytes(review.verifier_configuration),
   });
@@ -340,6 +350,7 @@ async function setup(options: Readonly<{
     challenge_hex: Buffer.from(challenge).toString("hex"),
     trusted_context_sha256: createHash("sha256").update(gatewayContext).digest("hex"),
     principals,
+    approvals_required: APPROVALS_REQUIRED,
     connect_account: options.connectAccount,
     limits,
     bound: {
@@ -429,32 +440,84 @@ async function agentGrants(state: string, agent: string): Promise<GrantEvidence[
   return [{ signedGrant: new Uint8Array(readFileSync(join(state, `${agent}.grant.cbor`))), evidence: [root.evidence] }];
 }
 
+const PRECHECK_NOTE = "client-side pre-check; not an enforcement boundary. " +
+  "The gateway enforces this rule whether or not the pre-check runs.";
+
+/**
+ * The rule a request breaks by what setup.json states, if any. It checks no
+ * signature, window count, or operation ID: only the gateway decides those.
+ */
+function precheckRule(facts: SetupFacts, listed: readonly string[], amount: number): string | null {
+  if (new Set(listed).size !== listed.length) return "repeated-approver";
+  if (1 + new Set(listed).size < facts.approvals_required) return "approvals-below-threshold";
+  if (amount > facts.bound.ceiling) return "above-ceiling";
+  return null;
+}
+
+/**
+ * Writes the request's inputs. An earlier request for the same operation ID is
+ * kept under the first free `<id>.json.N`: whether the ID may run again is the
+ * gateway's decision, not this program's.
+ */
+function writePending(state: string, operation: string, data: string): void {
+  const path = join(state, "pending", `${operation}.json`);
+  if (existsSync(path)) {
+    let number = 1;
+    while (existsSync(`${path}.${number}`)) number += 1;
+    renameSync(path, `${path}.${number}`);
+    process.stderr.write(
+      `${operation} was requested before; the earlier request is kept as ${operation}.json.${number}. ` +
+      "The gateway's attempt store decides whether this operation ID may run again.\n",
+    );
+  }
+  privateWrite(path, data);
+}
+
 async function request(options: Readonly<{
   state: string; operationId: string; paymentIntent: string; amount: number; approvers: string; out: string;
-  currency: string; connectAccount: string | undefined; agent: string;
+  currency: string; connectAccount: string | undefined; agent: string; precheck: boolean;
 }>): Promise<Record<string, unknown>> {
   const state = options.state;
   const facts = JSON.parse(readFileSync(join(state, "setup.json"), "utf8")) as SetupFacts;
   const principals = principalsOf(state, facts);
-  const managers = options.approvers.split(",").filter((name) => name.length > 0);
-  if (!managers.every((name) => (MANAGERS as readonly string[]).includes(name)) ||
-      new Set(managers).size !== managers.length) {
-    fail(`approvers must be distinct names from ${MANAGERS.join(", ")}`);
-  }
+  const listed = options.approvers.split(",").filter((name) => name.length > 0);
+  const unknown = [...new Set(listed.filter((name) => !(MANAGERS as readonly string[]).includes(name)))].sort();
+  if (unknown.length > 0) fail(`approvers must be names from ${MANAGERS.join(", ")}; got ${unknown.join(", ")}`);
   if ((MANAGERS as readonly string[]).includes(options.agent) || options.agent === "root" ||
       !(options.agent in principals)) {
     fail(`${options.agent} is not an agent of ${state}`);
+  }
+  if (options.precheck) {
+    const rule = precheckRule(facts, listed, options.amount);
+    if (rule !== null) {
+      return {
+        operation_id: options.operationId, outcome: "not-submitted", decided_by: "client",
+        reason: "precheck", precheck: rule, note: PRECHECK_NOTE,
+      };
+    }
+  }
+  const managers: string[] = [];
+  for (const name of listed) {
+    if (managers.includes(name)) {
+      process.stderr.write(
+        `dropped the repeated approver ${name}: a proposal cannot name one approver twice; ` +
+        "the gateway decides the threshold for the approvers that remain\n",
+      );
+      continue;
+    }
+    managers.push(name);
   }
   const pending: Pending = {
     agent: options.agent, managers, payment_intent: options.paymentIntent, amount: options.amount,
     currency: options.currency, connect_account: options.connectAccount ?? facts.connect_account,
     evaluation_time: Math.floor(Date.now() / 1000),
   };
-  privateWrite(join(state, "pending", `${options.operationId}.json`), JSON.stringify(pending));
+  writePending(state, options.operationId, JSON.stringify(pending));
+  const built = await proposal(state, options.operationId);
   const names = new Map(Object.entries(principals).map(([name, principal]) => [principal, name]));
   mkdirSync(options.out, { recursive: true, mode: 0o700 });
   const written: Record<string, string> = {};
-  for (const item of await approvalRequests(await proposal(state, options.operationId))) {
+  for (const item of await approvalRequests(built)) {
     const name = names.get(item.approver)!;
     if (name === options.agent) {
       // The agent approves its own request like any other approver.
@@ -469,7 +532,38 @@ async function request(options: Readonly<{
     writeFileSync(path, `${item.text}\n`);
     written[name] = path;
   }
-  return { operation_id: options.operationId, requests: written };
+  return { operation_id: options.operationId, requests: written, action_b64: b64(built.action) };
+}
+
+interface Entry {
+  readonly operation_id: string;
+  readonly proof_b64: string;
+  readonly action_b64: string;
+  readonly outcome_b64: string | null;
+}
+
+/**
+ * Keeps at most one bundle entry per operation ID: the first submission, or a
+ * later one that the gateway recorded in place of one it did not.
+ */
+function recordEntry(audit: string, entry: Entry): "appended" | "replaced" | "unchanged" {
+  const log = join(audit, "entries.jsonl");
+  const entries = existsSync(log)
+    ? readFileSync(log, "utf8").split("\n").filter((line) => line.length > 0).map((line) => JSON.parse(line) as Entry)
+    : [];
+  const index = entries.findIndex((existing) => existing.operation_id === entry.operation_id);
+  if (index < 0) {
+    appendFileSync(log, `${JSON.stringify(entry)}\n`, { mode: 0o600 });
+    return "appended";
+  }
+  if (entries[index]!.outcome_b64 === null && entry.outcome_b64 !== null) {
+    entries[index] = entry;
+    const replacement = `${log}.new`;
+    writeFileSync(replacement, entries.map((item) => `${JSON.stringify(item)}\n`).join(""), { mode: 0o600 });
+    renameSync(replacement, log);
+    return "replaced";
+  }
+  return "unchanged";
 }
 
 async function submit(options: Readonly<{
@@ -490,24 +584,33 @@ async function submit(options: Readonly<{
   const collection = await collectApprovals(built, texts);
   const declined = collection.statuses.filter((item) => item.status === "declined")
     .map((item) => names.get(item.approver) ?? item.approver).sort();
-  if (declined.length > 0) return { ...record, stage: "collection", outcome: "declined", declined };
+  if (declined.length > 0) {
+    return { ...record, outcome: "not-submitted", decided_by: "approver", reason: "approver-declined", declined };
+  }
   const waiting = Object.fromEntries(collection.statuses.filter((item) => item.status !== "approved")
     .map((item) => [names.get(item.approver) ?? item.approver, item.code ?? item.status]));
-  if (Object.keys(waiting).length > 0) return { ...record, stage: "collection", outcome: "incomplete", waiting };
-  // Collection checks every envelope byte for byte; the gateway's verifier
-  // checks the signatures and the threshold of its installed trust.
+  if (Object.keys(waiting).length > 0) {
+    // No proof exists until every listed approver approved this exact
+    // request, so nothing can be sent; this is not a policy refusal.
+    return {
+      ...record, outcome: "not-submitted", decided_by: "client", reason: "approvals-incomplete", waiting,
+      unattributed: collection.unattributed.map(([index, code]) => [index, code]),
+    };
+  }
+  // Every assembled proof goes to the gateway. Collection checks every
+  // envelope byte for byte; only the gateway decides the threshold, the
+  // ceiling, the count, and whether the operation ID may run.
   const proof = collection.assemble();
   const gateway = new GatewayClient(new GatewayEndpoint(resolve(options.socket)));
-  Object.assign(record, await gateway.submit({ proof, action: built.action }));
+  Object.assign(record, await gateway.submit({ proof, action: built.action }), { decided_by: "gateway" });
   const observation = await gateway.observeOutcome(options.operationId);
   const outcome = observation.outcome === "signed" ? observation.observation : null;
-  const entry = {
+  record.bundle = recordEntry(join(state, "audit"), {
     operation_id: options.operationId,
     proof_b64: b64(proof),
     action_b64: b64(built.action),
     outcome_b64: outcome === null ? null : b64(outcome),
-  };
-  appendFileSync(join(state, "audit", "entries.jsonl"), `${JSON.stringify(entry)}\n`, { mode: 0o600 });
+  });
   return record;
 }
 
@@ -544,6 +647,18 @@ function required(value: string | undefined, name: string): string {
   return value;
 }
 
+function present(value: string | undefined, name: string): string {
+  if (value === undefined) fail(`--${name} is required`);
+  return value;
+}
+
+const USAGE = [
+  "usage: refunds.js setup|grant|request|submit|export --state DIR ...",
+  "  request --precheck: client-side pre-check, not an enforcement boundary: refuse before writing any",
+  "    request when the approvers are fewer than the threshold, one repeats, or the amount is above the",
+  "    ceiling that setup.json records. The gateway enforces these rules whether or not the pre-check runs.",
+].join("\n");
+
 async function main(): Promise<void> {
   const { positionals, values } = parseArgs({
     allowPositionals: true,
@@ -566,8 +681,14 @@ async function main(): Promise<void> {
       approvers: { type: "string" },
       responses: { type: "string" },
       out: { type: "string" },
+      precheck: { type: "boolean", default: false },
+      help: { type: "boolean", default: false },
     },
   });
+  if (values.help === true) {
+    process.stdout.write(`${USAGE}\n`);
+    return;
+  }
   const state = resolve(required(values.state, "state"));
   switch (positionals[0]) {
     case "setup":
@@ -597,11 +718,12 @@ async function main(): Promise<void> {
         operationId: required(values["operation-id"], "operation-id"),
         paymentIntent: required(values["payment-intent"], "payment-intent"),
         amount: integer(values.amount, "amount"),
-        approvers: required(values.approvers, "approvers"),
+        approvers: present(values.approvers, "approvers"),
         out: resolve(required(values.out, "out")),
         currency: values.currency!,
         connectAccount: values["connect-account"],
         agent: values.agent ?? "agent",
+        precheck: values.precheck!,
       }))}\n`);
       break;
     case "submit":
@@ -616,7 +738,7 @@ async function main(): Promise<void> {
       exportBundle({ state, out: resolve(required(values.out, "out")) });
       break;
     default:
-      fail("usage: refunds.js setup|grant|request|submit|export --state DIR ...");
+      fail(USAGE);
   }
 }
 
