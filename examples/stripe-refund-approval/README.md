@@ -352,6 +352,13 @@ install step, on stdin; the secret key reaches only `curl`.
 
 - Development keys stand in for custody. In production the root and each
   manager sign through their own custody adapters.
+- A production gateway cannot yet sign outcomes. Its observer key must be
+  held in KMS or an HSM, and the shipped gateway has no such client yet
+  ([#190](https://github.com/auths-dev/auths-proof/issues/190)). This journey
+  uses a development observer key.
+- The recipe is not qualified. Under ADR 0013, a recipe earns a qualified
+  provider claim only through its own later ADR, with differential and
+  live-provider evidence.
 - Every listed approver must sign: to replace a manager who declines, start a
   new request (see `docs/product/APPROVAL_QUORUM.md`).
 - A request is not confidential: anyone who receives it sees the refund. The
