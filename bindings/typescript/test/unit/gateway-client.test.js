@@ -50,6 +50,37 @@ test("gateway endpoint refuses provider URLs and client refuses empty actions", 
   );
 });
 
+test("gateway endpoint accepts the platform socket path maximum and reports a longer path", () => {
+  const max = process.platform === "linux" ? 107 : 103;
+  assert.equal(new GatewayEndpoint("/" + "a".repeat(max - 1)).path.length, max);
+  const path = "/" + "a".repeat(max);
+  assert.throws(
+    () => new GatewayEndpoint(path),
+    (error) =>
+      error instanceof TypeError &&
+      error.message.includes(`${max + 1} bytes`) &&
+      error.message.includes(`at most ${max}`) &&
+      error.message.includes(path),
+  );
+  assert.throws(() => new GatewayEndpoint("/" + "\u00e9".repeat(Math.floor(max / 2) + 1)), TypeError);
+});
+
+test("gateway connect failure names the path and the cause", { skip: process.platform === "win32" }, async () => {
+  const directory = await mkdtemp(join(tmpdir(), "auths-gateway-"));
+  const path = join(directory, "missing.sock");
+  try {
+    await assert.rejects(
+      new GatewayClient(new GatewayEndpoint(path)).submit({
+        proof: new Uint8Array([1]),
+        action: new Uint8Array([2]),
+      }),
+      (error) => error instanceof GatewayProtocolError && error.message.includes(path) && error.message.includes("ENOENT"),
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 async function replyOnce(reply) {
   const directory = await mkdtemp(join(tmpdir(), "auths-gateway-"));
   const path = join(directory, "app.sock");

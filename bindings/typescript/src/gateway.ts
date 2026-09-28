@@ -5,6 +5,7 @@
  */
 
 import { createConnection } from "node:net";
+import { platform } from "node:os";
 
 const REQUEST_SCHEMA = "auths.gateway-submit/1";
 const OBSERVE_SCHEMA = "auths.gateway-observe/2";
@@ -21,6 +22,9 @@ const MAX_PRE_ENTRY_OBSERVATIONS = 4;
 // Room for four maximal pre-entry observations in one base64url response.
 const MAX_RESPONSE_BYTES = 32 * 1024;
 const MAX_FRAME_BYTES = 8 * 1024 * 1024;
+// A Unix socket path must fit in `sun_path` with its terminating NUL.
+const SUN_PATH_BYTES = platform() === "linux" ? 108 : 104;
+const MAX_SOCKET_PATH_BYTES = SUN_PATH_BYTES - 1;
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 const ECHO = /^auths-e1-[0-9a-f]{64}$/;
 const DIGEST = /^[0-9a-f]{64}$/;
@@ -38,13 +42,25 @@ export class GatewayProtocolError extends Error {
   }
 }
 
-/** Operator-provisioned local application socket, never a provider URL. */
+/**
+ * Operator-provisioned local application socket, never a provider URL. A Unix socket
+ * path must fit in the platform's `sun_path` with its terminating NUL: at most 107
+ * UTF-8 bytes on Linux and 103 elsewhere. A longer path throws a `TypeError` giving
+ * the path, its length in bytes, and the maximum.
+ */
 export class GatewayEndpoint {
   readonly path: string;
 
   constructor(path: string) {
-    if (typeof path !== "string" || !path.startsWith("/") || path.includes("\0") || new TextEncoder().encode(path).length > 100) {
-      throw new TypeError("gateway endpoint must be a short absolute Unix socket path");
+    if (typeof path !== "string" || !path.startsWith("/") || path.includes("\0")) {
+      throw new TypeError("gateway endpoint must be an absolute Unix socket path");
+    }
+    const size = new TextEncoder().encode(path).length;
+    if (size > MAX_SOCKET_PATH_BYTES) {
+      throw new TypeError(
+        `gateway socket path is ${size} bytes; this platform allows at most ${MAX_SOCKET_PATH_BYTES} ` +
+          `(sun_path is ${SUN_PATH_BYTES} bytes, including the terminating NUL): ${path}`,
+      );
     }
     this.path = path;
   }
@@ -457,7 +473,9 @@ export class GatewayClient {
           }
         }
       });
-      socket.once("error", () => finish(new GatewayProtocolError(`gateway exchange unavailable; ${consequence}`)));
+      socket.once("error", (error) =>
+        finish(new GatewayProtocolError(`gateway exchange unavailable; ${consequence}; path=${this.#endpoint.path}: ${error.message}`)),
+      );
       socket.once("end", () => finish(new GatewayProtocolError(`gateway response incomplete; ${consequence}`)));
     });
   }
