@@ -8,7 +8,7 @@
 //! leases.
 
 use super::*;
-use crate::ArgumentCeilingPolicy;
+use crate::{ArgumentCeilingPolicy, UnverifiedEntries};
 use auths_registries::BOUNDED_POLICY_COMMITMENT_EXTENSION_V1;
 use std::collections::BTreeSet;
 
@@ -762,21 +762,98 @@ fn statuses(report: &crate::AuditReport) -> Vec<(crate::AuditStatus, String)> {
         .collect()
 }
 
+/// Status, code, and `admitted` of every entry.
+fn rows(report: &crate::AuditReport) -> Vec<(crate::AuditStatus, String, bool)> {
+    report
+        .entries
+        .iter()
+        .map(|entry| (entry.status, entry.code.clone(), entry.admitted))
+        .collect()
+}
+
+/// Verified, refused, unverified, and inconsistent counts.
+fn counts(report: &crate::AuditReport) -> (usize, usize, usize, usize) {
+    (
+        report.verified,
+        report.refused,
+        report.unverified,
+        report.inconsistent,
+    )
+}
+
+/// The audit's result by default and with `--allow-unverified-refusals`.
+fn results(report: &crate::AuditReport) -> [Result<(), &'static str>; 2] {
+    [UnverifiedEntries::Fail, UnverifiedEntries::AllowRefusals].map(|policy| report.verdict(policy))
+}
+
+fn bundle_entries(bundle: &mut Value) -> &mut Vec<Value> {
+    bundle["entries"].as_array_mut().expect("entries")
+}
+
+/// Leaves every gateway-signed outcome out, as an export without them does.
+fn strip_outcomes(bundle: &mut Value) {
+    for entry in bundle_entries(bundle) {
+        entry.as_object_mut().expect("entry").remove("outcome_b64");
+    }
+}
+
+fn remove_outcome(bundle: &mut Value, index: usize) {
+    bundle_entries(bundle)[index]
+        .as_object_mut()
+        .expect("entry")
+        .remove("outcome_b64");
+}
+
+/// Flips the low bit of the middle byte of an entry's proof.
+fn flip_proof(bundle: &mut Value, index: usize) {
+    let entry = &mut bundle_entries(bundle)[index];
+    let mut proof = Base64UrlUnpadded::decode_vec(entry["proof_b64"].as_str().expect("proof"))
+        .expect("proof bytes");
+    let middle = proof.len() / 2;
+    proof[middle] ^= 1;
+    entry["proof_b64"] = Value::String(Base64UrlUnpadded::encode_string(&proof));
+}
+
+fn duplicate(bundle: &mut Value, index: usize) {
+    let copy = bundle_entries(bundle)[index].clone();
+    bundle_entries(bundle).push(copy);
+}
+
+/// Exchanges the proof, action, and outcome of two entries and keeps each
+/// operation ID. A missing outcome moves as `null`, which decodes the same.
+fn swap_evidence(bundle: &mut Value, first: usize, second: usize) {
+    let entries = bundle_entries(bundle);
+    for field in ["proof_b64", "action_b64", "outcome_b64"] {
+        let left = entries[first].get(field).cloned().unwrap_or(Value::Null);
+        let right = entries[second].get(field).cloned().unwrap_or(Value::Null);
+        entries[first][field] = right;
+        entries[second][field] = left;
+    }
+}
+
 #[tokio::test]
 async fn offline_audit_reproduces_every_gateway_decision() {
-    use crate::AuditStatus::{Refused, Verified};
+    use crate::AuditStatus::{Refused, Unverified, Verified};
     let quorum = RefundQuorum::open(500, 1, 3);
     let bundle = journey_bundle(&quorum).await;
     let report = audit(&bundle, &pins(&quorum));
+    // The two refusals made before the claim carry no outcome, so nothing
+    // shows what the gateway did with them; the auditor refuses both proofs.
     assert_eq!(
-        statuses(&report),
+        rows(&report),
         vec![
-            (Verified, "audit.verified".to_owned()),
-            (Refused, "composition-requirement-not-met".to_owned()),
-            (Refused, "gateway.policy.above-ceiling".to_owned()),
-            (Refused, "gateway.policy.window-exhausted".to_owned()),
+            (Verified, "audit.verified".to_owned(), true),
+            (
+                Unverified,
+                "composition-requirement-not-met".to_owned(),
+                false
+            ),
+            (Unverified, "gateway.policy.above-ceiling".to_owned(), false),
+            (Refused, "gateway.policy.window-exhausted".to_owned(), true),
         ]
     );
+    assert_eq!(counts(&report), (1, 1, 2, 0));
+    assert_eq!(results(&report), [Err("audit.unverified"), Ok(())]);
     let approvals: BTreeSet<&str> = report.entries[0]
         .approvals
         .iter()
@@ -855,6 +932,11 @@ async fn offline_audit_detects_a_tampered_bundle() {
     let pins = pins(&quorum);
     let finding = |bundle: &Value, pins: &crate::AuditPins| {
         let report = audit(bundle, pins);
+        assert_eq!(
+            results(&report),
+            [Err("audit.inconsistent"), Err("audit.inconsistent")],
+            "a tampered bundle fails under both policies"
+        );
         report
             .entries
             .iter()
@@ -864,15 +946,25 @@ async fn offline_audit_detects_a_tampered_bundle() {
     };
 
     let mut flipped = bundle.clone();
-    let mut proof =
-        Base64UrlUnpadded::decode_vec(flipped["entries"][0]["proof_b64"].as_str().expect("proof"))
-            .expect("proof bytes");
-    let middle = proof.len() / 2;
-    proof[middle] ^= 1;
-    flipped["entries"][0]["proof_b64"] = Value::String(Base64UrlUnpadded::encode_string(&proof));
+    flip_proof(&mut flipped, 0);
     assert_eq!(
         finding(&flipped, &pins),
         vec!["audit.entered-without-authority"]
+    );
+
+    // Each outcome's subject names the other operation.
+    let mut misfiled = bundle.clone();
+    swap_evidence(&mut misfiled, 0, 3);
+    assert_eq!(
+        finding(&misfiled, &pins),
+        vec!["audit.outcome-invalid", "audit.outcome-invalid"]
+    );
+
+    let mut duplicated = bundle.clone();
+    duplicate(&mut duplicated, 0);
+    assert_eq!(
+        finding(&duplicated, &pins),
+        vec!["audit.duplicate-operation"]
     );
 
     let mut swapped = bundle.clone();
@@ -901,13 +993,262 @@ async fn offline_audit_detects_a_tampered_bundle() {
     );
 }
 
+/// A bundle exported without outcomes verifies nothing: every entry is
+/// unverified, and the audit fails under both policies, because two of the
+/// proofs are admitted.
+#[tokio::test]
+async fn offline_audit_without_outcomes_reports_every_entry_unverified() {
+    use crate::AuditStatus::Unverified;
+    let quorum = RefundQuorum::open(500, 1, 3);
+    let mut bundle = journey_bundle(&quorum).await;
+    strip_outcomes(&mut bundle);
+    let report = audit(&bundle, &pins(&quorum));
+    assert_eq!(
+        rows(&report),
+        vec![
+            (Unverified, "audit.outcome-missing".to_owned(), true),
+            (
+                Unverified,
+                "composition-requirement-not-met".to_owned(),
+                false
+            ),
+            (Unverified, "gateway.policy.above-ceiling".to_owned(), false),
+            (Unverified, "audit.outcome-missing".to_owned(), true),
+        ]
+    );
+    assert_eq!(counts(&report), (0, 0, 4, 0));
+    assert_eq!(
+        results(&report),
+        [Err("audit.unverified"), Err("audit.unverified")]
+    );
+}
+
+/// An altered proof in a bundle without outcomes is never reported as a
+/// refusal, and the bundle fails under both policies.
+#[tokio::test]
+async fn offline_audit_without_outcomes_never_passes_an_altered_proof() {
+    use crate::AuditStatus::Unverified;
+    let quorum = RefundQuorum::open(500, 1, 3);
+    let mut bundle = journey_bundle(&quorum).await;
+    strip_outcomes(&mut bundle);
+    flip_proof(&mut bundle, 0);
+    let report = audit(&bundle, &pins(&quorum));
+    assert_eq!(
+        rows(&report),
+        vec![
+            (Unverified, "missing-reference".to_owned(), false),
+            (
+                Unverified,
+                "composition-requirement-not-met".to_owned(),
+                false
+            ),
+            (Unverified, "gateway.policy.above-ceiling".to_owned(), false),
+            (Unverified, "audit.outcome-missing".to_owned(), true),
+        ]
+    );
+    assert_eq!(counts(&report), (0, 0, 4, 0));
+    assert_eq!(
+        results(&report),
+        [Err("audit.unverified"), Err("audit.unverified")]
+    );
+}
+
+/// A duplicated operation needs no outcome to be found.
+#[tokio::test]
+async fn offline_audit_without_outcomes_flags_a_duplicated_entry() {
+    use crate::AuditStatus::{Inconsistent, Unverified};
+    let quorum = RefundQuorum::open(500, 1, 3);
+    let mut bundle = journey_bundle(&quorum).await;
+    strip_outcomes(&mut bundle);
+    duplicate(&mut bundle, 0);
+    let report = audit(&bundle, &pins(&quorum));
+    assert_eq!(
+        rows(&report)[4],
+        (Inconsistent, "audit.duplicate-operation".to_owned(), false)
+    );
+    assert!(
+        rows(&report)[..4]
+            .iter()
+            .all(|(status, _, _)| *status == Unverified)
+    );
+    assert_eq!(counts(&report), (0, 0, 4, 1));
+    assert_eq!(
+        results(&report),
+        [Err("audit.inconsistent"), Err("audit.inconsistent")]
+    );
+}
+
+/// A valid proof filed under another operation needs no outcome to be found.
+#[tokio::test]
+async fn offline_audit_without_outcomes_flags_misfiled_proofs() {
+    use crate::AuditStatus::{Inconsistent, Unverified};
+    let quorum = RefundQuorum::open(500, 1, 3);
+    let mut bundle = journey_bundle(&quorum).await;
+    strip_outcomes(&mut bundle);
+    swap_evidence(&mut bundle, 0, 3);
+    let report = audit(&bundle, &pins(&quorum));
+    assert_eq!(
+        rows(&report),
+        vec![
+            (Inconsistent, "audit.operation-mismatch".to_owned(), false),
+            (
+                Unverified,
+                "composition-requirement-not-met".to_owned(),
+                false
+            ),
+            (Unverified, "gateway.policy.above-ceiling".to_owned(), false),
+            (Inconsistent, "audit.operation-mismatch".to_owned(), false),
+        ]
+    );
+    assert_eq!(counts(&report), (0, 0, 2, 2));
+    assert_eq!(
+        results(&report),
+        [Err("audit.inconsistent"), Err("audit.inconsistent")]
+    );
+}
+
+/// A valid refund the gateway refused before recording it, here while its
+/// connection was disabled, carries no outcome. Offline it cannot be told
+/// apart from an entered refund whose outcome was removed, so it fails the
+/// audit under both policies.
+#[tokio::test]
+async fn offline_audit_fails_a_valid_submission_refused_while_disabled() {
+    use crate::AuditStatus::{Refused, Unverified, Verified};
+    let quorum = RefundQuorum::open(500, 1, 3);
+    let mut bundle = journey_bundle(&quorum).await;
+    quorum.harness.disable_entry();
+    // The second agent's count is untouched, so only the connection stops it.
+    let submission = quorum.submission(
+        "refund-5",
+        100,
+        &[
+            (&quorum.other, Some(&quorum.other_grant)),
+            quorum.manager(0),
+            quorum.manager(1),
+        ],
+    );
+    assert_eq!(
+        verdict(&quorum.harness.submit(&submission, NOW).await),
+        ("not-entered", Some("gateway.connection.unavailable"))
+    );
+    assert!(matches!(
+        quorum.harness.outcome("refund-5", NOW + 1).await,
+        GatewayObserveResult::Refused { .. }
+    ));
+    bundle_entries(&mut bundle).push(json!({
+        "operation_id": "refund-5",
+        "proof_b64": Base64UrlUnpadded::encode_string(&submission.proof),
+        "action_b64": Base64UrlUnpadded::encode_string(&submission.action),
+        "outcome_b64": null,
+    }));
+    let report = audit(&bundle, &pins(&quorum));
+    assert_eq!(
+        rows(&report),
+        vec![
+            (Verified, "audit.verified".to_owned(), true),
+            (
+                Unverified,
+                "composition-requirement-not-met".to_owned(),
+                false
+            ),
+            (Unverified, "gateway.policy.above-ceiling".to_owned(), false),
+            (Refused, "gateway.policy.window-exhausted".to_owned(), true),
+            (Unverified, "audit.outcome-missing".to_owned(), true),
+        ]
+    );
+    assert_eq!(counts(&report), (1, 1, 3, 0));
+    assert_eq!(
+        results(&report),
+        [Err("audit.unverified"), Err("audit.unverified")]
+    );
+}
+
+/// An entered refund whose outcome was left out of the bundle fails under
+/// both policies, and the recount no longer shows the exhaustion it caused.
+#[tokio::test]
+async fn offline_audit_fails_an_admitted_entry_whose_outcome_was_removed() {
+    use crate::AuditStatus::{Refused, Unverified};
+    let quorum = RefundQuorum::open(500, 1, 3);
+    let mut bundle = journey_bundle(&quorum).await;
+    remove_outcome(&mut bundle, 0);
+    let report = audit(&bundle, &pins(&quorum));
+    assert_eq!(
+        rows(&report),
+        vec![
+            (Unverified, "audit.outcome-missing".to_owned(), true),
+            (
+                Unverified,
+                "composition-requirement-not-met".to_owned(),
+                false
+            ),
+            (Unverified, "gateway.policy.above-ceiling".to_owned(), false),
+            (Refused, "gateway.policy.window-exhausted".to_owned(), true),
+        ]
+    );
+    assert_eq!(
+        report.entries[3]
+            .provider_result
+            .as_ref()
+            .and_then(|result| result.recount),
+        Some("not-shown-by-bundle")
+    );
+    assert_eq!(counts(&report), (0, 1, 3, 0));
+    assert_eq!(
+        results(&report),
+        [Err("audit.unverified"), Err("audit.unverified")]
+    );
+}
+
+/// The documented limit of `--allow-unverified-refusals`: once an entered
+/// refund's outcome is removed and its proof altered, the audit refuses the
+/// proof and the relaxed policy accepts the entry. It is still reported
+/// `unverified`, never `refused`, and the default policy fails it.
+#[tokio::test]
+async fn offline_audit_allowing_unverified_refusals_accepts_an_altered_proof_without_its_outcome() {
+    use crate::AuditStatus::{Refused, Unverified};
+    let quorum = RefundQuorum::open(500, 1, 3);
+    let mut bundle = journey_bundle(&quorum).await;
+    remove_outcome(&mut bundle, 0);
+    flip_proof(&mut bundle, 0);
+    let report = audit(&bundle, &pins(&quorum));
+    assert_eq!(
+        rows(&report),
+        vec![
+            (Unverified, "missing-reference".to_owned(), false),
+            (
+                Unverified,
+                "composition-requirement-not-met".to_owned(),
+                false
+            ),
+            (Unverified, "gateway.policy.above-ceiling".to_owned(), false),
+            (Refused, "gateway.policy.window-exhausted".to_owned(), true),
+        ]
+    );
+    assert_eq!(counts(&report), (0, 1, 3, 0));
+    assert_eq!(results(&report), [Err("audit.unverified"), Ok(())]);
+}
+
+#[tokio::test]
+async fn offline_audit_report_names_unverified_entries() {
+    let quorum = RefundQuorum::open(500, 1, 3);
+    let report = audit(&journey_bundle(&quorum).await, &pins(&quorum));
+    let value = serde_json::to_value(&report).expect("report JSON");
+    assert_eq!(value["schema"], "auths.gateway-audit-report/3");
+    assert_eq!(value["unverified"], 2);
+    assert_eq!(value["entries"][0]["admitted"], true);
+    for index in [1, 2] {
+        assert_eq!(value["entries"][index]["status"], "unverified");
+        assert_eq!(value["entries"][index]["admitted"], false);
+    }
+}
+
 /// A namespace served from two stores counts separately: a second gateway
 /// with its own store enters the refund the first refused. The audit finds
 /// two entered refunds on a counter of capacity one, which no arrival order
 /// allows, and flags both without relying on any order.
 #[tokio::test]
 async fn offline_audit_flags_an_over_admission_without_any_order() {
-    use crate::AuditStatus::{Inconsistent, Refused};
+    use crate::AuditStatus::{Inconsistent, Unverified};
     let first = RefundQuorum::open(500, 1, 3);
     let mut bundle = journey_bundle(&first).await;
     let second = RefundQuorum::open(500, 1, 3);
@@ -928,8 +1269,8 @@ async fn offline_audit_flags_an_over_admission_without_any_order() {
         statuses(&report),
         vec![
             (Inconsistent, "audit.bound-exceeded".to_owned()),
-            (Refused, "composition-requirement-not-met".to_owned()),
-            (Refused, "gateway.policy.above-ceiling".to_owned()),
+            (Unverified, "composition-requirement-not-met".to_owned()),
+            (Unverified, "gateway.policy.above-ceiling".to_owned()),
             (Inconsistent, "audit.bound-exceeded".to_owned()),
         ]
     );
