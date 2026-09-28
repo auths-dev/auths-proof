@@ -49,6 +49,11 @@ const PROFILE_LOCK = join(EXAMPLE, "profile.lock.json");
 export const MANAGERS = ["manager-a", "manager-b", "manager-c"] as const;
 const ROLES = ["root", "agent", ...MANAGERS] as const;
 const DAY = 86_400n;
+// The recipe declares a derived Idempotency-Key with 86 400 seconds of
+// provider retention. The gateway refuses an action whose approval window plus
+// its 60-second entry deadline exceeds that retention, so every entry of one
+// approved refund falls within one retention period of the first.
+const APPROVAL_WINDOW = 86_340;
 const MCP = { id: "auths.mcp", version: 2 };
 
 /** Root and actor keys are self-certifying, and actors are verifiable offline. */
@@ -315,6 +320,7 @@ async function proposal(state: string, operation: string): Promise<ApprovalPropo
     requester: facts.principals.agent!,
     challenge: hexBytes(facts.challenge_hex),
     evaluationTime: BigInt(pending.evaluation_time),
+    validitySeconds: APPROVAL_WINDOW,
   });
 }
 
