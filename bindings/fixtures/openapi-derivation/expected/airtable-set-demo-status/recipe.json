@@ -1,5 +1,5 @@
 {
-  "schema": "auths.gateway-recipe-source/1",
+  "schema": "auths.gateway-recipe-source/2",
   "profile_schema_digest": "2dbf645e83e39556502dd02e204ccec3e3a1102fe55739dc7f45b2632665ee17",
   "service": "airtable-gateway-demo",
   "tool": "set_demo_status_v1",

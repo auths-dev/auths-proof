@@ -1,6 +1,6 @@
 {
-  "schema": "auths.gateway-recipe-review/1",
-  "digest": "f1c5c36e049cfe8d02ce825c96f596e0453e5c9e8a63f4177bdcfcf099d30bb2",
+  "schema": "auths.gateway-recipe-review/2",
+  "digest": "6b9d1b80d7bfe89d46fcac348f73c42c302671226fa18fba8909e009d569abef",
   "operator_namespace": "notes-demo",
   "service": "notes",
   "tool": "setNoteLabel_v1",
@@ -16,6 +16,31 @@
     "kind": "header-api-key",
     "header": "X-Notes-Key"
   },
-  "operator_credential_header": "X-Notes-Key",
-  "has_observation": false
+  "maximum_body_bytes": 16384,
+  "has_observation": false,
+  "sends_idempotency_key": false,
+  "echo": null,
+  "preconditions": null,
+  "recovery": {
+    "schema": "auths.gateway-recovery-capability/1",
+    "class": "recorded",
+    "state_observation": "none",
+    "provider_link": "none",
+    "unknown_resolution": "none",
+    "lost_claim_reentry": {
+      "deduplication": "none"
+    },
+    "pre_entry_reread": false,
+    "write_is_conditional": false
+  },
+  "write_is_conditional": false,
+  "provider_headers": null,
+  "credential_guard": null,
+  "idempotency": null,
+  "observation": null,
+  "pre_entry": null,
+  "account_scope": null,
+  "relative_ceiling": null,
+  "bounds": null,
+  "operator_credential_header": "X-Notes-Key"
 }

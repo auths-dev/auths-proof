@@ -1,5 +1,5 @@
 {
-  "schema": "auths.gateway-recipe-source/1",
+  "schema": "auths.gateway-recipe-source/2",
   "profile_schema_digest": "3b7cf471aac444931be7ec82435618d77a3a50d90f1c855e0b0ba589e2135de3",
   "service": "notes",
   "tool": "createNote_v1",

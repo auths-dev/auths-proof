@@ -1,7 +1,7 @@
 //! Recipe source `/2`: valid bases with the recovery class each compiles to,
 //! and hostile cases for every construct the revision adds.
 //!
-//! The bases are derived from the committed `/1` fixtures and the north-star
+//! The bases are derived from the committed fixtures and the north-star
 //! example, so a change to either makes this fixture stale. Each hostile case
 //! is one base plus mutations that break exactly one compile rule; no case
 //! depends on the order in which the compiler checks its rules.
@@ -76,8 +76,8 @@ fn airtable_pre_entry_lock() -> Value {
     )
 }
 
-/// A committed `/1` recipe under the `/2` schema, with its echo placement in
-/// the `/2` object form.
+/// A committed recipe under the `/2` schema, with its echo placement in the
+/// `/2` object form.
 fn revised(bytes: &[u8]) -> Value {
     let mut recipe = parse(bytes);
     recipe["schema"] = json!(SOURCE_V2);
@@ -97,12 +97,12 @@ fn fixed(values: &[&str]) -> Value {
     )
 }
 
+/// The north-star recipe under `/2` with today's semantics: the derived
+/// idempotency header and nothing else the revision adds.
 fn stripe_plain() -> Value {
     let mut recipe = revised(STRIPE);
     let write = recipe["write"].as_object_mut().expect("write");
-    write
-        .remove("idempotency_key")
-        .expect("north-star key flag");
+    write.remove("idempotency_key");
     write.insert(
         "idempotency".into(),
         json!({"kind": "derived-header", "retention_seconds": 86_400}),
@@ -1036,30 +1036,55 @@ fn compile(recipe: &Value, lock: &Value) -> Result<CompiledRecipe, crate::Gatewa
     )
 }
 
-/// Today's compiler reads only `/1`: every base is refused before any revised
-/// construct is examined, so no hostile case can reach the rule it targets.
-/// The one case that restores `/1` compiles, although `/2` refuses it.
+fn apply(base: &Value, case: &Value) -> Value {
+    let mut recipe = base["recipe"].clone();
+    for mutation in case["mutations"].as_array().expect("mutations") {
+        apply_mutation(&mut recipe, mutation);
+    }
+    recipe
+}
+
+/// Every base compiles to its documented recovery capability and digest, and
+/// the committed fixtures and north-star recipe are exactly their bases.
 #[test]
-fn current_compiler_refuses_every_revised_recipe() {
+fn every_base_compiles_to_its_documented_class_and_digest() {
     let corpus = load(FILE);
-    let invalid = "gateway.recipe.invalid-source";
     let bases = corpus["bases"].as_object().expect("bases");
     for (id, base) in bases {
-        let error = compile(&base["recipe"], &base["lock"]).expect_err(id);
-        assert_eq!(error.code(), invalid, "base {id}");
+        let recipe = compile(&base["recipe"], &base["lock"]).expect(id);
+        assert_eq!(recipe.digest_hex(), base["digest"], "base {id}");
+        assert_eq!(
+            recipe.review_document()["recovery"],
+            base["recovery"],
+            "base {id}"
+        );
     }
+    for (id, source, lock) in [
+        ("airtable", AIRTABLE, AIRTABLE_LOCK),
+        ("todoist", TODOIST, TODOIST_LOCK),
+        ("github", GITHUB, GITHUB_LOCK),
+        ("stripe-plain", STRIPE, STRIPE_LOCK),
+    ] {
+        let committed = CompiledRecipe::compile(source, lock).expect(id);
+        assert_eq!(
+            committed.digest_hex(),
+            bases[id]["digest"],
+            "committed {id}"
+        );
+    }
+}
+
+/// Every hostile case fails with its documented code.
+#[test]
+fn every_hostile_case_fails_with_its_code() {
+    let corpus = load(FILE);
+    let bases = corpus["bases"].as_object().expect("bases");
     let mut ids = std::collections::BTreeSet::new();
     for case in corpus["cases"].as_array().expect("cases") {
         let id = case["id"].as_str().expect("id");
         assert!(ids.insert(id), "duplicate case {id}");
         let base = &bases[case["base"].as_str().expect("base")];
-        let mut recipe = base["recipe"].clone();
-        for mutation in case["mutations"].as_array().expect("mutations") {
-            apply_mutation(&mut recipe, mutation);
-        }
-        match compile(&recipe, &base["lock"]) {
-            Ok(_) => assert_eq!(id, "schema-v1-refused"),
-            Err(error) => assert_eq!(error.code(), invalid, "case {id}"),
-        }
+        let error = compile(&apply(base, case), &base["lock"]).expect_err(id);
+        assert_eq!(error.code(), case["code"], "case {id}");
     }
 }

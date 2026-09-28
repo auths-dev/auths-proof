@@ -510,26 +510,20 @@ fn attempt_scenarios_v3_are_current() {
     require_current(FILE, &document());
 }
 
-/// Today's store writes attempt record `/2`, and today's compiler refuses the
-/// recipe of every scenario, so none of these scenarios can run.
+/// Today's store writes attempt record `/2`, so none of these scenarios can
+/// run yet. Every scenario's recipe already compiles under `/2`.
 #[tokio::test]
-async fn current_store_and_compiler_cannot_run_attempt_scenarios_v3() {
+async fn current_store_cannot_run_attempt_scenarios_v3() {
     let scenarios = load(FILE);
     assert_eq!(scenarios["attempt_schema"], ATTEMPT_SCHEMA);
     let corpus = load(recipes::FILE);
     for case in scenarios["cases"].as_array().expect("cases") {
         let base = &corpus["bases"][case["recipe"].as_str().expect("recipe")];
-        let refused = CompiledRecipe::compile(
+        CompiledRecipe::compile(
             &serde_json::to_vec(&base["recipe"]).expect("recipe"),
             &serde_json::to_vec(&base["lock"]).expect("lock"),
         )
-        .expect_err("revised recipe");
-        assert_eq!(
-            refused.code(),
-            "gateway.recipe.invalid-source",
-            "{}",
-            case["id"]
-        );
+        .expect("scenario recipe compiles");
     }
     let recipe = CompiledRecipe::compile(
         include_bytes!("../../../../../bindings/fixtures/gateway/github/recipe.json"),

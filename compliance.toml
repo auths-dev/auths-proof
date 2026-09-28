@@ -320,7 +320,7 @@ kind = "cargo"
 layer = "product"
 path = "product/tools/auths-openapi-derive"
 core_apis = []
-protocol_versions = ["auths.gateway-recipe-source/1", "auths.openapi-derivation-record-result/1", "auths.openapi-derivation/1", "auths.openapi-derive-result/1", "auths.self-hosted-profile-lock/1"]
+protocol_versions = ["auths.gateway-recipe-source/2", "auths.openapi-derivation-record-result/1", "auths.openapi-derivation/1", "auths.openapi-derive-result/1", "auths.self-hosted-profile-lock/1"]
 wire_objects = []
 fixture_suites = ["bindings/fixtures/openapi-corpus", "bindings/fixtures/openapi-derivation"]
 principal_families = []
@@ -1653,8 +1653,8 @@ kind = "cargo"
 layer = "product"
 path = "product/runtime/auths-gateway"
 core_apis = ["auths-author", "auths-codec", "auths-did-keri", "auths-did-key", "auths-model", "auths-ports", "auths-raw-key", "auths-registries", "auths-signature", "auths-verifier"]
-protocol_versions = ["auths.gateway-installation/2", "auths.lifecycle.transactional-store/4", "auths.gateway-recipe-source/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/2", "auths.gateway-echo/1", "auths.gateway-idempotency-key/1", "auths.gateway-observe/1", "auths.gateway-outcome/1", "auths.gateway-readback/1", "auths.self-hosted-profile-lock/1", "mcp-arguments-v1", "auths.gateway-bounded-count/1", "auths.gateway-audit-bundle/1", "auths.gateway-audit-report/1", "auths.gateway.argument-ceiling-window-count/1", "bounded-policy-commitment-v1", "auths.approval-response/1"]
-wire_objects = ["CompiledRecipe", "ClosedProviderRequest", "GatewayAttemptSnapshot", "GatewayConnectionDescriptor", "GatewayEvidenceSummary", "GatewayObserveRequest", "GatewayObserveResult", "GatewayProviderEvidence", "GatewaySubmitResult", "SignedObservation", "ArgumentCeilingPolicy", "BoundedPolicyCommitment", "AuditReport"]
+protocol_versions = ["auths.gateway-installation/2", "auths.lifecycle.transactional-store/4", "auths.gateway-recipe-source/2", "auths.gateway-compiled-recipe/2", "auths.gateway-recipe-review/2", "auths.gateway-recovery-capability/1", "auths.gateway-connection-descriptor/1", "auths.gateway-attempt/2", "auths.gateway-echo/1", "auths.gateway-idempotency-key/1", "auths.gateway-observe/1", "auths.gateway-outcome/1", "auths.gateway-readback/1", "auths.self-hosted-profile-lock/1", "mcp-arguments-v1", "auths.gateway-bounded-count/1", "auths.gateway-audit-bundle/1", "auths.gateway-audit-report/1", "auths.gateway.argument-ceiling-window-count/1", "bounded-policy-commitment-v1", "auths.approval-response/1"]
+wire_objects = ["CompiledRecipe", "ClosedProviderRequest", "ClosedCredentialReads", "RecipeReview", "RecoveryCapability", "GatewayAttemptSnapshot", "GatewayConnectionDescriptor", "GatewayEvidenceSummary", "GatewayObserveRequest", "GatewayObserveResult", "GatewayProviderEvidence", "GatewaySubmitResult", "SignedObservation", "ArgumentCeilingPolicy", "BoundedPolicyCommitment", "AuditReport"]
 fixture_suites = ["bindings/fixtures/approval", "bindings/fixtures/gateway"]
 principal_families = ["raw-key-v1"]
 signature_families = ["ed25519-v1", "p256-sha256-v1"]
@@ -1665,18 +1665,29 @@ security_state = ["recipe-digest", "logical-operation-claims", "credential-refer
 
 [packages.auths-gateway.claims]
 configuration-compiler = [
-  "product/runtime/auths-gateway/src/recipe.rs#three_independent_recipes_compile_without_provider_code",
-  "product/runtime/auths-gateway/src/recipe.rs#hostile_recipe_corpus_fails_with_exact_codes",
-  "product/runtime/auths-gateway/src/recipe.rs#github_recipe_change_invalidates_old_authorized_arguments",
-  "product/runtime/auths-gateway/src/recipe.rs#echo_changes_the_digest_and_is_shown_in_review",
-  "product/runtime/auths-gateway/src/recipe.rs#echo_token_is_domain_separated_and_bound_to_every_input",
-  "product/runtime/auths-gateway/src/recipe.rs#idempotency_key_is_domain_separated_and_bound_to_namespace_and_operation",
-  "product/runtime/auths-gateway/src/recipe.rs#idempotency_key_is_opt_in_reviewed_and_digest_bound",
-  "product/runtime/auths-gateway/src/recipe.rs#closed_request_carries_the_derived_key_only_when_declared",
-  "product/runtime/auths-gateway/src/recipe.rs#preconditions_are_closed_reviewed_and_digest_bound",
-  "product/runtime/auths-gateway/src/recipe.rs#read_back_subject_must_name_exactly_the_observed_record",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#three_independent_recipes_compile_without_provider_code",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#hostile_recipe_corpus_fails_with_exact_codes",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#github_recipe_change_invalidates_old_authorized_arguments",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#echo_changes_the_digest_and_is_shown_in_review",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#echo_token_is_domain_separated_and_bound_to_every_input",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#idempotency_key_is_domain_separated_and_bound_to_namespace_and_operation",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#idempotency_is_opt_in_reviewed_and_digest_bound",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#closed_request_carries_the_derived_key_only_when_declared",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#preconditions_are_closed_reviewed_and_digest_bound",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#read_back_subject_must_name_exactly_the_observed_record",
   "product/runtime/auths-gateway/src/app.rs#observation_frame_is_closed_and_read_only",
-  "product/runtime/auths-gateway/src/recipe.rs#form_body_renders_an_integer_field_as_decimal_text",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#form_body_renders_an_integer_field_as_decimal_text",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#source_v1_is_refused_without_a_reader",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#review_document_is_v2_and_discloses_every_declaration",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#form_echo_is_placed_in_sorted_field_order",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#account_scope_header_is_exact_on_the_write_and_action_reads_and_nowhere_else",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#account_scope_value_outside_its_grammar_is_refused",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#credential_reads_are_fixed_and_carry_no_action_value",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#only_executed_capabilities_run_in_an_engine",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#construction_leaf_matches_the_serde_oracle_on_json_bodies",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#construction_leaf_matches_the_serde_oracle_on_form_bodies",
+  "product/runtime/auths-gateway/src/pending_vectors/recipes.rs#every_base_compiles_to_its_documented_class_and_digest",
+  "product/runtime/auths-gateway/src/pending_vectors/recipes.rs#every_hostile_case_fails_with_its_code",
 ]
 principal-evidence-integration = [
   "product/runtime/auths-gateway/src/observer.rs#observer_seed_is_owner_only_never_overwritten_and_never_printed",
@@ -1719,9 +1730,9 @@ runtime-enforcement-boundary = [
   "product/runtime/auths-gateway/src/transport.rs#write_sends_the_derived_idempotency_key_only_when_declared_and_read_back_never_does",
 ]
 stateful-replay-budget-component = [
-  "product/runtime/auths-gateway/src/recipe.rs#durable_claim_is_one_use_across_races_and_restart",
-  "product/runtime/auths-gateway/src/recipe.rs#response_and_observation_are_distinct_durable_stages",
-  "product/runtime/auths-gateway/src/recipe.rs#read_back_links_only_an_exact_token_with_the_verified_value",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#durable_claim_is_one_use_across_races_and_restart",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#response_and_observation_are_distinct_durable_stages",
+  "product/runtime/auths-gateway/src/recipe/tests.rs#read_back_links_only_an_exact_token_with_the_verified_value",
   "product/runtime/auths-gateway/src/engine.rs#attempt_scenario_corpus_drives_the_counting_provider",
   "product/runtime/auths-gateway/src/engine.rs#normal_write_reaches_observed_by_provider_with_secret_free_evidence",
   "product/runtime/auths-gateway/src/engine.rs#a_lost_claim_resends_the_same_idempotency_key",
@@ -1730,6 +1741,32 @@ stateful-replay-budget-component = [
   "product/runtime/auths-gateway/src/engine.rs#postgres_attempt_scenario_corpus_drives_the_counting_provider",
   "product/runtime/auths-gateway/src/bounds_tests.rs#postgres_per_principal_bounds_admit_only_actions_inside_the_signer_bound",
   "product/runtime/auths-gateway/src/bounds.rs#window_reservation_takes_exactly_the_maximum",
+]
+
+[packages.auths-gateway-kernel]
+kind = "cargo"
+layer = "product"
+path = "product/runtime/auths-gateway-kernel"
+core_apis = []
+protocol_versions = ["auths.gateway-recovery-capability/1"]
+wire_objects = ["BuiltRequest", "RecoveryCapability"]
+fixture_suites = ["bindings/fixtures/gateway"]
+principal_families = []
+signature_families = []
+profiles = []
+transports = []
+configuration_inputs = ["operator-approved-recipe"]
+security_state = []
+
+[packages.auths-gateway-kernel.claims]
+configuration-compiler = [
+  "product/runtime/auths-gateway-kernel/src/recovery.rs#recovery_capability_matches_its_table_for_every_declaration",
+  "product/runtime/auths-gateway-kernel/src/construct.rs#json_strings_follow_rfc_8785_escaping",
+  "product/runtime/auths-gateway-kernel/src/construct.rs#path_and_form_encoding_never_pass_a_separator",
+  "product/runtime/auths-gateway-kernel/src/construct.rs#account_scope_grammar_admits_only_account_identifiers",
+  "product/runtime/auths-gateway-kernel/src/construct.rs#write_carries_versions_scope_and_key_and_reads_carry_no_key",
+  "product/runtime/auths-gateway-kernel/src/construct.rs#credential_reads_carry_only_fixed_segments_and_version_headers",
+  "product/runtime/auths-gateway-kernel/src/construct.rs#body_bound_and_argument_kinds_are_enforced",
 ]
 
 [packages.auths-node]

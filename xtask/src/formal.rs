@@ -362,6 +362,7 @@ pub(crate) fn ci_formal_proof_fast() -> Result<(), String> {
         "Auths.Refinement.Production",
         "Auths.Refinement.Observation",
         "Auths.Product.Refinement",
+        "Auths.Product.Refinement.Gateway",
         "Auths.Lifecycle.Refinement",
         "Auths.Rich.Mutations",
         "qualification",
@@ -1728,11 +1729,17 @@ pub(crate) fn synchronize_formal_assurance_manifest(
                 .unwrap_or(&declaration.name);
             let phrase = short_name.replace('_', " ");
             let is_product = declaration.name.starts_with("Auths.Product.");
+            let is_gateway = declaration.name.starts_with("Auths.Product.Recovery.")
+                || declaration
+                    .name
+                    .starts_with("Auths.Product.RequestConstruction.");
             let is_lifecycle = declaration.name.starts_with("Auths.Lifecycle.");
             FormalAssuranceClaim {
                 claim_id: format!("AP-FORMAL-RICH-{rich_index:03}"),
                 claim_text: if is_lifecycle {
                     format!("Lean proves the reservation/execution lifecycle property: {phrase}.")
+                } else if is_gateway {
+                    format!("Lean proves the gateway recipe property: {phrase}.")
                 } else if is_product {
                     format!("Lean proves the bounded product-policy property: {phrase}.")
                 } else {
@@ -1752,6 +1759,8 @@ pub(crate) fn synchronize_formal_assurance_manifest(
                 }],
                 scope: if is_lifecycle {
                     "Pure V1 lifecycle transitions, capacity conservation, replay, configuration gates, credential ordering, provider entry, and reconciliation.".to_owned()
+                } else if is_gateway {
+                    "Pure gateway recipe semantics: the recovery capability a recipe's declarations determine, and closed request construction over every compiled plan and argument list.".to_owned()
                 } else if is_product {
                     "Pure V1 bounded product-policy commitments, checked arithmetic, configuration gating, and eligibility.".to_owned()
                 } else {
@@ -2060,10 +2069,12 @@ struct ProductionRefinementMetadata {
 
 const AUTHORITY_TRANSLATION: &str = "formal/qualification/aeneas/generated/authority/Funs.lean";
 const MODEL_TRANSLATION: &str = "formal/qualification/aeneas/generated/model/Funs.lean";
+const GATEWAY_TRANSLATION: &str = "formal/qualification/aeneas/generated/gateway/Funs.lean";
 
 /// Qualified refinement metadata together with the generated translation the
 /// claim must cite: the authority evaluators live in the authority crate's
-/// translation, the observation predicates in the model crate's.
+/// translation, the observation predicates in the model crate's, and the
+/// gateway leaves in the gateway kernel's.
 fn qualified_refinement_metadata(
     declaration: &str,
 ) -> Option<(ProductionRefinementMetadata, &'static str)> {
@@ -2073,6 +2084,49 @@ fn qualified_refinement_metadata(
             observation_refinement_metadata(declaration)
                 .map(|metadata| (metadata, MODEL_TRANSLATION))
         })
+        .or_else(|| {
+            gateway_refinement_metadata(declaration).map(|metadata| (metadata, GATEWAY_TRANSLATION))
+        })
+}
+
+fn gateway_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    const COMMON: &str = "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the listed foundational axioms, and the theorem's explicit representation-validity premise (every buffer the leaf builds is shorter than u32::MAX bytes) are trusted.";
+    const BOUNDARY: &str = "Recipe compilation, plan lowering, argument conversion from the verified MCP command, the echo-token and idempotency-key hashes, and the HTTP transport are outside this theorem; the compiler and conversion are covered by the hostile recipe corpus, the serde oracle, and fuzzing.";
+    const RESIDUAL: &[&str] = &[COMMON, BOUNDARY];
+    const RECOVERY: &str = "auths_gateway_kernel::recovery::recovery_capability";
+    const WRITE: &str = "auths_gateway_kernel::construct::construct_write";
+    const ACTION_READ: &str = "auths_gateway_kernel::construct::construct_action_read";
+    const CREDENTIAL_READ: &str = "auths_gateway_kernel::construct::construct_credential_read";
+    let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
+        "Auths.Product.Refinement.Gateway.translated_recovery_capability_refines_model" => (
+            "The mechanically translated recovery-capability leaf returns exactly the model's capability for every declaration set.",
+            &[RECOVERY],
+            "Every observation locator, echo flag, idempotency declaration, and pre-entry flag.",
+        ),
+        "Auths.Product.Refinement.Gateway.translated_construct_write_refines_model" => (
+            "The mechanically translated write construction returns exactly the model's request or refusal.",
+            &[WRITE],
+            "Every write plan and argument list: path validation and percent-encoding, the canonical JSON or form body with the echo, version, account-scope, and idempotency headers, and the path and body bounds.",
+        ),
+        "Auths.Product.Refinement.Gateway.translated_construct_action_read_refines_model" => (
+            "The mechanically translated action-read construction returns exactly the model's request or refusal.",
+            &[ACTION_READ],
+            "Every action-read plan and argument list: the encoded path and the version and account-scope headers.",
+        ),
+        "Auths.Product.Refinement.Gateway.translated_construct_credential_read_refines_model" => (
+            "The mechanically translated credential-read construction returns exactly the model's request, a function of the plan alone.",
+            &[CREDENTIAL_READ],
+            "Every credential-read plan: the fixed path and the version headers.",
+        ),
+        _ => return None,
+    };
+    Some(ProductionRefinementMetadata {
+        claim_text,
+        rust_symbols,
+        scope,
+        residual_assumptions: RESIDUAL,
+        translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+    })
 }
 
 fn validate_production_evidence(
@@ -2653,6 +2707,35 @@ mod phase_ordering {
             AUTHORITY_TRANSLATION,
         )
         .expect("complete production evidence");
+    }
+
+    #[test]
+    fn gateway_refinement_metadata_binds_every_claim_to_the_gateway_translation() {
+        let inventory = include_str!("../../formal/Auths/Theorems.lean");
+        let qualification = include_str!("../../formal/qualification/aeneas/qualification.toml");
+        let declarations = inventory
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix('`'))
+            .map(|name| name.trim_end_matches(','))
+            .filter(|name| name.starts_with("Auths.Product.Refinement.Gateway."))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            declarations.len(),
+            4,
+            "every gateway refinement is inventoried"
+        );
+        for declaration in &declarations {
+            let (metadata, artifact) = qualified_refinement_metadata(declaration)
+                .unwrap_or_else(|| panic!("{declaration} lacks qualified metadata"));
+            assert_eq!(artifact, GATEWAY_TRANSLATION);
+            for symbol in metadata.rust_symbols {
+                assert!(
+                    qualification.contains(&format!("\"{symbol}\"")),
+                    "{declaration} cites {symbol}, which is not a qualified translation symbol"
+                );
+            }
+            assert!(metadata.residual_assumptions.join(" ").contains("u32::MAX"));
+        }
     }
 
     #[test]

@@ -167,6 +167,11 @@
       "path": "product/runtime/auths-gateway"
     },
     {
+      "name": "auths-gateway-kernel",
+      "layer": "product",
+      "path": "product/runtime/auths-gateway-kernel"
+    },
+    {
       "name": "auths-git-signing",
       "layer": "product",
       "path": "product/integrations/auths-git-signing"
@@ -3372,6 +3377,18 @@
     {
       "source": "auths-gateway",
       "source_layer": "product",
+      "target": "auths-gateway-kernel",
+      "target_layer": "product",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
       "target": "auths-lifecycle",
       "target_layer": "product",
       "scope": "internal",
@@ -3608,6 +3625,18 @@
       "target_condition": null,
       "optional": false,
       "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "proptest",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
       "features": []
     },
     {

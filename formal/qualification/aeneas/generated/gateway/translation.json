@@ -1,0 +1,1748 @@
+{
+  "aeneas_version": "3a8586facab25b31bdb1e1f5f45acd60d1cc5ff0",
+  "charon_version": "0.1.225",
+  "crate": "auths_gateway_kernel",
+  "functions": [
+    {
+      "def_id": 21,
+      "lean_name": "auths_gateway_kernel.construct.append_bytes_loop.body",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_bytes",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 213,
+        "end_line": 216
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.append_bytes"
+    },
+    {
+      "def_id": 21,
+      "lean_name": "auths_gateway_kernel.construct.append_bytes_loop",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_bytes",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 213,
+        "end_line": 216
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.append_bytes"
+    },
+    {
+      "def_id": 21,
+      "lean_name": "auths_gateway_kernel.construct.append_bytes",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_bytes",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 211,
+        "end_line": 218
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": true
+    },
+    {
+      "def_id": 13,
+      "lean_name": "auths_gateway_kernel.construct.copy_bytes",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::copy_bytes",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 222,
+        "end_line": 224
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 63,
+      "lean_name": "auths_gateway_kernel.construct.is_alphanumeric",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::is_alphanumeric",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 228,
+        "end_line": 232
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 59,
+      "lean_name": "auths_gateway_kernel.construct.is_path_literal",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::is_path_literal",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 236,
+        "end_line": 238
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 61,
+      "lean_name": "auths_gateway_kernel.construct.is_form_literal",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::is_form_literal",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 242,
+        "end_line": 244
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 64,
+      "lean_name": "auths_gateway_kernel.construct.hex_upper",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::hex_upper",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 248,
+        "end_line": 254
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 65,
+      "lean_name": "auths_gateway_kernel.construct.hex_lower",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::hex_lower",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 258,
+        "end_line": 264
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 60,
+      "lean_name": "auths_gateway_kernel.construct.append_percent",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_percent",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 268,
+        "end_line": 273
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 54,
+      "lean_name": "auths_gateway_kernel.construct.append_path_byte",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_path_byte",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 278,
+        "end_line": 285
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 48,
+      "lean_name": "auths_gateway_kernel.construct.append_path_encoded_loop.body",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_path_encoded",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 291,
+        "end_line": 294
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.append_path_encoded"
+    },
+    {
+      "def_id": 48,
+      "lean_name": "auths_gateway_kernel.construct.append_path_encoded_loop",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_path_encoded",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 291,
+        "end_line": 294
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.append_path_encoded"
+    },
+    {
+      "def_id": 48,
+      "lean_name": "auths_gateway_kernel.construct.append_path_encoded",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_path_encoded",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 289,
+        "end_line": 296
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": true
+    },
+    {
+      "def_id": 47,
+      "lean_name": "auths_gateway_kernel.construct.segment_value_valid",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::segment_value_valid",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 301,
+        "end_line": 309
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 37,
+      "lean_name": "auths_gateway_kernel.construct.segment_error",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::segment_error",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 313,
+        "end_line": 334
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 18,
+      "lean_name": "auths_gateway_kernel.construct.path_error_loop.body",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::path_error",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 340,
+        "end_line": 348
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.path_error"
+    },
+    {
+      "def_id": 18,
+      "lean_name": "auths_gateway_kernel.construct.path_error_loop",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::path_error",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 340,
+        "end_line": 348
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.path_error"
+    },
+    {
+      "def_id": 18,
+      "lean_name": "auths_gateway_kernel.construct.path_error",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::path_error",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 338,
+        "end_line": 348
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": true
+    },
+    {
+      "def_id": 39,
+      "lean_name": "auths_gateway_kernel.construct.append_segment",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_segment",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 353,
+        "end_line": 372
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 19,
+      "lean_name": "auths_gateway_kernel.construct.append_segments_loop.body",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_segments",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 382,
+        "end_line": 385
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.append_segments"
+    },
+    {
+      "def_id": 19,
+      "lean_name": "auths_gateway_kernel.construct.append_segments_loop",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_segments",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 382,
+        "end_line": 385
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.append_segments"
+    },
+    {
+      "def_id": 19,
+      "lean_name": "auths_gateway_kernel.construct.append_segments",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_segments",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 376,
+        "end_line": 387
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": true
+    },
+    {
+      "def_id": 8,
+      "lean_name": "auths_gateway_kernel.construct.build_url",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::build_url",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 394,
+        "end_line": 408
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 16,
+      "lean_name": "auths_gateway_kernel.construct.fixed_url_loop.body",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::fixed_url",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 415,
+        "end_line": 419
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.fixed_url"
+    },
+    {
+      "def_id": 16,
+      "lean_name": "auths_gateway_kernel.construct.fixed_url_loop",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::fixed_url",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 415,
+        "end_line": 419
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.fixed_url"
+    },
+    {
+      "def_id": 16,
+      "lean_name": "auths_gateway_kernel.construct.fixed_url",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::fixed_url",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 412,
+        "end_line": 421
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 36,
+      "lean_name": "auths_gateway_kernel.construct.copy_header",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::copy_header",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 425,
+        "end_line": 430
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 17,
+      "lean_name": "auths_gateway_kernel.construct.append_version_headers_loop.body",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_version_headers",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 436,
+        "end_line": 439
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.append_version_headers"
+    },
+    {
+      "def_id": 17,
+      "lean_name": "auths_gateway_kernel.construct.append_version_headers_loop",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_version_headers",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 436,
+        "end_line": 439
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.append_version_headers"
+    },
+    {
+      "def_id": 17,
+      "lean_name": "auths_gateway_kernel.construct.append_version_headers",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_version_headers",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 434,
+        "end_line": 441
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": true
+    },
+    {
+      "def_id": 57,
+      "lean_name": "auths_gateway_kernel.construct.is_account_byte",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::is_account_byte",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 445,
+        "end_line": 447
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 52,
+      "lean_name": "auths_gateway_kernel.construct.account_bytes_valid_loop.body",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::account_bytes_valid",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 453,
+        "end_line": 460
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.account_bytes_valid"
+    },
+    {
+      "def_id": 52,
+      "lean_name": "auths_gateway_kernel.construct.account_bytes_valid_loop",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::account_bytes_valid",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 453,
+        "end_line": 460
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.account_bytes_valid"
+    },
+    {
+      "def_id": 52,
+      "lean_name": "auths_gateway_kernel.construct.account_bytes_valid",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::account_bytes_valid",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 451,
+        "end_line": 460
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": true
+    },
+    {
+      "def_id": 46,
+      "lean_name": "auths_gateway_kernel.construct.scope_value_valid",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::scope_value_valid",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 465,
+        "end_line": 478
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 31,
+      "lean_name": "auths_gateway_kernel.construct.account_scope_header",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::account_scope_header",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 484,
+        "end_line": 506
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 12,
+      "lean_name": "auths_gateway_kernel.construct.action_headers",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::action_headers",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 513,
+        "end_line": 528
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 62,
+      "lean_name": "auths_gateway_kernel.construct.append_json_byte",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_json_byte",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 534,
+        "end_line": 564
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 56,
+      "lean_name": "auths_gateway_kernel.construct.append_json_escaped_loop.body",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_json_escaped",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 570,
+        "end_line": 573
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.append_json_escaped"
+    },
+    {
+      "def_id": 56,
+      "lean_name": "auths_gateway_kernel.construct.append_json_escaped_loop",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_json_escaped",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 570,
+        "end_line": 573
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.append_json_escaped"
+    },
+    {
+      "def_id": 56,
+      "lean_name": "auths_gateway_kernel.construct.append_json_escaped",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_json_escaped",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 568,
+        "end_line": 575
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": true
+    },
+    {
+      "def_id": 50,
+      "lean_name": "auths_gateway_kernel.construct.append_json_string",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_json_string",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 579,
+        "end_line": 584
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 51,
+      "lean_name": "auths_gateway_kernel.construct.append_json_argument",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_json_argument",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 588,
+        "end_line": 608
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 42,
+      "lean_name": "auths_gateway_kernel.construct.json_piece_valid",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::json_piece_valid",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 612,
+        "end_line": 617
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 28,
+      "lean_name": "auths_gateway_kernel.construct.json_pieces_valid_loop.body",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::json_pieces_valid",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 623,
+        "end_line": 630
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.json_pieces_valid"
+    },
+    {
+      "def_id": 28,
+      "lean_name": "auths_gateway_kernel.construct.json_pieces_valid_loop",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::json_pieces_valid",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 623,
+        "end_line": 630
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.json_pieces_valid"
+    },
+    {
+      "def_id": 28,
+      "lean_name": "auths_gateway_kernel.construct.json_pieces_valid",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::json_pieces_valid",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 621,
+        "end_line": 630
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": true
+    },
+    {
+      "def_id": 44,
+      "lean_name": "auths_gateway_kernel.construct.append_json_piece",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_json_piece",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 634,
+        "end_line": 651
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 30,
+      "lean_name": "auths_gateway_kernel.construct.append_json_pieces_loop.body",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_json_pieces",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 662,
+        "end_line": 665
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.append_json_pieces"
+    },
+    {
+      "def_id": 30,
+      "lean_name": "auths_gateway_kernel.construct.append_json_pieces_loop",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_json_pieces",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 662,
+        "end_line": 665
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.append_json_pieces"
+    },
+    {
+      "def_id": 30,
+      "lean_name": "auths_gateway_kernel.construct.append_json_pieces",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_json_pieces",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 655,
+        "end_line": 667
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": true
+    },
+    {
+      "def_id": 55,
+      "lean_name": "auths_gateway_kernel.construct.append_form_byte",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_form_byte",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 672,
+        "end_line": 682
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 49,
+      "lean_name": "auths_gateway_kernel.construct.append_form_encoded_loop.body",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_form_encoded",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 688,
+        "end_line": 691
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.append_form_encoded"
+    },
+    {
+      "def_id": 49,
+      "lean_name": "auths_gateway_kernel.construct.append_form_encoded_loop",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_form_encoded",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 688,
+        "end_line": 691
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.append_form_encoded"
+    },
+    {
+      "def_id": 49,
+      "lean_name": "auths_gateway_kernel.construct.append_form_encoded",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_form_encoded",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 686,
+        "end_line": 693
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": true
+    },
+    {
+      "def_id": 41,
+      "lean_name": "auths_gateway_kernel.construct.form_piece_valid",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::form_piece_valid",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 698,
+        "end_line": 710
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 27,
+      "lean_name": "auths_gateway_kernel.construct.form_pieces_valid_loop.body",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::form_pieces_valid",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 716,
+        "end_line": 723
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.form_pieces_valid"
+    },
+    {
+      "def_id": 27,
+      "lean_name": "auths_gateway_kernel.construct.form_pieces_valid_loop",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::form_pieces_valid",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 716,
+        "end_line": 723
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.form_pieces_valid"
+    },
+    {
+      "def_id": 27,
+      "lean_name": "auths_gateway_kernel.construct.form_pieces_valid",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::form_pieces_valid",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 714,
+        "end_line": 723
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": true
+    },
+    {
+      "def_id": 43,
+      "lean_name": "auths_gateway_kernel.construct.append_form_piece",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_form_piece",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 727,
+        "end_line": 753
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 29,
+      "lean_name": "auths_gateway_kernel.construct.append_form_pieces_loop.body",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_form_pieces",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 764,
+        "end_line": 767
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": true
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.append_form_pieces"
+    },
+    {
+      "def_id": 29,
+      "lean_name": "auths_gateway_kernel.construct.append_form_pieces_loop",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_form_pieces",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 764,
+        "end_line": 767
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false,
+      "loop": {
+        "id": 0,
+        "pos": [
+          0
+        ],
+        "is_body": false
+      },
+      "parent_lean_name": "auths_gateway_kernel.construct.append_form_pieces"
+    },
+    {
+      "def_id": 29,
+      "lean_name": "auths_gateway_kernel.construct.append_form_pieces",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::append_form_pieces",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 757,
+        "end_line": 769
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": true
+    },
+    {
+      "def_id": 11,
+      "lean_name": "auths_gateway_kernel.construct.build_body",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::build_body",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 780,
+        "end_line": 804
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 1,
+      "lean_name": "auths_gateway_kernel.construct.construct_write",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::construct_write",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 812,
+        "end_line": 833
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 2,
+      "lean_name": "auths_gateway_kernel.construct.construct_action_read",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::construct_action_read",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 840,
+        "end_line": 852
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 3,
+      "lean_name": "auths_gateway_kernel.construct.construct_credential_read",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::construct_credential_read",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 858,
+        "end_line": 865
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": true,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 4,
+      "lean_name": "auths_gateway_kernel.recovery.provider_link",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::recovery::provider_link",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/recovery.rs",
+        "begin_line": 98,
+        "end_line": 104
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 5,
+      "lean_name": "auths_gateway_kernel.recovery.recovery_class",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::recovery::recovery_class",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/recovery.rs",
+        "begin_line": 108,
+        "end_line": 122
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 6,
+      "lean_name": "auths_gateway_kernel.recovery.unknown_resolution",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::recovery::unknown_resolution",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/recovery.rs",
+        "begin_line": 126,
+        "end_line": 133
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    },
+    {
+      "def_id": 0,
+      "lean_name": "auths_gateway_kernel.recovery.recovery_capability",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::recovery::recovery_capability",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/recovery.rs",
+        "begin_line": 139,
+        "end_line": 151
+      },
+      "is_opaque": false,
+      "can_fail": true,
+      "can_diverge": false,
+      "is_rec": false,
+      "reducible": false
+    }
+  ],
+  "types": [
+    {
+      "def_id": 7,
+      "lean_name": "auths_gateway_kernel.construct.ArgumentValue",
+      "lean_file": "qualification/aeneas/generated/gateway/Types.lean",
+      "rust_name": "auths_gateway_kernel::construct::ArgumentValue",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 32,
+        "end_line": 39
+      }
+    },
+    {
+      "def_id": 20,
+      "lean_name": "auths_gateway_kernel.construct.RequestMethod",
+      "lean_file": "qualification/aeneas/generated/gateway/Types.lean",
+      "rust_name": "auths_gateway_kernel::construct::RequestMethod",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 43,
+        "end_line": 56
+      }
+    },
+    {
+      "def_id": 15,
+      "lean_name": "auths_gateway_kernel.construct.SegmentPlan",
+      "lean_file": "qualification/aeneas/generated/gateway/Types.lean",
+      "rust_name": "auths_gateway_kernel::construct::SegmentPlan",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 60,
+        "end_line": 65
+      }
+    },
+    {
+      "def_id": 17,
+      "lean_name": "auths_gateway_kernel.construct.Header",
+      "lean_file": "qualification/aeneas/generated/gateway/Types.lean",
+      "rust_name": "auths_gateway_kernel::construct::Header",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 69,
+        "end_line": 74
+      }
+    },
+    {
+      "def_id": 27,
+      "lean_name": "auths_gateway_kernel.construct.ScopeGrammar",
+      "lean_file": "qualification/aeneas/generated/gateway/Types.lean",
+      "rust_name": "auths_gateway_kernel::construct::ScopeGrammar",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 78,
+        "end_line": 81
+      }
+    },
+    {
+      "def_id": 26,
+      "lean_name": "auths_gateway_kernel.construct.AccountScopePlan",
+      "lean_file": "qualification/aeneas/generated/gateway/Types.lean",
+      "rust_name": "auths_gateway_kernel::construct::AccountScopePlan",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 85,
+        "end_line": 92
+      }
+    },
+    {
+      "def_id": 18,
+      "lean_name": "auths_gateway_kernel.construct.HeaderPlan",
+      "lean_file": "qualification/aeneas/generated/gateway/Types.lean",
+      "rust_name": "auths_gateway_kernel::construct::HeaderPlan",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 97,
+        "end_line": 102
+      }
+    },
+    {
+      "def_id": 24,
+      "lean_name": "auths_gateway_kernel.construct.JsonPiece",
+      "lean_file": "qualification/aeneas/generated/gateway/Types.lean",
+      "rust_name": "auths_gateway_kernel::construct::JsonPiece",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 107,
+        "end_line": 114
+      }
+    },
+    {
+      "def_id": 25,
+      "lean_name": "auths_gateway_kernel.construct.FormPiece",
+      "lean_file": "qualification/aeneas/generated/gateway/Types.lean",
+      "rust_name": "auths_gateway_kernel::construct::FormPiece",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 118,
+        "end_line": 127
+      }
+    },
+    {
+      "def_id": 16,
+      "lean_name": "auths_gateway_kernel.construct.BodyPlan",
+      "lean_file": "qualification/aeneas/generated/gateway/Types.lean",
+      "rust_name": "auths_gateway_kernel::construct::BodyPlan",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 131,
+        "end_line": 136
+      }
+    },
+    {
+      "def_id": 6,
+      "lean_name": "auths_gateway_kernel.construct.WritePlan",
+      "lean_file": "qualification/aeneas/generated/gateway/Types.lean",
+      "rust_name": "auths_gateway_kernel::construct::WritePlan",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 140,
+        "end_line": 153
+      }
+    },
+    {
+      "def_id": 21,
+      "lean_name": "auths_gateway_kernel.construct.ActionReadPlan",
+      "lean_file": "qualification/aeneas/generated/gateway/Types.lean",
+      "rust_name": "auths_gateway_kernel::construct::ActionReadPlan",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 158,
+        "end_line": 165
+      }
+    },
+    {
+      "def_id": 22,
+      "lean_name": "auths_gateway_kernel.construct.CredentialReadPlan",
+      "lean_file": "qualification/aeneas/generated/gateway/Types.lean",
+      "rust_name": "auths_gateway_kernel::construct::CredentialReadPlan",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 169,
+        "end_line": 178
+      }
+    },
+    {
+      "def_id": 9,
+      "lean_name": "auths_gateway_kernel.construct.BuiltRequest",
+      "lean_file": "qualification/aeneas/generated/gateway/Types.lean",
+      "rust_name": "auths_gateway_kernel::construct::BuiltRequest",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 183,
+        "end_line": 192
+      }
+    },
+    {
+      "def_id": 10,
+      "lean_name": "auths_gateway_kernel.construct.ConstructError",
+      "lean_file": "qualification/aeneas/generated/gateway/Types.lean",
+      "rust_name": "auths_gateway_kernel::construct::ConstructError",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 196,
+        "end_line": 207
+      }
+    },
+    {
+      "def_id": 2,
+      "lean_name": "auths_gateway_kernel.recovery.StateObservation",
+      "lean_file": "qualification/aeneas/generated/gateway/Types.lean",
+      "rust_name": "auths_gateway_kernel::recovery::StateObservation",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/recovery.rs",
+        "begin_line": 10,
+        "end_line": 17
+      }
+    },
+    {
+      "def_id": 23,
+      "lean_name": "auths_gateway_kernel.recovery.IdempotencyKind",
+      "lean_file": "qualification/aeneas/generated/gateway/Types.lean",
+      "rust_name": "auths_gateway_kernel::recovery::IdempotencyKind",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/recovery.rs",
+        "begin_line": 21,
+        "end_line": 26
+      }
+    },
+    {
+      "def_id": 5,
+      "lean_name": "auths_gateway_kernel.recovery.LostClaimReentry",
+      "lean_file": "qualification/aeneas/generated/gateway/Types.lean",
+      "rust_name": "auths_gateway_kernel::recovery::LostClaimReentry",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/recovery.rs",
+        "begin_line": 30,
+        "end_line": 40
+      }
+    },
+    {
+      "def_id": 0,
+      "lean_name": "auths_gateway_kernel.recovery.RecoveryDeclarations",
+      "lean_file": "qualification/aeneas/generated/gateway/Types.lean",
+      "rust_name": "auths_gateway_kernel::recovery::RecoveryDeclarations",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/recovery.rs",
+        "begin_line": 44,
+        "end_line": 53
+      }
+    },
+    {
+      "def_id": 3,
+      "lean_name": "auths_gateway_kernel.recovery.RecoveryClass",
+      "lean_file": "qualification/aeneas/generated/gateway/Types.lean",
+      "rust_name": "auths_gateway_kernel::recovery::RecoveryClass",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/recovery.rs",
+        "begin_line": 57,
+        "end_line": 66
+      }
+    },
+    {
+      "def_id": 4,
+      "lean_name": "auths_gateway_kernel.recovery.UnknownResolution",
+      "lean_file": "qualification/aeneas/generated/gateway/Types.lean",
+      "rust_name": "auths_gateway_kernel::recovery::UnknownResolution",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/recovery.rs",
+        "begin_line": 70,
+        "end_line": 75
+      }
+    },
+    {
+      "def_id": 1,
+      "lean_name": "auths_gateway_kernel.recovery.RecoveryCapability",
+      "lean_file": "qualification/aeneas/generated/gateway/Types.lean",
+      "rust_name": "auths_gateway_kernel::recovery::RecoveryCapability",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/recovery.rs",
+        "begin_line": 79,
+        "end_line": 94
+      }
+    }
+  ],
+  "globals": [
+    {
+      "def_id": 2,
+      "lean_name": "auths_gateway_kernel.construct.MAX_BODY_BYTES",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::MAX_BODY_BYTES",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 24,
+        "end_line": 24
+      },
+      "can_fail": false
+    },
+    {
+      "def_id": 3,
+      "lean_name": "auths_gateway_kernel.construct.MAX_SEGMENT_VALUE_BYTES",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::MAX_SEGMENT_VALUE_BYTES",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 26,
+        "end_line": 26
+      },
+      "can_fail": false
+    },
+    {
+      "def_id": 1,
+      "lean_name": "auths_gateway_kernel.construct.MAX_PATH_BYTES",
+      "lean_file": "qualification/aeneas/generated/gateway/Funs.lean",
+      "rust_name": "auths_gateway_kernel::construct::MAX_PATH_BYTES",
+      "is_local": true,
+      "source": {
+        "file": "product/runtime/auths-gateway-kernel/src/construct.rs",
+        "begin_line": 28,
+        "end_line": 28
+      },
+      "can_fail": false
+    }
+  ],
+  "trait_decls": [],
+  "trait_impls": []
+}

@@ -1,5 +1,5 @@
 {
-  "schema": "auths.gateway-recipe-source/1",
+  "schema": "auths.gateway-recipe-source/2",
   "profile_schema_digest": "0dda3f3e84a069ff32ae7f3f09ace84289030061ff2641f64c308bc159d439b4",
   "service": "github-gateway-demo",
   "tool": "create_issue_v1",

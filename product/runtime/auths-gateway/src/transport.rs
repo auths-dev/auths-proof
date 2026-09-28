@@ -5,6 +5,7 @@
 
 use crate::{
     ClosedObservationRequest, ClosedProviderRequest, CompiledRecipe, CredentialRequirement,
+    RequestHeader,
 };
 use auths_connections::StoredSecretLease;
 use reqwest::{
@@ -22,7 +23,6 @@ use zeroize::Zeroizing;
 
 const MAX_WRITE_RESPONSE_BYTES: usize = 65_536;
 const MAX_SECRET_BYTES: usize = 4_096;
-const IDEMPOTENCY_KEY: HeaderName = HeaderName::from_static("idempotency-key");
 
 /// Secret-free transport failure. `Unknown` is possible after network entry.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Error)]
@@ -159,8 +159,9 @@ impl GatewayHttpTransport {
 
     /// Sends one request after a durable claim. Any incomplete response is
     /// conservatively unknown, even when the error occurred before a socket
-    /// connected; it never authorizes a retry. The derived `Idempotency-Key`
-    /// is sent only when the recipe declares it.
+    /// connected; it never authorizes a retry. The closed request's headers
+    /// (version headers, the account-scope header, and the derived
+    /// `Idempotency-Key`, each only when declared) are sent as built.
     pub(crate) async fn write(
         &self,
         request: &ClosedProviderRequest,
@@ -178,8 +179,11 @@ impl GatewayHttpTransport {
             .headers(headers)
             .header(ACCEPT, "application/json")
             .header(CONTENT_TYPE, request.content_type());
-        if let Some(key) = request.idempotency_key() {
-            outbound = outbound.header(IDEMPOTENCY_KEY, key);
+        for header in request.headers() {
+            outbound = outbound.header(
+                provider_header_name(header)?,
+                provider_header_value(header)?,
+            );
         }
         let outbound = outbound
             .body(request.body().to_vec())
@@ -211,13 +215,18 @@ impl GatewayHttpTransport {
             return None;
         }
         let headers = credential_headers(&self.requirement, lease).ok()?;
-        let outbound = self
+        let mut outbound = self
             .client
             .get(self.target(request.url()))
             .headers(headers)
-            .header(ACCEPT, "application/json")
-            .build()
-            .ok()?;
+            .header(ACCEPT, "application/json");
+        for header in request.headers() {
+            outbound = outbound.header(
+                provider_header_name(header).ok()?,
+                provider_header_value(header).ok()?,
+            );
+        }
+        let outbound = outbound.build().ok()?;
         let mut response = self.client.execute(outbound).await.ok()?;
         if !response.status().is_success() {
             return None;
@@ -241,6 +250,16 @@ impl GatewayHttpTransport {
                     && url.password().is_none()
             })
     }
+}
+
+/// A constructed provider header name. The compiler admits only registered
+/// names and `Idempotency-Key`, so a parse failure is refused before entry.
+fn provider_header_name(header: &RequestHeader) -> Result<HeaderName, GatewayTransportError> {
+    HeaderName::from_bytes(header.name().as_bytes()).map_err(|_| GatewayTransportError::NotEntered)
+}
+
+fn provider_header_value(header: &RequestHeader) -> Result<HeaderValue, GatewayTransportError> {
+    HeaderValue::from_str(header.value()).map_err(|_| GatewayTransportError::NotEntered)
 }
 
 fn pinned_client(hostname: &str, pinned: SocketAddr) -> Result<Client, GatewayTransportError> {
@@ -422,7 +441,10 @@ mod tests {
                 "../../../../bindings/fixtures/gateway/airtable/recipe.json"
             ))
             .expect("source");
-            source["write"]["idempotency_key"] = json!(declared);
+            if declared {
+                source["write"]["idempotency"] =
+                    json!({"kind": "derived-header", "retention_seconds": 86_400});
+            }
             let recipe =
                 CompiledRecipe::compile(&serde_json::to_vec(&source).expect("source"), lock)
                     .expect("recipe");

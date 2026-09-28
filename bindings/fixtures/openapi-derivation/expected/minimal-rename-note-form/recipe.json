@@ -1,5 +1,5 @@
 {
-  "schema": "auths.gateway-recipe-source/1",
+  "schema": "auths.gateway-recipe-source/2",
   "profile_schema_digest": "edc46422990c3f827b6c762b53dc705a1d559aa6f6c217b08b25b24fcde78822",
   "service": "notes",
   "tool": "renameNote_v1",

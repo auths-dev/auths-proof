@@ -1,5 +1,5 @@
 {
-  "schema": "auths.gateway-recipe-source/1",
+  "schema": "auths.gateway-recipe-source/2",
   "profile_schema_digest": "245011e2bdf4718d913d7d1bb3758dba223efdd23065a3828efec232bd962b82",
   "service": "hostile",
   "tool": "hIntegerPath_v1",

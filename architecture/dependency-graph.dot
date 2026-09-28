@@ -33,6 +33,7 @@ digraph auths_architecture {
   "auths-explain" [group="product"];
   "auths-formal-refinement" [group="core"];
   "auths-gateway" [group="product"];
+  "auths-gateway-kernel" [group="product"];
   "auths-git-signing" [group="product"];
   "auths-github" [group="product"];
   "auths-hsm-attested" [group="core"];
@@ -248,6 +249,7 @@ digraph auths_architecture {
   "auths-gateway" -> "auths-custody-pkcs11" [label="dev"];
   "auths-gateway" -> "auths-did-keri" [label="normal"];
   "auths-gateway" -> "auths-did-key" [label="normal"];
+  "auths-gateway" -> "auths-gateway-kernel" [label="normal"];
   "auths-gateway" -> "auths-lifecycle" [label="normal"];
   "auths-gateway" -> "auths-model" [label="normal"];
   "auths-gateway" -> "auths-ports" [label="normal"];

@@ -6,7 +6,8 @@
 //! `case` is null where no fixture of this change can produce the code: the
 //! operator plane, installation, echo verification, and the audit's
 //! pre-entry and relative-ceiling checks. The inventory test that closes the
-//! set against the owning enums arrives with the code inventory work.
+//! set against the owning enums arrives with the code inventory work; until
+//! then the test here requires exactly the codes of implemented epics.
 
 use super::{
     attempts, bounds, crate_defines_code, crate_sources, load, outcomes, recipes, require_current,
@@ -157,11 +158,15 @@ fn expected_codes(value: &Value, found: &mut BTreeSet<String>) {
     }
 }
 
-/// No revised code exists in the crate today, every existing and changed
-/// code does, every named case produces its code, and every code a pending
-/// vector expects is in the inventory.
+/// The epics whose codes the crate defines.
+const IMPLEMENTED_EPICS: &[u64] = &[2];
+
+/// Every code of an implemented epic exists in the crate and no code of a
+/// later epic does; every existing and changed code does, every named case
+/// produces its code, and every code a pending vector expects is in the
+/// inventory.
 #[test]
-fn revised_codes_are_absent_from_current_code() {
+fn codes_exist_exactly_for_implemented_epics() {
     let inventory = load(FILE);
     let sources = crate_sources();
     let mut listed = BTreeSet::new();
@@ -170,7 +175,10 @@ fn revised_codes_are_absent_from_current_code() {
         let code = entry["code"].as_str().expect("code");
         assert!(listed.insert(code.to_owned()), "duplicate {code}");
         let defined = crate_defines_code(&sources, code);
-        if entry["status"] == "new" {
+        let implemented = entry["epic"]
+            .as_u64()
+            .is_some_and(|epic| IMPLEMENTED_EPICS.contains(&epic));
+        if entry["status"] == "new" && !implemented {
             assert!(!defined, "{code} already exists");
             absent += 1;
         } else {

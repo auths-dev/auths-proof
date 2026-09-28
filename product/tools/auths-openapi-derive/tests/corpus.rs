@@ -99,26 +99,17 @@ fn check_file(path: &Path, actual: &str) {
 fn review(recipe: &str, lock: &[u8]) -> Value {
     let compiled = CompiledRecipe::compile(recipe.as_bytes(), lock)
         .expect("derived recipe compiles under recipe check");
-    let review = compiled.review();
-    let header = match review.credential() {
+    let header = match compiled.review().credential() {
         auths_gateway::CredentialRequirement::Bearer => "Authorization".to_owned(),
         auths_gateway::CredentialRequirement::HeaderApiKey { header } => header.clone(),
     };
     GatewayConnectionDescriptor::approve(&compiled, &header)
         .expect("operator binding accepts the credential requirement");
-    json!({
-        "schema": "auths.gateway-recipe-review/1",
-        "digest": compiled.digest_hex(),
-        "operator_namespace": compiled.namespace().as_str(),
-        "service": review.service(),
-        "tool": review.tool(),
-        "origin": review.origin(),
-        "method": review.method().as_str(),
-        "path": review.path(),
-        "credential": review.credential(),
-        "operator_credential_header": header,
-        "has_observation": review.has_observation(),
-    })
+    // The document `auths-node gateway recipe check` prints for this recipe
+    // and credential header.
+    let mut review = compiled.review_document();
+    review["operator_credential_header"] = json!(header);
+    review
 }
 
 fn derived_case(case: &Value, directory: &Path, derived: &auths_openapi_derive::Derived) {

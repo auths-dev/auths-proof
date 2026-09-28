@@ -203,7 +203,7 @@ pub(crate) fn recipe_sources(
         {"kind": "field", "name": "record_id"}
     ]);
     let source = json!({
-        "schema": "auths.gateway-recipe-source/1", "profile_schema_digest": digest,
+        "schema": "auths.gateway-recipe-source/2", "profile_schema_digest": digest,
         "service": SERVICE, "tool": TOOL, "operator_namespace": NAMESPACE,
         "credential": {"kind": "bearer"}, "origin": ORIGIN,
         "write": {"method": "PATCH", "path": path, "body": {"kind": "json", "value": {
@@ -211,7 +211,8 @@ pub(crate) fn recipe_sources(
                 "DemoStatus": {"kind": "field", "name": "replacement"}}}}}}},
         "observation": {"path": path, "json_pointer": "/fields/DemoStatus",
             "expected_field": "replacement", "maximum_response_bytes": 16384},
-        "echo": {"write": "/fields/auths_echo", "observe": "/fields/auths_echo"},
+        "echo": {"write": {"kind": "json-pointer", "pointer": "/fields/auths_echo"},
+            "observe": "/fields/auths_echo"},
         "preconditions": preconditions
     });
     Ok((

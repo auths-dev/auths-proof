@@ -62,10 +62,12 @@ under `state/signers/` (development custody over that manager's key), and:
   `--ceiling`, `--max-count`, and `--window-seconds` change it.
 
 It prints `recipe_digest` and `trusted_context_sha256`. Keep both.
-`recipe.json` is the gateway recipe for `POST /v1/refunds`. It sets
-`write.idempotency_key`, so the gateway sends each refund with an
-`Idempotency-Key` it derives from the namespace and operation ID
-(`auths-gateway review` shows `"sends_idempotency_key": true`).
+`recipe.json` is the gateway recipe for `POST /v1/refunds`, in recipe
+source `/2`. It declares `write.idempotency` of kind `derived-header`, so
+the gateway sends each refund with an `Idempotency-Key` it derives from the
+namespace and operation ID (`auths-gateway review` shows
+`"sends_idempotency_key": true` and the declared 86 400-second retention,
+which the gateway cannot verify).
 `profile.toml` generated `generated.py` and `profile.lock.json` with
 `auths generate`.
 

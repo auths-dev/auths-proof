@@ -383,28 +383,12 @@ async fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
                 let lock = bounded_regular_file(&profile_lock, 65_536, false)?;
                 let compiled = CompiledRecipe::compile(&source, &lock)?;
                 GatewayConnectionDescriptor::approve(&compiled, &credential_header)?;
-                let review = compiled.review();
-                print_json(json!({
-                    "schema": "auths.gateway-recipe-review/1",
-                    "digest": compiled.digest_hex(),
-                    "operator_namespace": compiled.namespace().as_str(),
-                    "service": review.service(),
-                    "tool": review.tool(),
-                    "origin": review.origin(),
-                    "method": review.method().as_str(),
-                    "path": review.path(),
-                    "credential": review.credential(),
-                    "operator_credential_header": credential_header,
-                    "maximum_body_bytes": review.maximum_body_bytes(),
-                    "has_observation": review.has_observation(),
-                    "sends_idempotency_key": review.sends_idempotency_key(),
-                    "echo": review.echo().map(|echo| json!({
-                        "write": echo.write(),
-                        "observe": echo.observe(),
-                        "disclosure": echo.disclosure(),
-                    })),
-                    "claim": "closed request construction only; no credential or provider-effect qualification",
-                }))?;
+                let mut review = compiled.review_document();
+                review["operator_credential_header"] = json!(credential_header);
+                review["claim"] = json!(
+                    "closed request construction only; no credential or provider-effect qualification"
+                );
+                print_json(review)?;
             }
         },
         Command::Connections(connections) => {

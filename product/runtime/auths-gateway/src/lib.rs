@@ -15,7 +15,7 @@ mod engine;
 #[cfg(unix)]
 pub mod listener;
 mod observer;
-mod recipe;
+pub mod recipe;
 mod separation;
 mod store;
 mod transport;
@@ -52,9 +52,13 @@ pub use observer::{
     READ_BACK_SCHEMA, operation_subject,
 };
 pub use recipe::{
-    ClosedObservationRequest, ClosedProviderRequest, CompiledRecipe, CredentialRequirement,
-    GatewayRecipeError, LogicalOperationId, OperatorNamespace, RecipeEchoReview,
-    RecipePreconditionReview, RecipeReview, WriteMethod, echo_token, idempotency_key,
+    ClosedActionRead, ClosedCredentialRead, ClosedCredentialReads, ClosedObservationRequest,
+    ClosedProviderRequest, CompiledRecipe, CredentialReadMethod, CredentialRequirement,
+    GatewayRecipeError, IdempotencyKind, LogicalOperationId, LostClaimReentry, OperatorNamespace,
+    ProviderHeaderClass, ProviderResponseRule, RECIPE_REVIEW_SCHEMA, RECIPE_SOURCE_SCHEMA,
+    RECOVERY_CAPABILITY_SCHEMA, RecipeEchoReview, RecipePreconditionReview, RecipeReview,
+    RecoveryCapability, RecoveryClass, RecoveryDeclarations, RequestHeader, StateObservation,
+    UnknownResolution, WriteMethod, echo_token, idempotency_key, recovery_capability,
 };
 pub use separation::{PrincipalSeparationError, check_principal_separation};
 pub use store::{

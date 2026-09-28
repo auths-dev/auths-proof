@@ -5,6 +5,9 @@ import Auths.Composition
 import Auths.Diversity
 import Auths.Product.Theorems
 import Auths.Product.Refinement
+import Auths.Product.Recovery
+import Auths.Product.RequestConstruction
+import Auths.Product.Refinement.Gateway
 import Auths.Lifecycle.Theorems
 import Auths.Lifecycle.Refinement
 import Auths.Refinement.Production
@@ -152,6 +155,19 @@ def theoremInventory : List Lean.Name :=
     `Auths.Product.CeilingCount.bounded_policy_law_lawful,
     `Auths.Product.CeilingCount.bounded_policy_law_accepts_addition,
     `Auths.Product.CeilingCount.ceiling_count_fixed_context_tightening,
+    `Auths.Product.Recovery.capability_total_deterministic,
+    `Auths.Product.Recovery.class_matches_declarations,
+    `Auths.Product.Recovery.write_never_conditional,
+    `Auths.Product.RequestConstruction.method_and_origin_fixed,
+    `Auths.Product.RequestConstruction.path_from_declared_segments,
+    `Auths.Product.RequestConstruction.headers_within_declaration,
+    `Auths.Product.RequestConstruction.account_scope_header_exact,
+    `Auths.Product.RequestConstruction.credential_reads_fixed,
+    `Auths.Product.RequestConstruction.body_bounded,
+    `Auths.Product.Refinement.Gateway.translated_recovery_capability_refines_model,
+    `Auths.Product.Refinement.Gateway.translated_construct_write_refines_model,
+    `Auths.Product.Refinement.Gateway.translated_construct_action_read_refines_model,
+    `Auths.Product.Refinement.Gateway.translated_construct_credential_read_refines_model,
     `Auths.Lifecycle.additive_capacity_success_positive,
     `Auths.Lifecycle.additive_capacity_success_conserves,
     `Auths.Lifecycle.additive_capacity_success_never_overflows_u64,
