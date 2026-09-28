@@ -43,6 +43,15 @@ owner-only paths.
 export WORK=$(mkdir -p -m 700 /tmp/auths-refunds && cd /tmp/auths-refunds && pwd -P)
 ```
 
+The gateway's Unix sockets live under this directory: the app socket you
+name, and its admin socket at `<state-dir>/admin.sock`. A Unix socket path
+holds at most 103 bytes on macOS and 107 on Linux (`sun_path`, less its
+terminating NUL), so keep the directory short; the gateway refuses a longer
+path with `gateway.serve.app-socket-too-long` or
+`gateway.serve.admin-socket-too-long`, giving the length and the limit.
+`pwd -P` is there because the gateway also refuses a state directory reached
+through a symbolic link, and `/tmp` is one on macOS.
+
 **3. Create the root, three managers, the agent, and the trust.**
 
 ```sh
@@ -120,6 +129,11 @@ auths-gateway observer-init --state-dir "$WORK/gateway"
 auths-gateway serve --state-dir "$WORK/gateway" --app-socket "$WORK/app.sock" \
   --loopback-provider 54321 &
 ```
+
+If your state directory has to be long, `serve --admin-socket PATH` moves
+the admin socket into another owner-only directory (mode 0700, owned by you,
+not reached through a symbolic link); pass the same `--admin-socket` to
+`disable`, `revoke`, `rotate`, and `doctor`.
 
 `install` makes the guard's four reads before it stores the key, and stores
 nothing if one fails: a key without `rk_test_` is refused
