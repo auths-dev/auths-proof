@@ -328,6 +328,7 @@ pub(crate) fn admitted(
         requirements,
         canonical_action,
         validity_seconds,
+        observer_refusal: None,
     })
 }
 
@@ -1288,6 +1289,84 @@ async fn attempt_scenarios(backend: Backend) {
         ran += 1;
     }
     assert_eq!(ran, 27);
+}
+
+/// Runs scenario `id` with the per-proof observer check failing, and returns
+/// the result and the leases taken.
+async fn with_observer_overlap(id: &str) -> (GatewaySubmitResult, usize) {
+    let corpus = corpus(SCENARIOS);
+    let recipes = self::corpus(corpus["recipes"].as_str().expect("recipes"));
+    let case = corpus["cases"]
+        .as_array()
+        .expect("cases")
+        .iter()
+        .find(|case| case["id"] == id)
+        .expect("named case");
+    let base = case["recipe"].as_str().expect("recipe");
+    let recipe = CompiledRecipe::compile(
+        &serde_json::to_vec(&recipes["bases"][base]["recipe"]).expect("recipe"),
+        &serde_json::to_vec(&recipes["bases"][base]["lock"]).expect("lock"),
+    )
+    .expect("scenario recipe compiles");
+    let mut setup = corpus["defaults"][base].clone();
+    if setup.get("responses").is_none() {
+        setup["responses"] = corpus["defaults"]["airtable-pre-entry"]["responses"].clone();
+    }
+    merge(&mut setup, &case["setup"]);
+    let provider = TableProvider::new(&recipe, &setup["responses"], "respond");
+    let observer = GatewayObserver::from_test_seed(OBSERVER_SEED);
+    let store = TestAttempts::open(Backend::File);
+    let arguments = setup["arguments"].as_object().expect("arguments").clone();
+    let command = admitted(
+        &recipe,
+        &arguments,
+        ORIGINAL,
+        grant_requirement(&setup),
+        setup["validity_seconds"].as_u64().expect("validity"),
+        scenario_links(&setup),
+        NOW,
+    )
+    .map(|mut command| {
+        command.observer_refusal = Some("gateway.trust.observer-key-in-authority-chain");
+        command
+    });
+    let mut io = TestIo::answering(&provider, command);
+    io.recipe = Some(&recipe);
+    let context = test_context(&observer);
+    let cx = SubmitContext {
+        recipe: &recipe,
+        attempts: store.attempts(),
+        context: &context,
+        observer: Some(&observer),
+    };
+    let result = submit::run(&cx, &io).await;
+    (result, io.leases())
+}
+
+/// Admission reports the first failing check in the documented order: the
+/// retention rule and pre-entry selection before the per-proof observer
+/// check. A submission that fails only the observer check reports it, and
+/// none takes a lease.
+#[tokio::test]
+async fn admission_reports_retention_and_pre_entry_before_the_observer_check() {
+    for (id, code) in [
+        (
+            "idempotency-window-exceeds-retention",
+            "gateway.idempotency.window-exceeds-retention",
+        ),
+        (
+            "pre-entry-requirement-missing",
+            "gateway.pre-entry.requirement-missing",
+        ),
+        (
+            "idempotency-window-at-retention",
+            "gateway.trust.observer-key-in-authority-chain",
+        ),
+    ] {
+        let (result, leases) = with_observer_overlap(id).await;
+        assert_eq!(result, crate::engine::not_entered(code), "{id}");
+        assert_eq!(leases, 0, "{id}");
+    }
 }
 
 #[tokio::test]

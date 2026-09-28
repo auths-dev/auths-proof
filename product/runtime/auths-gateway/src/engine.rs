@@ -1051,6 +1051,11 @@ pub(crate) struct VerifiedCommand {
     /// The longest validity window, `expires_at` minus `not_before`, of any
     /// authorized action envelope.
     pub(crate) validity_seconds: u64,
+    /// The per-proof observer check's refusal: an observer of a satisfying
+    /// observation overlaps a principal of the authority it conditions by
+    /// key. Admission applies it last, after the retention rule and pre-entry
+    /// selection, so their codes take precedence.
+    pub(crate) observer_refusal: Option<&'static str>,
 }
 
 /// [`verify_command`] that also reports what admission and an auditor need.
@@ -1110,7 +1115,7 @@ pub(crate) fn verify_detailed(
         .map_err(|error| not_entered(error.code()))?;
     let branches = crate::bounds::authorized_branches(proof_cbor, action)
         .map_err(|_| not_entered("gateway.policy.proof-unavailable"))?;
-    crate::separation::check_proof_observers(proof_cbor, action).map_err(not_entered)?;
+    let observer_refusal = crate::separation::check_proof_observers(proof_cbor, action).err();
     Ok(VerifiedCommand {
         request,
         bound,
@@ -1119,6 +1124,7 @@ pub(crate) fn verify_detailed(
         requirements: branches.requirements,
         canonical_action: action.canonical_action().clone(),
         validity_seconds: branches.validity_seconds,
+        observer_refusal,
     })
 }
 

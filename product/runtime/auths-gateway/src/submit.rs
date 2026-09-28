@@ -435,7 +435,9 @@ impl<I: SubmitIo> Run<'_, I> {
         Verification::Authorized { argument }
     }
 
-    /// The retention rule, then pre-entry selection; nothing is stored.
+    /// The retention rule, then pre-entry selection, then the per-proof
+    /// observer check; nothing is stored. The first failing check's code is
+    /// the one reported.
     fn admit(&mut self) -> bool {
         let Some(verified) = &self.verified else {
             return false;
@@ -449,11 +451,12 @@ impl<I: SubmitIo> Run<'_, I> {
             self.refuse_before_claim(not_entered("gateway.idempotency.window-exceeds-retention"));
             return false;
         }
+        let observer_refusal = verified.observer_refusal;
         let (Some(pointers), Some(read)) = (
             self.cx.recipe.pre_entry_pointers(),
             verified.request.pre_entry_read(),
         ) else {
-            return true;
+            return self.observers_separate(observer_refusal);
         };
         let covers = |namespace: &ResourceId, subject: &ResourceId| {
             crate::engine::resource_covers(self.cx.context, namespace, subject)
@@ -469,12 +472,23 @@ impl<I: SubmitIo> Run<'_, I> {
         ) {
             Ok(selected) => {
                 self.selected = selected;
-                true
+                self.observers_separate(observer_refusal)
             }
             Err(refusal) => {
                 self.refuse_before_claim(not_entered(refusal.code()));
                 false
             }
+        }
+    }
+
+    /// The per-proof observer check, the last check of admission.
+    fn observers_separate(&mut self, refusal: Option<&'static str>) -> bool {
+        match refusal {
+            Some(code) => {
+                self.refuse_before_claim(not_entered(code));
+                false
+            }
+            None => true,
         }
     }
 

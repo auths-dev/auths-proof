@@ -494,7 +494,16 @@ fn audit_entry(
         bound: None,
         commitment: None,
     };
-    match verify_detailed(recipe, context, evaluated_at, &proof, &action) {
+    // The auditor applies the per-proof observer check the gateway admits
+    // with; it does not re-run the retention rule or pre-entry selection.
+    let verification =
+        verify_detailed(recipe, context, evaluated_at, &proof, &action).and_then(|verified| {
+            match verified.observer_refusal {
+                Some(code) => Err(crate::engine::not_entered(code)),
+                None => Ok(verified),
+            }
+        });
+    match verification {
         Ok(verified) => {
             if verified.request.operation_id() != &operation_id {
                 return finding(operation, "audit.operation-mismatch", evaluated_at);
