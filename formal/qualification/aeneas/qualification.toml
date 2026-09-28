@@ -37,6 +37,9 @@ source_files = [
   "product/runtime/auths-gateway-kernel/src/ratio.rs",
   "product/runtime/auths-gateway-kernel/src/recovery.rs",
   "product/runtime/auths-gateway-kernel/src/transition.rs",
+  "product/runtime/auths-connections/Cargo.toml",
+  "product/runtime/auths-connections/src/lib.rs",
+  "product/runtime/auths-connections/src/kernel.rs",
   "formal/algebra-contract-v1.toml",
   "formal/qualification/aeneas/qualification.toml",
   "formal/translation-toolchain.lock",
@@ -46,6 +49,7 @@ source_files = [
   "formal/qualification/aeneas/cases/BoundedPolicy.lean",
   "formal/qualification/aeneas/cases/Lifecycle.lean",
   "formal/qualification/aeneas/cases/Gateway.lean",
+  "formal/qualification/aeneas/cases/Connections.lean",
   "xtask/ci-plan/Cargo.toml",
   "xtask/ci-plan/src/lib.rs",
   "xtask/src/formal.rs",
@@ -77,6 +81,9 @@ generated_files = [
   "formal/qualification/aeneas/generated/gateway/Types.lean",
   "formal/qualification/aeneas/generated/gateway/Funs.lean",
   "formal/qualification/aeneas/generated/gateway/translation.json",
+  "formal/qualification/aeneas/generated/connections/Types.lean",
+  "formal/qualification/aeneas/generated/connections/Funs.lean",
+  "formal/qualification/aeneas/generated/connections/translation.json",
 ]
 
 case_modules = [
@@ -86,6 +93,7 @@ case_modules = [
   "qualification.aeneas.cases.BoundedPolicy",
   "qualification.aeneas.cases.Lifecycle",
   "qualification.aeneas.cases.Gateway",
+  "qualification.aeneas.cases.Connections",
 ]
 
 [tools]
@@ -375,6 +383,21 @@ required_symbols = [
   "auths_gateway_kernel::transition::stage_transition_allowed",
   "auths_gateway_kernel::ratio::relative_basis",
   "auths_gateway_kernel::ratio::relative_ceiling_admits",
+]
+allowed_external_symbols = []
+
+[[translations]]
+crate_name = "auths_connections"
+translation_json = "formal/qualification/aeneas/generated/connections/translation.json"
+local_functions = 7
+external_functions = 0
+opaque_local_functions = 0
+required_symbols = [
+  "auths_connections::kernel::next_generation",
+  "auths_connections::kernel::state_change",
+  "auths_connections::kernel::rotation",
+  "auths_connections::kernel::retained_generation",
+  "auths_connections::kernel::lease_generation",
 ]
 allowed_external_symbols = []
 

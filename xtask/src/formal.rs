@@ -363,6 +363,7 @@ pub(crate) fn ci_formal_proof_fast() -> Result<(), String> {
         "Auths.Refinement.Observation",
         "Auths.Product.Refinement",
         "Auths.Product.Refinement.Gateway",
+        "Auths.Product.Refinement.Connections",
         "Auths.Lifecycle.Refinement",
         "Auths.Rich.Mutations",
         "qualification",
@@ -1738,10 +1739,15 @@ pub(crate) fn synchronize_formal_assurance_manifest(
             .iter()
             .any(|prefix| declaration.name.starts_with(prefix));
             let is_lifecycle = declaration.name.starts_with("Auths.Lifecycle.");
+            let is_connection = declaration
+                .name
+                .starts_with("Auths.Product.ConnectionGenerations.");
             FormalAssuranceClaim {
                 claim_id: format!("AP-FORMAL-RICH-{rich_index:03}"),
                 claim_text: if is_lifecycle {
                     format!("Lean proves the reservation/execution lifecycle property: {phrase}.")
+                } else if is_connection {
+                    format!("Lean proves the connection credential-generation property: {phrase}.")
                 } else if is_gateway {
                     format!("Lean proves the gateway recipe property: {phrase}.")
                 } else if is_product {
@@ -1763,6 +1769,8 @@ pub(crate) fn synchronize_formal_assurance_manifest(
                 }],
                 scope: if is_lifecycle {
                     "Pure V1 lifecycle transitions, capacity conservation, replay, configuration gates, credential ordering, provider entry, and reconciliation.".to_owned()
+                } else if is_connection {
+                    "Pure connection-record generation semantics over every sequence of install, join, rotate, disable, enable, and revoke across any number of processes sharing one record: the credential generation, the retained-entry lease rule, and revocation.".to_owned()
                 } else if is_gateway {
                     "Pure gateway recipe semantics: the recovery capability a recipe's declarations determine, closed request construction over every compiled plan and argument list, the attempt-record transition rule over every sequence of records, the admission order over every event trace, and the exact relative ceiling.".to_owned()
                 } else if is_product {
@@ -2074,6 +2082,7 @@ struct ProductionRefinementMetadata {
 const AUTHORITY_TRANSLATION: &str = "formal/qualification/aeneas/generated/authority/Funs.lean";
 const MODEL_TRANSLATION: &str = "formal/qualification/aeneas/generated/model/Funs.lean";
 const GATEWAY_TRANSLATION: &str = "formal/qualification/aeneas/generated/gateway/Funs.lean";
+const CONNECTIONS_TRANSLATION: &str = "formal/qualification/aeneas/generated/connections/Funs.lean";
 
 /// Qualified refinement metadata together with the generated translation the
 /// claim must cite: the authority evaluators live in the authority crate's
@@ -2091,6 +2100,56 @@ fn qualified_refinement_metadata(
         .or_else(|| {
             gateway_refinement_metadata(declaration).map(|metadata| (metadata, GATEWAY_TRANSLATION))
         })
+        .or_else(|| {
+            connections_refinement_metadata(declaration)
+                .map(|metadata| (metadata, CONNECTIONS_TRANSLATION))
+        })
+}
+
+fn connections_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    const UNCONDITIONAL: &str = "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, and the listed foundational axioms are trusted; the theorem has no premise.";
+    const BOUNDARY: &str = "The canonical record codec, the shared store's compare-and-swap, the local credential store's persistence, and the constant-time commitment comparison are outside this theorem; they are covered by the record round-trip and obsolete-state tests, the store conformance suite, and the cross-process connection tests on both stores. The reference commitment is assumed collision-resistant.";
+    const RESIDUAL: &[&str] = &[UNCONDITIONAL, BOUNDARY];
+    const NEXT: &str = "auths_connections::kernel::next_generation";
+    const STATE_CHANGE: &str = "auths_connections::kernel::state_change";
+    const ROTATION: &str = "auths_connections::kernel::rotation";
+    const RETAINED: &str = "auths_connections::kernel::retained_generation";
+    const LEASE: &str = "auths_connections::kernel::lease_generation";
+    let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
+        "Auths.Product.Refinement.Connections.translated_next_generation_refines_model" => (
+            "The mechanically translated next generation returns exactly the model's successor, absent at the u64 bound.",
+            &[NEXT],
+            "Every u64 generation.",
+        ),
+        "Auths.Product.Refinement.Connections.translated_state_change_refines_model" => (
+            "The mechanically translated state change returns exactly the model's generations: the generation advances and the credential generation is kept.",
+            &[STATE_CHANGE, NEXT],
+            "Every pair of u64 generations.",
+        ),
+        "Auths.Product.Refinement.Connections.translated_rotation_refines_model" => (
+            "The mechanically translated rotation returns exactly the model's generations: both advance to the next generation.",
+            &[ROTATION, NEXT],
+            "Every pair of u64 generations.",
+        ),
+        "Auths.Product.Refinement.Connections.translated_retained_generation_refines_model" => (
+            "The mechanically translated retained-entry search returns exactly the model's newest stored generation not after the record's generation.",
+            &[RETAINED],
+            "Every u64 record generation and every slice of stored generations, in any order.",
+        ),
+        "Auths.Product.Refinement.Connections.translated_lease_generation_refines_model" => (
+            "The mechanically translated lease leaf returns exactly the model's selection: the retained generation, only when it is the credential generation.",
+            &[LEASE, RETAINED],
+            "Every u64 record and credential generation and every slice of stored generations.",
+        ),
+        _ => return None,
+    };
+    Some(ProductionRefinementMetadata {
+        claim_text,
+        rust_symbols,
+        scope,
+        residual_assumptions: RESIDUAL,
+        translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+    })
 }
 
 fn gateway_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
@@ -2755,6 +2814,41 @@ mod phase_ordering {
             AUTHORITY_TRANSLATION,
         )
         .expect("complete production evidence");
+    }
+
+    #[test]
+    fn connections_refinement_metadata_binds_every_claim_to_the_connections_translation() {
+        let inventory = include_str!("../../formal/Auths/Theorems.lean");
+        let qualification = include_str!("../../formal/qualification/aeneas/qualification.toml");
+        let declarations = inventory
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix('`'))
+            .map(|name| name.trim_end_matches(','))
+            .filter(|name| name.starts_with("Auths.Product.Refinement.Connections."))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            declarations.len(),
+            5,
+            "every connections refinement is inventoried"
+        );
+        for declaration in &declarations {
+            let (metadata, artifact) = qualified_refinement_metadata(declaration)
+                .unwrap_or_else(|| panic!("{declaration} lacks qualified metadata"));
+            assert_eq!(artifact, CONNECTIONS_TRANSLATION);
+            for symbol in metadata.rust_symbols {
+                assert!(
+                    qualification.contains(&format!("\"{symbol}\"")),
+                    "{declaration} cites {symbol}, which is not a qualified translation symbol"
+                );
+            }
+            assert!(
+                metadata
+                    .residual_assumptions
+                    .join(" ")
+                    .contains("no premise"),
+                "{declaration} states it has no premise"
+            );
+        }
     }
 
     #[test]

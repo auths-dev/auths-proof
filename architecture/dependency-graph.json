@@ -3413,6 +3413,18 @@
     {
       "source": "auths-gateway",
       "source_layer": "product",
+      "target": "auths-multikey",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
       "target": "auths-ports",
       "target_layer": "core",
       "scope": "internal",
@@ -3450,6 +3462,18 @@
       "source": "auths-gateway",
       "source_layer": "product",
       "target": "auths-raw-key",
+      "target_layer": "core",
+      "scope": "internal",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": []
+    },
+    {
+      "source": "auths-gateway",
+      "source_layer": "product",
+      "target": "auths-raw-key-core",
       "target_layer": "core",
       "scope": "internal",
       "kind": "normal",

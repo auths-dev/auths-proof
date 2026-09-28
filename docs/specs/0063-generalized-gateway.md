@@ -649,8 +649,8 @@ follows this order. The last column names the epic that adds each new step.
 | 14 | Record the response (status, digest, locator), or `unknown` | — | today; locator 3 |
 | 15 | Decrement the in-flight count; perform at most one read-back | — | 5; today |
 
-Until Epic 5 lands, steps 4, 8, and 11 read today's per-process connection
-store (`prepare_entry` and `reread_before_lease` in `engine.rs`).
+Steps 4, 8, and 11 read the shared connection record (§7.3); steps 8 and 11
+require its exact stored bytes unchanged since step 4.
 
 ### 5.6 Relative ceiling
 
@@ -1336,7 +1336,7 @@ custody unavailability can never block the kill switch.
 
 | Command | Effect | Codes |
 | --- | --- | --- |
-| `disable`, `revoke`, `rotate` | §7.2–§7.4 | `gateway.admin.disabled`, `.revoked`, `.rotated` |
+| `disable`, `enable`, `revoke`, `rotate` | §7.2–§7.4 | `gateway.admin.disabled`, `.enabled`, `.revoked`, `.rotated` |
 | `status` | Connection state and generation, in-flight count, last sweep, gateway clock | `gateway.admin.status` |
 | `reobserve {operation_id}` | §4.4, read-only; answers with a submit result | `gateway.admin.reobserved`, `gateway.reobserve.not-observable` |
 
@@ -1868,6 +1868,14 @@ decision (option A, 2026-09-27) and is not listed.
 | 21 | The relative-ceiling basis without an observer key | (a) read and recorded by the gateway, signed only inside the outcome; (b) required to be a 060 observation, as `pre_entry` is | (a), not the narrower reading: (b) refuses every production action until AP-SPEC-038 Epic 4, which the owner's decision to keep the check rules out; (a) claims nothing from the basis beyond the gateway's own refusal |
 | 22 | Where account-scope values live | (a) the grant's bounded policy, narrowing under delegation; (b) a fixed recipe value | (a): the owner requires a grant-constrained field, and different grants may allow different accounts |
 | 23 | Where the relative ratio lives | (a) the recipe, one ratio per approved installation; (b) each grant, as 012's policy | (a): the owner's direction; no grant issuer can widen it |
+| 24 | Re-enabling a disabled connection, which §7.7 did not list but Epic 5's done gate needs | (a) an `enable` admin command; (b) a new install | (a): a reinstall would change the connection ID and void every action; `enable` stores no secret, like `disable` |
+| 25 | How a process knows whether its `rotate` commits a new generation or takes one committed elsewhere | (a) a process that holds the record's current secret commits; one that does not takes the secret only on a matching commitment (`gateway.admin.generation-conflict` otherwise); (b) an explicit flag | (a): a stale process can never publish over a rotation it has not taken, and no flag can be set wrong; to rotate again it first takes the current secret |
+| 26 | `install --join` against a revoked record, or one whose descriptor names another recipe | (a) refused (`gateway.install.connection-revoked`, `gateway.install.join-recipe-mismatch`); (b) stored anyway | (a): no secret is stored for a connection that can never lease |
+| 27 | Operator `reobserve` on a disabled connection | (a) refused, as entries are; (b) allowed as reconciliation | (a), the narrower reading: it shares the entry path's load and authorization |
+| 28 | Where several development processes on one host share the connection record | (a) `install --attempt-store <absolute dir>`, recorded in manifest `/3`; (b) never | (a): the file store is host-wide under its lock; production uses the `PostgreSQL` store and refuses the flag |
+| 29 | The operator attestation file | (a) `{statement, signature_b64, evidence}` with 1–4 `{evidence_type, media_type, bytes_b64}` objects whose identifiers the gateway derives; (b) evidence identifiers supplied in the file | (a): nothing in the file chooses an identifier the kernel derives |
+| 30 | An admin state change that loses a compare-and-swap to another process | (a) reload and reapply up to 8 rounds, then `gateway.admin.generation-conflict`; (b) fail at once | (a): a kill switch should not fail on an unrelated concurrent change; the bound keeps it within the admin deadline |
+| 31 | The pool `serve`'s descriptor check counts | (a) the `PostgreSQL` pool's maximum connections, and zero for the file store; (b) a fixed number | (a) |
 
 ## 14. Conflicts with committed documents
 

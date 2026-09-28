@@ -10,6 +10,8 @@ import Auths.Product.RelativeCeiling
 import Auths.Product.RequestConstruction
 import Auths.Product.SubmitOrder
 import Auths.Product.Refinement.Gateway
+import Auths.Product.ConnectionGenerations
+import Auths.Product.Refinement.Connections
 import Auths.Lifecycle.Theorems
 import Auths.Lifecycle.Refinement
 import Auths.Refinement.Production
@@ -191,6 +193,18 @@ def theoremInventory : List Lean.Name :=
     `Auths.Product.Refinement.Gateway.translated_valid_transition_refines_model,
     `Auths.Product.Refinement.Gateway.translated_relative_basis_refines_model,
     `Auths.Product.Refinement.Gateway.translated_relative_ceiling_admits_refines_model,
+    `Auths.Product.ConnectionGenerations.retained_generation_exact,
+    `Auths.Product.ConnectionGenerations.lease_generation_exact,
+    `Auths.Product.ConnectionGenerations.credential_generation_le_generation,
+    `Auths.Product.ConnectionGenerations.state_change_preserves_credential_generation,
+    `Auths.Product.ConnectionGenerations.lease_selects_credential_generation,
+    `Auths.Product.ConnectionGenerations.join_after_state_changes,
+    `Auths.Product.ConnectionGenerations.revoked_never_leases,
+    `Auths.Product.Refinement.Connections.translated_next_generation_refines_model,
+    `Auths.Product.Refinement.Connections.translated_state_change_refines_model,
+    `Auths.Product.Refinement.Connections.translated_rotation_refines_model,
+    `Auths.Product.Refinement.Connections.translated_retained_generation_refines_model,
+    `Auths.Product.Refinement.Connections.translated_lease_generation_refines_model,
     `Auths.Lifecycle.additive_capacity_success_positive,
     `Auths.Lifecycle.additive_capacity_success_conserves,
     `Auths.Lifecycle.additive_capacity_success_never_overflows_u64,
