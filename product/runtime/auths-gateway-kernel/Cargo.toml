@@ -6,7 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 homepage.workspace = true
-description = "Pure gateway decision leaves: recovery capability, request construction, admission order, attempt transitions, and the relative ceiling"
+description = "Pure gateway decision leaves: recovery capability, request construction, admission order, attempt transitions, the relative ceiling, and the outcome presence rule"
 publish = false
 
 [dependencies]

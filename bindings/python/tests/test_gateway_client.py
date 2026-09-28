@@ -18,6 +18,7 @@ from auths.gateway import (
     GatewayObservationRefused,
     GatewayObserved,
     GatewayObservedByProvider,
+    GatewayPreEntryObservations,
     GatewayProtocolError,
     GatewayProviderEvidence,
     GatewaySignedObservation,
@@ -180,7 +181,7 @@ def test_client_requests_read_back_and_returns_signed_bytes(tmp_path) -> None:
         )
         assert seen == [
             {
-                "schema": "auths.gateway-observe/1",
+                "schema": "auths.gateway-observe/2",
                 "request": {
                     "kind": "read-back",
                     "arguments": {"record_id": "recTEST0000000001"},
@@ -204,14 +205,14 @@ def test_client_requests_outcome_and_surfaces_refusal(tmp_path) -> None:
 
     subject = "auths-gateway://ns/operations/step-1"
     signed, seen = asyncio.run(
-        scenario(_signed(schema="auths.gateway-outcome/1", subject=subject))
+        scenario(_signed(schema="auths.gateway-outcome/2", subject=subject))
     )
     assert signed == GatewaySignedObservation(
-        "auths.gateway-outcome/1", subject, 1_790_000_000, _MEDIA_TYPE, _OBSERVATION
+        "auths.gateway-outcome/2", subject, 1_790_000_000, _MEDIA_TYPE, _OBSERVATION
     )
     assert seen == [
         {
-            "schema": "auths.gateway-observe/1",
+            "schema": "auths.gateway-observe/2",
             "request": {"kind": "outcome", "operation_id": "step-1"},
         }
     ]
@@ -237,7 +238,7 @@ def test_client_rejects_malformed_observation_frames(tmp_path) -> None:
     with pytest.raises(GatewayProtocolError):
         asyncio.run(scenario(_signed(), "step-1"))
     for hostile in [
-        _signed(schema="auths.gateway-outcome/1"),
+        _signed(schema="auths.gateway-outcome/2"),
         _signed(media_type="application/cbor"),
         _signed(subject=""),
         _signed(subject="s" * 1_025),
@@ -265,6 +266,55 @@ def test_client_rejects_malformed_observation_frames(tmp_path) -> None:
             asyncio.run(scenario(hostile))
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="first gateway deployment is Unix-only"
+)
+def test_client_requests_pre_entry_observations_and_refuses_malformed_replies(
+    tmp_path,
+) -> None:
+    async def scenario(reply: bytes) -> tuple[object, list[dict[str, object]]]:
+        seen: list[dict[str, object]] = []
+        server = await _serve_once(tmp_path / "gateway.sock", reply, seen)
+        async with server:
+            client = GatewayClient(GatewayEndpoint(tmp_path / "gateway.sock"))
+            return await client.observe_pre_entry("step-1"), seen
+
+    def reply(**overrides: object) -> bytes:
+        body: dict[str, object] = {
+            "outcome": "pre-entry",
+            "operation_id": "step-1",
+            "observations_b64": [_b64(_OBSERVATION)],
+        }
+        body.update(overrides)
+        return json.dumps(body).encode()
+
+    result, seen = asyncio.run(scenario(reply()))
+    assert result == GatewayPreEntryObservations("step-1", (_OBSERVATION,))
+    assert seen == [
+        {
+            "schema": "auths.gateway-observe/2",
+            "request": {"kind": "pre-entry", "operation_id": "step-1"},
+        }
+    ]
+    empty, _ = asyncio.run(scenario(reply(observations_b64=[])))
+    assert empty == GatewayPreEntryObservations("step-1", ())
+    refused, _ = asyncio.run(
+        scenario(b'{"outcome":"refused","code":"gateway.observer.operation-unknown"}')
+    )
+    assert refused == GatewayObservationRefused("gateway.observer.operation-unknown")
+    for hostile in [
+        reply(operation_id="step-2"),
+        reply(observations_b64=[_b64(_OBSERVATION)] * 5),
+        reply(observations_b64=[""]),
+        reply(observations_b64=[_b64(_OBSERVATION) + "="]),
+        reply(observations_b64="AAAA"),
+        reply(signed=True),
+        _signed(),
+    ]:
+        with pytest.raises(GatewayProtocolError):
+            asyncio.run(scenario(hostile))
+
+
 def test_client_rejects_unbounded_observation_requests(tmp_path) -> None:
     client = GatewayClient(GatewayEndpoint(tmp_path / "gateway.sock"))
     for arguments in [
@@ -281,3 +331,5 @@ def test_client_rejects_unbounded_observation_requests(tmp_path) -> None:
     for operation in ["", "-step", "step 1", "s" * 129, "stép"]:
         with pytest.raises(ValueError):
             asyncio.run(client.observe_outcome(operation))
+        with pytest.raises(ValueError):
+            asyncio.run(client.observe_pre_entry(operation))

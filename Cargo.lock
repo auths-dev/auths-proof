@@ -650,6 +650,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "auths-gateway-fuzz"
+version = "1.0.0-rc.1"
+dependencies = [
+ "auths-codec",
+ "auths-gateway",
+ "auths-model",
+ "libfuzzer-sys",
+ "serde_json",
+ "serde_json_canonicalizer",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "auths-gateway-kernel"
 version = "1.0.0-rc.1"
 

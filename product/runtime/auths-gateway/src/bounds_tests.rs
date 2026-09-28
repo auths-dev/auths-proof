@@ -715,7 +715,7 @@ async fn journey_bundle(quorum: &RefundQuorum) -> Value {
             GatewayObserveResult::Signed {
                 observation_b64, ..
             } => Some(observation_b64),
-            GatewayObserveResult::Refused { .. } => None,
+            GatewayObserveResult::PreEntry { .. } | GatewayObserveResult::Refused { .. } => None,
         };
         entries.push(json!({
             "operation_id": operation,
@@ -790,11 +790,62 @@ async fn offline_audit_reproduces_every_gateway_decision() {
     .into_iter()
     .collect();
     assert_eq!(approvals, expected);
+    let result = report.entries[0]
+        .provider_result
+        .as_ref()
+        .expect("provider result");
+    assert_eq!(result.stage, "observed-by-provider");
+    assert_eq!(result.http_status, Some(200));
     assert_eq!(
-        report.entries[0].gateway_stage.as_deref(),
-        Some("observed-by-provider")
+        report.entries[3]
+            .provider_result
+            .as_ref()
+            .and_then(|result| result.refusal.as_deref()),
+        Some("gateway.policy.window-exhausted")
     );
+    assert_eq!(report.entries[1].provider_result, None);
     assert_eq!(report.inconsistent, 0);
+}
+
+/// An exhaustion refusal keeps the gateway's code; when the bundle's own
+/// entered entries leave room on its counter, the recount says the bundle
+/// does not show it, because a bundle may be incomplete.
+#[tokio::test]
+async fn offline_audit_reports_an_exhaustion_the_bundle_does_not_show() {
+    let quorum = RefundQuorum::open(500, 1, 3);
+    let mut bundle = journey_bundle(&quorum).await;
+    let pins = pins(&quorum);
+    let recount = |bundle: &Value| {
+        let report = audit(bundle, &pins);
+        let entry = report
+            .entries
+            .iter()
+            .find(|entry| entry.operation_id == "refund-4")
+            .expect("refund-4")
+            .clone();
+        (
+            entry.status,
+            entry.code,
+            entry.provider_result.and_then(|result| result.recount),
+        )
+    };
+    assert_eq!(
+        recount(&bundle),
+        (
+            crate::AuditStatus::Refused,
+            "gateway.policy.window-exhausted".to_owned(),
+            None
+        )
+    );
+    bundle["entries"].as_array_mut().expect("entries").remove(0);
+    assert_eq!(
+        recount(&bundle),
+        (
+            crate::AuditStatus::Refused,
+            "gateway.policy.window-exhausted".to_owned(),
+            Some("not-shown-by-bundle")
+        )
+    );
 }
 
 #[tokio::test]

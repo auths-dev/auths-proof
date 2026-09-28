@@ -79,7 +79,7 @@ and a new manifest, or a product-layer evaluator under 0025.
 ObservationStatement = {
   version:      1,
   observer:     PrincipalId,          ; signer
-  schema:       ObservationSchemaId,  ; e.g. "auths.gateway-outcome/1"
+  schema:       ObservationSchemaId,  ; e.g. "auths.gateway-outcome/2"
   subject:      ResourceId,           ; what was observed
   observed_at:  Timestamp,
   facts:        { 1*16 FactName => FactValue },
@@ -242,7 +242,7 @@ current value equals the action's `expected` value, observed within the last
 ```text
 requirement:
   observer_anchor: gateway-observer
-  schema:          auths.gateway-outcome/1
+  schema:          auths.gateway-outcome/2
   subject:         action_fact("depends_on")        ; step N-1's commitment URI
   max_age_seconds: 3600
   conditions:      [ member("stage", ["observed-by-provider"]) ]

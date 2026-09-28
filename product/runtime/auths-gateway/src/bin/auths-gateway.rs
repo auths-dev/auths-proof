@@ -63,8 +63,9 @@ mod unix {
     const MANIFEST_SCHEMA: &str = "auths.gateway-installation/3";
     const OBSERVER_SEED: &str = "observer.seed";
     const OPERATOR_ATTESTATION_FILE: &str = "operator-attestation.json";
-    const ADMIN_REQUEST_SCHEMA: &str = "auths.gateway-admin-request/1";
-    const ADMIN_RESPONSE_SCHEMA: &str = "auths.gateway-admin-response/1";
+    use auths_gateway::admin::{
+        ADMIN_REQUEST_SCHEMA, ADMIN_RESPONSE_SCHEMA, AdminRequestCommand, parse_admin_request,
+    };
     /// Descriptors `serve` keeps beyond its listeners' capacities and the
     /// store pool: standard streams, listeners, store and state files.
     const DESCRIPTOR_SLACK: u64 = 32;
@@ -276,16 +277,46 @@ mod unix {
             #[arg(long)]
             state_dir: PathBuf,
         },
-        /// Ask the app socket for one signed observation; never a write.
+        /// Ask the app socket for one signed observation, or for one
+        /// operation's stored pre-entry observations; never a write.
+        #[command(group(clap::ArgGroup::new("request").required(true).args(["read_back", "outcome", "pre_entry"])))]
         Observe {
             #[arg(long)]
             app_socket: PathBuf,
             /// JSON object naming exactly the recipe observation path fields.
-            #[arg(long, conflicts_with = "outcome", required_unless_present = "outcome")]
+            #[arg(long)]
             read_back: Option<String>,
             /// Logical operation ID whose stored outcome to sign.
             #[arg(long)]
             outcome: Option<String>,
+            /// Logical operation ID whose stored pre-entry observations to
+            /// return; nothing is signed.
+            #[arg(long)]
+            pre_entry: Option<String>,
+        },
+        /// Check offline whether a provider record holds one action's echo
+        /// token. Reads no network and no gateway state; exits 0 only on a
+        /// match, which shows consistency with the action, not authorship.
+        #[command(group(clap::ArgGroup::new("source").required(true).args(["bundle", "action"])))]
+        EchoVerify {
+            /// The provider record, as JSON of at most 1 MiB.
+            #[arg(long)]
+            record: PathBuf,
+            /// JSON pointer of the echo field in the record.
+            #[arg(long)]
+            pointer: String,
+            /// The logical operation ID.
+            #[arg(long)]
+            operation_id: String,
+            /// An audit bundle carrying the operation's action and recipe.
+            #[arg(long, conflicts_with_all = ["namespace", "action"])]
+            bundle: Option<PathBuf>,
+            /// The operator namespace, with `--action`.
+            #[arg(long, requires = "action")]
+            namespace: Option<String>,
+            /// The canonical action bytes, with `--namespace`.
+            #[arg(long, requires = "namespace")]
+            action: Option<PathBuf>,
         },
         /// Test isolation from the actual application UID and GID.
         Doctor {
@@ -353,32 +384,6 @@ mod unix {
                 deployment: self.deployment.label().to_owned(),
             }
         }
-    }
-
-    /// Parses one `auths.gateway-admin-request/1` frame: a JSON object with
-    /// exactly the schema, the command, and that command's arguments.
-    fn parse_admin_request(bytes: &[u8]) -> Result<AdminRequestCommand, &'static str> {
-        let invalid = "gateway.admin.invalid-frame";
-        let mut request: serde_json::Map<String, serde_json::Value> =
-            serde_json::from_slice(bytes).map_err(|_| invalid)?;
-        if request.remove("schema") != Some(serde_json::Value::String(ADMIN_REQUEST_SCHEMA.into()))
-        {
-            return Err(invalid);
-        }
-        serde_json::from_value(serde_json::Value::Object(request)).map_err(|_| invalid)
-    }
-
-    #[derive(Deserialize)]
-    #[serde(tag = "command", rename_all = "kebab-case", deny_unknown_fields)]
-    enum AdminRequestCommand {
-        // Struct variants, so an argument the command does not take is
-        // refused: an internally tagged unit variant ignores extra members.
-        Disable {},
-        Enable {},
-        Revoke {},
-        Rotate {},
-        Status {},
-        Reobserve { operation_id: String },
     }
 
     #[derive(Serialize)]
@@ -1309,13 +1314,15 @@ mod unix {
         socket: PathBuf,
         read_back: Option<String>,
         outcome: Option<String>,
+        pre_entry: Option<String>,
     ) -> Result<(), &'static str> {
-        let request = match (read_back, outcome) {
-            (Some(arguments), None) => GatewayObserveRequest::ReadBack {
+        let request = match (read_back, outcome, pre_entry) {
+            (Some(arguments), None, None) => GatewayObserveRequest::ReadBack {
                 arguments: serde_json::from_str(&arguments)
                     .map_err(|_| "gateway.observe.invalid-arguments")?,
             },
-            (None, Some(operation_id)) => GatewayObserveRequest::Outcome { operation_id },
+            (None, Some(operation_id), None) => GatewayObserveRequest::Outcome { operation_id },
+            (None, None, Some(operation_id)) => GatewayObserveRequest::PreEntry { operation_id },
             _ => return Err("gateway.observe.invalid-request"),
         };
         let bytes = serde_json::to_vec(&AppObservation {
@@ -1335,9 +1342,48 @@ mod unix {
             serde_json::to_string(&result).map_err(|_| "gateway.observe.invalid-response")?
         );
         match result {
-            GatewayObserveResult::Signed { .. } => Ok(()),
+            GatewayObserveResult::Signed { .. } | GatewayObserveResult::PreEntry { .. } => Ok(()),
             GatewayObserveResult::Refused { .. } => Err("gateway.observe.refused"),
         }
+    }
+
+    fn echo_verify(
+        record: &Path,
+        pointer: &str,
+        operation_id: &str,
+        source: EchoSource,
+    ) -> Result<(), &'static str> {
+        let record = read_bounded(record, auths_gateway::MAX_ECHO_RECORD_BYTES)
+            .map_err(|_| "gateway.echo-verify.record-invalid")?;
+        let verified = match source {
+            EchoSource::Bundle(bundle) => {
+                let bundle = read_bounded(&bundle, auths_gateway::MAX_AUDIT_BUNDLE_BYTES)
+                    .map_err(|_| "gateway.echo-verify.action-invalid")?;
+                auths_gateway::echo_verify_bundle(&record, pointer, &bundle, operation_id)
+            }
+            EchoSource::Action { namespace, action } => {
+                let action = read_bounded(&action, 64 * 1024)
+                    .map_err(|_| "gateway.echo-verify.action-invalid")?;
+                auths_gateway::echo_verify(&record, pointer, &namespace, operation_id, &action)
+            }
+        }
+        .map_err(auths_gateway::EchoVerifyError::code)?;
+        // The result holds only strings and closed enums, so it always
+        // serializes; the exit status carries the result either way.
+        if let Ok(text) = serde_json::to_string_pretty(&verified) {
+            println!("{text}");
+        }
+        if verified.result == auths_gateway::EchoResult::Match {
+            Ok(())
+        } else {
+            Err(verified.code)
+        }
+    }
+
+    /// Where `echo-verify` finds the action and namespace.
+    enum EchoSource {
+        Bundle(PathBuf),
+        Action { namespace: String, action: PathBuf },
     }
 
     async fn admin_command(
@@ -1712,7 +1758,25 @@ mod unix {
                 app_socket,
                 read_back,
                 outcome,
-            } => observe(app_socket, read_back, outcome).await,
+                pre_entry,
+            } => observe(app_socket, read_back, outcome, pre_entry).await,
+            Command::EchoVerify {
+                record,
+                pointer,
+                operation_id,
+                bundle,
+                namespace,
+                action,
+            } => {
+                let source = match (bundle, namespace, action) {
+                    (Some(bundle), None, None) => EchoSource::Bundle(bundle),
+                    (None, Some(namespace), Some(action)) => {
+                        EchoSource::Action { namespace, action }
+                    }
+                    _ => return Err("gateway.echo-verify.action-invalid"),
+                };
+                echo_verify(&record, &pointer, &operation_id, source)
+            }
             Command::Doctor {
                 state_dir,
                 app_socket,

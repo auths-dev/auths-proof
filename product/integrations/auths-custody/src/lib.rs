@@ -858,7 +858,7 @@ mod tests {
     fn observation(principal: &PrincipalId) -> auths_model::ObservationStatement {
         auths_model::ObservationStatement::new(
             principal.clone(),
-            auths_model::ObservationSchemaId::parse("auths.gateway-outcome/1").unwrap(),
+            auths_model::ObservationSchemaId::parse("auths.gateway-outcome/2").unwrap(),
             ResourceId::parse("auths-gateway://ns/operations/op-1").unwrap(),
             auths_model::Timestamp::new(1),
             auths_model::ObservationFacts::new(vec![auths_model::ObservationFact::new(

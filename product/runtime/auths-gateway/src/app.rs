@@ -16,7 +16,7 @@ use tokio::time::{Instant, sleep_until, timeout_at};
 /// Schema of a proof/action submission frame.
 pub const APP_REQUEST_SCHEMA: &str = "auths.gateway-submit/1";
 /// Schema of an observation request frame.
-pub const APP_OBSERVE_SCHEMA: &str = "auths.gateway-observe/1";
+pub const APP_OBSERVE_SCHEMA: &str = "auths.gateway-observe/2";
 /// Largest frame either side accepts.
 pub const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
 
@@ -151,6 +151,20 @@ pub struct AppObservation {
 enum AppFrame {
     Submit(AppSubmission),
     Observe(AppObservation),
+}
+
+/// Which closed frame `bytes` parse as, schema included: `submit`,
+/// `observe`, or `None`.
+#[cfg(feature = "fuzzing")]
+pub(crate) fn frame_kind(bytes: &[u8]) -> Option<&'static str> {
+    match serde_json::from_slice::<AppFrame>(bytes).ok()? {
+        AppFrame::Submit(submission) => {
+            (submission.schema == APP_REQUEST_SCHEMA).then_some("submit")
+        }
+        AppFrame::Observe(observation) => {
+            (observation.schema == APP_OBSERVE_SCHEMA).then_some("observe")
+        }
+    }
 }
 
 /// What serves the application socket: the gateway engine, or the test

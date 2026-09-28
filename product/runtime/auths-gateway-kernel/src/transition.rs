@@ -493,3 +493,157 @@ mod tests {
         assert!(valid_transition(&attempting, &located));
     }
 }
+
+#[cfg(kani)]
+mod proofs {
+    use super::*;
+    use alloc::vec::Vec;
+
+    fn any_stage() -> Stage {
+        match kani::any::<u8>() % 6 {
+            0 => Stage::Attempting,
+            1 => Stage::NotEntered,
+            2 => Stage::Unknown,
+            3 => Stage::ResponseRecorded,
+            4 => Stage::Observed,
+            _ => Stage::ObservedByProvider,
+        }
+    }
+
+    fn any_link() -> Link {
+        match kani::any::<u8>() % 3 {
+            0 => Link::None,
+            1 => Link::Verified,
+            _ => Link::AfterResponse,
+        }
+    }
+
+    fn any_reading() -> Reading {
+        match kani::any::<u8>() % 4 {
+            0 => Reading::None,
+            1 => Reading::Match,
+            2 => Reading::Mismatch,
+            _ => Reading::EchoMismatch,
+        }
+    }
+
+    /// Absent, or one byte of two possible values: enough to tell "kept",
+    /// "added", and "changed" apart.
+    fn any_bytes() -> Vec<u8> {
+        let mut bytes = Vec::new();
+        if kani::any() {
+            bytes.push(u8::from(kani::any::<bool>()));
+        }
+        bytes
+    }
+
+    fn any_view() -> AttemptView {
+        AttemptView {
+            fixed: any_bytes(),
+            stage: any_stage(),
+            refusal: kani::any(),
+            pre_entry: any_bytes(),
+            response: any_bytes(),
+            locator: any_bytes(),
+            reading: any_reading(),
+            evidence: kani::any(),
+            observation: kani::any(),
+            link: any_link(),
+        }
+    }
+
+    /// The attempt record's stage table, row by row.
+    fn table(from: Stage, to: Stage, link: Link) -> bool {
+        matches!(
+            (from, to),
+            (
+                Stage::Attempting,
+                Stage::Attempting | Stage::NotEntered | Stage::Unknown | Stage::ResponseRecorded
+            ) | (
+                Stage::ResponseRecorded,
+                Stage::Observed | Stage::ObservedByProvider
+            )
+        ) || (matches!(
+            (from, to),
+            (
+                Stage::Attempting | Stage::Unknown,
+                Stage::ObservedByProvider
+            )
+        ) && link == Link::Verified)
+    }
+
+    /// Which fields each stage's record holds.
+    fn fields_match_stage(view: &AttemptView) -> bool {
+        let response = !view.response.is_empty();
+        let reading = view.reading != Reading::None;
+        let shape = match view.stage {
+            Stage::NotEntered => view.refusal && !response && !reading && !view.evidence,
+            Stage::Attempting | Stage::Unknown => {
+                !view.refusal && !response && !reading && !view.evidence
+            }
+            Stage::ResponseRecorded => !view.refusal && response && !reading && !view.evidence,
+            Stage::Observed => {
+                !view.refusal && response && reading && view.observation && !view.evidence
+            }
+            Stage::ObservedByProvider => {
+                !view.refusal
+                    && !reading
+                    && view.evidence
+                    && view.link != Link::None
+                    && (response || view.link == Link::Verified)
+            }
+        };
+        shape && (view.locator.is_empty() || response)
+    }
+
+    /// Exhaustive over every stage, link, and reading pair: the closed stage
+    /// table.
+    #[kani::proof]
+    fn stage_transition_allowed_is_the_closed_table() {
+        let from = any_stage();
+        let to = any_stage();
+        let link = any_link();
+        assert_eq!(
+            stage_transition_allowed(from, to, link),
+            table(from, to, link)
+        );
+        if terminal_stage(from) {
+            assert!(!stage_transition_allowed(from, to, link));
+        }
+    }
+
+    /// Exhaustive over every pair of bounded records (each byte field absent
+    /// or one of two values): `valid_transition` holds exactly when the
+    /// fixed bytes and plan are kept, the stage change is in the table, the
+    /// checkpoint adds pre-entry evidence once, pre-entry evidence is added
+    /// only before entry and then kept, the response and locator are added
+    /// only with `response-recorded` and then kept, and the new record's
+    /// fields match its stage.
+    #[kani::proof]
+    #[kani::unwind(3)]
+    fn valid_transition_agrees_with_the_record_table() {
+        let old = any_view();
+        let new = any_view();
+        let pre_entry = match (old.stage, new.stage) {
+            (Stage::Attempting, Stage::Attempting) => {
+                old.pre_entry.is_empty() && !new.pre_entry.is_empty()
+            }
+            (Stage::Attempting, Stage::NotEntered) => {
+                old.pre_entry.is_empty() || old.pre_entry == new.pre_entry
+            }
+            _ => old.pre_entry == new.pre_entry,
+        };
+        let response = matches!(
+            (old.stage, new.stage),
+            (Stage::Attempting, Stage::ResponseRecorded)
+        ) || (old.response == new.response && old.locator == new.locator);
+        let expected = old.fixed == new.fixed
+            && old.observation == new.observation
+            && old.link == new.link
+            && table(old.stage, new.stage, old.link)
+            && pre_entry
+            && response
+            && fields_match_stage(&new);
+        assert_eq!(valid_transition(&old, &new), expected);
+    }
+}

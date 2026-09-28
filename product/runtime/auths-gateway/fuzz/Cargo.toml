@@ -1,0 +1,58 @@
+[package]
+name = "auths-gateway-fuzz"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+# cargo-fuzz refuses a fuzz directory whose manifest lacks this marker.
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+auths-codec.workspace = true
+auths-gateway = { workspace = true, features = ["fuzzing"] }
+auths-model.workspace = true
+libfuzzer-sys = "0.4"
+serde_json.workspace = true
+serde_json_canonicalizer.workspace = true
+sha2.workspace = true
+
+[[bin]]
+name = "target_gateway_recipe"
+path = "fuzz_targets/target_gateway_recipe.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "target_gateway_request"
+path = "fuzz_targets/target_gateway_request.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "target_gateway_attempt"
+path = "fuzz_targets/target_gateway_attempt.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "target_gateway_outcome"
+path = "fuzz_targets/target_gateway_outcome.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "target_gateway_app_frame"
+path = "fuzz_targets/target_gateway_app_frame.rs"
+test = false
+doc = false
+bench = false
+
+[lints]
+workspace = true

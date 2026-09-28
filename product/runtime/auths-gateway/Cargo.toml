@@ -12,6 +12,9 @@ publish = false
 # provider requests to a plain-HTTP provider double on 127.0.0.1.
 loopback-provider = []
 testkit-harness = []
+# Fuzzing only: exposes `auths_gateway::fuzzing`, thin wrappers over
+# crate-private parsers and rules for `auths-gateway-fuzz`.
+fuzzing = []
 
 [[bin]]
 name = "auths-gateway"

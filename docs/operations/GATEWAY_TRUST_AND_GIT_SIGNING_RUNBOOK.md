@@ -165,7 +165,7 @@ custody is suspect.
    rotation. Do not disable the old key yet.
 2. Record the new key's anchor facts: principal, `raw-key-v1`, verification
    method, `p256-sha256-v1`, both schemas (`auths.gateway-readback/1`,
-   `auths.gateway-outcome/1`), and both subject namespaces. For a
+   `auths.gateway-outcome/2`), and both subject namespaces. For a
    development seed, `auths-gateway observer-show` prints them together with
    `observer_custody`.
 3. Update the trust as in §4, replacing the principal of the existing

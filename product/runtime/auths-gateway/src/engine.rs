@@ -126,9 +126,12 @@ pub enum GatewayObserveRequest {
     /// Read the recipe's observed field now and sign what was read.
     /// `arguments` names exactly the observation path's fields.
     ReadBack { arguments: Map<String, Value> },
-    /// Sign the stored stage and commitment of one logical operation in this
+    /// Sign the stored record of one logical operation in this
     /// installation's namespace. No provider is contacted.
     Outcome { operation_id: String },
+    /// Return the signed pre-entry observations stored for one logical
+    /// operation. Nothing is signed and no provider is contacted.
+    PreEntry { operation_id: String },
 }
 
 /// Closed application result of an observation request. A signed
@@ -144,6 +147,13 @@ pub enum GatewayObserveResult {
         observed_at: u64,
         media_type: String,
         observation_b64: String,
+    },
+    /// The signed pre-entry observations stored for `operation_id`, in
+    /// pointer order, each unpadded base64url; empty when none were
+    /// recorded.
+    PreEntry {
+        operation_id: String,
+        observations_b64: Vec<String>,
     },
     /// Nothing was signed.
     Refused { code: String },
@@ -765,6 +775,9 @@ impl GatewayEngine {
     /// declared credential check; an outcome reads only the local attempt
     /// store. Nothing here writes to a provider or to the store.
     pub async fn observe(&self, request: &GatewayObserveRequest) -> GatewayObserveResult {
+        if let GatewayObserveRequest::PreEntry { operation_id } = request {
+            return observe_pre_entry(&self.attempts, self.recipe.namespace(), operation_id).await;
+        }
         let Some(observer) = &self.observer else {
             return refused("gateway.observer.not-provisioned");
         };
@@ -781,6 +794,9 @@ impl GatewayEngine {
                     now,
                 )
                 .await
+            }
+            GatewayObserveRequest::PreEntry { operation_id } => {
+                observe_pre_entry(&self.attempts, self.recipe.namespace(), operation_id).await
             }
             GatewayObserveRequest::ReadBack { arguments } => {
                 let Ok(target) = self.recipe.read_back_target(arguments) else {
@@ -1177,6 +1193,36 @@ pub(crate) async fn observe_outcome(
             )
         })
         .map_or_else(|error| refused(error.code()), GatewayObserveResult::from)
+}
+
+/// Returns the signed pre-entry observations stored for one logical
+/// operation. It signs nothing and contacts no provider.
+pub(crate) async fn observe_pre_entry(
+    attempts: &GatewayAttempts,
+    namespace: &crate::OperatorNamespace,
+    operation_id: &str,
+) -> GatewayObserveResult {
+    let Ok(operation) = crate::LogicalOperationId::parse(operation_id) else {
+        return refused("gateway.observer.invalid-operation");
+    };
+    let snapshot = match attempts.read(namespace, &operation).await {
+        Ok(Some(value)) => value,
+        Ok(None) => return refused("gateway.observer.operation-unknown"),
+        Err(_) => return refused("gateway.observer.store-unavailable"),
+    };
+    GatewayObserveResult::PreEntry {
+        operation_id: operation.as_str().to_owned(),
+        observations_b64: snapshot
+            .pre_entry()
+            .map(|record| {
+                record
+                    .observations
+                    .iter()
+                    .map(|bytes| Base64UrlUnpadded::encode_string(bytes))
+                    .collect()
+            })
+            .unwrap_or_default(),
+    }
 }
 
 /// Performs one read-only observation and signs what it read. The observation

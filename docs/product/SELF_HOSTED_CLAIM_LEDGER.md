@@ -158,8 +158,10 @@ The gateway can now hold an observer signing key and sign two kinds of
 observation for the application to attach to its next action:
 `auths.gateway-readback/1` (the value the gateway read from the recipe's
 observed field, and the echo field when present) and
-`auths.gateway-outcome/1` (the stored commitment and stage of one logical
-operation). A grant's observation requirement can then require, for example,
+`auths.gateway-outcome/2` (the stored record of one logical operation: its
+commitment, stage, evaluation time, recipe digest, and, as recorded, the
+counter-set digest, refusal, response status and digest, read-back
+comparison, evidence digest, pre-entry digest, and relative-ceiling basis). A grant's observation requirement can then require, for example,
 that the record held the action's `expected` value, or that step N−1 is
 `observed-by-provider`, before the verifier authorizes step N. The gateway
 verifies at its own clock and exposes top-level verified MCP arguments as
@@ -293,6 +295,45 @@ multiplying either, all-or-none reservation, fixed-context tightening, and
 decider soundness, with the chain leaves translated and refined. No hosted
 CI result is cited here.
 
+### Outcome and audit `/2` with the provider result (AP-SPEC-063 §8, repository-local only)
+
+**Claim.** For every claimed submission the gateway records the stage, the
+gateway evaluation time, the refusal code when it refused, and the HTTP
+status and response digest when a complete response exists. When an
+observer key is provisioned, it signs that record on request as
+`auths.gateway-outcome/2`, with the counter-set digest, the pre-entry
+digest, and the relative-ceiling basis when recorded; the gateway refuses
+to sign, and the auditor refuses to accept, any fact set its stage could not
+carry. The offline audit (`auths.gateway-audit-report/2`) re-verifies each
+entry at the outcome's `evaluated-at`, requires the counters it derives to
+digest to the outcome's `counters-digest`, recounts the count and sum bounds
+without order, requires a relative-ceiling recipe's outcomes to carry a
+basis that admits the re-derived argument and a pre-entry recipe's
+observations to satisfy the selected requirements, and reports the
+provider's result beside `verified`, which still means authorized and
+entered. `auths-gateway echo-verify` checks offline whether a provider
+record an auditor fetched holds one action's echo token.
+
+**Not a claim.** Provider effect, acceptance, or settlement: a refund the
+provider rejected is `verified` with its `http_status` of 400 beside it.
+That the relative-ceiling basis or any recorded status is true of the
+provider: both are the gateway's assertion under observer trust. That an
+echo match shows who wrote the record. That an audit bundle is complete.
+Until AP-SPEC-038 Epic 4 supplies a custody client, a production gateway
+signs no outcomes, so every authorized entry audits as `refused` with
+`audit.outcome-missing`.
+
+Current evidence is `bindings/fixtures/gateway/outcome-v2.json`: Rust
+verifies every accepted vector with its exact facts and refuses every
+refused one, and Rust, the Python SDK (native), and the TypeScript SDK
+(WASM) reach the same verdict on every case of a grant requiring
+`member("stage", ["observed-by-provider"])`; the gateway audit unit tests;
+and the north-star journey (`examples/stripe-refund-approval/journey.py`),
+whose audit shows `http_status` 200 and 400 for its two entered refunds.
+The gateway fuzz targets, property tests, and Kani harnesses cover the
+outcome presence rule, request construction, and the attempt record. No
+hosted CI result is cited here.
+
 ### Derived idempotency key for recipe writes (AP-SPEC-053 §3.2.1, repository-local only)
 
 **Claim.** A recipe that declares `write.idempotency` of kind
@@ -314,9 +355,10 @@ Current evidence is the gateway's unit tests (the header is sent exactly
 when the recipe declares it and never on read-back), the hostile recipe
 cases in `bindings/fixtures/gateway/hostile-recipes.json`, and a state-loss
 case in the north-star journey (`examples/stripe-refund-approval/journey.py`)
-against the Stripe-compatible double: after the attempt store is deleted and
-the gateway restarted, a resubmitted refund reaches the double with the same
-key and creates no second refund. The double is not Stripe, and no hosted CI
+against the Stripe-compatible double: after the attempt store is restored
+from a backup taken before the first refund, which keeps the shared
+connection record but no claim, and the gateway restarts, a resubmitted
+refund reaches the double with the same key and creates no second refund. The double is not Stripe, and no hosted CI
 result is cited here.
 
 ## Packaged clean-consumer exercise

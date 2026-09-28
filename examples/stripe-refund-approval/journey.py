@@ -7,8 +7,14 @@ Stripe double on 127.0.0.1; that needs a gateway built with
 ``--features loopback-provider``. With ``--stripe-test-mode`` the same
 journey calls Stripe's test mode instead, using the developer's own
 ``STRIPE_TEST_SECRET_KEY`` (``sk_test_`` only) and a refundable
-``--payment-intent`` of at least 55.00 USD. The key is piped to the gateway
+``--payment-intent`` of at least 15.00 USD. The key is piped to the gateway
 install and nowhere else.
+
+Refund 4 names a PaymentIntent the provider does not hold, so the provider
+rejects it with 400 after the gateway entered it. The offline audit reports
+it ``verified`` (authorized and entered) with its ``http_status`` of 400
+beside the verdict, and it still consumes the agent's second refund of the
+window.
 
 Against the double it also checks the ``Idempotency-Key`` the gateway derives
 for each refund, then restores the gateway's store from a backup taken
@@ -37,6 +43,8 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 HERE = Path(__file__).resolve().parent
+# A PaymentIntent neither the double nor a Stripe test account holds.
+MISSING_PAYMENT_INTENT = "pi_auths_journey_missing"
 PYTHON = sys.executable
 # The packaged approval CLI installed beside this interpreter with the wheel.
 APPROVE_CLI = str(Path(sys.executable).parent / "auths")
@@ -360,6 +368,8 @@ def main() -> int:
                     str(journey.ledger),
                     "--token-sha256",
                     mock_token_sha256,
+                    "--payment-intent",
+                    args.payment_intent,
                 )
                 port = mock.stdout.readline().strip() if mock.stdout else ""
                 expect(port.isdigit(), "mock Stripe did not start")
@@ -376,9 +386,12 @@ def main() -> int:
             amount: int,
             approvers: str,
             declines: tuple[str, ...] = (),
+            payment_intent: Optional[str] = None,
         ) -> None:
             before = len(journey.provider_entries())
-            results[operation] = journey.refund(operation, amount, approvers, pi, declines)
+            results[operation] = journey.refund(
+                operation, amount, approvers, payment_intent or pi, declines
+            )
             results[operation]["provider_entries"] = len(journey.provider_entries()) - before
 
         # README step 6: the agent writes a request per manager, each manager
@@ -419,8 +432,13 @@ def main() -> int:
             lambda: submit("refund-3-over-ceiling", 9_000, "manager-a,manager-b"),
         )
         journey.step(
-            "refund 4: 40.00, agent + manager-b + manager-c",
-            lambda: submit("refund-4", 4_000, "manager-b,manager-c"),
+            "refund 4: 40.00 of a PaymentIntent the provider does not hold (rejected)",
+            lambda: submit(
+                "refund-4",
+                4_000,
+                "manager-b,manager-c",
+                payment_intent=MISSING_PAYMENT_INTENT,
+            ),
         )
         journey.step(
             "hostile: third refund in the window",
@@ -434,7 +452,7 @@ def main() -> int:
         )
         expect(
             results["refund-4"]["outcome"] == "response-recorded"
-            and results["refund-4"]["status"] == 200,
+            and results["refund-4"]["status"] == 400,
             f"refund-4: {results['refund-4']}",
         )
         declined = results["refund-declined"]
@@ -511,7 +529,7 @@ def main() -> int:
                 f"resubmitted refund-1 was not de-duplicated: {entries[2]}",
             )
             refunds_created = {entry["refund"] for entry in entries if entry["refund"]}
-            expect(len(refunds_created) == 2, f"expected 2 refunds, saw {sorted(refunds_created)}")
+            expect(len(refunds_created) == 1, f"expected 1 refund, saw {sorted(refunds_created)}")
 
         # README step 6: the audit bundle.
         bundle_path = journey.work / "audit-bundle.json"
@@ -546,6 +564,35 @@ def main() -> int:
                 verdicts[operation] == ("refused", code),
                 f"audit {operation}: {verdicts[operation]}",
             )
+        # Every entered refund shows the provider's result beside its verdict,
+        # the one the provider rejected included.
+        provider_results = {
+            entry["operation_id"]: entry["provider_result"] for entry in report["entries"]
+        }
+        entered = [
+            entry["operation_id"] for entry in report["entries"] if entry["status"] == "verified"
+        ]
+        expect(entered == ["refund-1", "refund-4"], f"audit entered {entered}")
+        for operation, status in (("refund-1", 200), ("refund-4", 400)):
+            result = provider_results[operation]
+            expect(
+                result is not None
+                and result["stage"] == "response-recorded"
+                and result["http_status"] == status
+                and result["response_digest"] is not None,
+                f"audit provider result {operation}: {result}",
+            )
+        exhausted = provider_results["refund-5-window"]
+        expect(
+            exhausted is not None
+            and exhausted["refusal"] == "gateway.policy.window-exhausted"
+            and exhausted["recount"] is None,
+            f"audit provider result refund-5-window: {exhausted}",
+        )
+        expect(
+            report["recovery"]["class"] == "recorded",
+            f"audit recovery {report['recovery']}",
+        )
         verified = next(entry for entry in report["entries"] if entry["operation_id"] == "refund-1")
         expect(len(verified["approvals"]) == 3, "refund-1 should carry the agent and two managers")
         expect(
@@ -645,6 +692,10 @@ def main() -> int:
                 "verified": report["verified"],
                 "refused": report["refused"],
                 "inconsistent": report["inconsistent"],
+                "http_status": {
+                    operation: provider_results[operation]["http_status"]
+                    for operation in entered
+                },
             },
             "tamper_detected": detections,
         }

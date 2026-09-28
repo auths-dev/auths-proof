@@ -388,6 +388,137 @@ mod proofs {
         let left: u64 = kani::any();
         assert_eq!(checked_div_u64(left, 0), None);
     }
+
+    /// Up to four counters of symbolic counts and capacities, including
+    /// slices of different lengths: the chain admits exactly when the
+    /// lengths agree and every counter holds fewer slots than its capacity.
+    #[kani::proof]
+    #[kani::unwind(6)]
+    fn chain_counts_admit_matches_every_counter_having_room() {
+        let counts: [u64; 4] = kani::any();
+        let capacities: [u64; 4] = kani::any();
+        let used: usize = kani::any();
+        let declared: usize = kani::any();
+        kani::assume(used <= 4 && declared <= 4);
+        let expected = used == declared && (0..used).all(|index| counts[index] < capacities[index]);
+        assert_eq!(
+            chain_counts_admit(&counts[..used], &capacities[..declared]),
+            expected
+        );
+    }
+
+    /// Up to four sum counters of symbolic sums, argument, and capacities:
+    /// the chain admits exactly when the lengths agree and every running sum
+    /// plus the argument, computed without overflow, is within its capacity.
+    #[kani::proof]
+    #[kani::unwind(6)]
+    fn chain_sums_admit_matches_every_sum_having_room() {
+        let sums: [u64; 4] = kani::any();
+        let capacities: [u64; 4] = kani::any();
+        let argument: u64 = kani::any();
+        let used: usize = kani::any();
+        let declared: usize = kani::any();
+        kani::assume(used <= 4 && declared <= 4);
+        let expected = used == declared
+            && (0..used).all(|index| {
+                u128::from(sums[index]) + u128::from(argument) <= u128::from(capacities[index])
+            });
+        assert_eq!(
+            chain_sums_admit(&sums[..used], argument, &capacities[..declared]),
+            expected
+        );
+    }
+
+    /// One byte of two values: enough to tell equal names apart.
+    fn any_name() -> Vec<u8> {
+        alloc::vec![u8::from(kani::any::<bool>())]
+    }
+
+    /// Up to three values, each one byte of three values: enough for a
+    /// child list to hold a value its parent lacks.
+    fn any_values() -> Vec<Vec<u8>> {
+        let value = || alloc::vec![kani::any::<u8>() % 3];
+        match kani::any::<u8>() % 4 {
+            0 => Vec::new(),
+            1 => alloc::vec![value()],
+            2 => alloc::vec![value(), value()],
+            _ => alloc::vec![value(), value(), value()],
+        }
+    }
+
+    fn any_list() -> Option<ValueList> {
+        if kani::any() {
+            Some(ValueList {
+                argument: any_name(),
+                values: any_values(),
+            })
+        } else {
+            None
+        }
+    }
+
+    fn any_members() -> PolicyMembers {
+        PolicyMembers {
+            argument: any_name(),
+            ceiling: kani::any(),
+            window: kani::any(),
+            max_count: kani::any(),
+            sum: if kani::any() {
+                Some(SumBound {
+                    limit: kani::any(),
+                    partition: any_list(),
+                })
+            } else {
+                None
+            },
+            scope: any_list(),
+        }
+    }
+
+    /// A child list narrows its parent's: the same argument and a subset of
+    /// the values, as sets.
+    fn narrows(child: &ValueList, parent: &ValueList) -> bool {
+        child.argument == parent.argument
+            && child
+                .values
+                .iter()
+                .all(|value| parent.values.contains(value))
+    }
+
+    /// Exhaustive over value lists of up to three values: the decider holds
+    /// exactly when the argument, window, ceiling, and count tighten, a
+    /// parent's sum is kept no larger with a narrowing partition (or none
+    /// under none), and a parent's scope is kept narrowing.
+    #[kani::proof]
+    #[kani::unwind(4)]
+    fn argument_policy_tightens_matches_the_tightening_rules() {
+        let child = any_members();
+        let parent = any_members();
+        let sum = match (&child.sum, &parent.sum) {
+            (_, None) => true,
+            (None, Some(_)) => false,
+            (Some(child), Some(parent)) => {
+                child.limit <= parent.limit
+                    && match (&child.partition, &parent.partition) {
+                        (None, None) => true,
+                        (Some(child), Some(parent)) => narrows(child, parent),
+                        _ => false,
+                    }
+            }
+        };
+        let scope = match (&child.scope, &parent.scope) {
+            (_, None) => true,
+            (None, Some(_)) => false,
+            (Some(child), Some(parent)) => narrows(child, parent),
+        };
+        let expected = child.argument == parent.argument
+            && child.window == parent.window
+            && child.ceiling <= parent.ceiling
+            && child.max_count <= parent.max_count
+            && sum
+            && scope;
+        assert_eq!(argument_policy_tightens(&child, &parent), expected);
+    }
 }
 
 #[cfg(test)]

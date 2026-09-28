@@ -777,6 +777,10 @@ const KANI_HARNESS_PACKAGES: &[KaniHarnessPackage] = &[
         source_root: "product/policy/auths-bounded-policy",
     },
     KaniHarnessPackage {
+        package: "auths-gateway-kernel",
+        source_root: "product/runtime/auths-gateway-kernel",
+    },
+    KaniHarnessPackage {
         package: "auths-stripe",
         source_root: "product/integrations/auths-stripe",
     },

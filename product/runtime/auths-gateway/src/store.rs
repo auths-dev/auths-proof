@@ -1848,6 +1848,19 @@ fn decode(bytes: &[u8]) -> Result<Record, GatewayAttemptError> {
     serde_json::from_slice(bytes).map_err(|_| GatewayAttemptError::Corrupt)
 }
 
+/// The snapshot of one stored record's bytes, for the fuzz targets.
+#[cfg(feature = "fuzzing")]
+pub(crate) fn fuzz_snapshot(bytes: &[u8]) -> Option<GatewayAttemptSnapshot> {
+    decode(bytes).ok()?.snapshot(false).ok()
+}
+
+/// Whether one stored record's bytes may replace another's, for the fuzz
+/// targets.
+#[cfg(feature = "fuzzing")]
+pub(crate) fn fuzz_transition(old: &[u8], new: &[u8]) -> Option<bool> {
+    valid_transition(&decode(old).ok()?, &decode(new).ok()?).ok()
+}
+
 /// Whether `new` may replace `old`: the translated transition rule on both
 /// projections, and a fully valid `new`.
 fn valid_transition(old: &Record, new: &Record) -> Result<bool, GatewayAttemptError> {

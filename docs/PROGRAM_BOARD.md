@@ -136,6 +136,16 @@ gates do not shrink.
     record `/2` in the shared store, admin commands `/1`, key-identity
     separation, the authenticated operator, and `ConnectionGenerations.lean`
     with its translated leaves. §13 readings 26–33 are PROVISIONAL.
+  - Epic 6 (evidence and assurance) is on branch
+    `audit-2026-09-24-gateway-epic6`, awaiting owner review: outcome `/2`
+    and its presence rule, observe `/2`, audit bundle and report `/2` with
+    the provider result, the counter-set, relative-ceiling, and pre-entry
+    checks, `echo-verify`, the `auths-gateway-fuzz` crate in the scheduled
+    campaign (three shards), property tests, Kani harnesses, and the closed
+    code inventory. Rust, Python, and TypeScript agree on `outcome-v2.json`.
+    Local only; the scheduled Fuzz run is the owner's to trigger after
+    merge. §13 readings 34–44 are PROVISIONAL; the SDK `echo_token`
+    projection is deferred (reading 44).
   - It covers five things: per-recipe recovery capability, the provider
     capabilities the Stripe vertical proved necessary, one spend limit, an
     operator plane the application cannot interfere with, and evidence and

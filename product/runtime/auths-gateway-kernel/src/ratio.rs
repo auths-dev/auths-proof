@@ -76,3 +76,50 @@ mod tests {
         assert!(!relative_ceiling_admits(u64::MAX, u64::MAX, 9_999));
     }
 }
+
+#[cfg(kani)]
+mod proofs {
+    use super::*;
+
+    /// Symbolic over every `u64` argument and basis and every `u16` basis
+    /// point: the leaf never overflows. Its products stay below 2^78.
+    #[kani::proof]
+    fn relative_ceiling_admits_never_overflows() {
+        let argument: u64 = kani::any();
+        let basis: u64 = kani::any();
+        let basis_points: u16 = kani::any();
+        let _ = relative_ceiling_admits(argument, basis, basis_points);
+    }
+
+    /// Symbolic over every argument and basis below 2^8 and every basis
+    /// point in 1–10 000: the leaf admits exactly the arguments at most
+    /// `floor(basis × basis_points / 10 000)`. The full-width statement is
+    /// the Lean theorem `relative_ceiling_exact` over the translated leaf: a
+    /// SAT solver cannot compare the leaf's multiplier with a second one at
+    /// 64 bits, or even at 16, within the gate's time budget.
+    #[kani::proof]
+    fn relative_ceiling_admits_matches_floor_division() {
+        let argument: u8 = kani::any();
+        let basis: u8 = kani::any();
+        let basis_points: u16 = kani::any();
+        kani::assume((1..=10_000).contains(&basis_points));
+        let floor = u32::from(basis) * u32::from(basis_points) / 10_000;
+        assert_eq!(
+            relative_ceiling_admits(u64::from(argument), u64::from(basis), basis_points),
+            u32::from(argument) <= floor
+        );
+    }
+
+    /// Symbolic over every value and subtrahend: the basis is exactly
+    /// checked subtraction, and the value itself without a subtrahend.
+    #[kani::proof]
+    fn relative_basis_is_checked_subtraction() {
+        let value: u64 = kani::any();
+        let second: u64 = kani::any();
+        assert_eq!(relative_basis(value, None), Some(value));
+        assert_eq!(
+            relative_basis(value, Some(second)),
+            value.checked_sub(second)
+        );
+    }
+}

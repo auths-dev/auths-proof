@@ -33,6 +33,7 @@ pub use recovery::{
     IdempotencyKind, LostClaimReentry, RecoveryCapability, RecoveryClass, RecoveryDeclarations,
     StateObservation, UnknownResolution, recovery_capability,
 };
+pub(crate) use review::recovery_document;
 pub use review::{
     RECIPE_REVIEW_SCHEMA, RECOVERY_CAPABILITY_SCHEMA, RecipeEchoReview, RecipePreconditionReview,
     RecipeReview,

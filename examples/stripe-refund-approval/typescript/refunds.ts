@@ -414,7 +414,7 @@ function exportBundle(options: Readonly<{ state: string; out: string }>): void {
       .map((line) => JSON.parse(line) as unknown)
     : [];
   const bundle = {
-    schema: "auths.gateway-audit-bundle/1",
+    schema: "auths.gateway-audit-bundle/2",
     recipe_b64: b64(readFileSync(RECIPE)),
     profile_lock_b64: b64(readFileSync(PROFILE_LOCK)),
     trusted_context_b64: b64(readFileSync(join(options.state, "trust", "gateway.context.cbor"))),

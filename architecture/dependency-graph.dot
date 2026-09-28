@@ -33,6 +33,7 @@ digraph auths_architecture {
   "auths-explain" [group="product"];
   "auths-formal-refinement" [group="core"];
   "auths-gateway" [group="product"];
+  "auths-gateway-fuzz" [group="product"];
   "auths-gateway-kernel" [group="product"];
   "auths-git-signing" [group="product"];
   "auths-github" [group="product"];
@@ -263,6 +264,9 @@ digraph auths_architecture {
   "auths-gateway" -> "auths-signature" [label="normal"];
   "auths-gateway" -> "auths-stores" [label="normal"];
   "auths-gateway" -> "auths-verifier" [label="normal"];
+  "auths-gateway-fuzz" -> "auths-codec" [label="normal"];
+  "auths-gateway-fuzz" -> "auths-gateway" [label="normal"];
+  "auths-gateway-fuzz" -> "auths-model" [label="normal"];
   "auths-git-signing" -> "auths-author" [label="normal"];
   "auths-git-signing" -> "auths-codec" [label="normal"];
   "auths-git-signing" -> "auths-custody" [label="dev"];

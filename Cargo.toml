@@ -60,6 +60,7 @@ members = [
     "product/errors/auths-errors",
     "product/policy/auths-bounded-policy",
     "product/policy/auths-bounded-policy/fuzz",
+    "product/runtime/auths-gateway/fuzz",
     "product/integrations/auths-enforcement",
     "product/integrations/auths-evidence-assemblers",
     "product/integrations/auths-custody",
