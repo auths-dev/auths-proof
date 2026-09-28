@@ -49,7 +49,8 @@ mod store_testkit;
 pub use audit::{
     AUDIT_BUNDLE_SCHEMA, AUDIT_REPORT_SCHEMA, AuditPins, AuditReport, AuditStatus,
     AuditedApprovalResponse, AuditedEntry, AuditedPreEntry, MAX_AUDIT_BUNDLE_BYTES,
-    MAX_AUDIT_ENTRIES, MAX_AUDIT_PRE_ENTRY_OBSERVATIONS, ProviderResult, audit_bundle,
+    MAX_AUDIT_ENTRIES, MAX_AUDIT_PRE_ENTRY_OBSERVATIONS, ProviderResult, UnverifiedEntries,
+    audit_bundle,
 };
 pub use binding::{GatewayConnectionDescriptor, GatewayConnectionError};
 pub use bounds::{

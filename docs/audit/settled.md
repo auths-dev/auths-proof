@@ -73,6 +73,13 @@ documented limit), why, where it is documented, and when to raise it again.
 - **Re-raise if:** a doc says `verified` means Stripe accepted or settled the refund, or the audit still omits the status after that work closes.
 - **Pass:** 2026-09-24, item 03-2.
 
+### `--allow-unverified-refusals` accepts an altered proof whose outcome was removed
+- **Decision:** documented limit.
+- **Why:** an entry without a gateway-signed outcome is `unverified`, and by default it fails the audit. The option lets an unverified entry pass only when the audit itself refuses its proof, so that a bundle holding refusals the gateway made before recording anything (a denied proof, a refund above the ceiling) can pass. Offline, such a refusal cannot be told apart from an entered entry whose outcome was removed and whose proof was then altered. Deleting the entry outright is equally invisible, because the audit cannot show a bundle complete. No option passes an unverified entry whose proof verifies, and the report never calls such an entry `refused`.
+- **Documented:** `product/runtime/auths-gateway/src/audit.rs`; `examples/stripe-refund-approval/README.md`, step 9 and "What this does not claim"; `docs/product/SELF_HOSTED_CLAIM_LEDGER.md`; the test `offline_audit_allowing_unverified_refusals_accepts_an_altered_proof_without_its_outcome` and the journeys' `known_limits`.
+- **Re-raise if:** the gateway signs outcomes for the refusals it makes before the claim, or a document says the option detects alteration.
+- **Pass:** none; raised on 2026-09-28 by a developer-usability study.
+
 ### Gateway window counts are per actor and per fixed UTC window, not rolling
 - **Decision:** documented limit.
 - **Why:** 0025 §25 readings 5 and 7 key the count to the action's actor and use `floor(now / window)` at the gateway clock; only the terminal policy reserves a slot. No rolling or aggregate claim is made. The missing non-claim, that a parent's count doesn't bound its delegates in aggregate, is open (review pass 2026-09-24, board §3). The north-star agent cannot delegate (remaining depth 0).

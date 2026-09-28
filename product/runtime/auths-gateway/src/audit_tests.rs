@@ -1,5 +1,5 @@
-//! Offline audit `/2` with real proofs: the provider result beside each
-//! verdict, the relative-ceiling check, and the pre-entry check.
+//! Offline audit with real proofs: the provider result beside each verdict,
+//! the relative-ceiling check, and the pre-entry check.
 //!
 //! Outcomes the gateway would never sign, such as one whose basis does not
 //! admit its argument, are signed here with the test observer's key: the
@@ -213,7 +213,7 @@ fn audit_flags_a_basis_that_does_not_admit_its_argument() {
     ];
     let (bytes, pins, _) = bundle(&source, &lock, &harness.context, &entries);
     let report = audit(&bytes, &pins);
-    assert_eq!(report.schema, "auths.gateway-audit-report/2");
+    assert_eq!(report.schema, "auths.gateway-audit-report/3");
     assert_eq!(report.recovery["class"], "linked");
     assert_eq!(
         verdicts(&report),
