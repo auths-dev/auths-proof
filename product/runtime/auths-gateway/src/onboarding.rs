@@ -90,6 +90,31 @@ pub async fn check_candidate_credential(
     .await
 }
 
+/// [`check_candidate_credential`] against a plain-HTTP provider double on
+/// `127.0.0.1:port`, in a `loopback-provider` development build. The checks,
+/// their order, and the shared deadline are the same; only the destination
+/// of the reads differs.
+///
+/// # Errors
+///
+/// As [`check_candidate_credential`].
+#[cfg(feature = "loopback-provider")]
+pub async fn check_candidate_credential_loopback(
+    recipe: &CompiledRecipe,
+    requirement: &CredentialRequirement,
+    secret: &[u8],
+    account: OnboardingAccount<'_>,
+    port: u16,
+) -> Result<(), OnboardingFailure> {
+    check_with_transport(
+        recipe,
+        || GatewayHttpTransport::prepare_loopback(recipe, requirement, port).ok(),
+        secret,
+        account,
+    )
+    .await
+}
+
 /// [`check_candidate_credential`] over the transport `prepare` returns, which
 /// is prepared only when a check needs the network.
 async fn check_with_transport(
@@ -347,6 +372,50 @@ mod tests {
             OnboardingFailure::Probe.admin_code(),
             "gateway.admin.credential-probe"
         );
+    }
+
+    /// The development build's install reaches the double with the same
+    /// checks, in the same order, as the default build reaches the origin.
+    #[cfg(feature = "loopback-provider")]
+    #[tokio::test]
+    async fn the_loopback_build_runs_the_same_onboarding_checks() {
+        let recipe = stripe();
+        for (answers, secret, expected) in [
+            (answers(), "rk_test_not-a-real-credential", Ok(())),
+            (
+                answers(),
+                "rk_live_not-a-real-credential",
+                Err(OnboardingFailure::Guard),
+            ),
+            (
+                {
+                    let mut answered = answers();
+                    answered.insert(
+                        "GET /v1/customers".to_owned(),
+                        (200, true, json!({"data": []})),
+                    );
+                    answered
+                },
+                "rk_test_not-a-real-credential",
+                Err(OnboardingFailure::Capability),
+            ),
+        ] {
+            let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+                .await
+                .expect("bind");
+            let port = listener.local_addr().expect("address").port();
+            let server = tokio::spawn(serve(listener, answers));
+            let result = check_candidate_credential_loopback(
+                &recipe,
+                recipe.review().credential(),
+                secret.as_bytes(),
+                OnboardingAccount::Label(PLATFORM),
+                port,
+            )
+            .await;
+            server.abort();
+            assert_eq!(result, expected, "{secret}");
+        }
     }
 
     #[tokio::test]

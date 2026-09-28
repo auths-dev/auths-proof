@@ -5,11 +5,16 @@
  *
  *   node build/refunds.js setup   --state DIR --gateway auths-gateway
  *   node build/refunds.js request --state DIR --operation-id ID --payment-intent PI \
- *                                 --amount CENTS --approvers a,b --out REQUESTS
+ *                                 --amount CENTS --approvers a,b --out REQUESTS \
+ *                                 [--currency usd] [--connect-account acct_...]
  *   npx auths approve REQUESTS/manager-a.request \
  *                                 --signer DIR/signers/manager-a.json --out REQUESTS/manager-a.response
  *   node build/refunds.js submit  --state DIR --socket SOCK --operation-id ID --responses REQUESTS
  *   node build/refunds.js export  --state DIR --out audit-bundle.json
+ *
+ * `node build/refunds.js grant --state DIR --agent NAME --max-count N` issues
+ * one more agent its own grant with the same limits and another count; the
+ * journey uses it for the refusals that consume a count slot.
  *
  * The agent writes one approval request per manager; each manager answers with
  * `auths approve` on their own machine, and the agent collects the
@@ -49,6 +54,9 @@ const PROFILE_LOCK = join(EXAMPLE, "profile.lock.json");
 export const MANAGERS = ["manager-a", "manager-b", "manager-c"] as const;
 const ROLES = ["root", "agent", ...MANAGERS] as const;
 const DAY = 86_400n;
+// The test connected account the grant's scope lists; the gateway sends it as
+// `Stripe-Account` on the refund and on every read of the refund's records.
+const CONNECT_ACCOUNT = "acct_1AuthsConnected";
 // The recipe declares a derived Idempotency-Key with 86 400 seconds of
 // provider retention. The gateway refuses an action whose approval window plus
 // its 60-second entry deadline exceeds that retention, so every entry of one
@@ -66,13 +74,27 @@ export const ASSURANCE: AssurancePolicy = {
   ],
 };
 
+/** The limits every agent grant carries; only the count differs per agent. */
+interface Limits {
+  readonly ceiling: number;
+  readonly window_seconds: number;
+  readonly sum_limit: number;
+  readonly currencies: readonly string[];
+  readonly connect_account: string;
+}
+
 export interface SetupFacts {
   readonly recipe_digest: string;
   readonly operator_namespace: string;
   readonly audience: string;
+  readonly tool: string;
+  readonly not_before: number;
+  readonly expires_at: number;
   readonly challenge_hex: string;
   readonly trusted_context_sha256: string;
   readonly principals: Readonly<Record<string, string>>;
+  readonly connect_account: string;
+  readonly limits: Limits;
   readonly bound: Readonly<Record<string, unknown>>;
 }
 
@@ -112,10 +134,61 @@ interface BoundExtension {
   readonly ceiling: number;
   readonly window_seconds: number;
   readonly max_count: number;
+  readonly sum_limit: number;
+  readonly partition: unknown;
+  readonly scope: unknown;
 }
 
 function gatewayJson<T>(gateway: string, ...args: string[]): T {
   return JSON.parse(execFileSync(gateway, args, { encoding: "utf8" })) as T;
+}
+
+/**
+ * The grant extension for `limits` with `maxCount` refunds per window, as the
+ * gateway's registered evaluator enforces it.
+ */
+function boundExtension(gateway: string, limits: Limits, maxCount: number): BoundExtension {
+  return gatewayJson<BoundExtension>(
+    gateway, "bound-extension", "--argument", "amount",
+    "--ceiling", String(limits.ceiling), "--window-seconds", String(limits.window_seconds),
+    "--max-count", String(maxCount), "--sum-limit", String(limits.sum_limit),
+    "--partition", `currency=${limits.currencies.join(",")}`,
+    "--scope", `connect_account=${limits.connect_account}`,
+  );
+}
+
+/** Every principal by name: the roles setup created and each agent `grant` added. */
+function principalsOf(state: string, facts: SetupFacts): Record<string, string> {
+  const principals: Record<string, string> = { ...facts.principals };
+  const agents = join(state, "agents");
+  if (existsSync(agents)) {
+    for (const file of readdirSync(agents).filter((name) => name.endsWith(".json")).sort()) {
+      principals[file.slice(0, -".json".length)] =
+        (JSON.parse(readFileSync(join(agents, file), "utf8")) as { principal: string }).principal;
+    }
+  }
+  return principals;
+}
+
+/** A grant from the root to `subject` carrying `bound`, valid for the trust's lifetime. */
+async function rootGrant(
+  state: string, facts: Pick<SetupFacts, "audience" | "tool" | "not_before" | "expires_at">,
+  subject: string, bound: BoundExtension,
+): Promise<Uint8Array> {
+  const grant = await authorRootGrant({
+    signer: developmentSigner("root", await roleKey(state, "root")),
+    subject,
+    profile: MCP,
+    permissions: [{ capability: "tools/call", resource: `${facts.audience}/tools/${facts.tool}` }],
+    audiences: [facts.audience],
+    notBefore: BigInt(facts.not_before),
+    expiresAt: BigInt(facts.expires_at),
+    remainingDepth: 0,
+    assuranceFloor: ASSURANCE.id,
+    criticalExtensions: [{ id: bound.extension_id, bytes: hexBytes(bound.extension_body_hex) }],
+    requestedAt: unixNow(),
+  });
+  return grant.signedGrant;
 }
 
 /**
@@ -210,17 +283,21 @@ export function anchor(
 
 async function setup(options: Readonly<{
   state: string; gateway: string; ceiling: number; maxCount: number; windowSeconds: number; days: number;
+  sumLimit: number; currencies: string; connectAccount: string;
 }>): Promise<void> {
   const state = options.state;
   if (existsSync(join(state, "setup.json"))) fail(`${state} is already set up; use a fresh directory`);
   const review = gatewayJson<RecipeReview>(
     options.gateway, "review", "--recipe", RECIPE, "--profile-lock", PROFILE_LOCK,
   );
-  const bound = gatewayJson<BoundExtension>(
-    options.gateway, "bound-extension", "--argument", "amount",
-    "--ceiling", String(options.ceiling), "--window-seconds", String(options.windowSeconds),
-    "--max-count", String(options.maxCount),
-  );
+  const limits: Limits = {
+    ceiling: options.ceiling,
+    window_seconds: options.windowSeconds,
+    sum_limit: options.sumLimit,
+    currencies: [...new Set(options.currencies.split(","))].sort(),
+    connect_account: options.connectAccount,
+  };
+  const bound = boundExtension(options.gateway, limits, options.maxCount);
   for (const name of ROLES) privateWrite(join(state, "keys", `${name}.seed`), randomBytes(32));
   // What each manager passes to `auths approve --signer`.
   for (const name of MANAGERS) {
@@ -250,45 +327,64 @@ async function setup(options: Readonly<{
   });
   const sdkContext = await trustedContext(common);
 
-  const grant = await authorRootGrant({
-    signer: developmentSigner("root", keys.get("root")!),
-    subject: principals.agent!,
-    profile: MCP,
-    permissions: [{ capability: "tools/call", resource: `${audience}/tools/${tool}` }],
-    audiences: [audience],
-    notBefore,
-    expiresAt,
-    remainingDepth: 0,
-    assuranceFloor: ASSURANCE.id,
-    criticalExtensions: [{ id: extension, bytes: hexBytes(bound.extension_body_hex) }],
-    requestedAt: now,
-  });
+  const lifetime = { audience, tool, not_before: Number(notBefore), expires_at: Number(expiresAt) };
+  const agentGrant = await rootGrant(state, lifetime, principals.agent!, bound);
 
   privateWrite(join(state, "trust", "gateway.context.cbor"), gatewayContext);
   privateWrite(join(state, "trust", "sdk.context.cbor"), sdkContext);
-  privateWrite(join(state, "agent.grant.cbor"), grant.signedGrant);
+  privateWrite(join(state, "agent.grant.cbor"), agentGrant);
   const summary: SetupFacts = {
     recipe_digest: review.recipe_digest,
     operator_namespace: review.operator_namespace,
-    audience,
+    ...lifetime,
     challenge_hex: Buffer.from(challenge).toString("hex"),
     trusted_context_sha256: createHash("sha256").update(gatewayContext).digest("hex"),
     principals,
+    connect_account: options.connectAccount,
+    limits,
     bound: {
       argument: bound.argument,
       ceiling: bound.ceiling,
       window_seconds: bound.window_seconds,
       max_count: bound.max_count,
+      sum_limit: bound.sum_limit,
+      partition: bound.partition,
+      scope: bound.scope,
     },
   };
   privateWrite(join(state, "setup.json"), JSON.stringify(summary, null, 2));
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
 }
 
+/**
+ * Issues one more agent its own grant: the setup's limits with `maxCount`
+ * refunds per window, counted apart from every other agent's.
+ */
+async function grant(options: Readonly<{
+  state: string; gateway: string; agent: string; maxCount: number;
+}>): Promise<Record<string, unknown>> {
+  const state = options.state;
+  const facts = JSON.parse(readFileSync(join(state, "setup.json"), "utf8")) as SetupFacts;
+  const name = options.agent;
+  if (name in facts.principals || existsSync(join(state, "agents", `${name}.json`))) {
+    fail(`${name} already exists`);
+  }
+  const bound = boundExtension(options.gateway, facts.limits, options.maxCount);
+  privateWrite(join(state, "keys", `${name}.seed`), randomBytes(32));
+  const principal = (await roleKey(state, name)).principal;
+  privateWrite(join(state, `${name}.grant.cbor`), await rootGrant(state, facts, principal, bound));
+  const record = { principal, max_count: bound.max_count };
+  privateWrite(join(state, "agents", `${name}.json`), JSON.stringify(record));
+  return { agent: name, ...record };
+}
+
 interface Pending {
+  readonly agent: string;
   readonly managers: readonly string[];
   readonly payment_intent: string;
   readonly amount: number;
+  readonly currency: string;
+  readonly connect_account: string;
   readonly evaluation_time: number;
 }
 
@@ -298,7 +394,9 @@ interface Pending {
  */
 async function proposal(state: string, operation: string): Promise<ApprovalProposal<CreateRefund>> {
   const facts = JSON.parse(readFileSync(join(state, "setup.json"), "utf8")) as SetupFacts;
+  const principals = principalsOf(state, facts);
   const pending = JSON.parse(readFileSync(join(state, "pending", `${operation}.json`), "utf8")) as Pending;
+  const requester = principals[pending.agent]!;
   return proposeMcpApproval({
     contract: CONTRACT,
     command: {
@@ -307,53 +405,62 @@ async function proposal(state: string, operation: string): Promise<ApprovalPropo
       recipe_digest: facts.recipe_digest,
       payment_intent: pending.payment_intent,
       amount: pending.amount,
+      connect_account: pending.connect_account,
+      currency: pending.currency,
     },
     // The agent and every listed manager approve the same exact refund.
     required: 1 + pending.managers.length,
     approvers: [
       {
-        principal: facts.principals.agent!,
-        terminalGrant: new Uint8Array(readFileSync(join(state, "agent.grant.cbor"))),
+        principal: requester,
+        terminalGrant: new Uint8Array(readFileSync(join(state, `${pending.agent}.grant.cbor`))),
       },
-      ...pending.managers.map((name) => ({ principal: facts.principals[name]! })),
+      ...pending.managers.map((name) => ({ principal: principals[name]! })),
     ],
-    requester: facts.principals.agent!,
+    requester,
     challenge: hexBytes(facts.challenge_hex),
     evaluationTime: BigInt(pending.evaluation_time),
     validitySeconds: APPROVAL_WINDOW,
   });
 }
 
-async function agentGrants(state: string): Promise<GrantEvidence[]> {
+async function agentGrants(state: string, agent: string): Promise<GrantEvidence[]> {
   const root = await roleKey(state, "root");
-  return [{ signedGrant: new Uint8Array(readFileSync(join(state, "agent.grant.cbor"))), evidence: [root.evidence] }];
+  return [{ signedGrant: new Uint8Array(readFileSync(join(state, `${agent}.grant.cbor`))), evidence: [root.evidence] }];
 }
 
 async function request(options: Readonly<{
   state: string; operationId: string; paymentIntent: string; amount: number; approvers: string; out: string;
+  currency: string; connectAccount: string | undefined; agent: string;
 }>): Promise<Record<string, unknown>> {
   const state = options.state;
   const facts = JSON.parse(readFileSync(join(state, "setup.json"), "utf8")) as SetupFacts;
+  const principals = principalsOf(state, facts);
   const managers = options.approvers.split(",").filter((name) => name.length > 0);
   if (!managers.every((name) => (MANAGERS as readonly string[]).includes(name)) ||
       new Set(managers).size !== managers.length) {
     fail(`approvers must be distinct names from ${MANAGERS.join(", ")}`);
   }
+  if ((MANAGERS as readonly string[]).includes(options.agent) || options.agent === "root" ||
+      !(options.agent in principals)) {
+    fail(`${options.agent} is not an agent of ${state}`);
+  }
   const pending: Pending = {
-    managers, payment_intent: options.paymentIntent, amount: options.amount,
+    agent: options.agent, managers, payment_intent: options.paymentIntent, amount: options.amount,
+    currency: options.currency, connect_account: options.connectAccount ?? facts.connect_account,
     evaluation_time: Math.floor(Date.now() / 1000),
   };
   privateWrite(join(state, "pending", `${options.operationId}.json`), JSON.stringify(pending));
-  const names = new Map(Object.entries(facts.principals).map(([name, principal]) => [principal, name]));
+  const names = new Map(Object.entries(principals).map(([name, principal]) => [principal, name]));
   mkdirSync(options.out, { recursive: true, mode: 0o700 });
   const written: Record<string, string> = {};
   for (const item of await approvalRequests(await proposal(state, options.operationId))) {
     const name = names.get(item.approver)!;
-    if (name === "agent") {
+    if (name === options.agent) {
       // The agent approves its own request like any other approver.
       const review = await openApprovalRequest(item.data);
-      const response = await approve(review, developmentSigner("agent", await roleKey(state, "agent")), {
-        grants: await agentGrants(state),
+      const response = await approve(review, developmentSigner(name, await roleKey(state, name)), {
+        grants: await agentGrants(state, name),
       });
       writeFileSync(join(options.out, "agent.response"), `${response.text}\n`);
       continue;
@@ -370,7 +477,7 @@ async function submit(options: Readonly<{
 }>): Promise<Record<string, unknown>> {
   const state = options.state;
   const facts = JSON.parse(readFileSync(join(state, "setup.json"), "utf8")) as SetupFacts;
-  const names = new Map(Object.entries(facts.principals).map(([name, principal]) => [principal, name]));
+  const names = new Map(Object.entries(principalsOf(state, facts)).map(([name, principal]) => [principal, name]));
   const built = await proposal(state, options.operationId);
   const texts = readdirSync(options.responses).filter((name) => name.endsWith(".response")).sort()
     .map((name) => readFileSync(join(options.responses, name), "utf8").trim());
@@ -446,6 +553,11 @@ async function main(): Promise<void> {
       ceiling: { type: "string" },
       "max-count": { type: "string" },
       "window-seconds": { type: "string" },
+      "sum-limit": { type: "string" },
+      currencies: { type: "string", default: "eur,usd" },
+      "connect-account": { type: "string" },
+      currency: { type: "string", default: "usd" },
+      agent: { type: "string" },
       days: { type: "string" },
       socket: { type: "string" },
       "operation-id": { type: "string" },
@@ -466,7 +578,18 @@ async function main(): Promise<void> {
         maxCount: integer(values["max-count"], "max-count", 2),
         windowSeconds: integer(values["window-seconds"], "window-seconds", 86_400),
         days: integer(values.days, "days", 30),
+        sumLimit: integer(values["sum-limit"], "sum-limit", 6_000),
+        currencies: values.currencies!,
+        connectAccount: values["connect-account"] ?? CONNECT_ACCOUNT,
       });
+      break;
+    case "grant":
+      process.stdout.write(`${JSON.stringify(await grant({
+        state,
+        gateway: values.gateway!,
+        agent: required(values.agent, "agent"),
+        maxCount: integer(values["max-count"], "max-count"),
+      }))}\n`);
       break;
     case "request":
       process.stdout.write(`${JSON.stringify(await request({
@@ -476,6 +599,9 @@ async function main(): Promise<void> {
         amount: integer(values.amount, "amount"),
         approvers: required(values.approvers, "approvers"),
         out: resolve(required(values.out, "out")),
+        currency: values.currency!,
+        connectAccount: values["connect-account"],
+        agent: values.agent ?? "agent",
       }))}\n`);
       break;
     case "submit":
@@ -490,7 +616,7 @@ async function main(): Promise<void> {
       exportBundle({ state, out: resolve(required(values.out, "out")) });
       break;
     default:
-      fail("usage: refunds.js setup|request|submit|export --state DIR ...");
+      fail("usage: refunds.js setup|grant|request|submit|export --state DIR ...");
   }
 }
 

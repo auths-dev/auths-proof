@@ -11,9 +11,10 @@ See [Status](#status).
 ## See it work
 
 Your agent may refund a Stripe payment only when two of your three managers
-approve that exact refund, and only up to 50.00 per refund and two refunds a
-day. The Stripe key lives only in the gateway, and an auditor checks every
-refund offline. You need Python 3.9+, Rust, and a checkout of this repository.
+approve that exact refund, and only up to 50.00 per refund, 60.00 per currency
+a day, and two refunds a day. The Stripe key lives only in the gateway, which
+checks the key and the payment with Stripe before each refund, and an auditor
+checks every refund offline. You need Python 3.9+, Rust, and a checkout of this repository.
 
 ```sh
 cd examples/stripe-refund-approval
@@ -33,11 +34,17 @@ against a local Stripe double, and never calls Stripe. It checks each of these:
 | A 15.00 refund approved by managers A and B, and a 40.00 refund approved by B and C | submitted | 2 |
 | A 90.00 refund, above the agent's 50.00 limit | refused | 0 |
 | A refund only manager A approved | refused | 0 |
+| A refund in a connected account the agent's grant does not list | refused | 0 |
+| A refund above what is left of the day's 60.00 | refused | 0 |
 | A third refund on the same day | refused | 0 |
+| A key without the `rk_test_` prefix, at install | refused | 0 |
+| A refund above half the payment, or in another currency than the payment | refused after reading the payment | reads only |
+| Stripe reporting another account for the key, or allowing a read the key must be refused | refused after reading the key's account and permissions | reads only |
 | Four tampered audit bundles: a flipped proof byte, a swapped action, a replayed outcome, and replaced trust | the offline audit flags each | none |
 
-Each refusal happens before the gateway touches the Stripe key. CI runs the
-same journey from the packaged wheel.
+The first refusals happen before the gateway touches the Stripe key; the
+last two kinds happen after it reads from Stripe and before any refund is
+sent. CI runs the same journey from the packaged wheel.
 
 [The example's README](examples/stripe-refund-approval/README.md) walks through
 the run in 10 steps, and shows how to run it against Stripe test mode with your

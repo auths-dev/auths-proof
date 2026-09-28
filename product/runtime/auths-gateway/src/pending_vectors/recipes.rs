@@ -47,23 +47,45 @@ fn derive_lock(bytes: &[u8], extra: &Value) -> Value {
     lock
 }
 
+/// Removes `names` from a committed lock, keeping the order of the other
+/// fields, and recomputes its schema digest as the profile generator does.
+fn strip_lock(bytes: &[u8], names: &[&str]) -> Value {
+    let mut lock = parse(bytes);
+    let fields = lock["command_schema"]["fields"]
+        .as_object()
+        .expect("fields")
+        .iter()
+        .filter(|(name, _)| !names.contains(&name.as_str()))
+        .map(|(name, schema)| (name.clone(), schema.clone()))
+        .collect();
+    lock["command_schema"]["fields"] = Value::Object(fields);
+    let canonical = serde_json_canonicalizer::to_vec(&lock["command_schema"]).expect("schema");
+    lock["schema_digest"] = Value::String(hex::encode(Sha256::digest(canonical)));
+    lock
+}
+
+/// The north-star profile: `connect_account` and `currency` beside the
+/// refund's own fields.
 fn stripe_lock() -> Value {
-    derive_lock(
-        STRIPE_LOCK,
-        &json!({
-            "connect_account": {"kind": "string", "minimum": 13, "maximum": 64},
-            "currency": {"kind": "string", "minimum": 3, "maximum": 3}
-        }),
-    )
+    let lock = parse(STRIPE_LOCK);
+    for name in ["connect_account", "currency"] {
+        assert!(
+            lock["command_schema"]["fields"].get(name).is_some(),
+            "the north-star profile carries {name}"
+        );
+    }
+    lock
 }
 
 /// The platform-account form: no `Stripe-Account` header and no
 /// `connect_account` field.
 fn stripe_platform_lock() -> Value {
-    derive_lock(
-        STRIPE_LOCK,
-        &json!({"currency": {"kind": "string", "minimum": 3, "maximum": 3}}),
-    )
+    strip_lock(STRIPE_LOCK, &["connect_account"])
+}
+
+/// The refund's own fields only, for the plain form.
+fn stripe_plain_lock() -> Value {
+    strip_lock(STRIPE_LOCK, &["connect_account", "currency"])
 }
 
 fn airtable_pre_entry_lock() -> Value {
@@ -97,70 +119,34 @@ fn fixed(values: &[&str]) -> Value {
     )
 }
 
-/// The north-star recipe under `/2` with today's semantics: the derived
-/// idempotency header and nothing else the revision adds.
-fn stripe_plain() -> Value {
-    let mut recipe = revised(STRIPE);
-    let write = recipe["write"].as_object_mut().expect("write");
-    write.remove("idempotency_key");
-    write.insert(
-        "idempotency".into(),
-        json!({"kind": "derived-header", "retention_seconds": 86_400}),
-    );
+/// The north-star recipe without what the revision adds beyond the derived
+/// idempotency header: no guard, provider headers, account scope, bounds,
+/// relative ceiling, observation, or echo.
+fn stripe_plain(lock: &Value) -> Value {
+    let mut recipe = stripe(lock);
+    recipe["credential"] = json!({"kind": "bearer"});
+    let fields = recipe.as_object_mut().expect("recipe");
+    for name in [
+        "provider_headers",
+        "account_scope",
+        "bounds",
+        "relative_ceiling",
+        "observation",
+        "echo",
+    ] {
+        fields.shift_remove(name).expect("north-star block");
+    }
     recipe
 }
 
-/// The north-star recipe with every capability the revision adds.
+/// The north-star recipe (`examples/stripe-refund-approval/recipe.json`),
+/// which declares every capability the revision adds, bound to `lock`.
 fn stripe(lock: &Value) -> Value {
-    json!({
-        "schema": SOURCE_V2,
-        "profile_schema_digest": lock["schema_digest"],
-        "service": "stripe-refunds",
-        "tool": "create_refund_v1",
-        "operator_namespace": "stripe-refunds",
-        "credential": {"kind": "bearer", "guard": {
-            "prefixes": ["rk_test_"],
-            "probe": {"path": fixed(&["v1", "balance"]), "json_pointer": "/livemode",
-                "equals": false, "maximum_response_bytes": 16_384},
-            "account": {"path": fixed(&["v1", "account"]), "json_pointer": "/id",
-                "maximum_response_bytes": 65_536},
-            "denied_reads": [
-                {"method": "GET", "path": fixed(&["v1", "customers"]), "refused_status": [403]},
-                {"method": "GET", "path": fixed(&["v1", "payouts"]), "refused_status": [403]}
-            ]
-        }},
-        "origin": "https://api.stripe.com",
-        "provider_headers": {"Stripe-Version": STRIPE_VERSION},
-        "account_scope": {"header": "Stripe-Account", "field": "connect_account"},
-        "bounds": {"sum": {"argument": "amount", "partition": "currency"}},
-        "relative_ceiling": {
-            "argument": "amount",
-            "basis_points": 5000,
-            "path": [{"kind": "fixed", "value": "v1"}, {"kind": "fixed", "value": "payment_intents"},
-                {"kind": "field", "name": "payment_intent"}],
-            "json_pointer": "/amount_received",
-            "bind": [{"pointer": "/currency", "field": "currency"}],
-            "maximum_response_bytes": 65_536
-        },
-        "write": {
-            "method": "POST",
-            "path": fixed(&["v1", "refunds"]),
-            "body": {"kind": "form", "fields": {
-                "payment_intent": {"kind": "field", "name": "payment_intent"},
-                "amount": {"kind": "field", "name": "amount"}
-            }},
-            "idempotency": {"kind": "derived-header", "retention_seconds": 86_400}
-        },
-        "observation": {
-            "path": [{"kind": "fixed", "value": "v1"}, {"kind": "fixed", "value": "refunds"},
-                {"kind": "response-field", "pointer": "/id", "max_bytes": 255}],
-            "json_pointer": "/amount",
-            "expected_field": "amount",
-            "maximum_response_bytes": 16_384
-        },
-        "echo": {"write": {"kind": "form-field", "name": "metadata[auths_echo]"},
-            "observe": "/metadata/auths_echo"}
-    })
+    let mut recipe = parse(STRIPE);
+    assert_eq!(recipe["schema"], SOURCE_V2);
+    assert_eq!(recipe["provider_headers"]["Stripe-Version"], STRIPE_VERSION);
+    recipe["profile_schema_digest"] = lock["schema_digest"].clone();
+    recipe
 }
 
 fn stripe_platform(lock: &Value) -> Value {
@@ -254,6 +240,7 @@ fn recipe_digest(recipe: &Value) -> String {
 fn bases() -> Value {
     let stripe_lock = stripe_lock();
     let platform_lock = stripe_platform_lock();
+    let plain_lock = stripe_plain_lock();
     let pre_entry_lock = airtable_pre_entry_lock();
     let base = |recipe: Value, lock: Value, recovery: Value| json!({"recipe": recipe, "lock": lock, "recovery": recovery});
     let verified = Some("verified-locator");
@@ -268,7 +255,7 @@ fn bases() -> Value {
         "github": base(revised(GITHUB), parse(GITHUB_LOCK), recovery(None, false, None, false)),
         "github-response-locator": base(github_response_locator(), parse(GITHUB_LOCK),
             recovery(response, false, None, false)),
-        "stripe-plain": base(stripe_plain(), parse(STRIPE_LOCK),
+        "stripe-plain": base(stripe_plain(&plain_lock), plain_lock,
             recovery(None, false, Some(("derived-header", 86_400)), false)),
         "stripe": base(stripe(&stripe_lock), stripe_lock,
             recovery(response, true, Some(("derived-header", 86_400)), false)),
@@ -1063,7 +1050,7 @@ fn every_base_compiles_to_its_documented_class_and_digest() {
         ("airtable", AIRTABLE, AIRTABLE_LOCK),
         ("todoist", TODOIST, TODOIST_LOCK),
         ("github", GITHUB, GITHUB_LOCK),
-        ("stripe-plain", STRIPE, STRIPE_LOCK),
+        ("stripe", STRIPE, STRIPE_LOCK),
     ] {
         let committed = CompiledRecipe::compile(source, lock).expect(id);
         assert_eq!(

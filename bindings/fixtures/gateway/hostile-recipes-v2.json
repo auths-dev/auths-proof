@@ -1105,6 +1105,16 @@
               "maximum": 99999999,
               "minimum": 1
             },
+            "connect_account": {
+              "kind": "string",
+              "maximum": 64,
+              "minimum": 13
+            },
+            "currency": {
+              "kind": "string",
+              "maximum": 3,
+              "minimum": 3
+            },
             "operation_id": {
               "kind": "string",
               "maximum": 128,
@@ -1125,16 +1135,6 @@
               "kind": "string",
               "maximum": 64,
               "minimum": 64
-            },
-            "connect_account": {
-              "kind": "string",
-              "minimum": 13,
-              "maximum": 64
-            },
-            "currency": {
-              "kind": "string",
-              "minimum": 3,
-              "maximum": 3
             }
           },
           "kind": "object"
@@ -1343,6 +1343,11 @@
               "maximum": 99999999,
               "minimum": 1
             },
+            "currency": {
+              "kind": "string",
+              "maximum": 3,
+              "minimum": 3
+            },
             "operation_id": {
               "kind": "string",
               "maximum": 128,
@@ -1363,11 +1368,6 @@
               "kind": "string",
               "maximum": 64,
               "minimum": 64
-            },
-            "currency": {
-              "kind": "string",
-              "minimum": 3,
-              "maximum": 3
             }
           },
           "kind": "object"

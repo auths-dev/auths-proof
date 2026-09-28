@@ -31,3 +31,13 @@ max_bytes = 255
 type = "integer"
 minimum = 1
 maximum = 99999999
+
+[arguments.fields.connect_account]
+type = "string"
+min_bytes = 13
+max_bytes = 64
+
+[arguments.fields.currency]
+type = "string"
+min_bytes = 3
+max_bytes = 3

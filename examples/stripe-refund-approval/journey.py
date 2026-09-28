@@ -2,19 +2,31 @@
 
     python journey.py --gateway PATH/TO/auths-gateway [--summary out.json]
 
-By default the gateway sends refunds to ``mock_stripe.py``, a counting
+By default the gateway sends every request to ``mock_stripe.py``, a counting
 Stripe double on 127.0.0.1; that needs a gateway built with
 ``--features loopback-provider``. With ``--stripe-test-mode`` the same
 journey calls Stripe's test mode instead, using the developer's own
-``STRIPE_TEST_SECRET_KEY`` (``sk_test_`` only) and a refundable
-``--payment-intent`` of at least 15.00 USD. The key is piped to the gateway
-install and nowhere else.
+restricted key ``STRIPE_TEST_RESTRICTED_KEY`` (``rk_test_`` only), their
+platform and connected account IDs, a refundable ``--payment-intent`` of at
+least 30.00 USD in the connected account, and a ``--rejected-payment-intent``
+of at least 80.00 USD whose charge is already fully refunded. The key is
+piped to the gateway install and nowhere else.
 
-Refund 4 names a PaymentIntent the provider does not hold, so the provider
-rejects it with 400 after the gateway entered it. The offline audit reports
-it ``verified`` (authorized and entered) with its ``http_status`` of 400
-beside the verdict, and it still consumes the agent's second refund of the
-window.
+Refund 1 is read back: the gateway finds its echo token in the refund's
+metadata and records ``observed-by-provider``. Refund 4 names a
+PaymentIntent whose charge is already refunded, so the provider rejects it
+with 400 after the gateway entered it. The offline audit reports it
+``verified`` (authorized and entered) with its ``http_status`` of 400 beside
+the verdict, and it still consumes the agent's second refund of the window.
+
+Each of the recipe's provider checks refuses one hostile refund with zero
+writes: a key without the declared test prefix at install; a
+``connect_account`` the grant does not list, and a refund above the
+currency's remaining sum, both before any credential lease; and, after the
+lease, a refund above half of ``/amount_received``, a currency the
+PaymentIntent does not have, the double reporting another account, and the
+double answering a denied read with 200. The four refusals after the lease
+consume a count slot each, so a second agent with its own grant makes them.
 
 Against the double it also checks the ``Idempotency-Key`` the gateway derives
 for each refund, then restores the gateway's store from a backup taken
@@ -43,9 +55,18 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 HERE = Path(__file__).resolve().parent
-# A PaymentIntent neither the double nor a Stripe test account holds.
-MISSING_PAYMENT_INTENT = "pi_auths_journey_missing"
 PYTHON = sys.executable
+# The double's accounts and its already-refunded PaymentIntent.
+PLATFORM_ACCOUNT = "acct_1AuthsPlatform0"
+CONNECTED_ACCOUNT = "acct_1AuthsConnected"
+OTHER_ACCOUNT = "acct_1AuthsOtherAcct"
+REFUNDED_PAYMENT_INTENT = "pi_mock_refunded"
+STRIPE_VERSION = "2025-03-31.basil"
+# The second agent, whose refunds the checks after the credential lease refuse.
+CHECKS_AGENT = "agent-checks"
+# A clearly fake key without the recipe's `rk_test_` prefix.
+NON_TEST_KEY = "rk_live_not-a-real-key"
+KEY_VARIABLES = ("STRIPE_TEST_RESTRICTED_KEY", "STRIPE_TEST_SECRET_KEY")
 # The packaged approval CLI installed beside this interpreter with the wheel.
 APPROVE_CLI = str(Path(sys.executable).parent / "auths")
 IDEMPOTENCY_DOMAIN = b"auths.gateway-idempotency-key/1\0"
@@ -69,11 +90,10 @@ class Journey:
         self.gateway_state = workdir / "gateway"
         self.socket = workdir / "app.sock"
         self.ledger = workdir / "ledger.jsonl"
+        self.control = workdir / "control.json"
         self.processes: List[subprocess.Popen[str]] = []
         # No child process inherits a Stripe key; the install reads it on stdin.
-        self.env = {
-            key: value for key, value in os.environ.items() if key != "STRIPE_TEST_SECRET_KEY"
-        }
+        self.env = {key: value for key, value in os.environ.items() if key not in KEY_VARIABLES}
         self.steps: List[Dict[str, Any]] = []
         self.started = time.monotonic()
 
@@ -125,9 +145,17 @@ class Journey:
             return []
         return [json.loads(line) for line in self.ledger.read_text().splitlines() if line]
 
-    def request(self, operation: str, amount: int, approvers: str, payment_intent: str) -> Path:
-        """The agent writes one request per manager (and its own response)."""
+    def request(
+        self, operation: str, amount: int, approvers: str, payment_intent: str, **extra: str
+    ) -> Path:
+        """The agent writes one request per manager (and its own response).
+        ``extra`` passes ``currency``, ``connect_account``, or ``agent``."""
         folder = self.work / "approvals" / operation
+        options = [
+            item
+            for name, value in extra.items()
+            for item in ("--" + name.replace("_", "-"), value)
+        ]
         self.run(
             PYTHON,
             "refunds.py",
@@ -144,6 +172,7 @@ class Journey:
             approvers,
             "--out",
             str(folder),
+            *options,
         )
         return folder
 
@@ -188,8 +217,9 @@ class Journey:
         approvers: str,
         payment_intent: str,
         declines: tuple[str, ...] = (),
+        **extra: str,
     ) -> Dict[str, Any]:
-        folder = self.request(operation, amount, approvers, payment_intent)
+        folder = self.request(operation, amount, approvers, payment_intent, **extra)
         for manager in approvers.split(","):
             answered = self.answer(folder, manager, decline=manager in declines)
             if answered.returncode != 0:
@@ -263,21 +293,28 @@ def main() -> int:
     parser.add_argument("--summary", type=Path, help="write the timing and result summary here")
     parser.add_argument("--stripe-test-mode", action="store_true")
     parser.add_argument("--payment-intent", default="pi_mock_journey")
+    parser.add_argument("--rejected-payment-intent", default=REFUNDED_PAYMENT_INTENT)
+    parser.add_argument("--platform-account", default=PLATFORM_ACCOUNT)
+    parser.add_argument("--connect-account", default=CONNECTED_ACCOUNT)
     args = parser.parse_args()
 
     live = args.stripe_test_mode
     if live:
-        secret = os.environ.get("STRIPE_TEST_SECRET_KEY", "")
-        if not secret.startswith("sk_test_"):
+        secret = os.environ.get("STRIPE_TEST_RESTRICTED_KEY", "")
+        if not secret.startswith("rk_test_"):
             raise SystemExit(
-                "--stripe-test-mode needs STRIPE_TEST_SECRET_KEY=sk_test_...; live keys are refused"
+                "--stripe-test-mode needs STRIPE_TEST_RESTRICTED_KEY=rk_test_...; other keys are refused"
             )
-        if not args.payment_intent.startswith("pi_") or args.payment_intent == "pi_mock_journey":
-            raise SystemExit(
-                "--stripe-test-mode needs --payment-intent pi_... from your test account"
-            )
+        for option, value, default, prefix in (
+            ("--payment-intent", args.payment_intent, "pi_mock_journey", "pi_"),
+            ("--rejected-payment-intent", args.rejected_payment_intent, REFUNDED_PAYMENT_INTENT, "pi_"),
+            ("--platform-account", args.platform_account, PLATFORM_ACCOUNT, "acct_"),
+            ("--connect-account", args.connect_account, CONNECTED_ACCOUNT, "acct_"),
+        ):
+            if not value.startswith(prefix) or value == default:
+                raise SystemExit(f"--stripe-test-mode needs {option} {prefix}... from your test account")
     else:
-        secret = "sk_test_mock_" + os.urandom(12).hex()
+        secret = "rk_test_mock_" + os.urandom(12).hex()
 
     workdir = Path(tempfile.mkdtemp(prefix="auths-refunds-", dir="/tmp")).resolve()
     journey = Journey(args.gateway, workdir)
@@ -294,18 +331,60 @@ def main() -> int:
                     str(journey.state),
                     "--gateway",
                     args.gateway,
+                    "--connect-account",
+                    args.connect_account,
                 ).stdout
             ),
         )
-        # README step 4: the gateway takes the Stripe key on stdin, and only it.
-        journey.gateway_state.mkdir(mode=0o700)
         journey.step(
-            "gateway install with the key on stdin",
+            f"second agent '{CHECKS_AGENT}' with its own grant (4 per window)",
             lambda: journey.run(
+                PYTHON,
+                "refunds.py",
+                "grant",
+                "--state",
+                str(journey.state),
+                "--gateway",
+                args.gateway,
+                "--agent",
+                CHECKS_AGENT,
+                "--max-count",
+                "4",
+            ),
+        )
+        # The double checks the bearer token by digest; the key itself stays
+        # only in the gateway's credential store.
+        mock_token_sha256 = hashlib.sha256(secret.encode()).hexdigest()
+        loopback: List[str] = []
+
+        # README step 4: Stripe, here its local double.
+        def start_double() -> None:
+            mock = journey.background(
+                PYTHON,
+                "mock_stripe.py",
+                "--ledger",
+                str(journey.ledger),
+                "--token-sha256",
+                mock_token_sha256,
+                "--control",
+                str(journey.control),
+                "--payment-intent",
+                args.payment_intent,
+            )
+            port = mock.stdout.readline().strip() if mock.stdout else ""
+            expect(port.isdigit(), "mock Stripe did not start")
+            loopback.extend(["--loopback-provider", port])
+
+        if not live:
+            journey.step("start the counting Stripe double", start_double)
+
+        def install(state_dir: Path, key: str) -> subprocess.CompletedProcess[str]:
+            state_dir.mkdir(mode=0o700)
+            return journey.run(
                 args.gateway,
                 "install",
                 "--state-dir",
-                str(journey.gateway_state),
+                str(state_dir),
                 "--recipe",
                 "recipe.json",
                 "--profile-lock",
@@ -319,11 +398,41 @@ def main() -> int:
                 "--alias",
                 "refunds",
                 "--account-label",
-                "stripe-test-account",
+                args.platform_account,
                 "--credential-stdin",
-                stdin=secret + "\n",
-            ),
+                *loopback,
+                stdin=key + "\n",
+                check=False,
+            )
+
+        # Hostile: the credential guard refuses a key without the declared
+        # test prefix before any provider read, and stores nothing.
+        def non_test_key() -> Dict[str, Any]:
+            before = len(journey.provider_entries())
+            refused = install(journey.work / "gateway-non-test-key", NON_TEST_KEY)
+            return {
+                "exit": refused.returncode,
+                "code": refused.stderr.strip().split()[-1] if refused.stderr.strip() else None,
+                "provider_requests": len(journey.provider_entries()) - before,
+            }
+
+        guard = journey.step("hostile: the guard refuses a key without rk_test_", non_test_key)
+        expect(
+            guard["exit"] != 0
+            and guard["code"] == "gateway.install.credential-guard"
+            and guard["provider_requests"] == 0,
+            f"non-test key: {guard}",
         )
+
+        # README step 5: the gateway takes the key on stdin, checks it with
+        # the provider, and starts.
+        def install_key() -> None:
+            installed = install(journey.gateway_state, secret)
+            expect(installed.returncode == 0, f"install failed: {installed.stderr.strip()}")
+
+        onboarding_from = len(journey.provider_entries())
+        journey.step("gateway install with the key on stdin", install_key)
+        onboarding = journey.provider_entries()[onboarding_from:]
         # The store as a backup taken now would hold it: the shared connection
         # record and no claim. The state-loss check restores it.
         attempts_backup = journey.work / "attempts-backup"
@@ -336,9 +445,6 @@ def main() -> int:
                 ).stdout
             )["observer_anchor"]["principal"],
         )
-        # The double checks the bearer token by digest; the key itself stays
-        # only in the gateway's credential store.
-        mock_token_sha256 = hashlib.sha256(secret.encode()).hexdigest()
 
         serve = [
             args.gateway,
@@ -347,6 +453,7 @@ def main() -> int:
             str(journey.gateway_state),
             "--app-socket",
             str(journey.socket),
+            *loopback,
         ]
         running: Dict[str, subprocess.Popen[str]] = {}
 
@@ -359,24 +466,7 @@ def main() -> int:
                 expect(time.monotonic() < deadline, "gateway did not open its app socket")
                 time.sleep(0.05)
 
-        def start() -> None:
-            if not live:
-                mock = journey.background(
-                    PYTHON,
-                    "mock_stripe.py",
-                    "--ledger",
-                    str(journey.ledger),
-                    "--token-sha256",
-                    mock_token_sha256,
-                    "--payment-intent",
-                    args.payment_intent,
-                )
-                port = mock.stdout.readline().strip() if mock.stdout else ""
-                expect(port.isdigit(), "mock Stripe did not start")
-                serve.extend(["--loopback-provider", port])
-            start_gateway()
-
-        journey.step("gateway serve" + ("" if live else " (to the counting Stripe double)"), start)
+        journey.step("gateway serve" + ("" if live else " (to the counting Stripe double)"), start_gateway)
 
         pi = args.payment_intent
         results: Dict[str, Dict[str, Any]] = {}
@@ -387,12 +477,15 @@ def main() -> int:
             approvers: str,
             declines: tuple[str, ...] = (),
             payment_intent: Optional[str] = None,
+            **extra: str,
         ) -> None:
-            before = len(journey.provider_entries())
+            before = journey.provider_entries()
             results[operation] = journey.refund(
-                operation, amount, approvers, payment_intent or pi, declines
+                operation, amount, approvers, payment_intent or pi, declines, **extra
             )
-            results[operation]["provider_entries"] = len(journey.provider_entries()) - before
+            made = journey.provider_entries()[len(before) :]
+            results[operation]["provider_requests"] = len(made)
+            results[operation]["provider_writes"] = sum(entry["kind"] == "write" for entry in made)
 
         # README step 6: the agent writes a request per manager, each manager
         # answers with `auths approve`, and the gateway submits.
@@ -432,12 +525,22 @@ def main() -> int:
             lambda: submit("refund-3-over-ceiling", 9_000, "manager-a,manager-b"),
         )
         journey.step(
-            "refund 4: 40.00 of a PaymentIntent the provider does not hold (rejected)",
+            "hostile: a connected account the grant does not list",
+            lambda: submit(
+                "refund-other-account", 1_000, "manager-a,manager-c", connect_account=OTHER_ACCOUNT
+            ),
+        )
+        journey.step(
+            "hostile: 50.00 with 45.00 left of the day's 60.00 USD",
+            lambda: submit("refund-over-sum", 5_000, "manager-a,manager-b"),
+        )
+        journey.step(
+            "refund 4: 40.00 of a PaymentIntent already refunded (rejected)",
             lambda: submit(
                 "refund-4",
                 4_000,
                 "manager-b,manager-c",
-                payment_intent=MISSING_PAYMENT_INTENT,
+                payment_intent=args.rejected_payment_intent,
             ),
         )
         journey.step(
@@ -445,10 +548,39 @@ def main() -> int:
             lambda: submit("refund-5-window", 1_000, "manager-a,manager-c"),
         )
 
+        # The recipe's checks after the credential lease, each refusing one
+        # refund of the second agent before any write.
+        def checked(operation: str, amount: int, control: Dict[str, Any], **extra: str) -> None:
+            journey.control.write_text(json.dumps(control))
+            try:
+                submit(operation, amount, "manager-b,manager-c", agent=CHECKS_AGENT, **extra)
+            finally:
+                journey.control.unlink(missing_ok=True)
+
+        journey.step(
+            "hostile: 30.01, above half of the payment's 60.00",
+            lambda: checked("refund-above-ratio", 3_001, {}),
+        )
+        journey.step(
+            "hostile: EUR against a USD PaymentIntent",
+            lambda: checked("refund-currency-mismatch", 1_000, {}, currency="eur"),
+        )
+        if not live:
+            journey.step(
+                "hostile: the provider reports another account at the lease",
+                lambda: checked("refund-account-substituted", 1_000, {"account": OTHER_ACCOUNT}),
+            )
+            journey.step(
+                "hostile: the provider answers a denied read with 200",
+                lambda: checked("refund-denied-read-answered", 1_000, {"denied_status": 200}),
+            )
+
+        observed = results["refund-1"]
         expect(
-            results["refund-1"]["outcome"] == "response-recorded"
-            and results["refund-1"]["status"] == 200,
-            f"refund-1: {results['refund-1']}",
+            observed["outcome"] == "observed-by-provider"
+            and observed["status"] == 200
+            and observed["evidence"]["channel"] == "read-back",
+            f"refund-1: {observed}",
         )
         expect(
             results["refund-4"]["outcome"] == "response-recorded"
@@ -459,44 +591,104 @@ def main() -> int:
         expect(
             declined.get("outcome") == "declined"
             and declined.get("declined") == ["manager-b"]
-            and declined["provider_entries"] == 0,
+            and declined["provider_requests"] == 0,
             f"refund-declined: {declined}",
         )
         expect(
             tampered_run == {"exit": 1, "refused": True, "signed": False},
             f"tampered request: {tampered_run}",
         )
-        expected_refusals = {
+        # Refused before any credential lease: no provider request at all.
+        before_lease = {
             "refund-2-one-approval": ("denied", "composition-requirement-not-met"),
             "refund-3-over-ceiling": ("not-entered", "gateway.policy.above-ceiling"),
+            "refund-other-account": ("not-entered", "gateway.policy.scope-denied"),
+            "refund-over-sum": ("not-entered", "gateway.policy.sum-exhausted"),
             "refund-5-window": ("not-entered", "gateway.policy.window-exhausted"),
         }
+        # Refused after the lease by a provider check: reads, never a write.
+        after_lease = {
+            "refund-above-ratio": ("not-entered", "gateway.relative-ceiling.above"),
+            "refund-currency-mismatch": (
+                "not-entered",
+                "gateway.relative-ceiling.binding-mismatch",
+            ),
+        }
+        if not live:
+            after_lease.update(
+                {
+                    "refund-account-substituted": (
+                        "not-entered",
+                        "gateway.credential.account-mismatch",
+                    ),
+                    "refund-denied-read-answered": (
+                        "not-entered",
+                        "gateway.credential.capability-excess",
+                    ),
+                }
+            )
+        expected_refusals = {**before_lease, **after_lease}
         for operation, (outcome, code) in expected_refusals.items():
             got = results[operation]
             expect(got.get("outcome") == outcome and got.get("code") == code, f"{operation}: {got}")
         state_loss: Optional[Dict[str, Any]] = None
         if not live:
-            entries = journey.provider_entries()
-            expect(len(entries) == 2, f"expected exactly 2 provider entries, saw {len(entries)}")
-            expect(
-                all(entry["authorized"] and entry["well_formed"] for entry in entries),
-                "provider saw a malformed or unauthenticated request",
-            )
-            expect(
-                [entry["amount"] for entry in entries] == [1_500, 4_000],
-                f"provider amounts {entries}",
-            )
-            for operation in expected_refusals:
+            for operation in before_lease:
                 expect(
-                    results[operation]["provider_entries"] == 0, f"{operation} reached the provider"
+                    results[operation]["provider_requests"] == 0,
+                    f"{operation} reached the provider",
                 )
+            for operation in after_lease:
+                expect(
+                    results[operation]["provider_writes"] == 0
+                    and results[operation]["provider_requests"] > 0,
+                    f"{operation}: {results[operation]}",
+                )
+            entries = journey.provider_entries()
+            expect(
+                all(entry["authorized"] and entry["stripe_version"] == STRIPE_VERSION for entry in entries),
+                "provider saw an unauthenticated or unversioned request",
+            )
+            credential_reads = {"/v1/balance", "/v1/account", "/v1/customers", "/v1/payouts"}
+            expect(
+                all(
+                    entry["stripe_account"] is None
+                    if entry["path"] in credential_reads
+                    else entry["stripe_account"] == args.connect_account
+                    for entry in entries
+                ),
+                "Stripe-Account went on a credential read or missed an action request",
+            )
+            expect(
+                [(entry["method"], entry["path"], entry["status"]) for entry in onboarding]
+                == [
+                    ("GET", "/v1/balance", 200),
+                    ("GET", "/v1/account", 200),
+                    ("GET", "/v1/customers", 403),
+                    ("GET", "/v1/payouts", 403),
+                ],
+                f"install onboarding reads {onboarding}",
+            )
+            writes = [entry for entry in entries if entry["kind"] == "write"]
+            expect(len(writes) == 2, f"expected exactly 2 provider writes, saw {len(writes)}")
+            expect(all(entry["well_formed"] for entry in writes), "provider saw a malformed refund")
+            expect([entry["amount"] for entry in writes] == [1_500, 4_000], f"provider writes {writes}")
+            expect(
+                writes[0]["echo"] == observed["evidence"]["echo"],
+                f"refund-1 echo {writes[0]['echo']} != {observed['evidence']['echo']}",
+            )
+            read_back = f"/v1/refunds/{writes[0]['refund']}"
+            expect(
+                any(entry["path"] == read_back and entry["status"] == 200 for entry in entries),
+                f"refund-1 was not read back at {read_back}",
+            )
             keys = {
                 operation: idempotency_key(facts["operator_namespace"], operation)
                 for operation in ("refund-1", "refund-4")
             }
-            sent = [entry["idempotency_key"] for entry in entries]
+            sent = [entry["idempotency_key"] for entry in writes]
             expect(sent == [keys["refund-1"], keys["refund-4"]], f"Idempotency-Key values {sent}")
-            expect(not any(entry["replayed"] for entry in entries), f"provider replays {entries}")
+            expect(not any(entry["replayed"] for entry in writes), f"provider replays {writes}")
 
             # State loss: the gateway's store is restored from the backup
             # taken before the first refund, which still holds the shared
@@ -517,21 +709,21 @@ def main() -> int:
                 lose_attempts_and_resubmit,
             )
             expect(
-                state_loss == {"status": 200, "outcome": "response-recorded"},
+                state_loss["outcome"] == "observed-by-provider" and state_loss["status"] == 200,
                 f"resubmitted refund-1: {state_loss}",
             )
-            entries = journey.provider_entries()
-            expect(len(entries) == 3, f"expected 3 provider entries, saw {len(entries)}")
+            writes = [entry for entry in journey.provider_entries() if entry["kind"] == "write"]
+            expect(len(writes) == 3, f"expected 3 provider writes, saw {len(writes)}")
             expect(
-                entries[2]["idempotency_key"] == keys["refund-1"]
-                and entries[2]["replayed"]
-                and entries[2]["refund"] == entries[0]["refund"],
-                f"resubmitted refund-1 was not de-duplicated: {entries[2]}",
+                writes[2]["idempotency_key"] == keys["refund-1"]
+                and writes[2]["replayed"]
+                and writes[2]["refund"] == writes[0]["refund"],
+                f"resubmitted refund-1 was not de-duplicated: {writes[2]}",
             )
-            refunds_created = {entry["refund"] for entry in entries if entry["refund"]}
+            refunds_created = {entry["refund"] for entry in writes if entry["refund"]}
             expect(len(refunds_created) == 1, f"expected 1 refund, saw {sorted(refunds_created)}")
 
-        # README step 6: the audit bundle.
+        # README step 8: the audit bundle.
         bundle_path = journey.work / "audit-bundle.json"
         journey.step(
             "export audit bundle",
@@ -547,7 +739,7 @@ def main() -> int:
         )
         journey.stop()
 
-        # README step 7: the offline audit, with the gateway stopped.
+        # README step 9: the offline audit, with the gateway stopped.
         audited = journey.step(
             "offline audit (gateway stopped)",
             lambda: journey.audit(bundle_path, facts["trusted_context_sha256"], observer),
@@ -573,11 +765,14 @@ def main() -> int:
             entry["operation_id"] for entry in report["entries"] if entry["status"] == "verified"
         ]
         expect(entered == ["refund-1", "refund-4"], f"audit entered {entered}")
-        for operation, status in (("refund-1", 200), ("refund-4", 400)):
+        for operation, stage, status in (
+            ("refund-1", "observed-by-provider", 200),
+            ("refund-4", "response-recorded", 400),
+        ):
             result = provider_results[operation]
             expect(
                 result is not None
-                and result["stage"] == "response-recorded"
+                and result["stage"] == stage
                 and result["http_status"] == status
                 and result["response_digest"] is not None,
                 f"audit provider result {operation}: {result}",
@@ -589,8 +784,17 @@ def main() -> int:
             and exhausted["recount"] is None,
             f"audit provider result refund-5-window: {exhausted}",
         )
+        for operation in after_lease:
+            result = provider_results[operation]
+            expect(
+                result is not None
+                and result["stage"] == "not-entered"
+                and result["refusal"] == expected_refusals[operation][1]
+                and result["http_status"] is None,
+                f"audit provider result {operation}: {result}",
+            )
         expect(
-            report["recovery"]["class"] == "recorded",
+            report["recovery"]["class"] == "linked-after-response",
             f"audit recovery {report['recovery']}",
         )
         verified = next(entry for entry in report["entries"] if entry["operation_id"] == "refund-1")
@@ -676,6 +880,7 @@ def main() -> int:
         detections["trust replaced"] = "audit.trust-pin-mismatch"
         journey.steps.append({"step": "tampered bundles detected", "seconds": 0})
 
+        writes = [entry for entry in journey.provider_entries() if entry["kind"] == "write"]
         summary = {
             "journey": "stripe-refund-approval",
             "provider": "stripe-test-mode" if live else "counting-mock",
@@ -683,10 +888,19 @@ def main() -> int:
             "steps": journey.steps,
             "refunds": results,
             "tampered_request": tampered_run,
-            "provider_entries": None if live else len(journey.provider_entries()),
+            "non_test_key": guard,
+            "provider_checks": {
+                operation: {
+                    "code": results[operation]["code"],
+                    "provider_writes": None if live else results[operation]["provider_writes"],
+                }
+                for operation in expected_refusals
+            },
+            "provider_requests": None if live else len(journey.provider_entries()),
+            "provider_writes": None if live else len(writes),
             "provider_refunds": None
             if live
-            else len({entry["refund"] for entry in journey.provider_entries() if entry["refund"]}),
+            else len({entry["refund"] for entry in writes if entry["refund"]}),
             "state_loss_resubmission": state_loss,
             "audit": {
                 "verified": report["verified"],
