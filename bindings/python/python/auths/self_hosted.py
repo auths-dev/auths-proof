@@ -28,6 +28,16 @@ from typing import (
 )
 
 from . import _native
+from ._operator import (
+    SignerFile,
+    TrustAnchor,
+    TrustedContextRequest,
+    author_root_grant,
+    compile_trusted_context,
+    load_signer_file,
+)
+from ._trust import AssurancePolicy, AssuranceRequirement
+from ._workflow import Permission, Profile
 from .verify import VerificationResult, _project
 
 CommandT = TypeVar("CommandT")
@@ -571,6 +581,8 @@ def _unique_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
 
 __all__ = [
     "ArrayField",
+    "AssurancePolicy",
+    "AssuranceRequirement",
     "AuthorizedCommand",
     "BooleanField",
     "BytesField",
@@ -580,10 +592,18 @@ __all__ = [
     "IntegerField",
     "ObjectField",
     "OptionalField",
+    "Permission",
     "PreparedMcpAction",
+    "Profile",
     "RejectedCommand",
     "SignedObservationAttachment",
+    "SignerFile",
     "StringField",
+    "TrustAnchor",
+    "TrustedContextRequest",
     "attach_observations",
+    "author_root_grant",
+    "compile_trusted_context",
+    "load_signer_file",
     "verify_command",
 ]

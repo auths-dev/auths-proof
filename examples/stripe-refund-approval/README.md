@@ -19,6 +19,15 @@ gateway the first time takes a few minutes.
 | Gateway | the Stripe key | submit a refund only after verifying approvals and limits and checking the key and the payment with Stripe |
 | Auditor | two pinned values | verify every refund from a file, with no network |
 
+**Or start from a generated project.** `auths init stripe-refund-approval
+--gateway "$(command -v auths-gateway)"` writes this deployment into a new
+directory: one command per step below, each role's key in its own directory,
+and `bin/selftest`, which runs the hostile refunds, the audit, the tampered
+bundles, and a key scan against the double. It is a development deployment:
+one OS user, a file attempt store, and a software observer key, with
+development custody for every role, so it cannot establish credential
+isolation. This README stays the explained, step-by-step path.
+
 ## Steps
 
 Run from this directory. You need Python 3.9+, Rust (for the gateway), and a

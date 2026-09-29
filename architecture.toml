@@ -379,6 +379,12 @@ status = "permanent"
 reason = "The testkit derives deterministic fixture commitments and temporary conformance identifiers; these values provide test isolation and carry no production authority."
 
 [[binding_semantics.allowances]]
+path = "bindings/python/python/auths/_enforcement_init.py"
+pattern = "hashlib"
+status = "permanent"
+reason = "The enforcement-point scaffold records the SHA-256 of the operator's gateway executable in the generated enforcement.toml, so the generated commands refuse a different binary; the digest is a local file pin, not a proof commitment, protocol identifier, or authorization decision."
+
+[[binding_semantics.allowances]]
 path = "bindings/python/python/auths/_public.py"
 pattern = "hashlib"
 status = "permanent"
