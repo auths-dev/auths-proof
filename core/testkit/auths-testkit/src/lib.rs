@@ -5,7 +5,8 @@
 use auths_author::{prepare_action, prepare_grant, prepare_grant_status, prepare_principal_status};
 use auths_codec::{
     action_id, attachment_digest, body_digest, decode_bundle, encode_bundle,
-    encode_verifier_context, evidence_id, grant_id, grant_status_id, plan_id, principal_status_id,
+    encode_canonical_action, encode_verifier_context, evidence_id, grant_id, grant_status_id,
+    plan_id, principal_status_id,
 };
 use auths_did_keri::{
     ADAPTER_ID as DID_KERI_V1, ED25519_SUITE as KERI_ED25519_SUITE,
@@ -32,8 +33,9 @@ use auths_model::{
     ProofBundle, ProofRef, RegistryManifestId, Requirement, ResourceId, ResourceMatcherId,
     SignatureBytes, SignatureDescriptor, SignatureEnvelope, SignatureSuiteId, SignedAction,
     SignedGrant, SignedGrantStatus, SignedPrincipalStatus, StatementRef, StatusMethodId,
-    StatusPolicy, StatusSnapshotId, Timestamp, TrustAnchor, TrustAnchorId, TrustedContext,
-    ValidityWindow, VerificationMethod, VerifierConfigurationId, VerifierLimits,
+    StatusPolicy, StatusScope, StatusScopeAnchors, StatusSnapshotId, Timestamp, TrustAnchor,
+    TrustAnchorId, TrustedContext, ValidityWindow, VerificationMethod, VerifierConfigurationId,
+    VerifierLimits,
 };
 use auths_multikey::{Multikey, MultikeyType};
 use auths_path_webpki::WebPkiPathVerifier;
@@ -61,10 +63,14 @@ use rcgen::{
 use rustls_pki_types::PrivatePkcs8KeyDer;
 use sha2::{Digest as _, Sha256};
 
+mod action_decode;
 mod bounded_policy;
 mod kernel_checks;
 mod observation;
 mod status_extensions;
+mod status_scope;
+
+pub use status_scope::status_scope_baseline;
 
 pub use observation::observation_action_fact_fixture;
 
@@ -111,6 +117,9 @@ pub struct CorpusFixture {
     proof_bytes: Vec<u8>,
     context_bytes: Vec<u8>,
     canonical_action: CanonicalAction,
+    /// Canonical-action input bytes that are not the canonical encoding of
+    /// `canonical_action`, for a vector whose fault is in that encoding.
+    raw_action_bytes: Option<Vec<u8>>,
     expected: Expected,
 }
 
@@ -139,10 +148,33 @@ impl CorpusFixture {
         &self.context_bytes
     }
 
-    /// Returns the separately supplied canonical action.
+    /// Returns the separately supplied canonical action. For a raw-input
+    /// vector it is the well-formed action the raw bytes were derived from.
     #[must_use]
     pub const fn canonical_action(&self) -> &CanonicalAction {
         &self.canonical_action
+    }
+
+    /// Returns the canonical-action input bytes a verifier reads: a raw-input
+    /// vector's bytes, whose encoding carries its fault, and otherwise the
+    /// canonical encoding of [`Self::canonical_action`].
+    ///
+    /// # Panics
+    ///
+    /// Panics only when a repository-owned action cannot be encoded.
+    #[must_use]
+    pub fn action_bytes(&self) -> Vec<u8> {
+        self.raw_action_bytes.clone().unwrap_or_else(|| {
+            encode_canonical_action(&self.canonical_action)
+                .expect("repository-owned canonical action")
+        })
+    }
+
+    /// Returns whether the canonical-action input is raw bytes. Such a vector
+    /// fails at decode and has no in-process form.
+    #[must_use]
+    pub const fn has_raw_action(&self) -> bool {
+        self.raw_action_bytes.is_some()
     }
 
     /// Returns the normative expected result.
@@ -1039,6 +1071,7 @@ fn fixture(
         proof_bytes: encode_bundle(bundle).expect("canonical proof"),
         context_bytes: encode_verifier_context(&context).expect("canonical context"),
         canonical_action,
+        raw_action_bytes: None,
         expected,
     }
 }
@@ -2227,6 +2260,20 @@ enum StatusVariation {
     RevokedPrincipal,
 }
 
+/// A status scope listing the trust anchors built for `roots`: an issuer that
+/// is no anchor's principal counts only under the anchors its rule lists.
+pub(crate) fn listed_status_scope(roots: &[&Identity]) -> StatusScope {
+    StatusScope::Anchors(
+        StatusScopeAnchors::new(
+            roots
+                .iter()
+                .map(|root| TrustAnchorId::parse(root.principal.as_str()).expect("anchor ID"))
+                .collect(),
+        )
+        .expect("listed anchors"),
+    )
+}
+
 fn required_status(method: &str) -> StatusPolicy {
     StatusPolicy::SnapshotRequired {
         method: StatusMethodId::parse(method).expect("status method"),
@@ -2339,6 +2386,7 @@ fn status_fixture(name: &'static str, variation: StatusVariation) -> CorpusFixtu
                 StatusMethodId::parse(PRINCIPAL_STATUS_METHOD).expect("status method"),
                 identities[0].principal.clone(),
                 1,
+                StatusScope::OwnAnchor,
             )],
         )
         .expect("principal snapshot")
@@ -2432,6 +2480,7 @@ fn status_fixture(name: &'static str, variation: StatusVariation) -> CorpusFixtu
             } else {
                 1
             },
+            StatusScope::OwnAnchor,
         )];
         if matches!(variation, StatusVariation::ConflictingGrant) {
             let active = GrantStatusStatement::new(
@@ -2460,6 +2509,7 @@ fn status_fixture(name: &'static str, variation: StatusVariation) -> CorpusFixtu
                 StatusMethodId::parse(GRANT_STATUS_METHOD).expect("status method"),
                 identities[1].principal.clone(),
                 1,
+                listed_status_scope(&[&identities[0]]),
             ));
         }
         if matches!(variation, StatusVariation::RevokedGrant) {
@@ -2713,6 +2763,7 @@ fn principal_status_selection_fixture(
                 StatusMethodId::parse(METHOD).expect("status method"),
                 root.principal.clone(),
                 1,
+                StatusScope::OwnAnchor,
             )],
         )
         .expect("principal status snapshot"),
@@ -2963,12 +3014,14 @@ fn delegate_status_fixture(
         StatusMethodId::parse(METHOD).expect("status method"),
         root.principal.clone(),
         if rollback { 2 } else { 1 },
+        StatusScope::OwnAnchor,
     )];
     if matches!(variation, DelegateStatusVariation::StaleAtGreatestSequence) {
         principal_trust.push(auths_model::StatusTrustRule::new(
             StatusMethodId::parse(METHOD).expect("status method"),
             actor.principal.clone(),
             1,
+            listed_status_scope(&[root]),
         ));
     }
     let principal_snapshot = PrincipalStatusSnapshot::with_trust(
@@ -3021,6 +3074,7 @@ fn delegate_status_fixture(
             StatusMethodId::parse(METHOD).expect("status method"),
             root.principal.clone(),
             1,
+            StatusScope::OwnAnchor,
         )],
     )
     .expect("grant snapshot");
@@ -5478,6 +5532,9 @@ fn build_corpus() -> Vec<CorpusFixture> {
     corpus.extend(kernel_checks::precedence_vectors());
     corpus.extend(observation::child_limit_vectors());
     corpus.extend(status_extensions::status_extension_vectors());
+    corpus.extend(status_scope::status_scope_vectors());
+    corpus.extend(status_scope::carried_status_precedence_vectors());
+    corpus.extend(action_decode::action_decode_vectors());
     corpus
 }
 

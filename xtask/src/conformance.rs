@@ -213,6 +213,11 @@ pub(crate) fn target_conformance() -> Result<(), String> {
         .map_err(|error| error.to_string())?;
     for fixture in auths_testkit::corpus() {
         portable_corpus_outcome(&fixture, &registries)?;
+        // Raw canonical-action bytes are rejected before the proof is read and
+        // have no in-process form.
+        if fixture.has_raw_action() {
+            continue;
+        }
         let context = auths_codec::decode_verifier_context(fixture.context_bytes())
             .map_err(|error| format!("{} context: {error}", fixture.name()))?;
         // An input the portable decoder rejects has no in-process form.
@@ -257,8 +262,7 @@ fn portable_corpus_outcome(
     fixture: &auths_testkit::CorpusFixture,
     registries: &auths_registries::ImmutableRegistries<'_>,
 ) -> Result<auths_verifier::SealedVerificationResult, String> {
-    let action_bytes = auths_codec::encode_canonical_action(fixture.canonical_action())
-        .map_err(|error| format!("{} action: {error}", fixture.name()))?;
+    let action_bytes = fixture.action_bytes();
     let sealed = auths_verifier::verify_v1_sealed(
         fixture.proof_bytes(),
         &action_bytes,
@@ -296,7 +300,27 @@ pub(crate) fn semantic_digest() -> Result<(), String> {
 }
 
 pub(crate) fn semantic_digest_value() -> Result<String, String> {
-    use auths_model::{ParticipantRole, VerificationStage};
+    Ok(semantic_projection()?.0)
+}
+
+/// The specification's name for a portable result stage.
+pub(crate) fn stage_name(stage: auths_model::VerificationStage) -> &'static str {
+    use auths_model::VerificationStage;
+    match stage {
+        VerificationStage::Decode => "decode",
+        VerificationStage::Resolve => "resolve",
+        VerificationStage::PrincipalControl => "principal-control",
+        VerificationStage::Authority => "authority",
+        VerificationStage::Complete => "complete",
+    }
+}
+
+/// The Rust projection of every corpus vector: the aggregate semantic
+/// digest, and one report entry per vector in corpus order. The fields and
+/// their framing are those `bindings/independent/README.md` specifies for
+/// the Go and TypeScript verifiers.
+pub(crate) fn semantic_projection() -> Result<(String, Vec<Value>), String> {
+    use auths_model::ParticipantRole;
 
     let raw_key = auths_raw_key::RawKeyMethod::new().map_err(|error| error.to_string())?;
     let did_key = auths_did_key::DidKeyMethod::new().map_err(|error| error.to_string())?;
@@ -321,6 +345,7 @@ pub(crate) fn semantic_digest_value() -> Result<String, String> {
         .map_err(|error| error.to_string())?;
     let fixtures = auths_testkit::corpus();
     let mut summary = Sha256::new();
+    let mut report = Vec::with_capacity(fixtures.len());
     for fixture in &fixtures {
         let context = auths_codec::decode_verifier_context(fixture.context_bytes())
             .map_err(|error| format!("{} context: {error}", fixture.name()))?;
@@ -329,21 +354,14 @@ pub(crate) fn semantic_digest_value() -> Result<String, String> {
         let proof_digest = Sha256::digest(fixture.proof_bytes());
         let context_digest =
             auths_codec::context_digest(&context).map_err(|error| error.to_string())?;
-        let action_bytes = auths_codec::encode_canonical_action(fixture.canonical_action())
-            .map_err(|error| error.to_string())?;
-        let action_digest = Sha256::digest(action_bytes);
-        // No plan is recorded when an input fails to decode: a rejected
-        // canonical action stops verification before the proof is read.
-        let plan = if result.stage() == VerificationStage::Decode {
-            None
-        } else {
-            auths_verifier::decode_proof(fixture.proof_bytes(), &context)
-                .ok()
-                .and_then(|decoded| auths_codec::plan_id(decoded.bundle().plan()).ok())
-        };
+        let action_digest = Sha256::digest(fixture.action_bytes());
+        // The portable result records no plan at decode or resolve.
+        let plan = result.plan_id();
+        let stage = stage_name(result.stage());
         write_field(&mut summary, fixture.name());
         write_field(&mut summary, decision_name(result.decision()));
         write_field(&mut summary, result.code().code());
+        write_field(&mut summary, stage);
         write_bytes(&mut summary, &proof_digest);
         write_bytes(&mut summary, context_digest.as_bytes());
         write_bytes(&mut summary, &action_digest);
@@ -352,6 +370,17 @@ pub(crate) fn semantic_digest_value() -> Result<String, String> {
             plan.as_ref()
                 .map_or(&[][..], |identifier| identifier.as_bytes()),
         );
+        report.push(json!({
+            "name": fixture.name(),
+            "implementation": "rust-native",
+            "decision": decision_name(result.decision()),
+            "code": result.code().code(),
+            "stage": stage,
+            "proof_digest": hex::encode(proof_digest),
+            "action_digest": hex::encode(action_digest),
+            "context_digest": hex::encode(context_digest.as_bytes()),
+            "plan_digest": plan.map(|identifier| hex::encode(identifier.as_bytes())),
+        }));
         if let Some(action) = sealed.action() {
             for identifier in action.action_ids() {
                 write_bytes(&mut summary, identifier.as_bytes());
@@ -390,11 +419,150 @@ pub(crate) fn semantic_digest_value() -> Result<String, String> {
         }
         write_field(&mut summary, "\n");
     }
-    Ok(format!(
-        "{}:{}",
-        fixtures.len(),
-        hex::encode(summary.finalize())
+    Ok((
+        format!("{}:{}", fixtures.len(), hex::encode(summary.finalize())),
+        report,
     ))
+}
+
+/// The report fields compared with a manifest entry, in report order.
+const REPORT_FIELDS: [&str; 7] = [
+    "decision",
+    "code",
+    "stage",
+    "proof_digest",
+    "action_digest",
+    "context_digest",
+    "plan_digest",
+];
+
+/// The manifest's expectation for one report field; a `null` plan digest
+/// means none.
+fn expected_report_field<'a>(fixture: &'a Value, field: &str) -> &'a Value {
+    match field {
+        "decision" => &fixture["expected_decision"],
+        "code" => &fixture["expected_code"],
+        _ => &fixture["expected_result"][field],
+    }
+}
+
+/// Compares one implementation's per-vector report with the committed
+/// manifest and returns every mismatch: a vector the report omits or repeats,
+/// a vector the manifest does not hold, and each field that differs.
+pub(crate) fn compare_report(manifest: &Value, report: &[Value]) -> Result<Vec<String>, String> {
+    let fixtures = manifest
+        .get("fixtures")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "corpus manifest has no fixtures array".to_owned())?;
+    let mut entries: BTreeMap<&str, &Value> = BTreeMap::new();
+    let mut mismatches = Vec::new();
+    for entry in report {
+        let name = entry
+            .get("name")
+            .and_then(Value::as_str)
+            .ok_or_else(|| format!("report entry has no name: {entry}"))?;
+        if entries.insert(name, entry).is_some() {
+            mismatches.push(format!("{name}: reported more than once"));
+        }
+    }
+    for fixture in fixtures {
+        let name = fixture
+            .get("name")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "corpus manifest fixture has no name".to_owned())?;
+        let Some(entry) = entries.remove(name) else {
+            mismatches.push(format!("{name}: missing from the report"));
+            continue;
+        };
+        for field in REPORT_FIELDS {
+            let expected = expected_report_field(fixture, field);
+            let actual = entry.get(field).unwrap_or(&Value::Null);
+            if actual != expected {
+                mismatches.push(format!(
+                    "{name}: {field}: got {actual}, expected {expected}"
+                ));
+            }
+        }
+    }
+    for name in entries.keys() {
+        mismatches.push(format!("{name}: not a corpus vector"));
+    }
+    Ok(mismatches)
+}
+
+/// Reads a JSON-lines report.
+pub(crate) fn read_report(path: &Path) -> Result<Vec<Value>, String> {
+    let text = fs::read_to_string(path)
+        .map_err(|error| format!("could not read report {}: {error}", path.display()))?;
+    text.lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| {
+            serde_json::from_str(line)
+                .map_err(|error| format!("invalid report line in {}: {error}", path.display()))
+        })
+        .collect()
+}
+
+/// Writes a JSON-lines report.
+pub(crate) fn write_report(path: &Path, report: &[Value]) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("could not create {}: {error}", parent.display()))?;
+    }
+    let mut text = String::new();
+    for entry in report {
+        text.push_str(&entry.to_string());
+        text.push('\n');
+    }
+    fs::write(path, text).map_err(|error| format!("could not write {}: {error}", path.display()))
+}
+
+pub(crate) fn committed_manifest() -> Result<Value, String> {
+    let path = root().join("core/fixtures/v1/manifest.json");
+    serde_json::from_slice(
+        &fs::read(&path).map_err(|error| format!("could not read {}: {error}", path.display()))?,
+    )
+    .map_err(|error| format!("could not parse {}: {error}", path.display()))
+}
+
+/// `cargo xtask conformance-compare <report.jsonl>`: checks any
+/// implementation's per-vector report against the committed corpus manifest.
+pub(crate) fn conformance_compare(arguments: &[String]) -> Result<(), String> {
+    let [path] = arguments else {
+        return Err("usage: cargo xtask conformance-compare <report.jsonl>".to_owned());
+    };
+    let report = read_report(Path::new(path))?;
+    let mismatches = compare_report(&committed_manifest()?, &report)?;
+    if mismatches.is_empty() {
+        println!("{path}: every corpus vector matches the manifest");
+        return Ok(());
+    }
+    for mismatch in &mismatches {
+        eprintln!("{mismatch}");
+    }
+    Err(format!(
+        "{path}: {} mismatches against the corpus manifest",
+        mismatches.len()
+    ))
+}
+
+/// The language-neutral check-site inventory: each site, its code, and the
+/// single-fault vectors that pin it, in evaluation order.
+pub(crate) fn check_sites_json() -> Result<Vec<u8>, String> {
+    let sites: Vec<Value> = auths_testkit::check_sites::CHECK_SITES
+        .iter()
+        .map(|entry| {
+            json!({
+                "site": entry.site,
+                "code": entry.code,
+                "vectors": entry.vectors,
+            })
+        })
+        .collect();
+    let mut bytes = serde_json::to_vec_pretty(&sites)
+        .map_err(|error| format!("could not encode check-site inventory: {error}"))?;
+    bytes.push(b'\n');
+    Ok(bytes)
 }
 
 pub(crate) fn write_field(summary: &mut Sha256, value: &str) {
@@ -488,8 +656,7 @@ pub(crate) fn generated_vectors() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> 
         let action_path = format!("{directory}/{}.action.cbor", fixture.name());
         let body_path = format!("{directory}/{}.body.cbor", fixture.name());
         let result_path = format!("{directory}/{}.result.cbor", fixture.name());
-        let action_bytes = auths_codec::encode_canonical_action(fixture.canonical_action())
-            .map_err(|error| format!("{} action: {error}", fixture.name()))?;
+        let action_bytes = fixture.action_bytes();
         let result_bytes = auths_verifier::verify_v1(
             fixture.proof_bytes(),
             &action_bytes,
@@ -504,7 +671,7 @@ pub(crate) fn generated_vectors() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> 
             Expected::Denied(reason) => ("denied", reason.code()),
             Expected::Indeterminate(requirement) => ("indeterminate", requirement.code()),
         };
-        entries.push(json!({
+        let mut entry = json!({
             "name": fixture.name(),
             "class": directory,
             "proof": {
@@ -537,7 +704,7 @@ pub(crate) fn generated_vectors() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> 
             "expected_result": {
                 "path": result_path,
                 "sha256": hex::encode(Sha256::digest(&result_bytes)),
-                "stage": format!("{:?}", result.stage()).to_ascii_lowercase(),
+                "stage": stage_name(result.stage()),
                 "decision": expected_decision,
                 "code": expected_code,
                 "proof_digest": hex::encode(result.proof_digest().as_bytes()),
@@ -561,7 +728,13 @@ pub(crate) fn generated_vectors() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> 
             },
             "expected_decision": expected_decision,
             "expected_code": expected_code,
-        }));
+        });
+        // A raw input's bytes are not the canonical encoding of the action
+        // its metadata describes; an absent marker means canonical bytes.
+        if fixture.has_raw_action() {
+            entry["canonical_action"]["encoding"] = json!("raw");
+        }
+        entries.push(entry);
         generated.insert(PathBuf::from(proof_path), fixture.proof_bytes().to_vec());
         generated.insert(
             PathBuf::from(context_path),
@@ -584,6 +757,7 @@ pub(crate) fn generated_vectors() -> Result<BTreeMap<PathBuf, Vec<u8>>, String> 
     }))
     .map_err(|error| format!("could not encode target fixture manifest: {error}"))?;
     generated.insert(PathBuf::from("manifest.json"), manifest);
+    generated.insert(PathBuf::from("check-sites.json"), check_sites_json()?);
     Ok(generated)
 }
 
@@ -599,7 +773,9 @@ pub(crate) fn fixture_inventory(root: &Path) -> Result<BTreeSet<PathBuf>, String
             } else if path
                 .extension()
                 .is_some_and(|extension| extension == "cbor")
-                || path.file_name().is_some_and(|name| name == "manifest.json")
+                || path
+                    .file_name()
+                    .is_some_and(|name| name == "manifest.json" || name == "check-sites.json")
             {
                 output.insert(
                     path.strip_prefix(root)

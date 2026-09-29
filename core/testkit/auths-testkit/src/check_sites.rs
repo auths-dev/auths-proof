@@ -48,14 +48,56 @@ pub const CHECK_SITES: &[CheckSite] = &[
         &["action-input-bytes-over-limit"],
     ),
     site(
+        "decode.action-map",
+        "malformed-proof",
+        &[
+            "action-decode-map-size",
+            "action-decode-duplicated-first-pair",
+        ],
+    ),
+    site(
+        "decode.action-key",
+        "non-canonical-proof",
+        &["action-decode-key-out-of-order"],
+    ),
+    site(
+        "decode.action-field",
+        "malformed-proof",
+        &[
+            "action-decode-truncated",
+            "action-decode-zero-profile-version",
+            "action-decode-whitespace-in-media-type",
+            "action-decode-body-as-text",
+            "action-decode-indefinite-attachments",
+        ],
+    ),
+    site(
         "decode.action-body-bytes",
         "resource-limit-exceeded",
-        &["detached-body-bytes-over-limit"],
+        &["detached-body-bytes-over-limit", "action-decode-empty-body"],
     ),
     site(
         "decode.attachment-bytes",
         "resource-limit-exceeded",
         &["attachment-bytes-over-limit"],
+    ),
+    site(
+        "decode.action-attachment-duplicate",
+        "malformed-proof",
+        &["action-decode-duplicate-attachments"],
+    ),
+    site(
+        "decode.action-trailing",
+        "malformed-proof",
+        &["action-decode-trailing-byte"],
+    ),
+    site(
+        "decode.action-canonical",
+        "non-canonical-proof",
+        &[
+            "action-decode-non-shortest-key",
+            "action-decode-attachments-out-of-order",
+        ],
     ),
     site(
         "binding.embedded-body",

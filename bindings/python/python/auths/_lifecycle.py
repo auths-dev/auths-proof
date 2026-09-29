@@ -128,10 +128,60 @@ class SignedGrantStatus:
 
 
 @dataclass(frozen=True)
+class StatusScope:
+    """The trust anchors under which a status issuer's statements count.
+
+    Use ``own()`` for an organization's root when that root is the
+    organization's only trust anchor at the verifier; ``anchors(ids)``,
+    listing every one of the organization's anchor IDs, for an organization
+    with several anchors or for a status service; and ``any()`` only for the
+    verifying organization's own status authority.
+    """
+
+    kind: str
+    anchor_ids: Tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "anchor_ids", tuple(self.anchor_ids))
+        if self.kind not in ("own", "anchors", "any"):
+            raise ValueError("status scope must be own, anchors, or any")
+        if (self.kind == "anchors") != bool(self.anchor_ids):
+            raise ValueError("only an anchors scope lists anchor IDs, and it lists at least one")
+
+    @classmethod
+    def own(cls) -> "StatusScope":
+        return cls("own")
+
+    @classmethod
+    def anchors(cls, anchor_ids: Sequence[str]) -> "StatusScope":
+        return cls("anchors", tuple(anchor_ids))
+
+    @classmethod
+    def any(cls) -> "StatusScope":
+        return cls("any")
+
+
+@dataclass(frozen=True)
 class StatusTrustRule:
     method: str
     issuer: Principal
     sequence_floor: int
+    scope: StatusScope
+
+
+def _native_trust(
+    trust: Sequence[StatusTrustRule],
+) -> list[Tuple[str, str, int, str, list[str]]]:
+    return [
+        (
+            value.method,
+            value.issuer.value,
+            value.sequence_floor,
+            value.scope.kind,
+            list(value.scope.anchor_ids),
+        )
+        for value in trust
+    ]
 
 
 class PrincipalStatusSnapshot:
@@ -265,7 +315,7 @@ def principal_status_snapshot(
         valid_until,
         [value._value for value in values],
         [value.bytes for value in checkpoints],
-        [(value.method, value.issuer.value, value.sequence_floor) for value in trust],
+        _native_trust(trust),
     )
     return PrincipalStatusSnapshot(_SNAPSHOT_TOKEN, identifier, snapshot)
 
@@ -289,7 +339,7 @@ def grant_status_snapshot(
         valid_until,
         [value._value for value in values],
         [value.bytes for value in checkpoints],
-        [(value.method, value.issuer.value, value.sequence_floor) for value in trust],
+        _native_trust(trust),
     )
     return GrantStatusSnapshot(_SNAPSHOT_TOKEN, identifier, snapshot)
 
@@ -395,6 +445,7 @@ __all__ = [
     "SignedPrincipalStatus",
     "StatusSnapshot",
     "StatusProvider",
+    "StatusScope",
     "StatusTrustRule",
     "grant_status_snapshot",
     "principal_status_snapshot",

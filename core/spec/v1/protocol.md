@@ -165,20 +165,29 @@ principal adapter. Extra, ignored, or adapter-invented evidence fails closed.
 
 Principal status and grant status are separate signed facts. Each carries an
 exact method, subject, issuer, sequence, validity boundary, and critical
-extensions. The trusted snapshot supplies accepted issuers and sequence
-floors; latest-sequence selection is deterministic and revoked dominates
-active at the same sequence. Historical control, current control, statement
-existence, revocation, and freshness are not interchangeable.
+extensions. The trusted snapshot supplies accepted issuers, each with a
+sequence floor per method and a scope: the trust anchors under which its
+statements count. The scope is the issuer's own anchors (`own`), listed local
+anchors (`anchors`), or every anchor (`any`). In a branch evaluated under an
+anchor outside an issuer's scope, that issuer's statements take no part in
+status evaluation, whatever their method, so one organization's status issuer
+cannot revoke or reinstate another organization's principals or grants at a
+shared verifier. Among the statements that take part, latest-sequence
+selection is deterministic and revoked dominates active at the same sequence.
+Historical control, current control, statement existence, revocation, and
+freshness are not interchangeable.
 
-A principal-status statement names no purpose or role. The latest statement
-about a principal governs it in every position it holds in a branch, and
-selection and the rollback check on a proof-carried statement both key on
-the principal alone, as they key on the grant for grant status. No registered
-critical extension gives a status statement meaning. When a verifier
-evaluates the status of a principal or grant, a statement about it that
-carries an extension is refused: `critical-extension-unknown` for an
-identifier the context does not accept, and `unsupported-critical-extension`
-for one it does (`registry.md`, "Status-statement extensions").
+A principal-status statement names no purpose or role. Within one branch, the
+latest statement about a principal governs it in every position it holds in
+that branch, and selection keys on the principal, as it keys on the grant for
+grant status. The rollback check on a proof-carried statement keys on the
+subject, method, and issuer, because a sequence number orders one issuer's
+statements under one method. No registered critical extension gives a status
+statement meaning. When a verifier evaluates the status of a principal or
+grant, a statement about it that is not out of scope and carries an extension
+is refused: `critical-extension-unknown` for an identifier the context does
+not accept, and `unsupported-critical-extension` for one it does
+(`registry.md`, "Status-statement extensions").
 
 Principal status covers every principal in an authority branch: the trust
 anchor and the subject of every grant, which by chain linkage includes every

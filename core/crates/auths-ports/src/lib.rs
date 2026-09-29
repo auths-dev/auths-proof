@@ -24,7 +24,7 @@ use auths_model::{
     BudgetAlgebraId, BudgetCeiling, CanonicalAction, CriticalExtension, EvidenceId, EvidenceObject,
     ExtensionId, FactName, FactValue, GrantId, GrantStatusSnapshot, PrincipalId, PrincipalMethodId,
     PrincipalStatusSnapshot, ProfilePolicyId, ResourceId, ResourceMatcherId, SignatureSuiteId,
-    StatusMethodId, StatusPolicy, Timestamp, VerificationMethod,
+    StatusMethodId, StatusPolicy, Timestamp, TrustAnchor, VerificationMethod,
 };
 use core::fmt;
 use diagnostics::{ControlEvaluation, DiagnosticMode};
@@ -435,7 +435,7 @@ pub enum StatusDecision {
     Active,
     /// The subject is revoked or superseded.
     Revoked,
-    /// No trusted matching statement exists.
+    /// No statement visible to the branch's trust anchor names the subject.
     Missing,
     /// A matching statement is outside its freshness boundary.
     Stale,
@@ -455,7 +455,11 @@ pub trait StatusMethod {
     fn configuration_id(&self) -> AdapterConfigurationId;
     /// Returns a conservative pre-execution work reservation.
     fn maximum_work_units(&self, statement_count: usize) -> u64;
-    /// Evaluates principal status.
+    /// Evaluates principal status for a branch under `anchor`.
+    ///
+    /// Only statements in scope for `anchor` take part
+    /// ([`auths_model::status_issuer_in_scope`]); the result equals the result
+    /// on the same snapshot with every out-of-scope statement removed.
     ///
     /// # Errors
     ///
@@ -465,9 +469,11 @@ pub trait StatusMethod {
         policy: &StatusPolicy,
         snapshot: &PrincipalStatusSnapshot,
         principal: &PrincipalId,
+        anchor: &TrustAnchor,
         evaluation_time: Timestamp,
     ) -> Result<StatusDecision, RegistryOperationError>;
-    /// Evaluates grant status under the same selection rules.
+    /// Evaluates grant status for a branch under `anchor`, with the same scope
+    /// and selection rules.
     ///
     /// # Errors
     ///
@@ -477,6 +483,7 @@ pub trait StatusMethod {
         policy: &StatusPolicy,
         snapshot: &GrantStatusSnapshot,
         grant: GrantId,
+        anchor: &TrustAnchor,
         evaluation_time: Timestamp,
     ) -> Result<StatusDecision, RegistryOperationError>;
 }

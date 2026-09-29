@@ -15,7 +15,8 @@ use auths_model::{
     BudgetCeiling, CanonicalAction, CriticalExtensionLaws, ExtensionId, GrantId, GrantState,
     GrantStatusSnapshot, PrincipalId, PrincipalMethodId, PrincipalState, PrincipalStatusSnapshot,
     ProfilePolicyId, RegistryManifestId, ResourceId, ResourceMatcherId, SignatureSuiteId,
-    StatusMethodId, StatusPolicy, Timestamp, VerifierConfigurationId,
+    StatusMethodId, StatusPolicy, Timestamp, TrustAnchor, VerifierConfigurationId,
+    status_issuer_in_scope,
 };
 use auths_ports::{
     AssuranceClaimRule, AssuranceImplication, BudgetAlgebra, CriticalExtensionHandler,
@@ -416,6 +417,7 @@ impl StatusMethod for ExactStatusMethod {
         policy: &StatusPolicy,
         snapshot: &PrincipalStatusSnapshot,
         principal: &PrincipalId,
+        anchor: &TrustAnchor,
         evaluation_time: Timestamp,
     ) -> Result<StatusDecision, RegistryOperationError> {
         let StatusPolicy::SnapshotRequired { method, .. } = policy else {
@@ -431,7 +433,10 @@ impl StatusMethod for ExactStatusMethod {
             .statements()
             .iter()
             .map(auths_model::SignedPrincipalStatus::statement)
-            .filter(|statement| statement.principal() == principal)
+            .filter(|statement| {
+                statement.principal() == principal
+                    && status_issuer_in_scope(snapshot.trust(), statement.issuer(), anchor)
+            })
             .collect();
         select_principal(policy, snapshot, &candidates, evaluation_time)
     }
@@ -441,6 +446,7 @@ impl StatusMethod for ExactStatusMethod {
         policy: &StatusPolicy,
         snapshot: &GrantStatusSnapshot,
         grant: GrantId,
+        anchor: &TrustAnchor,
         evaluation_time: Timestamp,
     ) -> Result<StatusDecision, RegistryOperationError> {
         let StatusPolicy::SnapshotRequired { method, .. } = policy else {
@@ -456,7 +462,10 @@ impl StatusMethod for ExactStatusMethod {
             .statements()
             .iter()
             .map(auths_model::SignedGrantStatus::statement)
-            .filter(|statement| statement.grant_id() == grant)
+            .filter(|statement| {
+                statement.grant_id() == grant
+                    && status_issuer_in_scope(snapshot.trust(), statement.issuer(), anchor)
+            })
             .collect();
         select_grant(policy, snapshot, &candidates, evaluation_time)
     }
@@ -1248,7 +1257,7 @@ mod tests {
     use auths_model::{
         ConditionTest, FactName, ObservationCondition, ObservationRequirement,
         ObservationRequirements, ObservationSchemaId, ObservationSubject, ObserverAnchorId,
-        UintRange,
+        StatusScope, StatusScopeAnchors, StatusTrustRule, UintRange,
     };
 
     fn laws() -> CoreExtensionLaws {
@@ -1421,5 +1430,337 @@ mod tests {
             None,
             Some(&bytes(vec![base()]))
         ));
+    }
+
+    const PRIMARY_STATUS: &str = "auths-principal-status-v1";
+    const OTHER_STATUS: &str = "other-principal-status-v1";
+
+    /// Reproducible xorshift cases for the scope property, with no generator
+    /// dependency in this crate.
+    struct Cases(u64);
+
+    impl Cases {
+        fn below(&mut self, bound: usize) -> usize {
+            self.0 ^= self.0 >> 12;
+            self.0 ^= self.0 << 25;
+            self.0 ^= self.0 >> 27;
+            let value = self.0.wrapping_mul(0x2545_f491_4f6c_dd1d);
+            usize::try_from(value % u64::try_from(bound).expect("small bound"))
+                .expect("small value")
+        }
+
+        fn pick<'a, T>(&mut self, values: &'a [T]) -> &'a T {
+            &values[self.below(values.len())]
+        }
+
+        fn sequence(&mut self, maximum: usize) -> u64 {
+            u64::try_from(1 + self.below(maximum)).expect("small sequence")
+        }
+    }
+
+    fn principal(value: &str) -> PrincipalId {
+        PrincipalId::parse(value).expect("principal")
+    }
+
+    fn method(value: &str) -> StatusMethodId {
+        StatusMethodId::parse(value).expect("status method")
+    }
+
+    fn status_anchor(id: &str, root: &str) -> TrustAnchor {
+        TrustAnchor::new(
+            auths_model::TrustAnchorId::parse(id).expect("anchor ID"),
+            principal(root),
+            vec![PrincipalMethodId::parse("raw-key-v1").expect("method")],
+            vec![
+                auths_model::ProfileRef::new(
+                    auths_model::ProfileId::parse("auths.mcp").expect("profile"),
+                    1,
+                )
+                .expect("profile"),
+            ],
+            auths_model::PermissionSet::new(vec![auths_model::Permission::new(
+                auths_model::CapabilityId::parse("tools/call").expect("capability"),
+                ResourceId::parse("mcp://reports/read").expect("resource"),
+            )])
+            .expect("permissions"),
+            Vec::new(),
+            auths_model::AudienceSet::new(vec![
+                auths_model::Audience::parse("audience://verifier").expect("audience"),
+            ])
+            .expect("audiences"),
+            auths_model::ValidityWindow::new(Timestamp::new(0), Timestamp::new(100))
+                .expect("validity"),
+            None,
+            1,
+            auths_model::AssurancePolicyId::parse("policy").expect("policy"),
+            StatusPolicy::ExpiryOnly,
+        )
+        .expect("anchor")
+    }
+
+    fn envelope() -> auths_model::SignatureEnvelope {
+        auths_model::SignatureEnvelope::new(
+            auths_model::SignatureDescriptor::new(
+                PrincipalMethodId::parse("raw-key-v1").expect("method"),
+                auths_model::VerificationMethod::parse("raw:issuer#key-1").expect("key"),
+                SignatureSuiteId::parse("ed25519-v1").expect("suite"),
+            ),
+            auths_model::SignatureBytes::new(vec![1; 64]).expect("signature"),
+        )
+    }
+
+    fn principal_statement(
+        status_method: &str,
+        subject: &str,
+        state: PrincipalState,
+        sequence: u64,
+        issuer: &str,
+    ) -> auths_model::SignedPrincipalStatus {
+        auths_model::SignedPrincipalStatus::new(
+            auths_model::PrincipalStatusStatement::new(
+                method(status_method),
+                principal(subject),
+                state,
+                sequence,
+                Timestamp::new(40),
+                Timestamp::new(100),
+                principal(issuer),
+                auths_model::CriticalExtensions::empty(),
+            )
+            .expect("principal status"),
+            envelope(),
+        )
+    }
+
+    fn grant_statement(
+        grant: GrantId,
+        state: GrantState,
+        sequence: u64,
+        issuer: &str,
+    ) -> auths_model::SignedGrantStatus {
+        auths_model::SignedGrantStatus::new(
+            auths_model::GrantStatusStatement::new(
+                method(PRIMARY_STATUS),
+                grant,
+                state,
+                sequence,
+                Timestamp::new(40),
+                Timestamp::new(100),
+                principal(issuer),
+                auths_model::CriticalExtensions::empty(),
+            )
+            .expect("grant status"),
+            envelope(),
+        )
+    }
+
+    fn required() -> StatusPolicy {
+        StatusPolicy::SnapshotRequired {
+            method: method(PRIMARY_STATUS),
+            max_age: auths_model::FreshnessLimit::new(100).expect("freshness"),
+        }
+    }
+
+    fn exact() -> ExactStatusMethod {
+        ExactStatusMethod {
+            id: method(PRIMARY_STATUS),
+        }
+    }
+
+    fn rule(status_method: &str, issuer: &str, floor: u64, scope: StatusScope) -> StatusTrustRule {
+        StatusTrustRule::new(method(status_method), principal(issuer), floor, scope)
+    }
+
+    /// The same rules with every scope widened to `any`, under which scope
+    /// filters nothing.
+    fn unscoped(trust: &[StatusTrustRule]) -> Vec<StatusTrustRule> {
+        trust
+            .iter()
+            .map(|rule| {
+                StatusTrustRule::new(
+                    rule.method().clone(),
+                    rule.issuer().clone(),
+                    rule.sequence_floor(),
+                    StatusScope::AnyAnchor,
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn an_out_of_scope_issuer_is_invisible_under_every_method() {
+        let verifier_anchor = status_anchor("anchor-v", "raw:v-root");
+        let partner_anchor = status_anchor("anchor-f", "raw:f-root");
+        let snapshot = PrincipalStatusSnapshot::with_trust(
+            auths_model::StatusSnapshotId::new([1; 32]),
+            Timestamp::new(40),
+            Timestamp::new(100),
+            vec![principal_statement(
+                OTHER_STATUS,
+                "raw:v-actor",
+                PrincipalState::Revoked,
+                1,
+                "raw:f-root",
+            )],
+            Vec::new(),
+            vec![rule(
+                PRIMARY_STATUS,
+                "raw:f-root",
+                1,
+                StatusScope::OwnAnchor,
+            )],
+        )
+        .expect("snapshot");
+        let subject = principal("raw:v-actor");
+        let under = |anchor: &TrustAnchor| {
+            exact()
+                .principal(&required(), &snapshot, &subject, anchor, Timestamp::new(50))
+                .expect("evaluation")
+        };
+        // Visible, the statement forces a method mismatch.
+        assert_eq!(under(&partner_anchor), StatusDecision::WrongMethod);
+        // Out of scope, it is absent, whatever its method.
+        assert_eq!(under(&verifier_anchor), StatusDecision::Missing);
+    }
+
+    /// For every snapshot, anchor, and subject, the status result equals the
+    /// result on the same snapshot with the anchor's out-of-scope statements
+    /// removed and no scope left to apply: scope changes visibility and
+    /// nothing else.
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn scope_only_removes_out_of_scope_statements() {
+        let anchors = [
+            status_anchor("anchor-v", "raw:v-root"),
+            status_anchor("anchor-f", "raw:f-root"),
+        ];
+        let issuers = ["raw:v-root", "raw:f-root", "raw:service", "raw:unknown"];
+        let subjects = ["raw:v-root", "raw:v-actor", "raw:f-actor"];
+        let grants = [GrantId::new([7; 32]), GrantId::new([8; 32])];
+        let principal_states = [
+            PrincipalState::Active,
+            PrincipalState::Revoked,
+            PrincipalState::Superseded,
+        ];
+        let grant_states = [GrantState::Active, GrantState::Revoked];
+        let principal_snapshot = |statements: Vec<_>, trust: Vec<_>| {
+            PrincipalStatusSnapshot::with_trust(
+                auths_model::StatusSnapshotId::new([1; 32]),
+                Timestamp::new(40),
+                Timestamp::new(100),
+                statements,
+                Vec::new(),
+                trust,
+            )
+        };
+        let grant_snapshot = |statements: Vec<_>, trust: Vec<_>| {
+            GrantStatusSnapshot::with_trust(
+                auths_model::StatusSnapshotId::new([2; 32]),
+                Timestamp::new(40),
+                Timestamp::new(100),
+                statements,
+                Vec::new(),
+                trust,
+            )
+        };
+        let mut cases = Cases(0x5eed_0f5c_09e5_0001);
+        let mut checked = 0usize;
+        for _ in 0..4_000 {
+            // Rules for the three named issuers; `raw:unknown` stays unnamed.
+            let mut trust = Vec::new();
+            for issuer in &issuers[..3] {
+                let owner = matches!(*issuer, "raw:v-root" | "raw:f-root");
+                let scope = match cases.below(4) {
+                    0 if owner => StatusScope::OwnAnchor,
+                    0 | 1 => StatusScope::Anchors(
+                        StatusScopeAnchors::new(match cases.below(3) {
+                            0 => vec![anchors[0].id().clone()],
+                            1 => vec![anchors[1].id().clone()],
+                            _ => vec![anchors[0].id().clone(), anchors[1].id().clone()],
+                        })
+                        .expect("listed anchors"),
+                    ),
+                    _ => StatusScope::AnyAnchor,
+                };
+                trust.push(rule(
+                    PRIMARY_STATUS,
+                    issuer,
+                    cases.sequence(2),
+                    scope.clone(),
+                ));
+                if cases.below(3) == 0 {
+                    trust.push(rule(OTHER_STATUS, issuer, 1, scope));
+                }
+            }
+            let principal_statements: Vec<_> = (0..cases.below(6))
+                .map(|_| {
+                    let status_method = if cases.below(5) == 0 {
+                        OTHER_STATUS
+                    } else {
+                        PRIMARY_STATUS
+                    };
+                    let subject = *cases.pick(&subjects);
+                    let state = *cases.pick(&principal_states);
+                    let sequence = cases.sequence(4);
+                    let issuer = *cases.pick(&issuers);
+                    principal_statement(status_method, subject, state, sequence, issuer)
+                })
+                .collect();
+            let grant_statements: Vec<_> = (0..cases.below(5))
+                .map(|_| {
+                    let grant = *cases.pick(&grants);
+                    let state = *cases.pick(&grant_states);
+                    let sequence = cases.sequence(4);
+                    let issuer = *cases.pick(&issuers);
+                    grant_statement(grant, state, sequence, issuer)
+                })
+                .collect();
+            // A repeated statement is not a valid snapshot; draw again.
+            let (Ok(scoped_principal), Ok(scoped_grant)) = (
+                principal_snapshot(principal_statements.clone(), trust.clone()),
+                grant_snapshot(grant_statements.clone(), trust.clone()),
+            ) else {
+                continue;
+            };
+            for anchor in &anchors {
+                let visible = |issuer: &PrincipalId| status_issuer_in_scope(&trust, issuer, anchor);
+                let reduced_principal = principal_snapshot(
+                    principal_statements
+                        .iter()
+                        .filter(|signed| visible(signed.statement().issuer()))
+                        .cloned()
+                        .collect(),
+                    unscoped(&trust),
+                )
+                .expect("reduced principal snapshot");
+                let reduced_grant = grant_snapshot(
+                    grant_statements
+                        .iter()
+                        .filter(|signed| visible(signed.statement().issuer()))
+                        .cloned()
+                        .collect(),
+                    unscoped(&trust),
+                )
+                .expect("reduced grant snapshot");
+                for subject in subjects.map(principal) {
+                    let evaluate = |snapshot: &PrincipalStatusSnapshot| {
+                        exact()
+                            .principal(&required(), snapshot, &subject, anchor, Timestamp::new(50))
+                            .expect("principal evaluation")
+                    };
+                    assert_eq!(evaluate(&scoped_principal), evaluate(&reduced_principal));
+                }
+                for grant in grants {
+                    let evaluate = |snapshot: &GrantStatusSnapshot| {
+                        exact()
+                            .grant(&required(), snapshot, grant, anchor, Timestamp::new(50))
+                            .expect("grant evaluation")
+                    };
+                    assert_eq!(evaluate(&scoped_grant), evaluate(&reduced_grant));
+                }
+                checked += 1;
+            }
+        }
+        assert!(checked > 4_000, "too few valid cases: {checked}");
     }
 }

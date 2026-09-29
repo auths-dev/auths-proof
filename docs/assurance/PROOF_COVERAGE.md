@@ -4,10 +4,10 @@
 
 ## 1. Claim
 
-At the commit that contains this document, 103 of 953 decision-scope functions (10.8%) and 1,201 of 10,346 code lines (11.6%) are translated to Lean and reached from audited theorem statements, and 15 of 72 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the composition evaluator, the registry handlers, the codec, and the signature suites, is tested, not proved.
+At the commit that contains this document, 103 of 960 decision-scope functions (10.7%) and 1,201 of 10,424 code lines (11.5%) are translated to Lean and reached from audited theorem statements, and 15 of 78 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the composition evaluator, the registry handlers, the codec, and the signature suites, is tested, not proved.
 
 - Revision: the commit that contains this document and `formal/proof-coverage-v1.json`; a release binds it in its assurance evidence.
-- Measurement inputs: sha256 `db9887889654134cef1b834ade86ff97a681d5336bee5db67f2105af078ac73c` over the 86 files listed in `formal/proof-coverage-v1.json`.
+- Measurement inputs: sha256 `6ef84419629c1057b32ca42dd8fbcbe8ab896035378becdcb34d627611775da6` over the 86 files listed in `formal/proof-coverage-v1.json`.
 - Tool: `cargo xtask formal coverage`, version 1.
 - Toolchain pins: `formal/lean-toolchain` = `leanprover/lean4:v4.31.0`; `formal/translation-toolchain.lock` sha256 `0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53`.
 - Role table: `formal/coverage-scope-v1.toml`, sha256 `b3243135c3122e985f3e750e78493ffb0c3bdf316dab629bd00c6a8bca7ce7ed`. Figures computed under a different role table are not comparable.
@@ -49,11 +49,11 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 
 | Scope | Functions | Translated | Refined directly | Refined closure | Code lines | Translated | Refined directly | Refined closure |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| decision | 953 | 103 (10.8%) | 49 (5.1%) | 103 (10.8%) | 10,346 | 1,201 (11.6%) | 768 (7.4%) | 1,201 (11.6%) |
-| verifier-core | 707 | 79 (11.2%) | 34 (4.8%) | 79 (11.2%) | 7,795 | 819 (10.5%) | 470 (6.0%) | 819 (10.5%) |
-| translated-crates | 1,060 | 203 (19.2%) | 63 (5.9%) | 203 (19.2%) | 9,995 | 2,420 (24.2%) | 936 (9.4%) | 2,420 (24.2%) |
-| verifier-closure | 977 | 79 (8.1%) | 34 (3.5%) | 79 (8.1%) | 12,245 | 819 (6.7%) | 470 (3.8%) | 819 (6.7%) |
-| decision-nontrivial | 401 | 74 (18.5%) | 37 (9.2%) | 74 (18.5%) | 8,690 | 1,114 (12.8%) | 732 (8.4%) | 1,114 (12.8%) |
+| decision | 960 | 103 (10.7%) | 49 (5.1%) | 103 (10.7%) | 10,424 | 1,201 (11.5%) | 768 (7.4%) | 1,201 (11.5%) |
+| verifier-core | 714 | 79 (11.1%) | 34 (4.8%) | 79 (11.1%) | 7,873 | 819 (10.4%) | 470 (6.0%) | 819 (10.4%) |
+| translated-crates | 1,067 | 203 (19.0%) | 63 (5.9%) | 203 (19.0%) | 10,052 | 2,420 (24.1%) | 936 (9.3%) | 2,420 (24.1%) |
+| verifier-closure | 986 | 79 (8.0%) | 34 (3.4%) | 79 (8.0%) | 12,380 | 819 (6.6%) | 470 (3.8%) | 819 (6.6%) |
+| decision-nontrivial | 405 | 74 (18.3%) | 37 (9.1%) | 74 (18.3%) | 8,759 | 1,114 (12.7%) | 732 (8.4%) | 1,114 (12.7%) |
 
 Decision scope by crate:
 
@@ -63,9 +63,9 @@ Decision scope by crate:
 | `core/crates/auths-assurance` | 3 | 89 | 0 | 0 | 0 |
 | `core/crates/auths-authority` | 21 | 341 | 13 | 13 | 241 |
 | `core/crates/auths-composition` | 8 | 160 | 0 | 0 | 0 |
-| `core/crates/auths-model` | 485 | 3,422 | 64 | 64 | 561 |
-| `core/crates/auths-registries` | 75 | 1,052 | 0 | 0 | 0 |
-| `core/crates/auths-verifier` | 100 | 2,700 | 0 | 0 | 0 |
+| `core/crates/auths-model` | 492 | 3,479 | 64 | 64 | 561 |
+| `core/crates/auths-registries` | 75 | 1,060 | 0 | 0 | 0 |
+| `core/crates/auths-verifier` | 100 | 2,713 | 0 | 0 | 0 |
 | `product/policy/auths-bounded-policy` | 108 | 716 | 18 | 18 | 182 |
 | `product/runtime/auths-lifecycle` | 138 | 1,835 | 6 | 6 | 200 |
 
@@ -75,13 +75,13 @@ Sensitivities of the decision-scope refined-closure figure:
 
 | Reading | Functions | Code lines |
 | --- | ---: | ---: |
-| Headline | 103 of 953 (10.8%) | 1,201 of 10,346 (11.6%) |
-| Without functions defined in `macro_rules!` bodies | 102 of 936 (10.9%) | 1,198 of 10,293 (11.6%) |
-| Closure of exact and verdict-exact theorems only | 102 of 953 (10.7%) | 1,198 of 10,346 (11.6%) |
-| Closure of exact theorems only | 98 of 953 (10.3%) | 1,110 of 10,346 (10.7%) |
-| Closure without trait-instance records | 101 of 953 (10.6%) | 1,195 of 10,346 (11.6%) |
+| Headline | 103 of 960 (10.7%) | 1,201 of 10,424 (11.5%) |
+| Without functions defined in `macro_rules!` bodies | 102 of 943 (10.8%) | 1,198 of 10,371 (11.6%) |
+| Closure of exact and verdict-exact theorems only | 102 of 960 (10.6%) | 1,198 of 10,424 (11.5%) |
+| Closure of exact theorems only | 98 of 960 (10.2%) | 1,110 of 10,424 (10.6%) |
+| Closure without trait-instance records | 101 of 960 (10.5%) | 1,195 of 10,424 (11.5%) |
 
-**Second parser.** 936 of 953 decision-scope function spans (98.2%) agree with an independent parse by syn over 28 files. Disagreements:
+**Second parser.** 943 of 960 decision-scope function spans (98.2%) agree with an independent parse by syn over 28 files. Disagreements:
 
 - `core/crates/auths-model/src/lib.rs` `name::parse` (lines 133-135): inside a macro_rules! body (syn parses it as a token tree).
 - `core/crates/auths-model/src/lib.rs` `name::as_str` (lines 138-140): inside a macro_rules! body (syn parses it as a token tree).
@@ -105,13 +105,19 @@ syn finds 0 non-test function spans in those files that the scanner does not.
 
 ## 4. Decision-critical coverage
 
-`formal/check-site-functions-v1.toml` maps each of the 72 `CHECK_SITES` entries (`core/testkit/auths-testkit/src/check_sites.rs`) to the function that constructs its refusal, the predicate its guard calls, and further deciding functions, by study 006's innermost-function rule. A site is covered when every one of those functions is in the refined closure. 15 of 72 are covered (20.8%).
+`formal/check-site-functions-v1.toml` maps each of the 78 `CHECK_SITES` entries (`core/testkit/auths-testkit/src/check_sites.rs`) to the function that constructs its refusal, the predicate its guard calls, and further deciding functions, by study 006's innermost-function rule. A site is covered when every one of those functions is in the refined closure. 15 of 78 are covered (19.2%).
 
 | Site | Code | Deciding functions outside the closure | Covering stage |
 | --- | --- | --- | --- |
 | `decode.action-bytes` | `resource-limit-exceeded` | `decode_canonical_action` (refusal) | codec: AP-SPEC-061 |
+| `decode.action-map` | `malformed-proof` | `map` (refusal), `decode_canonical_action` (also) | codec: AP-SPEC-061 |
+| `decode.action-key` | `non-canonical-proof` | `key` (refusal), `decode_canonical_action` (also) | codec: AP-SPEC-061 |
+| `decode.action-field` | `malformed-proof` | `decode_canonical_action` (refusal), `profile_ref` (also), `text` (also), `bounded_bytes` (also), `array` (also) | codec: AP-SPEC-061 |
 | `decode.action-body-bytes` | `resource-limit-exceeded` | `bounded_bytes` (refusal), `decode_canonical_action` (also) | codec: AP-SPEC-061 |
 | `decode.attachment-bytes` | `resource-limit-exceeded` | `bounded_bytes` (refusal), `decode_canonical_action` (also) | codec: AP-SPEC-061 |
+| `decode.action-attachment-duplicate` | `malformed-proof` | `CanonicalAction::with_detached_attachments` (refusal), `decode_canonical_action` (also) | codec: AP-SPEC-061 |
+| `decode.action-trailing` | `malformed-proof` | `ensure_complete` (refusal), `decode_canonical_action` (also) | codec: AP-SPEC-061 |
+| `decode.action-canonical` | `non-canonical-proof` | `decode_canonical_action` (refusal), `encode_canonical_action` (also) | codec: AP-SPEC-061 |
 | `binding.embedded-body` | `action-body-mismatch` | `validate_action_binding` (refusal) | stage 3 |
 | `binding.profile` | `action-body-mismatch` | `validate_action_binding` (refusal) | stage 3 |
 | `binding.media-type` | `action-body-mismatch` | `validate_action_binding` (refusal) | stage 3 |
@@ -175,11 +181,13 @@ None: every function Aeneas translates is in the refined closure.
 
 `cargo xtask formal mutations` runs study 006's three campaigns: S1 applies each case of `formal/refinement-mutations-v1.json`, S2 mutates comparison, Boolean, and result-position operators in the model's `def` bodies, and S3 replaces each translated function's body with `fail .panic`. A mutant is killed when the build of the audited targets fails, and stillborn when its first error lies in the mutated definition itself. The first error (the earliest in the mutated file, else the least location among the failing modules, so that parallel builds record the same one) and its declaration are recorded; an S1 mutant whose build reports no error in its case's named witness is reported as killed elsewhere. Every survivor must be fixed or explained before a release; pull requests are not blocked.
 
+**Some results predate the current formal sources** (current formal inputs `d5eb4d86fe27dac93e83f3a05eae28b4217035abc18a04ada2c5c6bb1ca2da02`); re-run the stale campaigns before a release.
+
 | Campaign | Mutants | Killed | Of which killed elsewhere | Survived | Stillborn | Current |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| S1 | 23 | 23 | 1 | 0 | 0 | yes |
-| S2 | 88 | 86 | 0 | 0 | 2 | yes |
-| S3 | 203 | 203 | 0 | 0 | 0 | yes |
+| S1 | 23 | 23 | 1 | 0 | 0 | stale |
+| S2 | 88 | 86 | 0 | 0 | 2 | stale |
+| S3 | 203 | 203 | 0 | 0 | 0 | stale |
 
 - Stillborn S2 `Observation:177:60` in `requirementDecision` (.denied→.authorized (result position)): the mutated definition does not elaborate.
 - Stillborn S2 `CeilingCount:445:62` in `evaluator` (.denied→.authorized (result position)): the mutated definition does not elaborate.
@@ -188,7 +196,7 @@ None: every function Aeneas translates is in the refined closure.
 
 Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 58 exact, 1 verdict-exact, 8 partial, 1 case.
 
-Recomputed over the closure of exact and verdict-exact theorems only, the decision-scope figure is 102 of 953 functions (10.7%) and 1,198 of 10,346 code lines (11.6%).
+Recomputed over the closure of exact and verdict-exact theorems only, the decision-scope figure is 102 of 960 functions (10.6%) and 1,198 of 10,424 code lines (11.5%).
 
 The 33 theorems study 006 classified keep the kind both of its raters gave; theorems added since were classified by the agent that added them and await a second rater.
 

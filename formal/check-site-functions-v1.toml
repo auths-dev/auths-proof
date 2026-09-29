@@ -15,6 +15,32 @@ stage = "codec: AP-SPEC-061"
 note = "Whole canonical-action input over the action-bytes limit; codec_failure maps LimitExceeded to resource-limit-exceeded."
 
 [[sites]]
+site = "decode.action-map"
+refusal = { file = "core/crates/auths-codec/src/decode.rs", function = "map" }
+also = [{ file = "core/crates/auths-codec/src/decode.rs", function = "decode_canonical_action" }]
+stage = "codec: AP-SPEC-061"
+note = "A canonical-action map header with the wrong number of pairs, as when the first pair is duplicated; map returns Malformed."
+
+[[sites]]
+site = "decode.action-key"
+refusal = { file = "core/crates/auths-codec/src/decode.rs", function = "key" }
+also = [{ file = "core/crates/auths-codec/src/decode.rs", function = "decode_canonical_action" }]
+stage = "codec: AP-SPEC-061"
+note = "A canonical-action map key out of the canonical order; key returns NonCanonical."
+
+[[sites]]
+site = "decode.action-field"
+refusal = { file = "core/crates/auths-codec/src/decode.rs", function = "decode_canonical_action" }
+also = [
+  { file = "core/crates/auths-codec/src/decode.rs", function = "profile_ref" },
+  { file = "core/crates/auths-codec/src/decode.rs", function = "text" },
+  { file = "core/crates/auths-codec/src/decode.rs", function = "bounded_bytes" },
+  { file = "core/crates/auths-codec/src/decode.rs", function = "array" },
+]
+stage = "codec: AP-SPEC-061"
+note = "A canonical-action field that does not decode as its type: truncated input, a zero profile version, a media type with whitespace, a body sent as text, or an indefinite-length attachment array."
+
+[[sites]]
 site = "decode.action-body-bytes"
 refusal = { file = "core/crates/auths-codec/src/decode.rs", function = "bounded_bytes" }
 also = [{ file = "core/crates/auths-codec/src/decode.rs", function = "decode_canonical_action" }]
@@ -27,6 +53,27 @@ refusal = { file = "core/crates/auths-codec/src/decode.rs", function = "bounded_
 also = [{ file = "core/crates/auths-codec/src/decode.rs", function = "decode_canonical_action" }]
 stage = "codec: AP-SPEC-061"
 note = "Single detached attachment over the attachment-bytes limit, rejected per attachment before the cumulative check."
+
+[[sites]]
+site = "decode.action-attachment-duplicate"
+refusal = { file = "core/crates/auths-model/src/lib.rs", function = "CanonicalAction::with_detached_attachments" }
+also = [{ file = "core/crates/auths-codec/src/decode.rs", function = "decode_canonical_action" }]
+stage = "codec: AP-SPEC-061"
+note = "Two detached attachments with one digest; the model refuses the collection and the codec maps it to malformed-proof."
+
+[[sites]]
+site = "decode.action-trailing"
+refusal = { file = "core/crates/auths-codec/src/decode.rs", function = "ensure_complete" }
+also = [{ file = "core/crates/auths-codec/src/decode.rs", function = "decode_canonical_action" }]
+stage = "codec: AP-SPEC-061"
+note = "Bytes after the canonical action's map; ensure_complete returns Malformed."
+
+[[sites]]
+site = "decode.action-canonical"
+refusal = { file = "core/crates/auths-codec/src/decode.rs", function = "decode_canonical_action" }
+also = [{ file = "core/crates/auths-codec/src/encode.rs", function = "encode_canonical_action" }]
+stage = "codec: AP-SPEC-061"
+note = "Input that decodes but is not the canonical encoding, as with a non-shortest key or attachments out of order; the re-encoding comparison returns NonCanonical."
 
 [[sites]]
 site = "binding.embedded-body"

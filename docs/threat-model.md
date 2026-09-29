@@ -31,6 +31,7 @@ context.
 | Authority expansion | Permission subset, contained validity, decreasing depth |
 | Grant reordering/removal | Signed parent `GrantId` chain |
 | Self-declared trust | Roots exist only in local verifier context |
+| A partner's status issuer overrides another root's subjects | Each status trust rule carries a scope (`own`, `anchors`, `any`); a statement whose issuer's scope does not cover the branch's trust anchor takes no part in status evaluation (AP-SPEC-064) |
 | Evidence replacement or smuggling | Evidence is content-addressed; each successful statement binding exactly equals adapter-reported consumption |
 | Backdating after key revocation | Historical key state alone is insufficient |
 | Non-canonical signature bytes | Closed deterministic CBOR and low-S P-256 |

@@ -24,9 +24,9 @@ use auths_model::{
     Permission, PermissionSet, PrincipalId, PrincipalMethodId, PrincipalState,
     PrincipalStatusSnapshot, PrincipalStatusStatement, ProfileBudgetExpression, ProfileId,
     ProfilePolicyId, ProfileRef, ProofRef, ResourceId, ResourceMatcherId, SignatureBytes,
-    SignatureDescriptor, SignatureSuiteId, StatusMethodId, StatusPolicy, StatusSnapshotId,
-    StatusTrustRule, Timestamp, TrustAnchor, TrustAnchorId, TrustedContext, ValidityWindow,
-    VerificationMethod, VerifierConfigurationId, VerifierLimits,
+    SignatureDescriptor, SignatureSuiteId, StatusMethodId, StatusPolicy, StatusScope,
+    StatusScopeAnchors, StatusSnapshotId, StatusTrustRule, Timestamp, TrustAnchor, TrustAnchorId,
+    TrustedContext, ValidityWindow, VerificationMethod, VerifierConfigurationId, VerifierLimits,
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_production_client::project_sdk_event_v2;
@@ -255,6 +255,34 @@ struct StatusTrustInput {
     method: String,
     issuer: String,
     sequence_floor: u64,
+    scope: StatusScopeInput,
+}
+
+/// `{"kind": "own"}`, `{"kind": "anchors", "anchors": [...]}`, or
+/// `{"kind": "any"}`; a scope is required and has no default.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct StatusScopeInput {
+    kind: String,
+    #[serde(default)]
+    anchors: Vec<String>,
+}
+
+fn status_scope(value: StatusScopeInput) -> Result<StatusScope, EngineError> {
+    match (value.kind.as_str(), value.anchors.is_empty()) {
+        ("own", true) => Ok(StatusScope::OwnAnchor),
+        ("any", true) => Ok(StatusScope::AnyAnchor),
+        ("anchors", false) => Ok(StatusScope::Anchors(StatusScopeAnchors::new(
+            value
+                .anchors
+                .into_iter()
+                .map(|id| TrustAnchorId::parse(&id))
+                .collect::<Result<Vec<_>, _>>()?,
+        )?)),
+        _ => Err(EngineError::Abi(
+            "status scope must be own, anchors with at least one anchor ID, or any",
+        )),
+    }
 }
 
 #[derive(Deserialize)]
@@ -293,6 +321,7 @@ fn status_trust(values: Vec<StatusTrustInput>) -> Result<Vec<StatusTrustRule>, E
                 StatusMethodId::parse(&value.method)?,
                 PrincipalId::parse(&value.issuer)?,
                 value.sequence_floor,
+                status_scope(value.scope)?,
             ))
         })
         .collect()
@@ -6506,5 +6535,32 @@ mod tests {
         let mut unnamed = root_grant_input();
         unnamed.critical_extensions[0].id = "Not An Extension".to_owned();
         assert!(root_grant_statement_native(unnamed).is_err());
+    }
+
+    #[test]
+    fn a_status_scope_is_explicit_and_lists_anchors_only_for_anchors() {
+        let scope = |kind: &str, anchors: &[&str]| {
+            status_scope(StatusScopeInput {
+                kind: kind.to_owned(),
+                anchors: anchors.iter().map(|id| (*id).to_owned()).collect(),
+            })
+        };
+        assert!(matches!(scope("own", &[]), Ok(StatusScope::OwnAnchor)));
+        assert!(matches!(scope("any", &[]), Ok(StatusScope::AnyAnchor)));
+        let Ok(StatusScope::Anchors(listed)) = scope("anchors", &["b", "a"]) else {
+            panic!("listed anchors");
+        };
+        assert_eq!(
+            listed
+                .ids()
+                .iter()
+                .map(TrustAnchorId::as_str)
+                .collect::<Vec<_>>(),
+            ["a", "b"]
+        );
+        assert!(scope("anchors", &[]).is_err());
+        assert!(scope("anchors", &["a", "a"]).is_err());
+        assert!(scope("own", &["a"]).is_err());
+        assert!(scope("everyone", &[]).is_err());
     }
 }

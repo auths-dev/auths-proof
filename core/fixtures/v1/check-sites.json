@@ -1,0 +1,563 @@
+[
+  {
+    "site": "decode.action-bytes",
+    "code": "resource-limit-exceeded",
+    "vectors": [
+      "action-input-bytes-over-limit"
+    ]
+  },
+  {
+    "site": "decode.action-map",
+    "code": "malformed-proof",
+    "vectors": [
+      "action-decode-map-size",
+      "action-decode-duplicated-first-pair"
+    ]
+  },
+  {
+    "site": "decode.action-key",
+    "code": "non-canonical-proof",
+    "vectors": [
+      "action-decode-key-out-of-order"
+    ]
+  },
+  {
+    "site": "decode.action-field",
+    "code": "malformed-proof",
+    "vectors": [
+      "action-decode-truncated",
+      "action-decode-zero-profile-version",
+      "action-decode-whitespace-in-media-type",
+      "action-decode-body-as-text",
+      "action-decode-indefinite-attachments"
+    ]
+  },
+  {
+    "site": "decode.action-body-bytes",
+    "code": "resource-limit-exceeded",
+    "vectors": [
+      "detached-body-bytes-over-limit",
+      "action-decode-empty-body"
+    ]
+  },
+  {
+    "site": "decode.attachment-bytes",
+    "code": "resource-limit-exceeded",
+    "vectors": [
+      "attachment-bytes-over-limit"
+    ]
+  },
+  {
+    "site": "decode.action-attachment-duplicate",
+    "code": "malformed-proof",
+    "vectors": [
+      "action-decode-duplicate-attachments"
+    ]
+  },
+  {
+    "site": "decode.action-trailing",
+    "code": "malformed-proof",
+    "vectors": [
+      "action-decode-trailing-byte"
+    ]
+  },
+  {
+    "site": "decode.action-canonical",
+    "code": "non-canonical-proof",
+    "vectors": [
+      "action-decode-non-shortest-key",
+      "action-decode-attachments-out-of-order"
+    ]
+  },
+  {
+    "site": "binding.embedded-body",
+    "code": "action-body-mismatch",
+    "vectors": [
+      "embedded-body-differs"
+    ]
+  },
+  {
+    "site": "binding.profile",
+    "code": "action-body-mismatch",
+    "vectors": [
+      "mismatched-profile-version"
+    ]
+  },
+  {
+    "site": "binding.media-type",
+    "code": "action-body-mismatch",
+    "vectors": [
+      "action-media-type-substituted"
+    ]
+  },
+  {
+    "site": "binding.body-digest",
+    "code": "action-body-mismatch",
+    "vectors": [
+      "embedded-body-swapped",
+      "detached-body-swapped"
+    ]
+  },
+  {
+    "site": "binding.permission",
+    "code": "action-body-mismatch",
+    "vectors": [
+      "action-permission-substituted"
+    ]
+  },
+  {
+    "site": "binding.requested-budget",
+    "code": "action-body-mismatch",
+    "vectors": [
+      "action-budget-substituted"
+    ]
+  },
+  {
+    "site": "binding.profile-accepted",
+    "code": "unsupported-profile",
+    "vectors": [
+      "unsupported-action-profile"
+    ]
+  },
+  {
+    "site": "binding.audience",
+    "code": "audience-mismatch",
+    "vectors": [
+      "wrong-audience"
+    ]
+  },
+  {
+    "site": "binding.challenge",
+    "code": "challenge-mismatch",
+    "vectors": [
+      "wrong-challenge"
+    ]
+  },
+  {
+    "site": "binding.evaluation-time",
+    "code": "action-outside-validity",
+    "vectors": [
+      "evaluation-time-after-validity"
+    ]
+  },
+  {
+    "site": "binding.channel",
+    "code": "local-policy-denied",
+    "vectors": [
+      "action-channel-mismatch"
+    ]
+  },
+  {
+    "site": "binding.shared-meaning",
+    "code": "plan-action-mismatch",
+    "vectors": [
+      "plan-actions-differ"
+    ]
+  },
+  {
+    "site": "binding.action-extension-accepted",
+    "code": "critical-extension-unknown",
+    "vectors": [
+      "unknown-action-extension"
+    ]
+  },
+  {
+    "site": "binding.action-extension-handler",
+    "code": "unsupported-critical-extension",
+    "vectors": [
+      "accepted-extension-without-handler"
+    ]
+  },
+  {
+    "site": "binding.action-extension-evaluation",
+    "code": "local-policy-denied",
+    "vectors": [
+      "exact-marker-extension-invalid"
+    ]
+  },
+  {
+    "site": "binding.observation-attachments",
+    "code": "resource-limit-exceeded",
+    "vectors": [
+      "observation-attachments-over-limit",
+      "observation-bytes-over-limit"
+    ]
+  },
+  {
+    "site": "binding.attachment-descriptors",
+    "code": "unused-critical-attachment",
+    "vectors": [
+      "attachment-descriptor-set-mismatch"
+    ]
+  },
+  {
+    "site": "binding.attachment-missing",
+    "code": "attachment-missing",
+    "vectors": [
+      "attachment-missing"
+    ]
+  },
+  {
+    "site": "binding.attachment-length",
+    "code": "attachment-length-mismatch",
+    "vectors": [
+      "attachment-wrong-length"
+    ]
+  },
+  {
+    "site": "binding.attachment-digest",
+    "code": "attachment-digest-mismatch",
+    "vectors": [
+      "attachment-wrong-digest"
+    ]
+  },
+  {
+    "site": "binding.attachment-opaque",
+    "code": "opaque-attachment-not-allowed",
+    "vectors": [
+      "attachment-opaque-denied"
+    ]
+  },
+  {
+    "site": "binding.attachment-unused",
+    "code": "unused-critical-attachment",
+    "vectors": [
+      "attachment-unused"
+    ]
+  },
+  {
+    "site": "binding.profile-policy",
+    "code": "unsupported-profile-policy",
+    "vectors": [
+      "unsupported-profile-policy"
+    ]
+  },
+  {
+    "site": "branch.root-control",
+    "code": "invalid-signature",
+    "vectors": [
+      "invalid-signature"
+    ]
+  },
+  {
+    "site": "branch.untrusted-root",
+    "code": "untrusted-root",
+    "vectors": [
+      "untrusted-root"
+    ]
+  },
+  {
+    "site": "branch.principal-status-extension-accepted",
+    "code": "critical-extension-unknown",
+    "vectors": [
+      "anchor-status-extension-unknown",
+      "delegate-status-extension-unknown",
+      "actor-status-extension-unknown",
+      "delegate-status-extension-beside-newer"
+    ]
+  },
+  {
+    "site": "branch.principal-status-extension-handler",
+    "code": "unsupported-critical-extension",
+    "vectors": [
+      "anchor-status-extension-without-handler",
+      "delegate-status-extension-without-handler"
+    ]
+  },
+  {
+    "site": "branch.anchor-principal-status",
+    "code": "principal-revoked",
+    "vectors": [
+      "revoked-principal-status"
+    ]
+  },
+  {
+    "site": "branch.grant-status-extension-accepted",
+    "code": "critical-extension-unknown",
+    "vectors": [
+      "grant-status-extension-unknown"
+    ]
+  },
+  {
+    "site": "branch.grant-status-extension-handler",
+    "code": "unsupported-critical-extension",
+    "vectors": [
+      "grant-status-extension-without-handler"
+    ]
+  },
+  {
+    "site": "branch.grant-status",
+    "code": "grant-revoked",
+    "vectors": [
+      "revoked-grant-status"
+    ]
+  },
+  {
+    "site": "branch.subject-principal-status",
+    "code": "principal-revoked",
+    "vectors": [
+      "revoked-delegate-principal-status"
+    ]
+  },
+  {
+    "site": "branch.resource-matcher",
+    "code": "unsupported-resource-matcher",
+    "vectors": [
+      "unsupported-resource-matcher"
+    ]
+  },
+  {
+    "site": "branch.grant-namespace",
+    "code": "resource-namespace-mismatch",
+    "vectors": [
+      "grant-permission-outside-namespace"
+    ]
+  },
+  {
+    "site": "branch.action-namespace",
+    "code": "resource-namespace-mismatch",
+    "vectors": [
+      "action-resource-outside-namespace"
+    ]
+  },
+  {
+    "site": "branch.budget-edge-algebra",
+    "code": "unsupported-budget-algebra",
+    "vectors": [
+      "budget-edge-algebra-unsupported"
+    ]
+  },
+  {
+    "site": "branch.budget-edge-mismatch",
+    "code": "local-policy-denied",
+    "vectors": [
+      "budget-edge-algebra-mismatch"
+    ]
+  },
+  {
+    "site": "branch.budget-edge",
+    "code": "delegation-expanded",
+    "vectors": [
+      "budget-widening"
+    ]
+  },
+  {
+    "site": "branch.budget-absent",
+    "code": "budget-ceiling-exceeded",
+    "vectors": [
+      "action-budget-absent"
+    ]
+  },
+  {
+    "site": "branch.budget-algebra",
+    "code": "unsupported-budget-algebra",
+    "vectors": [
+      "unsupported-budget-algebra"
+    ]
+  },
+  {
+    "site": "branch.budget-request-mismatch",
+    "code": "local-policy-denied",
+    "vectors": [
+      "budget-request-algebra-mismatch"
+    ]
+  },
+  {
+    "site": "branch.budget-coverage",
+    "code": "budget-ceiling-exceeded",
+    "vectors": [
+      "action-budget-exceeded"
+    ]
+  },
+  {
+    "site": "branch.requirement-dropped",
+    "code": "observation-requirement-dropped",
+    "vectors": [
+      "observation-requirement-dropped",
+      "observation-child-requirements-over-limit"
+    ]
+  },
+  {
+    "site": "branch.delegation-linkage",
+    "code": "broken-grant-chain",
+    "vectors": [
+      "delegation-issuer-not-subject"
+    ]
+  },
+  {
+    "site": "branch.delegation-depth",
+    "code": "delegation-expanded",
+    "vectors": [
+      "depth-widening"
+    ]
+  },
+  {
+    "site": "branch.delegation-profile",
+    "code": "delegation-expanded",
+    "vectors": [
+      "delegation-profile-changed"
+    ]
+  },
+  {
+    "site": "branch.delegation-permissions",
+    "code": "delegation-expanded",
+    "vectors": [
+      "permission-widening"
+    ]
+  },
+  {
+    "site": "branch.delegation-validity",
+    "code": "delegation-expanded",
+    "vectors": [
+      "validity-widening"
+    ]
+  },
+  {
+    "site": "branch.delegation-audiences",
+    "code": "delegation-expanded",
+    "vectors": [
+      "audience-widening"
+    ]
+  },
+  {
+    "site": "branch.delegation-action-constraint",
+    "code": "delegation-expanded",
+    "vectors": [
+      "delegation-action-constraint-relaxed"
+    ]
+  },
+  {
+    "site": "branch.delegation-status",
+    "code": "delegation-expanded",
+    "vectors": [
+      "delegation-status-relaxed"
+    ]
+  },
+  {
+    "site": "branch.delegation-assurance",
+    "code": "delegation-expanded",
+    "vectors": [
+      "assurance-policy-change"
+    ]
+  },
+  {
+    "site": "branch.delegation-extensions",
+    "code": "delegation-expanded",
+    "vectors": [
+      "critical-extension-attenuation",
+      "observation-child-requirements-over-limit-unconditioned-parent"
+    ]
+  },
+  {
+    "site": "branch.grant-extension",
+    "code": "local-policy-denied",
+    "vectors": [
+      "bounded-policy-digest-mismatch"
+    ]
+  },
+  {
+    "site": "branch.coverage-linkage",
+    "code": "broken-grant-chain",
+    "vectors": [
+      "action-actor-mismatch"
+    ]
+  },
+  {
+    "site": "branch.coverage-profile",
+    "code": "broken-grant-chain",
+    "vectors": [
+      "action-profile-outside-grant"
+    ]
+  },
+  {
+    "site": "branch.coverage-permission",
+    "code": "permission-not-granted",
+    "vectors": [
+      "action-permission-not-granted"
+    ]
+  },
+  {
+    "site": "branch.coverage-validity",
+    "code": "action-outside-validity",
+    "vectors": [
+      "action-validity-expanded"
+    ]
+  },
+  {
+    "site": "branch.coverage-audience",
+    "code": "audience-mismatch",
+    "vectors": [
+      "action-audience-outside-grant"
+    ]
+  },
+  {
+    "site": "branch.coverage-constraint",
+    "code": "action-constraint-mismatch",
+    "vectors": [
+      "action-constraint-mismatch"
+    ]
+  },
+  {
+    "site": "branch.assurance-claim",
+    "code": "unsupported-assurance-claim",
+    "vectors": [
+      "unsupported-assurance-claim"
+    ]
+  },
+  {
+    "site": "branch.assurance-requirement",
+    "code": "assurance-requirement-not-met",
+    "vectors": [
+      "did-web-history-without-statement-existence"
+    ]
+  },
+  {
+    "site": "branch.observer-in-chain",
+    "code": "observer-in-authority-chain",
+    "vectors": [
+      "observer-in-authority-chain"
+    ]
+  },
+  {
+    "site": "branch.observation-condition",
+    "code": "observation-condition-false",
+    "vectors": [
+      "observation-condition-false"
+    ]
+  },
+  {
+    "site": "branch.observation-missing",
+    "code": "observation-missing",
+    "vectors": [
+      "observation-missing"
+    ]
+  },
+  {
+    "site": "branch.observation-action-fact",
+    "code": "observation-action-fact-unavailable",
+    "vectors": [
+      "observation-action-fact-unavailable"
+    ]
+  },
+  {
+    "site": "composition.authorized-branches",
+    "code": "composition-requirement-not-met",
+    "vectors": [
+      "composition-branch-minimum"
+    ]
+  },
+  {
+    "site": "composition.distinct-actors",
+    "code": "composition-requirement-not-met",
+    "vectors": [
+      "composition-same-actor"
+    ]
+  },
+  {
+    "site": "composition.distinct-roots",
+    "code": "composition-requirement-not-met",
+    "vectors": [
+      "composition-shared-root"
+    ]
+  }
+]

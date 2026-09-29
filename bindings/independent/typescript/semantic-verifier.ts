@@ -219,7 +219,9 @@ type GrantStatus = {
   observedAt: bigint; validUntil: bigint; issuer: string; extensions: Extension[];
   signature: Signature; id: Uint8Array;
 };
-type StatusTrust = { method: string; issuer: string; minimumSequence: bigint };
+/** The trust anchors under which a status issuer's statements count. */
+type StatusScope = { kind: "own" } | { kind: "anchors"; ids: string[] } | { kind: "any" };
+type StatusTrust = { method: string; issuer: string; minimumSequence: bigint; scope: StatusScope };
 type Snapshot<T> = {
   observedAt: bigint;
   validUntil: bigint;
@@ -228,7 +230,7 @@ type Snapshot<T> = {
   trust: StatusTrust[];
 };
 type Anchor = {
-  principal: string; methods: string[]; profiles: Profile[]; permissions: Permission[];
+  id: string; principal: string; methods: string[]; profiles: Profile[]; permissions: Permission[];
   namespaces: string[]; audiences: string[]; notBefore: bigint; expiresAt: bigint;
   budget?: Budget; maxDepth: bigint;
   assurance: string; status: StatusPolicy;
@@ -514,14 +516,77 @@ function grantStatus(value: V): GrantStatus {
   };
 }
 
+/** Strictly ascending byte-lexicographic order of the UTF-8 strings. */
+function strictlyAscendingUtf8(values: string[]): boolean {
+  return values.every((value, index) =>
+    index === 0 || Buffer.compare(Buffer.from(values[index - 1]!), Buffer.from(value)) < 0);
+}
+
+/**
+ * Reads a status issuer's scope: `{0: 0}` covers the anchors whose principal
+ * is the issuer, `{0: 1, 1: [ids]}` the listed local trust anchors, and
+ * `{0: 2}` every anchor. The list holds 1 to 1024 trust-anchor IDs of 1 to
+ * 128 bytes, strictly ascending in UTF-8 byte order. Any other shape is a
+ * context decode error.
+ */
+function statusScope(value: V): StatusScope {
+  const tag = uint(mapAt(value, 0));
+  if (tag === 0n || tag === 2n) {
+    exactMap(value, 1);
+    return tag === 0n ? { kind: "own" } : { kind: "any" };
+  }
+  if (tag !== 1n) throw new Error("unknown status scope");
+  exactMap(value, 2);
+  const ids = textArray(mapAt(value, 1));
+  if (
+    ids.length === 0 || ids.length > 1024 ||
+    ids.some((id) => Buffer.byteLength(id) === 0 || Buffer.byteLength(id) > 128) ||
+    !strictlyAscendingUtf8(ids)
+  ) throw new Error("invalid status scope anchor list");
+  return { kind: "anchors", ids };
+}
+
+function sameScope(left: StatusScope, right: StatusScope): boolean {
+  if (left.kind === "anchors" && right.kind === "anchors") {
+    return left.ids.length === right.ids.length &&
+      left.ids.every((id, index) => id === right.ids[index]);
+  }
+  return left.kind === right.kind;
+}
+
+/**
+ * Rejects an inconsistent status scope among one snapshot's rules: `own` for
+ * an issuer that is the principal of no trust anchor in the context,
+ * `anchors` listing an ID that names no trust anchor, or two rules that name
+ * one issuer with different scopes.
+ */
+function validateStatusScopes(trust: StatusTrust[], anchors: Anchor[]): void {
+  const principals = new Set(anchors.map((anchor) => anchor.principal));
+  const ids = new Set(anchors.map((anchor) => anchor.id));
+  const scopes = new Map<string, StatusScope>();
+  for (const rule of trust) {
+    const { scope } = rule;
+    if (scope.kind === "own" && !principals.has(rule.issuer)) {
+      throw new Error("status scope own names no trust anchor's principal");
+    }
+    if (scope.kind === "anchors" && !scope.ids.every((id) => ids.has(id))) {
+      throw new Error("status scope lists an unknown trust anchor");
+    }
+    const first = scopes.get(rule.issuer);
+    if (first === undefined) scopes.set(rule.issuer, scope);
+    else if (!sameScope(first, scope)) throw new Error("status issuer carries two scopes");
+  }
+}
+
 function snapshot<T>(value: V, decode: (entry: V) => T): Snapshot<T> {
   exactMap(value, 6);
   const trust = array(mapAt(value, 5)).map((rule) => {
-    exactMap(rule, 3);
+    exactMap(rule, 4);
     return {
       method: text(mapAt(rule, 0)),
       issuer: text(mapAt(rule, 1)),
       minimumSequence: uint(mapAt(rule, 2)),
+      scope: statusScope(mapAt(rule, 3)),
     };
   });
   return {
@@ -567,6 +632,7 @@ function context(data: Uint8Array): Context {
     anchors: array(mapAt(root, 3)).map((value) => {
       exactMap(value, 13);
       return {
+        id: text(mapAt(value, 0)),
         principal: text(mapAt(value, 1)),
         methods: textArray(mapAt(value, 2)),
         profiles: array(mapAt(value, 3)).map(profile),
@@ -618,6 +684,15 @@ function context(data: Uint8Array): Context {
     limits: Array.from({ length: 27 }, (_, index) => uint(mapAt(limitMap, index))),
     observerAnchors: observerAnchors(mapAt(root, 14)),
   };
+  // Trust anchors are strictly ascending by ID in UTF-8 byte order, so an ID
+  // names at most one anchor.
+  if (!strictlyAscendingUtf8(result.anchors.map((anchor) => anchor.id))) {
+    throw new Error("trust anchors are not strictly ascending by ID");
+  }
+  // Like the composition requirement, an inconsistent status scope makes the
+  // context invalid.
+  validateStatusScopes(result.principalSnapshot.trust, result.anchors);
+  validateStatusScopes(result.grantSnapshot.trust, result.anchors);
   return result;
 }
 
@@ -733,7 +808,8 @@ function equal(left: Uint8Array | undefined, right: Uint8Array | undefined): boo
   if (left === undefined || right === undefined) return left === undefined && right === undefined;
   return Buffer.compare(left, right) === 0;
 }
-const keyOf = (value: Uint8Array): string => Buffer.from(value).toString("hex");
+const hex = (value: Uint8Array): string => Buffer.from(value).toString("hex");
+const keyOf = hex;
 const refKey = (value: StatementRef): string => `${value.kind}:${keyOf(value.id)}`;
 const contains = <T>(values: T[], expected: T): boolean => values.includes(expected);
 const sameProfile = (left: Profile, right: Profile): boolean => left.id === right.id && left.version === right.version;
@@ -743,7 +819,7 @@ const sameBudget = (left?: Budget, right?: Budget): boolean =>
     ? left === undefined && right === undefined
     : left.algebra === right.algebra && left.value === right.value;
 
-type Claim = { kind: string; observedAt?: bigint };
+export type Claim = { kind: string; observedAt?: bigint };
 type Control = {
   key: Uint8Array;
   signatureMessage?: Uint8Array;
@@ -1271,29 +1347,46 @@ function verifySignature(suite: string, key: Uint8Array, message: Uint8Array, si
   return false;
 }
 
-type Participant = { principal: string; role: bigint; claims: Claim[]; adapter: string };
+/** The assurance report of one participant in an authorized branch. */
+export type Participant = { principal: string; role: bigint; claims: Claim[]; adapter: string };
 type DetachedAttachment = { digest: Uint8Array; bytes: Uint8Array };
 type CanonicalAction = {
   body: Uint8Array; profile: Profile; mediaType: string; permission: Permission; budget?: Budget;
   detached: DetachedAttachment[];
 };
-type SemanticResult = {
-  name: string; decision: string; code: string;
-  proof: Uint8Array; context: Uint8Array; action: Uint8Array; plan: Uint8Array;
-  actionIDs: Uint8Array[]; branches: Uint8Array[]; assurance: Participant[];
+
+/** Where the first failure occurred, as the specification names the stages. */
+export type Stage = "decode" | "resolve" | "principal-control" | "authority" | "complete";
+
+/**
+ * The result of `verify`. Digests and identifiers are lowercase hex. The plan
+ * digest is null at stage `decode` or `resolve`; the action IDs, authorized
+ * branches, and assurance reports are empty unless the result is authorized.
+ */
+export type Verdict = {
+  decision: "authorized" | "denied" | "indeterminate";
+  code: string;
+  stage: Stage;
+  proofDigest: string;
+  actionDigest: string;
+  contextDigest: string;
+  planDigest: string | null;
+  actionIDs: string[];
+  authorizedBranches: string[];
+  assurance: Participant[];
 };
-type Artifact = {
-  path: string; sha256: string; profile: string; profile_version: number;
-  media_type: string; capability: string; resource: string;
-  requested_budget?: { algebra: string; value: number };
-};
+
+type Artifact = { path: string; sha256: string };
 type Fixture = {
   name: string; proof: Artifact; context: Artifact; canonical_action: Artifact;
-  canonical_body: Artifact; expected_result: Artifact;
+  expected_result: Artifact & {
+    stage?: string; proof_digest?: string; action_digest?: string;
+    context_digest?: string; plan_digest?: string | null;
+  };
   expected_decision: string; expected_code: string;
 };
 type SemanticManifest = {
-  protocol_major: number; adapter_context: any; fixtures: Fixture[];
+  protocol_major: number; adapter_context: unknown; fixtures: Fixture[];
 };
 
 function fail(error: unknown): never {
@@ -1309,35 +1402,48 @@ function collectLeaves(value: Plan): Uint8Array[] {
 
 /**
  * Rejects a proof-carried status statement that the snapshot supersedes or
- * does not hold. Rollback is keyed on the statement's subject alone, the
- * principal or the grant, as status selection is.
+ * does not hold, in two passes over the carried principal-status and then
+ * grant-status statements, each in proof order: every rollback check runs
+ * before any holding check. A sequence number orders one issuer's statements
+ * under one method, so rollback compares only snapshot statements with the
+ * carried statement's subject, method, and issuer.
  */
 function validateCarriedStatus(value: Bundle, contextValue: Context): void {
+  const principalSnapshot = contextValue.principalSnapshot.statements;
+  const grantSnapshot = contextValue.grantSnapshot.statements;
   for (const carried of value.principalStatus) {
-    if (contextValue.principalSnapshot.statements.some((current) =>
-      carried.principal === current.principal && current.sequence > carried.sequence
+    if (principalSnapshot.some((current) =>
+      current.principal === carried.principal && current.method === carried.method &&
+      current.issuer === carried.issuer && current.sequence > carried.sequence
     )) throw denied("status-sequence-rollback");
-    if (!contextValue.principalSnapshot.statements.some((current) =>
-      equal(carried.statement.raw, current.statement.raw) &&
-      equal(carried.signature.signature, current.signature.signature)
-    )) throw denied("digest-mismatch");
   }
   for (const carried of value.grantStatus) {
-    if (contextValue.grantSnapshot.statements.some((current) =>
-      equal(carried.grantID, current.grantID) && current.sequence > carried.sequence
+    if (grantSnapshot.some((current) =>
+      equal(current.grantID, carried.grantID) && current.method === carried.method &&
+      current.issuer === carried.issuer && current.sequence > carried.sequence
     )) throw denied("status-sequence-rollback");
-    if (!contextValue.grantSnapshot.statements.some((current) =>
+  }
+  const holds = (statements: Array<PrincipalStatus | GrantStatus>, carried: PrincipalStatus | GrantStatus) =>
+    statements.some((current) =>
       equal(carried.statement.raw, current.statement.raw) &&
-      equal(carried.signature.signature, current.signature.signature)
-    )) throw denied("digest-mismatch");
+      equal(carried.signature.signature, current.signature.signature));
+  for (const carried of value.principalStatus) {
+    if (!holds(principalSnapshot, carried)) throw denied("digest-mismatch");
+  }
+  for (const carried of value.grantStatus) {
+    if (!holds(grantSnapshot, carried)) throw denied("digest-mismatch");
   }
 }
 
-function resolveAndVerifyControl(
-  value: Bundle,
-  contextValue: Context,
-  adapters: any,
-): VerifiedControl[] {
+/** What reference resolution hands to principal control. */
+type Resolved = { bindings: Map<string, Binding>; evidenceByID: Map<string, Evidence> };
+
+/**
+ * Stage 2 after the expected-plan check: resolves every reference of the
+ * decoded proof against itself and the context, in the specified order,
+ * ending with the proof-carried status statements.
+ */
+function resolveReferences(value: Bundle, contextValue: Context): Resolved {
   const planID = domainHash(3, value.plan.raw);
   const grants = new Map<string, Grant>();
   for (const grantValue of value.grants) {
@@ -1410,7 +1516,21 @@ function resolveAndVerifyControl(
     attachmentDigests.add(key);
   }
   validateCarriedStatus(value, contextValue);
+  return { bindings, evidenceByID };
+}
 
+/**
+ * Stage 3: verifies the control of every signed statement and stores each
+ * statement's failure for the branches that need it; a failure of the
+ * registry, the configuration, the work limit, or evidence consumption ends
+ * verification here.
+ */
+function verifyControl(
+  value: Bundle,
+  contextValue: Context,
+  adapters: any,
+  { bindings, evidenceByID }: Resolved,
+): VerifiedControl[] {
   // Principal control starts by requiring the executable registry and
   // configuration, after every reference has resolved.
   if (!equal(contextValue.registryManifest, new Uint8Array(32).fill(0x36))) {
@@ -1766,10 +1886,29 @@ function selectStatus(
   if (latest.some((item) => item.state !== 0n)) throw denied(revoked);
 }
 
+/** Whether a rule's scope covers a branch evaluated under `anchor`. */
+function scopeCovers(rule: StatusTrust, anchor: Anchor): boolean {
+  if (rule.scope.kind === "own") return anchor.principal === rule.issuer;
+  if (rule.scope.kind === "anchors") return rule.scope.ids.includes(anchor.id);
+  return true;
+}
+
+/**
+ * A snapshot statement is out of scope for a branch under `anchor` when a
+ * rule of the snapshot names its issuer and that issuer's scope does not cover
+ * the anchor. It then takes no part in the branch's status evaluation, whatever
+ * its method: the result is the one the snapshot gives without it. A statement
+ * whose issuer no rule names is not out of scope.
+ */
+function outOfScope(trust: StatusTrust[], issuer: string, anchor: Anchor): boolean {
+  return trust.some((rule) => rule.issuer === issuer && !scopeCovers(rule, anchor));
+}
+
 function checkPrincipalStatus(
   policy: StatusPolicy,
   principal: string,
   listing: StatusListing,
+  anchor: Anchor,
   contextValue: Context,
   controls: Map<string, VerifiedControl>,
 ): void {
@@ -1780,7 +1919,7 @@ function checkPrincipalStatus(
   const snapshotValue = contextValue.principalSnapshot;
   const candidates: StatusEntry[] = [];
   for (const item of snapshotValue.statements) {
-    if (item.principal !== principal) continue;
+    if (item.principal !== principal || outOfScope(snapshotValue.trust, item.issuer, anchor)) continue;
     statusControl(controls, 2n, item.id);
     evaluateStatusExtensions(item.extensions, contextValue.extensions);
     candidates.push(item);
@@ -1801,6 +1940,7 @@ function checkPrincipalStatus(
 function checkGrantStatus(
   policy: StatusPolicy,
   grantID: Uint8Array,
+  anchor: Anchor,
   contextValue: Context,
   controls: Map<string, VerifiedControl>,
 ): void {
@@ -1811,7 +1951,7 @@ function checkGrantStatus(
   const snapshotValue = contextValue.grantSnapshot;
   const candidates: StatusEntry[] = [];
   for (const item of snapshotValue.statements) {
-    if (!equal(item.grantID, grantID)) continue;
+    if (!equal(item.grantID, grantID) || outOfScope(snapshotValue.trust, item.issuer, anchor)) continue;
     statusControl(controls, 3n, item.id);
     evaluateStatusExtensions(item.extensions, contextValue.extensions);
     candidates.push(item);
@@ -1870,12 +2010,13 @@ function verifyFromAnchor(
   if (rootControl.error) throw rootControl.error;
   // Status runs before resource and attenuation checks. Every grant subject is
   // checked under the anchor's policy: by chain linkage the subjects are every
-  // issuer after the root and the actor.
-  checkPrincipalStatus(anchor.status, anchor.principal, "required", contextValue, controls);
+  // issuer after the root and the actor. Each check sees only the snapshot
+  // statements in scope for this anchor.
+  checkPrincipalStatus(anchor.status, anchor.principal, "required", anchor, contextValue, controls);
   for (const grantValue of chain) {
-    checkGrantStatus(grantValue.status, grantValue.id, contextValue, controls);
+    checkGrantStatus(grantValue.status, grantValue.id, anchor, contextValue, controls);
     checkPrincipalStatus(
-      anchor.status, grantValue.subject, "revocation-list", contextValue, controls,
+      anchor.status, grantValue.subject, "revocation-list", anchor, contextValue, controls,
     );
   }
   if (
@@ -2197,46 +2338,69 @@ function verifyAuthority(
   };
 }
 
-function verifySemantic(
-  name: string,
+/**
+ * Verifies one proof against one canonical action and trusted context, all
+ * three as the bytes a relying party received, under the executable adapter
+ * context (the corpus manifest's `adapter_context`). The inputs are decoded
+ * in the specified order: context, canonical action, then proof.
+ *
+ * Never throws on any byte input. Every failure is a verdict whose stage is
+ * where the first failure occurred; an input that does not decode is
+ * `denied` at stage `decode`, `malformed-proof` unless the specification
+ * assigns another code. The proof and action digests are the SHA-256 of the
+ * bytes as read, and the context digest is the context identifier computed
+ * over the context bytes as read. An adapter context that is not an object
+ * is read as empty, so it commits to no executable configuration.
+ */
+export function verify(
   proofBytes: Uint8Array,
-  contextBytes: Uint8Array,
   actionBytes: Uint8Array,
-  adapters: any,
-): SemanticResult {
-  const result: SemanticResult = {
-    name, decision: "", code: "",
-    proof: sha256(proofBytes), context: domainHash(9, contextBytes), action: sha256(actionBytes),
-    plan: new Uint8Array(), actionIDs: [], branches: [], assurance: [],
+  contextBytes: Uint8Array,
+  adapterContext: unknown,
+): Verdict {
+  const adapters: any = typeof adapterContext === "object" && adapterContext !== null ? adapterContext : {};
+  const verdict: Verdict = {
+    decision: "denied", code: "malformed-proof", stage: "decode",
+    proofDigest: hex(sha256(proofBytes)), actionDigest: hex(sha256(actionBytes)),
+    contextDigest: hex(domainHash(9, contextBytes)), planDigest: null,
+    actionIDs: [], authorizedBranches: [], assurance: [],
   };
+  let planDigest: Uint8Array | undefined;
   try {
     const contextValue = context(contextBytes);
-    // The canonical action is bounded and decoded before the proof is read,
-    // so a rejected action leaves no plan digest.
+    // The canonical action is bounded and decoded before any proof byte is
+    // read.
     const canonical = boundedCanonicalAction(actionBytes, contextValue.limits);
     const proof = bundle(proofBytes, contextValue.limits);
-    result.plan = domainHash(3, proof.plan.raw);
+    verdict.stage = "resolve";
+    planDigest = domainHash(3, proof.plan.raw);
     if (contextValue.composition.expectedPlan !== undefined &&
-        !equal(contextValue.composition.expectedPlan, result.plan)) {
+        !equal(contextValue.composition.expectedPlan, planDigest)) {
       throw denied("composition-requirement-not-met");
     }
-    const controls = resolveAndVerifyControl(proof, contextValue, adapters);
+    const resolved = resolveReferences(proof, contextValue);
+    verdict.stage = "principal-control";
+    const controls = verifyControl(proof, contextValue, adapters, resolved);
+    verdict.stage = "authority";
     const authority = verifyAuthority(proof, controls, contextValue, canonical, adapters);
-    result.decision = "authorized";
-    result.code = "authorized";
-    result.actionIDs = authority.actionIDs;
-    result.branches = authority.branches;
-    result.assurance = authority.assurance;
+    verdict.stage = "complete";
+    verdict.decision = "authorized";
+    verdict.code = "authorized";
+    verdict.actionIDs = authority.actionIDs.map(hex);
+    verdict.authorizedBranches = authority.branches.map(hex);
+    verdict.assurance = authority.assurance;
   } catch (error) {
-    if (error instanceof Failure) {
-      result.decision = error.decision;
-      result.code = error.code;
-    } else {
-      result.decision = "denied";
-      result.code = "malformed-proof";
-    }
+    // An exception that is not a stable failure comes from reading an input
+    // that lacks its specified shape.
+    const failure = error instanceof Failure ? error : denied("malformed-proof");
+    verdict.decision = failure.decision;
+    verdict.code = failure.code;
   }
-  return result;
+  // A decode or resolve result carries no plan digest.
+  if (verdict.stage !== "decode" && verdict.stage !== "resolve" && planDigest !== undefined) {
+    verdict.planDigest = hex(planDigest);
+  }
+  return verdict;
 }
 
 function writeField(summary: ReturnType<typeof createHash>, value: string): void {
@@ -2244,20 +2408,22 @@ function writeField(summary: ReturnType<typeof createHash>, value: string): void
   summary.update(Uint8Array.of(0));
 }
 
-function writeResult(summary: ReturnType<typeof createHash>, result: SemanticResult): void {
-  const writeBytes = (value: Uint8Array) => writeField(summary, keyOf(value));
-  writeField(summary, result.name);
-  writeField(summary, result.decision);
-  writeField(summary, result.code);
-  writeBytes(result.proof);
-  writeBytes(result.context);
-  writeBytes(result.action);
-  writeBytes(result.plan);
-  result.actionIDs.forEach(writeBytes);
-  writeField(summary, "|");
-  result.branches.forEach(writeBytes);
-  writeField(summary, "|");
-  for (const participant of result.assurance) {
+// One vector's part of the aggregate semantic digest.
+function writeResult(summary: ReturnType<typeof createHash>, name: string, verdict: Verdict): void {
+  const write = (value: string) => writeField(summary, value);
+  write(name);
+  write(verdict.decision);
+  write(verdict.code);
+  write(verdict.stage);
+  write(verdict.proofDigest);
+  write(verdict.contextDigest);
+  write(verdict.actionDigest);
+  write(verdict.planDigest ?? "");
+  verdict.actionIDs.forEach(write);
+  write("|");
+  verdict.authorizedBranches.forEach(write);
+  write("|");
+  for (const participant of verdict.assurance) {
     writeField(summary, participant.principal);
     writeField(summary, participant.role.toString());
     writeField(summary, participant.adapter);
@@ -2276,26 +2442,6 @@ function writeResult(summary: ReturnType<typeof createHash>, result: SemanticRes
     writeField(summary, ";");
   }
   writeField(summary, "\n");
-}
-
-function decodeCanonicalAction(data: Uint8Array): CanonicalAction {
-  const root = new Decoder(data).complete();
-  exactMap(root, 6);
-  const detached = array(mapAt(root, 5)).map((value) => {
-    exactMap(value, 2);
-    return {
-      digest: bytes(mapAt(value, 0), 32),
-      bytes: bytes(mapAt(value, 1)),
-    };
-  });
-  return {
-    profile: profile(mapAt(root, 0)),
-    mediaType: text(mapAt(root, 1)),
-    body: bytes(mapAt(root, 2)),
-    permission: permission(mapAt(root, 3)),
-    budget: budget(mapAt(root, 4)),
-    detached,
-  };
 }
 
 // The canonical-action input is decoded under the trusted context's
@@ -2515,34 +2661,55 @@ function boundedCanonicalAction(data: Uint8Array, limits: bigint[]): CanonicalAc
   return action;
 }
 
-export function semanticAudit(manifestPath: string): string {
+/** The verdict fields a semantic runner compares with the manifest, in report order. */
+export const AUDIT_FIELDS = [
+  "decision", "code", "stage", "proof_digest", "action_digest", "context_digest", "plan_digest",
+] as const;
+export type AuditField = typeof AUDIT_FIELDS[number];
+export type AuditMismatch = { field: AuditField; got: string | null; expected: string | null };
+export type AuditVector = { name: string; verdict: Verdict; mismatches: AuditMismatch[] };
+export type SemanticAudit = { summary: string; vectors: AuditVector[] };
+
+/**
+ * Runs every manifest vector, in manifest order, through `verify` and compares
+ * its decision and code with `expected_decision` and `expected_code`, and its
+ * stage and digests with `expected_result`, where a null plan digest means
+ * absent. It records every mismatch and never stops at one. `summary` is the
+ * aggregate semantic digest, `<vector count>:<sha256 hex>`, which is the pin
+ * only when no vector mismatches.
+ */
+export function semanticAudit(manifestPath: string): SemanticAudit {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as SemanticManifest;
-  if (manifest.protocol_major !== 1 || manifest.fixtures.length === 0) {
+  if (manifest.protocol_major !== 1 || !Array.isArray(manifest.fixtures) ||
+      manifest.fixtures.length === 0) {
     throw new Error("unsupported or empty Auths corpus");
   }
   const root = dirname(manifestPath);
+  const read = (artifact: Artifact): Uint8Array => readFileSync(join(root, artifact.path));
   const summary = createHash("sha256");
+  const vectors: AuditVector[] = [];
   for (const fixture of manifest.fixtures) {
-    const proofBytes = readFileSync(join(root, fixture.proof.path));
-    const contextBytes = readFileSync(join(root, fixture.context.path));
-    const actionBytes = readFileSync(join(root, fixture.canonical_action.path));
-    const bodyBytes = readFileSync(join(root, fixture.canonical_body.path));
-    const canonical = decodeCanonicalAction(actionBytes);
-    if (!equal(canonical.body, bodyBytes)) {
-      throw new Error(`${fixture.name} canonical action/body mismatch`);
-    }
-    const result = verifySemantic(
-      fixture.name, proofBytes, contextBytes, actionBytes, manifest.adapter_context,
+    const verdict = verify(
+      read(fixture.proof), read(fixture.canonical_action), read(fixture.context),
+      manifest.adapter_context,
     );
-    if (result.decision !== fixture.expected_decision || result.code !== fixture.expected_code) {
-      throw new Error(
-        `${fixture.name} independently derived ${result.decision}/${result.code}, ` +
-        `manifest requires ${fixture.expected_decision}/${fixture.expected_code}`,
-      );
-    }
-    writeResult(summary, result);
+    const expected = fixture.expected_result;
+    const compared: Record<AuditField, [string | null, string | null]> = {
+      decision: [verdict.decision, fixture.expected_decision ?? null],
+      code: [verdict.code, fixture.expected_code ?? null],
+      stage: [verdict.stage, expected.stage ?? null],
+      proof_digest: [verdict.proofDigest, expected.proof_digest ?? null],
+      action_digest: [verdict.actionDigest, expected.action_digest ?? null],
+      context_digest: [verdict.contextDigest, expected.context_digest ?? null],
+      plan_digest: [verdict.planDigest, expected.plan_digest ?? null],
+    };
+    const mismatches = AUDIT_FIELDS
+      .filter((field) => compared[field][0] !== compared[field][1])
+      .map((field) => ({ field, got: compared[field][0], expected: compared[field][1] }));
+    vectors.push({ name: fixture.name, verdict, mismatches });
+    writeResult(summary, fixture.name, verdict);
   }
-  return `${manifest.fixtures.length}:${summary.digest("hex")}`;
+  return { summary: `${manifest.fixtures.length}:${summary.digest("hex")}`, vectors };
 }
 
 // Evidence-conditioned authority: observation requirements carried by

@@ -14,9 +14,9 @@
   - expected audience and challenge;
   - evaluation time;
   - role-indexed assurance policy;
-  - principal-status and grant-status snapshots. Principal-status policy
-    comes from the selected trust anchor; grant-status policy comes from each
-    grant;
+  - principal-status and grant-status snapshots, each with scoped status
+    issuer rules. Principal-status policy comes from the selected trust
+    anchor; grant-status policy comes from each grant;
   - exact resource-matching algebra;
   - profile policy;
   - observer anchors, separate from trust anchors;
@@ -49,28 +49,40 @@ The three inputs are decoded in this order. A decode failure is the result
 and carries no plan digest.
 
 1. The trusted context, under the protocol hard maximums. Its deployment
-   limits then bound the other two inputs.
+   limits then bound the other two inputs. A context with an inconsistent
+   status scope is `malformed-proof`: a status trust rule with scope `own`
+   whose issuer is the principal of no trust anchor in the context, a rule
+   with scope `anchors` listing an identifier that names no trust anchor, or
+   two rules in one snapshot that name one issuer with different scopes.
 2. The canonical action, before any proof byte is read:
    1. `decode.action-bytes`: an input longer than the canonical-action input
       limit is `resource-limit-exceeded`, before any byte is read.
-   2. Fields are read in key order: profile, media type, body, permission,
-      requested budget, detached attachments. An item that cannot be read as
-      its field's type (including an indefinite length or a tag), an invalid
-      identifier, or a zero profile version is `malformed-proof`. A readable
-      map key other than the next expected key is `non-canonical-proof`.
-   3. Bounds are checked as each field is read, each failing with
+   2. `decode.action-map`: the action must be a definite-length map of
+      exactly six entries. Any other item, an indefinite length, or another
+      entry count is `malformed-proof`.
+   3. Fields are read in key order: profile, media type, body, permission,
+      requested budget, detached attachments. Each map key, in the action
+      map and in the maps nested in its fields, is read before its value: an
+      unsigned integer below 256 other than the next expected key is
+      `non-canonical-proof` (`decode.action-key`). Any other item that cannot
+      be read as its type, key or value (including an indefinite length or a
+      tag), an invalid identifier, or a zero profile version is
+      `malformed-proof` (`decode.action-field`).
+   4. Bounds are checked as each field is read, each failing with
       `resource-limit-exceeded`: an empty body or one longer than the
       canonical-body limit (`decode.action-body-bytes`); more detached
       attachments than the attachment-count limit; and an empty detached
       attachment, one longer than the aggregate detached-attachment limit, or
       detached attachments that together exceed that limit
       (`decode.attachment-bytes`).
-   4. Two detached attachments with one digest are `malformed-proof`, and so
-      are bytes after the action.
-   5. An input that reads completely but is not the canonical encoding of the
+   5. Two detached attachments with one digest are `malformed-proof`
+      (`decode.action-attachment-duplicate`). Then bytes after the action are
+      `malformed-proof` (`decode.action-trailing`).
+   6. An input that reads completely but is not the canonical encoding of the
       action it decodes to, such as a non-shortest integer or length or
-      detached attachments out of digest order, is `non-canonical-proof`.
-      This is checked last, so it never hides a failure listed above.
+      detached attachments out of digest order, is `non-canonical-proof`
+      (`decode.action-canonical`). This is checked last, so it never hides a
+      failure listed above.
 3. The proof bundle. Bytes above the bundle limit are
    `resource-limit-exceeded` before any byte is read. Then strictly decode
    deterministic CBOR, and reject invalid map keys, non-minimal forms, invalid
@@ -105,10 +117,15 @@ In this order:
    chain reaches is `unused-critical-evidence`.
 8. Two proof attachment descriptors with one digest are
    `duplicate-attachment`.
-9. A proof-carried status statement older than a snapshot statement about the
-   same principal, or the same grant, is `status-sequence-rollback`; one the
-   snapshot does not hold is `digest-mismatch`. Only the subject keys this
-   comparison, as it keys selection; the method and issuer do not.
+9. Proof-carried status statements are checked in two passes. First, each
+   carried principal-status statement and then each carried grant-status
+   statement, in proof order: one with a lower sequence than a snapshot
+   statement with the same subject (principal or grant), method, and issuer
+   is `status-sequence-rollback`. A sequence number orders one issuer's
+   statements under one method, so statements from another issuer or under
+   another method are not compared. Then, in the same order, a carried
+   statement the snapshot does not hold is `digest-mismatch`. Every rollback
+   check runs before any holding check.
 
 Produce `ResolvedProof`.
 
@@ -320,16 +337,31 @@ status policy governs only that grant's status: it never changes which
 principals are checked or how. When the anchor's status policy is
 `ExpiryOnly`, no principal status is evaluated.
 
-A statement names no purpose or role, so the principal is its only key: one
-evaluation below governs the principal in every position it holds.
+A statement names no purpose or role, so within one branch the principal is
+its only key: one evaluation below governs the principal in every position it
+holds in that branch. Two branches under different trust anchors may reach
+different results for one principal, because each sees only the statements in
+scope for its own anchor.
+
+A snapshot statement is out of scope for a branch when a status trust rule of
+the snapshot names its issuer and that issuer's scope does not cover the
+branch's trust anchor. `own` covers an anchor whose principal is the issuer,
+`anchors` covers a listed anchor, and `any` covers every anchor. Out-of-scope
+statements take no part in the steps below or in grant status: they are not
+checked, not counted as statements about the subject, and not selected, and
+they produce no result code. The result is the one the snapshot would give
+without them. A statement whose issuer no rule names is not out of scope, so
+it is still checked and still gives `status-issuer-untrusted` when no trusted
+statement remains.
 
 Under `SnapshotRequired`, evaluate each principal against the context's
 principal-status snapshot:
 
 1. The status method named by the policy must be accepted and installed;
    otherwise `unsupported-status-method`.
-2. Each snapshot statement about the principal, in snapshot order, whatever
-   its method or issuer and whether or not selection would pick it:
+2. Each snapshot statement about the principal that is not out of scope, in
+   snapshot order, whatever its method or issuer and whether or not selection
+   would pick it:
    1. It must have verified control from stage 3. A statement whose control
       failed fails the check with that failure; it is never ignored.
    2. Its critical extensions, in order: an identifier the context does not
@@ -341,16 +373,18 @@ principal-status snapshot:
       evaluates a status statement (`registry.md`, "Status-statement
       extensions"). No handler runs and no work is reserved.
 3. Reserve the method's declared maximum work for the snapshot's statement
-   count before evaluating.
+   count before evaluating. The count includes out-of-scope statements, so
+   the reservation does not depend on scope.
 4. If the evaluation time is outside the snapshot's own validity window, the
    result is `stale-status`.
-5. If no statement names the principal: for the trust anchor's principal, the
-   result is `missing-principal-status`; any other principal is active. For
-   delegates and actors the snapshot is a revocation list, and absence from a
-   fresh snapshot means not revoked.
-6. Otherwise select as follows. If no statement uses the policy's method, the
-   result is `status-method-mismatch`. Ignore statements whose issuer the
-   snapshot does not trust for that method; if none remain, the result is
+5. If no statement that is not out of scope names the principal: for the
+   trust anchor's principal, the result is `missing-principal-status`; any
+   other principal is active. For delegates and actors the snapshot is a
+   revocation list, and absence from a fresh snapshot means not revoked.
+6. Otherwise select among the statements that are not out of scope, as
+   follows. If none of them uses the policy's method, the result is
+   `status-method-mismatch`. Ignore statements whose issuer the snapshot does
+   not trust for that method; if none remain, the result is
    `status-issuer-untrusted`. A trusted statement below its issuer's sequence
    floor gives `status-sequence-rollback`. Among the trusted statements at the
    greatest sequence, any stale statement gives `stale-status`; otherwise any
@@ -371,12 +405,14 @@ principal as subject has expired. While it is stale the result is
 
 A grant's own status policy governs its status. When the policy is
 `ExpiryOnly`, no grant status is evaluated. Under `SnapshotRequired`, evaluate
-the grant against the context's grant-status snapshot:
+the grant against the context's grant-status snapshot, where a statement is
+out of scope for the branch's trust anchor as for principal status:
 
 1. The status method named by the policy must be accepted and installed;
    otherwise `unsupported-status-method`.
-2. Each snapshot statement about the grant, in snapshot order, whatever its
-   method or issuer and whether or not selection would pick it:
+2. Each snapshot statement about the grant that is not out of scope, in
+   snapshot order, whatever its method or issuer and whether or not selection
+   would pick it:
    1. It must have verified control from stage 3; a statement whose control
       failed fails the check with that failure.
    2. Its critical extensions, in order: an identifier the context does not
@@ -386,12 +422,14 @@ the grant against the context's grant-status snapshot:
       (`branch.grant-status-extension-handler`), for the reason principal
       status gives.
 3. Reserve the method's declared maximum work for the snapshot's statement
-   count before evaluating.
+   count before evaluating, out-of-scope statements included.
 4. If the evaluation time is outside the snapshot's own validity window, the
    result is `stale-status`.
-5. If no statement names the grant, the result is `missing-grant-status`.
-6. Otherwise select as principal status does, where a `revoked` or
-   `superseded` statement gives `grant-revoked`.
+5. If no statement that is not out of scope names the grant, the result is
+   `missing-grant-status`.
+6. Otherwise select among the statements that are not out of scope as
+   principal status does, where a `revoked` or `superseded` statement gives
+   `grant-revoked`.
 
 ### 5a. Observation stage
 
