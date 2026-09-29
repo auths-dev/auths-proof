@@ -55,6 +55,7 @@ verifier retains three diagnostic classes.
 | `observation-condition-false` | observation | A requirement has fresh, authentic, subject-matching observations and each falsifies some condition |
 | `observer-in-authority-chain` | observation | A requirement's observer is also the root, an issuer, a subject, or the actor of the branch |
 | `observation-requirement-dropped` | authority | A child grant drops a parent's observation requirement: none of its requirements has the same schema and subject |
+| `approval-threshold-not-met` | approval | An approval requirement of the trusted context or of an authorized branch's chain has fewer than K distinct listed approvers with a counted approval, even counting the pending ones |
 
 A status statement that is out of scope for a branch's trust anchor produces
 no code: the branch's result is the one the snapshot would give without it
@@ -84,6 +85,7 @@ no code: the branch's result is the one the snapshot would give without it
 | `external-fact-unavailable` | evidence | Required bounded external fact was not supplied |
 | `observation-missing` | observation | A requirement has no fresh, authentic, subject-matching observation, or names an observer anchor the context lacks |
 | `observation-action-fact-unavailable` | observation | The profile policy does not define an action fact a requirement names |
+| `approval-unavailable` | approval | An approval requirement can reach K only with approvals whose signature or principal status is unavailable |
 
 ## Outer runtime failures
 

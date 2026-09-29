@@ -27,11 +27,11 @@ use core::fmt;
 
 /// Pinned identifier for the complete target V1 executable registry.
 ///
-/// The set includes the `observation-requirement-v1` and
-/// `bounded-policy-commitment-v1` critical extensions and the per-extension
-/// attenuation laws; a context pinned to an earlier manifest is denied, not
-/// dual-read.
-pub const TARGET_V1_REGISTRY_MANIFEST: RegistryManifestId = RegistryManifestId::new([0x36; 32]);
+/// The set includes the `observation-requirement-v1`,
+/// `bounded-policy-commitment-v1`, and `approval-requirement-v1` critical
+/// extensions and the per-extension attenuation laws; a context pinned to an
+/// earlier manifest is denied, not dual-read.
+pub const TARGET_V1_REGISTRY_MANIFEST: RegistryManifestId = RegistryManifestId::new([0x37; 32]);
 /// Target V1 resource-matching algebra.
 pub const URI_NAMESPACE_V1: &str = "uri-namespace-v1";
 /// Target V1 profile policy used by the reference corpus.
@@ -53,6 +53,8 @@ const BOUNDED_POLICY_ATTENUATION_LAW: &str = "attenuation-law:bounded-policy-lin
 const MARKER_ATTENUATION_LAW: &str = "attenuation-law:byte-equality-v1";
 /// Attenuation law committed by the `observation-requirement-v1` handler.
 const OBSERVATION_ATTENUATION_LAW: &str = "attenuation-law:requirement-narrowing-v1";
+/// Attenuation law committed by the `approval-requirement-v1` handler.
+const APPROVAL_ATTENUATION_LAW: &str = "attenuation-law:approval-requirement-covering-v1";
 
 const CLAIMS: [&str; 13] = [
     "self-certifying-identifier",
@@ -273,6 +275,73 @@ impl CriticalExtensionHandler for ObservationRequirementExtension {
             Some(parent) => Ok(auths_model::observation_requirements_attenuate(
                 &child,
                 &decode_requirements(parent)?,
+            )),
+            None => Ok(true),
+        }
+    }
+}
+
+/// Validates the canonical approval-requirement list carried by a grant. The
+/// requirements themselves are evaluated by the verifier's approval step,
+/// which needs the proof's approvals and the trusted context that a handler
+/// never sees.
+struct ApprovalRequirementExtension {
+    id: ExtensionId,
+}
+
+fn decode_approval_requirements(
+    bytes: &[u8],
+) -> Result<auths_model::ApprovalRequirements, RegistryOperationError> {
+    auths_codec::decode_approval_requirements(bytes).map_err(|error| match error {
+        auths_codec::CodecError::LimitExceeded => RegistryOperationError::ResourceLimitExceeded,
+        _ => RegistryOperationError::InvalidInput,
+    })
+}
+
+impl CriticalExtensionHandler for ApprovalRequirementExtension {
+    fn id(&self) -> &ExtensionId {
+        &self.id
+    }
+
+    fn configuration_id(&self) -> AdapterConfigurationId {
+        auths_ports::configuration_id(
+            self.id.as_str().as_bytes(),
+            [APPROVAL_ATTENUATION_LAW.as_bytes()],
+        )
+    }
+
+    fn maximum_work_units(&self, extension: &auths_model::CriticalExtension) -> u64 {
+        u64::try_from(extension.bytes().len().saturating_add(1)).unwrap_or(u64::MAX)
+    }
+
+    fn evaluate(
+        &self,
+        extension: &auths_model::CriticalExtension,
+    ) -> Result<(), RegistryOperationError> {
+        if extension.id() != &self.id {
+            return Err(RegistryOperationError::InvalidInput);
+        }
+        decode_approval_requirements(extension.bytes()).map(|_| ())
+    }
+
+    /// Every parent requirement is covered by some child requirement: its
+    /// approvers a subset and its threshold no lower. The child may add
+    /// requirements, and adding the extension where the parent has none only
+    /// adds requirements, so it is accepted. A child without the extension
+    /// under a parent with it is refused.
+    fn attenuates(
+        &self,
+        child: Option<&[u8]>,
+        parent: Option<&[u8]>,
+    ) -> Result<bool, RegistryOperationError> {
+        let Some(child) = child else {
+            return Ok(false);
+        };
+        let child = decode_approval_requirements(child)?;
+        match parent {
+            Some(parent) => Ok(auths_model::approval_requirements_attenuate(
+                &child,
+                &decode_approval_requirements(parent)?,
             )),
             None => Ok(true),
         }
@@ -652,6 +721,7 @@ struct CoreSemantics {
     extension: ExactMarkerExtension,
     observation: ObservationRequirementExtension,
     bounded_policy: BoundedPolicyCommitmentExtension,
+    approval: ApprovalRequirementExtension,
     status: Vec<ExactStatusMethod>,
     claims: Vec<ExactClaimRule>,
 }
@@ -681,6 +751,10 @@ impl CoreSemantics {
             },
             bounded_policy: BoundedPolicyCommitmentExtension {
                 id: ExtensionId::parse(BOUNDED_POLICY_COMMITMENT_EXTENSION_V1)
+                    .map_err(|_| RegistryError::InvalidBuiltin)?,
+            },
+            approval: ApprovalRequirementExtension {
+                id: ExtensionId::parse(APPROVAL_REQUIREMENT_EXTENSION_V1)
                     .map_err(|_| RegistryError::InvalidBuiltin)?,
             },
             status: ["auths-principal-status-v1", "auths-grant-status-v1"]
@@ -784,6 +858,11 @@ fn verifier_configuration_id(
         5,
         core.bounded_policy.id().as_str().into(),
         core.bounded_policy.configuration_id(),
+    ));
+    entries.push((
+        5,
+        core.approval.id().as_str().into(),
+        core.approval.configuration_id(),
     ));
     entries.extend(pure.status_methods.iter().map(|implementation| {
         (
@@ -906,6 +985,7 @@ impl<'a> ImmutableRegistries<'a> {
                 item.id() == core.extension.id()
                     || item.id() == core.observation.id()
                     || item.id() == core.bounded_policy.id()
+                    || item.id() == core.approval.id()
             })
             || pure
                 .status_methods
@@ -1051,6 +1131,9 @@ impl<'a> ImmutableRegistries<'a> {
         if self.core.bounded_policy.id() == id {
             return Some(&self.core.bounded_policy);
         }
+        if self.core.approval.id() == id {
+            return Some(&self.core.approval);
+        }
         self.pure
             .extension_handlers
             .iter()
@@ -1187,6 +1270,7 @@ pub struct CoreExtensionLaws {
     marker: ExactMarkerExtension,
     observation: ObservationRequirementExtension,
     bounded_policy: BoundedPolicyCommitmentExtension,
+    approval: ApprovalRequirementExtension,
 }
 
 impl CoreExtensionLaws {
@@ -1202,6 +1286,7 @@ impl CoreExtensionLaws {
             marker: core.extension,
             observation: core.observation,
             bounded_policy: core.bounded_policy,
+            approval: core.approval,
         })
     }
 }
@@ -1214,6 +1299,8 @@ impl CriticalExtensionLaws for CoreExtensionLaws {
             &self.observation
         } else if id == self.bounded_policy.id() {
             &self.bounded_policy
+        } else if id == self.approval.id() {
+            &self.approval
         } else {
             return false;
         };
