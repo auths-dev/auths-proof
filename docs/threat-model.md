@@ -21,7 +21,9 @@ context.
 |---|---|
 | Weaker adapter substitution | Adapter, method, and algorithm are signed; registry is explicit |
 | Hidden adapter configuration | Context and result bind the exact executable registry and every adapter configuration digest |
-| Prover weakens quorum | Host context independently requires the exact plan and minimum branch/actor/root diversity |
+| Prover weakens quorum | Approval requirements (K of N named approvers) are held by the verifier's trusted context or a grant, never by the proof; approvals bind the verifier's requirement identifier, so a proof cannot lower K or change the set. For plan compositions, the host context requires minimum branch/actor/root diversity and, when set, the exact plan |
+| Stray, forged, or repeated approvals | An approval counts only when it binds the exact action, audience, challenge, window, and requirement, verifies under the approver's anchor, and passes status; each listed approver counts once; order is irrelevant |
+| Self-approval | An approval by any principal of the action's authority chain (a grant issuer or subject, or an actor) never counts |
 | Same signer cloned into leaves | Distinct-actor and distinct-root obligations count principals, not proof references |
 | Same key under another identifier | Principals use exact identifier equality, so one key anchored under two principal methods (for example `did:key` and `raw-key-v1`) counts as two principals; the host anchors each key under one method |
 | Algorithm confusion | Exact algorithm registry and key compatibility checks |

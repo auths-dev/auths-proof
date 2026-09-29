@@ -57,9 +57,10 @@ core/crates/auths-codec/src/approval.rs	322	333	12	encode_approval_signing_input
 core/crates/auths-codec/src/approval.rs	335	350	16	encode_signed_approval_to	core/crates/auths-codec	decoding	0	0		0	0	0	0
 core/crates/auths-codec/src/approval.rs	357	359	3	encode_signed_approval	core/crates/auths-codec	decoding	0	0		0	0	0	0
 core/crates/auths-codec/src/approval.rs	363	383	21	signed_approval	core/crates/auths-codec	decoding	0	0		0	0	0	0
-core/crates/auths-codec/src/approval.rs	391	406	16	decode_signed_approval	core/crates/auths-codec	decoding	0	0		0	0	0	0
-core/crates/auths-codec/src/approval.rs	408	424	17	encode_approval_satisfactions	core/crates/auths-codec	decoding	0	0		0	0	0	0
-core/crates/auths-codec/src/approval.rs	426	444	19	approval_satisfactions	core/crates/auths-codec	decoding	0	0		0	0	0	0
+core/crates/auths-codec/src/approval.rs	392	407	16	decode_approval_statement	core/crates/auths-codec	decoding	0	0		0	0	0	0
+core/crates/auths-codec/src/approval.rs	415	430	16	decode_signed_approval	core/crates/auths-codec	decoding	0	0		0	0	0	0
+core/crates/auths-codec/src/approval.rs	432	448	17	encode_approval_satisfactions	core/crates/auths-codec	decoding	0	0		0	0	0	0
+core/crates/auths-codec/src/approval.rs	450	468	19	approval_satisfactions	core/crates/auths-codec	decoding	0	0		0	0	0	0
 core/crates/auths-codec/src/bounded_policy.rs	22	39	18	encode_commitment	core/crates/auths-codec	decoding	0	0		0	0	0	0
 core/crates/auths-codec/src/bounded_policy.rs	41	63	23	commitment	core/crates/auths-codec	decoding	0	0		0	0	0	0
 core/crates/auths-codec/src/bounded_policy.rs	70	87	18	encode_bounded_policy_commitment	core/crates/auths-codec	decoding	0	0		0	0	0	0
@@ -934,16 +935,17 @@ core/crates/auths-registries/src/lib.rs	1283	1291	9	CoreExtensionLaws::target_v1
 core/crates/auths-registries/src/lib.rs	1295	1308	14	CoreExtensionLaws::attenuates	core/crates/auths-registries	decision	1	0	1	0	0	0	0
 core/crates/auths-registries/src/lib.rs	1311	1319	9	reject_duplicates	core/crates/auths-registries	decision	1	0	1	0	0	0	0
 core/crates/auths-registries/src/lib.rs	1331	1336	6	RegistryError::fmt	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/template.rs	58	96	39	TrustedContextTemplate::new	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/template.rs	100	103	4	TrustedContextTemplate::with_principal_status	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/template.rs	107	110	4	TrustedContextTemplate::with_grant_status	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/template.rs	114	117	4	TrustedContextTemplate::with_channel_policy	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/template.rs	121	124	4	TrustedContextTemplate::with_limits	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/template.rs	128	131	4	TrustedContextTemplate::accept_evidence_type	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/template.rs	135	138	4	TrustedContextTemplate::accept_critical_extension	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/template.rs	149	152	4	TrustedContextTemplate::declare_budget_free_profile	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/template.rs	160	227	68	TrustedContextTemplate::compile	core/crates/auths-registries	decision	1	0	1	0	0	0	0
-core/crates/auths-registries/src/template.rs	234	238	5	sorted_unique	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/template.rs	60	100	41	TrustedContextTemplate::new	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/template.rs	113	128	16	TrustedContextTemplate::with_approvals	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/template.rs	132	135	4	TrustedContextTemplate::with_principal_status	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/template.rs	139	142	4	TrustedContextTemplate::with_grant_status	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/template.rs	146	149	4	TrustedContextTemplate::with_channel_policy	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/template.rs	153	156	4	TrustedContextTemplate::with_limits	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/template.rs	160	163	4	TrustedContextTemplate::accept_evidence_type	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/template.rs	167	170	4	TrustedContextTemplate::accept_critical_extension	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/template.rs	181	184	4	TrustedContextTemplate::declare_budget_free_profile	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/template.rs	192	271	80	TrustedContextTemplate::compile	core/crates/auths-registries	decision	1	0	1	0	0	0	0
+core/crates/auths-registries/src/template.rs	278	282	5	sorted_unique	core/crates/auths-registries	decision	1	0	1	0	0	0	0
 core/crates/auths-verifier/src/approval.rs	71	77	7	limit_or_malformed	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
 core/crates/auths-verifier/src/approval.rs	81	106	26	chain_requirements	core/crates/auths-verifier	decision	1	0	1	0	0	0	0
 core/crates/auths-verifier/src/approval.rs	109	119	11	context_requirements	core/crates/auths-verifier	decision	1	0	1	0	0	0	0

@@ -16,7 +16,7 @@
     "translation_toolchain_lock_sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
   },
   "scope_definition_sha256": "053f0be216b0003768d422d9ccc92a692726488874284fa80615657b30a495b5",
-  "inputs_sha256": "b724a0a552c0f215cd58a4979e50ea7ba3256aabd127531d379d7d9868ac6a9d",
+  "inputs_sha256": "dd4bd7ea1702110edfeddfa2e58b3ccb6cdd0431d1ba6679dc935e51c3126743",
   "inputs": {
     "Cargo.toml": "sha256:5c93a8dad4d173e3d0a229967c859a805b88f556df57af2ab281d6806a2e613e",
     "core/crates/auths-algebra-kernel/Cargo.toml": "sha256:0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba",
@@ -27,13 +27,13 @@
     "core/crates/auths-authority/Cargo.toml": "sha256:4f68212938029f79ebd857b4f3038494eb85d0163d49f07e51376715cf959815",
     "core/crates/auths-authority/src/lib.rs": "sha256:da88d5194de4e17449e69972c0fb042afa3c39798a8f570f30771e77c384f1eb",
     "core/crates/auths-codec/Cargo.toml": "sha256:e20e51826e17814effd9d8925d18d5fbdd6c0d37bf50231e743ec2611314722c",
-    "core/crates/auths-codec/src/approval.rs": "sha256:cb8e8f4057d167b87c635ce806ef29a8da221b46298f68dbf9850fa9f9f5d5d7",
+    "core/crates/auths-codec/src/approval.rs": "sha256:fbff43bf4d57f69f8b7738a8647751cde75c5a932dee65d924a1fe9c7202f91f",
     "core/crates/auths-codec/src/bounded_policy.rs": "sha256:d21f6728be2d8a04b6d94921f2b683f7e61cbb42e0ac6866f1c88a49caa534c3",
     "core/crates/auths-codec/src/decode.rs": "sha256:ba2999584cdf53b1b517ecb9c7ea50d39efee17c666a9a38e2ad1ac94379f778",
     "core/crates/auths-codec/src/encode.rs": "sha256:8491192053e2e15d62b4d2a491de22405b7487ead69ab6f6bca40669ce7ca5f7",
     "core/crates/auths-codec/src/error.rs": "sha256:fecb0737c16deb42d859f1dc7727c698438d9ac12064fd99e0024629642c390c",
     "core/crates/auths-codec/src/hash.rs": "sha256:f88e111f1dbb2cef6b7b5e9c948cb45ff92e366710c8a5f5c636138aa748479e",
-    "core/crates/auths-codec/src/lib.rs": "sha256:e04d708c8cb556907e7853074f78d59e0399a0f060adb33e58d3bdb9d4299468",
+    "core/crates/auths-codec/src/lib.rs": "sha256:3b0e5c94c6f34f750b88a9333e1d5c8145746d845d3a23e0d2f61807cf592ea7",
     "core/crates/auths-codec/src/observation.rs": "sha256:38328b0c71ff97a4196eeade8b4faa889527ff1f80bb168468bcd49082a3987e",
     "core/crates/auths-composition/Cargo.toml": "sha256:331e13025eb82588b5269ed3975929eb41c823d588c49e4c296273d85c6fe80e",
     "core/crates/auths-composition/src/lib.rs": "sha256:e42e3b0b6a9985b73c533aeb23799c638979aa27a9ce7d0f10a8d60340570fb1",
@@ -50,7 +50,7 @@
     "core/crates/auths-ports/src/path.rs": "sha256:b68fc547b4e4d97a60cbbc1cc1939fc6b34a8233b81f840bd396914a707e3ea1",
     "core/crates/auths-registries/Cargo.toml": "sha256:590e49e58b0622d9d6274fea46796dcdb07dec9550eff295cce6a6427ffa51e2",
     "core/crates/auths-registries/src/lib.rs": "sha256:450d3886d85ee333b7e046317fb5b47cde62483d5f3e41d46265e2caf4c373ec",
-    "core/crates/auths-registries/src/template.rs": "sha256:3da40fe94af379f033fecca55db3d6e4bd842af27f8700fc7565301fd2b0165a",
+    "core/crates/auths-registries/src/template.rs": "sha256:1224039dd2b3ce6fa8357613d8cafbae40400493da7176da202b9ade62fa05e4",
     "core/crates/auths-verifier/Cargo.toml": "sha256:c43358e06a33324b41a8b93e5cc7279c55f7d21f1f6cfaa539a3fc7b4c27a38f",
     "core/crates/auths-verifier/src/approval.rs": "sha256:c3cae6a49e169051eb555bb092b1069a4d422516d6a2114623a89e5f31ff923f",
     "core/crates/auths-verifier/src/causal.rs": "sha256:9635230f33b13a263573d319ac8a1976addbcc07677514a43e3c7bf28dc04587",
@@ -109,9 +109,9 @@
     "product/runtime/auths-lifecycle/src/transition.rs": "sha256:011805a28efdd541f44ccea54dd0e34a1e58f4004447ee58013703b4fb6b2822"
   },
   "claim": {
-    "decision_functions": 1030,
+    "decision_functions": 1031,
     "decision_closure_functions": 110,
-    "decision_code_lines": 11323,
+    "decision_code_lines": 11353,
     "decision_closure_code_lines": 1289,
     "check_sites": 82,
     "covered_check_sites": 15,
@@ -179,66 +179,66 @@
     "decision": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1030,
-      "span_lines": 11366,
-      "code_lines": 11323,
+      "functions": 1031,
+      "span_lines": 11396,
+      "code_lines": 11353,
       "by_level": {
         "translated": {
           "functions": 110,
-          "function_share": 0.1068,
+          "function_share": 0.1067,
           "span_lines": 1300,
-          "span_line_share": 0.1144,
+          "span_line_share": 0.1141,
           "code_lines": 1289,
-          "code_line_share": 0.1138
+          "code_line_share": 0.1135
         },
         "direct": {
           "functions": 56,
-          "function_share": 0.0544,
+          "function_share": 0.0543,
           "span_lines": 867,
-          "span_line_share": 0.0763,
+          "span_line_share": 0.0761,
           "code_lines": 856,
-          "code_line_share": 0.0756
+          "code_line_share": 0.0754
         },
         "closure": {
           "functions": 110,
-          "function_share": 0.1068,
+          "function_share": 0.1067,
           "span_lines": 1300,
-          "span_line_share": 0.1144,
+          "span_line_share": 0.1141,
           "code_lines": 1289,
-          "code_line_share": 0.1138
+          "code_line_share": 0.1135
         }
       }
     },
     "verifier-core": {
       "scope": "verifier-core",
       "minimum_code_lines": 0,
-      "functions": 784,
-      "span_lines": 8812,
-      "code_lines": 8772,
+      "functions": 785,
+      "span_lines": 8842,
+      "code_lines": 8802,
       "by_level": {
         "translated": {
           "functions": 86,
-          "function_share": 0.1097,
+          "function_share": 0.1096,
           "span_lines": 918,
-          "span_line_share": 0.1042,
+          "span_line_share": 0.1038,
           "code_lines": 907,
-          "code_line_share": 0.1034
+          "code_line_share": 0.103
         },
         "direct": {
           "functions": 41,
-          "function_share": 0.0523,
+          "function_share": 0.0522,
           "span_lines": 569,
-          "span_line_share": 0.0646,
+          "span_line_share": 0.0644,
           "code_lines": 558,
-          "code_line_share": 0.0636
+          "code_line_share": 0.0634
         },
         "closure": {
           "functions": 86,
-          "function_share": 0.1097,
+          "function_share": 0.1096,
           "span_lines": 918,
-          "span_line_share": 0.1042,
+          "span_line_share": 0.1038,
           "code_lines": 907,
-          "code_line_share": 0.1034
+          "code_line_share": 0.103
         }
       }
     },
@@ -278,66 +278,66 @@
     "verifier-closure": {
       "scope": "verifier-closure",
       "minimum_code_lines": 0,
-      "functions": 1081,
-      "span_lines": 13782,
-      "code_lines": 13716,
+      "functions": 1083,
+      "span_lines": 13828,
+      "code_lines": 13762,
       "by_level": {
         "translated": {
           "functions": 86,
-          "function_share": 0.0796,
+          "function_share": 0.0794,
           "span_lines": 918,
-          "span_line_share": 0.0666,
+          "span_line_share": 0.0664,
           "code_lines": 907,
-          "code_line_share": 0.0661
+          "code_line_share": 0.0659
         },
         "direct": {
           "functions": 41,
           "function_share": 0.0379,
           "span_lines": 569,
-          "span_line_share": 0.0413,
+          "span_line_share": 0.0411,
           "code_lines": 558,
-          "code_line_share": 0.0407
+          "code_line_share": 0.0405
         },
         "closure": {
           "functions": 86,
-          "function_share": 0.0796,
+          "function_share": 0.0794,
           "span_lines": 918,
-          "span_line_share": 0.0666,
+          "span_line_share": 0.0664,
           "code_lines": 907,
-          "code_line_share": 0.0661
+          "code_line_share": 0.0659
         }
       }
     },
     "decision-nontrivial": {
       "scope": "decision",
       "minimum_code_lines": 4,
-      "functions": 442,
-      "span_lines": 9599,
-      "code_lines": 9559,
+      "functions": 443,
+      "span_lines": 9629,
+      "code_lines": 9589,
       "by_level": {
         "translated": {
           "functions": 81,
-          "function_share": 0.1833,
+          "function_share": 0.1828,
           "span_lines": 1213,
-          "span_line_share": 0.1264,
+          "span_line_share": 0.126,
           "code_lines": 1202,
-          "code_line_share": 0.1257
+          "code_line_share": 0.1254
         },
         "direct": {
           "functions": 44,
-          "function_share": 0.0995,
+          "function_share": 0.0993,
           "span_lines": 831,
-          "span_line_share": 0.0866,
+          "span_line_share": 0.0863,
           "code_lines": 820,
-          "code_line_share": 0.0858
+          "code_line_share": 0.0855
         },
         "closure": {
           "functions": 81,
-          "function_share": 0.1833,
+          "function_share": 0.1828,
           "span_lines": 1213,
-          "span_line_share": 0.1264,
+          "span_line_share": 0.126,
           "code_lines": 1202,
-          "code_line_share": 0.1257
+          "code_line_share": 0.1254
         }
       }
     }
@@ -346,132 +346,132 @@
     "decision_without_macro_rules_functions": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1013,
-      "span_lines": 11313,
-      "code_lines": 11270,
+      "functions": 1014,
+      "span_lines": 11343,
+      "code_lines": 11300,
       "by_level": {
         "translated": {
           "functions": 109,
-          "function_share": 0.1076,
+          "function_share": 0.1075,
           "span_lines": 1297,
-          "span_line_share": 0.1146,
+          "span_line_share": 0.1143,
           "code_lines": 1286,
-          "code_line_share": 0.1141
+          "code_line_share": 0.1138
         },
         "direct": {
           "functions": 56,
-          "function_share": 0.0553,
+          "function_share": 0.0552,
           "span_lines": 867,
-          "span_line_share": 0.0766,
+          "span_line_share": 0.0764,
           "code_lines": 856,
-          "code_line_share": 0.076
+          "code_line_share": 0.0758
         },
         "closure": {
           "functions": 109,
-          "function_share": 0.1076,
+          "function_share": 0.1075,
           "span_lines": 1297,
-          "span_line_share": 0.1146,
+          "span_line_share": 0.1143,
           "code_lines": 1286,
-          "code_line_share": 0.1141
+          "code_line_share": 0.1138
         }
       }
     },
     "decision_exact_or_verdict_exact_theorems": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1030,
-      "span_lines": 11366,
-      "code_lines": 11323,
+      "functions": 1031,
+      "span_lines": 11396,
+      "code_lines": 11353,
       "by_level": {
         "translated": {
           "functions": 110,
-          "function_share": 0.1068,
+          "function_share": 0.1067,
           "span_lines": 1300,
-          "span_line_share": 0.1144,
+          "span_line_share": 0.1141,
           "code_lines": 1289,
-          "code_line_share": 0.1138
+          "code_line_share": 0.1135
         },
         "direct": {
           "functions": 56,
-          "function_share": 0.0544,
+          "function_share": 0.0543,
           "span_lines": 867,
-          "span_line_share": 0.0763,
+          "span_line_share": 0.0761,
           "code_lines": 856,
-          "code_line_share": 0.0756
+          "code_line_share": 0.0754
         },
         "closure": {
           "functions": 109,
-          "function_share": 0.1058,
+          "function_share": 0.1057,
           "span_lines": 1297,
-          "span_line_share": 0.1141,
+          "span_line_share": 0.1138,
           "code_lines": 1286,
-          "code_line_share": 0.1136
+          "code_line_share": 0.1133
         }
       }
     },
     "decision_exact_theorems": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1030,
-      "span_lines": 11366,
-      "code_lines": 11323,
+      "functions": 1031,
+      "span_lines": 11396,
+      "code_lines": 11353,
       "by_level": {
         "translated": {
           "functions": 110,
-          "function_share": 0.1068,
+          "function_share": 0.1067,
           "span_lines": 1300,
-          "span_line_share": 0.1144,
+          "span_line_share": 0.1141,
           "code_lines": 1289,
-          "code_line_share": 0.1138
+          "code_line_share": 0.1135
         },
         "direct": {
           "functions": 56,
-          "function_share": 0.0544,
+          "function_share": 0.0543,
           "span_lines": 867,
-          "span_line_share": 0.0763,
+          "span_line_share": 0.0761,
           "code_lines": 856,
-          "code_line_share": 0.0756
+          "code_line_share": 0.0754
         },
         "closure": {
           "functions": 105,
-          "function_share": 0.1019,
+          "function_share": 0.1018,
           "span_lines": 1202,
-          "span_line_share": 0.1058,
+          "span_line_share": 0.1055,
           "code_lines": 1198,
-          "code_line_share": 0.1058
+          "code_line_share": 0.1055
         }
       }
     },
     "decision_without_trait_instance_records": {
       "scope": "decision",
       "minimum_code_lines": 0,
-      "functions": 1030,
-      "span_lines": 11366,
-      "code_lines": 11323,
+      "functions": 1031,
+      "span_lines": 11396,
+      "code_lines": 11353,
       "by_level": {
         "translated": {
           "functions": 110,
-          "function_share": 0.1068,
+          "function_share": 0.1067,
           "span_lines": 1300,
-          "span_line_share": 0.1144,
+          "span_line_share": 0.1141,
           "code_lines": 1289,
-          "code_line_share": 0.1138
+          "code_line_share": 0.1135
         },
         "direct": {
           "functions": 56,
-          "function_share": 0.0544,
+          "function_share": 0.0543,
           "span_lines": 867,
-          "span_line_share": 0.0763,
+          "span_line_share": 0.0761,
           "code_lines": 856,
-          "code_line_share": 0.0756
+          "code_line_share": 0.0754
         },
         "closure": {
           "functions": 109,
-          "function_share": 0.1058,
+          "function_share": 0.1057,
           "span_lines": 1297,
-          "span_line_share": 0.1141,
+          "span_line_share": 0.1138,
           "code_lines": 1286,
-          "code_line_share": 0.1136
+          "code_line_share": 0.1133
         }
       }
     }
@@ -527,8 +527,8 @@
       "refined_closure_code_lines": 0
     },
     "core/crates/auths-registries": {
-      "decision_functions": 81,
-      "decision_code_lines": 1122,
+      "decision_functions": 82,
+      "decision_code_lines": 1152,
       "translated": 0,
       "refined_closure": 0,
       "refined_closure_code_lines": 0
@@ -571,9 +571,9 @@
   },
   "second_parser": {
     "parser": "syn 2 (full syntax tree), independent of the scanner's tokenizer",
-    "decision_functions": 1030,
+    "decision_functions": 1031,
     "decision_files": 30,
-    "agreements": 1013,
+    "agreements": 1014,
     "agreement_share": 0.9835,
     "disagreements": [
       {

@@ -459,8 +459,12 @@ branches:
   N, whoever responds, is authorized**; the approver set no longer has to be
   fixed before the first signature, and a proposal may list more approvers
   than K without every one signing.
+- The actor is never a listed approver: its approval would never count, so
+  the proposal refuses to list it.
 - AP-SPEC-062 requests carry the approval statement an approver signs, and
-  the response carries the signed approval.
+  the response carries the signed approval; both formats are now `/2`.
+- The gateway's offline audit lists, per verified entry, the approvers the
+  proof counted.
 
 ## 11. Epic and acceptance
 

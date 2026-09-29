@@ -43,7 +43,7 @@ Every piece of work traces to a step of this done test, or goes to Not now.
 
 | Now | Next | Not now |
 | --- | --- | --- |
-| AP-SPEC-063 epic 8, consolidation: the gateway becomes the single provider-write path and the five local-agent effect profiles are removed, on branch `audit-2026-09-24-gateway-epic8` (local commits, awaiting owner review and push). Epics 1–7 are merged (#181–#187), so the journey runs on §3.1's recipe with all five Stripe checks (§1). | An unfamiliar developer runs the README cold and reports the time (the "under 30 minutes" clause cannot be self-certified). The Stripe test-mode run with the developer's own key (§0 step 4). | 060 §16 observer quorum; the witnessed did:keri adapter; 061; grant-constrained decoding; the any-2-of-3 quorum mode (approver set chosen after signing starts); more vendor recipes; review-pass findings off this path: #145 and #147, which after epic 8 concern test-only references, and the rest of #148 (§3). |
+| AP-SPEC-063 epic 8, consolidation: the gateway becomes the single provider-write path and the five local-agent effect profiles are removed, on branch `audit-2026-09-24-gateway-epic8` (local commits, awaiting owner review and push). Epics 1–7 are merged (#181–#187), so the journey runs on §3.1's recipe with all five Stripe checks (§1). | An unfamiliar developer runs the README cold and reports the time (the "under 30 minutes" clause cannot be self-certified). The Stripe test-mode run with the developer's own key (§0 step 4). | 060 §16 observer quorum; the witnessed did:keri adapter; 061; grant-constrained decoding; more vendor recipes; review-pass findings off this path: #145 and #147, which after epic 8 concern test-only references, and the rest of #148 (§3). |
 
 ## Rules
 

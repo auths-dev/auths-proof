@@ -4,10 +4,10 @@
 
 ## 1. Claim
 
-At the commit that contains this document, 110 of 1,030 decision-scope functions (10.7%) and 1,289 of 11,323 code lines (11.4%) are translated to Lean and reached from audited theorem statements, and 15 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the composition evaluator, the registry handlers, the codec, and the signature suites, is tested, not proved.
+At the commit that contains this document, 110 of 1,031 decision-scope functions (10.7%) and 1,289 of 11,353 code lines (11.4%) are translated to Lean and reached from audited theorem statements, and 15 of 82 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the composition evaluator, the registry handlers, the codec, and the signature suites, is tested, not proved.
 
 - Revision: the commit that contains this document and `formal/proof-coverage-v1.json`; a release binds it in its assurance evidence.
-- Measurement inputs: sha256 `b724a0a552c0f215cd58a4979e50ea7ba3256aabd127531d379d7d9868ac6a9d` over the 89 files listed in `formal/proof-coverage-v1.json`.
+- Measurement inputs: sha256 `dd4bd7ea1702110edfeddfa2e58b3ccb6cdd0431d1ba6679dc935e51c3126743` over the 89 files listed in `formal/proof-coverage-v1.json`.
 - Tool: `cargo xtask formal coverage`, version 1.
 - Toolchain pins: `formal/lean-toolchain` = `leanprover/lean4:v4.31.0`; `formal/translation-toolchain.lock` sha256 `0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53`.
 - Role table: `formal/coverage-scope-v1.toml`, sha256 `053f0be216b0003768d422d9ccc92a692726488874284fa80615657b30a495b5`. Figures computed under a different role table are not comparable.
@@ -50,11 +50,11 @@ Files in scoped crates with a non-decision role (every other scoped file is deci
 
 | Scope | Functions | Translated | Refined directly | Refined closure | Code lines | Translated | Refined directly | Refined closure |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| decision | 1,030 | 110 (10.7%) | 56 (5.4%) | 110 (10.7%) | 11,323 | 1,289 (11.4%) | 856 (7.6%) | 1,289 (11.4%) |
-| verifier-core | 784 | 86 (11.0%) | 41 (5.2%) | 86 (11.0%) | 8,772 | 907 (10.3%) | 558 (6.4%) | 907 (10.3%) |
+| decision | 1,031 | 110 (10.7%) | 56 (5.4%) | 110 (10.7%) | 11,353 | 1,289 (11.4%) | 856 (7.5%) | 1,289 (11.4%) |
+| verifier-core | 785 | 86 (11.0%) | 41 (5.2%) | 86 (11.0%) | 8,802 | 907 (10.3%) | 558 (6.3%) | 907 (10.3%) |
 | translated-crates | 1,115 | 210 (18.8%) | 70 (6.3%) | 210 (18.8%) | 10,459 | 2,508 (24.0%) | 1,024 (9.8%) | 2,508 (24.0%) |
-| verifier-closure | 1,081 | 86 (8.0%) | 41 (3.8%) | 86 (8.0%) | 13,716 | 907 (6.6%) | 558 (4.1%) | 907 (6.6%) |
-| decision-nontrivial | 442 | 81 (18.3%) | 44 (10.0%) | 81 (18.3%) | 9,559 | 1,202 (12.6%) | 820 (8.6%) | 1,202 (12.6%) |
+| verifier-closure | 1,083 | 86 (7.9%) | 41 (3.8%) | 86 (7.9%) | 13,762 | 907 (6.6%) | 558 (4.1%) | 907 (6.6%) |
+| decision-nontrivial | 443 | 81 (18.3%) | 44 (9.9%) | 81 (18.3%) | 9,589 | 1,202 (12.5%) | 820 (8.6%) | 1,202 (12.5%) |
 
 Decision scope by crate:
 
@@ -65,7 +65,7 @@ Decision scope by crate:
 | `core/crates/auths-authority` | 21 | 341 | 13 | 13 | 241 |
 | `core/crates/auths-composition` | 8 | 160 | 0 | 0 | 0 |
 | `core/crates/auths-model` | 540 | 3,886 | 71 | 71 | 649 |
-| `core/crates/auths-registries` | 81 | 1,122 | 0 | 0 | 0 |
+| `core/crates/auths-registries` | 82 | 1,152 | 0 | 0 | 0 |
 | `core/crates/auths-verifier` | 116 | 3,143 | 0 | 0 | 0 |
 | `product/policy/auths-bounded-policy` | 108 | 716 | 18 | 18 | 182 |
 | `product/runtime/auths-lifecycle` | 138 | 1,835 | 6 | 6 | 200 |
@@ -76,13 +76,13 @@ Sensitivities of the decision-scope refined-closure figure:
 
 | Reading | Functions | Code lines |
 | --- | ---: | ---: |
-| Headline | 110 of 1,030 (10.7%) | 1,289 of 11,323 (11.4%) |
-| Without functions defined in `macro_rules!` bodies | 109 of 1,013 (10.8%) | 1,286 of 11,270 (11.4%) |
-| Closure of exact and verdict-exact theorems only | 109 of 1,030 (10.6%) | 1,286 of 11,323 (11.4%) |
-| Closure of exact theorems only | 105 of 1,030 (10.2%) | 1,198 of 11,323 (10.6%) |
-| Closure without trait-instance records | 109 of 1,030 (10.6%) | 1,286 of 11,323 (11.4%) |
+| Headline | 110 of 1,031 (10.7%) | 1,289 of 11,353 (11.4%) |
+| Without functions defined in `macro_rules!` bodies | 109 of 1,014 (10.7%) | 1,286 of 11,300 (11.4%) |
+| Closure of exact and verdict-exact theorems only | 109 of 1,031 (10.6%) | 1,286 of 11,353 (11.3%) |
+| Closure of exact theorems only | 105 of 1,031 (10.2%) | 1,198 of 11,353 (10.6%) |
+| Closure without trait-instance records | 109 of 1,031 (10.6%) | 1,286 of 11,353 (11.3%) |
 
-**Second parser.** 1013 of 1030 decision-scope function spans (98.3%) agree with an independent parse by syn over 30 files. Disagreements:
+**Second parser.** 1014 of 1031 decision-scope function spans (98.4%) agree with an independent parse by syn over 30 files. Disagreements:
 
 - `core/crates/auths-model/src/lib.rs` `name::parse` (lines 142-144): inside a macro_rules! body (syn parses it as a token tree).
 - `core/crates/auths-model/src/lib.rs` `name::as_str` (lines 147-149): inside a macro_rules! body (syn parses it as a token tree).
@@ -201,7 +201,7 @@ None: every function Aeneas translates is in the refined closure.
 
 Every audited theorem whose statement names a translated function carries a kind in `formal/theorem-kinds-v1.toml`: exact (for every input meeting its premises the function returns exactly its specification's value), verdict-exact (the statement fixes the component of the result that decides authorization), partial (a property that does not fix the verdict, or a subclass of inputs), or case (specific inputs). Counts: 65 exact, 1 verdict-exact, 8 partial, 1 case.
 
-Recomputed over the closure of exact and verdict-exact theorems only, the decision-scope figure is 109 of 1,030 functions (10.6%) and 1,286 of 11,323 code lines (11.4%).
+Recomputed over the closure of exact and verdict-exact theorems only, the decision-scope figure is 109 of 1,031 functions (10.6%) and 1,286 of 11,353 code lines (11.3%).
 
 The 33 theorems study 006 classified keep the kind both of its raters gave; theorems added since were classified by the agent that added them and await a second rater.
 
