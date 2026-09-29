@@ -2120,7 +2120,7 @@ pub(crate) struct CheckSiteEntry {
     pub(crate) note: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct CheckSiteMap {
     schema: String,
@@ -3637,7 +3637,10 @@ mod tests {
     fn the_same_tree_gives_the_same_bytes() {
         let first = publish(&root()).expect("first measurement");
         let second = publish(&root()).expect("second measurement");
-        assert_eq!(render_json(&first.json).expect("json"), render_json(&second.json).expect("json"));
+        assert_eq!(
+            render_json(&first.json).expect("json"),
+            render_json(&second.json).expect("json")
+        );
         assert_eq!(first.tsv, second.tsv);
         assert_eq!(first.document, second.document);
     }
@@ -3647,8 +3650,12 @@ mod tests {
         let text = fs::read_to_string(root().join(CHECK_SITE_MAP_PATH)).expect("map");
         load_check_site_map(&text).expect("committed map is complete");
         let first_site = auths_testkit::check_sites::CHECK_SITES[0].site;
-        let without_first = text.replacen(&format!("site = \"{first_site}\""), "site = \"decode.unknown\"", 1);
-        let error = load_check_site_map(&without_first).err().expect("a missing site fails");
+        let without_first = text.replacen(
+            &format!("site = \"{first_site}\""),
+            "site = \"decode.unknown\"",
+            1,
+        );
+        let error = load_check_site_map(&without_first).expect_err("a missing site fails");
         assert!(error.contains(first_site), "{error}");
         let functions = vec![RustFunction {
             file: "core/crates/auths-verifier/src/lib.rs".to_owned(),
