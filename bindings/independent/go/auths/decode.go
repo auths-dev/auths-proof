@@ -220,7 +220,7 @@ func decodeBinding(value *cborValue, maximum uint64) (*controlBinding, error) {
 	return result, nil
 }
 
-func decodeBundle(data []byte, limits [27]uint64) (*proofBundle, error) {
+func decodeBundle(data []byte, limits verifierLimits) (*proofBundle, error) {
 	if uint64(len(data)) > limits[0] {
 		return nil, denied("resource-limit-exceeded")
 	}
@@ -232,7 +232,7 @@ func decodeBundle(data []byte, limits [27]uint64) (*proofBundle, error) {
 		}
 		return nil, denied("malformed-proof")
 	}
-	if err := exactMap(root, 10); err != nil {
+	if err := exactMap(root, 11); err != nil {
 		return nil, denied("malformed-proof")
 	}
 	header, _ := mapValue(root, 0)
@@ -353,6 +353,22 @@ func decodeBundle(data []byte, limits [27]uint64) (*proofBundle, error) {
 		if err != nil || uint64(len(result.canonicalBody)) > limits[23] {
 			return nil, denied("resource-limit-exceeded")
 		}
+	}
+	// Signed approvals are not subject to the duplicate-object rule: two
+	// byte-identical approvals are both kept.
+	approvalNodes, err := arrayValue(mustMap(root, 10))
+	if err != nil {
+		return nil, denied("malformed-proof")
+	}
+	if uint64(len(approvalNodes)) > limits[27] {
+		return nil, denied("resource-limit-exceeded")
+	}
+	for _, node := range approvalNodes {
+		approval, err := decodeApproval(node, limits)
+		if err != nil {
+			return nil, semanticDecodeFailure(err)
+		}
+		result.approvals = append(result.approvals, approval)
 	}
 	return result, nil
 }
@@ -676,18 +692,21 @@ func decodeContext(data []byte) (*verifierContext, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := exactMap(root, 15); err != nil {
+	if err := exactMap(root, 17); err != nil {
 		return nil, err
 	}
 	result := &verifierContext{raw: append([]byte(nil), data...)}
 	limits := mustMap(root, 0)
-	if err := exactMap(limits, 27); err != nil {
+	if err := exactMap(limits, len(result.limits)); err != nil {
 		return nil, err
 	}
 	for index := range result.limits {
 		result.limits[index], err = uintValue(mustMap(limits, uint64(index)))
 		if err != nil {
 			return nil, err
+		}
+		if result.limits[index] > hardLimits[index] {
+			return nil, errors.New("deployment limit above its hard maximum")
 		}
 	}
 	result.configuration, err = bytesValue(mustMap(root, 1), 32)
@@ -867,6 +886,17 @@ func decodeContext(data []byte) (*verifierContext, error) {
 	}
 	result.observerAnchors, err = decodeObserverAnchors(mustMap(root, 14))
 	if err != nil {
+		return nil, err
+	}
+	result.approverAnchors, err = decodeApproverAnchors(mustMap(root, 15), result.limits[28])
+	if err != nil {
+		return nil, err
+	}
+	result.approvalRequirements, err = decodeContextRequirements(mustMap(root, 16), result.limits[29])
+	if err != nil {
+		return nil, err
+	}
+	if err := validateApprovals(result); err != nil {
 		return nil, err
 	}
 	return result, nil

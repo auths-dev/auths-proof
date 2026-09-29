@@ -163,11 +163,11 @@ func TestSharedCorpusRunsInNativeGoTest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The pin covers 287 fixtures after the status-scope, raw action-decode,
-	// and reason-order vectors, with the stage in every vector's fields, and is
-	// the same digest `cargo xtask cross-language` requires of Rust, Go, and
-	// the independent TypeScript verifier.
-	const expected = "287:be4f133a9a8956e1e933cc954749d1b9ef27a2f2465f93d72a1bf412134f1d9c"
+	// The pin covers 319 fixtures after the native K-of-N approval vectors,
+	// with the stage in every vector's fields, and is the same digest
+	// `cargo xtask cross-language` requires of Rust, Go, and the independent
+	// TypeScript verifier.
+	const expected = "319:56666c11104f9b2f67b2c574328ac6ef92dd9361bd4511f03246cde9ef40cc8a"
 	if digest != expected {
 		t.Fatalf("semantic corpus digest mismatch: got %s", digest)
 	}

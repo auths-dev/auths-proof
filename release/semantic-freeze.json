@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 337,
+  "freezeVersion": 338,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -73,7 +73,7 @@
   "entries": [
     {
       "id": "auths.core.protocol",
-      "version": 34,
+      "version": 35,
       "classification": "frozen-meaning",
       "categories": [
         "protocol-versions",
@@ -90,7 +90,7 @@
         "core/crates/auths-verifier/src",
         "core/spec/v1"
       ],
-      "sha256": "52d163a053a9f17bd55d97c356a4d9e3c2b3f0e12d6a17123d47d4de79680b26"
+      "sha256": "6e4c63453bd142d4000807ece92ed3aa85a36710237f0675ca460be9e3381cc9"
     },
     {
       "id": "auths.frozen-bytes/architecture/dependency-graph.json",
@@ -611,7 +611,7 @@
     },
     {
       "id": "auths.portable-abi-bindings",
-      "version": 118,
+      "version": 119,
       "classification": "frozen-meaning",
       "categories": [
         "portable-abi",
@@ -631,7 +631,7 @@
         "core/crates/auths-model/src/lib.rs",
         "core/spec/v1/auths-proof.cddl"
       ],
-      "sha256": "1e215ad00f442295c7a43af377ede0bbb37c202b503d84294cade0e10801bd07"
+      "sha256": "9647bcd0fca0f2c0f2da3adaa90443280bb7e3049e0c6b772e1fdfccffcc8492"
     },
     {
       "id": "auths.product.bounded-domains",
@@ -927,7 +927,7 @@
     },
     {
       "id": "auths.product.simplified-waist",
-      "version": 18,
+      "version": 19,
       "classification": "frozen-meaning",
       "categories": [
         "product-waist-invariants",
@@ -943,7 +943,7 @@
         "product/conformance/v1/simplified-product-waist.json",
         "xtask/src/product_waist.rs"
       ],
-      "sha256": "7702462ccbcb9c4eba7c8c7e3cc7409ee13b1548a450538db2dde2f1684798ce"
+      "sha256": "585e9e8d553a9d4317f5e6b97d9ce868d19d169fc7c1459e15df0f7869facae5"
     },
     {
       "id": "auths.product.vocabulary",
@@ -1011,7 +1011,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 337,
+      "version": 338,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1103,7 +1103,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "136c570715201259a9df92d4ae65f40777816eb8bf24da1bf1ccb0b02674eb85"
+      "sha256": "fd188e1ed55feee83db4a732600c49e563d33cfcf8165389d3ed51dc7198726b"
     }
   ]
 }

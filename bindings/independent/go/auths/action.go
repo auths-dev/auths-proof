@@ -206,7 +206,7 @@ func (r *actionReader) requestedBudget() (*budget, error) {
 	return &budget{algebra: algebra, value: value}, nil
 }
 
-func (r *actionReader) detachedAttachments(limits [27]uint64) ([]detachedAttachment, error) {
+func (r *actionReader) detachedAttachments(limits verifierLimits) ([]detachedAttachment, error) {
 	major, count, err := r.head()
 	if err != nil {
 		return nil, err
@@ -257,7 +257,7 @@ func (r *actionReader) detachedAttachments(limits [27]uint64) ([]detachedAttachm
 // context's limits: input bytes (limit 1), body bytes (limit 23), detached
 // attachment count (limit 13), and each and all detached attachment bytes
 // (limit 14). It returns the native stable code for every failure.
-func decodeBoundedCanonicalAction(data []byte, limits [27]uint64) (*canonicalAction, error) {
+func decodeBoundedCanonicalAction(data []byte, limits verifierLimits) (*canonicalAction, error) {
 	if uint64(len(data)) > limits[1] {
 		return nil, actionOverLimit()
 	}

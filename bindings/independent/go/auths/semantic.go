@@ -385,6 +385,9 @@ type proofBundle struct {
 	grantStatus     []*grantStatus
 	attachments     []attachmentDescriptor
 	canonicalBody   []byte
+	// approvals are in the order presented; order and repetitions carry no
+	// meaning.
+	approvals []*signedApproval
 }
 
 type trustAnchor struct {
@@ -503,8 +506,11 @@ type verifierContext struct {
 	resourceMatcher    string
 	profilePolicy      string
 	channelPolicy      string
-	limits             [27]uint64
+	limits             verifierLimits
 	observerAnchors    []*observerAnchor
+	approverAnchors    []*approverAnchor
+	// approvalRequirements ascend strictly by identifier.
+	approvalRequirements []approvalRequirement
 }
 
 type canonicalAction struct {
@@ -1083,7 +1089,7 @@ func decodeAction(value *cborValue) (*signedAction, error) {
 	}, nil
 }
 
-func decodePlan(value *cborValue, depth int, limits [27]uint64) (*planNode, int, error) {
+func decodePlan(value *cborValue, depth int, limits verifierLimits) (*planNode, int, error) {
 	if uint64(depth) > limits[6] {
 		return nil, 0, denied("resource-limit-exceeded")
 	}

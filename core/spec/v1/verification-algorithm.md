@@ -490,8 +490,11 @@ passes.
 
 ### 5b. Grant-carried approval requirements
 
-Runs for each branch after its observation stage and before the branch
-counts as authorized. Collect the distinct requirements, by identifier,
+Runs for each branch, within each trust anchor's attempt (as step 10 of
+that attempt, after the observation stage), and before the branch counts as
+authorized. Like every failure inside a branch, a limit reached here, the
+per-chain bound or the per-verification bound below included, is the
+branch's result, which the plan combines. Collect the distinct requirements, by identifier,
 carried by the `approval-requirement-v1` extensions of every grant in the
 chain, root first, in first-appearance order; more than 16 is
 `resource-limit-exceeded`. With none, the step passes. Evaluate each
@@ -538,7 +541,8 @@ canonical action, and the context, so each distinct requirement is
 evaluated at most once per verification: the first evaluation, in the order
 above (branches in plan order, then the context's requirements), reserves
 the work, and later appearances reuse its verdict. The 65th distinct
-requirement is `resource-limit-exceeded`.
+requirement is `resource-limit-exceeded`: a branch result inside a branch,
+and the verification's result in stage 6.
 
 For requirement R with identifier r, every listed approver starts absent.
 For each approval, in digest order:
