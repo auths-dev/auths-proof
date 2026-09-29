@@ -6,5 +6,6 @@ import Auths.Diversity
 import Auths.Approval
 import Auths.Refinement.Production
 import Auths.Refinement.Observation
+import Auths.Refinement.Approval
 import Auths.Rich.Mutations
 import Auths.Theorems

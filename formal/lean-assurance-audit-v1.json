@@ -3159,6 +3159,83 @@
       "module": "Auths.Refinement.Observation",
       "name": "Auths.Refinement.Observation.translated_observation_requirements_attenuate_refines_model",
       "statement": "∀ (child parent : auths_model.observation.ObservationRequirements),\n  (∀ requirement ∈ ↑child, Auths.Refinement.Observation.RequirementValid requirement) →\n    (∀ requirement ∈ ↑parent, Auths.Refinement.Observation.RequirementValid requirement) →\n      auths_model.observation.observation_requirements_attenuate child parent =\n        Aeneas.Std.Result.ok\n          (decide\n            (Auths.Observation.requirementsAttenuate (List.map Auths.Refinement.Observation.requirementOf ↑child)\n              (List.map Auths.Refinement.Observation.requirementOf ↑parent)))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Approval",
+      "name": "Auths.Refinement.Approval.translated_approver_verdict_refines_model",
+      "statement": "∀ (outcomes : Aeneas.Std.Slice auths_model.approval.ApprovalOutcome) (approver : auths_model.PrincipalId),\n  Auths.Refinement.Approval.OutcomesValid ↑outcomes →\n    Auths.Refinement.StringBounded approver →\n      ∃ result,\n        auths_model.approval.approver_verdict outcomes approver = Aeneas.Std.Result.ok result ∧\n          Auths.Refinement.Approval.verdictOf result =\n            Auths.Approval.approverVerdict (List.map Auths.Refinement.Approval.outcomeOf ↑outcomes) approver"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Approval",
+      "name": "Auths.Refinement.Approval.translated_approval_counts_refines_model",
+      "statement": "∀ (approvers : Aeneas.Std.Slice auths_model.PrincipalId)\n  (outcomes : Aeneas.Std.Slice auths_model.approval.ApprovalOutcome),\n  Auths.Refinement.Approval.PrincipalsValid ↑approvers →\n    Auths.Refinement.Approval.OutcomesValid ↑outcomes →\n      ∀ (threshold : Aeneas.Std.U16),\n        ∃ counts,\n          auths_model.approval.approval_counts approvers outcomes = Aeneas.Std.Result.ok counts ∧\n            ↑counts.counted =\n                Auths.Approval.countedCount (↑approvers) (List.map Auths.Refinement.Approval.outcomeOf ↑outcomes) ∧\n              ↑counts.pending =\n                  Auths.Approval.pendingCount (↑approvers) (List.map Auths.Refinement.Approval.outcomeOf ↑outcomes) ∧\n                Auths.thresholdCounts ↑threshold ↑counts.counted ↑counts.pending =\n                  Auths.Approval.decideCounts (↑threshold) (↑approvers)\n                    (List.map Auths.Refinement.Approval.outcomeOf ↑outcomes)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Approval",
+      "name": "Auths.Refinement.Approval.translated_principal_ids_contain_refines_model",
+      "statement": "∀ (principals : Aeneas.Std.Slice auths_model.PrincipalId) (principal : auths_model.PrincipalId),\n  Auths.Refinement.Approval.PrincipalsValid ↑principals →\n    Auths.Refinement.StringBounded principal →\n      auths_model.approval.principal_ids_contain principals principal =\n        Aeneas.Std.Result.ok (decide (principal ∈ ↑principals))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Approval",
+      "name": "Auths.Refinement.Approval.translated_principal_ids_subset_refines_model",
+      "statement": "∀ (narrower wider : Aeneas.Std.Slice auths_model.PrincipalId),\n  Auths.Refinement.Approval.PrincipalsValid ↑narrower →\n    Auths.Refinement.Approval.PrincipalsValid ↑wider →\n      auths_model.approval.principal_ids_subset narrower wider = Aeneas.Std.Result.ok (decide (↑narrower ⊆ ↑wider))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Approval",
+      "name": "Auths.Refinement.Approval.translated_approval_requirement_covers_refines_model",
+      "statement": "∀ (child parent : auths_model.approval.ApprovalRequirement),\n  Auths.Refinement.Approval.RequirementValid child →\n    Auths.Refinement.Approval.RequirementValid parent →\n      auths_model.approval.approval_requirement_covers child parent =\n        Aeneas.Std.Result.ok\n          (decide\n            (Auths.Approval.covers (Auths.Refinement.Approval.requirementOf child)\n              (Auths.Refinement.Approval.requirementOf parent)))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Approval",
+      "name": "Auths.Refinement.Approval.translated_approval_requirement_retained_refines_model",
+      "statement": "∀ (child : auths_model.approval.ApprovalRequirements) (parent : auths_model.approval.ApprovalRequirement),\n  (∀ requirement ∈ ↑child, Auths.Refinement.Approval.RequirementValid requirement) →\n    Auths.Refinement.Approval.RequirementValid parent →\n      auths_model.approval.approval_requirement_retained child parent =\n        Aeneas.Std.Result.ok\n          (decide\n            (∃ candidate ∈ List.map Auths.Refinement.Approval.requirementOf ↑child,\n              Auths.Approval.covers candidate (Auths.Refinement.Approval.requirementOf parent)))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Approval",
+      "name": "Auths.Refinement.Approval.translated_approval_requirements_attenuate_refines_model",
+      "statement": "∀ (child parent : auths_model.approval.ApprovalRequirements),\n  (∀ requirement ∈ ↑child, Auths.Refinement.Approval.RequirementValid requirement) →\n    (∀ requirement ∈ ↑parent, Auths.Refinement.Approval.RequirementValid requirement) →\n      auths_model.approval.approval_requirements_attenuate child parent =\n        Aeneas.Std.Result.ok\n          (decide\n            (Auths.Approval.requirementsAttenuate (List.map Auths.Refinement.Approval.requirementOf ↑child)\n              (List.map Auths.Refinement.Approval.requirementOf ↑parent)))"
     }
   ],
   "schema": "auths-proof-lean-assurance-audit/v1"

@@ -16,6 +16,7 @@ import Auths.Lifecycle.Theorems
 import Auths.Lifecycle.Refinement
 import Auths.Refinement.Production
 import Auths.Refinement.Observation
+import Auths.Refinement.Approval
 import Auths.Observation
 import Auths.Approval
 
@@ -337,7 +338,14 @@ def theoremInventory : List Lean.Name :=
     `Auths.Refinement.Observation.translated_observation_requirement_narrows_refines_model,
     `Auths.Refinement.Observation.translated_observation_requirement_covers_refines_model,
     `Auths.Refinement.Observation.translated_observation_requirement_retained_refines_model,
-    `Auths.Refinement.Observation.translated_observation_requirements_attenuate_refines_model
+    `Auths.Refinement.Observation.translated_observation_requirements_attenuate_refines_model,
+    `Auths.Refinement.Approval.translated_approver_verdict_refines_model,
+    `Auths.Refinement.Approval.translated_approval_counts_refines_model,
+    `Auths.Refinement.Approval.translated_principal_ids_contain_refines_model,
+    `Auths.Refinement.Approval.translated_principal_ids_subset_refines_model,
+    `Auths.Refinement.Approval.translated_approval_requirement_covers_refines_model,
+    `Auths.Refinement.Approval.translated_approval_requirement_retained_refines_model,
+    `Auths.Refinement.Approval.translated_approval_requirements_attenuate_refines_model
   ]
 
 end Auths
