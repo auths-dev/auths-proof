@@ -501,6 +501,7 @@ fn failure_fact_kind(failure: VerificationFailure) -> FactKind {
             DenialReason::ObservationConditionFalse | DenialReason::ObserverInAuthorityChain => {
                 FactKind::CriticalExtension
             }
+            DenialReason::ApprovalThresholdNotMet => FactKind::ApprovalRequirement,
             DenialReason::MalformedProof
             | DenialReason::NonCanonicalProof
             | DenialReason::DigestMismatch
@@ -533,6 +534,7 @@ fn failure_fact_kind(failure: VerificationFailure) -> FactKind {
             Requirement::UnsupportedProtocol | Requirement::ExternalFactUnavailable => {
                 FactKind::PlanNode
             }
+            Requirement::ApprovalUnavailable => FactKind::ApprovalRequirement,
         },
     }
 }

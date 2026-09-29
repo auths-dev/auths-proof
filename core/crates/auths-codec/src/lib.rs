@@ -6,6 +6,7 @@
 
 extern crate alloc;
 
+mod approval;
 mod bounded_policy;
 mod decode;
 mod encode;
@@ -13,6 +14,11 @@ mod error;
 mod hash;
 mod observation;
 
+pub use approval::{
+    decode_approval_requirements, decode_signed_approval, encode_approval_requirement,
+    encode_approval_requirements, encode_approval_signing_input, encode_approval_statement,
+    encode_signed_approval, sorted_approval_requirements,
+};
 pub use bounded_policy::{
     bounded_policy_digest, bounded_policy_link, decode_bounded_policy_commitment,
     encode_bounded_policy_commitment,
@@ -35,11 +41,12 @@ pub use encode::{
 };
 pub use error::CodecError;
 pub use hash::{
-    action_id, action_signing_preimage, attachment_digest, body_digest, context_digest,
-    domain_commitment, evidence_id, grant_id, grant_signing_preimage, grant_status_id,
-    grant_status_signing_preimage, observation_requirement_id, observation_signing_preimage,
-    plan_id, principal_status_id, principal_status_signing_preimage, proof_digest,
-    transaction_binding, verification_result_digest,
+    action_id, action_signing_preimage, approval_digest, approval_requirement_id,
+    approval_signing_preimage, attachment_digest, body_digest, context_digest, domain_commitment,
+    evidence_id, grant_id, grant_signing_preimage, grant_status_id, grant_status_signing_preimage,
+    observation_requirement_id, observation_signing_preimage, plan_id, principal_status_id,
+    principal_status_signing_preimage, proof_digest, transaction_binding,
+    verification_result_digest,
 };
 pub use observation::{
     decode_observation_requirements, decode_signed_observation, encode_observation_requirement,

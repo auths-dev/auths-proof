@@ -22,7 +22,7 @@ use minicbor::Encoder;
 pub(crate) type V1Encoder = Encoder<Vec<u8>>;
 
 /// Shape version of the canonical portable verification result.
-pub const PORTABLE_RESULT_ABI_VERSION: u16 = 3;
+pub const PORTABLE_RESULT_ABI_VERSION: u16 = 4;
 
 pub(crate) fn encode_error<T>(_error: minicbor::encode::Error<T>) -> CodecError {
     CodecError::Malformed
@@ -94,7 +94,10 @@ fn encode_permission_set(
     Ok(())
 }
 
-fn encode_status_policy(encoder: &mut V1Encoder, policy: &StatusPolicy) -> Result<(), CodecError> {
+pub(crate) fn encode_status_policy(
+    encoder: &mut V1Encoder,
+    policy: &StatusPolicy,
+) -> Result<(), CodecError> {
     match policy {
         StatusPolicy::ExpiryOnly => {
             map(encoder, 1)?;
@@ -123,7 +126,7 @@ fn encode_budget(encoder: &mut V1Encoder, budget: &BudgetCeiling) -> Result<(), 
     Ok(())
 }
 
-fn encode_optional_budget(
+pub(crate) fn encode_optional_budget(
     encoder: &mut V1Encoder,
     budget: Option<&BudgetCeiling>,
 ) -> Result<(), CodecError> {
@@ -517,7 +520,7 @@ fn encode_verification_result_to(
     result: &PortableVerificationResult,
     include_result_digest: bool,
 ) -> Result<(), CodecError> {
-    map(encoder, 17)?;
+    map(encoder, 18)?;
     key(encoder, 0)?;
     encoder
         .u8(match result.decision() {
@@ -601,6 +604,8 @@ fn encode_verification_result_to(
         encoder,
         result.observation_satisfactions(),
     )?;
+    key(encoder, 17)?;
+    crate::approval::encode_approval_satisfactions(encoder, result.approval_satisfactions())?;
     Ok(())
 }
 
@@ -994,7 +999,7 @@ fn sorted_grant_status(
 }
 
 fn encode_bundle_to(encoder: &mut V1Encoder, bundle: &ProofBundle) -> Result<(), CodecError> {
-    map(encoder, 10)?;
+    map(encoder, 11)?;
     key(encoder, 0)?;
     map(encoder, 2)?;
     key(encoder, 0)?;
@@ -1065,6 +1070,12 @@ fn encode_bundle_to(encoder: &mut V1Encoder, bundle: &ProofBundle) -> Result<(),
         bytes(encoder, body)?;
     } else {
         encoder.null().map_err(encode_error)?;
+    }
+
+    key(encoder, 10)?;
+    array(encoder, bundle.approvals().len())?;
+    for approval in bundle.approvals() {
+        crate::approval::encode_signed_approval_to(encoder, approval)?;
     }
     Ok(())
 }
@@ -1477,7 +1488,7 @@ fn encode_limits(encoder: &mut V1Encoder, limits: &VerifierLimits) -> Result<(),
         LimitKind::RegistryEntries,
         LimitKind::TrustAnchors,
     ];
-    map(encoder, 27)?;
+    map(encoder, 30)?;
     for (index, kind) in LIMITS.into_iter().enumerate() {
         key(
             encoder,
@@ -1489,6 +1500,22 @@ fn encode_limits(encoder: &mut V1Encoder, limits: &VerifierLimits) -> Result<(),
     }
     key(encoder, 26)?;
     encoder.u64(limits.max_work_units()).map_err(encode_error)?;
+    for (index, kind) in [
+        LimitKind::Approvals,
+        LimitKind::ApproverAnchors,
+        LimitKind::ApprovalRequirements,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        key(
+            encoder,
+            u8::try_from(27 + index).map_err(|_| CodecError::LimitExceeded)?,
+        )?;
+        encoder
+            .u64(length(limits.get(kind))?)
+            .map_err(encode_error)?;
+    }
     Ok(())
 }
 
@@ -1522,7 +1549,7 @@ fn encode_verifier_context_to(
     encoder: &mut V1Encoder,
     context: &TrustedContext,
 ) -> Result<(), CodecError> {
-    map(encoder, 15)?;
+    map(encoder, 17)?;
     key(encoder, 0)?;
     encode_limits(encoder, context.limits())?;
     key(encoder, 1)?;
@@ -1558,6 +1585,10 @@ fn encode_verifier_context_to(
     text(encoder, context.channel_policy().as_str())?;
     key(encoder, 14)?;
     crate::observation::encode_observer_anchors(encoder, context.observer_anchors())?;
+    key(encoder, 15)?;
+    crate::approval::encode_approver_anchors(encoder, context.approver_anchors())?;
+    key(encoder, 16)?;
+    crate::approval::encode_context_requirements(encoder, context.approval_requirements())?;
     Ok(())
 }
 
