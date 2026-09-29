@@ -275,8 +275,8 @@ fn status_scope(value: StatusScopeInput) -> Result<StatusScope, EngineError> {
         ("anchors", false) => Ok(StatusScope::Anchors(StatusScopeAnchors::new(
             value
                 .anchors
-                .iter()
-                .map(|id| TrustAnchorId::parse(id))
+                .into_iter()
+                .map(|id| TrustAnchorId::parse(&id))
                 .collect::<Result<Vec<_>, _>>()?,
         )?)),
         _ => Err(EngineError::Abi(

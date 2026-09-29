@@ -6,7 +6,7 @@
 //! manifest marks these bytes `"encoding": "raw"`; the fixture's action model
 //! still describes the well-formed action they were derived from.
 
-use super::*;
+use super::{CorpusFixture, DenialReason, Expected, encode_canonical_action, raw_key_chain};
 
 /// Replaces the one occurrence of `from` in `source`.
 fn replace_once(source: &[u8], from: &[u8], to: &[u8]) -> Vec<u8> {

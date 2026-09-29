@@ -98,6 +98,18 @@ enum Subject {
     TerminalGrant,
 }
 
+/// Where a status statement appears.
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum Placement {
+    /// In the context's snapshot only.
+    Snapshot,
+    /// In the snapshot, and also carried in the proof.
+    SnapshotAndProof,
+    /// Carried in the proof only; the snapshot does not hold it, and no
+    /// control binding names it.
+    ProofOnly,
+}
+
 /// One status statement a vector adds to the base snapshots.
 #[derive(Clone, Copy)]
 struct Entry {
@@ -107,11 +119,7 @@ struct Entry {
     sequence: u64,
     method: &'static str,
     unknown_extension: bool,
-    /// Also carried in the proof.
-    carried: bool,
-    /// Held by the snapshot. A carried statement the snapshot does not hold
-    /// has no control binding.
-    held: bool,
+    placement: Placement,
 }
 
 impl Entry {
@@ -123,8 +131,7 @@ impl Entry {
             sequence,
             method: METHOD,
             unknown_extension: false,
-            carried: false,
-            held: true,
+            placement: Placement::Snapshot,
         }
     }
 
@@ -147,15 +154,24 @@ impl Entry {
     }
 
     const fn carried(mut self) -> Self {
-        self.carried = true;
+        self.placement = Placement::SnapshotAndProof;
         self
     }
 
     const fn carried_only(mut self) -> Self {
-        self.carried = true;
-        self.held = false;
+        self.placement = Placement::ProofOnly;
         self
     }
+}
+
+/// A party a vector adds beyond V, F, and their anchors.
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum Extra {
+    None,
+    /// Trusts S for principal status under F's anchor.
+    ServiceForPartner,
+    /// Adds a third organization's anchor and own-scoped rule.
+    ThirdParty,
 }
 
 /// The scope of V root's rules.
@@ -177,10 +193,7 @@ struct Vector {
     /// proof.
     partner_unbound: bool,
     verifier_scope: VerifierScope,
-    /// Trusts S for principal status under F's anchor.
-    service_for_partner: bool,
-    /// Adds a third organization's anchor and own-scoped rule.
-    third_party: bool,
+    extra: Extra,
     expected: Expected,
 }
 
@@ -193,8 +206,7 @@ impl Vector {
             without_verifier_root_status: false,
             partner_unbound: false,
             verifier_scope: VerifierScope::Own,
-            service_for_partner: false,
-            third_party: false,
+            extra: Extra::None,
             expected,
         }
     }
@@ -344,7 +356,9 @@ fn status_scope_fixture(vector: Vector) -> CorpusFixture {
     let mut evidence_parties = chain.clone();
     let mut record = |entry: Entry, grant: Option<GrantId>| {
         let issuer = parties.get(entry.issuer);
-        let bound = entry.held && !(vector.partner_unbound && entry.issuer == Party::PartnerRoot);
+        let held = entry.placement != Placement::ProofOnly;
+        let carried = entry.placement != Placement::Snapshot;
+        let bound = held && !(vector.partner_unbound && entry.issuer == Party::PartnerRoot);
         let extensions = if entry.unknown_extension {
             CriticalExtensions::new(vec![
                 CriticalExtension::new(
@@ -377,10 +391,10 @@ fn status_scope_fixture(vector: Vector) -> CorpusFixture {
                 let signed = signed_principal_status(issuer, statement);
                 let identifier =
                     principal_status_id(signed.statement()).expect("principal status ID");
-                if entry.carried {
+                if carried {
                     carried_principal_status.push(signed.clone());
                 }
-                if entry.held {
+                if held {
                     principal_status.push(signed);
                 }
                 StatementRef::PrincipalStatus(identifier)
@@ -403,10 +417,10 @@ fn status_scope_fixture(vector: Vector) -> CorpusFixture {
                 .expect("grant status");
                 let signed = signed_grant_status(issuer, statement);
                 let identifier = grant_status_id(signed.statement()).expect("grant status ID");
-                if entry.carried {
+                if carried {
                     carried_grant_status.push(signed.clone());
                 }
-                if entry.held {
+                if held {
                     grant_status.push(signed);
                 }
                 StatementRef::GrantStatus(identifier)
@@ -441,13 +455,13 @@ fn status_scope_fixture(vector: Vector) -> CorpusFixture {
         status_rule(&parties.verifier_root, verifier_scope.clone()),
         status_rule(&parties.partner_root, StatusScope::OwnAnchor),
     ];
-    if vector.service_for_partner {
+    if vector.extra == Extra::ServiceForPartner {
         principal_trust.push(status_rule(
             &parties.service,
             listed_status_scope(&[&parties.partner_root]),
         ));
     }
-    if vector.third_party {
+    if vector.extra == Extra::ThirdParty {
         principal_trust.push(status_rule(&parties.third_root, StatusScope::OwnAnchor));
     }
     let grant_trust = vec![
@@ -477,7 +491,7 @@ fn status_scope_fixture(vector: Vector) -> CorpusFixture {
     if vector.proof == Proof::Manager {
         anchor_parties.push(Party::VerifierManager);
     }
-    if vector.third_party {
+    if vector.extra == Extra::ThirdParty {
         anchor_parties.push(Party::ThirdRoot);
     }
     let anchors = anchor_parties
@@ -682,7 +696,7 @@ pub(crate) fn status_scope_vectors() -> Vec<CorpusFixture> {
             principal_revoked,
         ),
         Vector {
-            service_for_partner: true,
+            extra: Extra::ServiceForPartner,
             ..vector(
                 "status-scope-listed-anchor-revokes",
                 Proof::Partner,
@@ -691,7 +705,7 @@ pub(crate) fn status_scope_vectors() -> Vec<CorpusFixture> {
             )
         },
         Vector {
-            service_for_partner: true,
+            extra: Extra::ServiceForPartner,
             ..vector(
                 "status-scope-listed-anchor-elsewhere",
                 Proof::Verifier,
@@ -768,7 +782,7 @@ pub(crate) fn status_scope_vectors() -> Vec<CorpusFixture> {
         // The partner cannot override the verifying organization's subject at
         // a third organization's boundary either.
         Vector {
-            third_party: true,
+            extra: Extra::ThirdParty,
             ..vector(
                 "status-scope-foreign-revokes-actor-at-third-party",
                 Proof::Verifier,

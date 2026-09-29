@@ -930,8 +930,8 @@ fn status_scope(kind: &str, anchors: Vec<String>) -> PyResult<StatusScope> {
         ("anchors", false) => Ok(StatusScope::Anchors(
             StatusScopeAnchors::new(
                 anchors
-                    .iter()
-                    .map(|id| TrustAnchorId::parse(id))
+                    .into_iter()
+                    .map(|id| TrustAnchorId::parse(&id))
                     .collect::<Result<Vec<_>, _>>()
                     .map_err(value_error)?,
             )

@@ -631,7 +631,7 @@
         "core/crates/auths-model/src/lib.rs",
         "core/spec/v1/auths-proof.cddl"
       ],
-      "sha256": "b0121f42286b9734bf4c20238fb98c9ffdbf42554f7a6fc7c3f3825512646b6c"
+      "sha256": "8d060e0202bcf19f47128eb131e6c764976dc28fc2a2879ac789f0f2ae4d85b2"
     },
     {
       "id": "auths.product.bounded-domains",
@@ -823,7 +823,7 @@
         "product/profiles/auths-profile-mcp/src/session.rs",
         "xtask/src/mcp_session_contract.rs"
       ],
-      "sha256": "c584b87d07f86f1b1deb6e11abdc7ece7f611eba8eb32e46343ef48cf2aa6256"
+      "sha256": "87ee22ae39304d9004a570453f00493bc4b8e69b31dc18e15505002a8ee1d8cd"
     },
     {
       "id": "auths.product.mechanism-profile-conformance",
