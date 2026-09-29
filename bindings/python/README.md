@@ -67,10 +67,10 @@ identities. To require that a threshold of named approvers sign one exact
 action before it is submitted, see
 [approval quorum](../../docs/product/APPROVAL_QUORUM.md). The installed `auths`
 command runs `auths generate` for exact-tool code and `auths approve` for
-approval requests. For the operator's side, `auths.self_hosted` compiles a
-trusted context (`compile_trusted_context`), issues a root grant through a
-custody signer (`author_root_grant`), and loads the `auths.approval-signer/1`
-files `auths approve` reads (`load_signer_file`).
+approval requests. For the operator's side, `auths.self_hosted` compiles the
+trust a gateway installs (`compile_trusted_context`), issues a root grant
+through a custody signer (`author_root_grant`), and loads the
+`auths.approval-signer/1` files `auths approve` reads (`load_signer_file`).
 
 For an application-owned provider adapter that is not an Auths-qualified
 vertical, see the

@@ -965,7 +965,7 @@
         "product/sdk/auths-sdk/Cargo.toml",
         "xtask/src/sdk_vocabulary.rs"
       ],
-      "sha256": "d88d7627daa8beb9d97d25e4cd9aef01a5816dd94abf0d6dd1fc5557d39e3500"
+      "sha256": "1efb20fd4f2c065019bca4243bb0c2a424e9b7330cc34d6a18cf6351e3457d69"
     },
     {
       "id": "auths.release.benchmark-contract",
