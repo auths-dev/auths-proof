@@ -1,0 +1,70 @@
+{
+  "schema": "auths.gateway-recipe-source/2",
+  "profile_schema_digest": "db3a47820a6f5c3ce3883068bea16542721e049cab8453a2af579c77a46d5c5e",
+  "service": "stripe-refunds",
+  "tool": "create_refund_v1",
+  "operator_namespace": "stripe-refunds",
+  "credential": {
+    "kind": "bearer",
+    "guard": {
+      "prefixes": ["rk_test_"],
+      "probe": {
+        "path": [{"kind": "fixed", "value": "v1"}, {"kind": "fixed", "value": "balance"}],
+        "json_pointer": "/livemode",
+        "equals": false,
+        "maximum_response_bytes": 16384
+      },
+      "account": {
+        "path": [{"kind": "fixed", "value": "v1"}, {"kind": "fixed", "value": "account"}],
+        "json_pointer": "/id",
+        "maximum_response_bytes": 65536
+      },
+      "denied_reads": [
+        {"method": "GET", "path": [{"kind": "fixed", "value": "v1"}, {"kind": "fixed", "value": "customers"}], "refused_status": [403]},
+        {"method": "GET", "path": [{"kind": "fixed", "value": "v1"}, {"kind": "fixed", "value": "payouts"}], "refused_status": [403]}
+      ]
+    }
+  },
+  "origin": "https://api.stripe.com",
+  "provider_headers": {"Stripe-Version": "2025-03-31.basil"},
+  "account_scope": {"header": "Stripe-Account", "field": "connect_account"},
+  "bounds": {"sum": {"argument": "amount", "partition": "currency"}},
+  "relative_ceiling": {
+    "argument": "amount",
+    "basis_points": 5000,
+    "path": [
+      {"kind": "fixed", "value": "v1"},
+      {"kind": "fixed", "value": "payment_intents"},
+      {"kind": "field", "name": "payment_intent"}
+    ],
+    "json_pointer": "/amount_received",
+    "bind": [{"pointer": "/currency", "field": "currency"}],
+    "maximum_response_bytes": 65536
+  },
+  "write": {
+    "method": "POST",
+    "path": [{"kind": "fixed", "value": "v1"}, {"kind": "fixed", "value": "refunds"}],
+    "body": {
+      "kind": "form",
+      "fields": {
+        "payment_intent": {"kind": "field", "name": "payment_intent"},
+        "amount": {"kind": "field", "name": "amount"}
+      }
+    },
+    "idempotency": {"kind": "derived-header", "retention_seconds": 86400}
+  },
+  "observation": {
+    "path": [
+      {"kind": "fixed", "value": "v1"},
+      {"kind": "fixed", "value": "refunds"},
+      {"kind": "response-field", "pointer": "/id", "max_bytes": 255}
+    ],
+    "json_pointer": "/amount",
+    "expected_field": "amount",
+    "maximum_response_bytes": 16384
+  },
+  "echo": {
+    "write": {"kind": "form-field", "name": "metadata[auths_echo]"},
+    "observe": "/metadata/auths_echo"
+  }
+}

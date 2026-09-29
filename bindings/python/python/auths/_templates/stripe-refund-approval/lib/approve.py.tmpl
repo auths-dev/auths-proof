@@ -1,0 +1,67 @@
+"""A manager answers one approval request with ``auths approve``.
+
+    bin/approve MANAGER REQUEST [--yes] [--decline]
+
+It runs the packaged CLI with that manager's own signer file, shows the
+review on standard error, and writes ``MANAGER.response`` beside the
+request. Without ``--yes`` the CLI asks before signing; nothing is signed by
+default. The manager's key never leaves ``managers/MANAGER/``.
+"""
+
+from __future__ import annotations
+
+import argparse
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any, Dict, List
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from common import PROJECT, CommandFailed, checked_config, inside, main  # noqa: E402
+
+
+def answer(arguments: List[str]) -> Dict[str, Any]:
+    parser = argparse.ArgumentParser(prog="bin/approve")
+    parser.add_argument("manager")
+    parser.add_argument("request", type=Path)
+    parser.add_argument("--yes", action="store_true", help="answer without a prompt")
+    parser.add_argument("--decline", action="store_true", help="sign a decline instead")
+    options = parser.parse_args(arguments)
+    config = checked_config(gateway=False)
+    if options.manager not in config["parameters"]["managers"]:
+        raise CommandFailed("auths.approve.unknown-manager", manager=options.manager)
+    request = inside(options.request)
+    response = request.parent / f"{options.manager}.response"
+    if response.exists():
+        raise CommandFailed("auths.approve.response-exists", response=str(response))
+    command = [
+        config["auths_cli"],
+        "approve",
+        str(request),
+        "--signer",
+        str(PROJECT / "managers" / options.manager / "signer.json"),
+        "--out",
+        str(response),
+    ]
+    if options.yes:
+        command.append("--yes")
+    if options.decline:
+        command.append("--decline")
+    # The review and the prompt go to this terminal; the CLI writes the
+    # response file itself.
+    answered = subprocess.run(command, stdout=subprocess.DEVNULL, cwd=PROJECT)
+    result = {
+        "manager": options.manager,
+        "decision": "decline" if options.decline else "approve",
+        "exit": answered.returncode,
+        "signed": response.exists(),
+        "response": str(response) if response.exists() else None,
+    }
+    if answered.returncode != 0:
+        raise CommandFailed("auths.approve.not-signed", **result)
+    return result
+
+
+if __name__ == "__main__":
+    main({"answer": answer})

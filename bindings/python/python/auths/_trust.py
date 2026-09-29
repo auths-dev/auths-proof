@@ -202,14 +202,18 @@ def compile_trust(
     evidence_types: Sequence[str] = (),
     critical_extensions: Sequence[str] = (),
     offline_evidence: Optional[OfflineEvidenceBundle] = None,
+    configuration: Optional[bytes] = None,
 ) -> CompiledTrust:
+    """Compiles typed anchors into a trusted context that pins
+    ``configuration``, the 32-byte verifier configuration, or this package's
+    own verifier when it is ``None``."""
     anchor_values = tuple(anchors)
     if not anchor_values or any(
         type(value) is not TrustAnchor for value in anchor_values
     ):
         raise ValueError("trust requires at least one typed anchor")
     context = native.compile_trusted_context(
-        native.self_contained_configuration(),
+        native.self_contained_configuration() if configuration is None else configuration,
         None if expected_plan is None else _native_proof_plan(expected_plan),
         minimum_authorized_branches,
         minimum_distinct_actors,

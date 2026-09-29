@@ -9,7 +9,7 @@
       "typescriptEntryPoints": 10,
       "typescriptPublicSymbols": 161,
       "pythonModules": 15,
-      "pythonPublicSymbols": 175,
+      "pythonPublicSymbols": 185,
       "maintainedTypescriptRecipes": 2,
       "maintainedPythonRecipes": 2
     },
