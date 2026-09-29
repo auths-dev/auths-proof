@@ -20,7 +20,8 @@ def thresholdCounts := Generated.thresholdCounts
 def thresholdTwo : Nat → Truth → Truth → Truth
   | 0, _, _ => .authorized
   | 1, left, right => any left right
-  | _, left, right => all left right
+  | 2, left, right => all left right
+  | _, _, _ => .denied
 
 theorem all_commutative (left right : Truth) : all left right = all right left := by
   cases left <;> cases right <;> rfl
@@ -50,6 +51,54 @@ theorem threshold_monotone_k (left right : Truth) :
     Truth.le (thresholdTwo 2 left right) (thresholdTwo 1 left right) := by
   cases left <;> cases right <;>
     simp [Truth.le, Truth.rank, thresholdTwo, all, any]
+
+/-- K = 0 and K ≥ 3 lie outside the product's domain, since the wire format
+and plan validation reject them; over two inputs they take the threshold
+formula's values. -/
+theorem threshold_zero_authorized (left right : Truth) :
+    thresholdTwo 0 left right = .authorized := rfl
+
+theorem threshold_above_inputs_denied {k : Nat} (above : 3 ≤ k) (left right : Truth) :
+    thresholdTwo k left right = .denied := by
+  match k, above with
+  | k + 3, _ => rfl
+
+/-- Increasing k cannot improve a result, for every k. -/
+theorem threshold_antitone_k {k₁ k₂ : Nat} (raise : k₁ ≤ k₂) (left right : Truth) :
+    Truth.le (thresholdTwo k₂ left right) (thresholdTwo k₁ left right) := by
+  match k₁, k₂, raise with
+  | 0, 0, _ | 1, 1, _ | 2, 2, _ =>
+      simp [Truth.le]
+  | 0, 1, _ | 0, 2, _ | 1, 2, _ =>
+      cases left <;> cases right <;>
+        simp [Truth.le, Truth.rank, thresholdTwo, all, any]
+  | k₁, k₂ + 3, _ =>
+      simp [Truth.le, Truth.rank, thresholdTwo]
+  | k₁ + 3, 0, raise | k₁ + 3, 1, raise | k₁ + 3, 2, raise => omega
+
+/-- The same law for the generated count function that the verifier runs. -/
+theorem thresholdCounts_antitone_required {k₁ k₂ a i : Nat} (raise : k₁ ≤ k₂) :
+    Truth.le (thresholdCounts k₂ a i) (thresholdCounts k₁ a i) := by
+  simp only [Truth.le, thresholdCounts, Generated.thresholdCounts]
+  split <;> split <;> (try split) <;> (try split) <;> simp [Truth.rank] <;> omega
+
+/-- The two-input helper is the generated count function over its two inputs,
+for every k. -/
+theorem thresholdTwo_eq_thresholdCounts (k : Nat) (left right : Truth) :
+    thresholdTwo k left right =
+      thresholdCounts k
+        ([left, right].countP (· == .authorized))
+        ([left, right].countP (· == .indeterminate)) := by
+  match k with
+  | 0 => simp [thresholdTwo, thresholdCounts, Generated.thresholdCounts]
+  | 1 | 2 =>
+      cases left <;> cases right <;> decide
+  | k + 3 =>
+      have total : [left, right].countP (· == .authorized) +
+          [left, right].countP (· == .indeterminate) ≤ 2 := by
+        cases left <;> cases right <;> decide
+      simp only [thresholdTwo, thresholdCounts, Generated.thresholdCounts]
+      rw [if_neg (by omega), if_neg (by omega)]
 
 theorem binary_composition_swap_invariant (left right : Truth) :
     all left right = all right left ∧ any left right = any right left :=
