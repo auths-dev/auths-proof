@@ -44,7 +44,7 @@ use serde_json::{Map, Value, json};
 use sha2::{Digest as _, Sha256};
 use std::path::Path;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 pub(crate) const SERVICE: &str = "gateway-observer-test";
 pub(crate) const TOOL: &str = "set_status_v1";
@@ -745,7 +745,11 @@ impl SubmitIo for HarnessIo<'_> {
     }
 
     async fn prepare(&self) -> Result<(), &'static str> {
-        Ok(())
+        if self.harness.entry_disabled.load(Ordering::SeqCst) {
+            Err("gateway.connection.unavailable")
+        } else {
+            Ok(())
+        }
     }
 
     async fn reload(&self) -> bool {
@@ -807,6 +811,9 @@ pub(crate) struct Harness {
     pub(crate) store: GatewayAttempts,
     pub(crate) provider: CountingProvider,
     pub(crate) observer: GatewayObserver,
+    /// Refuses every entry at preparation, as the engine does while the
+    /// connection is disabled or revoked.
+    entry_disabled: AtomicBool,
 }
 
 impl Harness {
@@ -840,7 +847,16 @@ impl Harness {
             store,
             provider: CountingProvider::new(),
             observer,
+            entry_disabled: AtomicBool::new(false),
         }
+    }
+
+    /// Refuses every later submission before its claim with
+    /// `gateway.connection.unavailable`, as a disabled or revoked connection
+    /// does. Nothing is recorded, so the gateway signs no outcome for it.
+    #[cfg(test)]
+    pub(crate) fn disable_entry(&self) {
+        self.entry_disabled.store(true, Ordering::SeqCst);
     }
 
     /// Runs the engine's submission driver at `now`. A replay never writes

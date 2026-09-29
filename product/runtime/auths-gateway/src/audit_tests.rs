@@ -1,5 +1,5 @@
-//! Offline audit `/2` with real proofs: the provider result beside each
-//! verdict, the relative-ceiling check, and the pre-entry check.
+//! Offline audit with real proofs: the provider result beside each verdict,
+//! the relative-ceiling check, and the pre-entry check.
 //!
 //! Outcomes the gateway would never sign, such as one whose basis does not
 //! admit its argument, are signed here with the test observer's key: the
@@ -71,6 +71,20 @@ fn pre_entry_recipe() -> (Vec<u8>, Vec<u8>, CompiledRecipe) {
                 "pointers": ["/fields/DemoStatus"],
                 "maximum_response_bytes": 16_384
             });
+        },
+    )
+}
+
+/// A recipe whose `Stripe-Account` header carries the verified `account`.
+fn account_scoped_recipe() -> (Vec<u8>, Vec<u8>, CompiledRecipe) {
+    edited_recipe(
+        &json!({"account": {"kind": "string", "minimum": 1, "maximum": 64}}),
+        &json!({}),
+        |source| {
+            if let Some(object) = source.as_object_mut() {
+                object.remove("preconditions");
+            }
+            source["account_scope"] = json!({"header": "Stripe-Account", "field": "account"});
         },
     )
 }
@@ -213,7 +227,7 @@ fn audit_flags_a_basis_that_does_not_admit_its_argument() {
     ];
     let (bytes, pins, _) = bundle(&source, &lock, &harness.context, &entries);
     let report = audit(&bytes, &pins);
-    assert_eq!(report.schema, "auths.gateway-audit-report/2");
+    assert_eq!(report.schema, "auths.gateway-audit-report/3");
     assert_eq!(report.recovery["class"], "linked");
     assert_eq!(
         verdicts(&report),
@@ -242,6 +256,62 @@ fn audit_flags_a_basis_that_does_not_admit_its_argument() {
         Some(hex::encode([0x0d; 32]).as_str())
     );
     assert_eq!(report.inconsistent, 2);
+}
+
+/// The audit applies the recipe's account-scope binding, as the gateway does
+/// before the claim: an action whose authority binds no account is refused.
+/// An entered outcome for one is inconsistent, and the same action without an
+/// outcome is a refusal the audit itself confirms.
+#[test]
+fn audit_applies_the_account_scope_binding() {
+    use AuditStatus::{Inconsistent, Unverified};
+    let (source, lock, recipe) = account_scoped_recipe();
+    let harness = Harness::open(recipe.clone(), Backend::File);
+    let sign = |operation: &str| {
+        let arguments = harness.arguments(
+            operation,
+            RECORD,
+            &json!({"account": "acct_1AuthsTestAcct"}),
+        );
+        harness.sign(None, &arguments, &[])
+    };
+    let entered = sign("entered-unbound");
+    let refused = sign("refused-unbound");
+    let entries = vec![
+        entry(
+            "entered-unbound",
+            &entered,
+            Some(&signed_outcome(
+                &recipe,
+                "entered-unbound",
+                &entered,
+                |_| {},
+            )),
+        ),
+        entry("refused-unbound", &refused, None),
+    ];
+    let (bytes, pins, _) = bundle(&source, &lock, &harness.context, &entries);
+    let report = audit(&bytes, &pins);
+    let rows: Vec<(AuditStatus, String, bool)> = report
+        .entries
+        .iter()
+        .map(|entry| (entry.status, entry.code.clone(), entry.admitted))
+        .collect();
+    assert_eq!(
+        rows,
+        vec![
+            (
+                Inconsistent,
+                "audit.entered-without-authority".to_owned(),
+                false
+            ),
+            (
+                Unverified,
+                "gateway.account-scope.unbound".to_owned(),
+                false
+            ),
+        ]
+    );
 }
 
 /// An entered entry's outcome must carry the counter set the audit derives

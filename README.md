@@ -40,7 +40,7 @@ against a local Stripe double, and never calls Stripe. It checks each of these:
 | A key without the `rk_test_` prefix, at install | refused | 0 |
 | A refund above half the payment, or in another currency than the payment | refused after reading the payment | reads only |
 | Stripe reporting another account for the key, or allowing a read the key must be refused | refused after reading the key's account and permissions | reads only |
-| Four tampered audit bundles: a flipped proof byte, a swapped action, a replayed outcome, and replaced trust | the offline audit flags each | none |
+| Five tampered audit bundles: a flipped proof byte, a swapped action, a replayed outcome, a removed outcome, and replaced trust | the offline audit flags each | none |
 
 The first refusals happen before the gateway touches the Stripe key; the
 last two kinds happen after it reads from Stripe and before any refund is
@@ -62,8 +62,11 @@ own test key.
   checks the limits before it uses the provider credential. The agent never
   holds the credential.
 - **Offline audit.** `auths-gateway audit` re-verifies each action in an
-  exported bundle, with no network, and flags tampering. It cannot show that no
-  action was left out of the bundle.
+  exported bundle, with no network, and flags tampering in the entries that
+  carry the gateway's signed outcome. An entry without one is reported
+  `unverified` and fails the audit, unless the auditor accepts those whose
+  proof the audit itself refuses. It cannot show that no action was left out
+  of the bundle.
 - **Checked independently.** A Rust verifier and independent Go and TypeScript
   verifiers agree on a shared corpus of test vectors. Lean proofs cover the
   delegation ordering and the K-of-N approval algebra, not the whole verifier.

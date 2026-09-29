@@ -126,6 +126,11 @@ held which key, is operator evidence and is not produced by this code.
   (`gateway.connection.credential-generation-missing`). A later disable or
   enable leaves every process that holds the secret able to lease. After a
   revocation, run `revoke` on each process to delete its stored secrets.
+  A submission refused while the connection is disabled or revoked is
+  refused before the claim, so the gateway records nothing and signs no
+  outcome for it. A valid proof refused this way is `unverified` in the
+  offline audit and fails it, with or without `--allow-unverified-refusals`;
+  explain such entries from the attempt store.
   A store holding an `auths.provider-connection/1` record is obsolete
   prelaunch state: recreate it.
 - **Development** installations keep the single-host file store under
@@ -150,7 +155,10 @@ held which key, is operator evidence and is not produced by this code.
   observer (`GatewayObserver::from_custody`). The `auths-gateway` binary has
   no maintained KMS or PKCS#11 client yet, so a production gateway currently
   runs without signing observations; observation requests are refused with
-  `gateway.observer.not-provisioned`.
+  `gateway.observer.not-provisioned`. Its audit bundles therefore carry no
+  outcomes: `auths-gateway audit` reports every entry `unverified` and exits
+  non-zero (`audit.unverified`), and `--allow-unverified-refusals` does not
+  change that for any entry whose proof verifies.
 
 ## 3. Observer key rotation
 

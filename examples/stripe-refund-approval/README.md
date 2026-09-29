@@ -211,15 +211,22 @@ its own grant (`python refunds.py grant --agent agent-checks --max-count 4`):
 python refunds.py export --state "$WORK/state" --out audit-bundle.json
 ```
 
-It holds every submitted proof and action, the gateway-signed outcome of
-each, every approval response the agent collected (declines included), and
-the installed recipe and trusted context.
+It holds every submitted proof and action, every approval response the agent
+collected (declines included), and the installed recipe and trusted context.
+Each entry also carries the gateway-signed outcome, when the gateway recorded
+that submission. The gateway records nothing, and so signs no outcome, for a
+submission it refuses before it claims the operation: a proof that does not
+verify, a refund above the ceiling or in an account the grant does not list,
+or any submission while the connection is disabled, revoked, or cannot be
+prepared, or while the attempt store or the clock is unavailable. Three of
+step 7's refusals are such entries.
 
 **9. Audit offline.** With the gateway stopped and the network off:
 
 ```sh
 auths-gateway audit --bundle audit-bundle.json \
-  --trusted-context-sha256 <from step 3> --observer <from step 5>
+  --trusted-context-sha256 <from step 3> --observer <from step 5> \
+  --allow-unverified-refusals
 ```
 
 For every refund it re-verifies, with the gateway's own verifier:
@@ -229,6 +236,8 @@ For every refund it re-verifies, with the gateway's own verifier:
   approving principals);
 - the ceiling, and the per-window count and per-currency sum recounted
   across the bundle without relying on the order of the entries;
+- the connected account: every bounded grant the refund rests on lists the
+  account it names, as the recipe's account scope requires;
 - the gateway-signed outcome: signed by the pinned observer, for this exact
   action, with its recorded stage, the time the gateway evaluated it, the
   counters it reserved, which must match the ones the audit derives, and
@@ -243,11 +252,26 @@ approved and who declined. Responses never change a verdict: only the verified
 proof counts an approval, and a decline carries no authority.
 
 Each entry is `verified` (`audit.verified`), `refused` with the gateway's
-stable code, or `inconsistent` with an `audit.*` finding. The command exits
-non-zero when any entry is inconsistent or the bundle's trusted context is
-not the pinned one: a flipped proof byte (`audit.entered-without-authority`),
-a swapped action (`audit.outcome-commitment-mismatch`), a replayed outcome
-(`audit.outcome-invalid`), or replaced trust (`audit.trust-pin-mismatch`).
+stable code, `unverified`, or `inconsistent` with an `audit.*` finding.
+`verified` and `refused` rest on the outcome the gateway signed. An entry
+without one is `unverified`: the audit still re-verifies its proof, and
+`admitted` says whether the proof passed, but nothing in the bundle shows
+what the gateway did with it.
+
+The command exits non-zero when it refuses the bundle as a whole, as for
+replaced trust (`audit.trust-pin-mismatch`); when any entry is inconsistent
+(`audit.inconsistent`), as for a flipped proof byte
+(`audit.entered-without-authority`), a swapped action
+(`audit.outcome-commitment-mismatch`), or a replayed outcome
+(`audit.outcome-invalid`); and when any entry is unverified
+(`audit.unverified`). `--allow-unverified-refusals` lets an unverified entry
+pass when the audit itself refuses its proof, as for the three refusals of
+step 7 that the gateway made before recording anything. An unverified entry
+whose proof verifies still fails: a refund whose outcome was left out of the
+export, or a valid refund the gateway refused while its connection was
+disabled. The option has a cost: a refund whose outcome was removed and whose
+proof was then altered also passes, as `unverified`, just as a refund removed
+from the bundle would.
 
 **10. Or run all of it unattended.**
 
@@ -257,13 +281,15 @@ python journey.py --gateway "$(command -v auths-gateway)"
 
 This runs steps 3–9 with every manager answering through `auths approve`:
 a declined manager, a tampered request, a key without `rk_test_` refused at
-install, the refusals of step 7 before and after the credential lease, and
-the four tampering cases. It checks every result, including exactly two
-Stripe writes (refund 1, and the rejected refund 4), no write for any
-refusal and no Stripe call at all for the refusals before the lease, the
-`Idempotency-Key` each write carried, `Stripe-Version` on every request,
-`Stripe-Account` on every request about the refund and on none that tests
-the key, refund 1's read-back, and the audit's `http_status` of 200 and 400.
+install, the refusals of step 7 before and after the credential lease, the
+audit with and without `--allow-unverified-refusals`, five tampering cases,
+and one case that shows the limit of that option. It checks every result,
+including exactly two Stripe writes (refund 1, and the rejected refund 4), no
+write for any refusal and no Stripe call at all for the refusals before the
+lease, the `Idempotency-Key` each write carried, `Stripe-Version` on every
+request, `Stripe-Account` on every request about the refund and on none that
+tests the key, refund 1's read-back, and the audit's `http_status` of 200 and
+400.
 It prints timings. It then restores the gateway's store from a backup taken
 before the first refund, which keeps the shared connection record but no
 claim, and resubmits refund 1's approved proof. With the claim gone the
@@ -372,6 +398,13 @@ install step, on stdin; the secret key reaches only `curl`.
   recipe, not of the threshold.
 - The audit checks the entries in the bundle. It cannot show that none were
   left out; the gateway's attempt store is the complete record.
+- An `unverified` entry is evidence neither way: without the gateway's signed
+  outcome, the bundle does not show whether the gateway entered the provider.
+  `--allow-unverified-refusals` accepts such an entry only when the audit
+  itself refuses its proof, so it also accepts a refund whose outcome was
+  removed and whose proof was then altered, as it would a refund removed from
+  the bundle. A production gateway signs no outcomes yet (above), so its
+  bundles fail the audit with or without the option.
 - The per-window count and sum are recounted at the time the gateway
   evaluated each submission, which its signed outcome carries, so an outcome
   requested in a later window still counts in its submission's window.

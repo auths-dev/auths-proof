@@ -302,24 +302,29 @@ observer key is provisioned, it signs that record on request as
 `auths.gateway-outcome/2`, with the counter-set digest, the pre-entry
 digest, and the relative-ceiling basis when recorded; the gateway refuses
 to sign, and the auditor refuses to accept, any fact set its stage could not
-carry. The offline audit (`auths.gateway-audit-report/2`) re-verifies each
-entry at the outcome's `evaluated-at`, requires the counters it derives to
+carry. The offline audit (`auths.gateway-audit-report/3`) re-verifies each
+entry at the outcome's `evaluated-at`, with the recipe's account-scope
+binding when it declares one, requires the counters it derives to
 digest to the outcome's `counters-digest`, recounts the count and sum bounds
 without order, requires a relative-ceiling recipe's outcomes to carry a
 basis that admits the re-derived argument and a pre-entry recipe's
 observations to satisfy the selected requirements, and reports the
 provider's result beside `verified`, which still means authorized and
-entered. `auths-gateway echo-verify` checks offline whether a provider
-record an auditor fetched holds one action's echo token.
+entered. An entry without a signed outcome is reported `unverified` and
+fails the audit; `--allow-unverified-refusals` passes it only when the audit
+itself refuses its proof. `auths-gateway echo-verify` checks offline whether
+a provider record an auditor fetched holds one action's echo token.
 
 **Not a claim.** Provider effect, acceptance, or settlement: a refund the
 provider rejected is `verified` with its `http_status` of 400 beside it.
 That the relative-ceiling basis or any recorded status is true of the
 provider: both are the gateway's assertion under observer trust. That an
 echo match shows who wrote the record. That an audit bundle is complete.
-Until AP-SPEC-038 Epic 4 supplies a custody client, a production gateway
-signs no outcomes, so every authorized entry audits as `refused` with
-`audit.outcome-missing`.
+That an `unverified` entry shows what the gateway did, or that
+`--allow-unverified-refusals` detects alteration: it also passes an altered
+proof whose outcome was removed. Until AP-SPEC-038 Epic 4 supplies a custody
+client, a production gateway signs no outcomes, so every entry audits as
+`unverified` and the audit fails.
 
 Current evidence is `bindings/fixtures/gateway/outcome-v2.json`: Rust
 verifies every accepted vector with its exact facts and refuses every
