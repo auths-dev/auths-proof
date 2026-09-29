@@ -1554,6 +1554,7 @@ principal-evidence-integration = [
   "product/runtime/auths-gateway/src/audit_tests.rs#audit_flags_a_basis_that_does_not_admit_its_argument",
   "product/runtime/auths-gateway/src/audit_tests.rs#audit_requires_the_counter_set_the_audit_derives",
   "product/runtime/auths-gateway/src/audit_tests.rs#audit_checks_the_pre_entry_observations",
+  "product/runtime/auths-gateway/src/audit_tests.rs#audit_applies_the_account_scope_binding",
   "product/runtime/auths-gateway/src/pending_vectors/outcomes.rs#outcome_v2_vectors_are_current",
   "product/runtime/auths-gateway/src/pending_vectors/outcomes.rs#outcome_verifier_accepts_every_vector_with_its_facts_and_refuses_the_rest",
   "product/runtime/auths-gateway/src/pending_vectors/outcomes.rs#outcome_verdicts_follow_the_stage_condition",
