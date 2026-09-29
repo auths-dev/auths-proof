@@ -1485,7 +1485,7 @@ async fn offline_audit_lists_recorded_approval_responses_without_changing_verdic
     );
     let mut malformed = bundle.clone();
     malformed["approval_responses"] =
-        json!([{"operation_id": "refund-declined", "response": "auths-as1-AAAA"}]);
+        json!([{"operation_id": "refund-declined", "response": "auths-as2-AAAA"}]);
     assert_eq!(
         crate::audit_bundle(
             &serde_json::to_vec(&malformed).expect("bundle"),
