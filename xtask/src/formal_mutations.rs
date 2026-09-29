@@ -512,9 +512,35 @@ fn top_level_declaration(line: &str) -> Option<String> {
 }
 
 /// First and last line, and name, of the top-level declaration holding `line`.
+/// Lean reports an error in a declaration at the start of its doc comment or
+/// attribute, so a line inside a leading doc comment belongs to the
+/// declaration that follows it.
 fn declaration_around(source: &str, line: usize) -> (usize, usize, String) {
     let lines: Vec<&str> = source.split('\n').collect();
-    let mut first = line.min(lines.len()).max(1);
+    let line = line.min(lines.len()).max(1);
+    let leading = lines[line - 1].starts_with("/--") || lines[line - 1].starts_with("@[");
+    if leading {
+        let mut cursor = line - 1;
+        let mut closed = !lines[cursor].starts_with("/--") || lines[cursor].contains("-/");
+        while cursor + 1 < lines.len() && !closed {
+            cursor += 1;
+            closed = lines[cursor].contains("-/");
+        }
+        while cursor + 1 < lines.len() {
+            cursor += 1;
+            if let Some(name) = top_level_declaration(lines[cursor]) {
+                let mut last = cursor + 1;
+                while last < lines.len() && top_level_declaration(lines[last]).is_none() {
+                    last += 1;
+                }
+                return (line, last, name);
+            }
+            if !lines[cursor].starts_with("@[") {
+                break;
+            }
+        }
+    }
+    let mut first = line;
     let mut name = String::new();
     while first >= 1 {
         if let Some(found) = top_level_declaration(lines[first - 1]) {
@@ -652,7 +678,9 @@ fn apply(text: &str, planned: &Planned) -> Result<String, String> {
     Ok(mutated)
 }
 
-fn first_error(output: &str) -> Option<(String, usize, usize)> {
+/// Every Lean error location in a Lake log, in log order.
+fn error_locations(output: &str) -> Vec<(String, usize, usize)> {
+    let mut found = Vec::new();
     for line in output.lines() {
         let Some(rest) = line.strip_prefix("error: ") else {
             continue;
@@ -675,10 +703,25 @@ fn first_error(output: &str) -> Option<(String, usize, usize)> {
             continue;
         }
         if let (Ok(line), Ok(column)) = (line_text.parse(), column_text.parse()) {
-            return Some((file.to_owned(), line, column));
+            found.push((file.to_owned(), line, column));
         }
     }
-    None
+    found
+}
+
+/// The first error, chosen so that the same mutant always names the same
+/// location although Lake builds failing modules in parallel: the earliest
+/// error in the mutated file when it has one (its dependents then never
+/// build), otherwise the least location by file, line, and column.
+fn first_error(
+    errors: &[(String, usize, usize)],
+    mutated_file: &str,
+) -> Option<(String, usize, usize)> {
+    let in_file = errors
+        .iter()
+        .filter(|(file, _, _)| file == mutated_file)
+        .min_by_key(|(_, line, column)| (*line, *column));
+    in_file.or_else(|| errors.iter().min()).cloned()
 }
 
 fn copy_tree(source: &Path, destination: &Path) -> Result<(), String> {
@@ -751,7 +794,8 @@ fn run_one(worker: &Path, planned: &Planned) -> Result<Mutant, String> {
     if output.status.success() {
         return Ok(mutant);
     }
-    let (file, line, column) = first_error(&text).ok_or_else(|| {
+    let errors = error_locations(&text);
+    let (file, line, column) = first_error(&errors, &planned.file).ok_or_else(|| {
         format!(
             "{} {}: lake failed without a Lean error location:\n{}",
             planned.campaign,
@@ -779,7 +823,12 @@ fn run_one(worker: &Path, planned: &Planned) -> Result<Mutant, String> {
         && !stillborn
     {
         let short = witness.rsplit('.').next().unwrap_or(witness);
-        let at_witness = file == "Auths/Rich/Mutations.lean" && declaration == short;
+        let witnesses =
+            fs::read_to_string(worker.join("Auths/Rich/Mutations.lean")).unwrap_or_default();
+        let at_witness = errors.iter().any(|(error_file, error_line, _)| {
+            error_file == "Auths/Rich/Mutations.lean"
+                && declaration_around(&witnesses, *error_line).2 == short
+        });
         mutant.caught = Some(if at_witness { "witness" } else { "elsewhere" }.to_owned());
     }
     mutant.first_error = Some(ErrorLocation {
@@ -1063,9 +1112,30 @@ mod tests {
     #[test]
     fn first_error_reads_lake_locations() {
         let output = "✖ [4/4] Building Auths.Composition\nerror: Auths/Composition.lean:55:0: Not a definitional equality\nerror: build failed\n";
+        let errors = error_locations(output);
         assert_eq!(
-            first_error(output),
+            first_error(&errors, "Auths/Other.lean"),
             Some(("Auths/Composition.lean".to_owned(), 55, 0))
         );
+        let parallel = vec![
+            ("Auths/B.lean".to_owned(), 3, 0),
+            ("Auths/A.lean".to_owned(), 9, 2),
+            ("Auths/M.lean".to_owned(), 7, 1),
+        ];
+        assert_eq!(
+            first_error(&parallel, "Auths/X.lean"),
+            Some(("Auths/A.lean".to_owned(), 9, 2))
+        );
+        assert_eq!(
+            first_error(&parallel, "Auths/M.lean"),
+            Some(("Auths/M.lean".to_owned(), 7, 1))
+        );
+    }
+
+    #[test]
+    fn an_error_at_a_doc_comment_belongs_to_the_next_declaration() {
+        let source = "theorem a : True := trivial\n\n/-- About b,\nover two lines. -/\ntheorem b : True := trivial\n";
+        assert_eq!(declaration_around(source, 3).2, "b");
+        assert_eq!(declaration_around(source, 1).2, "a");
     }
 }

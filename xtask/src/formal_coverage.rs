@@ -3133,7 +3133,7 @@ fn render_document(json: &Value, measurement: &Measurement) -> String {
     let _ = writeln!(out);
     let _ = writeln!(
         out,
-        "`cargo xtask formal mutations` runs study 006's three campaigns: S1 applies each case of `formal/refinement-mutations-v1.json`, S2 mutates comparison, Boolean, and result-position operators in the model's `def` bodies, and S3 replaces each translated function's body with `fail .panic`. A mutant is killed when the build of the audited targets fails; the first error and its declaration are recorded, and for S1 a first error outside the case's named witness is reported as killed elsewhere. Every survivor must be fixed or explained before a release; pull requests are not blocked."
+        "`cargo xtask formal mutations` runs study 006's three campaigns: S1 applies each case of `formal/refinement-mutations-v1.json`, S2 mutates comparison, Boolean, and result-position operators in the model's `def` bodies, and S3 replaces each translated function's body with `fail .panic`. A mutant is killed when the build of the audited targets fails, and stillborn when its first error lies in the mutated definition itself. The first error (the earliest in the mutated file, else the least location among the failing modules, so that parallel builds record the same one) and its declaration are recorded; an S1 mutant whose build reports no error in its case's named witness is reported as killed elsewhere. Every survivor must be fixed or explained before a release; pull requests are not blocked."
     );
     let _ = writeln!(out);
     let mutation = &json["mutation_adequacy"];
