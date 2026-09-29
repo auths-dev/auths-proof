@@ -7,7 +7,7 @@
 At the commit that contains this document, 103 of 960 decision-scope functions (10.7%) and 1,201 of 10,424 code lines (11.5%) are translated to Lean and reached from audited theorem statements, and 15 of 78 kernel check sites map only to such functions. The rest of the decision path, including the staged verifier control flow, the composition evaluator, the registry handlers, the codec, and the signature suites, is tested, not proved.
 
 - Revision: the commit that contains this document and `formal/proof-coverage-v1.json`; a release binds it in its assurance evidence.
-- Measurement inputs: sha256 `6ef84419629c1057b32ca42dd8fbcbe8ab896035378becdcb34d627611775da6` over the 86 files listed in `formal/proof-coverage-v1.json`.
+- Measurement inputs: sha256 `6b17e8c26fe025992e5f428c575915e7ce3941d8102e268ca5f771526fa6332f` over the 86 files listed in `formal/proof-coverage-v1.json`.
 - Tool: `cargo xtask formal coverage`, version 1.
 - Toolchain pins: `formal/lean-toolchain` = `leanprover/lean4:v4.31.0`; `formal/translation-toolchain.lock` sha256 `0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53`.
 - Role table: `formal/coverage-scope-v1.toml`, sha256 `b3243135c3122e985f3e750e78493ffb0c3bdf316dab629bd00c6a8bca7ce7ed`. Figures computed under a different role table are not comparable.
@@ -181,7 +181,7 @@ None: every function Aeneas translates is in the refined closure.
 
 `cargo xtask formal mutations` runs study 006's three campaigns: S1 applies each case of `formal/refinement-mutations-v1.json`, S2 mutates comparison, Boolean, and result-position operators in the model's `def` bodies, and S3 replaces each translated function's body with `fail .panic`. A mutant is killed when the build of the audited targets fails, and stillborn when its first error lies in the mutated definition itself. The first error (the earliest in the mutated file, else the least location among the failing modules, so that parallel builds record the same one) and its declaration are recorded; an S1 mutant whose build reports no error in its case's named witness is reported as killed elsewhere. Every survivor must be fixed or explained before a release; pull requests are not blocked.
 
-**Some results predate the current formal sources** (current formal inputs `d5eb4d86fe27dac93e83f3a05eae28b4217035abc18a04ada2c5c6bb1ca2da02`); re-run the stale campaigns before a release.
+**Some results predate the current formal sources** (current formal inputs `9aafb305a47044cac97e5db552e638f9772220b0ac00203af0d7be0052a8709d`); re-run the stale campaigns before a release.
 
 | Campaign | Mutants | Killed | Of which killed elsewhere | Survived | Stillborn | Current |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |

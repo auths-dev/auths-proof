@@ -3,6 +3,7 @@ import Auths.Authority
 import Auths.Attenuation
 import Auths.Composition
 import Auths.Diversity
+import Auths.Approval
 import Auths.Refinement.Production
 import Auths.Refinement.Observation
 import Auths.Rich.Mutations
