@@ -21,8 +21,8 @@ work cost that is reserved before invocation.
 | Critical extension | `exact-marker-v1` | Requires the exact byte string `h'01'` and otherwise changes no authority. Attenuation law: byte equality; adding it is refused |
 | Critical extension | `observation-requirement-v1` | Bytes are canonical `observation-requirements`; the observation stage evaluates those carried by grants, and one on an action has no effect. Attenuation law: every parent requirement kept byte-identical or strictly narrowed; the child may add requirements, and adding the extension is accepted |
 | Critical extension | `bounded-policy-commitment-v1` | Bytes are a canonical `bounded-policy-commitment` whose policy bytes open to the committed digest; core never reads the policy. Attenuation law: a child keeps a bound only by linking the digest of its parent's exact extension bytes, and adds one to an unbounded parent only without a link |
-| Principal status | `auths-principal-status-v1` | Trusted issuer, method, floor, freshness, and revoked-dominant latest selection, keyed on the principal alone |
-| Grant status | `auths-grant-status-v1` | Same selection rules as principal status, keyed on the grant |
+| Principal status | `auths-principal-status-v1` | Over the statements in scope for the branch's trust anchor: trusted issuer, method, floor, freshness, and revoked-dominant latest selection, keyed on the principal alone |
+| Grant status | `auths-grant-status-v1` | Same scope and selection rules as principal status, keyed on the grant |
 
 Critical-extension, assurance-claim, and assurance-implication lookups are
 also exact executable lookups. An identifier listed by the context without an
@@ -156,10 +156,12 @@ checks the extensions of each statement about that subject, in canonical
 order, and the first extension decides: an identifier the context does not
 accept is `critical-extension-unknown`, and an accepted one is
 `unsupported-critical-extension`. This holds for every statement about the
-subject, whatever its method or issuer and whether or not selection would
-pick it, because each takes part in selection. A statement about a principal
-or grant the verifier does not evaluate, such as one outside the branch or
-under an `ExpiryOnly` policy, is not checked.
+subject that is in scope for the branch's trust anchor, whatever its method
+or issuer and whether or not selection would pick it, because each takes part
+in selection. A statement about a principal or grant the verifier does not
+evaluate, such as one outside the branch or under an `ExpiryOnly` policy, is
+not checked, and neither is a statement whose issuer's scope does not cover
+the branch's trust anchor (`verification-algorithm.md`, "Principal status").
 
 A status extension, such as one restricting a statement to a role or a
 scope, requires a protocol review, an executable model of how selection

@@ -326,10 +326,29 @@ grant-status-snapshot = {
   5: [*1024 status-trust-rule],
 }
 
+; The branches in which a status issuer's statements count, named by the
+; trust anchor each branch is evaluated under. Every rule that names one
+; issuer in one snapshot carries the same scope.
+own-anchor-status-scope = {
+  0: 0,                     ; anchors whose principal is the issuer
+}
+listed-anchors-status-scope = {
+  0: 1,
+  1: [1*1024 bounded-id],   ; local trust-anchor IDs, strictly ascending UTF-8 byte order
+}
+any-anchor-status-scope = {
+  0: 2,                     ; every anchor: the verifier's own authority
+}
+status-scope =
+  own-anchor-status-scope /
+  listed-anchors-status-scope /
+  any-anchor-status-scope
+
 status-trust-rule = {
   0: bounded-id,            ; exact status method
   1: principal-id,          ; trusted issuer
   2: uint,                  ; minimum accepted sequence
+  3: status-scope,
 }
 
 accepted-registries = {
@@ -425,7 +444,7 @@ verifier-context = {
   0: verifier-limits,
   1: digest32,              ; VerifierConfigurationId
   2: composition-requirement,
-  3: [1*1024 trust-anchor],
+  3: [1*1024 trust-anchor], ; strictly ascending UTF-8 byte order of anchor ID
   4: accepted-registries,
   5: audience,
   6: digest32,              ; expected challenge

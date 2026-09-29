@@ -28,10 +28,10 @@ use auths_model::{
     ProtocolVersion, RegistryManifestId, ResourceId, ResourceMatcherId, SignatureBytes,
     SignatureDescriptor, SignatureEnvelope, SignatureSuiteId, SignedAction, SignedGrant,
     SignedGrantStatus, SignedPrincipalStatus, StatementRef, StatusMethodId, StatusPolicy,
-    StatusSnapshotId, StatusTrustRule, Timestamp, TrustAnchor, TrustAnchorId, TrustedContext,
-    ValidityWindow, VerificationCode, VerificationDecision, VerificationMethod,
-    VerificationResources, VerificationResultDigest, VerificationStage, VerifierConfigurationId,
-    VerifierLimits,
+    StatusScope, StatusScopeAnchors, StatusSnapshotId, StatusTrustRule, Timestamp, TrustAnchor,
+    TrustAnchorId, TrustedContext, ValidityWindow, VerificationCode, VerificationDecision,
+    VerificationMethod, VerificationResources, VerificationResultDigest, VerificationStage,
+    VerifierConfigurationId, VerifierLimits,
 };
 use minicbor::{Decoder, data::Type};
 
@@ -1026,16 +1026,50 @@ fn status_trust(
     let length = array(decoder, limits.get(LimitKind::RegistryEntries))?;
     let mut rules = Vec::with_capacity(length);
     for _ in 0..length {
-        map(decoder, 3)?;
+        map(decoder, 4)?;
         key(decoder, 0)?;
         let method = parse_text!(decoder, StatusMethodId)?;
         key(decoder, 1)?;
         let issuer = parse_text!(decoder, PrincipalId)?;
         key(decoder, 2)?;
         let sequence_floor = decoder.u64().map_err(|_| CodecError::Malformed)?;
-        rules.push(StatusTrustRule::new(method, issuer, sequence_floor));
+        key(decoder, 3)?;
+        let scope = status_scope(decoder, limits)?;
+        rules.push(StatusTrustRule::new(method, issuer, sequence_floor, scope));
     }
     Ok(rules)
+}
+
+/// Reads `{0: 0}` (own), `{0: 1, 1: [ids]}` (listed anchors), or `{0: 2}`
+/// (any). An unsorted list decodes here and is refused by the caller's
+/// canonical re-encoding; an empty or repeated one is refused by the model.
+fn status_scope(
+    decoder: &mut V1Decoder<'_>,
+    limits: &VerifierLimits,
+) -> Result<StatusScope, CodecError> {
+    let entries = decoder
+        .map()
+        .map_err(|_| CodecError::Malformed)?
+        .ok_or(CodecError::Malformed)?;
+    if !(1..=2).contains(&entries) {
+        return Err(CodecError::Malformed);
+    }
+    key(decoder, 0)?;
+    let tag = decoder.u8().map_err(|_| CodecError::Malformed)?;
+    match (tag, entries) {
+        (0, 1) => Ok(StatusScope::OwnAnchor),
+        (1, 2) => {
+            key(decoder, 1)?;
+            let length = array(decoder, limits.get(LimitKind::TrustAnchors))?;
+            let mut anchors = Vec::with_capacity(length);
+            for _ in 0..length {
+                anchors.push(parse_text!(decoder, TrustAnchorId)?);
+            }
+            Ok(StatusScope::Anchors(StatusScopeAnchors::new(anchors)?))
+        }
+        (2, 1) => Ok(StatusScope::AnyAnchor),
+        _ => Err(CodecError::Malformed),
+    }
 }
 
 fn principal_snapshot(

@@ -27,9 +27,9 @@ use auths_model::{
     EvidenceObject, GrantId, GrantStatusId, ObservationSatisfaction, ParticipantAssurance,
     ParticipantRole, PlanId, PortableVerificationResult, PrincipalId, PrincipalStatusId,
     ProfileBudgetExpression, ProofBundle, ProofRef, Requirement, SignatureEnvelope, SignedAction,
-    SignedGrant, StatementRef, StatusPolicy, Timestamp, TrustAnchor, TrustedContext,
-    VerificationCode, VerificationDecision, VerificationResources, VerificationStage,
-    VerifierConfigurationId,
+    SignedGrant, SignedGrantStatus, SignedPrincipalStatus, StatementRef, StatusPolicy, Timestamp,
+    TrustAnchor, TrustedContext, VerificationCode, VerificationDecision, VerificationResources,
+    VerificationStage, VerifierConfigurationId, status_issuer_in_scope,
 };
 use auths_ports::{
     ControlEvidence, ControlPurpose, PrincipalControlError, PrincipalControlInput, ProfileDecision,
@@ -1790,31 +1790,42 @@ fn reject_duplicate_attachments(bundle: &ProofBundle) -> Result<(), Verification
 }
 
 /// Rejects a proof-carried status statement that the snapshot supersedes or
-/// does not hold.
+/// does not hold, in two passes: every rollback check (principal-status
+/// statements, then grant-status statements) before any holding check.
 ///
-/// Rollback is keyed on the statement's subject alone, the principal or the
-/// grant, which is the same key status selection uses.
+/// Rollback compares only statements with the carried statement's subject,
+/// method, and issuer. A sequence number orders one issuer's statements under
+/// one method, so a statement from another issuer, which may be out of scope
+/// for every branch, never supersedes the holder's own.
 fn validate_carried_status(
     bundle: &ProofBundle,
     context: &TrustedContext,
 ) -> Result<(), VerificationFailure> {
     if bundle.principal_status().iter().any(|carried| {
+        let carried = carried.statement();
         context
             .principal_status_snapshot()
             .statements()
             .iter()
+            .map(SignedPrincipalStatus::statement)
             .any(|current| {
-                current.statement().principal() == carried.statement().principal()
-                    && current.statement().sequence() > carried.statement().sequence()
+                current.principal() == carried.principal()
+                    && current.method() == carried.method()
+                    && current.issuer() == carried.issuer()
+                    && current.sequence() > carried.sequence()
             })
     }) || bundle.grant_status().iter().any(|carried| {
+        let carried = carried.statement();
         context
             .grant_status_snapshot()
             .statements()
             .iter()
+            .map(SignedGrantStatus::statement)
             .any(|current| {
-                current.statement().grant_id() == carried.statement().grant_id()
-                    && current.statement().sequence() > carried.statement().sequence()
+                current.grant_id() == carried.grant_id()
+                    && current.method() == carried.method()
+                    && current.issuer() == carried.issuer()
+                    && current.sequence() > carried.sequence()
             })
     }) {
         return Err(VerificationFailure::Denied(
@@ -2268,6 +2279,7 @@ fn verify_branch_from_anchor(
         anchor.status_policy(),
         anchor.principal(),
         StatusListing::Required,
+        anchor,
         context,
         registries,
         meter,
@@ -2281,6 +2293,7 @@ fn verify_branch_from_anchor(
             controlled,
             grant.statement().status_policy(),
             id,
+            anchor,
             context,
             registries,
             meter,
@@ -2290,6 +2303,7 @@ fn verify_branch_from_anchor(
             anchor.status_policy(),
             grant.statement().subject(),
             StatusListing::RevocationList,
+            anchor,
             context,
             registries,
             meter,
@@ -2534,11 +2548,17 @@ enum StatusListing {
     RevocationList,
 }
 
+/// Out-of-scope statements (`auths_model::status_issuer_in_scope`) take no
+/// part: they are not control-checked, not extension-checked, and not
+/// selected, so the result is the one the snapshot gives without them. Work
+/// is still reserved for every snapshot statement.
+#[allow(clippy::too_many_arguments)]
 fn check_principal_status(
     controlled: &ControlVerifiedProof,
     policy: &StatusPolicy,
     principal: &PrincipalId,
     listing: StatusListing,
+    anchor: &TrustAnchor,
     context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
     meter: &mut WorkMeter,
@@ -2551,12 +2571,11 @@ fn check_principal_status(
         .ok_or(VerificationFailure::Indeterminate(
             Requirement::UnsupportedStatusMethod,
         ))?;
-    for status in context
-        .principal_status_snapshot()
-        .statements()
-        .iter()
-        .filter(|status| status.statement().principal() == principal)
-    {
+    let snapshot = context.principal_status_snapshot();
+    for status in snapshot.statements().iter().filter(|status| {
+        status.statement().principal() == principal
+            && status_issuer_in_scope(snapshot.trust(), status.statement().issuer(), anchor)
+    }) {
         let identifier = principal_status_id(status.statement()).map_err(codec_failure)?;
         control_for(controlled, StatementRef::PrincipalStatus(identifier))?;
         check_status_extensions(status.statement().extensions(), context)?;
@@ -2569,6 +2588,7 @@ fn check_principal_status(
             policy,
             context.principal_status_snapshot(),
             principal,
+            anchor,
             context.evaluation_time(),
         )
         .map_err(registry_operation_failure)?;
@@ -2581,10 +2601,12 @@ fn check_principal_status(
     status_decision(decision, true)
 }
 
+/// Out-of-scope statements take no part, as for principal status.
 fn check_grant_status(
     controlled: &ControlVerifiedProof,
     policy: &StatusPolicy,
     grant_id: GrantId,
+    anchor: &TrustAnchor,
     context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
     meter: &mut WorkMeter,
@@ -2597,12 +2619,11 @@ fn check_grant_status(
         .ok_or(VerificationFailure::Indeterminate(
             Requirement::UnsupportedStatusMethod,
         ))?;
-    for status in context
-        .grant_status_snapshot()
-        .statements()
-        .iter()
-        .filter(|status| status.statement().grant_id() == grant_id)
-    {
+    let snapshot = context.grant_status_snapshot();
+    for status in snapshot.statements().iter().filter(|status| {
+        status.statement().grant_id() == grant_id
+            && status_issuer_in_scope(snapshot.trust(), status.statement().issuer(), anchor)
+    }) {
         let identifier = grant_status_id(status.statement()).map_err(codec_failure)?;
         control_for(controlled, StatementRef::GrantStatus(identifier))?;
         check_status_extensions(status.statement().extensions(), context)?;
@@ -2615,6 +2636,7 @@ fn check_grant_status(
             policy,
             context.grant_status_snapshot(),
             grant_id,
+            anchor,
             context.evaluation_time(),
         )
         .map_err(registry_operation_failure)?;
@@ -3892,10 +3914,13 @@ mod tests {
         let suites: [&dyn auths_ports::SignatureSuite; 2] = [&ed25519, &p256];
         let registries = ImmutableRegistries::new(&methods, &suites).unwrap();
         for fixture in auths_testkit::corpus() {
-            let context = auths_codec::decode_verifier_context(fixture.context_bytes()).unwrap();
             // A vector whose fault is in the canonical-action input bytes has
             // no in-process form: the portable ABI rejects those bytes before
             // the proof is read, which the portable conformance test checks.
+            if fixture.has_raw_action() {
+                continue;
+            }
+            let context = auths_codec::decode_verifier_context(fixture.context_bytes()).unwrap();
             let encoded = auths_codec::encode_canonical_action(fixture.canonical_action()).unwrap();
             if auths_codec::decode_canonical_action(&encoded, context.limits()).is_err() {
                 continue;

@@ -39,7 +39,7 @@ fn with_corpus_registries(run: impl FnOnce(&ImmutableRegistries<'_>)) {
 fn every_corpus_vector_returns_its_decision_through_the_portable_abi() {
     with_corpus_registries(|registries| {
         for fixture in auths_testkit::corpus() {
-            let action = auths_codec::encode_canonical_action(fixture.canonical_action()).unwrap();
+            let action = fixture.action_bytes();
             let bytes = auths_verifier::verify_v1(
                 fixture.proof_bytes(),
                 &action,
@@ -65,121 +65,115 @@ fn every_corpus_vector_returns_its_decision_through_the_portable_abi() {
                     fixture.name()
                 );
             }
+            // Raw canonical-action bytes are rejected before the proof is read.
+            if fixture.has_raw_action() {
+                assert_eq!(
+                    result.stage(),
+                    VerificationStage::Decode,
+                    "{}",
+                    fixture.name()
+                );
+                assert_eq!(result.plan_id(), None, "{}", fixture.name());
+            }
         }
     });
 }
 
-fn replace_once(source: &[u8], from: &[u8], to: &[u8]) -> Vec<u8> {
-    let positions: Vec<_> = source
-        .windows(from.len())
-        .enumerate()
-        .filter(|(_, window)| *window == from)
-        .map(|(position, _)| position)
-        .collect();
-    assert_eq!(positions.len(), 1, "mutation site must be unique");
-    let mut output = source[..positions[0]].to_vec();
-    output.extend_from_slice(to);
-    output.extend_from_slice(&source[positions[0] + from.len()..]);
+/// A CBOR text item.
+fn cbor_text(value: &str) -> Vec<u8> {
+    let length = value.len();
+    let mut output = match u8::try_from(length) {
+        Ok(short) if short < 24 => vec![0x60 | short],
+        Ok(byte) => vec![0x78, byte],
+        Err(_) => {
+            let wide = u16::try_from(length).unwrap().to_be_bytes();
+            vec![0x79, wide[0], wide[1]]
+        }
+    };
+    output.extend_from_slice(value.as_bytes());
     output
 }
 
-/// Byte-level mutations of the raw-key-chain canonical action and the code
-/// the decoder must return. The Go verifier's tests apply the same mutations.
-fn canonical_action_mutations(action: &[u8]) -> Vec<(&'static str, Vec<u8>, &'static str)> {
-    let attachments = |first: u8, second: u8| {
-        let mut output = vec![0x05, 0x82];
-        for fill in [first, second] {
-            output.extend_from_slice(&[0xa2, 0x00, 0x58, 0x20]);
-            output.extend_from_slice(&[fill; 32]);
-            output.extend_from_slice(&[0x01, 0x41, 0x01]);
-        }
-        output
-    };
-    let body_at = action
-        .windows(3)
-        .position(|window| window == [0x02, 0x58, 0x18])
-        .unwrap();
-    let permission_at = action
-        .windows(2)
-        .position(|window| window == [0x03, 0xa2])
-        .unwrap();
-    let mut empty_body = action[..body_at].to_vec();
-    empty_body.extend_from_slice(&[0x02, 0x40]);
-    empty_body.extend_from_slice(&action[permission_at..]);
-    let mut trailing = action.to_vec();
-    trailing.push(0x00);
-    let mut map_size = vec![0xa5];
-    map_size.extend_from_slice(&action[1..]);
-    let mut non_shortest_key = vec![0xa6, 0x18, 0x00];
-    non_shortest_key.extend_from_slice(&action[2..]);
+/// Replaces the first occurrence of `from` in `source`.
+fn replace_first(source: &[u8], from: &[u8], to: &[u8]) -> Vec<u8> {
+    let position = source
+        .windows(from.len())
+        .position(|window| window == from)
+        .expect("splice site");
+    let mut output = source[..position].to_vec();
+    output.extend_from_slice(to);
+    output.extend_from_slice(&source[position + from.len()..]);
+    output
+}
+
+/// The three status scopes a context must refuse, spliced into the encoded
+/// context of `status-scope-baseline`, whose rules all have floor 1 and scope
+/// `own`. The model constructors run before the decoder's canonical
+/// re-encoding check, so the order of an added rule does not matter.
+fn invalid_scope_contexts() -> Vec<(&'static str, Vec<u8>)> {
+    let fixture = auths_testkit::status_scope_baseline();
+    let context = fixture.context_bytes();
+    let decoded = auths_codec::decode_verifier_context(context).unwrap();
+    let issuer = decoded.principal_status_snapshot().trust()[0]
+        .issuer()
+        .as_str();
+    // Floor 1, then key 3 and the `own` scope `{0: 0}`.
+    let own_tail = [0x02, 0x01, 0x03, 0xa1, 0x00, 0x00];
+
+    let mut absent_anchor = vec![0x02, 0x01, 0x03, 0xa2, 0x00, 0x01, 0x01, 0x81];
+    absent_anchor.extend_from_slice(&cbor_text("no-such-anchor"));
+
+    let mut named = cbor_text(issuer);
+    named.extend_from_slice(&own_tail);
+    let mut service = cbor_text("raw:status-service");
+    service.extend_from_slice(&own_tail);
+
+    // The principal snapshot's rules: key 5, then an array of two rules.
+    let mut second_rule = vec![0x05, 0x83, 0xa4, 0x00];
+    second_rule.extend_from_slice(&cbor_text("other-principal-status-v1"));
+    second_rule.push(0x01);
+    second_rule.extend_from_slice(&cbor_text(issuer));
+    second_rule.extend_from_slice(&[0x02, 0x01, 0x03, 0xa1, 0x00, 0x02, 0xa4, 0x00]);
+
     vec![
         (
-            "truncated",
-            action[..action.len() - 1].to_vec(),
-            "malformed-proof",
-        ),
-        ("trailing byte", trailing, "malformed-proof"),
-        ("map size", map_size, "malformed-proof"),
-        (
-            "key out of order",
-            replace_once(action, &[0x05, 0x80], &[0x06, 0x80]),
-            "non-canonical-proof",
-        ),
-        ("non-shortest key", non_shortest_key, "non-canonical-proof"),
-        (
-            "zero profile version",
-            replace_once(action, b"auths.mcp\x01\x01", b"auths.mcp\x01\x00"),
-            "malformed-proof",
+            "a rule lists an anchor the context does not hold",
+            replace_first(context, &own_tail, &absent_anchor),
         ),
         (
-            "whitespace in media type",
-            replace_once(action, b"auths.mcp-call", b"auths mcp-call"),
-            "malformed-proof",
+            "an own rule names an issuer that is no anchor's principal",
+            replace_first(context, &named, &service),
         ),
         (
-            "body as text",
-            replace_once(action, &[0x02, 0x58, 0x18], &[0x02, 0x78, 0x18]),
-            "malformed-proof",
-        ),
-        ("empty body", empty_body, "resource-limit-exceeded"),
-        (
-            "indefinite attachments",
-            replace_once(action, &[0x05, 0x80], &[0x05, 0x9f, 0xff]),
-            "malformed-proof",
-        ),
-        (
-            "attachments out of order",
-            replace_once(action, &[0x05, 0x80], &attachments(0xff, 0x00)),
-            "non-canonical-proof",
-        ),
-        (
-            "duplicate attachments",
-            replace_once(action, &[0x05, 0x80], &attachments(0xaa, 0xaa)),
-            "malformed-proof",
+            "one issuer has two scopes in one snapshot",
+            replace_first(context, &[0x05, 0x82, 0xa4, 0x00], &second_rule),
         ),
     ]
 }
 
 #[test]
-fn canonical_action_decode_failures_return_stable_codes_before_the_proof() {
-    let fixture = auths_testkit::raw_key_chain();
-    let action = auths_codec::encode_canonical_action(fixture.canonical_action()).unwrap();
+fn invalid_status_scopes_are_malformed_at_decode() {
+    let fixture = auths_testkit::status_scope_baseline();
+    let action = fixture.action_bytes();
     with_corpus_registries(|registries| {
-        for (name, bytes, code) in canonical_action_mutations(&action) {
+        for (name, context) in invalid_scope_contexts() {
+            assert!(
+                matches!(
+                    auths_codec::decode_verifier_context(&context),
+                    Err(auths_codec::CodecError::Model(
+                        auths_model::ModelError::InvalidVerifierContext
+                    ))
+                ),
+                "{name}"
+            );
             let result = auths_codec::decode_verification_result(
-                &auths_verifier::verify_v1(
-                    fixture.proof_bytes(),
-                    &bytes,
-                    fixture.context_bytes(),
-                    registries,
-                )
-                .unwrap(),
+                &auths_verifier::verify_v1(fixture.proof_bytes(), &action, &context, registries)
+                    .unwrap(),
             )
             .unwrap();
             assert_eq!(result.decision(), VerificationDecision::Denied, "{name}");
-            assert_eq!(result.code().code(), code, "{name}");
+            assert_eq!(result.code().code(), "malformed-proof", "{name}");
             assert_eq!(result.stage(), VerificationStage::Decode, "{name}");
-            assert_eq!(result.plan_id(), None, "{name}");
         }
     });
 }

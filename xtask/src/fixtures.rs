@@ -49,29 +49,73 @@ pub(crate) fn cross_language_corpus() -> Result<(), String> {
             "independent corpus auditors disagreed: Go={go:?}, TypeScript={typescript:?}"
         ));
     }
+    // Every runner writes its per-vector report before it fails, so every
+    // mismatching vector and field is listed, not only the first.
+    let reports = root().join("target/compliance/conformance");
+    fs::create_dir_all(&reports)
+        .map_err(|error| format!("could not create {}: {error}", reports.display()))?;
+    let go_report = reports.join("go-independent.jsonl");
+    let typescript_report = reports.join("typescript-independent.jsonl");
+    let rust_report = reports.join("rust-native.jsonl");
     let go_semantic = command_output_in(
         "go",
         &[
             "run",
             "./cmd/auths-corpus-check",
             "--semantic",
+            "--report",
+            path_text(&go_report)?,
             path_text(&manifest)?,
         ],
         &go_root,
         Some(("GOCACHE", &go_cache)),
-    )?;
+    );
     let typescript_semantic = command_output_in(
         "node",
         &[
             "--experimental-strip-types",
             path_text(&typescript_program)?,
             "--semantic",
+            "--report",
+            path_text(&typescript_report)?,
             path_text(&manifest)?,
         ],
         &root(),
         None,
-    )?;
-    let rust_semantic = semantic_digest_value()?;
+    );
+    let (rust_semantic, rust_entries) = semantic_projection()?;
+    write_report(&rust_report, &rust_entries)?;
+    let committed = committed_manifest()?;
+    let mut failures = Vec::new();
+    for (implementation, path, outcome) in [
+        ("Rust", &rust_report, &Ok(rust_semantic.clone())),
+        ("Go", &go_report, &go_semantic),
+        ("TypeScript", &typescript_report, &typescript_semantic),
+    ] {
+        match read_report(path) {
+            Ok(report) => failures.extend(
+                compare_report(&committed, &report)?
+                    .into_iter()
+                    .map(|mismatch| format!("{implementation} {mismatch}")),
+            ),
+            Err(error) => failures.push(format!("{implementation}: {error}")),
+        }
+        if let Err(error) = outcome {
+            failures.push(format!("{implementation} semantic runner: {error}"));
+        }
+    }
+    if !failures.is_empty() {
+        for failure in &failures {
+            eprintln!("{failure}");
+        }
+        return Err(format!(
+            "{} cross-language conformance failures; per-vector reports are in {}",
+            failures.len(),
+            reports.display()
+        ));
+    }
+    let go_semantic = go_semantic?;
+    let typescript_semantic = typescript_semantic?;
     let go_semantic = go_semantic.trim();
     let typescript_semantic = typescript_semantic.trim();
     if go_semantic != typescript_semantic || go_semantic != rust_semantic {
@@ -1884,6 +1928,15 @@ pub(crate) fn spec_sync() -> Result<(), String> {
 pub(crate) fn check_site_coverage(fixtures: &[Value]) -> Result<(), String> {
     let sites = auths_testkit::check_sites::CHECK_SITES;
     check_sites_against(sites, fixtures)?;
+    let inventory_path = root().join("core/fixtures/v1/check-sites.json");
+    let committed = fs::read(&inventory_path)
+        .map_err(|error| format!("could not read {}: {error}", inventory_path.display()))?;
+    if committed != check_sites_json()? {
+        return Err(
+            "core/fixtures/v1/check-sites.json drifted from the check-site inventory; run `cargo xtask wire --update`"
+                .to_owned(),
+        );
+    }
     let algorithm = fs::read_to_string(root().join("core/spec/v1/verification-algorithm.md"))
         .map_err(|error| format!("could not read verification algorithm: {error}"))?;
     specification_names_sites(sites, &algorithm)

@@ -21,12 +21,17 @@ const (
 
 // Result is the idiomatic pure-Go verification result.
 type Result struct {
-	Decision           Decision
-	Code               string
-	Action             *VerifiedAction
-	ProofDigest        []byte
-	ContextDigest      []byte
-	ActionDigest       []byte
+	Decision Decision
+	Code     string
+	// Stage is where the first failure occurred, as the specification names
+	// it: "decode", "resolve", "principal-control", or "authority"; it is
+	// "complete" when the result is authorized.
+	Stage         string
+	Action        *VerifiedAction
+	ProofDigest   []byte
+	ContextDigest []byte
+	ActionDigest  []byte
+	// PlanID is empty at stage "decode" and "resolve".
 	PlanID             []byte
 	ActionIDs          [][]byte
 	AuthorizedBranches [][]byte
@@ -127,7 +132,6 @@ func (engine *Engine) Verify(
 	trustedContextCBOR []byte,
 ) Result {
 	semantic := verifySemantic(
-		"",
 		proofCBOR,
 		trustedContextCBOR,
 		canonicalActionCBOR,
@@ -136,6 +140,7 @@ func (engine *Engine) Verify(
 	result := Result{
 		Decision:           Decision(semantic.decision),
 		Code:               semantic.code,
+		Stage:              semantic.stage,
 		ProofDigest:        cloneBytes(semantic.proof),
 		ContextDigest:      cloneBytes(semantic.context),
 		ActionDigest:       cloneBytes(semantic.action),

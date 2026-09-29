@@ -14,7 +14,7 @@ use auths_model::{
     PermissionSet, PortableVerificationResult, PrincipalState, PrincipalStatusSnapshot,
     PrincipalStatusStatement, ProfileRef, ProofBundle, SignatureDescriptor, SignatureEnvelope,
     SignedAction, SignedGrant, SignedGrantStatus, SignedPrincipalStatus, StatementRef,
-    StatusPolicy, StatusTrustRule, TrustAnchor, TrustedContext, VerificationCode,
+    StatusPolicy, StatusScope, StatusTrustRule, TrustAnchor, TrustedContext, VerificationCode,
     VerificationDecision, VerificationResources, VerificationStage, VerifierLimits,
 };
 use minicbor::Encoder;
@@ -1327,13 +1327,41 @@ fn encode_status_trust(
 ) -> Result<(), CodecError> {
     array(encoder, rules.len())?;
     for rule in rules {
-        map(encoder, 3)?;
+        map(encoder, 4)?;
         key(encoder, 0)?;
         text(encoder, rule.method().as_str())?;
         key(encoder, 1)?;
         text(encoder, rule.issuer().as_str())?;
         key(encoder, 2)?;
         encoder.u64(rule.sequence_floor()).map_err(encode_error)?;
+        key(encoder, 3)?;
+        encode_status_scope(encoder, rule.scope())?;
+    }
+    Ok(())
+}
+
+fn encode_status_scope(encoder: &mut V1Encoder, scope: &StatusScope) -> Result<(), CodecError> {
+    match scope {
+        StatusScope::OwnAnchor => {
+            map(encoder, 1)?;
+            key(encoder, 0)?;
+            encoder.u8(0).map_err(encode_error)?;
+        }
+        StatusScope::Anchors(anchors) => {
+            map(encoder, 2)?;
+            key(encoder, 0)?;
+            encoder.u8(1).map_err(encode_error)?;
+            key(encoder, 1)?;
+            array(encoder, anchors.ids().len())?;
+            for anchor in anchors.ids() {
+                text(encoder, anchor.as_str())?;
+            }
+        }
+        StatusScope::AnyAnchor => {
+            map(encoder, 1)?;
+            key(encoder, 0)?;
+            encoder.u8(2).map_err(encode_error)?;
+        }
     }
     Ok(())
 }

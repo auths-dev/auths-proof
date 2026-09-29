@@ -12,8 +12,10 @@ use auths_did_keri::{DidKeriMethod, KelEvent, KeriEvidence};
 use auths_did_key::DidKeyMethod;
 use auths_hsm_attested::HsmAttestedMethod;
 use auths_model::{
-    CompositionRequirement, DenialReason, EvidenceId, EvidenceObject, EvidenceTypeId, MediaType,
-    ModelError, PrincipalStatusSnapshot, Requirement, Timestamp, TrustedContext,
+    CompositionRequirement, DenialReason, EvidenceId, EvidenceObject, EvidenceTypeId,
+    GrantStatusSnapshot, MediaType, ModelError, PrincipalId, PrincipalStatusSnapshot, Requirement,
+    StatusMethodId, StatusScope, StatusScopeAnchors, StatusTrustRule, Timestamp, TrustAnchorId,
+    TrustedContext,
 };
 use auths_ports::{
     ControlPurpose, PrincipalControlError, PrincipalControlInput, PrincipalMethod, SignatureSuite,
@@ -149,6 +151,15 @@ pub fn execute_case(case: &str) -> Result<BoundaryExecution, String> {
         "context/raw-key-chain/duplicate-trust-anchor/context-constructor" => {
             Ok(BoundaryExecution::Completed(duplicate_anchor_code()?))
         }
+        "context/two-root-status/scope-anchor-id-absent/context-constructor" => Ok(
+            BoundaryExecution::Completed(invalid_status_scope_code(InvalidScope::AbsentAnchor)?),
+        ),
+        "context/two-root-status/scope-own-not-an-anchor/context-constructor" => Ok(
+            BoundaryExecution::Completed(invalid_status_scope_code(InvalidScope::OwnNotAnAnchor)?),
+        ),
+        "context/two-root-status/issuer-scopes-differ/context-constructor" => Ok(
+            BoundaryExecution::Completed(invalid_status_scope_code(InvalidScope::ScopesDiffer)?),
+        ),
         "context/raw-key-chain/registry-method-missing/full-verifier" => Ok(
             BoundaryExecution::FullVerifier(Box::new(unknown_principal_method())),
         ),
@@ -257,6 +268,103 @@ fn duplicate_anchor_code() -> Result<&'static str, String> {
     let result = rebuild_context(&context, context.composition(), anchors, None);
     Ok(model_error_code(
         result.expect_err("duplicate trust-anchor ID must fail"),
+    ))
+}
+
+/// A status scope the context constructor must refuse.
+#[derive(Clone, Copy)]
+enum InvalidScope {
+    /// A grant-status rule lists an anchor the context does not hold.
+    AbsentAnchor,
+    /// A principal-status rule scoped `own` names an issuer that is no
+    /// anchor's principal.
+    OwnNotAnAnchor,
+    /// One issuer carries two scopes in the principal snapshot.
+    ScopesDiffer,
+}
+
+/// Rebuilds the two-organization status-scope baseline with one invalid rule
+/// added, and returns the constructor's code.
+fn invalid_status_scope_code(variant: InvalidScope) -> Result<&'static str, String> {
+    let fixture = crate::status_scope_baseline();
+    let context =
+        decode_verifier_context(fixture.context_bytes()).map_err(|error| error.to_string())?;
+    let method = |value: &str| StatusMethodId::parse(value).map_err(|error| error.to_string());
+    let principal = |value: &str| PrincipalId::parse(value).map_err(|error| error.to_string());
+    let principal_source = context.principal_status_snapshot();
+    let grant_source = context.grant_status_snapshot();
+    let mut principal_trust = principal_source.trust().to_vec();
+    let mut grant_trust = grant_source.trust().to_vec();
+    match variant {
+        InvalidScope::AbsentAnchor => grant_trust.push(StatusTrustRule::new(
+            method("auths-principal-status-v1")?,
+            principal("raw:status-service")?,
+            1,
+            StatusScope::Anchors(
+                StatusScopeAnchors::new(vec![
+                    TrustAnchorId::parse("no-such-anchor").map_err(|error| error.to_string())?,
+                ])
+                .map_err(|error| error.to_string())?,
+            ),
+        )),
+        InvalidScope::OwnNotAnAnchor => principal_trust.push(StatusTrustRule::new(
+            method("auths-principal-status-v1")?,
+            principal("raw:status-service")?,
+            1,
+            StatusScope::OwnAnchor,
+        )),
+        InvalidScope::ScopesDiffer => {
+            // Every baseline rule is scoped `own`; name its issuer again with
+            // another method and scope.
+            let issuer = principal_trust
+                .first()
+                .ok_or_else(|| "baseline has no status rule".to_owned())?
+                .issuer()
+                .clone();
+            principal_trust.push(StatusTrustRule::new(
+                method("other-principal-status-v1")?,
+                issuer,
+                1,
+                StatusScope::AnyAnchor,
+            ));
+        }
+    }
+    let principal_status = PrincipalStatusSnapshot::with_trust(
+        principal_source.id(),
+        principal_source.observed_at(),
+        principal_source.valid_until(),
+        principal_source.statements().to_vec(),
+        principal_source.checkpoints().to_vec(),
+        principal_trust,
+    )
+    .map_err(|error| error.to_string())?;
+    let grant_status = GrantStatusSnapshot::with_trust(
+        grant_source.id(),
+        grant_source.observed_at(),
+        grant_source.valid_until(),
+        grant_source.statements().to_vec(),
+        grant_source.checkpoints().to_vec(),
+        grant_trust,
+    )
+    .map_err(|error| error.to_string())?;
+    let result = TrustedContext::new(
+        context.configuration(),
+        context.composition(),
+        context.trust_anchors().to_vec(),
+        context.accepted_registries().clone(),
+        context.expected_audience().clone(),
+        context.expected_challenge(),
+        context.evaluation_time(),
+        context.assurance_policy().clone(),
+        principal_status,
+        grant_status,
+        context.resource_matcher().clone(),
+        context.profile_policy().clone(),
+        context.channel_policy().clone(),
+        context.limits().clone(),
+    );
+    Ok(model_error_code(
+        result.expect_err("an inconsistent status scope must fail"),
     ))
 }
 

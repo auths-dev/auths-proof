@@ -373,6 +373,10 @@ func decodeAnchor(value *cborValue) (*trustAnchor, error) {
 	for index := range nodes {
 		nodes[index], _ = mapValue(value, uint64(index))
 	}
+	id, err := textValue(nodes[0])
+	if err != nil {
+		return nil, err
+	}
 	principal, err := textValue(nodes[1])
 	if err != nil {
 		return nil, err
@@ -430,6 +434,7 @@ func decodeAnchor(value *cborValue) (*trustAnchor, error) {
 		return nil, err
 	}
 	return &trustAnchor{
+		id:          id,
 		principal:   principal,
 		methods:     methods,
 		profiles:    profiles,
@@ -540,7 +545,7 @@ func decodeStatusTrust(value *cborValue) ([]statusTrustRule, error) {
 	}
 	result := make([]statusTrustRule, 0, len(nodes))
 	for _, node := range nodes {
-		if err := exactMap(node, 3); err != nil {
+		if err := exactMap(node, 4); err != nil {
 			return nil, err
 		}
 		method, err := textValue(mustMap(node, 0))
@@ -555,11 +560,99 @@ func decodeStatusTrust(value *cborValue) ([]statusTrustRule, error) {
 		if err != nil {
 			return nil, err
 		}
+		scope, err := decodeStatusScope(mustMap(node, 3))
+		if err != nil {
+			return nil, err
+		}
 		result = append(result, statusTrustRule{
-			method: method, issuer: issuer, minimumSequence: minimumSequence,
+			method: method, issuer: issuer, minimumSequence: minimumSequence, scope: scope,
 		})
 	}
 	return result, nil
+}
+
+const (
+	maxStatusScopeAnchors = 1024
+	maxBoundedIDBytes     = 128
+)
+
+// decodeStatusScope reads {0: 0} (own), {0: 1, 1: [ids]} (anchors), or
+// {0: 2} (any). An anchors list is a definite array of 1 to 1024 trust-anchor
+// IDs of 1 to 128 bytes each, strictly ascending in UTF-8 byte order, as the
+// context's other text-identifier sets are. Any other shape, including an
+// empty, unsorted, or repeated list, does not decode.
+func decodeStatusScope(value *cborValue) (statusScope, error) {
+	tagValue, err := mapValue(value, 0)
+	if err != nil {
+		return statusScope{}, err
+	}
+	tag, err := uintValue(tagValue)
+	if err != nil {
+		return statusScope{}, err
+	}
+	switch statusScopeKind(tag) {
+	case statusScopeOwn, statusScopeAny:
+		if err := exactMap(value, 1); err != nil {
+			return statusScope{}, err
+		}
+		return statusScope{kind: statusScopeKind(tag)}, nil
+	case statusScopeAnchors:
+		if err := exactMap(value, 2); err != nil {
+			return statusScope{}, err
+		}
+		nodes, err := arrayValue(mustMap(value, 1))
+		if err != nil || len(nodes) == 0 || len(nodes) > maxStatusScopeAnchors {
+			return statusScope{}, errors.New("invalid status-scope anchor list")
+		}
+		anchors := make([]string, 0, len(nodes))
+		for _, node := range nodes {
+			id, err := textValue(node)
+			if err != nil || len(id) == 0 || len(id) > maxBoundedIDBytes {
+				return statusScope{}, errors.New("invalid status-scope anchor ID")
+			}
+			if len(anchors) > 0 && anchors[len(anchors)-1] >= id {
+				return statusScope{}, errors.New("status-scope anchor IDs are not strictly ascending")
+			}
+			anchors = append(anchors, id)
+		}
+		return statusScope{kind: statusScopeAnchors, anchors: anchors}, nil
+	default:
+		return statusScope{}, errors.New("unknown status scope")
+	}
+}
+
+// validateStatusScopes rejects one snapshot's rules when a scope can apply to
+// no anchor the context names, or when two rules give one issuer different
+// scopes: an own rule whose issuer is the principal of no trust anchor, an
+// anchors rule listing an ID that names no trust anchor, or two rules naming
+// one issuer with unequal scopes.
+func validateStatusScopes(anchors []*trustAnchor, trust []statusTrustRule) error {
+	anchorIDs := make(map[string]bool, len(anchors))
+	anchorPrincipals := make(map[string]bool, len(anchors))
+	for _, anchor := range anchors {
+		anchorIDs[anchor.id] = true
+		anchorPrincipals[anchor.principal] = true
+	}
+	scopes := make(map[string]statusScope, len(trust))
+	for _, rule := range trust {
+		switch rule.scope.kind {
+		case statusScopeOwn:
+			if !anchorPrincipals[rule.issuer] {
+				return errors.New("own status scope names an issuer that is no anchor principal")
+			}
+		case statusScopeAnchors:
+			for _, id := range rule.scope.anchors {
+				if !anchorIDs[id] {
+					return errors.New("anchors status scope lists an unknown trust anchor")
+				}
+			}
+		}
+		if previous, ok := scopes[rule.issuer]; ok && !previous.equal(rule.scope) {
+			return errors.New("status issuer has two scopes in one snapshot")
+		}
+		scopes[rule.issuer] = rule.scope
+	}
+	return nil
 }
 
 func digestArray(value *cborValue) ([][]byte, error) {
@@ -640,6 +733,11 @@ func decodeContext(data []byte) (*verifierContext, error) {
 		anchor, err := decodeAnchor(node)
 		if err != nil {
 			return nil, err
+		}
+		// Anchors ascend strictly in UTF-8 byte order of their IDs, so an
+		// anchors status scope names each anchor exactly once.
+		if len(result.anchors) > 0 && result.anchors[len(result.anchors)-1].id >= anchor.id {
+			return nil, errors.New("trust anchors are not strictly ascending by ID")
 		}
 		result.anchors = append(result.anchors, anchor)
 	}
@@ -745,6 +843,14 @@ func decodeContext(data []byte) (*verifierContext, error) {
 	}
 	result.grantSnapshot, err = decodeGrantSnapshot(mustMap(root, 10))
 	if err != nil {
+		return nil, err
+	}
+	// Each snapshot's scopes are checked on their own: one issuer may carry
+	// different scopes in the principal and the grant snapshot.
+	if err := validateStatusScopes(result.anchors, result.principalSnapshot.trust); err != nil {
+		return nil, err
+	}
+	if err := validateStatusScopes(result.anchors, result.grantSnapshot.trust); err != nil {
 		return nil, err
 	}
 	result.resourceMatcher, err = textValue(mustMap(root, 11))

@@ -38,9 +38,9 @@ verifier retains three diagnostic classes.
 | `action-outside-validity` | action | Action is not live |
 | `principal-revoked` | status | Accepted status says a principal in the branch (the trust anchor, a delegate, or the actor) is revoked or superseded |
 | `grant-revoked` | status | Accepted status says grant or ancestor is revoked |
-| `status-sequence-rollback` | status | Status sequence moves backwards |
+| `status-sequence-rollback` | status | Status sequence moves backwards for one issuer and method |
 | `status-method-mismatch` | status | Subject status exists only under another exact method |
-| `status-issuer-untrusted` | status | A valid status signature was made by an issuer outside snapshot trust |
+| `status-issuer-untrusted` | status | No statement remains from an issuer the snapshot trusts for the method |
 | `registry-manifest-mismatch` | control | Context manifest differs from the immutable executable registry |
 | `verifier-configuration-mismatch` | control | Context configuration commitment differs from the exact executable adapter and registry configuration |
 | `resource-namespace-mismatch` | authority | The resource of a grant permission or of the action lies outside every namespace of the trust anchor, under the selected matcher |
@@ -55,6 +55,10 @@ verifier retains three diagnostic classes.
 | `observation-condition-false` | observation | A requirement has fresh, authentic, subject-matching observations and each falsifies some condition |
 | `observer-in-authority-chain` | observation | A requirement's observer is also the root, an issuer, a subject, or the actor of the branch |
 | `observation-requirement-dropped` | authority | A child grant drops a parent's observation requirement: none of its requirements has the same schema and subject |
+
+A status statement that is out of scope for a branch's trust anchor produces
+no code: the branch's result is the one the snapshot would give without it
+(`verification-algorithm.md`, "Principal status").
 
 ## Indeterminate
 

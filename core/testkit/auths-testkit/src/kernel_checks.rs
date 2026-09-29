@@ -464,6 +464,7 @@ fn status_edge(name: &'static str, edge: StatusEdge, expected: Expected) -> Corp
             StatusMethodId::parse(GRANT_STATUS_METHOD).expect("status method"),
             root.principal.clone(),
             1,
+            StatusScope::OwnAnchor,
         )],
     )
     .expect("grant snapshot");
@@ -1205,6 +1206,9 @@ fn composition_minimums(context: &TrustedContext, branches: u16) -> TrustedConte
 #[derive(Clone, Copy)]
 enum Scope {
     GrantPermissionOutsideNamespace,
+    /// The grant adds a permission outside both the anchor's namespaces and
+    /// its permissions.
+    NamespaceAndPermissionWidening,
     EdgeAlgebraUnsupported,
     EdgeAlgebraMismatch,
     RequestAlgebraMismatch,
@@ -1229,6 +1233,7 @@ fn scoped_grant(name: &'static str, scope: Scope, expected: Expected) -> CorpusF
             vec![permission(), billing.clone()],
             vec![permission(), billing],
         ),
+        Scope::NamespaceAndPermissionWidening => (vec![permission()], vec![permission(), billing]),
         _ => (vec![permission()], vec![permission()]),
     };
     let anchor_ceiling = match scope {
@@ -1600,6 +1605,7 @@ fn revoked_grant_dropping_requirement() -> CorpusFixture {
             StatusMethodId::parse(GRANT_STATUS_METHOD).expect("status method"),
             root.principal.clone(),
             1,
+            StatusScope::OwnAnchor,
         )],
     )
     .expect("grant snapshot");
@@ -1803,6 +1809,13 @@ pub(crate) fn precedence_vectors() -> Vec<CorpusFixture> {
         scoped_grant(
             "two-fault-namespace-and-budget",
             Scope::NamespaceBeforeBudget,
+            denied(DenialReason::ResourceNamespaceMismatch),
+        ),
+        // Every grant permission's namespace is checked before the delegation
+        // walk compares the grant's permissions with the anchor's.
+        scoped_grant(
+            "two-fault-namespace-and-permission-widening",
+            Scope::NamespaceAndPermissionWidening,
             denied(DenialReason::ResourceNamespaceMismatch),
         ),
         scoped_grant(

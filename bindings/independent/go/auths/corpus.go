@@ -21,8 +21,12 @@ const (
 )
 
 type artifact struct {
-	Path            string          `json:"path"`
-	SHA256          string          `json:"sha256"`
+	Path   string `json:"path"`
+	SHA256 string `json:"sha256"`
+	// Encoding is absent or "canonical" for bytes that are the canonical
+	// encoding of their object, and "raw" for bytes carried as they are. Only
+	// the canonical action may be raw.
+	Encoding        string          `json:"encoding"`
 	Profile         string          `json:"profile"`
 	ProfileVersion  uint64          `json:"profile_version"`
 	MediaType       string          `json:"media_type"`
@@ -36,15 +40,27 @@ type manifestBudget struct {
 	Value   uint64 `json:"value"`
 }
 
+// expectedResult is a fixture's expected portable result. A null or absent
+// plan digest means the result carries none.
+type expectedResult struct {
+	Path          string  `json:"path"`
+	SHA256        string  `json:"sha256"`
+	Stage         string  `json:"stage"`
+	ProofDigest   string  `json:"proof_digest"`
+	ActionDigest  string  `json:"action_digest"`
+	ContextDigest string  `json:"context_digest"`
+	PlanDigest    *string `json:"plan_digest"`
+}
+
 type fixture struct {
-	Name             string   `json:"name"`
-	Proof            artifact `json:"proof"`
-	Context          artifact `json:"context"`
-	CanonicalAction  artifact `json:"canonical_action"`
-	CanonicalBody    artifact `json:"canonical_body"`
-	ExpectedResult   artifact `json:"expected_result"`
-	ExpectedDecision string   `json:"expected_decision"`
-	ExpectedCode     string   `json:"expected_code"`
+	Name             string         `json:"name"`
+	Proof            artifact       `json:"proof"`
+	Context          artifact       `json:"context"`
+	CanonicalAction  artifact       `json:"canonical_action"`
+	CanonicalBody    artifact       `json:"canonical_body"`
+	ExpectedResult   expectedResult `json:"expected_result"`
+	ExpectedDecision string         `json:"expected_decision"`
+	ExpectedCode     string         `json:"expected_code"`
 }
 
 type manifest struct {
@@ -53,46 +69,93 @@ type manifest struct {
 	Fixtures       []fixture      `json:"fixtures"`
 }
 
+// rawAction reports whether the fixture's canonical action is carried as raw
+// bytes. Any other encoding marker, or a raw marker on another input, is an
+// error.
+func (value fixture) rawAction() (bool, error) {
+	for _, entry := range []artifact{value.Proof, value.Context, value.CanonicalBody} {
+		if entry.Encoding != "" && entry.Encoding != "canonical" {
+			return false, fmt.Errorf("%s: unsupported encoding %q", entry.Path, entry.Encoding)
+		}
+	}
+	switch value.CanonicalAction.Encoding {
+	case "", "canonical":
+		return false, nil
+	case "raw":
+		return true, nil
+	default:
+		return false, fmt.Errorf(
+			"%s: unsupported encoding %q", value.CanonicalAction.Path, value.CanonicalAction.Encoding,
+		)
+	}
+}
+
 type parser struct {
 	data  []byte
 	at    int
 	items int
 }
 
-// AuditCorpus validates the language-neutral corpus and returns its stable
-// inventory digest. Semantic mode independently evaluates every fixture.
-func AuditCorpus(manifestPath string, semantic bool) (string, error) {
+func readManifest(manifestPath string) (manifest, error) {
 	raw, err := os.ReadFile(manifestPath)
 	if err != nil {
-		return "", err
+		return manifest{}, err
 	}
 	var input manifest
 	if err := json.Unmarshal(raw, &input); err != nil {
-		return "", err
+		return manifest{}, err
 	}
 	if input.ProtocolMajor != 1 || len(input.Fixtures) == 0 {
-		return "", errors.New("unsupported or empty Auths corpus")
+		return manifest{}, errors.New("unsupported or empty Auths corpus")
+	}
+	return input, nil
+}
+
+// AuditSemantic independently evaluates every fixture of the corpus through
+// the per-input verifier and compares each result's decision, code, stage,
+// and digests with the manifest. It checks every fixture before failing; the
+// error lists each mismatching vector and field. When reportPath is not
+// empty, it writes the per-vector report there whether or not any vector
+// mismatches. On success it returns the aggregate semantic digest.
+func AuditSemantic(manifestPath string, reportPath string) (string, error) {
+	input, err := readManifest(manifestPath)
+	if err != nil {
+		return "", err
+	}
+	return semanticAudit(input, filepath.Dir(manifestPath), reportPath)
+}
+
+// AuditCorpus validates the language-neutral corpus and returns its stable
+// inventory digest.
+func AuditCorpus(manifestPath string) (string, error) {
+	input, err := readManifest(manifestPath)
+	if err != nil {
+		return "", err
 	}
 	root := filepath.Dir(manifestPath)
-	if semantic {
-		digest, err := semanticAudit(input, root)
-		if err != nil {
-			return "", err
-		}
-		return digest, nil
-	}
 	summary := sha256.New()
 	count := 0
 	for _, fixture := range input.Fixtures {
 		if fixture.Name == "" || fixture.ExpectedCode == "" {
 			return "", errors.New("manifest fixture is incomplete")
 		}
+		raw, err := fixture.rawAction()
+		if err != nil {
+			return "", err
+		}
+		if raw && fixture.ExpectedResult.Stage != stageDecode {
+			return "", fmt.Errorf(
+				"%s: a raw canonical action requires stage %s, not %q",
+				fixture.Name, stageDecode, fixture.ExpectedResult.Stage,
+			)
+		}
+		contents := make([][]byte, 0, 5)
 		for index, value := range []artifact{
 			fixture.Proof,
 			fixture.Context,
 			fixture.CanonicalAction,
 			fixture.CanonicalBody,
-			fixture.ExpectedResult,
+			{Path: fixture.ExpectedResult.Path, SHA256: fixture.ExpectedResult.SHA256},
 		} {
 			if value.Path == "" || value.SHA256 == "" {
 				return "", errors.New("manifest artifact is incomplete")
@@ -108,15 +171,18 @@ func AuditCorpus(manifestPath string, semantic bool) (string, error) {
 			if hex.EncodeToString(digest[:]) != value.SHA256 {
 				return "", fmt.Errorf("%s digest mismatch", value.Path)
 			}
-			// The canonical body remains profile-owned opaque bytes. Every
-			// protocol input and expected output is deterministic CBOR.
-			if index != 3 {
+			// The canonical body remains profile-owned opaque bytes, and a raw
+			// action need not be CBOR. Every other protocol input and expected
+			// output is deterministic CBOR.
+			if index != 3 && !(index == 2 && raw) {
 				decoded := parser{data: body}
 				_, parseErr := decoded.item(1)
 				if parseErr == nil && decoded.at != len(body) {
 					parseErr = errors.New("trailing CBOR bytes")
 				}
-				expectMalformedProof := index == 0 &&
+				// A vector whose fault is in raw action bytes carries a proof
+				// that parses, whatever its expected code.
+				expectMalformedProof := index == 0 && !raw &&
 					(fixture.ExpectedCode == "malformed-proof" ||
 						fixture.ExpectedCode == "non-canonical-proof")
 				if expectMalformedProof && parseErr == nil {
@@ -134,9 +200,76 @@ func AuditCorpus(manifestPath string, semantic bool) (string, error) {
 			summary.Write([]byte{0})
 			summary.Write(digest[:])
 			count++
+			contents = append(contents, body)
+		}
+		// Only a canonical action is compared with the body it carries.
+		if !raw {
+			action, err := decodeCanonicalAction(contents[2])
+			if err != nil {
+				return "", fmt.Errorf("%s: %w", fixture.CanonicalAction.Path, err)
+			}
+			if !bytes.Equal(action.body, contents[3]) {
+				return "", fmt.Errorf("%s canonical action/body mismatch", fixture.Name)
+			}
 		}
 	}
 	return fmt.Sprintf("%d:%x", count, summary.Sum(nil)), nil
+}
+
+// decodeCanonicalAction structurally decodes a corpus action artifact so the
+// wire audit can compare its body with the corpus body artifact. Verdicts
+// never use it: the verifier decodes actions with decodeBoundedCanonicalAction.
+func decodeCanonicalAction(data []byte) (*canonicalAction, error) {
+	root, err := decodeValue(data)
+	if err != nil {
+		return nil, err
+	}
+	if err := exactMap(root, 6); err != nil {
+		return nil, err
+	}
+	actionProfile, err := profileValue(mustMap(root, 0))
+	if err != nil {
+		return nil, err
+	}
+	mediaType, err := textValue(mustMap(root, 1))
+	if err != nil {
+		return nil, err
+	}
+	body, err := bytesValue(mustMap(root, 2), -1)
+	if err != nil {
+		return nil, err
+	}
+	actionPermission, err := permissionValue(mustMap(root, 3))
+	if err != nil {
+		return nil, err
+	}
+	actionBudget, err := budgetValue(mustMap(root, 4))
+	if err != nil {
+		return nil, err
+	}
+	detachedNodes, err := arrayValue(mustMap(root, 5))
+	if err != nil {
+		return nil, err
+	}
+	detached := make([]detachedAttachment, 0, len(detachedNodes))
+	for _, node := range detachedNodes {
+		if err := exactMap(node, 2); err != nil {
+			return nil, err
+		}
+		digest, err := bytesValue(mustMap(node, 0), 32)
+		if err != nil {
+			return nil, err
+		}
+		attachmentBytes, err := bytesValue(mustMap(node, 1), -1)
+		if err != nil {
+			return nil, err
+		}
+		detached = append(detached, detachedAttachment{digest: digest, bytes: attachmentBytes})
+	}
+	return &canonicalAction{
+		body: body, profile: actionProfile, mediaType: mediaType,
+		permission: actionPermission, budget: actionBudget, detached: detached,
+	}, nil
 }
 
 func (p *parser) item(depth int) ([]byte, error) {

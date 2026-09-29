@@ -373,8 +373,9 @@ Each field receives at least the following cases:
 | Challenge | all-zero allowed only as explicit template; one-bit request mismatch |
 | Evaluation time | before validity, at boundary, after validity, arithmetic edge values |
 | Assurance policy | unsupported claim, duplicate requirement, unsatisfied role, stale observed time |
-| Principal status | for the trust anchor, an intermediate delegate, and the actor, each: duplicate statement, untrusted issuer, rollback sequence, conflict at greatest sequence, stale, revoked, superseded; no statement for the anchor (indeterminate) and for a delegate or the actor (active under a fresh snapshot, `stale-status` under a stale one); an actor holding a grant whose own status policy is `ExpiryOnly` under an anchor that requires a snapshot (§14) |
-| Grant status | the same selection and freshness cases as principal status |
+| Principal status | for the trust anchor, an intermediate delegate, and the actor, each: duplicate statement, untrusted issuer, rollback sequence, conflict at greatest sequence, stale, revoked, superseded, issuer known but out of scope for the branch's anchor (ignored); no statement for the anchor (indeterminate) and for a delegate or the actor (active under a fresh snapshot, `stale-status` under a stale one); an actor holding a grant whose own status policy is `ExpiryOnly` under an anchor that requires a snapshot (§14) |
+| Grant status | the same selection, freshness, and out-of-scope cases as principal status |
+| Status trust scope | `own` naming an issuer that is no anchor's principal, `anchors` listing an absent anchor, and one issuer with two scopes in one snapshot, each rejected by the context constructor; an unscoped rule does not decode |
 | Resource matcher | accepted-but-uninstalled, installed-but-unaccepted, configuration drift |
 | Profile policy | accepted-but-uninstalled, denial, invalid result |
 | Channel policy | exact match and each mismatch class |

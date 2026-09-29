@@ -316,6 +316,7 @@ fn status_extension_fixture(
             method(),
             chain.root.principal.clone(),
             1,
+            StatusScope::OwnAnchor,
         )]
     };
     let principal_snapshot = PrincipalStatusSnapshot::with_trust(

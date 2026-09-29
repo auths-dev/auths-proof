@@ -991,7 +991,7 @@ def status_snapshot(
     valid_until: int,
     statements: List[SignedObject],
     checkpoints: List[bytes],
-    trust: List[Tuple[str, str, int]],
+    trust: List[Tuple[str, str, int, str, List[str]]],
 ) -> StatusSnapshot: ...
 def compile_trusted_context(
     configuration: bytes,

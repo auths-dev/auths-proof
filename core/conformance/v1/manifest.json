@@ -21,6 +21,24 @@
       "expected_code": "invalid-verifier-context"
     },
     {
+      "case": "context/two-root-status/scope-anchor-id-absent/context-constructor",
+      "requirements": ["CONTEXT.GRANT_STATUS"],
+      "boundary": "context-constructor",
+      "expected_code": "invalid-verifier-context"
+    },
+    {
+      "case": "context/two-root-status/scope-own-not-an-anchor/context-constructor",
+      "requirements": ["CONTEXT.PRINCIPAL_STATUS"],
+      "boundary": "context-constructor",
+      "expected_code": "invalid-verifier-context"
+    },
+    {
+      "case": "context/two-root-status/issuer-scopes-differ/context-constructor",
+      "requirements": ["CONTEXT.PRINCIPAL_STATUS"],
+      "boundary": "context-constructor",
+      "expected_code": "invalid-verifier-context"
+    },
+    {
       "case": "context/raw-key-chain/registry-method-missing/full-verifier",
       "requirements": ["CONTEXT.ACCEPTED_REGISTRIES", "VERIFIER.MAPPING.MISSING_METHOD"],
       "boundary": "full-verifier",

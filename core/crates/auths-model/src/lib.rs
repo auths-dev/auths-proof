@@ -11,7 +11,7 @@ mod bounded;
 pub use bounded::{BoundError, BoundedBytes, BoundedSet};
 
 use alloc::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     string::{String, ToString},
     vec::Vec,
 };
@@ -2265,23 +2265,120 @@ impl SignedGrantStatus {
     }
 }
 
-/// Context-pinned authorization for one status issuer and exact method.
+/// A non-empty, strictly ascending list of local trust-anchor identifiers.
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub struct StatusScopeAnchors(Vec<TrustAnchorId>);
+
+impl StatusScopeAnchors {
+    /// Sorts and validates a listed-anchors scope.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ModelError::InvalidStatusSnapshot`] for an empty list, a
+    /// repeated identifier, or more than [`HARD_MAX_TRUST_ANCHORS`] entries.
+    pub fn new(mut anchors: Vec<TrustAnchorId>) -> Result<Self, ModelError> {
+        anchors.sort();
+        if anchors.is_empty()
+            || anchors.len() > HARD_MAX_TRUST_ANCHORS
+            || anchors.windows(2).any(|window| window[0] == window[1])
+        {
+            return Err(ModelError::InvalidStatusSnapshot);
+        }
+        Ok(Self(anchors))
+    }
+
+    /// Returns the identifiers in ascending order.
+    #[must_use]
+    pub fn ids(&self) -> &[TrustAnchorId] {
+        &self.0
+    }
+
+    /// Returns whether `anchor` is listed.
+    #[must_use]
+    pub fn contains(&self, anchor: &TrustAnchorId) -> bool {
+        self.0.binary_search(anchor).is_ok()
+    }
+}
+
+/// The trust anchors under which a status issuer's statements count.
+///
+/// A branch is evaluated under one trust anchor. A statement whose issuer's
+/// scope does not cover that anchor takes no part in the branch's status
+/// evaluation, so one organization's issuer cannot revoke or reinstate another
+/// organization's principals or grants at a shared verifier.
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+pub enum StatusScope {
+    /// Anchors whose principal is the issuer.
+    OwnAnchor,
+    /// The listed local trust anchors.
+    Anchors(StatusScopeAnchors),
+    /// Every anchor: the verifier's own status authority.
+    AnyAnchor,
+}
+
+impl StatusScope {
+    /// Returns whether `issuer`'s statements count under `anchor`.
+    #[must_use]
+    pub fn covers(&self, issuer: &PrincipalId, anchor: &TrustAnchor) -> bool {
+        match self {
+            Self::OwnAnchor => anchor.principal() == issuer,
+            Self::Anchors(anchors) => anchors.contains(anchor.id()),
+            Self::AnyAnchor => true,
+        }
+    }
+}
+
+/// Returns whether a status statement from `issuer` takes part in the status
+/// evaluation of a branch under `anchor`.
+///
+/// It does when no rule of the snapshot names the issuer, so an unknown
+/// issuer keeps its untrusted treatment, or when the scope of every rule that
+/// names the issuer covers the anchor. A validated context gives every rule
+/// that names one issuer the same scope. Visibility is decided per issuer, not
+/// per method, so an out-of-scope issuer is invisible under every method.
+#[must_use]
+pub fn status_issuer_in_scope(
+    trust: &[StatusTrustRule],
+    issuer: &PrincipalId,
+    anchor: &TrustAnchor,
+) -> bool {
+    trust
+        .iter()
+        .filter(|rule| rule.issuer() == issuer)
+        .all(|rule| rule.scope().covers(issuer, anchor))
+}
+
+/// Context-pinned authorization for one status issuer and exact method, with
+/// the trust anchors under which that issuer's statements count.
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct StatusTrustRule {
     method: StatusMethodId,
     issuer: PrincipalId,
     sequence_floor: u64,
+    scope: StatusScope,
 }
 
 impl StatusTrustRule {
     /// Constructs a status trust rule.
     #[must_use]
-    pub const fn new(method: StatusMethodId, issuer: PrincipalId, sequence_floor: u64) -> Self {
+    pub const fn new(
+        method: StatusMethodId,
+        issuer: PrincipalId,
+        sequence_floor: u64,
+        scope: StatusScope,
+    ) -> Self {
         Self {
             method,
             issuer,
             sequence_floor,
+            scope,
         }
+    }
+
+    /// Returns the trust anchors under which the issuer's statements count.
+    #[must_use]
+    pub const fn scope(&self) -> &StatusScope {
+        &self.scope
     }
 
     /// Returns the exact status method.
@@ -3980,6 +4077,23 @@ impl AcceptedRegistries {
     }
 }
 
+/// Whether one snapshot's status scopes can apply to the context's trust
+/// anchors: an `own` issuer is some anchor's principal, every listed anchor
+/// exists, and every rule that names one issuer carries one scope.
+fn status_scopes_apply(trust: &[StatusTrustRule], anchors: &[TrustAnchor]) -> bool {
+    let principals: BTreeSet<&PrincipalId> = anchors.iter().map(TrustAnchor::principal).collect();
+    let ids: BTreeSet<&TrustAnchorId> = anchors.iter().map(TrustAnchor::id).collect();
+    let mut scopes: BTreeMap<&PrincipalId, &StatusScope> = BTreeMap::new();
+    trust.iter().all(|rule| {
+        let applies = match rule.scope() {
+            StatusScope::OwnAnchor => principals.contains(rule.issuer()),
+            StatusScope::Anchors(listed) => listed.ids().iter().all(|id| ids.contains(id)),
+            StatusScope::AnyAnchor => true,
+        };
+        applies && *scopes.entry(rule.issuer()).or_insert(rule.scope()) == rule.scope()
+    })
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TrustedContext {
     configuration: VerifierConfigurationId,
@@ -4063,6 +4177,8 @@ impl TrustedContext {
             || grant_status_snapshot.checkpoints().len() > limits.get(LimitKind::EvidenceObjects)
             || principal_status_snapshot.trust().len() > limits.get(LimitKind::RegistryEntries)
             || grant_status_snapshot.trust().len() > limits.get(LimitKind::RegistryEntries)
+            || !status_scopes_apply(principal_status_snapshot.trust(), &trust_anchors)
+            || !status_scopes_apply(grant_status_snapshot.trust(), &trust_anchors)
         {
             return Err(ModelError::InvalidVerifierContext);
         }
@@ -5589,5 +5705,225 @@ mod tests {
                 Err(ModelError::CollectionLimitExceeded)
             );
         }
+    }
+
+    fn status_anchor(id: &str, principal: &str) -> TrustAnchor {
+        TrustAnchor::new(
+            TrustAnchorId::parse(id).expect("anchor ID"),
+            PrincipalId::parse(principal).expect("principal"),
+            vec![PrincipalMethodId::parse("raw-key-v1").expect("method")],
+            vec![
+                ProfileRef::new(ProfileId::parse("auths.mcp").expect("profile"), 1)
+                    .expect("profile"),
+            ],
+            PermissionSet::new(vec![permission(0)]).expect("permissions"),
+            Vec::new(),
+            AudienceSet::new(vec![audience(0)]).expect("audiences"),
+            ValidityWindow::new(Timestamp::new(0), Timestamp::new(100)).expect("validity"),
+            None,
+            0,
+            AssurancePolicyId::parse("policy").expect("policy"),
+            StatusPolicy::ExpiryOnly,
+        )
+        .expect("anchor")
+    }
+
+    fn status_rule(method: &str, issuer: &str, scope: StatusScope) -> StatusTrustRule {
+        StatusTrustRule::new(
+            StatusMethodId::parse(method).expect("method"),
+            PrincipalId::parse(issuer).expect("issuer"),
+            1,
+            scope,
+        )
+    }
+
+    fn listed_scope(ids: &[&str]) -> StatusScope {
+        StatusScope::Anchors(
+            StatusScopeAnchors::new(
+                ids.iter()
+                    .map(|id| TrustAnchorId::parse(id).expect("anchor ID"))
+                    .collect(),
+            )
+            .expect("listed anchors"),
+        )
+    }
+
+    /// A two-organization context whose snapshots carry the given rules.
+    fn scoped_context(
+        principal_rules: Vec<StatusTrustRule>,
+        grant_rules: Vec<StatusTrustRule>,
+    ) -> Result<TrustedContext, ModelError> {
+        let profile =
+            ProfileRef::new(ProfileId::parse("auths.mcp").expect("profile"), 1).expect("profile");
+        let registries = AcceptedRegistries::new(
+            RegistryManifestId::new([0x11; 32]),
+            vec![PrincipalMethodId::parse("raw-key-v1").expect("method")],
+            vec![SignatureSuiteId::parse("ed25519-v1").expect("suite")],
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            vec![ResourceMatcherId::parse("uri-namespace-v1").expect("matcher")],
+            Vec::new(),
+            Vec::new(),
+            vec![profile],
+            vec![ProfilePolicyId::parse("exact-v1").expect("policy")],
+        )
+        .expect("registries");
+        let principal_snapshot = PrincipalStatusSnapshot::with_trust(
+            StatusSnapshotId::new([1; 32]),
+            Timestamp::new(0),
+            Timestamp::new(100),
+            Vec::new(),
+            Vec::new(),
+            principal_rules,
+        )
+        .expect("principal snapshot");
+        let grant_snapshot = GrantStatusSnapshot::with_trust(
+            StatusSnapshotId::new([2; 32]),
+            Timestamp::new(0),
+            Timestamp::new(100),
+            Vec::new(),
+            Vec::new(),
+            grant_rules,
+        )
+        .expect("grant snapshot");
+        TrustedContext::new(
+            VerifierConfigurationId::new([3; 32]),
+            CompositionRequirement::new(None, 1, 1, 1).expect("composition"),
+            vec![
+                status_anchor("anchor-v", "raw:v-root"),
+                status_anchor("anchor-f", "raw:f-root"),
+            ],
+            registries,
+            audience(0),
+            Challenge::new([4; 32]),
+            Timestamp::new(50),
+            AssurancePolicy::new(
+                AssurancePolicyId::parse("policy").expect("policy"),
+                Vec::new(),
+            )
+            .expect("assurance"),
+            principal_snapshot,
+            grant_snapshot,
+            ResourceMatcherId::parse("uri-namespace-v1").expect("matcher"),
+            ProfilePolicyId::parse("exact-v1").expect("policy"),
+            ChannelBindingId::parse("none-v1").expect("channel"),
+            VerifierLimits::default(),
+        )
+    }
+
+    #[test]
+    fn status_scope_covers_exactly_its_anchors() {
+        let verifier_anchor = status_anchor("anchor-v", "raw:v-root");
+        let partner_anchor = status_anchor("anchor-f", "raw:f-root");
+        let verifier_root = PrincipalId::parse("raw:v-root").expect("principal");
+        let service = PrincipalId::parse("raw:service").expect("principal");
+        assert!(StatusScope::OwnAnchor.covers(&verifier_root, &verifier_anchor));
+        assert!(!StatusScope::OwnAnchor.covers(&verifier_root, &partner_anchor));
+        assert!(!StatusScope::OwnAnchor.covers(&service, &verifier_anchor));
+        let only_f = listed_scope(&["anchor-f"]);
+        assert!(only_f.covers(&service, &partner_anchor));
+        assert!(!only_f.covers(&service, &verifier_anchor));
+        assert!(
+            !only_f.covers(&verifier_root, &verifier_anchor),
+            "a listed scope never falls back to ownership"
+        );
+        assert!(StatusScope::AnyAnchor.covers(&service, &verifier_anchor));
+        assert!(StatusScope::AnyAnchor.covers(&verifier_root, &partner_anchor));
+    }
+
+    #[test]
+    fn listed_status_anchors_are_sorted_non_empty_and_distinct() {
+        let id = |value: &str| TrustAnchorId::parse(value).expect("anchor ID");
+        let anchors = StatusScopeAnchors::new(vec![id("b"), id("a")]).expect("anchors");
+        assert_eq!(anchors.ids(), [id("a"), id("b")]);
+        assert!(anchors.contains(&id("b")));
+        assert!(!anchors.contains(&id("c")));
+        assert_eq!(
+            StatusScopeAnchors::new(Vec::new()),
+            Err(ModelError::InvalidStatusSnapshot)
+        );
+        assert_eq!(
+            StatusScopeAnchors::new(vec![id("a"), id("a")]),
+            Err(ModelError::InvalidStatusSnapshot)
+        );
+    }
+
+    #[test]
+    fn an_issuer_no_rule_names_is_never_out_of_scope() {
+        let verifier_anchor = status_anchor("anchor-v", "raw:v-root");
+        let trust = [status_rule(
+            "auths-principal-status-v1",
+            "raw:f-root",
+            StatusScope::OwnAnchor,
+        )];
+        let partner_root = PrincipalId::parse("raw:f-root").expect("principal");
+        let unknown = PrincipalId::parse("raw:unknown").expect("principal");
+        assert!(!status_issuer_in_scope(
+            &trust,
+            &partner_root,
+            &verifier_anchor
+        ));
+        assert!(status_issuer_in_scope(&trust, &unknown, &verifier_anchor));
+        assert!(status_issuer_in_scope(&[], &partner_root, &verifier_anchor));
+    }
+
+    #[test]
+    fn trusted_context_rejects_status_scopes_that_cannot_apply() {
+        let method = "auths-principal-status-v1";
+        let verifier_own = status_rule(method, "raw:v-root", StatusScope::OwnAnchor);
+        let partner_own = status_rule(method, "raw:f-root", StatusScope::OwnAnchor);
+        assert!(
+            scoped_context(
+                vec![verifier_own.clone(), partner_own.clone()],
+                vec![verifier_own]
+            )
+            .is_ok()
+        );
+        // An `own` issuer that is no anchor's principal.
+        assert_eq!(
+            scoped_context(
+                vec![status_rule(method, "raw:service", StatusScope::OwnAnchor)],
+                Vec::new()
+            ),
+            Err(ModelError::InvalidVerifierContext)
+        );
+        // A listed anchor the context does not hold.
+        assert_eq!(
+            scoped_context(
+                Vec::new(),
+                vec![status_rule(
+                    method,
+                    "raw:service",
+                    listed_scope(&["no-such-anchor"])
+                )]
+            ),
+            Err(ModelError::InvalidVerifierContext)
+        );
+        // One issuer with two scopes in one snapshot, under two methods.
+        assert_eq!(
+            scoped_context(
+                vec![
+                    partner_own.clone(),
+                    status_rule(
+                        "other-principal-status-v1",
+                        "raw:f-root",
+                        StatusScope::AnyAnchor
+                    ),
+                ],
+                Vec::new()
+            ),
+            Err(ModelError::InvalidVerifierContext)
+        );
+        // Each snapshot is checked on its own.
+        assert!(
+            scoped_context(
+                vec![partner_own],
+                vec![status_rule(method, "raw:f-root", StatusScope::AnyAnchor)]
+            )
+            .is_ok()
+        );
     }
 }

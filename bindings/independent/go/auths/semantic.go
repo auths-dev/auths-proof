@@ -388,6 +388,7 @@ type proofBundle struct {
 }
 
 type trustAnchor struct {
+	id          string
 	principal   string
 	methods     []string
 	profiles    []profile
@@ -416,10 +417,52 @@ type compositionRequirement struct {
 	minimumDistinctRoots      uint64
 }
 
+// statusScopeKind is the wire tag of a status scope.
+type statusScopeKind uint64
+
+const (
+	// statusScopeOwn covers the anchors whose principal is the issuer.
+	statusScopeOwn statusScopeKind = 0
+	// statusScopeAnchors covers the listed local trust-anchor IDs.
+	statusScopeAnchors statusScopeKind = 1
+	// statusScopeAny covers every anchor.
+	statusScopeAny statusScopeKind = 2
+)
+
+// statusScope names the trust anchors under whose branches a status issuer's
+// statements count. Every rule naming one issuer in one snapshot carries the
+// same scope, which the context decoder enforces.
+type statusScope struct {
+	kind statusScopeKind
+	// anchors is strictly ascending and non-empty for statusScopeAnchors, and
+	// empty otherwise.
+	anchors []string
+}
+
+func (scope statusScope) equal(other statusScope) bool {
+	return scope.kind == other.kind && stringSliceEqual(scope.anchors, other.anchors)
+}
+
+// covers reports whether the scope of issuer covers a branch evaluated under
+// anchor.
+func (scope statusScope) covers(anchor *trustAnchor, issuer string) bool {
+	switch scope.kind {
+	case statusScopeOwn:
+		return anchor.principal == issuer
+	case statusScopeAnchors:
+		return containsText(scope.anchors, anchor.id)
+	case statusScopeAny:
+		return true
+	default:
+		return false
+	}
+}
+
 type statusTrustRule struct {
 	method          string
 	issuer          string
 	minimumSequence uint64
+	scope           statusScope
 }
 
 type statusSnapshot[T any] struct {

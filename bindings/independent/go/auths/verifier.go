@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -26,21 +27,64 @@ type participantReport struct {
 	adapter   string
 }
 
+// The stage of a portable result: where the first failure occurred, or
+// complete when the result is authorized.
+const (
+	stageDecode           = "decode"
+	stageResolve          = "resolve"
+	stagePrincipalControl = "principal-control"
+	stageAuthority        = "authority"
+	stageComplete         = "complete"
+)
+
+// reportImplementation names this verifier in a conformance report.
+const reportImplementation = "go-independent"
+
 type semanticResult struct {
-	name      string
-	decision  string
-	code      string
-	proof     []byte
-	context   []byte
-	action    []byte
+	decision string
+	code     string
+	stage    string
+	proof    []byte
+	context  []byte
+	action   []byte
+	// plan is nil at stage decode and resolve.
 	plan      []byte
 	actionIDs [][]byte
 	branches  [][]byte
 	assurance []participantReport
 }
 
-func semanticAudit(input manifest, root string) (string, error) {
+// fieldMismatch is one compared field whose derived value differs from the
+// manifest. An absent plan digest is "null".
+type fieldMismatch struct {
+	field    string
+	got      string
+	expected string
+}
+
+// semanticMismatchError lists every mismatching vector field of one audit.
+type semanticMismatchError struct {
+	vectors int
+	lines   []string
+}
+
+func (failure semanticMismatchError) Error() string {
+	return fmt.Sprintf(
+		"%d vectors disagree with the manifest:\n%s",
+		failure.vectors,
+		strings.Join(failure.lines, "\n"),
+	)
+}
+
+// semanticAudit obtains every vector's result through Verify, which alone
+// decodes the inputs, and compares it with the manifest. It checks every
+// vector before failing, writes the report whether or not any vector
+// mismatches, and returns the aggregate semantic digest only when all agree.
+func semanticAudit(input manifest, root string, reportPath string) (string, error) {
+	engine := &Engine{adapters: input.AdapterContext}
 	summary := sha256.New()
+	var report bytes.Buffer
+	var failure semanticMismatchError
 	for _, fixture := range input.Fixtures {
 		proofBytes, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(fixture.Proof.Path)))
 		if err != nil {
@@ -50,100 +94,104 @@ func semanticAudit(input manifest, root string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		actionArtifact, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(fixture.CanonicalAction.Path)))
+		actionBytes, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(fixture.CanonicalAction.Path)))
 		if err != nil {
 			return "", err
 		}
-		actionBytes, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(fixture.CanonicalBody.Path)))
-		if err != nil {
+		result := engine.Verify(proofBytes, actionBytes, contextBytes)
+		mismatches := compareResult(fixture, result)
+		if len(mismatches) > 0 {
+			failure.vectors++
+		}
+		for _, mismatch := range mismatches {
+			failure.lines = append(failure.lines, fmt.Sprintf(
+				"%s: %s: got %s, expected %s",
+				fixture.Name, mismatch.field, mismatch.got, mismatch.expected,
+			))
+		}
+		writeReportLine(&report, fixture.Name, result, mismatches)
+		writeSemanticResult(summary, fixture.Name, result)
+	}
+	if reportPath != "" {
+		if err := os.WriteFile(reportPath, report.Bytes(), 0o644); err != nil {
 			return "", err
 		}
-		action, err := decodeCanonicalAction(actionArtifact)
-		if err != nil {
-			return "", err
-		}
-		if !bytes.Equal(action.body, actionBytes) {
-			return "", fmt.Errorf("%s canonical action/body mismatch", fixture.Name)
-		}
-		result := verifySemantic(
-			fixture.Name, proofBytes, contextBytes, actionArtifact, input.AdapterContext,
-		)
-		if result.decision != fixtureExpectedDecision(fixture) || result.code != fixture.ExpectedCode {
-			return "", fmt.Errorf(
-				"%s independently derived %s/%s, manifest requires %s/%s",
-				fixture.Name,
-				result.decision,
-				result.code,
-				fixtureExpectedDecision(fixture),
-				fixture.ExpectedCode,
-			)
-		}
-		writeSemanticResult(summary, result)
+	}
+	if failure.vectors > 0 {
+		return "", failure
 	}
 	return fmt.Sprintf("%d:%x", len(input.Fixtures), summary.Sum(nil)), nil
 }
 
-func decodeCanonicalAction(data []byte) (*canonicalAction, error) {
-	root, err := decodeValue(data)
-	if err != nil {
-		return nil, err
+// compareResult returns, in report order, each field of the result that
+// differs from the fixture's expected decision, code, and result.
+func compareResult(fixture fixture, result Result) []fieldMismatch {
+	expected := fixture.ExpectedResult
+	expectedPlan := "null"
+	if expected.PlanDigest != nil {
+		expectedPlan = *expected.PlanDigest
 	}
-	if err := exactMap(root, 6); err != nil {
-		return nil, err
+	fields := []fieldMismatch{
+		{"decision", string(result.Decision), fixture.ExpectedDecision},
+		{"code", result.Code, fixture.ExpectedCode},
+		{"stage", result.Stage, expected.Stage},
+		{"proof_digest", hex.EncodeToString(result.ProofDigest), expected.ProofDigest},
+		{"action_digest", hex.EncodeToString(result.ActionDigest), expected.ActionDigest},
+		{"context_digest", hex.EncodeToString(result.ContextDigest), expected.ContextDigest},
+		{"plan_digest", planDigestText(result.PlanID), expectedPlan},
 	}
-	actionProfile, err := profileValue(mustMap(root, 0))
-	if err != nil {
-		return nil, err
-	}
-	mediaType, err := textValue(mustMap(root, 1))
-	if err != nil {
-		return nil, err
-	}
-	body, err := bytesValue(mustMap(root, 2), -1)
-	if err != nil {
-		return nil, err
-	}
-	actionPermission, err := permissionValue(mustMap(root, 3))
-	if err != nil {
-		return nil, err
-	}
-	actionBudget, err := budgetValue(mustMap(root, 4))
-	if err != nil {
-		return nil, err
-	}
-	detachedNodes, err := arrayValue(mustMap(root, 5))
-	if err != nil {
-		return nil, err
-	}
-	detached := make([]detachedAttachment, 0, len(detachedNodes))
-	for _, node := range detachedNodes {
-		if err := exactMap(node, 2); err != nil {
-			return nil, err
+	var mismatches []fieldMismatch
+	for _, field := range fields {
+		if field.got != field.expected {
+			mismatches = append(mismatches, field)
 		}
-		digest, err := bytesValue(mustMap(node, 0), 32)
-		if err != nil {
-			return nil, err
-		}
-		attachmentBytes, err := bytesValue(mustMap(node, 1), -1)
-		if err != nil {
-			return nil, err
-		}
-		detached = append(detached, detachedAttachment{digest: digest, bytes: attachmentBytes})
 	}
-	return &canonicalAction{
-		body: body, profile: actionProfile, mediaType: mediaType,
-		permission: actionPermission, budget: actionBudget, detached: detached,
-	}, nil
+	return mismatches
 }
 
-func fixtureExpectedDecision(value fixture) string {
-	// ExpectedDecision is added to the manifest model below; retaining this
-	// helper makes the comparison explicit and keeps expected data out of the
-	// verifier itself.
-	return value.ExpectedDecision
+// planDigestText is the lowercase-hex plan digest, or "null" when absent. No
+// hex digest can equal "null".
+func planDigestText(plan []byte) string {
+	if len(plan) == 0 {
+		return "null"
+	}
+	return hex.EncodeToString(plan)
 }
 
-func writeSemanticResult(summary interface{ Write([]byte) (int, error) }, result semanticResult) {
+// writeReportLine appends one conformance-report JSON object, keys in the
+// runner contract's order.
+func writeReportLine(output *bytes.Buffer, name string, result Result, mismatches []fieldMismatch) {
+	quote := func(value string) string {
+		// Marshalling a Go string cannot fail.
+		encoded, _ := json.Marshal(value)
+		return string(encoded)
+	}
+	plan := "null"
+	if len(result.PlanID) > 0 {
+		plan = quote(hex.EncodeToString(result.PlanID))
+	}
+	fields := make([]string, 0, len(mismatches))
+	for _, mismatch := range mismatches {
+		fields = append(fields, quote(mismatch.field))
+	}
+	members := []string{
+		`"name": ` + quote(name),
+		`"implementation": ` + quote(reportImplementation),
+		`"decision": ` + quote(string(result.Decision)),
+		`"code": ` + quote(result.Code),
+		`"stage": ` + quote(result.Stage),
+		`"proof_digest": ` + quote(hex.EncodeToString(result.ProofDigest)),
+		`"action_digest": ` + quote(hex.EncodeToString(result.ActionDigest)),
+		`"context_digest": ` + quote(hex.EncodeToString(result.ContextDigest)),
+		`"plan_digest": ` + plan,
+		`"mismatched_fields": [` + strings.Join(fields, ", ") + `]`,
+	}
+	output.WriteString("{" + strings.Join(members, ", ") + "}\n")
+}
+
+// writeSemanticResult appends one vector's fields to the aggregate semantic
+// digest, each followed by a zero byte, in the runner contract's order.
+func writeSemanticResult(summary interface{ Write([]byte) (int, error) }, name string, result Result) {
 	writeField := func(value string) {
 		summary.Write([]byte(value))
 		summary.Write([]byte{0})
@@ -151,41 +199,42 @@ func writeSemanticResult(summary interface{ Write([]byte) (int, error) }, result
 	writeBytes := func(value []byte) {
 		writeField(hex.EncodeToString(value))
 	}
-	writeField(result.name)
-	writeField(result.decision)
-	writeField(result.code)
-	writeBytes(result.proof)
-	writeBytes(result.context)
-	writeBytes(result.action)
-	writeBytes(result.plan)
-	for _, id := range result.actionIDs {
+	writeField(name)
+	writeField(string(result.Decision))
+	writeField(result.Code)
+	writeField(result.Stage)
+	writeBytes(result.ProofDigest)
+	writeBytes(result.ContextDigest)
+	writeBytes(result.ActionDigest)
+	writeBytes(result.PlanID)
+	for _, id := range result.ActionIDs {
 		writeBytes(id)
 	}
 	writeField("|")
-	for _, branch := range result.branches {
+	for _, branch := range result.AuthorizedBranches {
 		writeBytes(branch)
 	}
 	writeField("|")
-	for _, report := range result.assurance {
-		writeField(report.principal)
-		writeField(fmt.Sprintf("%d", report.role))
-		writeField(report.adapter)
-		claims := append([]assuranceClaim(nil), report.claims...)
+	for _, report := range result.Assurance {
+		writeField(report.Principal)
+		writeField(fmt.Sprintf("%d", report.Role))
+		writeField(report.Adapter)
+		claims := append([]AssuranceClaim(nil), report.Claims...)
 		sort.Slice(claims, func(i, j int) bool {
-			if claims[i].kind != claims[j].kind {
-				return claims[i].kind < claims[j].kind
+			if claims[i].Kind != claims[j].Kind {
+				return claims[i].Kind < claims[j].Kind
 			}
-			if claims[i].observedAt == nil || claims[j].observedAt == nil {
-				return claims[i].observedAt == nil && claims[j].observedAt != nil
+			if claims[i].ObservedAt == nil || claims[j].ObservedAt == nil {
+				return claims[i].ObservedAt == nil && claims[j].ObservedAt != nil
 			}
-			return *claims[i].observedAt < *claims[j].observedAt
+			return *claims[i].ObservedAt < *claims[j].ObservedAt
 		})
 		for _, claim := range claims {
-			writeField(claim.kind)
-			if claim.observedAt == nil {
+			writeField(claim.Kind)
+			if claim.ObservedAt == nil {
 				writeField("-")
 			} else {
-				writeField(fmt.Sprintf("%d", *claim.observedAt))
+				writeField(fmt.Sprintf("%d", *claim.ObservedAt))
 			}
 		}
 		writeField(";")
@@ -194,46 +243,51 @@ func writeSemanticResult(summary interface{ Write([]byte) (int, error) }, result
 }
 
 func verifySemantic(
-	name string,
 	proofBytes []byte,
 	contextBytes []byte,
 	actionBytes []byte,
 	adapters adapterContext,
 ) semanticResult {
 	result := semanticResult{
-		name:    name,
 		proof:   sha256Bytes(proofBytes),
 		action:  sha256Bytes(actionBytes),
 		context: domainHash(9, contextBytes),
 	}
 	context, err := decodeContext(contextBytes)
 	if err != nil {
-		result.decision, result.code = "denied", "malformed-proof"
+		result.stage, result.decision, result.code = stageDecode, "denied", "malformed-proof"
 		return result
 	}
-	// The canonical action is bounded and decoded before the proof is read,
-	// so a rejected action leaves no plan digest.
+	// The canonical action is bounded and decoded before the proof is read.
 	action, err := decodeBoundedCanonicalAction(actionBytes, context.limits)
 	if err != nil {
-		return failedResult(result, err)
+		return failedResult(result, stageDecode, err)
 	}
 	bundle, err := decodeBundle(proofBytes, context.limits)
 	if err != nil {
-		return failedResult(result, err)
+		return failedResult(result, stageDecode, err)
 	}
-	result.plan = domainHash(3, bundle.plan.raw)
+	// A decode or resolve result carries no plan digest, so the plan is
+	// reported only once every reference has resolved.
+	plan := domainHash(3, bundle.plan.raw)
 	if context.composition.expectedPlan != nil &&
-		!bytes.Equal(context.composition.expectedPlan, result.plan) {
-		return failedResult(result, denied("composition-requirement-not-met"))
+		!bytes.Equal(context.composition.expectedPlan, plan) {
+		return failedResult(result, stageResolve, denied("composition-requirement-not-met"))
 	}
-	controls, err := resolveAndVerifyControl(bundle, context, adapters)
+	resolved, err := resolveReferences(bundle, context, plan)
 	if err != nil {
-		return failedResult(result, err)
+		return failedResult(result, stageResolve, err)
+	}
+	result.plan = plan
+	controls, err := verifyPrincipalControl(bundle, context, adapters, resolved)
+	if err != nil {
+		return failedResult(result, stagePrincipalControl, err)
 	}
 	actionIDs, branches, assurance, err := verifyAuthority(bundle, controls, context, *action, adapters)
 	if err != nil {
-		return failedResult(result, err)
+		return failedResult(result, stageAuthority, err)
 	}
+	result.stage = stageComplete
 	result.decision = "authorized"
 	result.code = "authorized"
 	result.actionIDs = actionIDs
@@ -242,7 +296,8 @@ func verifySemantic(
 	return result
 }
 
-func failedResult(result semanticResult, err error) semanticResult {
+func failedResult(result semanticResult, stage string, err error) semanticResult {
+	result.stage = stage
 	var failure semanticFailure
 	if errors.As(err, &failure) {
 		result.decision = failure.decision
@@ -259,12 +314,21 @@ func sha256Bytes(value []byte) []byte {
 	return digest[:]
 }
 
-func resolveAndVerifyControl(
+// resolvedReferences is what reference resolution hands principal control:
+// the proof's evidence objects and control bindings, keyed for lookup.
+type resolvedReferences struct {
+	evidenceByID map[string]*evidenceObject
+	bindings     map[string]*controlBinding
+}
+
+// resolveReferences runs reference resolution, from grant identifiers through
+// the check on proof-carried status statements. planID is the recomputed
+// plan identifier, already checked against the context's expected plan.
+func resolveReferences(
 	bundle *proofBundle,
 	context *verifierContext,
-	adapters adapterContext,
-) ([]verifiedControl, error) {
-	planID := domainHash(3, bundle.plan.raw)
+	planID []byte,
+) (*resolvedReferences, error) {
 	grants := make(map[string]*signedGrant, len(bundle.grants))
 	for _, grant := range bundle.grants {
 		key := digestKey(grant.id)
@@ -379,7 +443,20 @@ func resolveAndVerifyControl(
 	if err := validateCarriedStatus(bundle, context); err != nil {
 		return nil, err
 	}
+	return &resolvedReferences{evidenceByID: evidenceByID, bindings: bindings}, nil
+}
 
+// verifyPrincipalControl runs principal control over resolved references. A
+// statement's control failure is stored on it for the branch that needs it;
+// only resource exhaustion and unconsumed evidence end verification here.
+func verifyPrincipalControl(
+	bundle *proofBundle,
+	context *verifierContext,
+	adapters adapterContext,
+	resolved *resolvedReferences,
+) ([]verifiedControl, error) {
+	evidenceByID := resolved.evidenceByID
+	bindings := resolved.bindings
 	// Principal control starts by requiring the executable registry and
 	// configuration, after every reference has resolved.
 	if !bytes.Equal(context.registryManifest, bytes.Repeat([]byte{0x36}, 32)) {
@@ -530,41 +607,54 @@ func resolveAndVerifyControl(
 	return controls, nil
 }
 
-// validateCarriedStatus rejects a proof-carried status statement that the
-// snapshot supersedes or does not hold. Rollback is keyed on the statement's
-// subject alone, the principal or the grant, as status selection is.
+// validateCarriedStatus checks proof-carried status statements in two passes,
+// each over the carried principal-status statements and then the carried
+// grant-status statements, in proof order. The first pass rejects a statement
+// older than a snapshot statement with the same subject, method, and issuer:
+// a sequence number orders one issuer's statements under one method, so a
+// statement from another issuer or under another method is never compared.
+// The second pass rejects a statement the snapshot does not hold. Every
+// rollback check runs before any holding check.
 func validateCarriedStatus(bundle *proofBundle, context *verifierContext) error {
 	for _, carried := range bundle.principalStatus {
 		for _, current := range context.principalSnapshot.statements {
-			if carried.principal == current.principal && current.sequence > carried.sequence {
+			if current.principal == carried.principal && current.method == carried.method &&
+				current.issuer == carried.issuer && current.sequence > carried.sequence {
 				return denied("status-sequence-rollback")
 			}
-		}
-		found := false
-		for _, current := range context.principalSnapshot.statements {
-			if bytes.Equal(carried.statement.raw, current.statement.raw) &&
-				bytes.Equal(carried.signature.signature, current.signature.signature) {
-				found = true
-			}
-		}
-		if !found {
-			return denied("digest-mismatch")
 		}
 	}
 	for _, carried := range bundle.grantStatus {
 		for _, current := range context.grantSnapshot.statements {
-			if bytes.Equal(carried.grantID, current.grantID) && current.sequence > carried.sequence {
+			if bytes.Equal(current.grantID, carried.grantID) && current.method == carried.method &&
+				current.issuer == carried.issuer && current.sequence > carried.sequence {
 				return denied("status-sequence-rollback")
 			}
 		}
-		found := false
+	}
+	for _, carried := range bundle.principalStatus {
+		held := false
+		for _, current := range context.principalSnapshot.statements {
+			if bytes.Equal(carried.statement.raw, current.statement.raw) &&
+				bytes.Equal(carried.signature.signature, current.signature.signature) {
+				held = true
+				break
+			}
+		}
+		if !held {
+			return denied("digest-mismatch")
+		}
+	}
+	for _, carried := range bundle.grantStatus {
+		held := false
 		for _, current := range context.grantSnapshot.statements {
 			if bytes.Equal(carried.statement.raw, current.statement.raw) &&
 				bytes.Equal(carried.signature.signature, current.signature.signature) {
-				found = true
+				held = true
+				break
 			}
 		}
-		if !found {
+		if !held {
 			return denied("digest-mismatch")
 		}
 	}
@@ -1048,20 +1138,21 @@ func verifyFromAnchor(
 	if !containsText(anchor.methods, method) || anchor.assurance != context.assuranceID {
 		return nil, denied("untrusted-root")
 	}
-	// Status runs before resource and attenuation checks. Every grant subject
-	// is checked under the anchor's policy: by chain linkage the subjects are
-	// every issuer after the root and the actor.
+	// Status runs before resource and attenuation checks, and sees only the
+	// statements in scope for this anchor. Every grant subject is checked
+	// under the anchor's policy: by chain linkage the subjects are every
+	// issuer after the root and the actor.
 	if err := checkPrincipalStatus(
-		anchor.status, anchor.principal, statusRequired, context, controls,
+		anchor.status, anchor.principal, statusRequired, anchor, context, controls,
 	); err != nil {
 		return nil, err
 	}
 	for _, grant := range chain {
-		if err := checkGrantStatus(grant.status, grant.id, context, controls); err != nil {
+		if err := checkGrantStatus(grant.status, grant.id, anchor, context, controls); err != nil {
 			return nil, err
 		}
 		if err := checkPrincipalStatus(
-			anchor.status, grant.subject, statusRevocationList, context, controls,
+			anchor.status, grant.subject, statusRevocationList, anchor, context, controls,
 		); err != nil {
 			return nil, err
 		}
@@ -1413,9 +1504,25 @@ func statusControl(controls map[string]verifiedControl, kind uint64, id []byte) 
 	return control.err
 }
 
-// selectStatus follows the native exact status method: a trusted statement
-// below its issuer's sequence floor is a rollback, and freshness and state are
-// judged across every trusted statement at the greatest sequence.
+// outOfScope reports whether a snapshot statement by issuer takes no part in a
+// branch evaluated under anchor: a rule of the snapshot names the issuer, and
+// the issuer's scope does not cover the anchor. The decoder guarantees every
+// rule naming one issuer carries the same scope, so the first one decides. A
+// statement whose issuer no rule names is never out of scope.
+func outOfScope(trust []statusTrustRule, issuer string, anchor *trustAnchor) bool {
+	for _, rule := range trust {
+		if rule.issuer == issuer {
+			return !rule.scope.covers(anchor, issuer)
+		}
+	}
+	return false
+}
+
+// selectStatus follows the exact status method over the in-scope statements
+// about one subject: a trusted statement below its issuer's sequence floor is
+// a rollback, and freshness and state are judged across every trusted
+// statement at the greatest sequence. Its candidates are already filtered by
+// scope, so it needs no anchor.
 func selectStatus(
 	candidates []statusEntry,
 	policy statusPolicy,
@@ -1476,10 +1583,14 @@ func selectStatus(
 	return nil
 }
 
+// checkPrincipalStatus evaluates one principal of a branch evaluated under
+// anchor. A statement out of scope for the anchor is skipped before every
+// step, so the result is the one the snapshot would give without it.
 func checkPrincipalStatus(
 	policy statusPolicy,
 	principal string,
 	listing statusListing,
+	anchor *trustAnchor,
 	context *verifierContext,
 	controls map[string]verifiedControl,
 ) error {
@@ -1492,7 +1603,8 @@ func checkPrincipalStatus(
 	snapshot := context.principalSnapshot
 	candidates := make([]statusEntry, 0)
 	for _, statement := range snapshot.statements {
-		if statement.principal != principal {
+		if statement.principal != principal ||
+			outOfScope(snapshot.trust, statement.issuer, anchor) {
 			continue
 		}
 		if err := statusControl(controls, 2, statement.id); err != nil {
@@ -1519,9 +1631,12 @@ func checkPrincipalStatus(
 	return selectStatus(candidates, policy, snapshot.trust, context.evaluationTime, "principal-revoked")
 }
 
+// checkGrantStatus evaluates one grant of a branch evaluated under anchor,
+// skipping out-of-scope statements as checkPrincipalStatus does.
 func checkGrantStatus(
 	policy statusPolicy,
 	grantID []byte,
+	anchor *trustAnchor,
 	context *verifierContext,
 	controls map[string]verifiedControl,
 ) error {
@@ -1534,7 +1649,8 @@ func checkGrantStatus(
 	snapshot := context.grantSnapshot
 	candidates := make([]statusEntry, 0)
 	for _, statement := range snapshot.statements {
-		if !bytes.Equal(statement.grantID, grantID) {
+		if !bytes.Equal(statement.grantID, grantID) ||
+			outOfScope(snapshot.trust, statement.issuer, anchor) {
 			continue
 		}
 		if err := statusControl(controls, 3, statement.id); err != nil {

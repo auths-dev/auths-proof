@@ -20,9 +20,9 @@ use auths_model::{
     ParticipantRole, Permission, PermissionSet, PrincipalId, PrincipalMethodId, PrincipalState,
     PrincipalStatusSnapshot, PrincipalStatusStatement, ProfileId, ProfileRef, ProofRef, ResourceId,
     SignatureBytes, SignatureDescriptor, SignatureSuiteId, SignedAction, SignedGrant,
-    SignedGrantStatus, SignedPrincipalStatus, StatusMethodId, StatusPolicy, StatusSnapshotId,
-    StatusTrustRule, Timestamp, TrustAnchor, TrustAnchorId, TrustedContext, ValidityWindow,
-    VerificationMethod, VerifierConfigurationId, VerifierLimits,
+    SignedGrantStatus, SignedPrincipalStatus, StatusMethodId, StatusPolicy, StatusScope,
+    StatusScopeAnchors, StatusSnapshotId, StatusTrustRule, Timestamp, TrustAnchor, TrustAnchorId,
+    TrustedContext, ValidityWindow, VerificationMethod, VerifierConfigurationId, VerifierLimits,
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_profile_api::ActionProfile;
@@ -922,6 +922,28 @@ impl PyStatusSnapshot {
 }
 
 #[pyfunction]
+/// A status scope from its kind (`own`, `anchors`, or `any`) and, for
+/// `anchors` only, at least one listed trust-anchor ID.
+fn status_scope(kind: &str, anchors: Vec<String>) -> PyResult<StatusScope> {
+    match (kind, anchors.is_empty()) {
+        ("own", true) => Ok(StatusScope::OwnAnchor),
+        ("any", true) => Ok(StatusScope::AnyAnchor),
+        ("anchors", false) => Ok(StatusScope::Anchors(
+            StatusScopeAnchors::new(
+                anchors
+                    .iter()
+                    .map(|id| TrustAnchorId::parse(id))
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(value_error)?,
+            )
+            .map_err(value_error)?,
+        )),
+        _ => Err(value_error(
+            "status scope must be own, anchors with at least one anchor ID, or any",
+        )),
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn status_snapshot(
     py: Python<'_>,
@@ -931,7 +953,7 @@ fn status_snapshot(
     valid_until: u64,
     statements: Vec<Py<PySignedObject>>,
     checkpoints: Vec<Vec<u8>>,
-    trust: Vec<(String, String, u64)>,
+    trust: Vec<(String, String, u64, String, Vec<String>)>,
 ) -> PyResult<PyStatusSnapshot> {
     let id = StatusSnapshotId::new(array32(identifier, "status snapshot id")?);
     let checkpoints = checkpoints
@@ -940,11 +962,12 @@ fn status_snapshot(
         .collect::<PyResult<Vec<_>>>()?;
     let trust = trust
         .into_iter()
-        .map(|(method, issuer, sequence_floor)| {
+        .map(|(method, issuer, sequence_floor, scope, anchors)| {
             Ok(StatusTrustRule::new(
                 StatusMethodId::parse(&method).map_err(value_error)?,
                 PrincipalId::parse(&issuer).map_err(value_error)?,
                 sequence_floor,
+                status_scope(&scope, anchors)?,
             ))
         })
         .collect::<PyResult<Vec<_>>>()?;
