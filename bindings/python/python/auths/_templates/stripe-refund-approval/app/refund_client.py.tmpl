@@ -1,0 +1,341 @@
+"""The agent's side of the Stripe refund enforcement point.
+
+    bin/request --operation-id ID --payment-intent PI --amount CENTS --approvers a,b
+                [--currency usd] [--connect-account acct_...] [--precheck]
+    bin/submit  --operation-id ID [--socket PATH]
+    bin/export
+
+``request`` writes one approval request per manager into ``requests/ID/`` and
+the agent's own approval beside them. ``submit`` collects the responses and
+sends every assembled proof to the gateway: only the gateway decides the
+approval threshold, the ceiling, the per-window count and sum, and whether an
+operation ID may run again. ``request --precheck`` is an opt-in client-side
+pre-check, not an enforcement boundary. Every outcome record says who decided
+it in ``decided_by``: ``gateway``, ``approver``, or ``client``.
+
+Besides the project's public files (``enforcement.toml`` and ``recipe/``),
+this client reads only ``agent/``, ``operator/setup.json`` (public facts),
+and ``requests/``. It never reads the root's or a manager's key; on one OS
+user that is a convention, not isolation.
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import base64
+import dataclasses
+import json
+import sys
+import time
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+LIB = Path(__file__).resolve().parent.parent / "lib"
+sys.path.insert(0, str(LIB))
+sys.path.insert(0, str(LIB.parent / "recipe"))
+
+from common import (  # noqa: E402
+    PROJECT,
+    RECIPE,
+    PROFILE_LOCK,
+    CommandFailed,
+    checked_config,
+    inside,
+    main,
+    private_directory,
+    read_json,
+    write_file,
+)
+from generated import CONTRACT, CreateRefund  # noqa: E402
+
+from auths.authoring import (  # noqa: E402
+    ApprovalMember,
+    ApprovalProposal,
+    ApprovalResponse,
+    approval_requests,
+    approve,
+    collect_approvals,
+    open_approval_request,
+    propose_mcp_approval,
+)
+from auths.gateway import GatewayClient, GatewayEndpoint, GatewaySignedObservation  # noqa: E402
+from auths.self_hosted import load_signer_file  # noqa: E402
+
+AGENT = PROJECT / "agent"
+REQUESTS = PROJECT / "requests"
+FACTS = PROJECT / "operator" / "setup.json"
+LOG = AGENT / "log"
+DAY = 86_400
+# The recipe's derived Idempotency-Key has 86 400 seconds of provider
+# retention; the gateway refuses an action whose approval window plus its
+# 60-second entry deadline exceeds that.
+APPROVAL_WINDOW = DAY - 60
+PRECHECK_NOTE = (
+    "client-side pre-check; not an enforcement boundary. "
+    "The gateway enforces this rule whether or not the pre-check runs."
+)
+
+
+def _b64(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode()
+
+
+def _proposal(facts: Dict[str, Any], operation: str) -> ApprovalProposal[CreateRefund]:
+    """Rebuilds the proposal for ``operation`` from its saved inputs; the same
+    inputs always give the same envelopes and requests."""
+    pending = read_json(AGENT / "pending" / f"{operation}.json")
+    principals = facts["principals"]
+    agent = ApprovalMember(principals["agent"], (AGENT / "agent.grant.cbor").read_bytes())
+    return propose_mcp_approval(
+        contract=CONTRACT,
+        command=CreateRefund(
+            operator_namespace=facts["operator_namespace"],
+            operation_id=operation,
+            recipe_digest=facts["recipe_digest"],
+            payment_intent=pending["payment_intent"],
+            amount=pending["amount"],
+            connect_account=pending["connect_account"],
+            currency=pending["currency"],
+        ),
+        # The agent and every listed manager approve the same exact refund.
+        required=1 + len(pending["managers"]),
+        approvers=[agent] + [ApprovalMember(principals[name]) for name in pending["managers"]],
+        requester=principals["agent"],
+        challenge=bytes.fromhex(facts["challenge_hex"]),
+        evaluation_time=pending["evaluation_time"],
+        validity_seconds=APPROVAL_WINDOW,
+    )
+
+
+def _precheck(facts: Dict[str, Any], listed: List[str], amount: int) -> Optional[str]:
+    """The rule a request breaks by what ``operator/setup.json`` states, if
+    any. It checks no signature, window count, or operation ID: only the
+    gateway decides those."""
+    if len(set(listed)) != len(listed):
+        return "repeated-approver"
+    if 1 + len(set(listed)) < facts["approvals_required"]:
+        return "approvals-below-threshold"
+    if amount > facts["bound"]["ceiling"]:
+        return "above-ceiling"
+    return None
+
+
+async def _approve_as_agent(data: bytes) -> ApprovalResponse:
+    """The agent's own approval, signed with its key from ``agent/``."""
+    loaded = load_signer_file(AGENT / "signer.json")
+    try:
+        return await approve(open_approval_request(data), loaded.signer, grants=loaded.grants)
+    finally:
+        await loaded.signer.aclose()
+
+
+def _keep_pending(operation: str, data: bytes) -> None:
+    """Writes the request's inputs. An earlier request for the same operation
+    ID is kept under the first free ``ID.json.N``: whether the ID may run
+    again is the gateway's decision, not this client's."""
+    path = AGENT / "pending" / f"{operation}.json"
+    if path.exists():
+        number = 1
+        while path.with_name(f"{path.name}.{number}").exists():
+            number += 1
+        path.rename(path.with_name(f"{path.name}.{number}"))
+        print(
+            f"{operation} was requested before; the earlier request is kept as "
+            f"{path.name}.{number}. The gateway's attempt store decides whether "
+            "this operation ID may run again.",
+            file=sys.stderr,
+        )
+    write_file(path, data)
+
+
+def request(arguments: List[str]) -> Dict[str, Any]:
+    parser = argparse.ArgumentParser(prog="bin/request")
+    parser.add_argument("--operation-id", required=True)
+    parser.add_argument("--payment-intent", required=True)
+    parser.add_argument("--amount", type=int, required=True, help="cents")
+    parser.add_argument("--approvers", required=True, help="comma-separated manager names")
+    parser.add_argument("--currency", default="usd")
+    parser.add_argument("--connect-account", help="defaults to the account in the grant's scope")
+    parser.add_argument("--out", help="folder name under requests/; defaults to the operation ID")
+    parser.add_argument(
+        "--precheck",
+        action="store_true",
+        help="client-side pre-check, not an enforcement boundary: refuse before writing any "
+        "request when the approvers are fewer than the threshold, one repeats, or the amount "
+        "is above the ceiling. The gateway enforces these rules whether or not it runs.",
+    )
+    options = parser.parse_args(arguments)
+    checked_config(gateway=False)
+    facts = read_json(FACTS)
+    listed = [name for name in options.approvers.split(",") if name]
+    unknown = sorted(set(listed) - set(facts["managers"]))
+    if unknown:
+        raise CommandFailed("auths.request.unknown-approver", approvers=unknown)
+    if options.precheck:
+        rule = _precheck(facts, listed, options.amount)
+        if rule is not None:
+            return {
+                "operation_id": options.operation_id,
+                "outcome": "not-submitted",
+                "decided_by": "client",
+                "reason": "precheck",
+                "precheck": rule,
+                "note": PRECHECK_NOTE,
+            }
+    managers: List[str] = []
+    for name in listed:
+        if name in managers:
+            print(
+                f"dropped the repeated approver {name}: a proposal cannot name one "
+                "approver twice; the gateway decides the threshold for the approvers "
+                "that remain",
+                file=sys.stderr,
+            )
+            continue
+        managers.append(name)
+    folder = REQUESTS / (options.out or options.operation_id)
+    if folder.exists():
+        raise CommandFailed("auths.request.folder-exists", folder=str(folder))
+    pending = {
+        "managers": managers,
+        "payment_intent": options.payment_intent,
+        "amount": options.amount,
+        "currency": options.currency,
+        "connect_account": options.connect_account or facts["connect_account"],
+        "evaluation_time": int(time.time()),
+    }
+    _keep_pending(options.operation_id, json.dumps(pending).encode())
+    proposal = _proposal(facts, options.operation_id)
+    names = {principal: name for name, principal in facts["principals"].items()}
+    private_directory(folder)
+    written: Dict[str, str] = {}
+    for item in approval_requests(proposal):
+        name = names[item.approver]
+        if name == "agent":
+            # The agent approves its own request like any other approver.
+            response = asyncio.run(_approve_as_agent(item.data))
+            write_file(folder / "agent.response", (response.text + "\n").encode())
+            continue
+        path = folder / f"{name}.request"
+        write_file(path, (item.text + "\n").encode(), 0o644)
+        written[name] = str(path)
+    return {
+        "operation_id": options.operation_id,
+        "folder": str(folder),
+        "requests": written,
+        "action_b64": _b64(proposal.action),
+    }
+
+
+def _record_entry(entry: Dict[str, Any]) -> str:
+    """Keeps at most one bundle entry per operation ID: the first submission,
+    or a later one that the gateway recorded in place of one it did not."""
+    log = LOG / "entries.jsonl"
+    entries = [json.loads(line) for line in log.read_text().splitlines() if line] if log.exists() else []
+    for index, existing in enumerate(entries):
+        if existing["operation_id"] != entry["operation_id"]:
+            continue
+        if existing["outcome_b64"] is None and entry["outcome_b64"] is not None:
+            entries[index] = entry
+            write_file(
+                log,
+                "".join(json.dumps(item, separators=(",", ":")) + "\n" for item in entries).encode(),
+                replace=True,
+            )
+            return "replaced"
+        return "unchanged"
+    private_directory(LOG)
+    with open(log, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(entry, separators=(",", ":")) + "\n")
+    return "appended"
+
+
+async def _submit(options: argparse.Namespace) -> Dict[str, Any]:
+    facts = read_json(FACTS)
+    names = {principal: name for name, principal in facts["principals"].items()}
+    proposal = _proposal(facts, options.operation_id)
+    folder = inside(REQUESTS / (options.responses or options.operation_id))
+    texts = [path.read_text().strip() for path in sorted(folder.glob("*.response"))]
+    record: Dict[str, Any] = {"operation_id": options.operation_id, "amount": proposal.command.amount}
+    private_directory(LOG)
+    with open(LOG / "approvals.jsonl", "a", encoding="utf-8") as handle:
+        for text in texts:
+            handle.write(
+                json.dumps({"operation_id": options.operation_id, "response": text}, separators=(",", ":"))
+                + "\n"
+            )
+    collection = collect_approvals(proposal, texts)
+    statuses = {names.get(item.approver, item.approver): item for item in collection.statuses}
+    declined = sorted(name for name, item in statuses.items() if item.status == "declined")
+    if declined:
+        record.update(
+            outcome="not-submitted", decided_by="approver", reason="approver-declined", declined=declined
+        )
+        return record
+    waiting = {name: item.code or item.status for name, item in statuses.items() if item.status != "approved"}
+    if waiting:
+        # No proof exists until every listed approver approved this exact
+        # request, so nothing can be sent; this is not a policy refusal.
+        record.update(
+            outcome="not-submitted",
+            decided_by="client",
+            reason="approvals-incomplete",
+            waiting=waiting,
+            unattributed=[[index, code] for index, code in collection.unattributed],
+        )
+        return record
+    # Every assembled proof goes to the gateway: it alone decides the
+    # threshold, the ceiling, the count and sum, and whether the ID may run.
+    proof = collection.assemble()
+    gateway = GatewayClient(GatewayEndpoint(inside(options.socket)))
+    result = await gateway.submit(proof=proof, action=proposal.action)
+    record.update(dataclasses.asdict(result))
+    record["decided_by"] = "gateway"
+    observation = await gateway.observe_outcome(options.operation_id)
+    outcome = observation.observation if isinstance(observation, GatewaySignedObservation) else None
+    record["bundle"] = _record_entry(
+        {
+            "operation_id": options.operation_id,
+            "proof_b64": _b64(proof),
+            "action_b64": _b64(proposal.action),
+            "outcome_b64": _b64(outcome) if outcome is not None else None,
+        }
+    )
+    return record
+
+
+def submit(arguments: List[str]) -> Dict[str, Any]:
+    parser = argparse.ArgumentParser(prog="bin/submit")
+    parser.add_argument("--operation-id", required=True)
+    parser.add_argument("--responses", help="folder name under requests/; defaults to the operation ID")
+    parser.add_argument("--socket", type=Path, default=PROJECT / "run" / "app.sock")
+    options = parser.parse_args(arguments)
+    checked_config(gateway=False)
+    return asyncio.run(_submit(options))
+
+
+def export(arguments: List[str]) -> Dict[str, Any]:
+    argparse.ArgumentParser(prog="bin/export").parse_args(arguments)
+    checked_config(gateway=False)
+    log = LOG / "entries.jsonl"
+    entries = [json.loads(line) for line in log.read_text().splitlines() if line] if log.exists() else []
+    approvals = LOG / "approvals.jsonl"
+    responses = (
+        [json.loads(line) for line in approvals.read_text().splitlines() if line] if approvals.exists() else []
+    )
+    bundle = {
+        "schema": "auths.gateway-audit-bundle/2",
+        "recipe_b64": _b64(RECIPE.read_bytes()),
+        "profile_lock_b64": _b64(PROFILE_LOCK.read_bytes()),
+        "trusted_context_b64": _b64((AGENT / "trust" / "gateway.context.cbor").read_bytes()),
+        "entries": entries,
+        "approval_responses": responses,
+    }
+    path = PROJECT / "audit" / "bundle.json"
+    write_file(path, (json.dumps(bundle, indent=1) + "\n").encode(), 0o600, replace=True)
+    return {"bundle": str(path), "entries": len(entries), "approval_responses": len(responses)}
+
+
+if __name__ == "__main__":
+    main({"request": request, "submit": submit, "export": export})

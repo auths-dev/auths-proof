@@ -775,6 +775,12 @@ def _main_text(argv: Sequence[str] | None = None) -> int:
         except (OSError, UnicodeError, ValueError, ImportError) as error:
             print(f"auths: {error}", file=sys.stderr)
             return 1
+    # `auths init RECIPE` writes an enforcement point; `auths init --language
+    # ... --name ...` keeps writing a profile.
+    if values[:1] == ["init"] and len(values) > 1 and not values[1].startswith("--"):
+        from ._enforcement_init import init_enforcement_main
+
+        return init_enforcement_main(values[1:])
     parser = argparse.ArgumentParser(prog="auths")
     actions = parser.add_subparsers(dest="action", required=True)
     init = actions.add_parser("init")

@@ -1,0 +1,526 @@
+"""The operator's commands: set up keys, trust, and the agent's grant;
+install the gateway with the provider key on stdin; start and stop it; and
+run the offline audit.
+
+Every key here is development custody on this host. The provider key reaches
+only the gateway, through the standard input of ``bin/install-gateway``.
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import base64
+import hashlib
+import json
+import secrets
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Any, Dict, List, NoReturn, Optional
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from common import (  # noqa: E402
+    ASSURANCE,
+    DAY,
+    NON_CLAIMS,
+    PROFILE_LOCK,
+    PROJECT,
+    RECIPE,
+    RUN,
+    STATE,
+    CommandFailed,
+    checked_config,
+    emit,
+    gateway_json,
+    inside,
+    main,
+    pid_alive,
+    private_directory,
+    read_json,
+    stable_code,
+    stop_pid,
+    write_file,
+)
+
+from auths.self_hosted import (  # noqa: E402
+    AssurancePolicy,
+    AssuranceRequirement,
+    Permission,
+    Profile,
+    TrustAnchor,
+    TrustedContextRequest,
+    author_root_grant,
+    compile_trusted_context,
+    load_signer_file,
+)
+
+OPERATOR = PROJECT / "operator"
+AGENT = PROJECT / "agent"
+MANAGERS = PROJECT / "managers"
+AUDIT = PROJECT / "audit"
+SIGNER_SCHEMA = "auths.approval-signer/1"
+# The gateway's own bound on a piped credential.
+MAX_CREDENTIAL_BYTES = 4_098
+PROFILE = Profile("auths.mcp", 2)
+
+
+def _b64(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode()
+
+
+def _signer_file(directory: Path, grants: List[Dict[str, Any]], replace: bool = False) -> Path:
+    """The ``auths.approval-signer/1`` file over ``directory``'s seed."""
+    path = directory / "signer.json"
+    document = {
+        "schema": SIGNER_SCHEMA,
+        "custody": "development-ed25519",
+        "seed_file": "signing.seed",
+        "grants": grants,
+    }
+    write_file(path, (json.dumps(document, indent=2) + "\n").encode(), 0o600, replace=replace)
+    return path
+
+
+def _new_key(directory: Path) -> Path:
+    private_directory(directory)
+    write_file(directory / "signing.seed", secrets.token_bytes(32), 0o600)
+    return _signer_file(directory, [])
+
+
+def setup(arguments: List[str]) -> Dict[str, Any]:
+    argparse.ArgumentParser(prog="bin/setup").parse_args(arguments)
+    config = checked_config()
+    parameters = config["parameters"]
+    if (OPERATOR / "setup.json").exists():
+        raise CommandFailed("auths.setup.already-done", path=str(OPERATOR / "setup.json"))
+    review = gateway_json(
+        config, "review", "--recipe", str(RECIPE), "--profile-lock", str(PROFILE_LOCK)
+    )
+    currencies = sorted(parameters["currencies"])
+    limits = {
+        "ceiling": parameters["ceiling"],
+        "window_seconds": parameters["window_seconds"],
+        "sum_limit": parameters["sum_limit"],
+        "currencies": currencies,
+        "connect_account": parameters["connect_account"],
+    }
+    bound = gateway_json(
+        config,
+        "bound-extension",
+        "--argument",
+        "amount",
+        "--ceiling",
+        str(parameters["ceiling"]),
+        "--window-seconds",
+        str(parameters["window_seconds"]),
+        "--max-count",
+        str(parameters["max_count"]),
+        "--sum-limit",
+        str(parameters["sum_limit"]),
+        "--partition",
+        "currency=" + ",".join(currencies),
+        "--scope",
+        "connect_account=" + parameters["connect_account"],
+    )
+    managers: List[str] = list(parameters["managers"])
+    homes = {"root": OPERATOR, "agent": AGENT, **{name: MANAGERS / name for name in managers}}
+    signer_files = {name: _new_key(home) for name, home in homes.items()}
+    principals: Dict[str, str] = {}
+    for name, path in signer_files.items():
+        principals[name] = load_signer_file(path).signer.descriptor.principal
+
+    now = int(time.time())
+    not_before, expires_at = now - 300, now + parameters["days"] * DAY
+    audience = f"mcp://{review['service']}"
+    permission = Permission("tools/call", f"{audience}/tools/{review['tool']}")
+    challenge = secrets.token_bytes(32)
+
+    def anchor(name: str, depth: int) -> TrustAnchor:
+        return TrustAnchor(
+            name,
+            principals[name],
+            ("raw-key-v1",),
+            (PROFILE,),
+            (permission,),
+            (audience,),
+            (audience,),
+            not_before,
+            expires_at,
+            depth,
+            ASSURANCE,
+        )
+
+    # The root may delegate once, to the agent; managers approve directly.
+    anchors = [anchor("root", 1)] + [anchor(name, 0) for name in managers]
+    assurance = AssurancePolicy(
+        ASSURANCE,
+        (
+            AssuranceRequirement("root", "every", "self-certifying-identifier"),
+            AssuranceRequirement("actor", "every", "self-certifying-identifier"),
+            AssuranceRequirement("actor", "every", "offline-verifiable"),
+        ),
+    )
+    required = parameters["approvals"]
+
+    def context(configuration: Any) -> bytes:
+        return compile_trusted_context(
+            anchors=anchors,
+            assurance=assurance,
+            configuration=configuration,
+            minimum_authorized_branches=required,
+            minimum_distinct_actors=required,
+            minimum_distinct_roots=required,
+            evidence_types=("raw-key-v1",),
+            critical_extensions=(bound["extension_id"],),
+            request=TrustedContextRequest(audience, challenge, now),
+        )
+
+    gateway_context = context(bytes.fromhex(review["verifier_configuration"]))
+    # The same trust pinned to this package's own verifier: the self-test
+    # swaps it into a bundle to show the audit refusing replaced trust.
+    sdk_context = context(None)
+    root = load_signer_file(signer_files["root"])
+    grant = asyncio.run(
+        author_root_grant(
+            signer=root.signer,
+            subject=principals["agent"],
+            profile=PROFILE,
+            permissions=[permission],
+            audiences=[audience],
+            not_before=not_before,
+            expires_at=expires_at,
+            remaining_depth=0,
+            assurance_floor=ASSURANCE,
+            requested_at=now,
+            critical_extensions=[
+                (bound["extension_id"], bytes.fromhex(bound["extension_body_hex"]))
+            ],
+        )
+    )
+    write_file(OPERATOR / "trust" / "gateway.context.cbor", gateway_context)
+    write_file(OPERATOR / "trust" / "sdk.context.cbor", sdk_context)
+    write_file(OPERATOR / "grant" / "agent.grant.cbor", grant.signed_grant)
+    # The agent keeps its grant chain in its own signer file, and the trust
+    # its bundle carries.
+    write_file(AGENT / "agent.grant.cbor", grant.signed_grant)
+    write_file(AGENT / "trust" / "gateway.context.cbor", gateway_context, 0o644)
+    _signer_file(
+        AGENT,
+        [
+            {
+                "signed_grant_b64": _b64(grant.signed_grant),
+                "evidence": [
+                    {
+                        "evidence_type": item.evidence_type,
+                        "media_type": item.media_type,
+                        "bytes_b64": _b64(item.bytes),
+                    }
+                    for item in grant.evidence
+                ],
+            }
+        ],
+        replace=True,
+    )
+    trusted_context_sha256 = hashlib.sha256(gateway_context).hexdigest()
+    facts = {
+        "recipe_digest": review["recipe_digest"],
+        "operator_namespace": review["operator_namespace"],
+        "audience": audience,
+        "tool": review["tool"],
+        "not_before": not_before,
+        "expires_at": expires_at,
+        "challenge_hex": challenge.hex(),
+        "trusted_context_sha256": trusted_context_sha256,
+        "principals": principals,
+        "managers": managers,
+        "approvals_required": required,
+        "connect_account": parameters["connect_account"],
+        "limits": limits,
+        "bound": {
+            key: bound[key]
+            for key in (
+                "argument",
+                "ceiling",
+                "window_seconds",
+                "max_count",
+                "sum_limit",
+                "partition",
+                "scope",
+            )
+        },
+    }
+    write_file(OPERATOR / "setup.json", (json.dumps(facts, indent=2) + "\n").encode(), 0o644)
+    pins = {"trusted_context_sha256": trusted_context_sha256, "observer": None}
+    write_file(AUDIT / "pins.json", (json.dumps(pins, indent=2) + "\n").encode(), 0o644)
+    return {"setup": facts, "deployment": list(NON_CLAIMS)}
+
+
+def _start_double(config: Dict[str, Any], token_sha256: str) -> int:
+    """Starts the counting Stripe double on a free loopback port and returns
+    the port. The double checks the gateway's bearer token against
+    ``token_sha256``; it never sees the key."""
+    output = RUN / "double.out"
+    output.unlink(missing_ok=True)
+    with open(RUN / "double.log", "ab") as log, open(output, "wb") as out:
+        process = subprocess.Popen(
+            [
+                config["python"],
+                str(PROJECT / "dev" / "stripe_double.py"),
+                "--ledger",
+                str(RUN / "ledger.jsonl"),
+                "--token-sha256",
+                token_sha256,
+                "--control",
+                str(RUN / "double.control.json"),
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=out,
+            stderr=log,
+            cwd=PROJECT,
+            start_new_session=True,
+        )
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        line = output.read_text().strip() if output.exists() else ""
+        if line.isdigit():
+            write_file(RUN / "double.pid", f"{process.pid}\n".encode(), replace=True)
+            write_file(RUN / "double.port", f"{line}\n".encode(), replace=True)
+            return int(line)
+        if process.poll() is not None:
+            break
+        time.sleep(0.05)
+    process.kill()
+    raise CommandFailed("auths.double.start-failed", log=str(RUN / "double.log"))
+
+
+def _running_double() -> Optional[int]:
+    """The running double's port, if it runs."""
+    if pid_alive(RUN / "double.pid") is None:
+        return None
+    try:
+        return int((RUN / "double.port").read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def install_gateway(arguments: List[str]) -> Dict[str, Any]:
+    argparse.ArgumentParser(prog="bin/install-gateway").parse_args(arguments)
+    # Like the gateway itself, refuse a key typed at a terminal: it would be
+    # echoed and kept in the shell's history.
+    if sys.stdin.isatty():
+        raise CommandFailed("auths.install.stdin-is-terminal")
+    config = checked_config()
+    parameters = config["parameters"]
+    if not (OPERATOR / "setup.json").exists():
+        raise CommandFailed("auths.install.setup-missing")
+    facts = read_json(OPERATOR / "setup.json")
+    private_directory(STATE)
+    private_directory(RUN)
+    command = [
+        config["gateway"]["path"],
+        "install",
+        "--state-dir",
+        str(STATE),
+        "--recipe",
+        str(RECIPE),
+        "--profile-lock",
+        str(PROFILE_LOCK),
+        "--trusted-context",
+        str(OPERATOR / "trust" / "gateway.context.cbor"),
+        "--approve-digest",
+        facts["recipe_digest"],
+        "--provider",
+        "stripe",
+        "--alias",
+        "refunds",
+        "--account-label",
+        parameters["platform_account"],
+        "--credential-stdin",
+    ]
+    if config["provider"] == "double":
+        # The double needs the token's digest, so here, and only here, the
+        # wrapper reads the key: into memory, bounded as the gateway bounds
+        # it, and written unchanged to the install's standard input.
+        data = sys.stdin.buffer.read(MAX_CREDENTIAL_BYTES + 1)
+        if len(data) > MAX_CREDENTIAL_BYTES:
+            raise CommandFailed("auths.install.credential-too-long")
+        # The gateway strips one trailing newline before it stores the key,
+        # and the double hashes the bearer token it receives.
+        token = data[:-1] if data.endswith(b"\n") else data
+        token_sha256 = hashlib.sha256(token).hexdigest()
+        # A double already running belongs to an installed gateway, which
+        # refuses a second install before any provider request.
+        port = _running_double()
+        started = port is None
+        if port is None:
+            port = _start_double(config, token_sha256)
+        command += ["--loopback-provider", str(port)]
+        installed = subprocess.run(command, input=data, capture_output=True, cwd=PROJECT)
+        if installed.returncode == 0:
+            write_file(RUN / "double.token.sha256", f"{token_sha256}\n".encode(), replace=True)
+        elif started:
+            stop_pid(RUN / "double.pid")
+    else:
+        # Stripe test mode: the install inherits this process's standard
+        # input, which this wrapper never reads, so no other process sees
+        # the key.
+        installed = subprocess.run(command, stdin=None, capture_output=True, cwd=PROJECT)
+    if installed.returncode != 0:
+        raise CommandFailed(stable_code(installed.stderr.decode(errors="replace"), "auths.install.failed"))
+    # The gateway's line names the recipe digest; its custody wording does
+    # not describe this development deployment, so it is not repeated.
+    words = installed.stdout.decode(errors="replace").split()
+    recipe_digest = words[words.index("recipe") + 1] if "recipe" in words[:-1] else None
+    observer = gateway_json(config, "observer-init", "--state-dir", str(STATE))
+    principal = observer["observer_anchor"]["principal"]
+    pins = read_json(AUDIT / "pins.json")
+    pins["observer"] = principal
+    write_file(AUDIT / "pins.json", (json.dumps(pins, indent=2) + "\n").encode(), 0o644, replace=True)
+    return {
+        "installed": True,
+        "recipe_digest": recipe_digest,
+        "observer": principal,
+        "provider": config["provider"],
+        "deployment": list(NON_CLAIMS),
+    }
+
+
+def start(arguments: List[str]) -> Dict[str, Any]:
+    argparse.ArgumentParser(prog="bin/start").parse_args(arguments)
+    config = checked_config()
+    if not (STATE / "installation.json").exists():
+        raise CommandFailed("auths.start.not-installed")
+    private_directory(RUN)
+    double = config["provider"] == "double"
+    app, admin = RUN / "app.sock", RUN / "admin.sock"
+    running = pid_alive(RUN / "gateway.pid")
+    port = _running_double() if double else None
+    if running is None or (double and port is None):
+        # The gateway sends to the double's port, so both start together.
+        stop_pid(RUN / "gateway.pid")
+        loopback: List[str] = []
+        if double:
+            stop_pid(RUN / "double.pid")
+            digest_file = RUN / "double.token.sha256"
+            if not digest_file.exists():
+                raise CommandFailed("auths.start.token-digest-missing")
+            port = _start_double(config, digest_file.read_text().strip())
+            loopback = ["--loopback-provider", str(port)]
+        # A stopped gateway leaves its socket files behind; wait for new ones.
+        app.unlink(missing_ok=True)
+        admin.unlink(missing_ok=True)
+        output, log = RUN / "gateway.out", RUN / "gateway.log"
+        with open(output, "wb") as out, open(log, "wb") as err:
+            process = subprocess.Popen(
+                [
+                    config["gateway"]["path"],
+                    "serve",
+                    "--state-dir",
+                    str(STATE),
+                    "--app-socket",
+                    str(app),
+                    "--admin-socket",
+                    str(admin),
+                    *loopback,
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=out,
+                stderr=err,
+                cwd=PROJECT,
+                start_new_session=True,
+            )
+        # The gateway binds the admin socket, then the application socket,
+        # and then prints its ready line.
+        deadline = time.monotonic() + 15
+        while not (app.exists() and "app socket ready" in output.read_text(errors="replace")):
+            if process.poll() is not None or time.monotonic() > deadline:
+                process.kill()
+                raise CommandFailed(
+                    stable_code(log.read_text(errors="replace"), "auths.start.gateway-failed"),
+                    log=str(log),
+                )
+            time.sleep(0.05)
+        write_file(RUN / "gateway.pid", f"{process.pid}\n".encode(), replace=True)
+        running = process.pid
+    return {
+        "started": True,
+        "gateway_pid": running,
+        "app_socket": str(app),
+        "admin_socket": str(admin),
+        "provider": config["provider"],
+        "double_port": port,
+        "deployment": list(NON_CLAIMS),
+    }
+
+
+def stop(arguments: List[str]) -> Dict[str, Any]:
+    argparse.ArgumentParser(prog="bin/stop").parse_args(arguments)
+    checked_config(gateway=False)
+    stopped = {}
+    for name in ("witness", "gateway", "double"):
+        pid = stop_pid(RUN / f"{name}.pid")
+        if pid is not None:
+            stopped[name] = pid
+    return {"stopped": stopped}
+
+
+def audit(arguments: List[str]) -> NoReturn:
+    parser = argparse.ArgumentParser(
+        prog="bin/audit",
+        description="Run auths-gateway audit offline on the bundle, with the pinned values.",
+    )
+    parser.add_argument("--bundle", type=Path, default=AUDIT / "bundle.json")
+    parser.add_argument(
+        "--allow-unverified-refusals",
+        action="store_true",
+        help="passed to auths-gateway audit unchanged; see README.md for what it accepts",
+    )
+    options = parser.parse_args(arguments)
+    config = checked_config()
+    pins = read_json(AUDIT / "pins.json")
+    if not pins.get("observer"):
+        raise CommandFailed("auths.audit.observer-missing")
+    bundle = inside(options.bundle)
+    audited = subprocess.run(
+        [
+            config["gateway"]["path"],
+            "audit",
+            "--bundle",
+            str(bundle),
+            "--trusted-context-sha256",
+            pins["trusted_context_sha256"],
+            "--observer",
+            pins["observer"],
+            *(["--allow-unverified-refusals"] if options.allow_unverified_refusals else []),
+        ],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        cwd=PROJECT,
+    )
+    # The gateway's report, standard error, and exit status pass through
+    # unchanged: this wrapper never decides a verdict. When the gateway
+    # refuses the bundle before any report, the wrapper prints the gateway's
+    # stable code as its one JSON object.
+    sys.stderr.buffer.write(audited.stderr)
+    sys.stderr.flush()
+    if audited.stdout.strip():
+        sys.stdout.buffer.write(audited.stdout)
+        sys.stdout.flush()
+        sys.exit(audited.returncode)
+    code = stable_code(audited.stderr.decode(errors="replace"), "auths.audit.failed")
+    emit({"error": code}, audited.returncode or 1)
+
+
+if __name__ == "__main__":
+    main(
+        {
+            "setup": setup,
+            "install-gateway": install_gateway,
+            "start": start,
+            "stop": stop,
+            "audit": audit,
+        }
+    )

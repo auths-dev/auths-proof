@@ -1,0 +1,837 @@
+"""The self-test of this enforcement point, against the counting Stripe double.
+
+    AUTHS_SELFTEST_KEY_FILE=KEY_FILE bin/selftest
+
+Run it once, on a fresh project, after ``bin/setup``, ``bin/install-gateway
+< KEY_FILE``, and ``bin/start``. It sends every refund through the project's
+own commands and through a witness: a relay on the application socket that
+runs as its own process and records each exchange. It then checks:
+
+- every hostile refund was decided by the gateway: the command's record says
+  ``decided_by: "gateway"`` with the expected outcome and code, and the
+  witness saw exactly one submission for it, answered with that result; a
+  request refused only by ``request --precheck`` must fail that check, and
+  the double saw exactly two refund writes;
+- ``bin/audit`` fails the exported bundle by default, because the gateway
+  signed no outcome for the refusals it made before recording anything, and
+  passes it under ``--allow-unverified-refusals`` with the same report;
+- eight tampered copies of the bundle fail ``bin/audit``, each run under
+  ``--allow-unverified-refusals`` so that only the tampering can fail it; a
+  ninth, an entry whose outcome was removed and whose proof was then altered,
+  passes as the documented limit of that option;
+- a second ``bin/install-gateway`` is refused as already installed;
+- the key in ``AUTHS_SELFTEST_KEY_FILE``, read only for this scan, appears
+  in no file outside ``enforcement/gateway/``: none in the project, and none
+  in ``$TMPDIR`` or ``/tmp`` written during the test.
+
+It writes ``audit/selftest.json`` and prints the same report.
+"""
+
+from __future__ import annotations
+
+import argparse
+import base64
+import hashlib
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from common import (  # noqa: E402
+    PROJECT,
+    RUN,
+    STATE,
+    CommandFailed,
+    checked_config,
+    main,
+    pid_alive,
+    private_directory,
+    read_json,
+    stop_pid,
+    write_file,
+)
+
+BIN = PROJECT / "bin"
+AUDIT = PROJECT / "audit"
+TAMPERED = AUDIT / "tampered"
+# The witness relays the application socket from here.
+WITNESS_SOCKET = RUN / "relay.sock"
+WITNESS_LOG = RUN / "witness.jsonl"
+LEDGER = RUN / "ledger.jsonl"
+PAYMENT_INTENT = "pi_mock_journey"
+# The double's PaymentIntent whose charge is already refunded.
+REFUNDED_PAYMENT_INTENT = "pi_mock_refunded"
+# A connected account the grant does not list.
+OTHER_ACCOUNT = "acct_1AuthsOtherAcct"
+SUBMIT_SCHEMA = "auths.gateway-submit/1"
+# Words only the gateway's submit result may carry.
+GATEWAY_OUTCOMES = {
+    "denied",
+    "not-entered",
+    "indeterminate",
+    "unknown",
+    "response-recorded",
+    "observed",
+    "observed-by-provider",
+}
+# The parameters the expected results below are computed for.
+EXPECTED_PARAMETERS = {"approvals": 3, "ceiling": 5_000, "max_count": 2, "sum_limit": 6_000}
+# Short enough windows could roll over during the test.
+MIN_WINDOW_SECONDS = 3_600
+# Refused before any credential lease, so without any provider request.
+BEFORE_LEASE = {
+    "refund-2-one-approval": ("denied", "composition-requirement-not-met"),
+    "refund-6-no-manager": ("denied", "composition-requirement-not-met"),
+    "refund-7-repeated": ("denied", "composition-requirement-not-met"),
+    "refund-3-over-ceiling": ("not-entered", "gateway.policy.above-ceiling"),
+    "refund-other-account": ("not-entered", "gateway.policy.scope-denied"),
+    "refund-over-sum": ("not-entered", "gateway.policy.sum-exhausted"),
+    "refund-5-window": ("not-entered", "gateway.policy.window-exhausted"),
+    "refund-1-replay": ("not-entered", "gateway.attempt.replay"),
+    "refund-8-reuse": ("denied", "action-body-mismatch"),
+    "refund-7-retry": ("not-entered", "gateway.policy.window-exhausted"),
+}
+# The refusals the gateway made before it recorded anything, so their bundle
+# entries carry no signed outcome. refund-7-repeated's unsigned entry is
+# replaced by its signed retry.
+UNRECORDED = {"refund-2-one-approval", "refund-6-no-manager", "refund-3-over-ceiling", "refund-other-account"}
+
+
+class SelftestFailed(Exception):
+    pass
+
+
+def expect(condition: bool, message: str) -> None:
+    if not condition:
+        raise SelftestFailed(message)
+
+
+def unb64(value: str) -> bytes:
+    return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+
+
+def b64(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode()
+
+
+class Commands:
+    """Runs this project's commands, and notes any that did not print
+    exactly one JSON object."""
+
+    def __init__(self) -> None:
+        self.without_one_object: List[str] = []
+
+    def run(self, name: str, *arguments: str, stdin: Optional[bytes] = None) -> Tuple[int, Dict[str, Any], str]:
+        completed = subprocess.run(
+            [str(BIN / name), *arguments],
+            input=stdin if stdin is not None else b"",
+            capture_output=True,
+            cwd=PROJECT,
+        )
+        try:
+            value = json.loads(completed.stdout.decode())
+        except ValueError:
+            value = None
+        if not isinstance(value, dict):
+            self.without_one_object.append(" ".join(["bin/" + name, *arguments]))
+            value = {}
+        return completed.returncode, value, completed.stderr.decode(errors="replace")
+
+
+def lines(path: Path) -> List[Dict[str, Any]]:
+    if not path.exists():
+        return []
+    return [json.loads(line) for line in path.read_text().splitlines() if line]
+
+
+def submit_frames(frames: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """The witness's submit exchanges; observe frames are recorded but not
+    counted."""
+    return [frame for frame in frames if frame.get("schema") == SUBMIT_SCHEMA]
+
+
+def expect_gateway_decided(
+    case: str,
+    record: Dict[str, Any],
+    frames: List[Dict[str, Any]],
+    outcome: str,
+    code: Optional[str] = None,
+    status: Optional[int] = None,
+    action_b64: Optional[str] = None,
+) -> None:
+    """The record says the gateway decided, with the expected result, and the
+    witness saw exactly one submission during the case, whose response from
+    the gateway is that result."""
+    seen = submit_frames(frames)
+    expect(
+        record.get("decided_by") == "gateway",
+        f"{case}: the record says decided_by={record.get('decided_by')!r}, not the gateway: {record}",
+    )
+    expect(seen != [], f"{case}: the record says the gateway decided, but the witness saw no submission")
+    expect(len(seen) == 1, f"{case}: the witness saw {len(seen)} submissions, not one")
+    response = seen[0].get("response") or {}
+    for key in ("outcome", "code", "status"):
+        expect(
+            response.get(key) == record.get(key),
+            f"{case}: the gateway answered {key}={response.get(key)!r}, the record says {record.get(key)!r}",
+        )
+    expect(record.get("outcome") == outcome, f"{case}: outcome {record.get('outcome')!r}, expected {outcome!r}")
+    if code is not None:
+        expect(record.get("code") == code, f"{case}: code {record.get('code')!r}, expected {code!r}")
+    if status is not None:
+        expect(record.get("status") == status, f"{case}: status {record.get('status')!r}, expected {status}")
+    if action_b64 is not None:
+        expect(
+            seen[0].get("action_sha256") == hashlib.sha256(unb64(action_b64)).hexdigest(),
+            f"{case}: the submission the witness saw carried another action",
+        )
+
+
+def expect_not_submitted(
+    case: str, record: Dict[str, Any], frames: List[Dict[str, Any]], decided_by: str, reason: str
+) -> None:
+    """Nothing reached the gateway, and the record says who stopped it
+    without presenting the stop as a gateway refusal."""
+    expect(
+        record.get("decided_by") == decided_by
+        and record.get("outcome") == "not-submitted"
+        and record.get("reason") == reason,
+        f"{case}: {record}",
+    )
+    expect("code" not in record, f"{case}: a record not decided by the gateway carries a code: {record}")
+    expect(record.get("outcome") not in GATEWAY_OUTCOMES, f"{case}: {record}")
+    expect(not submit_frames(frames), f"{case}: the witness saw a submission: {frames}")
+
+
+def entry_of(bundle: Dict[str, Any], operation: str) -> Dict[str, Any]:
+    return next(entry for entry in bundle["entries"] if entry["operation_id"] == operation)
+
+
+def tamper(bundle: Dict[str, Any], operation: str, change: Callable[[Dict[str, Any]], None]) -> Dict[str, Any]:
+    copy = json.loads(json.dumps(bundle))
+    change(entry_of(copy, operation))
+    return copy
+
+
+def change_longest_string(entry: Dict[str, Any]) -> None:
+    """The study's alteration: one character changed in the middle of the
+    entry's longest string."""
+    field = max((name for name, value in entry.items() if isinstance(value, str)), key=lambda name: len(entry[name]))
+    text = entry[field]
+    middle = len(text) // 2
+    entry[field] = text[:middle] + ("A" if text[middle] != "A" else "B") + text[middle + 1 :]
+
+
+def flip_proof_byte(entry: Dict[str, Any]) -> None:
+    raw = bytearray(unb64(entry["proof_b64"]))
+    raw[len(raw) // 2] ^= 0x01
+    entry["proof_b64"] = b64(bytes(raw))
+
+
+def drop_outcome(entry: Dict[str, Any]) -> None:
+    entry.pop("outcome_b64", None)
+
+
+def duplicate(bundle: Dict[str, Any], operation: str) -> Dict[str, Any]:
+    copy = json.loads(json.dumps(bundle))
+    copy["entries"].append(json.loads(json.dumps(entry_of(copy, operation))))
+    return copy
+
+
+def swap_evidence(bundle: Dict[str, Any], first: str, second: str) -> Dict[str, Any]:
+    """The study's swap: two entered refunds exchange their evidence and keep
+    their operation IDs."""
+    copy = json.loads(json.dumps(bundle))
+    one, other = entry_of(copy, first), entry_of(copy, second)
+    for field in ("proof_b64", "action_b64", "outcome_b64"):
+        one[field], other[field] = other.get(field), one.get(field)
+    return copy
+
+
+def key_scan(key_file: Path, started: float) -> Dict[str, Any]:
+    """Every file outside the gateway's state directory that holds the key:
+    anywhere in the project, and in ``$TMPDIR`` or ``/tmp`` among the files
+    written or changed since the test started. The key file itself is not
+    counted.
+
+    Each root is resolved once and no link is followed, so every path below
+    it is real and one ``lstat`` per file is the whole cost of the walk."""
+    data = key_file.read_bytes()
+    key = data[:-1] if data.endswith(b"\n") else data
+    own = os.path.realpath(key_file)
+    skipped = {str(STATE)}
+    roots = {str(PROJECT): 0.0}
+    for temporary in (tempfile.gettempdir(), "/tmp"):
+        roots.setdefault(os.path.realpath(temporary), started)
+    found: List[str] = []
+    for root, since in roots.items():
+        # The project is scanned whole above; a temporary root need not
+        # repeat it.
+        pending, prune = [root], skipped | ({str(PROJECT)} if since else set())
+        while pending:
+            try:
+                entries = os.scandir(pending.pop())
+            except OSError:
+                continue
+            with entries:
+                for entry in entries:
+                    try:
+                        if entry.is_dir(follow_symlinks=False):
+                            if entry.path not in prune:
+                                pending.append(entry.path)
+                            continue
+                        if not entry.is_file(follow_symlinks=False) or entry.path == own:
+                            continue
+                        info = entry.stat(follow_symlinks=False)
+                        if max(info.st_mtime, info.st_ctime) < since or info.st_size > 64 * 1024 * 1024:
+                            continue
+                        with open(entry.path, "rb") as handle:
+                            if key in handle.read():
+                                found.append(entry.path)
+                    except OSError:
+                        continue
+    return {"roots": list(roots), "outside_enforcement": sorted(set(found))}
+
+
+def check_modes() -> Dict[str, int]:
+    """Every directory this project created is 0700, every key file 0600,
+    and each role's key is in its own directory. The gateway's state
+    directory is the gateway's own and is checked by the gateway."""
+    directories = seeds = 0
+    wrong: List[str] = []
+    for directory, names, files in os.walk(PROJECT):
+        path = Path(directory)
+        if path == STATE:
+            names[:] = []
+        if path.stat().st_mode & 0o777 != 0o700:
+            wrong.append(f"{path} {oct(path.stat().st_mode & 0o777)}")
+        directories += 1
+        for name in files:
+            if name == "signing.seed":
+                seeds += 1
+                mode = (path / name).stat().st_mode & 0o777
+                if mode != 0o600:
+                    wrong.append(f"{path / name} {oct(mode)}")
+    expect(not wrong, f"modes: {wrong}")
+    homes = {"operator", "agent"} | {
+        str(Path("managers") / name) for name in read_json(PROJECT / "operator" / "setup.json")["managers"]
+    }
+    held = {str(path.parent.relative_to(PROJECT)) for path in PROJECT.glob("**/signing.seed")}
+    expect(held == homes and seeds == len(homes), f"key homes {sorted(held)}, expected {sorted(homes)}")
+    return {"directories_0700": directories, "key_files_0600": seeds}
+
+
+def check_parameters(parameters: Dict[str, Any]) -> None:
+    unsupported = {
+        name: parameters[name] for name, value in EXPECTED_PARAMETERS.items() if parameters[name] != value
+    }
+    if parameters["window_seconds"] < MIN_WINDOW_SECONDS:
+        unsupported["window_seconds"] = parameters["window_seconds"]
+    if len(parameters["managers"]) < 3:
+        unsupported["managers"] = parameters["managers"]
+    if "usd" not in parameters["currencies"]:
+        unsupported["currencies"] = parameters["currencies"]
+    if unsupported:
+        raise CommandFailed(
+            "auths.selftest.parameters-unsupported",
+            unsupported=unsupported,
+            expected={
+                **EXPECTED_PARAMETERS,
+                "window_seconds": f"at least {MIN_WINDOW_SECONDS}",
+                "managers": "at least 3",
+                "currencies": "including usd",
+            },
+        )
+
+
+def selftest(arguments: List[str]) -> Dict[str, Any]:
+    argparse.ArgumentParser(
+        prog="bin/selftest",
+        description="Check this enforcement point against the Stripe double; see README.md.",
+    ).parse_args(arguments)
+    config = checked_config()
+    if config["provider"] != "double":
+        raise CommandFailed("auths.selftest.double-only", provider=config["provider"])
+    check_parameters(config["parameters"])
+    key_file = os.environ.get("AUTHS_SELFTEST_KEY_FILE", "")
+    if not key_file or not Path(key_file).is_file():
+        raise CommandFailed(
+            "auths.selftest.key-file-required",
+            message="set AUTHS_SELFTEST_KEY_FILE to the file piped to bin/install-gateway",
+        )
+    if pid_alive(RUN / "gateway.pid") is None or pid_alive(RUN / "double.pid") is None:
+        raise CommandFailed("auths.selftest.not-started", message="run bin/start first")
+    used = [
+        path
+        for path in (PROJECT / "agent" / "log", PROJECT / "agent" / "pending", PROJECT / "requests")
+        if path.exists() and any(path.iterdir())
+    ]
+    if used or any(entry["kind"] == "write" for entry in lines(LEDGER)):
+        raise CommandFailed(
+            "auths.selftest.not-fresh",
+            used=[str(path) for path in used],
+            message="the self-test needs a project that has made no refund: run auths init again",
+        )
+    started = time.time()
+    report: Dict[str, Any] = {"passed": False, "project": str(PROJECT)}
+    try:
+        _run(config, report, Path(key_file), started)
+        report["passed"] = True
+    except SelftestFailed as failure:
+        report["failure"] = str(failure)
+    finally:
+        stop_pid(RUN / "witness.pid")
+        write_file(AUDIT / "selftest.json", (json.dumps(report, indent=2) + "\n").encode(), 0o644, replace=True)
+    if not report["passed"]:
+        raise CommandFailed("auths.selftest.failed", failure=report["failure"], report=str(AUDIT / "selftest.json"))
+    return report
+
+
+def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started: float) -> None:
+    facts = read_json(PROJECT / "operator" / "setup.json")
+    manager_a, manager_b, manager_c = facts["managers"][:3]
+    commands = Commands()
+    seconds: Dict[str, float] = {}
+    report["seconds"] = seconds
+    clock = [time.monotonic()]
+
+    def lap(phase: str) -> None:
+        now = time.monotonic()
+        seconds[phase] = round(now - clock[0], 2)
+        clock[0] = now
+
+    WITNESS_SOCKET.unlink(missing_ok=True)
+    WITNESS_LOG.unlink(missing_ok=True)
+    witness = subprocess.Popen(
+        [
+            config["python"],
+            str(PROJECT / "dev" / "gateway_witness.py"),
+            "--listen",
+            str(WITNESS_SOCKET),
+            "--upstream",
+            str(RUN / "app.sock"),
+            "--log",
+            str(WITNESS_LOG),
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        cwd=PROJECT,
+        start_new_session=True,
+    )
+    write_file(RUN / "witness.pid", f"{witness.pid}\n".encode(), replace=True)
+    ready = witness.stdout.readline().strip() if witness.stdout else ""
+    expect(ready == "ready", "the gateway witness did not start")
+
+    results: Dict[str, Dict[str, Any]] = {}
+    requests: Dict[str, Dict[str, Any]] = {}
+    frames: Dict[str, List[Dict[str, Any]]] = {}
+    warnings: Dict[str, str] = {}
+
+    def watched(case: str, action: Callable[[], Dict[str, Any]]) -> None:
+        """Runs one case and keeps its record, the provider requests it
+        caused, and the witness's frames during it."""
+        before, seen = len(lines(LEDGER)), len(lines(WITNESS_LOG))
+        results[case] = action()
+        made = lines(LEDGER)[before:]
+        frames[case] = lines(WITNESS_LOG)[seen:]
+        results[case]["provider_requests"] = len(made)
+        results[case]["provider_writes"] = sum(entry["kind"] == "write" for entry in made)
+
+    def request(
+        operation: str,
+        amount: int,
+        approvers: str,
+        payment_intent: str = PAYMENT_INTENT,
+        out: Optional[str] = None,
+        precheck: bool = False,
+        **extra: str,
+    ) -> Tuple[Dict[str, Any], str]:
+        options = [item for name, value in extra.items() for item in ("--" + name.replace("_", "-"), value)]
+        status, record, stderr = commands.run(
+            "request",
+            "--operation-id",
+            operation,
+            "--payment-intent",
+            payment_intent,
+            "--amount",
+            str(amount),
+            "--approvers",
+            approvers,
+            *(["--out", out] if out else []),
+            *options,
+            *(["--precheck"] if precheck else []),
+        )
+        expect(status == 0, f"bin/request {operation}: {record} {stderr}")
+        return record, stderr
+
+    def submit(
+        case: str,
+        amount: int,
+        approvers: str,
+        declines: Tuple[str, ...] = (),
+        payment_intent: str = PAYMENT_INTENT,
+        operation: Optional[str] = None,
+        out: Optional[str] = None,
+        precheck: bool = False,
+        **extra: str,
+    ) -> None:
+        """Requests, has each distinct listed manager answer once with
+        ``bin/approve``, and submits through the witness. A pre-check refusal
+        is the record, and nothing is asked or sent."""
+
+        def action() -> Dict[str, Any]:
+            requested, stderr = request(operation or case, amount, approvers, payment_intent, out, precheck, **extra)
+            requests[case] = requested
+            warnings[case] = stderr
+            if requested.get("outcome") == "not-submitted":
+                return requested
+            folder = Path(requested["folder"])
+            for manager in dict.fromkeys(name for name in approvers.split(",") if name):
+                answer = ["--yes", *(["--decline"] if manager in declines else [])]
+                status, answered, answer_stderr = commands.run(
+                    "approve", manager, str(folder / f"{manager}.request"), *answer
+                )
+                expect(status == 0, f"{case}: {manager} could not answer: {answered} {answer_stderr}")
+            status, record, submit_stderr = commands.run(
+                "submit",
+                "--operation-id",
+                operation or case,
+                "--responses",
+                folder.name,
+                "--socket",
+                str(WITNESS_SOCKET),
+            )
+            expect(status == 0, f"{case}: bin/submit: {record} {submit_stderr}")
+            return record
+
+        watched(case, action)
+
+    tampered_request: Dict[str, Any] = {}
+
+    def tampered_case() -> Dict[str, Any]:
+        """A manager's request with its amount edited: the manager's command
+        refuses it and signs nothing."""
+        requested, _ = request("refund-tampered", 1_500, f"{manager_a},{manager_b}")
+        folder = Path(requested["folder"])
+        original = (folder / f"{manager_a}.request").read_text().strip()
+        raw = bytearray(unb64(original[len("auths-ar1-") :]))
+        at = bytes(raw).index(b'"amount":1500')
+        raw[at : at + len(b'"amount":1500')] = b'"amount":9500'
+        edited = folder / f"{manager_a}.edited"
+        write_file(edited, ("auths-ar1-" + b64(bytes(raw)) + "\n").encode(), 0o644)
+        status, _, stderr = commands.run("approve", manager_a, str(edited), "--yes")
+        tampered_request.update(
+            exit=status,
+            refused="approval.action-mismatch" in stderr,
+            signed=(folder / f"{manager_a}.response").exists(),
+        )
+        return dict(tampered_request)
+
+    def reused_approvals() -> Dict[str, Any]:
+        """refund-1's approved proof, sent with another refund's action."""
+        requested, _ = request("refund-8-reuse", 1_000, f"{manager_a},{manager_b}")
+        requests["refund-8-reuse"] = requested
+        first = next(item for item in lines(PROJECT / "agent" / "log" / "entries.jsonl") if item["operation_id"] == "refund-1")
+        proof, action = RUN / "reuse.proof", RUN / "reuse.action"
+        write_file(proof, unb64(first["proof_b64"]), replace=True)
+        write_file(action, unb64(requested["action_b64"]), replace=True)
+        sent = subprocess.run(
+            [
+                config["gateway"]["path"],
+                "submit",
+                "--app-socket",
+                str(WITNESS_SOCKET),
+                "--proof",
+                str(proof),
+                "--action",
+                str(action),
+            ],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            cwd=PROJECT,
+        )
+        expect(sent.returncode == 0, f"refund-8-reuse: {sent.stderr.strip()}")
+        # The gateway CLI prints the gateway's submit result unchanged.
+        return {"decided_by": "gateway", **json.loads(sent.stdout)}
+
+    # The refunds, in order. Each hostile one must be decided by the gateway.
+    submit("refund-1", 1_500, f"{manager_a},{manager_b}")
+    submit("refund-declined", 2_000, f"{manager_a},{manager_b}", declines=(manager_b,))
+    watched("refund-tampered", tampered_case)
+    submit("refund-2-one-approval", 1_200, manager_a)
+    submit("refund-6-no-manager", 1_100, "")
+    submit("refund-7-repeated", 1_300, f"{manager_a},{manager_a}")
+    submit("refund-3-over-ceiling", 9_000, f"{manager_a},{manager_b}")
+    submit("refund-other-account", 1_000, f"{manager_a},{manager_c}", connect_account=OTHER_ACCOUNT)
+    submit("refund-over-sum", 5_000, f"{manager_a},{manager_b}")
+    submit("refund-4", 4_000, f"{manager_b},{manager_c}", payment_intent=REFUNDED_PAYMENT_INTENT)
+    submit("refund-5-window", 1_000, f"{manager_a},{manager_c}")
+    submit("refund-1-replay", 1_500, f"{manager_b},{manager_c}", operation="refund-1", out="refund-1-replay")
+    watched("refund-8-reuse", reused_approvals)
+    submit("refund-7-retry", 1_300, f"{manager_b},{manager_c}", operation="refund-7-repeated", out="refund-7-retry")
+    # The negative control: a client-side pre-check refuses locally, and the
+    # guard must reject it as not decided by the gateway.
+    submit("refund-9-precheck", 1_200, manager_a, precheck=True)
+
+    expect_gateway_decided(
+        "refund-1",
+        results["refund-1"],
+        frames["refund-1"],
+        "observed-by-provider",
+        status=200,
+        action_b64=requests["refund-1"]["action_b64"],
+    )
+    expect(results["refund-1"].get("bundle") == "appended", f"refund-1: {results['refund-1']}")
+    expect_gateway_decided(
+        "refund-4",
+        results["refund-4"],
+        frames["refund-4"],
+        "response-recorded",
+        status=400,
+        action_b64=requests["refund-4"]["action_b64"],
+    )
+    declined = results["refund-declined"]
+    expect_not_submitted("refund-declined", declined, frames["refund-declined"], "approver", "approver-declined")
+    expect(
+        declined.get("declined") == [manager_b] and declined["provider_requests"] == 0,
+        f"refund-declined: {declined}",
+    )
+    expect(
+        tampered_request == {"exit": 1, "refused": True, "signed": False},
+        f"tampered request: {tampered_request}",
+    )
+    expect(
+        not submit_frames(frames["refund-tampered"]) and results["refund-tampered"]["provider_requests"] == 0,
+        f"the tampered request reached the gateway: {frames['refund-tampered']}",
+    )
+    hostile: Dict[str, Dict[str, Any]] = {}
+    for case, (outcome, code) in BEFORE_LEASE.items():
+        expect_gateway_decided(
+            case, results[case], frames[case], outcome, code, action_b64=requests[case]["action_b64"]
+        )
+        expect(results[case]["provider_requests"] == 0, f"{case} reached the provider")
+        hostile[case] = {
+            "decided_by": results[case]["decided_by"],
+            "outcome": outcome,
+            "code": code,
+            "submit_frames": len(submit_frames(frames[case])),
+        }
+    # Only the reused-approvals case is sent without asking for an outcome.
+    expect(len(frames["refund-8-reuse"]) == 1, f"refund-8-reuse: the witness saw {frames['refund-8-reuse']}")
+    expect(
+        f"dropped the repeated approver {manager_a}" in warnings["refund-7-repeated"],
+        f"refund-7-repeated: request did not name the dropped repeat: {warnings['refund-7-repeated']}",
+    )
+    for case in ("refund-1-replay", "refund-7-retry"):
+        expect(
+            "attempt store decides" in warnings[case],
+            f"{case}: request did not warn that the operation ID was requested before",
+        )
+    expect(results["refund-1-replay"].get("bundle") == "unchanged", f"replay: {results['refund-1-replay']}")
+    expect(results["refund-7-retry"].get("bundle") == "replaced", f"retry: {results['refund-7-retry']}")
+
+    control = results["refund-9-precheck"]
+    expect_not_submitted("refund-9-precheck", control, frames["refund-9-precheck"], "client", "precheck")
+    expect(control.get("precheck") == "approvals-below-threshold", f"negative control: {control}")
+    try:
+        expect_gateway_decided(
+            "refund-9-precheck", control, frames["refund-9-precheck"], "denied", "composition-requirement-not-met"
+        )
+    except SelftestFailed as rejected:
+        negative_control = {"guard_rejected": True, "reason": str(rejected)}
+    else:
+        raise SelftestFailed("the guard accepted a request refused only by the client")
+    hostile["refund-9-precheck"] = {
+        "decided_by": control["decided_by"],
+        "outcome": control["outcome"],
+        "precheck": control["precheck"],
+        "submit_frames": len(submit_frames(frames["refund-9-precheck"])),
+        "guard_rejected": True,
+    }
+    expect(control["provider_requests"] == 0, "refund-9-precheck reached the provider")
+    writes = [entry for entry in lines(LEDGER) if entry["kind"] == "write"]
+    expect(len(writes) == 2, f"expected exactly 2 provider writes, saw {len(writes)}")
+    expect([entry["amount"] for entry in writes] == [1_500, 4_000], f"provider writes {writes}")
+    lap("refunds")
+    report.update(
+        hostile=hostile,
+        negative_control=negative_control,
+        declined=declined,
+        tampered_request=tampered_request,
+        provider_requests=len(lines(LEDGER)),
+        provider_writes=len(writes),
+        witness_submissions=len(submit_frames(lines(WITNESS_LOG))),
+    )
+
+    # The bundle, and the offline audit under the default rule and the relaxation.
+    status, exported, stderr = commands.run("export")
+    expect(status == 0, f"bin/export: {exported} {stderr}")
+    bundle = read_json(AUDIT / "bundle.json")
+    unrecorded = {entry["operation_id"] for entry in bundle["entries"] if entry.get("outcome_b64") is None}
+    expect(unrecorded == UNRECORDED, f"entries without a signed outcome: {sorted(unrecorded)}")
+    strict_status, strict, strict_stderr = commands.run("audit")
+    expect(
+        strict_status != 0 and strict_stderr.strip() == "audit.unverified",
+        f"bin/audit without --allow-unverified-refusals: {strict_status} {strict_stderr.strip()}",
+    )
+    relaxed_status, relaxed, relaxed_stderr = commands.run("audit", "--allow-unverified-refusals")
+    expect(relaxed_status == 0, f"bin/audit --allow-unverified-refusals: {relaxed_status} {relaxed_stderr.strip()}")
+    expect(relaxed == strict, "--allow-unverified-refusals changed the audit report")
+    verdicts = {
+        entry["operation_id"]: (entry["status"], entry["code"], entry["admitted"]) for entry in relaxed["entries"]
+    }
+    audited = {
+        operation: code
+        for operation, (_, code) in BEFORE_LEASE.items()
+        if operation not in ("refund-1-replay", "refund-8-reuse", "refund-7-retry")
+    }
+    # One entry per operation ID: refund-7-repeated is audited through its retry.
+    audited["refund-7-repeated"] = BEFORE_LEASE["refund-7-retry"][1]
+    bundled = [entry["operation_id"] for entry in bundle["entries"]]
+    expect(len(bundled) == len(set(bundled)), f"the bundle repeats an operation ID: {bundled}")
+    expect(set(bundled) == {"refund-1", "refund-4", *audited}, f"bundle entries {sorted(bundled)}")
+    for operation in ("refund-1", "refund-4"):
+        expect(verdicts[operation] == ("verified", "audit.verified", True), f"audit {operation}: {verdicts[operation]}")
+    for operation, code in audited.items():
+        expected = ("unverified", code, False) if operation in unrecorded else ("refused", code, True)
+        expect(verdicts[operation] == expected, f"audit {operation}: {verdicts[operation]}, expected {expected}")
+    provider_results = {entry["operation_id"]: entry["provider_result"] for entry in relaxed["entries"]}
+    for operation, stage, http_status in (
+        ("refund-1", "observed-by-provider", 200),
+        ("refund-4", "response-recorded", 400),
+    ):
+        result = provider_results[operation]
+        expect(
+            result is not None and result["stage"] == stage and result["http_status"] == http_status,
+            f"audit provider result {operation}: {result}",
+        )
+    report["audit"] = {key: relaxed[key] for key in ("verified", "refused", "unverified", "inconsistent")}
+    report["audit"]["default_rule"] = {"exit": strict_status, "stderr": strict_stderr.strip()}
+    report["audit"]["allow_unverified_refusals"] = {"exit": relaxed_status, "same_report": True}
+    lap("export and audit")
+
+    # Tampered copies, each under --allow-unverified-refusals, so that only
+    # the tampering can fail it.
+    private_directory(TAMPERED)
+
+    def audit_copy(label: str, value: Dict[str, Any]) -> Tuple[int, Dict[str, Any], str]:
+        path = TAMPERED / (label.replace(" ", "-") + ".json")
+        write_file(path, json.dumps(value).encode(), replace=True)
+        return commands.run("audit", "--bundle", str(path), "--allow-unverified-refusals")
+
+    def inconsistent(result: Dict[str, Any]) -> List[str]:
+        return [entry["code"] for entry in result.get("entries", []) if entry["status"] == "inconsistent"]
+
+    refund_4 = entry_of(bundle, "refund-4")
+    replaced_trust = dict(
+        bundle, trusted_context_b64=b64((PROJECT / "operator" / "trust" / "sdk.context.cbor").read_bytes())
+    )
+    # (label, copy, the only inconsistent finding expected, or None when the
+    # finding depends on where the change lands)
+    copies: List[Tuple[str, Dict[str, Any], Optional[str]]] = [
+        ("character changed", tamper(bundle, "refund-1", change_longest_string), None),
+        ("entry duplicated", duplicate(bundle, "refund-1"), "audit.duplicate-operation"),
+        ("evidence swapped", swap_evidence(bundle, "refund-1", "refund-4"), None),
+        ("proof byte flipped", tamper(bundle, "refund-1", flip_proof_byte), "audit.entered-without-authority"),
+        (
+            "action swapped",
+            tamper(bundle, "refund-1", lambda entry: entry.update(action_b64=refund_4["action_b64"])),
+            "audit.outcome-commitment-mismatch",
+        ),
+        (
+            "outcome replayed",
+            tamper(bundle, "refund-1", lambda entry: entry.update(outcome_b64=refund_4["outcome_b64"])),
+            "audit.outcome-invalid",
+        ),
+    ]
+    detected: Dict[str, Dict[str, Any]] = {}
+    for label, value, pinned in copies:
+        status, result, stderr = audit_copy(label, value)
+        findings = inconsistent(result)
+        expect(
+            status != 0 and stderr.strip() == "audit.inconsistent" and findings != [],
+            f"tamper '{label}' not detected: {status} {stderr.strip()} {findings}",
+        )
+        if pinned is not None:
+            expect(findings == [pinned], f"tamper '{label}': findings {findings}, expected [{pinned}]")
+        detected[label] = {"exit": status, "stderr": stderr.strip(), "findings": findings}
+    status, result, stderr = audit_copy("trust replaced", replaced_trust)
+    expect(
+        status != 0 and result.get("error") == "audit.trust-pin-mismatch",
+        f"tamper 'trust replaced' not detected: {status} {result} {stderr.strip()}",
+    )
+    detected["trust replaced"] = {"exit": status, "stderr": stderr.strip(), "findings": []}
+    # An entered refund whose outcome was left out still verifies, so it stays
+    # unverified and fails the audit even with the option.
+    status, result, stderr = audit_copy("outcome removed", tamper(bundle, "refund-1", drop_outcome))
+    removed = entry_of(result, "refund-1") if result.get("entries") else {}
+    expect(
+        status != 0
+        and stderr.strip() == "audit.unverified"
+        and result.get("inconsistent") == 0
+        and (removed.get("status"), removed.get("code"), removed.get("admitted"))
+        == ("unverified", "audit.outcome-missing", True),
+        f"tamper 'outcome removed' not detected: {removed} {stderr.strip()}",
+    )
+    detected["outcome removed"] = {"exit": status, "stderr": stderr.strip(), "findings": []}
+    expect(len(detected) == 8, f"expected 8 tampered copies, audited {len(detected)}")
+    report["tamper_detected"] = detected
+
+    # The documented limit of --allow-unverified-refusals, not a detection:
+    # with its outcome removed, an altered proof is refused by the audit and
+    # so accepted by the option, reported unverified and not admitted.
+    def remove_and_flip(entry: Dict[str, Any]) -> None:
+        drop_outcome(entry)
+        flip_proof_byte(entry)
+
+    status, result, stderr = audit_copy("outcome removed and proof byte flipped", tamper(bundle, "refund-1", remove_and_flip))
+    limited = entry_of(result, "refund-1") if result.get("entries") else {}
+    expect(
+        status == 0
+        and result.get("inconsistent") == 0
+        and limited.get("status") == "unverified"
+        and limited.get("admitted") is False,
+        f"the known limit changed: {limited} {status} {stderr.strip()}",
+    )
+    lap("tampered copies")
+    report["known_limits"] = {
+        "outcome removed and proof byte flipped": {
+            "exit": status,
+            "refund-1": limited["status"],
+            "admitted": limited["admitted"],
+        }
+    }
+
+    # A second install is refused before the gateway reads a provider: the
+    # value piped here is not a key.
+    status, second, stderr = commands.run("install-gateway", stdin=b"not-a-provider-key\n")
+    expect(
+        status != 0 and second.get("error") == "gateway.install.already-installed",
+        f"second install: {status} {second} {stderr.strip()}",
+    )
+    report["second_install"] = {"exit": status, "error": second["error"]}
+    lap("second install")
+
+    scan = key_scan(key_file, started)
+    expect(not scan["outside_enforcement"], f"the key appears outside enforcement/gateway/: {scan}")
+    report["key_scan"] = scan
+    lap("key scan")
+    report["modes"] = check_modes()
+    expect(
+        not commands.without_one_object,
+        f"commands that did not print exactly one JSON object: {commands.without_one_object}",
+    )
+    report["one_json_object"] = True
+
+
+if __name__ == "__main__":
+    main({"run": selftest})

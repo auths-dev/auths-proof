@@ -49,6 +49,16 @@ The [Stripe refund example](../../examples/stripe-refund-approval/README.md)
 runs the whole journey: a grant with limits, a 2-of-3 approval quorum, gateway
 submission, and an offline audit.
 
+To start from a working deployment of that example instead, run
+`auths init stripe-refund-approval --gateway PATH/TO/auths-gateway`. It writes
+a new project directory whose `bin/` commands wrap the gateway and this SDK:
+setup, an install that takes the Stripe key only on standard input, start and
+stop, the agent's request and submit, `auths approve` for each manager, the
+export, the offline audit, and a self-test that sends hostile refunds through
+the gateway. The project is a development deployment: one OS user, a file
+attempt store, and a software observer key, with development custody for the
+root, the managers, and the agent. It cannot establish credential isolation.
+
 ## Author the proof
 
 `auths.authoring` and `auths.self_hosted` generate an exact MCP-shaped tool
@@ -57,7 +67,10 @@ identities. To require that a threshold of named approvers sign one exact
 action before it is submitted, see
 [approval quorum](../../docs/product/APPROVAL_QUORUM.md). The installed `auths`
 command runs `auths generate` for exact-tool code and `auths approve` for
-approval requests.
+approval requests. For the operator's side, `auths.self_hosted` compiles a
+trusted context (`compile_trusted_context`), issues a root grant through a
+custody signer (`author_root_grant`), and loads the `auths.approval-signer/1`
+files `auths approve` reads (`load_signer_file`).
 
 For an application-owned provider adapter that is not an Auths-qualified
 vertical, see the

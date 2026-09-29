@@ -129,6 +129,76 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  stripe-refund-scaffold:
+    name: scaffolded Stripe refund enforcement point from the packed wheel
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - run: python -m venv .journey-venv
+      - run: .journey-venv/bin/python -m pip install maturin==1.9.6
+      - run: >-
+          .journey-venv/bin/maturin build --profile python-extension --locked
+          --manifest-path bindings/python/Cargo.toml
+          --out target/journey-artifacts
+      - run: .journey-venv/bin/python -m pip install target/journey-artifacts/auths-*.whl
+      # The loopback-provider build sends refunds to the counting Stripe
+      # double on 127.0.0.1; no Stripe call and no credential leave the runner.
+      - run: cargo build --locked -p auths-gateway --features loopback-provider --bin auths-gateway
+      - name: Generate the project, install the key on stdin, and run its self-test
+        env:
+          PROJECT: ${{ runner.temp }}/r
+          # Outside the project; the self-test reads it only to scan for the key.
+          KEY_FILE: ${{ runner.temp }}/key
+          OUTPUTS: ${{ runner.temp }}/outputs
+        run: |
+          mkdir -p "$OUTPUTS" target/scaffold-artifacts
+          .journey-venv/bin/auths init stripe-refund-approval --directory "$PROJECT" \
+            --gateway "$GITHUB_WORKSPACE/target/debug/auths-gateway" > "$OUTPUTS/init.json"
+          cd "$PROJECT" || exit 1
+          bin/setup > "$OUTPUTS/setup.json"
+          # A final newline: the double's digest depends on hashing the key
+          # without it, as the gateway stores it.
+          ( umask 077; printf 'rk_test_mock_%s\n' "$(od -An -tx1 -N12 /dev/urandom | tr -d ' \n')" > "$KEY_FILE" )
+          bin/install-gateway < "$KEY_FILE" > "$OUTPUTS/install.json"
+          set +e   # bin/stop must run even when the self-test fails
+          bin/start > "$OUTPUTS/start.json" && AUTHS_SELFTEST_KEY_FILE="$KEY_FILE" bin/selftest > "$OUTPUTS/selftest.json"
+          status=$?
+          bin/stop > "$OUTPUTS/stop.json"
+          stopped=$?
+          cp audit/selftest.json "$GITHUB_WORKSPACE/target/scaffold-artifacts/selftest.json"
+          set -e
+          if [ "$status" -ne 0 ]; then
+            cat "$OUTPUTS/start.json" "$OUTPUTS/selftest.json" || true
+            exit "$status"
+          fi
+          [ "$stopped" -eq 0 ] || exit "$stopped"
+          if pgrep -f -- "$PROJECT/" > /dev/null; then
+            echo "::error::a gateway, double, or witness process outlived bin/stop"
+            pgrep -af -- "$PROJECT/"
+            exit 1
+          fi
+          # Every command printed exactly one JSON object.
+          for name in init setup install start selftest stop; do
+            python3 -c 'import json, sys; assert isinstance(json.load(open(sys.argv[1])), dict)' "$OUTPUTS/$name.json" \
+              || { echo "::error::$name did not print exactly one JSON object"; exit 1; }
+          done
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: stripe-refund-scaffold-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/scaffold-artifacts/selftest.json
+          if-no-files-found: error
+          retention-days: 30
+
   stripe-refund-journey-npm:
     name: north-star Stripe refund journey from the packed npm package
     runs-on: ubuntu-latest
