@@ -43,6 +43,8 @@ pub const NUMERIC_CEILING_V1: &str = "numeric-ceiling-v1";
 pub const EXACT_MARKER_EXTENSION_V1: &str = "exact-marker-v1";
 /// Grant critical extension carrying observation requirements.
 pub const OBSERVATION_REQUIREMENT_EXTENSION_V1: &str = "observation-requirement-v1";
+/// Grant critical extension carrying approval requirements.
+pub const APPROVAL_REQUIREMENT_EXTENSION_V1: &str = "approval-requirement-v1";
 /// Grant critical extension committing to a closed product-layer policy.
 pub const BOUNDED_POLICY_COMMITMENT_EXTENSION_V1: &str = "bounded-policy-commitment-v1";
 /// Attenuation law committed by the `bounded-policy-commitment-v1` handler.

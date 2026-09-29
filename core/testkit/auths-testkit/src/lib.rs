@@ -64,6 +64,7 @@ use rustls_pki_types::PrivatePkcs8KeyDer;
 use sha2::{Digest as _, Sha256};
 
 mod action_decode;
+mod approval;
 mod bounded_policy;
 mod kernel_checks;
 mod observation;
@@ -4279,8 +4280,8 @@ pub fn duplicate_cbor_key() -> CorpusFixture {
     proof_mutation(
         "duplicate-cbor-key",
         |bytes| {
-            bytes[0] = 0xab;
-            bytes.extend_from_slice(&[0x09, 0x80]);
+            bytes[0] = 0xac;
+            bytes.extend_from_slice(&[0x0a, 0x80]);
         },
         DenialReason::MalformedProof,
     )
@@ -4297,7 +4298,7 @@ pub fn non_minimal_integer() -> CorpusFixture {
     proof_mutation(
         "non-minimal-integer",
         |bytes| {
-            assert_eq!(&bytes[..6], &[0xaa, 0x00, 0xa2, 0x00, 0x01, 0x01]);
+            assert_eq!(&bytes[..6], &[0xab, 0x00, 0xa2, 0x00, 0x01, 0x01]);
             bytes[4] = 0x18;
             bytes.insert(5, 0x01);
         },
@@ -5532,6 +5533,7 @@ fn build_corpus() -> Vec<CorpusFixture> {
     corpus.extend(kernel_checks::precedence_vectors());
     corpus.extend(observation::child_limit_vectors());
     corpus.extend(status_extensions::status_extension_vectors());
+    corpus.extend(approval::approval_vectors());
     corpus.extend(status_scope::status_scope_vectors());
     corpus.extend(status_scope::carried_status_precedence_vectors());
     corpus.extend(action_decode::action_decode_vectors());
