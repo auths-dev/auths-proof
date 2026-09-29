@@ -556,13 +556,19 @@ the Boolean projection alone represents a complete grant transition.
 
 For both `all` and `any`, Lean proves commutativity, associativity, and
 idempotence. It proves that one-of-two is `any`, two-of-two is `all`, and that
-tightening a threshold cannot increase truth:
+tightening a threshold cannot increase truth, for every pair of thresholds:
 
 $$
-\operatorname{thresholdTwo}(2,x,y)
+k_1 \le k_2 \Rightarrow
+\operatorname{thresholdTwo}(k_2,x,y)
 \preceq
-\operatorname{thresholdTwo}(1,x,y).
+\operatorname{thresholdTwo}(k_1,x,y).
 $$
+
+The same law holds for the generated count classifier, whose Rust twin the
+verifier runs, and a theorem equates the two-input helper with that classifier
+applied to its inputs' counts. These results concern the count function and the
+two-input helper, not the plan evaluator or the distinct-actor floor.
 
 The unbounded count classifier has three soundness theorems:
 
@@ -1181,9 +1187,10 @@ chains. Structural plan recursion terminates because plans are finite
 inductive values. Production additionally validates deployment limits before
 evaluation and reserves work before variable-cost adapters and cryptography.
 
-The Lean theorem `evaluation_cost_linear_in_nodes` concerns the declared
-structural cost function. It should not be read as an empirical runtime
-complexity proof for the full verifier. Allocation, hashing, signature
+The Lean theorem `plan_cost_is_node_count` states that the declared
+structural cost equals the plan's node count, which holds by definition. No
+theorem proves evaluation cost linear in the nodes, and none should be read as
+a runtime complexity proof for the full verifier. Allocation, hashing, signature
 verification, adapter work, and codec behavior remain outside that theorem.
 
 ## 7.4 Change control as a security property

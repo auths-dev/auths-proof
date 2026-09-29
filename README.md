@@ -68,8 +68,19 @@ own test key.
   proof the audit itself refuses. It cannot show that no action was left out
   of the bundle.
 - **Checked independently.** A Rust verifier and independent Go and TypeScript
-  verifiers agree on a shared corpus of test vectors. Lean proofs cover the
-  delegation ordering and the K-of-N approval algebra, not the whole verifier.
+  verifiers agree on a shared corpus of test vectors.
+- **Proof coverage, measured.**
+  <!-- proof-coverage:begin -->
+  103 of 953 decision-scope functions (10.8%) and 1,201 of 10,346 code lines
+  (11.6%) are translated to Lean and reached from audited theorem statements,
+  and 15 of 72 kernel check sites map only to such functions. The rest of the
+  decision path, including the staged verifier control flow, the composition
+  evaluator, the registry handlers, the codec, and the signature suites, is
+  tested, not proved. For K-of-N approval the proofs cover the threshold count
+  function and the two-input helper, not the plan evaluator or the
+  distinct-actor floor. Figures, method, and what they do not mean:
+  [`docs/assurance/PROOF_COVERAGE.md`](docs/assurance/PROOF_COVERAGE.md).
+  <!-- proof-coverage:end -->
 
 ## What it does not claim yet
 

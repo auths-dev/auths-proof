@@ -290,6 +290,29 @@ mod tests {
         }
     }
 
+    /// At K = 0 and at K above the member count the count function takes the
+    /// threshold formula's values, as the Lean two-input helper does; plan
+    /// validation rejects both before any evaluation.
+    #[test]
+    fn threshold_counts_outside_the_plan_domain_follow_the_formula() {
+        let two_input_counts = [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (2, 0)];
+        for (authorized, indeterminate) in two_input_counts {
+            assert_eq!(
+                evaluate_threshold_counts(0, authorized, indeterminate),
+                ThresholdTruth::Authorized
+            );
+            for k in [3, 4, u16::MAX] {
+                assert_eq!(
+                    evaluate_threshold_counts(k, authorized, indeterminate),
+                    ThresholdTruth::Denied
+                );
+            }
+        }
+        let member = |byte| AuthorizationPlan::proof(ProofRef::new([byte; 32]));
+        assert!(AuthorizationPlan::k_of_n(0, vec![member(1), member(2)]).is_err());
+        assert!(AuthorizationPlan::k_of_n(3, vec![member(1), member(2)]).is_err());
+    }
+
     #[test]
     fn all_of_and_any_of_preserve_three_way_logic() {
         let first = AuthorizationPlan::proof(ProofRef::new([1; 32]));

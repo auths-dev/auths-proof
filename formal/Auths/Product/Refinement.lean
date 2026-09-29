@@ -1,6 +1,7 @@
 import Auths.Product.Theorems
 import Auths.Product.CeilingCount
 import qualification.aeneas.generated.bounded_policy.Funs
+import Auths.Product.Refinement.BoundedPolicy
 
 open Aeneas Aeneas.Std Result ControlFlow
 open Aeneas.Std.WP
@@ -81,6 +82,18 @@ theorem translated_checked_div_rejects_zero (value : U64) :
   cases equation : U64.checked_div value (U64.ofNat 0) with
   | none => rfl
   | some result => simp [equation] at specification
+
+/-- The window index is the natural-number quotient of `now` by the window
+length, and absent for a zero-length window. -/
+theorem translated_window_index_refines_nat (now windowSeconds : U64) :
+    ∃ result, auths_bounded_policy.kernel.window_index now windowSeconds = ok result ∧
+      result.map (·.val) =
+        if windowSeconds.val = 0 then none else some (now.val / windowSeconds.val) := by
+  refine ⟨U64.checked_div now windowSeconds, rfl, ?_⟩
+  have specification := U64.checked_div_bv_spec now windowSeconds
+  cases equation : U64.checked_div now windowSeconds with
+  | none => simp_all
+  | some result => simp_all
 
 def generatedCeilingCountCode :
     Auths.Product.CeilingCount.Code → auths_bounded_policy.kernel.CeilingCountCode

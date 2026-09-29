@@ -171,6 +171,7 @@ pub(crate) fn release_check() -> Result<(), String> {
             .map_err(|_| "tagged release is missing GITHUB_REF_NAME".to_owned())?;
         validate_release_tag(&tag, env!("CARGO_PKG_VERSION"))?;
     }
+    formal_mutations::check_release_ready(&root())?;
     ci()?;
     release_evidence()?;
     println!("release checks passed");
@@ -739,6 +740,7 @@ fn assurance_source_path(path: &str) -> bool {
         "formal/",
         "core/fixtures/v1/",
         "core/formal-vectors/v1/",
+        "docs/assurance/",
         "product/fixtures/v1/",
         "product/integrations/auths-stripe/fixtures/",
         "product/spec/v1/assurance-",
