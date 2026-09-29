@@ -1,0 +1,108 @@
+# The coverage scope: which crates each scope takes and the declared role of
+# every file in a scoped crate. A file added to a scoped crate must be given a
+# role here in the same change; `cargo xtask formal coverage` rejects an
+# unlisted or stale path. Roles other than "decision" are excluded from the
+# decision and verifier-core scopes when listed in excluded_roles; a
+# "test-support" file is not scanned at all.
+#
+# The roles follow study 006's table at 8bf2970c. Files added since carry
+# "decision"; auths-registries/src/template.rs (the trusted-context template
+# builder) is counted as decision logic, the reading that gives the smaller
+# figure.
+schema = "auths-proof-coverage-scope/v1"
+verifier_crate = "core/crates/auths-verifier"
+decision_kernel_crates = ["product/runtime/auths-lifecycle", "product/policy/auths-bounded-policy"]
+translated_crates = [
+    "core/crates/auths-model",
+    "core/crates/auths-algebra-kernel",
+    "core/crates/auths-authority",
+    "product/runtime/auths-lifecycle",
+    "product/policy/auths-bounded-policy",
+    "product/runtime/auths-gateway-kernel",
+    "product/runtime/auths-connections",
+]
+excluded_roles = ["crypto", "decoding", "explanation", "interface", "storage"]
+nontrivial_code_lines = 4
+every_file_listed = true
+
+# Components named in the published claim when any of their crates' functions
+# lies outside the refined closure; a component with no crate is outside the
+# scanned scope altogether.
+[[components]]
+name = "the staged verifier control flow"
+crates = ["core/crates/auths-verifier"]
+
+[[components]]
+name = "the composition evaluator"
+crates = ["core/crates/auths-composition"]
+
+[[components]]
+name = "the registry handlers"
+crates = ["core/crates/auths-registries"]
+
+[[components]]
+name = "the codec"
+crates = ["core/crates/auths-codec"]
+
+[[components]]
+name = "the signature suites"
+crates = []
+
+[files]
+"core/crates/auths-algebra-kernel/src/generated.rs" = "decision"
+"core/crates/auths-algebra-kernel/src/lib.rs" = "decision"
+"core/crates/auths-assurance/src/lib.rs" = "decision"
+"core/crates/auths-authority/src/lib.rs" = "decision"
+"core/crates/auths-codec/src/bounded_policy.rs" = "decoding"
+"core/crates/auths-codec/src/decode.rs" = "decoding"
+"core/crates/auths-codec/src/encode.rs" = "decoding"
+"core/crates/auths-codec/src/error.rs" = "decoding"
+"core/crates/auths-codec/src/hash.rs" = "decoding"
+"core/crates/auths-codec/src/lib.rs" = "decoding"
+"core/crates/auths-codec/src/observation.rs" = "decoding"
+"core/crates/auths-composition/src/lib.rs" = "decision"
+"core/crates/auths-model/src/bounded.rs" = "decision"
+"core/crates/auths-model/src/bounded_policy.rs" = "decision"
+"core/crates/auths-model/src/lib.rs" = "decision"
+"core/crates/auths-model/src/observation.rs" = "decision"
+"core/crates/auths-ports/src/binding.rs" = "interface"
+"core/crates/auths-ports/src/diagnostics.rs" = "interface"
+"core/crates/auths-ports/src/lib.rs" = "interface"
+"core/crates/auths-ports/src/path.rs" = "interface"
+"core/crates/auths-registries/src/lib.rs" = "decision"
+"core/crates/auths-registries/src/template.rs" = "decision"
+"core/crates/auths-verifier/src/causal.rs" = "explanation"
+"core/crates/auths-verifier/src/lib.rs" = "decision"
+"core/crates/auths-verifier/src/observation.rs" = "decision"
+"core/crates/auths-verifier/src/trace.rs" = "explanation"
+"product/policy/auths-bounded-policy/src/arithmetic.rs" = "decision"
+"product/policy/auths-bounded-policy/src/commitment.rs" = "decision"
+"product/policy/auths-bounded-policy/src/eligibility.rs" = "decision"
+"product/policy/auths-bounded-policy/src/identifier.rs" = "decision"
+"product/policy/auths-bounded-policy/src/kernel.rs" = "decision"
+"product/policy/auths-bounded-policy/src/lib.rs" = "decision"
+"product/policy/auths-bounded-policy/src/receipt.rs" = "decision"
+"product/policy/auths-bounded-policy/src/registry.rs" = "decision"
+"product/runtime/auths-connections/src/credential.rs" = "decision"
+"product/runtime/auths-connections/src/kernel.rs" = "decision"
+"product/runtime/auths-connections/src/lib.rs" = "decision"
+"product/runtime/auths-connections/src/model.rs" = "decision"
+"product/runtime/auths-connections/src/registry.rs" = "decision"
+"product/runtime/auths-gateway-kernel/src/construct.rs" = "decision"
+"product/runtime/auths-gateway-kernel/src/lib.rs" = "decision"
+"product/runtime/auths-gateway-kernel/src/order.rs" = "decision"
+"product/runtime/auths-gateway-kernel/src/outcome.rs" = "decision"
+"product/runtime/auths-gateway-kernel/src/ratio.rs" = "decision"
+"product/runtime/auths-gateway-kernel/src/recovery.rs" = "decision"
+"product/runtime/auths-gateway-kernel/src/transition.rs" = "decision"
+"product/runtime/auths-lifecycle/src/codec.rs" = "decoding"
+"product/runtime/auths-lifecycle/src/digest.rs" = "decision"
+"product/runtime/auths-lifecycle/src/identifier.rs" = "decision"
+"product/runtime/auths-lifecycle/src/kernel.rs" = "decision"
+"product/runtime/auths-lifecycle/src/lib.rs" = "decision"
+"product/runtime/auths-lifecycle/src/model.rs" = "decision"
+"product/runtime/auths-lifecycle/src/operation.rs" = "decision"
+"product/runtime/auths-lifecycle/src/registry.rs" = "decision"
+"product/runtime/auths-lifecycle/src/sealed.rs" = "storage"
+"product/runtime/auths-lifecycle/src/test_support.rs" = "test-support"
+"product/runtime/auths-lifecycle/src/transition.rs" = "decision"

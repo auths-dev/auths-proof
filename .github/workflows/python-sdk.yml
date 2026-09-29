@@ -308,6 +308,49 @@ jobs:
       - name: Install only the built wheel
         shell: bash
         run: python -m pip install wheelhouse/*.whl
+      - name: Check the socket path limit against the operating system
+        shell: bash
+        working-directory: ${{ runner.temp }}
+        run: |
+          python - <<'EOF'
+          import os
+          import socket
+          import sys
+          import tempfile
+          from pathlib import Path
+
+          from auths.gateway import GatewayEndpoint
+
+          limit = 107 if sys.platform.startswith("linux") else 103
+          base = Path(tempfile.mkdtemp(dir="/tmp")).resolve()
+
+
+          def padded(size):
+              path = base / ("s" * (size - len(os.fsencode(base)) - 1))
+              assert len(os.fsencode(path)) == size
+              return path
+
+
+          longest = padded(limit)
+          GatewayEndpoint(longest)
+          with socket.socket(socket.AF_UNIX) as listener:
+              listener.bind(str(longest))
+          over = padded(limit + 1)
+          try:
+              GatewayEndpoint(over)
+          except ValueError:
+              pass
+          else:
+              sys.exit("GatewayEndpoint accepted a path over the limit")
+          with socket.socket(socket.AF_UNIX) as listener:
+              try:
+                  listener.bind(str(over))
+              except OSError:
+                  pass
+              else:
+                  sys.exit(f"a {limit + 1}-byte socket path bound")
+          print(f"socket path limit {limit} matches the operating system")
+          EOF
       - name: Run the expected-before-replacement journey
         shell: bash
         working-directory: ${{ runner.temp }}

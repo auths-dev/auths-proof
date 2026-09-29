@@ -1,11 +1,15 @@
 {
   "schema": "auths-proof-formal-generated-paths/v1",
-  "version": 2,
+  "version": 3,
   "exact_paths": [
     "formal/assurance-manifest-v1.toml",
     "formal/qualification/aeneas/source-closure.json",
     "formal/Auths/Generated/Algebra.lean",
-    "core/crates/auths-algebra-kernel/src/generated.rs"
+    "core/crates/auths-algebra-kernel/src/generated.rs",
+    "formal/lean-assurance-audit-v1.json",
+    "formal/proof-coverage-v1.json",
+    "formal/proof-coverage-functions-v1.tsv",
+    "docs/assurance/PROOF_COVERAGE.md"
   ],
   "path_prefixes": [
     "formal/qualification/aeneas/generated/"

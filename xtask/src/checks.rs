@@ -51,6 +51,7 @@ pub(crate) fn ci_authoritative() -> Result<(), String> {
     public_naming()?;
     release_contract()?;
     repository_hygiene()?;
+    formal_coverage::formal_coverage(false)?;
     cargo(&["test", "--workspace", "--all-features"])?;
     release_preflight()?;
     release_documentation()?;

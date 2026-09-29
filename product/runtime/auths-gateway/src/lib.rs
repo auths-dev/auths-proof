@@ -105,5 +105,6 @@ pub use store::{
     GatewayCounterEntry, GatewayCounterKind, GatewayEvidenceChannel, GatewayInsert,
     GatewayObservationFact, GatewayPreEntry, GatewayProviderEvidence, GatewayRecordEntry,
     GatewayRecordKind, GatewayRelativeBasis, ObservableGatewayAttempt, PostgresGatewayAttemptStore,
+    PrivateDirectoryError, check_private_directory, check_private_directory_owned_by,
     pre_entry_digest,
 };

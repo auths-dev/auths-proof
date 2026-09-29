@@ -1917,6 +1917,8 @@ pub(crate) fn spec_sync() -> Result<(), String> {
             return Err(format!("limit coverage matrix is missing {limit}"));
         }
     }
+    let mapped = formal_coverage::validate_check_site_map(&root())?;
+    println!("check-site function map:    {mapped} sites resolve to scanned functions");
     println!("specification, registry, and result-code registries are synchronized");
     Ok(())
 }

@@ -13,8 +13,10 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import os
 import re
 import struct
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Literal, Mapping, Optional, Union, cast
@@ -39,6 +41,9 @@ _FIELD_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}")
 _OPERATION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 _BASE64URL = re.compile(r"[A-Za-z0-9_-]*")
 _MAX_U64 = 2**64 - 1
+# A Unix socket path must fit in ``sun_path`` with its terminating NUL.
+_SUN_PATH_BYTES = 108 if sys.platform.startswith("linux") else 104
+_MAX_SOCKET_PATH_BYTES = _SUN_PATH_BYTES - 1
 
 
 class GatewayProtocolError(RuntimeError):
@@ -47,7 +52,13 @@ class GatewayProtocolError(RuntimeError):
 
 @dataclass(frozen=True)
 class GatewayEndpoint:
-    """Absolute path to an operator-provisioned local application socket."""
+    """Absolute path to an operator-provisioned local application socket.
+
+    A Unix socket path must fit in the platform's ``sun_path`` with its
+    terminating NUL: at most 107 bytes on Linux and 103 elsewhere, counted
+    with ``os.fsencode``. A longer path raises ``ValueError`` giving the
+    path, its length in bytes, and the maximum.
+    """
 
     path: Path
 
@@ -58,8 +69,13 @@ class GatewayEndpoint:
             or "\x00" in str(self.path)
         ):
             raise ValueError("gateway endpoint must be an absolute Unix socket path")
-        if len(str(self.path).encode()) > 100:
-            raise ValueError("gateway socket path is too long")
+        size = len(os.fsencode(self.path))
+        if size > _MAX_SOCKET_PATH_BYTES:
+            raise ValueError(
+                f"gateway socket path is {size} bytes; this platform allows at most "
+                f"{_MAX_SOCKET_PATH_BYTES} (sun_path is {_SUN_PATH_BYTES} bytes, "
+                f"including the terminating NUL): {self.path}"
+            )
 
 
 @dataclass(frozen=True)
@@ -539,7 +555,10 @@ class GatewayClient:
                 writer.close()
                 await writer.wait_closed()
         except (OSError, asyncio.IncompleteReadError, TimeoutError) as error:
-            raise GatewayProtocolError(failure) from error
+            cause = str(error) or type(error).__name__
+            raise GatewayProtocolError(
+                f"{failure}; path={self._endpoint.path}: {cause}"
+            ) from error
         return response
 
 

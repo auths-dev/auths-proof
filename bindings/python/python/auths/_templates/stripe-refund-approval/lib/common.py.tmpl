@@ -1,0 +1,201 @@
+"""Shared by every command of this project.
+
+It reads ``enforcement.toml``, refuses to run from anywhere but the recorded
+project directory or with another gateway binary, creates directories and
+files with explicit modes, and prints each command's one JSON object.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Any, Callable, Dict, List, NoReturn, Optional
+
+PROJECT = Path(__file__).resolve().parent.parent
+CONFIG_FILE = PROJECT / "enforcement.toml"
+RECIPE = PROJECT / "recipe" / "recipe.json"
+PROFILE_LOCK = PROJECT / "recipe" / "profile.lock.json"
+RUN = PROJECT / "run"
+STATE = PROJECT / "enforcement" / "gateway"
+ASSURANCE = "raw-key-baseline"
+DAY = 86_400
+# What this deployment is not; every summary that describes it repeats this.
+NON_CLAIMS = (
+    "development deployment: one OS user, a file attempt store, and a software observer key",
+    "development custody: the root, the managers, and the agent sign with key files on this host",
+    "cannot establish credential isolation: every role runs as the same OS user",
+)
+
+
+class CommandFailed(Exception):
+    """A refusal with a stable code. The command prints it as its one JSON
+    object and exits non-zero."""
+
+    def __init__(self, code: str, **details: Any) -> None:
+        super().__init__(code)
+        self.code = code
+        self.details = details
+
+
+def load_config() -> Dict[str, Any]:
+    """``enforcement.toml`` in the bounded form ``auths init`` writes: tables,
+    and ``key = value`` lines whose values are JSON literals."""
+    tables: Dict[str, Dict[str, Any]] = {"": {}}
+    current = ""
+    for number, raw in enumerate(CONFIG_FILE.read_text(encoding="utf-8").splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            current = line[1:-1].strip()
+            tables.setdefault(current, {})
+            continue
+        key, separator, value = line.partition("=")
+        if not separator:
+            raise CommandFailed("auths.project.config-invalid", line=number)
+        try:
+            tables[current][key.strip()] = json.loads(value.strip())
+        except ValueError:
+            raise CommandFailed("auths.project.config-invalid", line=number) from None
+    config = dict(tables.pop(""))
+    config.update(tables)
+    return config
+
+
+def file_sha256(path: str) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def checked_config(gateway: bool = True) -> Dict[str, Any]:
+    """The configuration, once the project is where ``auths init`` wrote it
+    and, when ``gateway`` is set, the gateway binary is the one it pinned."""
+    config = load_config()
+    if str(PROJECT) != config["directory"]:
+        raise CommandFailed(
+            "auths.project.moved", recorded=config["directory"], actual=str(PROJECT)
+        )
+    if gateway:
+        recorded = config["gateway"]["sha256"]
+        path = config["gateway"]["path"]
+        try:
+            actual = file_sha256(path)
+        except OSError:
+            raise CommandFailed("auths.gateway.unavailable", path=path) from None
+        if actual != recorded:
+            raise CommandFailed(
+                "auths.gateway.changed", path=path, recorded_sha256=recorded, actual_sha256=actual
+            )
+    return config
+
+
+def inside(path: Path) -> Path:
+    """``path`` as an absolute path, refused unless it is under the project."""
+    resolved = path.resolve()
+    if resolved != PROJECT and PROJECT not in resolved.parents:
+        raise CommandFailed("auths.project.path-outside", path=str(resolved))
+    return resolved
+
+
+def private_directory(path: Path) -> Path:
+    """Creates each missing directory from the project down to ``path`` with
+    mode 0700, one level at a time, and refuses a link on the way."""
+    current = PROJECT
+    for part in path.relative_to(PROJECT).parts:
+        current = current / part
+        if current.is_symlink():
+            raise CommandFailed("auths.project.link", path=str(current))
+        if not current.exists():
+            current.mkdir(mode=0o700)
+            os.chmod(current, 0o700)
+    return path
+
+
+def write_file(path: Path, data: bytes, mode: int = 0o600, replace: bool = False) -> None:
+    """Writes ``data`` with ``mode``. A new file is created exclusively; with
+    ``replace`` an existing file is replaced whole."""
+    private_directory(path.parent)
+    target = path.with_name(path.name + ".new") if replace else path
+    if replace:
+        target.unlink(missing_ok=True)
+    descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
+    with os.fdopen(descriptor, "wb") as handle:
+        handle.write(data)
+    os.chmod(target, mode)
+    if replace:
+        os.replace(target, path)
+
+
+def read_json(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def gateway_json(config: Dict[str, Any], *arguments: str) -> Dict[str, Any]:
+    completed = subprocess.run(
+        [config["gateway"]["path"], *arguments],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        cwd=PROJECT,
+    )
+    if completed.returncode != 0:
+        raise CommandFailed(stable_code(completed.stderr, "auths.gateway.failed"))
+    return dict(json.loads(completed.stdout))
+
+
+def stable_code(stderr: str, fallback: str) -> str:
+    """The stable code of a gateway failure: the first word of the last line
+    it printed on standard error, which may add a path and a cause."""
+    lines = [line for line in stderr.splitlines() if line.strip()]
+    return lines[-1].split()[0] if lines else fallback
+
+
+def pid_alive(path: Path) -> Optional[int]:
+    try:
+        pid = int(path.read_text().strip())
+    except (OSError, ValueError):
+        return None
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return None
+    return pid
+
+
+def stop_pid(path: Path) -> Optional[int]:
+    """Stops the process ``path`` names, if it runs, and removes ``path``."""
+    pid = pid_alive(path)
+    if pid is not None:
+        os.kill(pid, signal.SIGTERM)
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and pid_alive(path) is not None:
+            time.sleep(0.05)
+        if pid_alive(path) is not None:
+            os.kill(pid, signal.SIGKILL)
+    path.unlink(missing_ok=True)
+    return pid
+
+
+def emit(result: Dict[str, Any], status: int = 0) -> NoReturn:
+    print(json.dumps(result, sort_keys=True))
+    sys.stdout.flush()
+    sys.exit(status)
+
+
+def main(commands: Dict[str, Callable[[List[str]], Dict[str, Any]]]) -> NoReturn:
+    """Runs ``argv[1]``'s command and prints its one JSON object."""
+    if len(sys.argv) < 2 or sys.argv[1] not in commands:
+        emit({"error": "auths.project.usage", "commands": sorted(commands)}, 2)
+    try:
+        emit(commands[sys.argv[1]](sys.argv[2:]))
+    except CommandFailed as failure:
+        emit({"error": failure.code, **failure.details}, 1)

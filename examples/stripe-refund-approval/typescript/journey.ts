@@ -24,6 +24,15 @@
  * Each of the recipe's provider checks refuses one hostile refund with zero
  * writes, as in ../journey.py; the four refusals after the credential lease
  * consume a count slot each, so a second agent with its own grant makes them.
+ *
+ * Every refund is submitted through ../gateway_witness.py, a relay on the
+ * application socket that runs as its own process (started with the same
+ * Python as the double) and records each exchange; this journey's blocking
+ * child processes cannot stall it. A hostile case passes only if it was
+ * decided by the gateway: the command's record says `decided_by: "gateway"`
+ * with the expected outcome and code, and the witness saw exactly one submit
+ * frame during the case, whose response carries the same. A negative control
+ * refused by `request --precheck` must fail that guard.
  */
 
 import { type ChildProcess, spawn, spawnSync, type SpawnSyncReturns } from "node:child_process";
@@ -62,17 +71,24 @@ class Journey {
   readonly state: string;
   readonly gatewayState: string;
   readonly socket: string;
+  readonly witnessSocket: string;
+  readonly witnessLog: string;
   readonly ledger: string;
   readonly control: string;
   readonly env: NodeJS.ProcessEnv;
   readonly steps: Step[] = [];
   readonly started = performance.now();
+  lastWarnings = "";
   #processes: ChildProcess[] = [];
 
   constructor(readonly gateway: string, readonly python: string, readonly work: string) {
     this.state = join(work, "state");
     this.gatewayState = join(work, "gateway");
     this.socket = join(work, "app.sock");
+    // Every submission goes through the witness, which relays it to the
+    // gateway and records the exchange from its own process.
+    this.witnessSocket = join(work, "witness.sock");
+    this.witnessLog = join(work, "witness.jsonl");
     this.ledger = join(work, "ledger.jsonl");
     this.control = join(work, "control.json");
     // No child process inherits a Stripe key; the install reads it on stdin.
@@ -123,19 +139,30 @@ class Journey {
       .map((line) => JSON.parse(line) as Json);
   }
 
+  witnessLines(): Json[] {
+    if (!existsSync(this.witnessLog)) return [];
+    return readFileSync(this.witnessLog, "utf8").split("\n").filter((line) => line.length > 0)
+      .map((line) => JSON.parse(line) as Json);
+  }
+
   /**
-   * The agent writes one request per manager (and its own response). `extra`
-   * passes `currency`, `connect-account`, or `agent`.
+   * The agent writes one request per manager (and its own response), into
+   * `approvals/<out or operation>`, and prints its record; its warnings are
+   * kept in `lastWarnings`. `extra` passes `currency`, `connect-account`, or
+   * `agent`.
    */
   request(operation: string, amount: number, approvers: string, paymentIntent: string,
-    extra: Readonly<Record<string, string>> = {}): string {
-    const folder = join(this.work, "approvals", operation);
-    this.run(process.execPath, [
+    extra: Readonly<Record<string, string>> = {}, options: Readonly<{ out?: string; precheck?: boolean }> = {}):
+    [string, Json] {
+    const folder = join(this.work, "approvals", options.out ?? operation);
+    const requested = this.run(process.execPath, [
       REFUNDS, "request", "--state", this.state, "--operation-id", operation,
       "--payment-intent", paymentIntent, "--amount", String(amount), "--approvers", approvers,
       "--out", folder, ...Object.entries(extra).flatMap(([name, value]) => [`--${name}`, value]),
+      ...(options.precheck === true ? ["--precheck"] : []),
     ]);
-    return folder;
+    this.lastWarnings = requested.stderr;
+    return [folder, JSON.parse(requested.stdout) as Json];
   }
 
   /** One manager answers on their own machine with the packaged CLI. */
@@ -148,17 +175,24 @@ class Journey {
     ], undefined, false);
   }
 
+  /**
+   * Requests, has each distinct listed manager answer once, and submits.
+   * Returns the request's record and the outcome record; a pre-check refusal
+   * is the outcome, and nothing is asked or sent.
+   */
   refund(operation: string, amount: number, approvers: string, paymentIntent: string,
-    declines: readonly string[] = [], extra: Readonly<Record<string, string>> = {}): Json {
-    const folder = this.request(operation, amount, approvers, paymentIntent, extra);
-    for (const manager of approvers.split(",")) {
+    declines: readonly string[] = [], extra: Readonly<Record<string, string>> = {},
+    options: Readonly<{ out?: string; precheck?: boolean }> = {}): [Json, Json] {
+    const [folder, requested] = this.request(operation, amount, approvers, paymentIntent, extra, options);
+    if (requested.outcome === "not-submitted") return [requested, requested];
+    for (const manager of new Set(approvers.split(",").filter((name) => name.length > 0))) {
       const answered = this.answer(folder, manager, { decline: declines.includes(manager) });
       if (answered.status !== 0) throw new Error(`${manager} could not answer: ${answered.stderr.trim()}`);
     }
-    return JSON.parse(this.run(process.execPath, [
-      REFUNDS, "submit", "--state", this.state, "--socket", this.socket, "--operation-id", operation,
+    return [requested, JSON.parse(this.run(process.execPath, [
+      REFUNDS, "submit", "--state", this.state, "--socket", this.witnessSocket, "--operation-id", operation,
       "--responses", folder,
-    ]).stdout) as Json;
+    ]).stdout) as Json];
   }
 
   audit(bundle: string, trust: string, observer: string, ...options: string[]): SpawnSyncReturns<string> {
@@ -175,6 +209,65 @@ class Journey {
 
 function expect(condition: boolean, message: string): asserts condition {
   if (!condition) throw new Error(`journey check failed: ${message}`);
+}
+
+const SUBMIT_SCHEMA = "auths.gateway-submit/1";
+// Words only the gateway's submit result may carry.
+const GATEWAY_OUTCOMES = new Set([
+  "denied", "not-entered", "indeterminate", "unknown", "response-recorded", "observed", "observed-by-provider",
+]);
+
+/** The witness's submit exchanges; observe frames are recorded but not counted. */
+function submitFrames(frames: readonly Json[]): Json[] {
+  return frames.filter((frame) => frame.schema === SUBMIT_SCHEMA);
+}
+
+/**
+ * The case was decided by the gateway: the command's record says so, with the
+ * expected result, and the witness process saw exactly one submit frame during
+ * the case, whose response from the gateway is that result.
+ */
+function expectGatewayDecided(case_: string, record: Json, frames: readonly Json[], expected: Readonly<{
+  outcome: string; code?: string; status?: number; actionB64?: string;
+}>): void {
+  const seen = submitFrames(frames);
+  expect(record.decided_by === "gateway",
+    `${case_}: the record says decided_by=${JSON.stringify(record.decided_by)}, not the gateway: ${JSON.stringify(record)}`);
+  expect(seen.length > 0, `${case_}: the record says the gateway decided, but the witness saw no submit frame`);
+  expect(seen.length === 1, `${case_}: the witness saw ${seen.length} submit frames, not one`);
+  const response = (seen[0]!.response ?? {}) as Json;
+  for (const key of ["outcome", "code", "status"]) {
+    expect(response[key] === record[key],
+      `${case_}: the gateway answered ${key}=${JSON.stringify(response[key])} on the socket, ` +
+      `the record says ${JSON.stringify(record[key])}`);
+  }
+  expect(record.outcome === expected.outcome,
+    `${case_}: outcome ${JSON.stringify(record.outcome)}, expected ${expected.outcome}`);
+  if (expected.code !== undefined) {
+    expect(record.code === expected.code, `${case_}: code ${JSON.stringify(record.code)}, expected ${expected.code}`);
+  }
+  if (expected.status !== undefined) {
+    expect(record.status === expected.status,
+      `${case_}: status ${JSON.stringify(record.status)}, expected ${expected.status}`);
+  }
+  if (expected.actionB64 !== undefined) {
+    expect(seen[0]!.action_sha256 ===
+      createHash("sha256").update(Buffer.from(expected.actionB64, "base64url")).digest("hex"),
+    `${case_}: the submit frame the witness saw carried another action`);
+  }
+}
+
+/**
+ * Nothing reached the gateway, and the record says who stopped it without
+ * presenting the stop as a gateway refusal.
+ */
+function expectNotSubmitted(case_: string, record: Json, frames: readonly Json[], decidedBy: string,
+  reason: string): void {
+  expect(record.decided_by === decidedBy && record.outcome === "not-submitted" && record.reason === reason,
+    `${case_}: ${JSON.stringify(record)}`);
+  expect(!("code" in record), `${case_}: a record not decided by the gateway carries a code: ${JSON.stringify(record)}`);
+  expect(!GATEWAY_OUTCOMES.has(record.outcome as string), `${case_}: ${JSON.stringify(record)}`);
+  expect(submitFrames(frames).length === 0, `${case_}: the witness saw a submit frame: ${JSON.stringify(frames)}`);
 }
 
 function tamper(bundle: Json, operation: string, change: (entry: Json) => void): Json {
@@ -311,42 +404,123 @@ async function main(): Promise<void> {
       }
     });
 
+    // The witness relays the application socket from its own process and
+    // records every exchange; every `submit` below goes through it.
+    await journey.step("gateway witness on the application socket", async () => {
+      const witness = journey.background(journey.python, [
+        "gateway_witness.py", "--listen", journey.witnessSocket, "--upstream", journey.socket,
+        "--log", journey.witnessLog,
+      ], "pipe");
+      const ready = await Promise.race([
+        new Promise<string>((done) => createInterface({ input: witness.stdout! }).once("line", done)),
+        sleep(10_000, "", { ref: false }),
+      ]);
+      expect(ready.trim() === "ready", "the gateway witness did not start");
+    });
+
     const results: Record<string, Json> = {};
-    const submit = (
-      operation: string, amount: number, approvers: string, declines: readonly string[] = [],
-      intent: string = paymentIntent, extra: Readonly<Record<string, string>> = {},
-    ): void => {
+    const requests: Record<string, Json> = {};
+    const frames: Record<string, Json[]> = {};
+    const warnings: Record<string, string> = {};
+    /** Runs one case and keeps its record, its provider requests, and the witness's frames during it. */
+    const watched = (case_: string, action: () => Json): void => {
       const before = journey.providerEntries().length;
-      results[operation] = journey.refund(operation, amount, approvers, intent, declines, extra);
+      const seen = journey.witnessLines().length;
+      results[case_] = action();
       const made = journey.providerEntries().slice(before);
-      results[operation]!.provider_requests = made.length;
-      results[operation]!.provider_writes = made.filter((entry) => entry.kind === "write").length;
+      frames[case_] = journey.witnessLines().slice(seen);
+      results[case_]!.provider_requests = made.length;
+      results[case_]!.provider_writes = made.filter((entry) => entry.kind === "write").length;
     };
+    const submit = (
+      case_: string, amount: number, approvers: string, declines: readonly string[] = [],
+      intent: string = paymentIntent, extra: Readonly<Record<string, string>> = {},
+      options: Readonly<{ operation?: string; out?: string; precheck?: boolean }> = {},
+    ): void => watched(case_, () => {
+      const [requested, record] = journey.refund(options.operation ?? case_, amount, approvers, intent, declines,
+        extra, options);
+      requests[case_] = requested;
+      warnings[case_] = journey.lastWarnings;
+      return record;
+    });
+
+    /** refund-1's approved proof, sent with another refund's action. */
+    const reusedApprovals = (): Json => {
+      const [, requested] = journey.request("refund-8-reuse", 1_000, "manager-a,manager-b", paymentIntent);
+      requests["refund-8-reuse"] = requested;
+      const first = readFileSync(join(journey.state, "audit", "entries.jsonl"), "utf8").split("\n")
+        .filter((line) => line.length > 0).map((line) => JSON.parse(line) as Json)
+        .find((entry) => entry.operation_id === "refund-1")!;
+      const proof = join(journey.work, "reuse.proof");
+      const action = join(journey.work, "reuse.action");
+      writeFileSync(proof, Buffer.from(first.proof_b64 as string, "base64url"));
+      writeFileSync(action, Buffer.from(requested.action_b64 as string, "base64url"));
+      // The witness is its own process, so this blocking call cannot stall it.
+      const sent = journey.run(journey.gateway, [
+        "submit", "--app-socket", journey.witnessSocket, "--proof", proof, "--action", action,
+      ]);
+      // The CLI prints the gateway's submit result unchanged.
+      return { decided_by: "gateway", ...(JSON.parse(sent.stdout) as Json) };
+    };
+
+    // The hostile table: every case the gateway must decide, in order. Each is
+    // checked by the guard: the record says the gateway decided, and the
+    // witness saw exactly one submit frame with that answer.
+    // Refused before any credential lease: no provider request at all.
+    const beforeLease: Record<string, readonly [string, string]> = {
+      "refund-2-one-approval": ["denied", "composition-requirement-not-met"],
+      "refund-6-no-manager": ["denied", "composition-requirement-not-met"],
+      "refund-7-repeated": ["denied", "composition-requirement-not-met"],
+      "refund-3-over-ceiling": ["not-entered", "gateway.policy.above-ceiling"],
+      "refund-other-account": ["not-entered", "gateway.policy.scope-denied"],
+      "refund-over-sum": ["not-entered", "gateway.policy.sum-exhausted"],
+      "refund-5-window": ["not-entered", "gateway.policy.window-exhausted"],
+      "refund-1-replay": ["not-entered", "gateway.attempt.replay"],
+      "refund-8-reuse": ["denied", "action-body-mismatch"],
+      "refund-7-retry": ["not-entered", "gateway.policy.window-exhausted"],
+    };
+    // Refused after the lease by a provider check: reads, never a write.
+    const afterLease: Record<string, readonly [string, string]> = {
+      "refund-above-ratio": ["not-entered", "gateway.relative-ceiling.above"],
+      "refund-currency-mismatch": ["not-entered", "gateway.relative-ceiling.binding-mismatch"],
+      ...(live ? {} : {
+        "refund-account-substituted": ["not-entered", "gateway.credential.account-mismatch"],
+        "refund-denied-read-answered": ["not-entered", "gateway.credential.capability-excess"],
+      }),
+    };
+    const expectedRefusals = { ...beforeLease, ...afterLease };
 
     // README steps 6 and 7: the agent writes a request per manager, each
     // manager answers with `auths approve`, the gateway submits; then a
-    // decline, a tampered request, and the refusals before any lease.
+    // decline, a tampered request, and the hostile table.
     await journey.step("refund 1: 15.00, agent + manager-a + manager-b (remote approvals)",
       () => submit("refund-1", 1_500, "manager-a,manager-b"));
     await journey.step("declined: manager-b declines, nothing is submitted",
       () => submit("refund-declined", 2_000, "manager-a,manager-b", ["manager-b"]));
-    const tamperedRun = await journey.step("tampered request: the manager's CLI refuses and signs nothing", () => {
-      const folder = journey.request("refund-tampered", 1_500, "manager-a,manager-b", paymentIntent);
-      const original = readFileSync(join(folder, "manager-a.request"), "utf8").trim();
-      const raw = Buffer.from(original.slice("auths-ar1-".length), "base64url");
-      const at = raw.indexOf('"amount":1500');
-      raw.write('"amount":9500', at, "latin1");
-      const edited = join(folder, "manager-a.edited");
-      writeFileSync(edited, `auths-ar1-${raw.toString("base64url")}`);
-      const answered = journey.answer(folder, "manager-a", { request: edited });
-      return {
-        exit: answered.status,
-        refused: answered.stderr.includes("approval.action-mismatch"),
-        signed: existsSync(join(folder, "manager-a.response")),
-      };
-    });
+    const tamperedRun: Json = {};
+    await journey.step("tampered request: the manager's CLI refuses and signs nothing", () =>
+      watched("refund-tampered", () => {
+        const [folder] = journey.request("refund-tampered", 1_500, "manager-a,manager-b", paymentIntent);
+        const original = readFileSync(join(folder, "manager-a.request"), "utf8").trim();
+        const raw = Buffer.from(original.slice("auths-ar1-".length), "base64url");
+        const at = raw.indexOf('"amount":1500');
+        raw.write('"amount":9500', at, "latin1");
+        const edited = join(folder, "manager-a.edited");
+        writeFileSync(edited, `auths-ar1-${raw.toString("base64url")}`);
+        const answered = journey.answer(folder, "manager-a", { request: edited });
+        Object.assign(tamperedRun, {
+          exit: answered.status,
+          refused: answered.stderr.includes("approval.action-mismatch"),
+          signed: existsSync(join(folder, "manager-a.response")),
+        });
+        return { ...tamperedRun };
+      }));
     await journey.step("hostile: 1 of 3 approvals",
       () => submit("refund-2-one-approval", 1_200, "manager-a"));
+    await journey.step("hostile: no manager, only the agent",
+      () => submit("refund-6-no-manager", 1_100, ""));
+    await journey.step("hostile: manager-a listed twice (request drops the repeat)",
+      () => submit("refund-7-repeated", 1_300, "manager-a,manager-a"));
     await journey.step("hostile: over the 50.00 ceiling",
       () => submit("refund-3-over-ceiling", 9_000, "manager-a,manager-b"));
     await journey.step("hostile: a connected account the grant does not list",
@@ -358,6 +532,18 @@ async function main(): Promise<void> {
       () => submit("refund-4", 4_000, "manager-b,manager-c", [], rejectedPaymentIntent));
     await journey.step("hostile: third refund in the window",
       () => submit("refund-5-window", 1_000, "manager-a,manager-c"));
+    await journey.step("hostile: refund-1 requested again, with fresh approvals",
+      () => submit("refund-1-replay", 1_500, "manager-b,manager-c", [], paymentIntent, {},
+        { operation: "refund-1", out: "refund-1-replay" }));
+    await journey.step("hostile: refund-1's proof sent for another refund",
+      () => watched("refund-8-reuse", reusedApprovals));
+    await journey.step("retry after denial: refund-7-repeated again, with managers B and C",
+      () => submit("refund-7-retry", 1_300, "manager-b,manager-c", [], paymentIntent, {},
+        { operation: "refund-7-repeated", out: "refund-7-retry" }));
+    // The negative control: a client-side pre-check refuses locally, and the
+    // guard must reject it as not decided by the gateway.
+    await journey.step("negative control: an under-approved request refused by --precheck",
+      () => submit("refund-9-precheck", 1_200, "manager-a", [], paymentIntent, {}, { precheck: true }));
 
     // The recipe's checks after the credential lease, each refusing one
     // refund of the second agent before any write.
@@ -382,37 +568,63 @@ async function main(): Promise<void> {
     }
 
     const observed = results["refund-1"]! as Json & { evidence?: { channel: string; echo: string } };
-    expect(observed.outcome === "observed-by-provider" && observed.status === 200 &&
-      observed.evidence?.channel === "read-back", `refund-1: ${JSON.stringify(observed)}`);
-    const rejected = results["refund-4"]!;
-    expect(rejected.outcome === "response-recorded" && rejected.status === 400,
-      `refund-4: ${JSON.stringify(rejected)}`);
+    expectGatewayDecided("refund-1", observed, frames["refund-1"]!, {
+      outcome: "observed-by-provider", status: 200, actionB64: requests["refund-1"]!.action_b64 as string,
+    });
+    expect(observed.evidence?.channel === "read-back" && observed.bundle === "appended",
+      `refund-1: ${JSON.stringify(observed)}`);
+    expectGatewayDecided("refund-4", results["refund-4"]!, frames["refund-4"]!, {
+      outcome: "response-recorded", status: 400, actionB64: requests["refund-4"]!.action_b64 as string,
+    });
     const declined = results["refund-declined"]!;
-    expect(declined.outcome === "declined" && JSON.stringify(declined.declined) === JSON.stringify(["manager-b"]) &&
-      declined.provider_requests === 0, `refund-declined: ${JSON.stringify(declined)}`);
+    expectNotSubmitted("refund-declined", declined, frames["refund-declined"]!, "approver", "approver-declined");
+    expect(JSON.stringify(declined.declined) === JSON.stringify(["manager-b"]) && declined.provider_requests === 0,
+      `refund-declined: ${JSON.stringify(declined)}`);
     expect(JSON.stringify(tamperedRun) === JSON.stringify({ exit: 1, refused: true, signed: false }),
       `tampered request: ${JSON.stringify(tamperedRun)}`);
-    // Refused before any credential lease: no provider request at all.
-    const beforeLease: Record<string, readonly [string, string]> = {
-      "refund-2-one-approval": ["denied", "composition-requirement-not-met"],
-      "refund-3-over-ceiling": ["not-entered", "gateway.policy.above-ceiling"],
-      "refund-other-account": ["not-entered", "gateway.policy.scope-denied"],
-      "refund-over-sum": ["not-entered", "gateway.policy.sum-exhausted"],
-      "refund-5-window": ["not-entered", "gateway.policy.window-exhausted"],
+    expect(submitFrames(frames["refund-tampered"]!).length === 0 && results["refund-tampered"]!.provider_requests === 0,
+      `tampered request reached the gateway: ${JSON.stringify(frames["refund-tampered"])}`);
+    const hostile: Record<string, Json> = {};
+    for (const [case_, [outcome, code]] of Object.entries(expectedRefusals)) {
+      expectGatewayDecided(case_, results[case_]!, frames[case_]!, {
+        outcome, code, actionB64: requests[case_]!.action_b64 as string,
+      });
+      hostile[case_] = {
+        decided_by: results[case_]!.decided_by, outcome, code, submit_frames: submitFrames(frames[case_]!).length,
+      };
+    }
+    // Only the reused-approvals case is sent by the journey itself, which asks
+    // for no signed outcome.
+    expect(frames["refund-8-reuse"]!.length === 1,
+      `refund-8-reuse: the witness saw ${JSON.stringify(frames["refund-8-reuse"])}`);
+    expect(warnings["refund-7-repeated"]!.includes("dropped the repeated approver manager-a"),
+      `refund-7-repeated: request did not name the dropped repeat: ${warnings["refund-7-repeated"]}`);
+    for (const case_ of ["refund-1-replay", "refund-7-retry"]) {
+      expect(warnings[case_]!.includes("attempt store decides"),
+        `${case_}: request did not warn that the operation ID was requested before`);
+    }
+    expect(results["refund-1-replay"]!.bundle === "unchanged", `replay: ${JSON.stringify(results["refund-1-replay"])}`);
+    expect(results["refund-7-retry"]!.bundle === "replaced", `retry: ${JSON.stringify(results["refund-7-retry"])}`);
+
+    const control = results["refund-9-precheck"]!;
+    expectNotSubmitted("refund-9-precheck", control, frames["refund-9-precheck"]!, "client", "precheck");
+    expect(control.precheck === "approvals-below-threshold", `negative control: ${JSON.stringify(control)}`);
+    let negativeControl: Json;
+    try {
+      expectGatewayDecided("refund-9-precheck", control, frames["refund-9-precheck"]!, {
+        outcome: "denied", code: "composition-requirement-not-met",
+      });
+      negativeControl = { guard_rejected: false };
+    } catch (rejected) {
+      negativeControl = { guard_rejected: true, reason: (rejected as Error).message };
+    }
+    expect(negativeControl.guard_rejected === true, "the guard accepted a request refused only locally");
+    hostile["refund-9-precheck"] = {
+      decided_by: control.decided_by, outcome: control.outcome, precheck: control.precheck,
+      submit_frames: submitFrames(frames["refund-9-precheck"]!).length, guard_rejected: true,
     };
-    // Refused after the lease by a provider check: reads, never a write.
-    const afterLease: Record<string, readonly [string, string]> = {
-      "refund-above-ratio": ["not-entered", "gateway.relative-ceiling.above"],
-      "refund-currency-mismatch": ["not-entered", "gateway.relative-ceiling.binding-mismatch"],
-      ...(live ? {} : {
-        "refund-account-substituted": ["not-entered", "gateway.credential.account-mismatch"],
-        "refund-denied-read-answered": ["not-entered", "gateway.credential.capability-excess"],
-      }),
-    };
-    const expectedRefusals = { ...beforeLease, ...afterLease };
-    for (const [operation, [outcome, code]] of Object.entries(expectedRefusals)) {
-      const got = results[operation]!;
-      expect(got.outcome === outcome && got.code === code, `${operation}: ${JSON.stringify(got)}`);
+    for (const case_ of ["refund-1-replay", "refund-8-reuse", "refund-7-retry", "refund-9-precheck"]) {
+      expect(results[case_]!.provider_requests === 0, `${case_} reached the provider`);
     }
     if (!live) {
       for (const operation of Object.keys(beforeLease)) {
@@ -464,8 +676,10 @@ async function main(): Promise<void> {
     const unrecorded = new Set(exported.entries
       .filter((entry) => entry.outcome_b64 === null || entry.outcome_b64 === undefined)
       .map((entry) => entry.operation_id as string));
-    expect(JSON.stringify([...unrecorded].sort()) ===
-      JSON.stringify(["refund-2-one-approval", "refund-3-over-ceiling", "refund-other-account"]),
+    // refund-7-repeated's unsigned entry was replaced by its signed retry.
+    expect(JSON.stringify([...unrecorded].sort()) === JSON.stringify([
+      "refund-2-one-approval", "refund-3-over-ceiling", "refund-6-no-manager", "refund-other-account",
+    ]),
     `entries without a signed outcome: ${JSON.stringify([...unrecorded])}`);
     const strict = await journey.step("offline audit (gateway stopped)",
       () => journey.audit(bundlePath, facts.trusted_context_sha256, observer));
@@ -489,10 +703,22 @@ async function main(): Promise<void> {
     };
     const verdicts = Object.fromEntries(report.entries.map((entry) =>
       [entry.operation_id, `${entry.status} ${entry.code} ${String(entry.admitted)}`]));
+    // One bundle entry per operation ID: the replay left refund-1's alone, the
+    // retry replaced refund-7-repeated's unsigned one, and the journey's own
+    // reused-approvals submission has none.
+    const bundled = exported.entries.map((entry) => entry.operation_id as string);
+    const auditedRefusals: Record<string, string> = Object.fromEntries(Object.entries(expectedRefusals)
+      .filter(([operation]) => !["refund-1-replay", "refund-8-reuse", "refund-7-retry"].includes(operation))
+      .map(([operation, [, code]]) => [operation, code]));
+    auditedRefusals["refund-7-repeated"] = expectedRefusals["refund-7-retry"]![1];
+    expect(new Set(bundled).size === bundled.length, `bundle repeats an operation ID: ${JSON.stringify(bundled)}`);
+    expect(JSON.stringify([...bundled].sort()) ===
+      JSON.stringify(["refund-1", "refund-4", ...Object.keys(auditedRefusals)].sort()),
+    `bundle entries ${JSON.stringify([...bundled].sort())}`);
     for (const operation of ["refund-1", "refund-4"]) {
       expect(verdicts[operation] === "verified audit.verified true", `audit ${operation}: ${verdicts[operation]}`);
     }
-    for (const [operation, [, code]] of Object.entries(expectedRefusals)) {
+    for (const [operation, code] of Object.entries(auditedRefusals)) {
       const expected = unrecorded.has(operation) ? `unverified ${code} false` : `refused ${code} true`;
       expect(verdicts[operation] === expected, `audit ${operation}: ${verdicts[operation]}`);
     }
@@ -631,6 +857,9 @@ async function main(): Promise<void> {
       },
       tamper_detected: detections,
       known_limits: knownLimits,
+      hostile,
+      negative_control: negativeControl,
+      gateway_witness: journey.witnessLines(),
     };
     const text = JSON.stringify(summary, null, 2);
     process.stdout.write(`${text}\n`);

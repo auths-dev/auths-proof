@@ -1,0 +1,2971 @@
+{
+  "declarations": [
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.finiteSet_subset_refl",
+      "statement": "∀ {α : Type u} (set : Auths.Rich.FiniteSet α), set ⊆ set"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.finiteSet_subset_trans",
+      "statement": "∀ {α : Type u} {a b c : Auths.Rich.FiniteSet α}, a ⊆ b → b ⊆ c → a ⊆ c"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.finiteSet_subset_antisymm",
+      "statement": "∀ {α : Type u} {a b : Auths.Rich.FiniteSet α}, a ⊆ b → b ⊆ a → a = b"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.finiteSet_membership_monotone",
+      "statement": "∀ {α : Type u} {child parent : Auths.Rich.FiniteSet α} {item : α}, child ⊆ parent → item ∈ child → item ∈ parent"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.window_contained_refl",
+      "statement": "∀ (window : Auths.Rich.InclusiveWindow), Auths.Rich.windowContained window window"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.window_contained_trans",
+      "statement": "∀ {a b c : Auths.Rich.InclusiveWindow},\n  Auths.Rich.windowContained a b → Auths.Rich.windowContained b c → Auths.Rich.windowContained a c"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.window_contained_antisymm",
+      "statement": "∀ {a b : Auths.Rich.InclusiveWindow}, Auths.Rich.windowContained a b → Auths.Rich.windowContained b a → a = b"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.window_coverage_monotone",
+      "statement": "∀ {action child parent : Auths.Rich.InclusiveWindow},\n  Auths.Rich.windowContained child parent →\n    Auths.Rich.windowContained action child → Auths.Rich.windowContained action parent"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.action_constraint_refl",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} (constraint : Auths.Rich.ActionConstraint v),\n  Auths.Rich.actionConstraintLe constraint constraint"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.action_constraint_trans",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} {a b c : Auths.Rich.ActionConstraint v},\n  Auths.Rich.actionConstraintLe a b → Auths.Rich.actionConstraintLe b c → Auths.Rich.actionConstraintLe a c"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.action_constraint_antisymm",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} {a b : Auths.Rich.ActionConstraint v},\n  Auths.Rich.actionConstraintLe a b →\n    Auths.Rich.actionConstraintLe b a →\n      ∀ (digest : Auths.Rich.Digest v),\n        Auths.Rich.actionConstraintAllows a digest ↔ Auths.Rich.actionConstraintAllows b digest"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.action_constraint_canonical_antisymm",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} {a b : Auths.Rich.ActionConstraint v},\n  Auths.Rich.actionConstraintCanonical a →\n    Auths.Rich.actionConstraintCanonical b →\n      Auths.Rich.actionConstraintLe a b → Auths.Rich.actionConstraintLe b a → a = b"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.action_constraint_allows_monotone",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} {child parent : Auths.Rich.ActionConstraint v} {digest : Auths.Rich.Digest v},\n  Auths.Rich.actionConstraintLe child parent →\n    Auths.Rich.actionConstraintAllows child digest → Auths.Rich.actionConstraintAllows parent digest"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.budget_refl",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} (budget : Option (Auths.Rich.BudgetCeiling v)), Auths.Rich.budgetLe budget budget"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.budget_trans",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} {a b c : Option (Auths.Rich.BudgetCeiling v)},\n  Auths.Rich.budgetLe a b → Auths.Rich.budgetLe b c → Auths.Rich.budgetLe a c"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.budget_antisymm",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} {a b : Option (Auths.Rich.BudgetCeiling v)},\n  Auths.Rich.budgetLe a b → Auths.Rich.budgetLe b a → a = b"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.budget_coverage_monotone",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} {child parent requested : Option (Auths.Rich.BudgetCeiling v)},\n  Auths.Rich.budgetLe child parent → Auths.Rich.budgetCovers child requested → Auths.Rich.budgetCovers parent requested"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.budget_action_coverage_monotone",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} {child parent requested : Option (Auths.Rich.BudgetCeiling v)}\n  {expression : Auths.Rich.BudgetExpression},\n  Auths.Rich.budgetLe child parent →\n    Auths.Rich.budgetCoversAction child requested expression → Auths.Rich.budgetCoversAction parent requested expression"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Semantics",
+      "name": "Auths.Rich.budgetCoversAction_expressible_absent_bounded",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} (ceiling : Auths.Rich.BudgetCeiling v),\n  ¬Auths.Rich.budgetCoversAction (some ceiling) none Auths.Rich.BudgetExpression.expressible"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.extensions_refl",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v],\n  Auths.Rich.ExtensionLawsNarrow v →\n    ∀ (extensions : Option (Auths.Rich.CriticalExtensions v)), Auths.Rich.extensionsLe extensions extensions"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.extensions_trans",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v],\n  Auths.Rich.ExtensionLawsNarrow v →\n    ∀ {a b c : Option (Auths.Rich.CriticalExtensions v)},\n      Auths.Rich.extensionsLe a b → Auths.Rich.extensionsLe b c → Auths.Rich.extensionsLe a c"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.extensions_le_pinned_iff",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] (child parent : Auths.Rich.CriticalExtensions v),\n  Auths.Rich.extensionsLe (some child) (some parent) ↔ Auths.Rich.extensionsAttenuate child parent"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.extensions_le_false_of_dropped",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] (parent : Auths.Rich.CriticalExtensions v),\n  ¬Auths.Rich.extensionsLe none (some parent)"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.extensions_le_false_of_stripped",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] {child parent : Auths.Rich.CriticalExtensions v}\n  {entry : Auths.Rich.CriticalExtension v},\n  entry ∈ parent.entries →\n    (∀ candidate ∈ child.entries, candidate.id ≠ entry.id) → ¬Auths.Rich.extensionsLe (some child) (some parent)"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.extensions_le_false_of_refused",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] {child parent : Auths.Rich.CriticalExtensions v}\n  {childEntry parentEntry : Auths.Rich.CriticalExtension v},\n  parentEntry ∈ parent.entries →\n    childEntry ∈ child.entries →\n      childEntry.id = parentEntry.id →\n        ¬Auths.Rich.extensionLawAccepts parentEntry.id (some childEntry.body) (some parentEntry.body) →\n          ¬Auths.Rich.extensionsLe (some child) (some parent)"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.extensions_le_false_of_refused_addition",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] {child parent : Auths.Rich.CriticalExtensions v}\n  {entry : Auths.Rich.CriticalExtension v},\n  entry ∈ child.entries →\n    (∀ candidate ∈ parent.entries, candidate.id ≠ entry.id) →\n      ¬Auths.Rich.extensionLawAccepts entry.id (some entry.body) none →\n        ¬Auths.Rich.extensionsLe (some child) (some parent)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.extensions_le_refuses_a_dropped_singleton",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] (extension : Auths.Rich.CriticalExtension v)\n  (bodyBounded : v.extensionBodySize extension.body.value ≤ Auths.Rich.hardMaxExtensionBytes),\n  ¬Auths.Rich.extensionsLe (some (Auths.Rich.CriticalExtensions.empty v))\n      (some (Auths.Rich.CriticalExtensions.singleton extension bodyBounded))"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.extensions_le_narrows",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v],\n  Auths.Rich.ExtensionLawsNarrow v →\n    ∀ {child parent : Option (Auths.Rich.CriticalExtensions v)},\n      Auths.Rich.extensionsLe child parent →\n        ∀ {world : Auths.Rich.ExtensionLaws.World v},\n          Auths.Rich.extensionsAdmit child world → Auths.Rich.extensionsAdmit parent world"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.status_refl",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} (status : Auths.Rich.StatusPolicy v), Auths.Rich.statusLe status status"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.status_trans",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} {a b c : Auths.Rich.StatusPolicy v},\n  Auths.Rich.statusLe a b → Auths.Rich.statusLe b c → Auths.Rich.statusLe a c"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.status_antisymm",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} {a b : Auths.Rich.StatusPolicy v},\n  Auths.Rich.statusLe a b → Auths.Rich.statusLe b a → a = b"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.status_satisfaction_monotone",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} {child parent : Auths.Rich.StatusPolicy v} {facts : Auths.Rich.EvidenceFacts v},\n  Auths.Rich.statusLe child parent → Auths.Rich.statusSatisfied child facts → Auths.Rich.statusSatisfied parent facts"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.profile_refl",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} (profile : Auths.Rich.ProfileScope v), Auths.Rich.profileLe profile profile"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.profile_trans",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} {a b c : Auths.Rich.ProfileScope v},\n  Auths.Rich.profileLe a b → Auths.Rich.profileLe b c → Auths.Rich.profileLe a c"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.profile_antisymm",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} {a b : Auths.Rich.ProfileScope v},\n  Auths.Rich.profileLe a b → Auths.Rich.profileLe b a → a = b"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.profile_coverage_monotone",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} {child parent : Auths.Rich.ProfileScope v} {profile : Auths.Rich.Profile v},\n  Auths.Rich.profileLe child parent → Auths.Rich.profileAllows child profile → Auths.Rich.profileAllows parent profile"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.structural_scope_le_refl",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v],\n  Auths.Rich.ExtensionLawsNarrow v → ∀ (scope : Auths.Rich.AuthorityScope v), Auths.Rich.structuralScopeLe scope scope"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.structural_scope_le_trans",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v],\n  Auths.Rich.ExtensionLawsNarrow v →\n    ∀ {a b c : Auths.Rich.AuthorityScope v},\n      Auths.Rich.structuralScopeLe a b → Auths.Rich.structuralScopeLe b c → Auths.Rich.structuralScopeLe a c"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.scope_le_canonical_antisymmetry",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] {a b : Auths.Rich.AuthorityScope v},\n  Auths.Rich.actionConstraintCanonical a.actionConstraint →\n    Auths.Rich.actionConstraintCanonical b.actionConstraint →\n      Auths.Rich.structuralScopeLe a b → Auths.Rich.structuralScopeLe b a → a.extensions = b.extensions → a = b"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.action_coverage_downward_closed",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] {child parent : Auths.Rich.AuthorityScope v}\n  {action : Auths.Rich.Action v} {expression : Auths.Rich.BudgetExpression},\n  Auths.Rich.structuralScopeLe child parent →\n    Auths.Rich.actionCovers child action expression → Auths.Rich.actionCovers parent action expression"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.evidence_requirements_downward_closed",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] {child parent : Auths.Rich.AuthorityScope v}\n  {facts : Auths.Rich.EvidenceFacts v},\n  Auths.Rich.structuralScopeLe child parent →\n    Auths.Rich.evidenceRequirementsSatisfied child facts → Auths.Rich.evidenceRequirementsSatisfied parent facts"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.complete_admission_downward_closed",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v],\n  Auths.Rich.ExtensionLawsNarrow v →\n    ∀ {child parent : Auths.Rich.AuthorityScope v} {facts : Auths.Rich.AuthorizationFacts v},\n      Auths.Rich.structuralScopeLe child parent → Auths.Rich.admits child facts → Auths.Rich.admits parent facts"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.semantic_attenuation_preorder_refl",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] (scope : Auths.Rich.AuthorityScope v),\n  Auths.Rich.semanticAttenuates scope scope"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.semantic_attenuation_preorder_trans",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] {a b c : Auths.Rich.AuthorityScope v},\n  Auths.Rich.semanticAttenuates a b → Auths.Rich.semanticAttenuates b c → Auths.Rich.semanticAttenuates a c"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.structural_scope_le_implies_semantic_attenuation",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v],\n  Auths.Rich.ExtensionLawsNarrow v →\n    ∀ {child parent : Auths.Rich.AuthorityScope v},\n      Auths.Rich.structuralScopeLe child parent → Auths.Rich.semanticAttenuates child parent"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.scope_semantic_equivalence",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] (scope : Auths.Rich.AuthorityScope v),\n  Auths.Rich.scopeSemanticEquivalent scope scope"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.structural_scope_le_decides_declared_v1_relation",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] (child parent : Auths.Rich.AuthorityScope v),\n  Auths.Rich.structuralScopeLeDecide child parent = true ↔ Auths.Rich.structuralScopeLe child parent"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.delegate_implies_scope_le",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] {parent child : Auths.Rich.ChainState v}\n  {grantId : Auths.Rich.GrantId v} {grant : Auths.Rich.Grant v},\n  Auths.Rich.delegates parent grantId grant child → Auths.Rich.structuralScopeLe child.scope parent.scope"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.delegate_preserves_root",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] {parent child : Auths.Rich.ChainState v}\n  {grantId : Auths.Rich.GrantId v} {grant : Auths.Rich.Grant v},\n  Auths.Rich.delegates parent grantId grant child → child.root = parent.root"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.delegate_updates_subject_and_parent",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] {parent child : Auths.Rich.ChainState v}\n  {grantId : Auths.Rich.GrantId v} {grant : Auths.Rich.Grant v},\n  Auths.Rich.delegates parent grantId grant child → child.subject = grant.subject ∧ child.lastGrant = some grantId"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.anchored_chain_preserves_provenance",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v]\n  {trusted : Auths.Rich.FiniteSet (Auths.Rich.Principal v)} {start : Auths.Rich.ChainState v}\n  {rest : List (Auths.Rich.ChainState v)},\n  Auths.Rich.AnchoredChain trusted start rest →\n    ∀ (state : Auths.Rich.ChainState v),\n      state = start ∨ state ∈ rest → state.root = start.root ∧ Auths.Rich.rooted state ∧ state.root ∈ trusted"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.singleton_context_selects_fresh_self_rooted_start",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] (start : Auths.Rich.ChainState v),\n  start.root = start.subject → start.lastGrant = none → Auths.Rich.AnchoredChain {start.root} start []"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Authority",
+      "name": "Auths.Authority.chain_descends_from_one_root",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v]\n  {trusted : Auths.Rich.FiniteSet (Auths.Rich.Principal v)} {start : Auths.Rich.ChainState v}\n  {rest : List (Auths.Rich.ChainState v)},\n  Auths.Rich.AnchoredChain trusted start rest →\n    ∀ (state : Auths.Rich.ChainState v),\n      state = start ∨ state ∈ rest → state.root = start.root ∧ Auths.Rich.rooted state ∧ state.root ∈ trusted"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.delegate_strict_depth",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] {parent child : Auths.Rich.ChainState v}\n  {grantId : Auths.Rich.GrantId v} {grant : Auths.Rich.Grant v},\n  Auths.Rich.delegates parent grantId grant child → child.remainingDepth < parent.remainingDepth"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.delegate_never_widens",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] {parent child : Auths.Rich.ChainState v}\n  {grantId : Auths.Rich.GrantId v} {grant : Auths.Rich.Grant v},\n  Auths.Rich.delegates parent grantId grant child → Auths.Rich.structuralScopeLe child.scope parent.scope"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.remaining_depth_well_founded",
+      "statement": "∀ {v : Auths.Rich.Vocabulary}, WellFounded fun child parent => child.remainingDepth < parent.remainingDepth"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.finite_delegation_chain",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] {start : Auths.Rich.ChainState v}\n  {rest : List (Auths.Rich.ChainState v)}, Auths.Rich.DelegationChain start rest → rest.length ≤ start.remainingDepth"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.chain_transitive_attenuation",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v],\n  Auths.Rich.ExtensionLawsNarrow v →\n    ∀ {root middle terminal : Auths.Rich.ChainState v} {firstId secondId : Auths.Rich.GrantId v}\n      {firstGrant secondGrant : Auths.Rich.Grant v},\n      Auths.Rich.delegates root firstId firstGrant middle →\n        Auths.Rich.delegates middle secondId secondGrant terminal →\n          Auths.Rich.structuralScopeLe terminal.scope root.scope"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.authorized_action_covered",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] {parent child : Auths.Rich.ChainState v}\n  {grantId : Auths.Rich.GrantId v} {grant : Auths.Rich.Grant v} {action : Auths.Rich.Action v}\n  {expression : Auths.Rich.BudgetExpression},\n  Auths.Rich.delegates parent grantId grant child →\n    Auths.Rich.actionCovers child.scope action expression → Auths.Rich.actionCovers parent.scope action expression"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.extensions_dimension_is_exact",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] (parent : Auths.Rich.ChainState v)\n  (grant : Auths.Rich.Grant v),\n  (Auths.Rich.delegationProjection parent grant).value.extensionsAttenuate = true ↔\n    Auths.Rich.extensionsLe (some grant.extensions) parent.scope.extensions"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.extensions_dimension_false_of_stripped",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] (parent : Auths.Rich.ChainState v)\n  (grant : Auths.Rich.Grant v) (pinned : Auths.Rich.CriticalExtensions v),\n  parent.scope.extensions = some pinned →\n    ∀ {entry : Auths.Rich.CriticalExtension v},\n      entry ∈ pinned.entries →\n        (∀ candidate ∈ grant.extensions.entries, candidate.id ≠ entry.id) →\n          (Auths.Rich.delegationProjection parent grant).value.extensionsAttenuate = false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.altered_extensions_deny_every_projection",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] (parent : Auths.Rich.ChainState v)\n  (grant : Auths.Rich.Grant v),\n  ¬Auths.Rich.extensionsLe (some grant.extensions) parent.scope.extensions →\n    Auths.Rich.certifiedAccepts (Auths.Rich.delegationProjection parent grant) = false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.delegate_attenuates_pinned_extensions",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] {parent child : Auths.Rich.ChainState v}\n  {grantId : Auths.Rich.GrantId v} {grant : Auths.Rich.Grant v},\n  Auths.Rich.delegates parent grantId grant child →\n    ∀ (pinned : Auths.Rich.CriticalExtensions v),\n      parent.scope.extensions = some pinned →\n        child.scope.extensions = some grant.extensions ∧ Auths.Rich.extensionsAttenuate grant.extensions pinned"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.chain_retains_pinned_extension_identifiers",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] {start : Auths.Rich.ChainState v}\n  {rest : List (Auths.Rich.ChainState v)},\n  Auths.Rich.DelegationChain start rest →\n    ∀ (pinned : Auths.Rich.CriticalExtensions v),\n      start.scope.extensions = some pinned →\n        ∀ state ∈ rest,\n          ∃ carried, state.scope.extensions = some carried ∧ ∀ entry ∈ pinned.entries, carried.carries entry.id"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.delegate_never_widens_authority",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v],\n  Auths.Rich.ExtensionLawsNarrow v →\n    ∀ {parent child : Auths.Rich.ChainState v} {grantId : Auths.Rich.GrantId v} {grant : Auths.Rich.Grant v},\n      Auths.Rich.delegates parent grantId grant child → Auths.Rich.semanticAttenuates child.scope parent.scope"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.chain_never_widens_authority",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v],\n  Auths.Rich.ExtensionLawsNarrow v →\n    ∀ {start : Auths.Rich.ChainState v} {rest : List (Auths.Rich.ChainState v)},\n      Auths.Rich.DelegationChain start rest → ∀ state ∈ rest, Auths.Rich.semanticAttenuates state.scope start.scope"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.rich_projection_accepts_iff_root_and_scope_depth_checks",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] (parent : Auths.Rich.ChainState v)\n  (grant : Auths.Rich.Grant v),\n  Auths.Rich.certifiedAccepts (Auths.Rich.delegationProjection parent grant) = true ↔\n    Auths.Rich.rootPreserved parent grant ∧ Auths.Rich.scopeDepthChecks parent grant"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.apply_grant_success_iff_linked_and_projection",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] (parent : Auths.Rich.ChainState v)\n  (grantId : Auths.Rich.GrantId v) (grant : Auths.Rich.Grant v) (child : Auths.Rich.ChainState v),\n  Auths.Rich.evaluateGrant parent grantId grant = Auths.Rich.DelegationDecision.accepted child ↔\n    Auths.Rich.linked parent grant ∧\n      Auths.Rich.certifiedAccepts (Auths.Rich.delegationProjection parent grant) = true ∧\n        ∃ (checks : Auths.Rich.scopeDepthChecks parent grant),\n          child = Auths.Rich.acceptedNextState parent grantId grant checks"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.apply_grant_success_iff_delegates",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] (parent : Auths.Rich.ChainState v)\n  (grantId : Auths.Rich.GrantId v) (grant : Auths.Rich.Grant v) (child : Auths.Rich.ChainState v),\n  Auths.Rich.evaluateGrant parent grantId grant = Auths.Rich.DelegationDecision.accepted child ↔\n    Auths.Rich.delegates parent grantId grant child"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.apply_grant_success_unique",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] {parent : Auths.Rich.ChainState v}\n  {grantId : Auths.Rich.GrantId v} {grant : Auths.Rich.Grant v} {left right : Auths.Rich.ChainState v},\n  Auths.Rich.evaluateGrant parent grantId grant = Auths.Rich.DelegationDecision.accepted left →\n    Auths.Rich.evaluateGrant parent grantId grant = Auths.Rich.DelegationDecision.accepted right → left = right"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.authority_delegate_diagnostic_sound_complete",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] (parent : Auths.Rich.ChainState v)\n  (grantId : Auths.Rich.GrantId v) (grant : Auths.Rich.Grant v),\n  (∃ child, Auths.Rich.evaluateGrant parent grantId grant = Auths.Rich.DelegationDecision.accepted child) ↔\n    Auths.Rich.linked parent grant ∧ Auths.Rich.scopeDepthChecks parent grant"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.authority_delegate_first_failure",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] (parent : Auths.Rich.ChainState v)\n  (grantId : Auths.Rich.GrantId v) (grant : Auths.Rich.Grant v),\n  (Auths.Rich.evaluateGrant parent grantId grant =\n        Auths.Rich.DelegationDecision.denied Auths.Rich.DelegationDiagnostic.brokenGrantChain ↔\n      ¬Auths.Rich.linked parent grant) ∧\n    (Auths.Rich.evaluateGrant parent grantId grant =\n        Auths.Rich.DelegationDecision.denied Auths.Rich.DelegationDiagnostic.delegationExpanded ↔\n      Auths.Rich.linked parent grant ∧ ¬Auths.Rich.scopeDepthChecks parent grant)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.author_planning_diagnostic_sound_complete",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] (parent child : Auths.Rich.AuthorityScope v)\n  (parentDepth childDepth : ℕ),\n  Auths.Rich.evaluateAuthorScope parent child parentDepth childDepth = Auths.Rich.AuthorDecision.accepted ↔\n    Auths.Rich.structuralScopeLe child parent ∧ 0 < parentDepth ∧ childDepth < parentDepth"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.coverage_decision_ok_iff_covers",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [Auths.Rich.ExtensionLaws v] (authority : Auths.Rich.ChainState v)\n  (action : Auths.Rich.Action v) (expression : Auths.Rich.BudgetExpression),\n  Auths.Rich.evaluateCoverage authority action expression = Auths.Rich.CoverageDecision.authorized ↔\n    Auths.Rich.terminalCovers authority action expression"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Semantics",
+      "name": "Auths.Rich.rooted_of_origin",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [Auths.Rich.ExtensionLaws v] (state : Auths.Rich.ChainState v),\n  state.root = state.subject → state.lastGrant = none → Auths.Rich.rooted state"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Semantics",
+      "name": "Auths.Rich.reachable_accepted",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] {parent : Auths.Rich.ChainState v}\n  (grantId : Auths.Rich.GrantId v) (grant : Auths.Rich.Grant v),\n  Auths.Rich.ReachableFromRoot parent →\n    grant.issuer = parent.subject →\n      ∀ (checks : Auths.Rich.scopeDepthChecks parent grant),\n        Auths.Rich.ReachableFromRoot (Auths.Rich.acceptedNextState parent grantId grant checks)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Semantics",
+      "name": "Auths.Rich.rooted_of_reachable",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] {state : Auths.Rich.ChainState v},\n  Auths.Rich.ReachableFromRoot state → Auths.Rich.rooted state"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.registry_coverage_decision_ok_iff_covers",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [Auths.Rich.ExtensionLaws v] (authority : Auths.Rich.ChainState v)\n  (action : Auths.Rich.Action v) (registry : Auths.Rich.BudgetExpressionRegistry v),\n  Auths.Rich.evaluateCoverageWithRegistry authority action registry = Auths.Rich.CoverageDecision.authorized ↔\n    Auths.Rich.terminalCoversWithRegistry authority action registry"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Semantics",
+      "name": "Auths.Rich.CertifiedProjection.extensions_not_forgeable",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] {parent : Auths.Rich.ChainState v}\n  {grant : Auths.Rich.Grant v} (certified : Auths.Rich.CertifiedProjection parent grant),\n  ¬Auths.Rich.extensionsLe (some grant.extensions) parent.scope.extensions → certified.value.extensionsAttenuate = false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Semantics",
+      "name": "Auths.Rich.CertifiedProjection.root_not_forgeable",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v] {parent : Auths.Rich.ChainState v}\n  {grant : Auths.Rich.Grant v} (certified : Auths.Rich.CertifiedProjection parent grant),\n  ¬Auths.Rich.rootPreserved parent grant → certified.value.rootPreserved = false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.validity_start_direction",
+      "statement": "Auths.Rich.evaluateAuthorScope\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions,\n      validity := Auths.Rich.Mutations.window✝ 5 10 ⋯, audiences := __src.audiences,\n      actionConstraint := __src.actionConstraint, budget := __src.budget, status := __src.status,\n      assurance := __src.assurance, extensions := __src.extensions })\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions,\n      validity := Auths.Rich.Mutations.window✝ 3 10 ⋯, audiences := __src.audiences,\n      actionConstraint := __src.actionConstraint, budget := __src.budget, status := __src.status,\n      assurance := __src.assurance, extensions := __src.extensions })\n    2 1 =\n  Auths.Rich.AuthorDecision.denied Auths.Rich.AuthorDiagnostic.validity"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.validity_end_direction",
+      "statement": "Auths.Rich.evaluateAuthorScope\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions,\n      validity := Auths.Rich.Mutations.window✝ 5 10 ⋯, audiences := __src.audiences,\n      actionConstraint := __src.actionConstraint, budget := __src.budget, status := __src.status,\n      assurance := __src.assurance, extensions := __src.extensions })\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions,\n      validity := Auths.Rich.Mutations.window✝ 5 12 ⋯, audiences := __src.audiences,\n      actionConstraint := __src.actionConstraint, budget := __src.budget, status := __src.status,\n      assurance := __src.assurance, extensions := __src.extensions })\n    2 1 =\n  Auths.Rich.AuthorDecision.denied Auths.Rich.AuthorDiagnostic.validity"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.permission_subset_direction",
+      "statement": "Auths.Rich.evaluateAuthorScope\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := {{ value := 0 }, { value := 1 }}, validity := __src.validity,\n      audiences := __src.audiences, actionConstraint := __src.actionConstraint, budget := __src.budget,\n      status := __src.status, assurance := __src.assurance, extensions := __src.extensions })\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := {{ value := 0 }}, validity := __src.validity,\n      audiences := __src.audiences, actionConstraint := __src.actionConstraint, budget := __src.budget,\n      status := __src.status, assurance := __src.assurance, extensions := __src.extensions })\n    2 1 =\n  Auths.Rich.AuthorDecision.accepted"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.audience_subset_direction",
+      "statement": "Auths.Rich.evaluateAuthorScope\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions, validity := __src.validity,\n      audiences := {{ value := 0 }, { value := 1 }}, actionConstraint := __src.actionConstraint, budget := __src.budget,\n      status := __src.status, assurance := __src.assurance, extensions := __src.extensions })\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions, validity := __src.validity,\n      audiences := {{ value := 0 }}, actionConstraint := __src.actionConstraint, budget := __src.budget,\n      status := __src.status, assurance := __src.assurance, extensions := __src.extensions })\n    2 1 =\n  Auths.Rich.AuthorDecision.accepted"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.permission_membership_decision",
+      "statement": "Auths.Rich.evaluateCoverage (Auths.Rich.Mutations.baseState✝ 0 0 2 none) Auths.Rich.Mutations.baseAction✝\n    Auths.Rich.BudgetExpression.expressible =\n  Auths.Rich.CoverageDecision.authorized"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.audience_membership_decision",
+      "statement": "Auths.Rich.evaluateCoverage (Auths.Rich.Mutations.baseState✝ 0 0 2 none) Auths.Rich.Mutations.baseAction✝\n    Auths.Rich.BudgetExpression.expressible =\n  Auths.Rich.CoverageDecision.authorized"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.body_digest_membership_decision",
+      "statement": "Auths.Rich.evaluateCoverage\n    (have __src := Auths.Rich.Mutations.baseState✝ 0 0 2 none;\n    { root := __src.root, subject := __src.subject,\n      scope :=\n        have __src := Auths.Rich.Mutations.baseScope✝;\n        { profileScope := __src.profileScope, permissions := __src.permissions, validity := __src.validity,\n          audiences := __src.audiences,\n          actionConstraint := Auths.Rich.ActionConstraint.allowedBodyDigests {{ value := 0 }}, budget := __src.budget,\n          status := __src.status, assurance := __src.assurance, extensions := __src.extensions },\n      remainingDepth := __src.remainingDepth, lastGrant := __src.lastGrant })\n    Auths.Rich.Mutations.baseAction✝ Auths.Rich.BudgetExpression.expressible =\n  Auths.Rich.CoverageDecision.authorized"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.body_digest_subset_direction",
+      "statement": "Auths.Rich.evaluateAuthorScope\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions, validity := __src.validity,\n      audiences := __src.audiences,\n      actionConstraint := Auths.Rich.ActionConstraint.allowedBodyDigests {{ value := 0 }, { value := 1 }},\n      budget := __src.budget, status := __src.status, assurance := __src.assurance, extensions := __src.extensions })\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions, validity := __src.validity,\n      audiences := __src.audiences, actionConstraint := Auths.Rich.ActionConstraint.allowedBodyDigests {{ value := 0 }},\n      budget := __src.budget, status := __src.status, assurance := __src.assurance, extensions := __src.extensions })\n    2 1 =\n  Auths.Rich.AuthorDecision.accepted"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.action_exact_equality",
+      "statement": "Auths.Rich.evaluateCoverage\n    (have __src := Auths.Rich.Mutations.baseState✝ 0 0 2 none;\n    { root := __src.root, subject := __src.subject,\n      scope :=\n        have __src := Auths.Rich.Mutations.baseScope✝;\n        { profileScope := __src.profileScope, permissions := __src.permissions, validity := __src.validity,\n          audiences := __src.audiences, actionConstraint := Auths.Rich.ActionConstraint.exactBodyDigest { value := 0 },\n          budget := __src.budget, status := __src.status, assurance := __src.assurance,\n          extensions := __src.extensions },\n      remainingDepth := __src.remainingDepth, lastGrant := __src.lastGrant })\n    (Auths.Rich.Mutations.baseAction✝ 0 none 0 0 0 1) Auths.Rich.BudgetExpression.expressible =\n  Auths.Rich.CoverageDecision.denied Auths.Rich.CoverageDiagnostic.actionConstraintMismatch"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.action_constructor_fallback",
+      "statement": "Auths.Rich.evaluateAuthorScope\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions, validity := __src.validity,\n      audiences := __src.audiences, actionConstraint := Auths.Rich.ActionConstraint.exactBodyDigest { value := 0 },\n      budget := __src.budget, status := __src.status, assurance := __src.assurance, extensions := __src.extensions })\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions, validity := __src.validity,\n      audiences := __src.audiences,\n      actionConstraint := Auths.Rich.ActionConstraint.allowedBodyDigests {{ value := 0 }, { value := 1 }},\n      budget := __src.budget, status := __src.status, assurance := __src.assurance, extensions := __src.extensions })\n    2 1 =\n  Auths.Rich.AuthorDecision.denied Auths.Rich.AuthorDiagnostic.actionConstraint"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.action_singleton_exact_rejection",
+      "statement": "Auths.Rich.evaluateAuthorScope\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions, validity := __src.validity,\n      audiences := __src.audiences, actionConstraint := Auths.Rich.ActionConstraint.exactBodyDigest { value := 0 },\n      budget := __src.budget, status := __src.status, assurance := __src.assurance, extensions := __src.extensions })\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions, validity := __src.validity,\n      audiences := __src.audiences, actionConstraint := Auths.Rich.ActionConstraint.allowedBodyDigests {{ value := 0 }},\n      budget := __src.budget, status := __src.status, assurance := __src.assurance, extensions := __src.extensions })\n    2 1 =\n  Auths.Rich.AuthorDecision.accepted"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.budget_value_direction",
+      "statement": "Auths.Rich.evaluateAuthorScope\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions, validity := __src.validity,\n      audiences := __src.audiences, actionConstraint := __src.actionConstraint,\n      budget := some { algebra := { value := 0 }, value := 3 }, status := __src.status, assurance := __src.assurance,\n      extensions := __src.extensions })\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions, validity := __src.validity,\n      audiences := __src.audiences, actionConstraint := __src.actionConstraint,\n      budget := some { algebra := { value := 0 }, value := 5 }, status := __src.status, assurance := __src.assurance,\n      extensions := __src.extensions })\n    2 1 =\n  Auths.Rich.AuthorDecision.denied Auths.Rich.AuthorDiagnostic.budget"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.budget_algebra_equality",
+      "statement": "Auths.Rich.evaluateAuthorScope\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions, validity := __src.validity,\n      audiences := __src.audiences, actionConstraint := __src.actionConstraint,\n      budget := some { algebra := { value := 0 }, value := 5 }, status := __src.status, assurance := __src.assurance,\n      extensions := __src.extensions })\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions, validity := __src.validity,\n      audiences := __src.audiences, actionConstraint := __src.actionConstraint,\n      budget := some { algebra := { value := 1 }, value := 1 }, status := __src.status, assurance := __src.assurance,\n      extensions := __src.extensions })\n    2 1 =\n  Auths.Rich.AuthorDecision.denied Auths.Rich.AuthorDiagnostic.budget"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.optional_budget_bounded_parent",
+      "statement": "Auths.Rich.evaluateAuthorScope\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions, validity := __src.validity,\n      audiences := __src.audiences, actionConstraint := __src.actionConstraint,\n      budget := some { algebra := { value := 0 }, value := 5 }, status := __src.status, assurance := __src.assurance,\n      extensions := __src.extensions })\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions, validity := __src.validity,\n      audiences := __src.audiences, actionConstraint := __src.actionConstraint, budget := none, status := __src.status,\n      assurance := __src.assurance, extensions := __src.extensions })\n    2 1 =\n  Auths.Rich.AuthorDecision.denied Auths.Rich.AuthorDiagnostic.budget"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.optional_budget_no_request",
+      "statement": "Auths.Rich.evaluateCoverage\n    (have __src := Auths.Rich.Mutations.baseState✝ 0 0 2 none;\n    { root := __src.root, subject := __src.subject,\n      scope :=\n        have __src := Auths.Rich.Mutations.baseScope✝;\n        { profileScope := __src.profileScope, permissions := __src.permissions, validity := __src.validity,\n          audiences := __src.audiences, actionConstraint := __src.actionConstraint,\n          budget := some { algebra := { value := 0 }, value := 5 }, status := __src.status,\n          assurance := __src.assurance, extensions := __src.extensions },\n      remainingDepth := __src.remainingDepth, lastGrant := __src.lastGrant })\n    Auths.Rich.Mutations.baseAction✝ Auths.Rich.BudgetExpression.expressible =\n  Auths.Rich.CoverageDecision.denied Auths.Rich.CoverageDiagnostic.budgetCeilingExceeded"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.delegation_depth_strictness",
+      "statement": "Auths.Rich.Mutations.delegationDeniedWith✝ Auths.Rich.DelegationDiagnostic.delegationExpanded\n    (Auths.Rich.evaluateGrant (Auths.Rich.Mutations.baseState✝ 0 0 3 none) { value := 0 }\n      (Auths.Rich.Mutations.baseGrant✝ 0 3)) =\n  true"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.status_age_direction",
+      "statement": "Auths.Rich.evaluateAuthorScope\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions, validity := __src.validity,\n      audiences := __src.audiences, actionConstraint := __src.actionConstraint, budget := __src.budget,\n      status := Auths.Rich.StatusPolicy.snapshotRequired { value := 0 } { seconds := 5, positive := ⋯ },\n      assurance := __src.assurance, extensions := __src.extensions })\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions, validity := __src.validity,\n      audiences := __src.audiences, actionConstraint := __src.actionConstraint, budget := __src.budget,\n      status := Auths.Rich.StatusPolicy.snapshotRequired { value := 0 } { seconds := 10, positive := ⋯ },\n      assurance := __src.assurance, extensions := __src.extensions })\n    2 1 =\n  Auths.Rich.AuthorDecision.denied Auths.Rich.AuthorDiagnostic.status"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.status_method_equality",
+      "statement": "Auths.Rich.evaluateAuthorScope\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions, validity := __src.validity,\n      audiences := __src.audiences, actionConstraint := __src.actionConstraint, budget := __src.budget,\n      status := Auths.Rich.StatusPolicy.snapshotRequired { value := 0 } { seconds := 5, positive := ⋯ },\n      assurance := __src.assurance, extensions := __src.extensions })\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions, validity := __src.validity,\n      audiences := __src.audiences, actionConstraint := __src.actionConstraint, budget := __src.budget,\n      status := Auths.Rich.StatusPolicy.snapshotRequired { value := 1 } { seconds := 5, positive := ⋯ },\n      assurance := __src.assurance, extensions := __src.extensions })\n    2 1 =\n  Auths.Rich.AuthorDecision.denied Auths.Rich.AuthorDiagnostic.status"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.assurance_equality",
+      "statement": "Auths.Rich.evaluateAuthorScope Auths.Rich.Mutations.baseScope✝ (Auths.Rich.Mutations.baseScope✝ 1) 2 1 =\n  Auths.Rich.AuthorDecision.denied Auths.Rich.AuthorDiagnostic.assurance"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.critical_extension_law",
+      "statement": "Auths.Rich.evaluateAuthorScope\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions, validity := __src.validity,\n      audiences := __src.audiences, actionConstraint := __src.actionConstraint, budget := __src.budget,\n      status := __src.status, assurance := __src.assurance,\n      extensions := some (Auths.Rich.Mutations.singletonExtension✝ 0 0) })\n    (have __src := Auths.Rich.Mutations.baseScope✝;\n    { profileScope := __src.profileScope, permissions := __src.permissions, validity := __src.validity,\n      audiences := __src.audiences, actionConstraint := __src.actionConstraint, budget := __src.budget,\n      status := __src.status, assurance := __src.assurance,\n      extensions := some (Auths.Rich.Mutations.singletonExtension✝ 0 1) })\n    2 1 =\n  Auths.Rich.AuthorDecision.denied Auths.Rich.AuthorDiagnostic.extensions"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.critical_extensions_reversed_not_sorted",
+      "statement": "¬List.Pairwise Auths.Rich.criticalExtensionLt [Auths.Rich.Mutations.extension✝ 1 0, Auths.Rich.Mutations.extension✝ 0 0]"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.profile_version_equality",
+      "statement": "auths_model.profile_ref_equal { id := \"auths.opentofu.saved-plan-apply\", version := 2#u16 }\n    { id := \"auths.opentofu.saved-plan-apply\", version := 1#u16 } =\n  Aeneas.Std.Result.ok false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.principal_linkage_equality",
+      "statement": "Auths.Rich.Mutations.delegationDeniedWith✝ Auths.Rich.DelegationDiagnostic.brokenGrantChain\n    (Auths.Rich.evaluateGrant (Auths.Rich.Mutations.baseState✝ 0 0 1 none) { value := 0 }\n      (Auths.Rich.Mutations.baseGrant✝ 1)) =\n  true"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Mutations",
+      "name": "Auths.Rich.Mutations.grant_linkage_equality",
+      "statement": "Auths.Rich.Mutations.delegationDeniedWith✝ Auths.Rich.DelegationDiagnostic.brokenGrantChain\n    (Auths.Rich.evaluateGrant (Auths.Rich.Mutations.baseState✝ 0 0 1 (some 0)) { value := 2 }\n      (Auths.Rich.Mutations.baseGrant✝ 0 0 (some 1))) =\n  true"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Rich.Theorems",
+      "name": "Auths.Rich.coverage_diagnostic_sound_complete",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [Auths.Rich.ExtensionLaws v] (authority : Auths.Rich.ChainState v)\n  (action : Auths.Rich.Action v) (expression : Auths.Rich.BudgetExpression),\n  (Auths.Rich.evaluateCoverage authority action expression = Auths.Rich.CoverageDecision.authorized ↔\n      Auths.Rich.terminalCovers authority action expression) ∧\n    ∀ (reason : Auths.Rich.CoverageDiagnostic),\n      Auths.Rich.evaluateCoverage authority action expression = Auths.Rich.CoverageDecision.denied reason →\n        ¬Auths.Rich.terminalCovers authority action expression"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Production",
+      "name": "Auths.Refinement.translated_rust_refines_rich_spec",
+      "statement": "∀ {L : Type} (inst : auths_authority.auths_model.CriticalExtensionLaws L) (laws : L)\n  [inst_1 : Auths.Rich.ExtensionLaws Auths.Refinement.ProductionVocabulary],\n  Auths.Refinement.LawsRefine inst laws Auths.Refinement.productionLaw →\n    ∀ (parent child : auths_authority.auths_model.ScopeAuthorityView)\n      (parentValid : Auths.Refinement.ScopeAuthorityViewValid parent)\n      (childValid : Auths.Refinement.ScopeAuthorityViewValid child),\n      Aeneas.Std.WP.spec (auths_authority.evaluate_author_scope_view inst parent child laws) fun result =>\n        result = Auths.Refinement.richAuthorScopeDecision parent child parentValid childValid"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Production",
+      "name": "Auths.Refinement.translated_coverage_refines_rich_spec",
+      "statement": "∀ (authority : auths_authority.AuthorityStateView) (action : auths_authority.auths_model.ActionAuthorityView)\n  (authorityValid : Auths.Refinement.AuthorityStateViewValid authority)\n  (actionValid : Auths.Refinement.ActionAuthorityViewValid action) (expression : auths_model.ProfileBudgetExpression),\n  Aeneas.Std.WP.spec (auths_authority.evaluate_action_coverage_view authority action expression) fun result =>\n    result =\n      Auths.Refinement.productionCoverageDecision\n        (Auths.Rich.evaluateCoverage (Auths.Refinement.richAuthorityState authority authorityValid)\n          (Auths.Refinement.richAction action actionValid) (Auths.Refinement.richBudgetExpression expression))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Production",
+      "name": "Auths.Refinement.translated_delegation_refines_rich_spec",
+      "statement": "∀ {L : Type} (inst : auths_authority.auths_model.CriticalExtensionLaws L) (laws : L)\n  [inst_1 : Auths.Rich.ExtensionLaws Auths.Refinement.ProductionVocabulary],\n  Auths.Refinement.LawsRefine inst laws Auths.Refinement.productionLaw →\n    ∀ (parent : auths_authority.AuthorityStateView) (grantId : auths_model.GrantId)\n      (grant : auths_authority.auths_model.GrantAuthorityView)\n      (parentValid : Auths.Refinement.AuthorityStateViewValid parent)\n      (grantValid : Auths.Refinement.GrantAuthorityViewValid grant),\n      Aeneas.Std.WP.spec (auths_authority.evaluate_grant_view inst parent grantId grant laws) fun result =>\n        result.outcome =\n          Auths.Refinement.productionDelegationOutcome\n            (Auths.Rich.evaluateGrant (Auths.Refinement.richAuthorityState parent parentValid)\n              (Auths.Refinement.richGrantId grantId) (Auths.Refinement.richGrant grant grantValid))\n            grantId grant"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Production",
+      "name": "Auths.Refinement.translated_bounded_ceiling_denies_absent_request",
+      "statement": "∀ (ceiling : auths_model.BudgetCeiling),\n  auths_model.optional_budget_covers (some ceiling) none = Aeneas.Std.Result.ok false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Production",
+      "name": "Auths.Refinement.translated_expressible_absent_request_is_denied",
+      "statement": "∀ (ceiling : auths_model.BudgetCeiling),\n  auths_model.budget_ceiling_covers_action (some ceiling) none auths_model.ProfileBudgetExpression.Expressible =\n    Aeneas.Std.Result.ok false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Production",
+      "name": "Auths.Refinement.translated_inexpressible_absent_request_is_covered",
+      "statement": "∀ (ceiling : auths_model.BudgetCeiling),\n  auths_model.budget_ceiling_covers_action (some ceiling) none auths_model.ProfileBudgetExpression.Inexpressible =\n    Aeneas.Std.Result.ok true"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Production",
+      "name": "Auths.Refinement.translated_absent_ceiling_covers_anything",
+      "statement": "∀ (requested : Option auths_model.BudgetCeiling) (expression : auths_model.ProfileBudgetExpression),\n  auths_model.budget_ceiling_covers_action none requested expression = Aeneas.Std.Result.ok true"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Commitment",
+      "name": "Auths.Product.configuration_match_refl",
+      "statement": "∀ (configuration : Auths.Product.ConfigurationCommitment),\n  Auths.Product.configurationMatch configuration configuration = Auths.Product.ConfigurationMatch.matches"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Product.Commitment",
+      "name": "Auths.Product.configuration_match_deterministic",
+      "statement": "∀ (required executed : Auths.Product.ConfigurationCommitment),\n  ∃ result, Auths.Product.configurationMatch required executed = result"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Product.Arithmetic",
+      "name": "Auths.Product.checked_add_never_wraps",
+      "statement": "∀ {left right result : Auths.Product.UnitQuantity},\n  Auths.Product.checkedAdd left right = Except.ok result →\n    result.amount = left.amount + right.amount ∧ result.amount ≤ Auths.Product.u64Max"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Product.Arithmetic",
+      "name": "Auths.Product.checked_sub_never_underflows",
+      "statement": "∀ {left right result : Auths.Product.UnitQuantity},\n  Auths.Product.checkedSub left right = Except.ok result → right.amount ≤ left.amount"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Arithmetic",
+      "name": "Auths.Product.checked_div_rejects_zero",
+      "statement": "∀ {quantity result : Auths.Product.UnitQuantity}, Auths.Product.checkedDiv quantity 0 = Except.ok result → False"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Product.Eligibility",
+      "name": "Auths.Product.three_way_partition",
+      "statement": "∀ (result : Auths.Product.Eligibility),\n  (∃ outputs, result = Auths.Product.Eligibility.eligible outputs) ∨\n    (∃ code stage, result = Auths.Product.Eligibility.denied code stage) ∨\n      ∃ code stage, result = Auths.Product.Eligibility.indeterminate code stage"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Theorems",
+      "name": "Auths.Product.product_contract_configuration_safety",
+      "statement": "∀ {required executed : Auths.Product.ConfigurationCommitment} {result : Auths.Product.Eligibility}\n  {mismatchCode mismatchStage : Auths.Product.SemanticId},\n  Auths.Product.configurationMatch required executed ≠ Auths.Product.ConfigurationMatch.matches →\n    Auths.Product.isEligible (Auths.Product.gateConfiguration required executed result mismatchCode mismatchStage) =\n      false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Theorems",
+      "name": "Auths.Product.product_contract_output_completeness",
+      "statement": "∀ {result : Auths.Product.Eligibility},\n  Auths.Product.isEligible result = true → ∃ outputs, result = Auths.Product.Eligibility.eligible outputs"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement",
+      "name": "Auths.Product.Refinement.translated_configuration_refines_projection",
+      "statement": "∀ (semanticEqual canonicalizationEqual digestEqual implementationEqualOrUnpinned : Bool),\n  auths_bounded_policy.kernel.configuration_match_code semanticEqual canonicalizationEqual digestEqual\n      implementationEqualOrUnpinned =\n    Aeneas.Std.Result.ok\n      (Auths.Product.Refinement.generatedConfigurationMatch\n        (Auths.Product.projectedConfigurationMatch semanticEqual canonicalizationEqual digestEqual\n          implementationEqualOrUnpinned))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement",
+      "name": "Auths.Product.Refinement.translated_checked_add_refines_nat",
+      "statement": "∀ (left right : Aeneas.Std.U64),\n  match auths_bounded_policy.kernel.checked_add_u64 left right with\n  | Aeneas.Std.Result.ok (some result) => ↑left + ↑right ≤ Aeneas.Std.U64.max ∧ ↑result = ↑left + ↑right\n  | Aeneas.Std.Result.ok none => Aeneas.Std.U64.max < ↑left + ↑right\n  | Aeneas.Std.Result.fail e => False\n  | Aeneas.Std.Result.div => False"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement",
+      "name": "Auths.Product.Refinement.translated_checked_sub_refines_nat",
+      "statement": "∀ (left right : Aeneas.Std.U64),\n  match auths_bounded_policy.kernel.checked_sub_u64 left right with\n  | Aeneas.Std.Result.ok (some result) => ↑right ≤ ↑left ∧ ↑result = ↑left - ↑right\n  | Aeneas.Std.Result.ok none => ↑left < ↑right\n  | Aeneas.Std.Result.fail e => False\n  | Aeneas.Std.Result.div => False"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement",
+      "name": "Auths.Product.Refinement.translated_checked_mul_refines_nat",
+      "statement": "∀ (left right : Aeneas.Std.U64),\n  match auths_bounded_policy.kernel.checked_mul_u64 left right with\n  | Aeneas.Std.Result.ok (some result) => ↑left * ↑right ≤ Aeneas.Std.U64.max ∧ ↑result = ↑left * ↑right\n  | Aeneas.Std.Result.ok none => Aeneas.Std.U64.max < ↑left * ↑right\n  | Aeneas.Std.Result.fail e => False\n  | Aeneas.Std.Result.div => False"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement",
+      "name": "Auths.Product.Refinement.translated_checked_div_rejects_zero",
+      "statement": "∀ (value : Aeneas.Std.U64), auths_bounded_policy.kernel.checked_div_u64 value 0#u64 = Aeneas.Std.Result.ok none"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement",
+      "name": "Auths.Product.Refinement.translated_window_index_refines_nat",
+      "statement": "∀ (now windowSeconds : Aeneas.Std.U64),\n  ∃ result,\n    auths_bounded_policy.kernel.window_index now windowSeconds = Aeneas.Std.Result.ok result ∧\n      Option.map (fun x => ↑x) result = if ↑windowSeconds = 0 then none else some (↑now / ↑windowSeconds)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement.BoundedPolicy",
+      "name": "Auths.Product.Refinement.BoundedPolicy.translated_digest_equal_refines_model",
+      "statement": "∀ (left right : auths_model.Digest),\n  auths_model.bounded_policy.digest_equal left right =\n    Aeneas.Std.Result.ok\n      (decide\n        (Auths.Product.Refinement.BoundedPolicy.digestBytes left =\n          Auths.Product.Refinement.BoundedPolicy.digestBytes right))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement.BoundedPolicy",
+      "name": "Auths.Product.Refinement.BoundedPolicy.translated_bounded_policy_link_accepts_refines_model",
+      "statement": "∀ (childLink parentDigest : Option auths_model.Digest),\n  auths_model.bounded_policy.bounded_policy_link_accepts childLink parentDigest =\n    Aeneas.Std.Result.ok\n      (Auths.Product.Refinement.BoundedPolicy.boundedPolicyLinkAccepts\n        (Option.map Auths.Product.Refinement.BoundedPolicy.digestBytes childLink)\n        (Option.map Auths.Product.Refinement.BoundedPolicy.digestBytes parentDigest))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement",
+      "name": "Auths.Product.Refinement.translated_ceiling_count_refines_model",
+      "statement": "∀ (value ceiling count maxCount : Aeneas.Std.U64),\n  auths_bounded_policy.kernel.ceiling_count_code value ceiling count maxCount =\n    Aeneas.Std.Result.ok\n      (Auths.Product.Refinement.generatedCeilingCountCode\n        (Auths.Product.CeilingCount.codeOf ↑value ↑ceiling ↑count ↑maxCount))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement",
+      "name": "Auths.Product.Refinement.translated_ceiling_count_tightens_refines_model",
+      "statement": "∀ (childCeiling childMax childWindow parentCeiling parentMax parentWindow : Aeneas.Std.U64),\n  auths_bounded_policy.kernel.ceiling_count_tightens childCeiling childMax childWindow parentCeiling parentMax\n      parentWindow =\n    Aeneas.Std.Result.ok\n      (Auths.Product.CeilingCount.numericTightens ↑childCeiling ↑childMax ↑childWindow ↑parentCeiling ↑parentMax\n        ↑parentWindow)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement",
+      "name": "Auths.Product.Refinement.translated_chain_counts_admit_refines_model",
+      "statement": "∀ (counts capacities : Aeneas.Std.Slice Aeneas.Std.U64),\n  Aeneas.Std.WP.spec (auths_bounded_policy.kernel.chain_counts_admit counts capacities) fun result =>\n    result =\n      Auths.Product.CeilingCount.countsAdmit (Auths.Product.Refinement.natList ↑counts)\n        (Auths.Product.Refinement.natList ↑capacities)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement",
+      "name": "Auths.Product.Refinement.translated_chain_sums_admit_refines_model",
+      "statement": "∀ (sums : Aeneas.Std.Slice Aeneas.Std.U64) (argument : Aeneas.Std.U64) (capacities : Aeneas.Std.Slice Aeneas.Std.U64),\n  Aeneas.Std.WP.spec (auths_bounded_policy.kernel.chain_sums_admit sums argument capacities) fun result =>\n    result =\n      Auths.Product.CeilingCount.sumsAdmit (Auths.Product.Refinement.natList ↑sums) (↑argument)\n        (Auths.Product.Refinement.natList ↑capacities)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement",
+      "name": "Auths.Product.Refinement.translated_argument_policy_tightens_refines_model",
+      "statement": "∀ (child parent : auths_bounded_policy.kernel.PolicyMembers),\n  Aeneas.Std.WP.spec (auths_bounded_policy.kernel.argument_policy_tightens child parent) fun result =>\n    result =\n      Auths.Product.CeilingCount.decider (Auths.Product.Refinement.policyOf child)\n        (Auths.Product.Refinement.policyOf parent)"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.CeilingCount",
+      "name": "Auths.Product.CeilingCount.code_eligible_iff",
+      "statement": "∀ (value ceiling count maxCount : ℕ),\n  Auths.Product.CeilingCount.codeOf value ceiling count maxCount = Auths.Product.CeilingCount.Code.eligible ↔\n    value ≤ ceiling ∧ count < maxCount"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.CeilingCount",
+      "name": "Auths.Product.CeilingCount.decider_iff_tightens",
+      "statement": "∀ (child parent : Auths.Product.CeilingCount.Policy),\n  Auths.Product.CeilingCount.decider child parent = true ↔ Auths.Product.CeilingCount.tightens child parent"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.CeilingCount",
+      "name": "Auths.Product.CeilingCount.tightening_never_admits_more",
+      "statement": "∀ {child parent : Auths.Product.CeilingCount.Policy} {context : Auths.Product.CeilingCount.Context},\n  Auths.Product.CeilingCount.tightens child parent →\n    Auths.Product.CeilingCount.admits child context → Auths.Product.CeilingCount.admits parent context"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.CeilingCount",
+      "name": "Auths.Product.CeilingCount.decider_sound",
+      "statement": "∀ {child parent : Auths.Product.CeilingCount.Policy},\n  Auths.Product.CeilingCount.decider child parent = true →\n    ∀ (context : Auths.Product.CeilingCount.Context),\n      Auths.Product.CeilingCount.admits child context → Auths.Product.CeilingCount.admits parent context"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.CeilingCount",
+      "name": "Auths.Product.CeilingCount.smaller_ceiling_never_authorizes_more",
+      "statement": "∀ (policy : Auths.Product.CeilingCount.Policy) {ceiling : ℕ},\n  ceiling ≤ policy.ceiling →\n    ∀ {context : Auths.Product.CeilingCount.Context},\n      Auths.Product.CeilingCount.admits\n          { argument := policy.argument, ceiling := ceiling, window := policy.window, maxCount := policy.maxCount,\n            sum := policy.sum, scope := policy.scope }\n          context →\n        Auths.Product.CeilingCount.admits policy context"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.CeilingCount",
+      "name": "Auths.Product.CeilingCount.smaller_count_never_authorizes_more",
+      "statement": "∀ (policy : Auths.Product.CeilingCount.Policy) {maxCount : ℕ},\n  maxCount ≤ policy.maxCount →\n    ∀ {context : Auths.Product.CeilingCount.Context},\n      Auths.Product.CeilingCount.admits\n          { argument := policy.argument, ceiling := policy.ceiling, window := policy.window, maxCount := maxCount,\n            sum := policy.sum, scope := policy.scope }\n          context →\n        Auths.Product.CeilingCount.admits policy context"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.CeilingCount",
+      "name": "Auths.Product.CeilingCount.tightens_refl",
+      "statement": "∀ (policy : Auths.Product.CeilingCount.Policy), Auths.Product.CeilingCount.tightens policy policy"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.CeilingCount",
+      "name": "Auths.Product.CeilingCount.tightens_trans",
+      "statement": "∀ {child middle parent : Auths.Product.CeilingCount.Policy},\n  Auths.Product.CeilingCount.tightens child middle →\n    Auths.Product.CeilingCount.tightens middle parent → Auths.Product.CeilingCount.tightens child parent"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.CeilingCount",
+      "name": "Auths.Product.CeilingCount.bounded_policy_law_lawful",
+      "statement": "Auths.Product.CeilingCount.boundedPolicyLaw.Lawful"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.CeilingCount",
+      "name": "Auths.Product.CeilingCount.bounded_policy_law_accepts_addition",
+      "statement": "∀ (policy : Auths.Product.CeilingCount.Policy),\n  Auths.Product.CeilingCount.boundedPolicyLaw.attenuates (some policy) none"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.CeilingCount",
+      "name": "Auths.Product.CeilingCount.ceiling_count_fixed_context_tightening",
+      "statement": "∀ {child parent : Auths.Product.CeilingCount.Policy} {context : Auths.Product.CeilingCount.Context}\n  {childOutputs : Auths.Product.OutputCommitments},\n  Auths.Product.CeilingCount.tightens child parent →\n    Auths.Product.CeilingCount.evaluator.evaluate child context = Auths.Product.Eligibility.eligible childOutputs →\n      ∃ parentOutputs,\n        Auths.Product.CeilingCount.evaluator.evaluate parent context =\n            Auths.Product.Eligibility.eligible parentOutputs ∧\n          childOutputs = parentOutputs"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.CeilingCount",
+      "name": "Auths.Product.CeilingCount.reserve_all_or_none",
+      "statement": "∀ (facts : Auths.Product.CeilingCount.Facts) (links : List Auths.Product.CeilingCount.Link) (value : ℕ)\n  (counts : Auths.Product.CeilingCount.CounterKey → ℕ),\n  Auths.Product.CeilingCount.reserve facts links value counts = none ∨\n    ∃ raised,\n      Auths.Product.CeilingCount.reserve facts links value counts = some raised ∧\n        (∀ key ∈ Auths.Product.CeilingCount.countKeys links, raised key = counts key + 1) ∧\n          (∀ key ∈ Auths.Product.CeilingCount.sumKeys facts.text links, raised key = counts key + value) ∧\n            ∀ key ∉ Auths.Product.CeilingCount.countKeys links,\n              key ∉ Auths.Product.CeilingCount.sumKeys facts.text links → raised key = counts key"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.CeilingCount",
+      "name": "Auths.Product.CeilingCount.aggregate_count_bound",
+      "statement": "∀ (counts : Auths.Product.CeilingCount.CounterKey → ℕ) (arrivals : List Auths.Product.CeilingCount.Arrival)\n  (link : Auths.Product.CeilingCount.Link),\n  (Auths.Product.CeilingCount.containing link (Auths.Product.CeilingCount.admitAll counts arrivals).2).length ≤\n    link.2.maxCount"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.CeilingCount",
+      "name": "Auths.Product.CeilingCount.aggregate_spend_bound",
+      "statement": "∀ (counts : Auths.Product.CeilingCount.CounterKey → ℕ) (arrivals : List Auths.Product.CeilingCount.Arrival)\n  (link : Auths.Product.CeilingCount.Link),\n  (List.map Auths.Product.CeilingCount.Arrival.value\n        (Auths.Product.CeilingCount.containing link (Auths.Product.CeilingCount.admitAll counts arrivals).2)).sum ≤\n    link.2.ceiling * link.2.maxCount"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.CeilingCount",
+      "name": "Auths.Product.CeilingCount.aggregate_sum_bound",
+      "statement": "∀ (counts : Auths.Product.CeilingCount.CounterKey → ℕ) (arrivals : List Auths.Product.CeilingCount.Arrival)\n  (link : Auths.Product.CeilingCount.Link) {bound : Auths.Product.CeilingCount.SumBound},\n  link.2.sum = some bound →\n    ∀ (partition : Auths.Product.CeilingCount.Name),\n      (List.map Auths.Product.CeilingCount.Arrival.value\n            (Auths.Product.CeilingCount.containingIn link bound partition\n              (Auths.Product.CeilingCount.admitAll counts arrivals).2)).sum ≤\n        bound.limit"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.CeilingCount",
+      "name": "Auths.Product.CeilingCount.delegation_never_multiplies",
+      "statement": "∀ (counts : Auths.Product.CeilingCount.CounterKey → ℕ) (arrivals : List Auths.Product.CeilingCount.Arrival)\n  (root : Auths.Product.CeilingCount.Link),\n  (∀ arrival ∈ arrivals, root ∈ arrival.links) →\n    (Auths.Product.CeilingCount.admitAll counts arrivals).2.length ≤ root.2.maxCount ∧\n      (List.map Auths.Product.CeilingCount.Arrival.value (Auths.Product.CeilingCount.admitAll counts arrivals).2).sum ≤\n        root.2.ceiling * root.2.maxCount"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.CeilingCount",
+      "name": "Auths.Product.CeilingCount.sum_delegation_never_multiplies",
+      "statement": "∀ (counts : Auths.Product.CeilingCount.CounterKey → ℕ) (arrivals : List Auths.Product.CeilingCount.Arrival)\n  (root : Auths.Product.CeilingCount.Link),\n  (∀ arrival ∈ arrivals, root ∈ arrival.links) →\n    ∀ {bound : Auths.Product.CeilingCount.SumBound},\n      root.2.sum = some bound →\n        ∀ (partition : Auths.Product.CeilingCount.Name),\n          (List.map Auths.Product.CeilingCount.Arrival.value\n                (List.filter\n                  (fun arrival =>\n                    decide (Auths.Product.CeilingCount.partitionValue arrival.facts.text bound.partition = partition))\n                  (Auths.Product.CeilingCount.admitAll counts arrivals).2)).sum ≤\n            bound.limit"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.CeilingCount",
+      "name": "Auths.Product.CeilingCount.scope_admits_only_listed",
+      "statement": "∀ {facts : Auths.Product.CeilingCount.Facts} {value : ℕ} {links : List Auths.Product.CeilingCount.Link}\n  {counts : Auths.Product.CeilingCount.CounterKey → ℕ},\n  Auths.Product.CeilingCount.chainAdmits facts value links counts = true →\n    ∀ {link : Auths.Product.CeilingCount.Link},\n      link ∈ links →\n        (∀ (scope : Auths.Product.CeilingCount.Values),\n            link.2.scope = some scope →\n              ∃ listedValue, facts.text scope.argument = some listedValue ∧ listedValue ∈ scope.values) ∧\n          ∀ (bound : Auths.Product.CeilingCount.SumBound) (partition : Auths.Product.CeilingCount.Values),\n            link.2.sum = some bound →\n              bound.partition = some partition →\n                ∃ listedValue, facts.text partition.argument = some listedValue ∧ listedValue ∈ partition.values"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.CeilingCount",
+      "name": "Auths.Product.CeilingCount.chain_counts_part",
+      "statement": "∀ (links : List Auths.Product.CeilingCount.Link) (counts : Auths.Product.CeilingCount.CounterKey → ℕ),\n  Auths.Product.CeilingCount.countsAdmit (List.map counts (Auths.Product.CeilingCount.countKeys links).dedup)\n        (List.map (Auths.Product.CeilingCount.countCapacity links) (Auths.Product.CeilingCount.countKeys links).dedup) =\n      true ↔\n    ∀ link ∈ links, counts (Auths.Product.CeilingCount.countKey link) < link.2.maxCount"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.CeilingCount",
+      "name": "Auths.Product.CeilingCount.chain_sums_part",
+      "statement": "∀ (text : Auths.Product.CeilingCount.Name → Option Auths.Product.CeilingCount.Name)\n  (links : List Auths.Product.CeilingCount.Link) (value : ℕ) (counts : Auths.Product.CeilingCount.CounterKey → ℕ),\n  Auths.Product.CeilingCount.sumsAdmit (List.map counts (Auths.Product.CeilingCount.sumKeys text links).dedup) value\n        (List.map (Auths.Product.CeilingCount.sumCapacity text links)\n          (Auths.Product.CeilingCount.sumKeys text links).dedup) =\n      true ↔\n    ∀ entry ∈ Auths.Product.CeilingCount.sumEntries text links, counts entry.1 + value ≤ entry.2"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.CeilingCount",
+      "name": "Auths.Product.CeilingCount.chain_admits_parts",
+      "statement": "∀ (facts : Auths.Product.CeilingCount.Facts) (value : ℕ) (links : List Auths.Product.CeilingCount.Link)\n  (counts : Auths.Product.CeilingCount.CounterKey → ℕ),\n  Auths.Product.CeilingCount.chainAdmits facts value links counts = true ↔\n    (∀ link ∈ links,\n        facts.argument link.2.argument = some value ∧\n          value ≤ link.2.ceiling ∧\n            Auths.Product.CeilingCount.scopeAdmits facts.text link.2.scope = true ∧\n              ∀ bound ∈ link.2.sum, Auths.Product.CeilingCount.partitionAdmits facts.text bound.partition = true) ∧\n      (∀ link ∈ links, counts (Auths.Product.CeilingCount.countKey link) < link.2.maxCount) ∧\n        ∀ entry ∈ Auths.Product.CeilingCount.sumEntries facts.text links, counts entry.1 + value ≤ entry.2"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Product.Recovery",
+      "name": "Auths.Product.Recovery.capability_total_deterministic",
+      "statement": "∀ (declarations : Auths.Product.Recovery.Declarations),\n  ∃! result, Auths.Product.Recovery.capability declarations = result ∧ result.writeIsConditional = false"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Recovery",
+      "name": "Auths.Product.Recovery.class_matches_declarations",
+      "statement": "∀ (declarations : Auths.Product.Recovery.Declarations),\n  ((Auths.Product.Recovery.capability declarations).recoveryClass = Auths.Product.Recovery.RecoveryClass.linked ↔\n      declarations.observation = Auths.Product.Recovery.Observation.verifiedLocator ∧ declarations.echo = true) ∧\n    ((Auths.Product.Recovery.capability declarations).recoveryClass =\n          Auths.Product.Recovery.RecoveryClass.linkedAfterResponse ↔\n        declarations.observation = Auths.Product.Recovery.Observation.responseLocator ∧ declarations.echo = true) ∧\n      ((Auths.Product.Recovery.capability declarations).recoveryClass = Auths.Product.Recovery.RecoveryClass.observed ↔\n          declarations.observation ≠ Auths.Product.Recovery.Observation.none ∧ declarations.echo = false) ∧\n        ((Auths.Product.Recovery.capability declarations).recoveryClass =\n              Auths.Product.Recovery.RecoveryClass.recorded ↔\n            declarations.observation = Auths.Product.Recovery.Observation.none) ∧\n          ((Auths.Product.Recovery.capability declarations).unknownResolution =\n                Auths.Product.Recovery.Resolution.gatewayReobservation ↔\n              (Auths.Product.Recovery.capability declarations).recoveryClass =\n                Auths.Product.Recovery.RecoveryClass.linked) ∧\n            (Auths.Product.Recovery.capability declarations).stateObservation = declarations.observation ∧\n              ((Auths.Product.Recovery.capability declarations).providerLink =\n                  if declarations.echo = true then declarations.observation\n                  else Auths.Product.Recovery.Observation.none) ∧\n                (Auths.Product.Recovery.capability declarations).lostClaimReentry = declarations.idempotency ∧\n                  (Auths.Product.Recovery.capability declarations).preEntryReread = declarations.preEntry"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Product.Recovery",
+      "name": "Auths.Product.Recovery.write_never_conditional",
+      "statement": "∀ (declarations : Auths.Product.Recovery.Declarations),\n  (Auths.Product.Recovery.capability declarations).writeIsConditional = false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Recovery",
+      "name": "Auths.Product.Recovery.unknown_resolves_only_linked",
+      "statement": "(∀ (old new : Auths.Product.Recovery.AttemptView),\n    Auths.Product.Recovery.validTransition old new = true →\n      old.stage = Auths.Product.Recovery.Stage.unknown →\n        new.stage = Auths.Product.Recovery.Stage.observedByProvider ∧\n          old.link = Auths.Product.Recovery.Link.verified ∧\n            new.link = Auths.Product.Recovery.Link.verified ∧ new.evidence = true) ∧\n  (∀ (views : List Auths.Product.Recovery.AttemptView),\n      Auths.Product.Recovery.validChain views →\n        ∀ (index : ℕ) (bound : index + 1 < views.length),\n          views[index].stage = Auths.Product.Recovery.Stage.unknown →\n            views[index + 1].stage = Auths.Product.Recovery.Stage.observedByProvider ∧\n              views[index + 1].link = Auths.Product.Recovery.Link.verified ∧ views[index + 1].evidence = true) ∧\n    ∀ (declarations : Auths.Product.Recovery.Declarations),\n      Auths.Product.Recovery.linkOf (Auths.Product.Recovery.capability declarations).providerLink =\n          Auths.Product.Recovery.Link.verified ↔\n        (Auths.Product.Recovery.capability declarations).recoveryClass = Auths.Product.Recovery.RecoveryClass.linked"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Recovery",
+      "name": "Auths.Product.Recovery.provider_claim_requires_evidence",
+      "statement": "(∀ (old new : Auths.Product.Recovery.AttemptView),\n    Auths.Product.Recovery.validTransition old new = true →\n      new.stage = Auths.Product.Recovery.Stage.observedByProvider →\n        new.evidence = true ∧\n          Auths.Product.Recovery.hasLink new.link = true ∧\n            new.link = old.link ∧\n              (old.stage = Auths.Product.Recovery.Stage.responseRecorded ∨\n                (old.stage = Auths.Product.Recovery.Stage.attempting ∨\n                    old.stage = Auths.Product.Recovery.Stage.unknown) ∧\n                  old.link = Auths.Product.Recovery.Link.verified)) ∧\n  ∀ (first : Auths.Product.Recovery.AttemptView) (rest : List Auths.Product.Recovery.AttemptView),\n    first.stage = Auths.Product.Recovery.Stage.attempting →\n      Auths.Product.Recovery.consistent first = true →\n        Auths.Product.Recovery.validChain (first :: rest) →\n          ∀ (index : ℕ) (bound : index < rest.length),\n            rest[index].stage = Auths.Product.Recovery.Stage.observedByProvider →\n              rest[index].evidence = true ∧\n                rest[index].link = first.link ∧\n                  Auths.Product.Recovery.hasLink first.link = true ∧\n                    ((first :: rest)[index].stage = Auths.Product.Recovery.Stage.responseRecorded ∨\n                      ((first :: rest)[index].stage = Auths.Product.Recovery.Stage.attempting ∨\n                          (first :: rest)[index].stage = Auths.Product.Recovery.Stage.unknown) ∧\n                        first.link = Auths.Product.Recovery.Link.verified)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Recovery",
+      "name": "Auths.Product.Recovery.terminal_stages_final",
+      "statement": "(∀ (stage : Auths.Product.Recovery.Stage),\n    Auths.Product.Recovery.terminalStage stage = true ↔\n      stage = Auths.Product.Recovery.Stage.notEntered ∨\n        stage = Auths.Product.Recovery.Stage.observed ∨ stage = Auths.Product.Recovery.Stage.observedByProvider) ∧\n  (∀ (old new : Auths.Product.Recovery.AttemptView),\n      Auths.Product.Recovery.terminalStage old.stage = true → Auths.Product.Recovery.validTransition old new = false) ∧\n    ∀ (views : List Auths.Product.Recovery.AttemptView),\n      Auths.Product.Recovery.validChain views →\n        ∀ (index : ℕ) (bound : index < views.length),\n          Auths.Product.Recovery.terminalStage views[index].stage = true → index + 1 = views.length"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Recovery",
+      "name": "Auths.Product.Recovery.transitions_preserve_identity",
+      "statement": "(∀ (old new : Auths.Product.Recovery.AttemptView),\n    Auths.Product.Recovery.consistent old = true →\n      Auths.Product.Recovery.validTransition old new = true → Auths.Product.Recovery.Keeps old new) ∧\n  ∀ (views : List Auths.Product.Recovery.AttemptView),\n    Auths.Product.Recovery.validChain views →\n      (∀ (bound : 0 < views.length), Auths.Product.Recovery.consistent views[0] = true) →\n        ∀ (earlier later : ℕ) (order : earlier ≤ later) (bound : later < views.length),\n          Auths.Product.Recovery.Keeps views[earlier] views[later]"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.SubmitOrder",
+      "name": "Auths.Product.SubmitOrder.lease_requires_verified_claim",
+      "statement": "∀ (plan : Auths.Product.SubmitOrder.Plan) (pre : List Auths.Product.SubmitOrder.Event)\n  (event : Auths.Product.SubmitOrder.Event) (mode : Auths.Product.SubmitOrder.Mode),\n  (Auths.Product.SubmitOrder.nextStep (Auths.Product.SubmitOrder.stateAfter plan pre) event).action =\n      Auths.Product.SubmitOrder.Action.lease mode →\n    event = Auths.Product.SubmitOrder.Event.reload true ∧\n      (Auths.Product.SubmitOrder.stateAfter plan pre).phase = Auths.Product.SubmitOrder.Phase.reload mode ∧\n        (∃ argument, Auths.Product.SubmitOrder.Verified (Auths.Product.SubmitOrder.steps plan pre) argument) ∧\n          (mode = Auths.Product.SubmitOrder.Mode.reobserve →\n              Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n                Auths.Product.SubmitOrder.Phase.claim\n                (Auths.Product.SubmitOrder.Event.claim Auths.Product.SubmitOrder.ClaimResult.replay)) ∧\n            (mode ≠ Auths.Product.SubmitOrder.Mode.reobserve →\n              Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n                Auths.Product.SubmitOrder.Phase.claim\n                (Auths.Product.SubmitOrder.Event.claim Auths.Product.SubmitOrder.ClaimResult.inserted))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.SubmitOrder",
+      "name": "Auths.Product.SubmitOrder.send_requires_lease_and_deadline",
+      "statement": "∀ (plan : Auths.Product.SubmitOrder.Plan) (pre : List Auths.Product.SubmitOrder.Event)\n  (event : Auths.Product.SubmitOrder.Event),\n  (Auths.Product.SubmitOrder.nextStep (Auths.Product.SubmitOrder.stateAfter plan pre) event).action =\n      Auths.Product.SubmitOrder.Action.send →\n    event = Auths.Product.SubmitOrder.Event.deadline true ∧\n      (Auths.Product.SubmitOrder.stateAfter plan pre).phase = Auths.Product.SubmitOrder.Phase.deadline ∧\n        (∃ argument, Auths.Product.SubmitOrder.Verified (Auths.Product.SubmitOrder.steps plan pre) argument) ∧\n          Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n              Auths.Product.SubmitOrder.Phase.claim\n              (Auths.Product.SubmitOrder.Event.claim Auths.Product.SubmitOrder.ClaimResult.inserted) ∧\n            Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n                (Auths.Product.SubmitOrder.Phase.lease Auths.Product.SubmitOrder.Mode.entry)\n                (Auths.Product.SubmitOrder.Event.lease true) ∧\n              (plan.preEntry = true →\n                  Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n                    Auths.Product.SubmitOrder.Phase.preEntry\n                    (Auths.Product.SubmitOrder.Event.preEntry Auths.Product.SubmitOrder.PreEntryResult.satisfied)) ∧\n                Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n                  Auths.Product.SubmitOrder.Phase.entryReload (Auths.Product.SubmitOrder.Event.reload true)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.SubmitOrder",
+      "name": "Auths.Product.SubmitOrder.send_requires_credential_checks",
+      "statement": "∀ (plan : Auths.Product.SubmitOrder.Plan) (pre : List Auths.Product.SubmitOrder.Event)\n  (event : Auths.Product.SubmitOrder.Event),\n  (Auths.Product.SubmitOrder.nextStep (Auths.Product.SubmitOrder.stateAfter plan pre) event).action =\n      Auths.Product.SubmitOrder.Action.send →\n    Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n        (Auths.Product.SubmitOrder.Phase.prefixGuard Auths.Product.SubmitOrder.Mode.entry)\n        (Auths.Product.SubmitOrder.Event.prefixGuard true) ∧\n      (plan.accountRead = true →\n          Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n            (Auths.Product.SubmitOrder.Phase.account Auths.Product.SubmitOrder.Mode.entry)\n            (Auths.Product.SubmitOrder.Event.account Auths.Product.SubmitOrder.AccountResult.equal)) ∧\n        ∀ index < plan.deniedReads,\n          Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n            (Auths.Product.SubmitOrder.Phase.denied Auths.Product.SubmitOrder.Mode.entry index)\n            (Auths.Product.SubmitOrder.Event.denied Auths.Product.SubmitOrder.DeniedResult.refused)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.SubmitOrder",
+      "name": "Auths.Product.SubmitOrder.send_requires_relative_ceiling",
+      "statement": "∀ (plan : Auths.Product.SubmitOrder.Plan) (pre : List Auths.Product.SubmitOrder.Event)\n  (event : Auths.Product.SubmitOrder.Event),\n  (Auths.Product.SubmitOrder.nextStep (Auths.Product.SubmitOrder.stateAfter plan pre) event).action =\n      Auths.Product.SubmitOrder.Action.send →\n    plan.relativeCeiling = true →\n      ∃ argument basis,\n        Auths.Product.SubmitOrder.Verified (Auths.Product.SubmitOrder.steps plan pre) argument ∧\n          (∀ (other : ℕ),\n              Auths.Product.SubmitOrder.Verified (Auths.Product.SubmitOrder.steps plan pre) other → other = argument) ∧\n            Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n                Auths.Product.SubmitOrder.Phase.ceiling\n                (Auths.Product.SubmitOrder.Event.ceiling (Auths.Product.SubmitOrder.CeilingRead.read basis true)) ∧\n              Auths.Product.RelativeCeiling.admits argument basis plan.basisPoints = true"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.SubmitOrder",
+      "name": "Auths.Product.SubmitOrder.account_scope_requires_binding",
+      "statement": "∀ (plan : Auths.Product.SubmitOrder.Plan) (pre : List Auths.Product.SubmitOrder.Event)\n  (event : Auths.Product.SubmitOrder.Event),\n  (Auths.Product.SubmitOrder.nextStep (Auths.Product.SubmitOrder.stateAfter plan pre) event).action =\n      Auths.Product.SubmitOrder.Action.claim →\n    plan.accountScope = true →\n      Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n          Auths.Product.SubmitOrder.Phase.scope (Auths.Product.SubmitOrder.Event.scope true) ∧\n        ∃ argument, Auths.Product.SubmitOrder.Verified (Auths.Product.SubmitOrder.steps plan pre) argument"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.SubmitOrder",
+      "name": "Auths.Product.SubmitOrder.at_most_one_send",
+      "statement": "∀ (plan : Auths.Product.SubmitOrder.Plan) (events : List Auths.Product.SubmitOrder.Event),\n  List.count Auths.Product.SubmitOrder.Action.send\n        (List.map Auths.Product.SubmitOrder.Step.action (Auths.Product.SubmitOrder.steps plan events)) ≤\n      1 ∧\n    (Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan events)\n        Auths.Product.SubmitOrder.Phase.claim\n        (Auths.Product.SubmitOrder.Event.claim Auths.Product.SubmitOrder.ClaimResult.replay) →\n      ¬Auths.Product.SubmitOrder.Emitted (Auths.Product.SubmitOrder.steps plan events)\n          Auths.Product.SubmitOrder.Action.send)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.SubmitOrder",
+      "name": "Auths.Product.SubmitOrder.pre_claim_refusal_stores_nothing",
+      "statement": "∀ (plan : Auths.Product.SubmitOrder.Plan) (pre : List Auths.Product.SubmitOrder.Event)\n  (event : Auths.Product.SubmitOrder.Event),\n  (Auths.Product.SubmitOrder.nextStep (Auths.Product.SubmitOrder.stateAfter plan pre) event).action =\n      Auths.Product.SubmitOrder.Action.stop Auths.Product.SubmitOrder.Stop.refused →\n    ∀ step ∈ Auths.Product.SubmitOrder.steps plan pre,\n      Auths.Product.SubmitOrder.preClaimAction step.action = true ∧\n        Auths.Product.SubmitOrder.writesStore step.action = false ∧\n          Auths.Product.SubmitOrder.leasesOrSends step.action = false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.SubmitOrder",
+      "name": "Auths.Product.SubmitOrder.not_entered_refusal_table",
+      "statement": "∀ (state : Auths.Product.SubmitOrder.State) (event : Auths.Product.SubmitOrder.Event)\n  (refusal : Auths.Product.SubmitOrder.Refusal),\n  (Auths.Product.SubmitOrder.nextStep state event).action = Auths.Product.SubmitOrder.Action.recordNotEntered refusal ↔\n    Auths.Product.SubmitOrder.refusalOf state event = some refusal"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.SubmitOrder",
+      "name": "Auths.Product.SubmitOrder.post_claim_refusal_records_not_entered",
+      "statement": "∀ (plan : Auths.Product.SubmitOrder.Plan) (pre : List Auths.Product.SubmitOrder.Event)\n  (event : Auths.Product.SubmitOrder.Event) (refusal : Auths.Product.SubmitOrder.Refusal),\n  ((Auths.Product.SubmitOrder.nextStep (Auths.Product.SubmitOrder.stateAfter plan pre) event).action =\n        Auths.Product.SubmitOrder.Action.recordNotEntered refusal ↔\n      Auths.Product.SubmitOrder.Answered (Auths.Product.SubmitOrder.steps plan pre)\n          Auths.Product.SubmitOrder.Phase.claim\n          (Auths.Product.SubmitOrder.Event.claim Auths.Product.SubmitOrder.ClaimResult.inserted) ∧\n        Auths.Product.SubmitOrder.refusalOf (Auths.Product.SubmitOrder.stateAfter plan pre) event = some refusal) ∧\n    ((Auths.Product.SubmitOrder.nextStep (Auths.Product.SubmitOrder.stateAfter plan pre) event).action =\n        Auths.Product.SubmitOrder.Action.recordNotEntered refusal →\n      (Auths.Product.SubmitOrder.nextStep (Auths.Product.SubmitOrder.stateAfter plan pre) event).state.phase =\n          Auths.Product.SubmitOrder.Phase.recordNotEntered ∧\n        (Auths.Product.SubmitOrder.Emitted (Auths.Product.SubmitOrder.steps plan pre)\n            Auths.Product.SubmitOrder.Action.send →\n          refusal = Auths.Product.SubmitOrder.Refusal.transportNotEntered))"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RelativeCeiling",
+      "name": "Auths.Product.RelativeCeiling.relative_ceiling_exact",
+      "statement": "∀ (argument basis basisPoints : ℕ),\n  Auths.Product.RelativeCeiling.admits argument basis basisPoints = true ↔\n    argument ≤ basis * basisPoints / Auths.Product.RelativeCeiling.basisPointsPerWhole"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RelativeCeiling",
+      "name": "Auths.Product.RelativeCeiling.relative_ceiling_never_exceeds_ratio",
+      "statement": "∀ (argument basis basisPoints : ℕ),\n  Auths.Product.RelativeCeiling.admits argument basis basisPoints = true →\n    argument * Auths.Product.RelativeCeiling.basisPointsPerWhole ≤ basis * basisPoints"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RelativeCeiling",
+      "name": "Auths.Product.RelativeCeiling.relative_ceiling_monotone",
+      "statement": "(∀ (argument argument' basis basis' basisPoints basisPoints' : ℕ),\n    argument' ≤ argument →\n      basis ≤ basis' →\n        basisPoints ≤ basisPoints' →\n          Auths.Product.RelativeCeiling.admits argument basis basisPoints = true →\n            Auths.Product.RelativeCeiling.admits argument' basis' basisPoints' = true) ∧\n  (∀ (argument basisPoints : ℕ), Auths.Product.RelativeCeiling.admits argument 0 basisPoints = true ↔ argument = 0) ∧\n    ∀ (argument basis : ℕ), Auths.Product.RelativeCeiling.admits argument basis 0 = true ↔ argument = 0"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RelativeCeiling",
+      "name": "Auths.Product.RelativeCeiling.relative_basis_never_negative",
+      "statement": "∀ (value : ℕ),\n  Auths.Product.RelativeCeiling.relativeBasis value none = some value ∧\n    (∀ (second basis : ℕ),\n        Auths.Product.RelativeCeiling.relativeBasis value (some second) = some basis ↔\n          second ≤ value ∧ basis + second = value) ∧\n      (∀ (second : ℕ), Auths.Product.RelativeCeiling.relativeBasis value (some second) = none ↔ value < second) ∧\n        ∀ (subtrahend : Option ℕ) (basis : ℕ),\n          Auths.Product.RelativeCeiling.relativeBasis value subtrahend = some basis → basis ≤ value"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RequestConstruction",
+      "name": "Auths.Product.RequestConstruction.method_and_origin_fixed",
+      "statement": "(∀ (plan : Auths.Product.RequestConstruction.WritePlan) (arguments : List Auths.Product.RequestConstruction.Arg)\n    (echo key : Auths.Product.RequestConstruction.Bytes) (request : Auths.Product.RequestConstruction.Request),\n    Auths.Product.RequestConstruction.constructWrite plan arguments echo key = Except.ok request →\n      request.method = plan.method ∧ plan.origin <+: request.url) ∧\n  ∀ (plan : Auths.Product.RequestConstruction.ReadPlan) (arguments : List Auths.Product.RequestConstruction.Arg)\n    (request : Auths.Product.RequestConstruction.Request),\n    Auths.Product.RequestConstruction.constructActionRead plan arguments = Except.ok request →\n      request.method = Auths.Product.RequestConstruction.Method.get ∧ plan.origin <+: request.url"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RequestConstruction",
+      "name": "Auths.Product.RequestConstruction.path_from_declared_segments",
+      "statement": "(∀ (plan : Auths.Product.RequestConstruction.WritePlan) (arguments : List Auths.Product.RequestConstruction.Arg)\n    (echo key : Auths.Product.RequestConstruction.Bytes) (request : Auths.Product.RequestConstruction.Request),\n    Auths.Product.RequestConstruction.constructWrite plan arguments echo key = Except.ok request →\n      request.url = plan.origin ++ Auths.Product.RequestConstruction.renderPath arguments plan.path ∧\n        ∀ segment ∈ plan.path,\n          match segment with\n          | Auths.Product.RequestConstruction.Segment.fixed value => True\n          | Auths.Product.RequestConstruction.Segment.field index =>\n            ∃ text,\n              arguments[index]? = some (Auths.Product.RequestConstruction.Arg.text text) ∧\n                Auths.Product.RequestConstruction.segmentValueValid text = true ∧\n                  Auths.Product.RequestConstruction.segmentBytes arguments segment =\n                    Auths.Product.RequestConstruction.pathEncode text) ∧\n  (∀ (plan : Auths.Product.RequestConstruction.ReadPlan) (arguments : List Auths.Product.RequestConstruction.Arg)\n      (request : Auths.Product.RequestConstruction.Request),\n      Auths.Product.RequestConstruction.constructActionRead plan arguments = Except.ok request →\n        request.url = plan.origin ++ Auths.Product.RequestConstruction.renderPath arguments plan.path) ∧\n    ∀ (text : Auths.Product.RequestConstruction.Bytes) (separator : ℕ),\n      separator = 47 ∨ separator = 63 ∨ separator = 35 → separator ∉ Auths.Product.RequestConstruction.pathEncode text"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RequestConstruction",
+      "name": "Auths.Product.RequestConstruction.headers_within_declaration",
+      "statement": "∀ (plan : Auths.Product.RequestConstruction.WritePlan) (arguments : List Auths.Product.RequestConstruction.Arg)\n  (echo key : Auths.Product.RequestConstruction.Bytes) (request : Auths.Product.RequestConstruction.Request),\n  Auths.Product.RequestConstruction.constructWrite plan arguments echo key = Except.ok request →\n    ∀ header ∈ request.headers,\n      header ∈ plan.headers.versions ∨\n        (∃ scope, plan.headers.scope = some scope ∧ header.name = scope.name) ∨\n          ∃ «name», plan.idempotency = some «name» ∧ header = { «name» := «name», value := key }"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RequestConstruction",
+      "name": "Auths.Product.RequestConstruction.account_scope_header_exact",
+      "statement": "(∀ (plan : Auths.Product.RequestConstruction.WritePlan) (arguments : List Auths.Product.RequestConstruction.Arg)\n    (echo key : Auths.Product.RequestConstruction.Bytes) (request : Auths.Product.RequestConstruction.Request)\n    (scope : Auths.Product.RequestConstruction.ScopePlan),\n    Auths.Product.RequestConstruction.constructWrite plan arguments echo key = Except.ok request →\n      plan.headers.scope = some scope →\n        ∃ value,\n          arguments[scope.field]? = some (Auths.Product.RequestConstruction.Arg.text value) ∧\n            Auths.Product.RequestConstruction.scopeValueValid value = true ∧\n              { «name» := scope.name, value := value } ∈ request.headers) ∧\n  (∀ (plan : Auths.Product.RequestConstruction.ReadPlan) (arguments : List Auths.Product.RequestConstruction.Arg)\n      (request : Auths.Product.RequestConstruction.Request) (scope : Auths.Product.RequestConstruction.ScopePlan),\n      Auths.Product.RequestConstruction.constructActionRead plan arguments = Except.ok request →\n        plan.headers.scope = some scope →\n          ∃ value,\n            arguments[scope.field]? = some (Auths.Product.RequestConstruction.Arg.text value) ∧\n              Auths.Product.RequestConstruction.scopeValueValid value = true ∧\n                request.headers = plan.headers.versions ++ [{ «name» := scope.name, value := value }]) ∧\n    (∀ (plan : Auths.Product.RequestConstruction.CredentialPlan),\n        (Auths.Product.RequestConstruction.constructCredentialRead plan).headers = plan.versions) ∧\n      (∀ (plan : Auths.Product.RequestConstruction.WritePlan) (arguments : List Auths.Product.RequestConstruction.Arg)\n          (echo key : Auths.Product.RequestConstruction.Bytes) (request : Auths.Product.RequestConstruction.Request),\n          Auths.Product.RequestConstruction.constructWrite plan arguments echo key = Except.ok request →\n            plan.headers.scope = none →\n              request.headers = Auths.Product.RequestConstruction.writeHeaders plan plan.headers.versions key) ∧\n        ∀ (plan : Auths.Product.RequestConstruction.ReadPlan) (arguments : List Auths.Product.RequestConstruction.Arg)\n          (request : Auths.Product.RequestConstruction.Request),\n          Auths.Product.RequestConstruction.constructActionRead plan arguments = Except.ok request →\n            plan.headers.scope = none → request.headers = plan.headers.versions"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Product.RequestConstruction",
+      "name": "Auths.Product.RequestConstruction.credential_reads_fixed",
+      "statement": "∀ (plan : Auths.Product.RequestConstruction.CredentialPlan),\n  (Auths.Product.RequestConstruction.constructCredentialRead plan).method = plan.method ∧\n    (Auths.Product.RequestConstruction.constructCredentialRead plan).url =\n        plan.origin ++ List.flatMap (fun segment => 47 :: segment) plan.path ∧\n      (Auths.Product.RequestConstruction.constructCredentialRead plan).headers = plan.versions ∧\n        (Auths.Product.RequestConstruction.constructCredentialRead plan).body = [] ∧\n          (plan.method = Auths.Product.RequestConstruction.Method.get ∨\n              plan.method = Auths.Product.RequestConstruction.Method.head →\n            (Auths.Product.RequestConstruction.constructCredentialRead plan).method =\n                Auths.Product.RequestConstruction.Method.get ∨\n              (Auths.Product.RequestConstruction.constructCredentialRead plan).method =\n                Auths.Product.RequestConstruction.Method.head)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.RequestConstruction",
+      "name": "Auths.Product.RequestConstruction.body_bounded",
+      "statement": "(∀ (plan : Auths.Product.RequestConstruction.WritePlan) (arguments : List Auths.Product.RequestConstruction.Arg)\n    (echo key : Auths.Product.RequestConstruction.Bytes) (request : Auths.Product.RequestConstruction.Request),\n    Auths.Product.RequestConstruction.constructWrite plan arguments echo key = Except.ok request →\n      0 < List.length request.body ∧\n        List.length request.body ≤ Auths.Product.RequestConstruction.maxBodyBytes ∧\n          request.body = Auths.Product.RequestConstruction.renderBody arguments echo plan.body) ∧\n  ∀ (plan : Auths.Product.RequestConstruction.BodyPlan) (echo : Auths.Product.RequestConstruction.Bytes)\n    (left right : List Auths.Product.RequestConstruction.Arg),\n    (∀ index ∈ Auths.Product.RequestConstruction.bodyFields plan, left[index]? = right[index]?) →\n      Auths.Product.RequestConstruction.renderBody left echo plan =\n        Auths.Product.RequestConstruction.renderBody right echo plan"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement.Gateway",
+      "name": "Auths.Product.Refinement.Gateway.translated_start_refines_model",
+      "statement": "∀ (plan : auths_gateway_kernel.order.SubmitPlan),\n  ∃ state,\n    auths_gateway_kernel.order.start plan = Aeneas.Std.Result.ok state ∧\n      Auths.Product.Refinement.Gateway.stateOf state =\n        Auths.Product.SubmitOrder.start (Auths.Product.Refinement.Gateway.planOf plan)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement.Gateway",
+      "name": "Auths.Product.Refinement.Gateway.translated_recovery_capability_refines_model",
+      "statement": "∀ (declarations : auths_gateway_kernel.recovery.RecoveryDeclarations),\n  Aeneas.Std.WP.spec (auths_gateway_kernel.recovery.recovery_capability declarations) fun capability =>\n    Auths.Product.Refinement.Gateway.capabilityOf capability =\n      Auths.Product.Recovery.capability (Auths.Product.Refinement.Gateway.declarationsOf declarations)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement.Gateway",
+      "name": "Auths.Product.Refinement.Gateway.translated_construct_write_refines_model",
+      "statement": "∀ (plan : auths_gateway_kernel.construct.WritePlan)\n  (arguments : Aeneas.Std.Slice auths_gateway_kernel.construct.ArgumentValue)\n  (echo key : Aeneas.Std.Slice Aeneas.Std.U8),\n  Auths.Product.Refinement.Gateway.WriteFits plan arguments echo key →\n    Aeneas.Std.WP.spec (auths_gateway_kernel.construct.construct_write plan arguments echo key) fun result =>\n      Auths.Product.Refinement.Gateway.resultOf Auths.Product.Refinement.Gateway.requestOf result =\n        Auths.Product.RequestConstruction.constructWrite (Auths.Product.Refinement.Gateway.writePlanOf plan)\n          (Auths.Product.Refinement.Gateway.argsOf arguments) (Auths.Product.Refinement.Gateway.byteList ↑echo)\n          (Auths.Product.Refinement.Gateway.byteList ↑key)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement.Gateway",
+      "name": "Auths.Product.Refinement.Gateway.translated_construct_action_read_refines_model",
+      "statement": "∀ (plan : auths_gateway_kernel.construct.ActionReadPlan)\n  (arguments : Aeneas.Std.Slice auths_gateway_kernel.construct.ArgumentValue),\n  Auths.Product.Refinement.Gateway.ReadFits plan arguments →\n    Aeneas.Std.WP.spec (auths_gateway_kernel.construct.construct_action_read plan arguments) fun result =>\n      Auths.Product.Refinement.Gateway.resultOf Auths.Product.Refinement.Gateway.requestOf result =\n        Auths.Product.RequestConstruction.constructActionRead (Auths.Product.Refinement.Gateway.readPlanOf plan)\n          (Auths.Product.Refinement.Gateway.argsOf arguments)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement.Gateway",
+      "name": "Auths.Product.Refinement.Gateway.translated_construct_credential_read_refines_model",
+      "statement": "∀ (plan : auths_gateway_kernel.construct.CredentialReadPlan),\n  Auths.Product.Refinement.Gateway.CredentialFits plan →\n    Aeneas.Std.WP.spec (auths_gateway_kernel.construct.construct_credential_read plan) fun request =>\n      Auths.Product.Refinement.Gateway.requestOf request =\n        Auths.Product.RequestConstruction.constructCredentialRead\n          (Auths.Product.Refinement.Gateway.credentialPlanOf plan)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement.Gateway",
+      "name": "Auths.Product.Refinement.Gateway.translated_next_step_refines_model",
+      "statement": "∀ (state : auths_gateway_kernel.order.SubmitState) (event : auths_gateway_kernel.order.SubmitEvent),\n  Aeneas.Std.WP.spec (auths_gateway_kernel.order.next_step state event) fun decision =>\n    Auths.Product.Refinement.Gateway.decisionOf decision =\n      Auths.Product.SubmitOrder.nextStep (Auths.Product.Refinement.Gateway.stateOf state)\n        (Auths.Product.Refinement.Gateway.eventOf event)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement.Gateway",
+      "name": "Auths.Product.Refinement.Gateway.translated_valid_transition_refines_model",
+      "statement": "∀ (old new : auths_gateway_kernel.transition.AttemptView),\n  Aeneas.Std.WP.spec (auths_gateway_kernel.transition.valid_transition old new) fun valid =>\n    valid =\n      Auths.Product.Recovery.validTransition (Auths.Product.Refinement.Gateway.viewOf old)\n        (Auths.Product.Refinement.Gateway.viewOf new)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement.Gateway",
+      "name": "Auths.Product.Refinement.Gateway.translated_relative_basis_refines_model",
+      "statement": "∀ (value : Aeneas.Std.U64) (subtrahend : Option Aeneas.Std.U64),\n  Aeneas.Std.WP.spec (auths_gateway_kernel.ratio.relative_basis value subtrahend) fun basis =>\n    Option.map (fun x => ↑x) basis =\n      Auths.Product.RelativeCeiling.relativeBasis (↑value) (Option.map (fun x => ↑x) subtrahend)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement.Gateway",
+      "name": "Auths.Product.Refinement.Gateway.translated_relative_ceiling_admits_refines_model",
+      "statement": "∀ (argument basis : Aeneas.Std.U64) (basisPoints : Aeneas.Std.U16),\n  Aeneas.Std.WP.spec (auths_gateway_kernel.ratio.relative_ceiling_admits argument basis basisPoints) fun admitted =>\n    admitted = Auths.Product.RelativeCeiling.admits ↑argument ↑basis ↑basisPoints"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionGenerations",
+      "name": "Auths.Product.ConnectionGenerations.retained_generation_exact",
+      "statement": "∀ (record : ℕ) (stored : List ℕ) (result : ℕ),\n  Auths.Product.ConnectionGenerations.retainedGeneration record stored = some result ↔\n    result ∈ stored ∧ result ≤ record ∧ ∀ x ∈ stored, x ≤ record → x ≤ result"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionGenerations",
+      "name": "Auths.Product.ConnectionGenerations.lease_generation_exact",
+      "statement": "∀ (record credential : ℕ) (stored : List ℕ) (result : ℕ),\n  Auths.Product.ConnectionGenerations.leaseGeneration record credential stored = some result ↔\n    result = credential ∧ credential ∈ stored ∧ credential ≤ record ∧ ∀ x ∈ stored, x ≤ record → x ≤ credential"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionGenerations",
+      "name": "Auths.Product.ConnectionGenerations.credential_generation_le_generation",
+      "statement": "∀ {σ : Auths.Product.ConnectionGenerations.System},\n  Auths.Product.ConnectionGenerations.Reachable σ →\n    σ.record.generations.credentialGeneration ≤ σ.record.generations.generation"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionGenerations",
+      "name": "Auths.Product.ConnectionGenerations.state_change_preserves_credential_generation",
+      "statement": "(∀ (current next : Auths.Product.ConnectionGenerations.Generations),\n    Auths.Product.ConnectionGenerations.stateChange current = some next →\n      next.generation = current.generation + 1 ∧ next.credentialGeneration = current.credentialGeneration) ∧\n  ∀ (σ : Auths.Product.ConnectionGenerations.System) (change : Auths.Product.ConnectionGenerations.StateChange),\n    ∃ generation state,\n      ((Auths.Product.ConnectionGenerations.step σ change.event).record =\n          have __src := σ.record;\n          {\n            generations :=\n              have __src := σ.record.generations;\n              { generation := generation, credentialGeneration := __src.credentialGeneration },\n            state := state, secret := __src.secret }) ∧\n        (Auths.Product.ConnectionGenerations.step σ change.event).stores = σ.stores ∧\n          (generation = σ.record.generations.generation ∨ generation = σ.record.generations.generation + 1)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionGenerations",
+      "name": "Auths.Product.ConnectionGenerations.lease_selects_credential_generation",
+      "statement": "∀ {σ : Auths.Product.ConnectionGenerations.System},\n  Auths.Product.ConnectionGenerations.Reachable σ →\n    ∀ (host selected : ℕ),\n      Auths.Product.ConnectionGenerations.lease σ.record (σ.stores host) = some selected ↔\n        σ.record.state ≠ Auths.Product.ConnectionGenerations.ConnectionState.revoked ∧\n          selected = σ.record.generations.credentialGeneration ∧\n            (σ.record.generations.credentialGeneration, σ.record.secret) ∈ σ.stores host"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionGenerations",
+      "name": "Auths.Product.ConnectionGenerations.join_after_state_changes",
+      "statement": "∀ {σ : Auths.Product.ConnectionGenerations.System},\n  Auths.Product.ConnectionGenerations.Reachable σ →\n    σ.record.state ≠ Auths.Product.ConnectionGenerations.ConnectionState.revoked →\n      ∀ (changes : List Auths.Product.ConnectionGenerations.StateChange) (host : ℕ),\n        Auths.Product.ConnectionGenerations.lease\n            (Auths.Product.ConnectionGenerations.step (Auths.Product.ConnectionGenerations.applyChanges σ changes)\n                (Auths.Product.ConnectionGenerations.Event.join host σ.record.secret)).record\n            ((Auths.Product.ConnectionGenerations.step (Auths.Product.ConnectionGenerations.applyChanges σ changes)\n                  (Auths.Product.ConnectionGenerations.Event.join host σ.record.secret)).stores\n              host) =\n          some σ.record.generations.credentialGeneration"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.ConnectionGenerations",
+      "name": "Auths.Product.ConnectionGenerations.revoked_never_leases",
+      "statement": "∀ {σ : Auths.Product.ConnectionGenerations.System},\n  σ.record.state = Auths.Product.ConnectionGenerations.ConnectionState.revoked →\n    ∀ (events : List Auths.Product.ConnectionGenerations.Event) (host : ℕ),\n      Auths.Product.ConnectionGenerations.lease (Auths.Product.ConnectionGenerations.run σ events).record\n          ((Auths.Product.ConnectionGenerations.run σ events).stores host) =\n        none"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement.Connections",
+      "name": "Auths.Product.Refinement.Connections.translated_next_generation_refines_model",
+      "statement": "∀ (generation : Aeneas.Std.U64),\n  Aeneas.Std.WP.spec (auths_connections.kernel.next_generation generation) fun next =>\n    Option.map (fun x => ↑x) next = Auths.Product.ConnectionGenerations.nextGeneration ↑generation"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement.Connections",
+      "name": "Auths.Product.Refinement.Connections.translated_state_change_refines_model",
+      "statement": "∀ (current : auths_connections.kernel.Generations),\n  Aeneas.Std.WP.spec (auths_connections.kernel.state_change current) fun next =>\n    Option.map Auths.Product.Refinement.Connections.generationsOf next =\n      Auths.Product.ConnectionGenerations.stateChange (Auths.Product.Refinement.Connections.generationsOf current)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement.Connections",
+      "name": "Auths.Product.Refinement.Connections.translated_rotation_refines_model",
+      "statement": "∀ (current : auths_connections.kernel.Generations),\n  Aeneas.Std.WP.spec (auths_connections.kernel.rotation current) fun next =>\n    Option.map Auths.Product.Refinement.Connections.generationsOf next =\n      Auths.Product.ConnectionGenerations.rotation (Auths.Product.Refinement.Connections.generationsOf current)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement.Connections",
+      "name": "Auths.Product.Refinement.Connections.translated_retained_generation_refines_model",
+      "statement": "∀ (record : Aeneas.Std.U64) (stored : Aeneas.Std.Slice Aeneas.Std.U64),\n  Aeneas.Std.WP.spec (auths_connections.kernel.retained_generation record stored) fun result =>\n    Option.map (fun x => ↑x) result =\n      Auths.Product.ConnectionGenerations.retainedGeneration (↑record) (List.map (fun x => ↑x) ↑stored)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Product.Refinement.Connections",
+      "name": "Auths.Product.Refinement.Connections.translated_lease_generation_refines_model",
+      "statement": "∀ (record credential : Aeneas.Std.U64) (stored : Aeneas.Std.Slice Aeneas.Std.U64),\n  Aeneas.Std.WP.spec (auths_connections.kernel.lease_generation record credential stored) fun result =>\n    Option.map (fun x => ↑x) result =\n      Auths.Product.ConnectionGenerations.leaseGeneration (↑record) (↑credential) (List.map (fun x => ↑x) ↑stored)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Lifecycle.Theorems",
+      "name": "Auths.Lifecycle.additive_capacity_success_positive",
+      "statement": "∀ {ceiling committed active requested : ℕ},\n  Auths.Lifecycle.additiveCapacityAvailable ceiling committed active requested = true → 0 < ceiling ∧ 0 < requested"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Lifecycle.Theorems",
+      "name": "Auths.Lifecycle.additive_capacity_success_conserves",
+      "statement": "∀ {ceiling committed active requested : ℕ},\n  Auths.Lifecycle.additiveCapacityAvailable ceiling committed active requested = true →\n    committed + active + requested ≤ ceiling"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Lifecycle.Theorems",
+      "name": "Auths.Lifecycle.additive_capacity_success_never_overflows_u64",
+      "statement": "∀ {ceiling committed active requested : ℕ},\n  Auths.Lifecycle.additiveCapacityAvailable ceiling committed active requested = true →\n    committed + active ≤ Auths.Lifecycle.u64Max ∧ committed + active + requested ≤ Auths.Lifecycle.u64Max"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Lifecycle.Theorems",
+      "name": "Auths.Lifecycle.reserve_preserves_capacity",
+      "statement": "∀ {ledger next : Auths.Lifecycle.CapacityLedger} {requested : ℕ},\n  ledger.valid → ledger.reserve requested = some next → next.valid"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Lifecycle.Theorems",
+      "name": "Auths.Lifecycle.commit_preserves_capacity",
+      "statement": "∀ {ledger next : Auths.Lifecycle.CapacityLedger} {amount : ℕ},\n  ledger.valid → ledger.commit amount = some next → next.valid"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Lifecycle.Theorems",
+      "name": "Auths.Lifecycle.release_preserves_capacity",
+      "statement": "∀ {ledger next : Auths.Lifecycle.CapacityLedger} {amount : ℕ},\n  ledger.valid → ledger.release amount = some next → next.valid"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Lifecycle.Theorems",
+      "name": "Auths.Lifecycle.exact_replay_is_stable",
+      "statement": "Auths.Lifecycle.replayCode true true = Auths.Lifecycle.ReplayCode.exactReplay"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Lifecycle.Theorems",
+      "name": "Auths.Lifecycle.conflicting_replay_is_not_exact",
+      "statement": "Auths.Lifecycle.replayCode true false = Auths.Lifecycle.ReplayCode.conflict"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Lifecycle.Theorems",
+      "name": "Auths.Lifecycle.absent_replay_never_claims_effect",
+      "statement": "∀ (commitmentsEqual : Bool), Auths.Lifecycle.replayCode false commitmentsEqual = Auths.Lifecycle.ReplayCode.absent"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Lifecycle.Theorems",
+      "name": "Auths.Lifecycle.start_attempt_requires_credential",
+      "statement": "∀ {gates : Auths.Lifecycle.Gates},\n  Auths.Lifecycle.transitionCode (some Auths.Lifecycle.State.executionIntentRecorded)\n        Auths.Lifecycle.Operation.startAttempt gates =\n      Auths.Lifecycle.Code.applied Auths.Lifecycle.State.executing →\n    gates.credentialAuthorized = true"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Lifecycle.Theorems",
+      "name": "Auths.Lifecycle.provider_call_requires_attempt",
+      "statement": "∀ {gates : Auths.Lifecycle.Gates},\n  Auths.Lifecycle.transitionCode (some Auths.Lifecycle.State.executing)\n        Auths.Lifecycle.Operation.markProviderCallEntered gates =\n      Auths.Lifecycle.Code.applied Auths.Lifecycle.State.executing →\n    gates.attemptPresent = true"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Lifecycle.Theorems",
+      "name": "Auths.Lifecycle.commit_requires_provider_entry_and_effect",
+      "statement": "∀ {gates : Auths.Lifecycle.Gates},\n  Auths.Lifecycle.transitionCode (some Auths.Lifecycle.State.executing) Auths.Lifecycle.Operation.commit gates =\n      Auths.Lifecycle.Code.applied Auths.Lifecycle.State.committed →\n    gates.attemptPresent = true ∧ gates.providerCallEntered = true ∧ gates.definiteEffect = true"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Lifecycle.Theorems",
+      "name": "Auths.Lifecycle.outcome_unknown_cannot_release",
+      "statement": "∀ (gates : Auths.Lifecycle.Gates),\n  Auths.Lifecycle.transitionCode (some Auths.Lifecycle.State.outcomeUnknown) Auths.Lifecycle.Operation.release gates =\n    Auths.Lifecycle.Code.illegalTransition"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Lifecycle.Theorems",
+      "name": "Auths.Lifecycle.outcome_unknown_only_reconciliation_can_terminate",
+      "statement": "∀ {operation : Auths.Lifecycle.Operation} {gates : Auths.Lifecycle.Gates} {terminal : Auths.Lifecycle.State},\n  terminal = Auths.Lifecycle.State.reconciledCommitted ∨ terminal = Auths.Lifecycle.State.reconciledReleased →\n    Auths.Lifecycle.transitionCode (some Auths.Lifecycle.State.outcomeUnknown) operation gates =\n        Auths.Lifecycle.Code.applied terminal →\n      operation = Auths.Lifecycle.Operation.reconcileEffect ∨ operation = Auths.Lifecycle.Operation.reconcileNonEffect"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Lifecycle.Theorems",
+      "name": "Auths.Lifecycle.configuration_mismatch_stops_reservation",
+      "statement": "∀ (gates : Auths.Lifecycle.Gates),\n  gates.configurationMatches = false →\n    Auths.Lifecycle.transitionCode (some Auths.Lifecycle.State.decisionRecorded) Auths.Lifecycle.Operation.reserve\n        gates =\n      Auths.Lifecycle.Code.configurationMismatch"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Lifecycle.Theorems",
+      "name": "Auths.Lifecycle.configuration_mismatch_stops_credential",
+      "statement": "∀ (gates : Auths.Lifecycle.Gates),\n  gates.configurationMatches = false →\n    Auths.Lifecycle.transitionCode (some Auths.Lifecycle.State.executionIntentRecorded)\n        Auths.Lifecycle.Operation.authorizeCredential gates =\n      Auths.Lifecycle.Code.configurationMismatch"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Lifecycle.Theorems",
+      "name": "Auths.Lifecycle.terminal_states_never_transition",
+      "statement": "∀ (state : Auths.Lifecycle.State) (operation : Auths.Lifecycle.Operation) (gates : Auths.Lifecycle.Gates),\n  state.isTerminal = true → Auths.Lifecycle.transitionCode (some state) operation gates = Auths.Lifecycle.Code.terminal"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Lifecycle.Refinement",
+      "name": "Auths.Lifecycle.Refinement.translated_terminal_refines_rich",
+      "statement": "∀ (state : Auths.Lifecycle.State),\n  (Auths.Lifecycle.Refinement.generatedState state).is_terminal = Aeneas.Std.Result.ok state.isTerminal"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Lifecycle.Refinement",
+      "name": "Auths.Lifecycle.Refinement.translated_transition_refines_rich",
+      "statement": "∀ (current : Option Auths.Lifecycle.State) (operation : Auths.Lifecycle.Operation) (gates : Auths.Lifecycle.Gates),\n  auths_lifecycle.kernel.transition_code (Option.map Auths.Lifecycle.Refinement.generatedState current)\n      (Auths.Lifecycle.Refinement.generatedOperation operation) (Auths.Lifecycle.Refinement.generatedGates gates) =\n    Aeneas.Std.Result.ok\n      (Auths.Lifecycle.Refinement.generatedCode (Auths.Lifecycle.transitionCode current operation gates))"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Lifecycle.Refinement",
+      "name": "Auths.Lifecycle.Refinement.translated_exclusive_capacity_refines_rich",
+      "statement": "∀ (hasLiveOwner ownerIsExactReplay : Bool),\n  auths_lifecycle.kernel.exclusive_capacity_available hasLiveOwner ownerIsExactReplay =\n    Aeneas.Std.Result.ok (Auths.Lifecycle.exclusiveCapacityAvailable hasLiveOwner ownerIsExactReplay)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Lifecycle.Refinement",
+      "name": "Auths.Lifecycle.Refinement.translated_additive_capacity_refines_rich",
+      "statement": "∀ (ceiling committed active requested : Aeneas.Std.U64),\n  auths_lifecycle.kernel.additive_capacity_available ceiling committed active requested =\n    Aeneas.Std.Result.ok (Auths.Lifecycle.additiveCapacityAvailable ↑ceiling ↑committed ↑active ↑requested)"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Lifecycle.Refinement",
+      "name": "Auths.Lifecycle.Refinement.translated_replay_refines_rich",
+      "statement": "∀ (recordExists commitmentsEqual : Bool),\n  auths_lifecycle.kernel.replay_code recordExists commitmentsEqual =\n    Aeneas.Std.Result.ok\n      (Auths.Lifecycle.Refinement.generatedReplayCode (Auths.Lifecycle.replayCode recordExists commitmentsEqual))"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition",
+      "name": "Auths.all_commutative",
+      "statement": "∀ (left right : Auths.Truth), Auths.all left right = Auths.all right left"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition",
+      "name": "Auths.all_associative",
+      "statement": "∀ (a b c : Auths.Truth), Auths.all (Auths.all a b) c = Auths.all a (Auths.all b c)"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition",
+      "name": "Auths.all_idempotent",
+      "statement": "∀ (value : Auths.Truth), Auths.all value value = value"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition",
+      "name": "Auths.any_commutative",
+      "statement": "∀ (left right : Auths.Truth), Auths.any left right = Auths.any right left"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition",
+      "name": "Auths.any_associative",
+      "statement": "∀ (a b c : Auths.Truth), Auths.any (Auths.any a b) c = Auths.any a (Auths.any b c)"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition",
+      "name": "Auths.any_idempotent",
+      "statement": "∀ (value : Auths.Truth), Auths.any value value = value"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition",
+      "name": "Auths.threshold_one_eq_any",
+      "statement": "∀ (left right : Auths.Truth), Auths.thresholdTwo 1 left right = Auths.any left right"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition",
+      "name": "Auths.threshold_n_eq_all",
+      "statement": "∀ (left right : Auths.Truth), Auths.thresholdTwo 2 left right = Auths.all left right"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition",
+      "name": "Auths.threshold_monotone_k",
+      "statement": "∀ (left right : Auths.Truth), (Auths.thresholdTwo 2 left right).le (Auths.thresholdTwo 1 left right)"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition",
+      "name": "Auths.threshold_zero_authorized",
+      "statement": "∀ (left right : Auths.Truth), Auths.thresholdTwo 0 left right = Auths.Generated.Truth.authorized"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition",
+      "name": "Auths.threshold_above_inputs_denied",
+      "statement": "∀ {k : ℕ}, 3 ≤ k → ∀ (left right : Auths.Truth), Auths.thresholdTwo k left right = Auths.Generated.Truth.denied"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition",
+      "name": "Auths.threshold_antitone_k",
+      "statement": "∀ {k₁ k₂ : ℕ},\n  k₁ ≤ k₂ → ∀ (left right : Auths.Truth), (Auths.thresholdTwo k₂ left right).le (Auths.thresholdTwo k₁ left right)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition",
+      "name": "Auths.thresholdCounts_antitone_required",
+      "statement": "∀ {k₁ k₂ a i : ℕ}, k₁ ≤ k₂ → Auths.Truth.le (Auths.thresholdCounts k₂ a i) (Auths.thresholdCounts k₁ a i)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition",
+      "name": "Auths.thresholdTwo_eq_thresholdCounts",
+      "statement": "∀ (k : ℕ) (left right : Auths.Truth),\n  Auths.thresholdTwo k left right =\n    Auths.thresholdCounts k (List.countP (fun x => x == Auths.Generated.Truth.authorized) [left, right])\n      (List.countP (fun x => x == Auths.Generated.Truth.indeterminate) [left, right])"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition",
+      "name": "Auths.binary_composition_swap_invariant",
+      "statement": "∀ (left right : Auths.Truth), Auths.all left right = Auths.all right left ∧ Auths.any left right = Auths.any right left"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition",
+      "name": "Auths.canonical_diagnostic_permutation_invariant",
+      "statement": "∀ (left right : ℕ), Auths.canonicalCode left right = Auths.canonicalCode right left"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition",
+      "name": "Auths.plan_visit_is_leaf_enumeration",
+      "statement": "∀ (plan : Auths.Plan), plan.visit = plan.leaves"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition",
+      "name": "Auths.plan_cost_is_node_count",
+      "statement": "∀ (plan : Auths.Plan), plan.cost = plan.nodes"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Composition",
+      "name": "Auths.authorized_implies_threshold_met",
+      "statement": "∀ {k authorized indeterminate : ℕ},\n  Auths.thresholdCounts k authorized indeterminate = Auths.Generated.Truth.authorized → k ≤ authorized"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition",
+      "name": "Auths.denied_implies_threshold_impossible",
+      "statement": "∀ {k authorized indeterminate : ℕ},\n  Auths.thresholdCounts k authorized indeterminate = Auths.Generated.Truth.denied → authorized + indeterminate < k"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Composition",
+      "name": "Auths.indeterminate_implies_threshold_reachable",
+      "statement": "∀ {k authorized indeterminate : ℕ},\n  Auths.thresholdCounts k authorized indeterminate = Auths.Generated.Truth.indeterminate →\n    authorized < k ∧ k ≤ authorized + indeterminate"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Observation",
+      "name": "Auths.Observation.requirements_monotone",
+      "statement": "∀ {env : Auths.Observation.Environment} {observations : List Auths.Observation.ObservationRecord}\n  {parent child : List Auths.Observation.Requirement},\n  (∀ requirement ∈ parent, requirement ∈ child) →\n    Auths.Observation.authorized env observations child = true →\n      Auths.Observation.authorized env observations parent = true"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Observation",
+      "name": "Auths.Observation.conditions_monotone",
+      "statement": "∀ {env : Auths.Observation.Environment} {observations : List Auths.Observation.ObservationRecord}\n  {requirement : Auths.Observation.Requirement} {conditions : List Auths.Observation.Condition},\n  (∀ condition ∈ requirement.conditions, condition ∈ conditions) →\n    Auths.Observation.satisfied env observations\n          { observerAnchor := requirement.observerAnchor, schema := requirement.schema, subject := requirement.subject,\n            maxAge := requirement.maxAge, conditions := conditions } =\n        true →\n      Auths.Observation.satisfied env observations requirement = true"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Observation",
+      "name": "Auths.Observation.child_requirements_superset_attenuates",
+      "statement": "∀ {parentBase childBase : Auths.Observation.Environment → Bool} {parent child : List Auths.Observation.Requirement},\n  (∀ (env : Auths.Observation.Environment), childBase env = true → parentBase env = true) →\n    (∀ requirement ∈ parent, requirement ∈ child) →\n      ∀ {env : Auths.Observation.Environment} {observations : List Auths.Observation.ObservationRecord},\n        Auths.Observation.chainAuthorized childBase child env observations = true →\n          Auths.Observation.chainAuthorized parentBase parent env observations = true"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Observation",
+      "name": "Auths.Observation.satisfied_monotone_observations",
+      "statement": "∀ {env : Auths.Observation.Environment} {fewer more : List Auths.Observation.ObservationRecord}\n  {requirement : Auths.Observation.Requirement},\n  (∀ observation ∈ fewer, observation ∈ more) →\n    Auths.Observation.satisfied env fewer requirement = true → Auths.Observation.satisfied env more requirement = true"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Observation",
+      "name": "Auths.Observation.no_observation_satisfies_nothing",
+      "statement": "∀ (env : Auths.Observation.Environment) (requirement : Auths.Observation.Requirement),\n  Auths.Observation.satisfied env [] requirement = false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Observation",
+      "name": "Auths.Observation.future_observation_never_fresh",
+      "statement": "∀ {now maxAge notBefore expiresAt observedAt : ℕ},\n  now < observedAt → Auths.Observation.fresh now maxAge notBefore expiresAt observedAt = false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Observation",
+      "name": "Auths.Observation.stale_observation_never_fresh",
+      "statement": "∀ {now maxAge notBefore expiresAt observedAt : ℕ},\n  maxAge < now - observedAt → Auths.Observation.fresh now maxAge notBefore expiresAt observedAt = false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Observation",
+      "name": "Auths.Observation.satisfied_requires_action_facts",
+      "statement": "∀ {env : Auths.Observation.Environment} {observations : List Auths.Observation.ObservationRecord}\n  {requirement : Auths.Observation.Requirement},\n  Auths.Observation.satisfied env observations requirement = true →\n    Auths.Observation.actionFactsAvailable env requirement = true"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Observation",
+      "name": "Auths.Observation.decision_satisfied_iff",
+      "statement": "∀ (env : Auths.Observation.Environment) (observations : List Auths.Observation.ObservationRecord)\n  (requirement : Auths.Observation.Requirement),\n  Auths.Observation.requirementDecision env observations requirement = Auths.Observation.Decision.satisfied ↔\n    Auths.Observation.satisfied env observations requirement = true"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Observation",
+      "name": "Auths.Observation.decision_denied_has_falsifying_observation",
+      "statement": "∀ {env : Auths.Observation.Environment} {observations : List Auths.Observation.ObservationRecord}\n  {requirement : Auths.Observation.Requirement},\n  Auths.Observation.requirementDecision env observations requirement = Auths.Observation.Decision.denied →\n    (∃ observation ∈ observations, Auths.Observation.eligible env requirement observation = true) ∧\n      ∀ observation ∈ observations,\n        Auths.Observation.eligible env requirement observation = true →\n          Auths.Observation.conditionsHold env observation requirement.conditions = false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Observation",
+      "name": "Auths.Observation.fresh_monotone_max_age",
+      "statement": "∀ {now shorter longer notBefore expiresAt observedAt : ℕ},\n  shorter ≤ longer →\n    Auths.Observation.fresh now shorter notBefore expiresAt observedAt = true →\n      Auths.Observation.fresh now longer notBefore expiresAt observedAt = true"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Observation",
+      "name": "Auths.Observation.narrows_monotone",
+      "statement": "∀ {env : Auths.Observation.Environment} {observations : List Auths.Observation.ObservationRecord}\n  {child parent : Auths.Observation.Requirement},\n  Auths.Observation.narrows child parent →\n    Auths.Observation.satisfied env observations child = true →\n      Auths.Observation.satisfied env observations parent = true"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Observation",
+      "name": "Auths.Observation.covers_monotone",
+      "statement": "∀ {env : Auths.Observation.Environment} {observations : List Auths.Observation.ObservationRecord}\n  {child parent : Auths.Observation.Requirement},\n  Auths.Observation.covers child parent →\n    Auths.Observation.satisfied env observations child = true →\n      Auths.Observation.satisfied env observations parent = true"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Observation",
+      "name": "Auths.Observation.covers_trans",
+      "statement": "∀ {child middle parent : Auths.Observation.Requirement},\n  Auths.Observation.covers child middle → Auths.Observation.covers middle parent → Auths.Observation.covers child parent"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Observation",
+      "name": "Auths.Observation.requirements_attenuate_refl",
+      "statement": "∀ (requirements : List Auths.Observation.Requirement), Auths.Observation.requirementsAttenuate requirements requirements"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Observation",
+      "name": "Auths.Observation.requirements_attenuate_trans",
+      "statement": "∀ {child middle parent : List Auths.Observation.Requirement},\n  Auths.Observation.requirementsAttenuate child middle →\n    Auths.Observation.requirementsAttenuate middle parent → Auths.Observation.requirementsAttenuate child parent"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Observation",
+      "name": "Auths.Observation.requirements_attenuate_monotone",
+      "statement": "∀ {env : Auths.Observation.Environment} {observations : List Auths.Observation.ObservationRecord}\n  {child parent : List Auths.Observation.Requirement},\n  Auths.Observation.requirementsAttenuate child parent →\n    Auths.Observation.authorized env observations child = true →\n      Auths.Observation.authorized env observations parent = true"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Observation",
+      "name": "Auths.Observation.observation_requirement_law_lawful",
+      "statement": "Auths.Observation.observationRequirementLaw.Lawful"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Observation",
+      "name": "Auths.Observation.observation_requirement_law_accepts_addition",
+      "statement": "∀ (requirements : List Auths.Observation.Requirement),\n  Auths.Observation.observationRequirementLaw.attenuates (some requirements) none"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.ExtensionLaw",
+      "name": "Auths.exact_marker_law_lawful",
+      "statement": "∀ (Body : Type u) (World : Type w), (Auths.exactMarkerLaw Body World).Lawful"
+    },
+    {
+      "axioms": [
+        "propext"
+      ],
+      "kind": "theorem",
+      "module": "Auths.ExtensionLaw",
+      "name": "Auths.exact_marker_law_refuses_addition",
+      "statement": "∀ (Body : Type u) (World : Type w) (body : Body), ¬(Auths.exactMarkerLaw Body World).attenuates (some body) none"
+    },
+    {
+      "axioms": [],
+      "kind": "theorem",
+      "module": "Auths.Rich.Semantics",
+      "name": "Auths.Rich.ExtensionLawsNarrow.of_lawful",
+      "statement": "∀ {v : Auths.Rich.Vocabulary} [inst : Auths.Rich.ExtensionLaws v],\n  (∀ (id : v.ExtensionIdCarrier), (Auths.Rich.extensionLawAt v id).Lawful) → Auths.Rich.ExtensionLawsNarrow v"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_fact_name_equal_refines_model",
+      "statement": "∀ (left right : String),\n  Auths.Refinement.StringBounded left →\n    Auths.Refinement.StringBounded right →\n      auths_model.observation.fact_name_equal left right = Aeneas.Std.Result.ok (left == right)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_observation_fresh_refines_model",
+      "statement": "∀ (observedAt evaluationTime maxAge notBefore expiresAt : Aeneas.Std.U64),\n  auths_model.observation.observation_fresh observedAt evaluationTime maxAge notBefore expiresAt =\n    Aeneas.Std.Result.ok (Auths.Observation.fresh ↑evaluationTime ↑maxAge ↑notBefore ↑expiresAt ↑observedAt)"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_observation_subject_equal_refines_model",
+      "statement": "∀ (expected observed : auths_model.ResourceId),\n  Auths.Refinement.StringBounded expected →\n    Auths.Refinement.StringBounded observed →\n      auths_model.observation.observation_subject_equal expected observed =\n        Aeneas.Std.Result.ok (decide (expected = observed))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_fact_value_equal_refines_model",
+      "statement": "∀ (left right : auths_model.observation.FactValue),\n  Auths.Refinement.Observation.FactValueValid left →\n    Auths.Refinement.Observation.FactValueValid right →\n      auths_model.observation.fact_value_equal left right =\n        Aeneas.Std.Result.ok\n          (decide (Auths.Refinement.Observation.factValue left = Auths.Refinement.Observation.factValue right))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_uint_range_contains_refines_model",
+      "statement": "∀ (lo hi value : Aeneas.Std.U64) (factName : String) (actionFact : String → Option Auths.Observation.FactValue),\n  auths_model.observation.uint_range_contains lo hi value =\n    Aeneas.Std.Result.ok\n      (Auths.Observation.valueHolds actionFact (some (Auths.Observation.FactValue.uint ↑value))\n        (Auths.Observation.Condition.uintRange factName ↑lo ↑hi))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_member_values_contain_refines_model",
+      "statement": "∀ (values : auths_model.observation.MemberValues) (value : auths_model.observation.FactValue),\n  (∀ member ∈ ↑values, Auths.Refinement.Observation.FactValueValid member) →\n    Auths.Refinement.Observation.FactValueValid value →\n      ∀ (factName : String) (actionFact : String → Option Auths.Observation.FactValue),\n        auths_model.observation.member_values_contain values value =\n          Aeneas.Std.Result.ok\n            (Auths.Observation.valueHolds actionFact (some (Auths.Refinement.Observation.factValue value))\n              (Auths.Observation.Condition.member factName (List.map Auths.Refinement.Observation.factValue ↑values)))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_observation_fact_refines_model",
+      "statement": "∀ (facts : auths_model.observation.ObservationFacts) (factName : String),\n  Auths.Refinement.Observation.FactsValid facts →\n    Auths.Refinement.StringBounded factName →\n      ∃ result,\n        auths_model.observation.observation_fact facts factName = Aeneas.Std.Result.ok result ∧\n          Option.map Auths.Refinement.Observation.factValue result =\n            Auths.Observation.lookupFact (Auths.Refinement.Observation.factsOf facts) factName"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_condition_value_holds_refines_model",
+      "statement": "∀ (test : auths_model.observation.ConditionTest) (observed actionValue : Option auths_model.observation.FactValue),\n  Auths.Refinement.Observation.TestValid test →\n    Auths.Refinement.Observation.OptionValid observed →\n      Auths.Refinement.Observation.OptionValid actionValue →\n        ∀ (factName : String),\n          auths_model.observation.condition_value_holds test observed actionValue =\n            Aeneas.Std.Result.ok\n              (Auths.Observation.valueHolds (fun x => Option.map Auths.Refinement.Observation.factValue actionValue)\n                (Option.map Auths.Refinement.Observation.factValue observed)\n                (Auths.Refinement.Observation.conditionOf factName test))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_observation_condition_holds_refines_model",
+      "statement": "∀ (value : auths_model.observation.ObservationCondition) (actionValue : Option auths_model.observation.FactValue)\n  (facts : auths_model.observation.ObservationFacts),\n  Auths.Refinement.Observation.ConditionValid value →\n    Auths.Refinement.Observation.OptionValid actionValue →\n      Auths.Refinement.Observation.FactsValid facts →\n        auths_model.observation.observation_condition_holds value actionValue facts =\n          Aeneas.Std.Result.ok\n            (Auths.Observation.valueHolds (fun x => Option.map Auths.Refinement.Observation.factValue actionValue)\n              (Auths.Observation.lookupFact (Auths.Refinement.Observation.factsOf facts) value.name)\n              (Auths.Refinement.Observation.condition value))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_observation_conditions_hold_refines_model",
+      "statement": "∀ (conditions : Aeneas.Std.Slice auths_model.observation.ObservationCondition)\n  (actionValues : Aeneas.Std.Slice (Option auths_model.observation.FactValue))\n  (facts : auths_model.observation.ObservationFacts),\n  (∀ value ∈ ↑conditions, Auths.Refinement.Observation.ConditionValid value) →\n    (∀ value ∈ ↑actionValues, Auths.Refinement.Observation.OptionValid value) →\n      Auths.Refinement.Observation.FactsValid facts →\n        auths_model.observation.observation_conditions_hold conditions actionValues facts =\n          Aeneas.Std.Result.ok\n            (decide ((↑conditions).length = (↑actionValues).length) &&\n              ((↑conditions).zip ↑actionValues).all fun pair =>\n                Auths.Observation.valueHolds (fun x => Option.map Auths.Refinement.Observation.factValue pair.2)\n                  (Auths.Observation.lookupFact (Auths.Refinement.Observation.factsOf facts) pair.1.name)\n                  (Auths.Refinement.Observation.condition pair.1))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_observation_conditions_length_mismatch_fails_closed",
+      "statement": "∀ (conditions : Aeneas.Std.Slice auths_model.observation.ObservationCondition)\n  (actionValues : Aeneas.Std.Slice (Option auths_model.observation.FactValue))\n  (facts : auths_model.observation.ObservationFacts),\n  (↑conditions).length ≠ (↑actionValues).length →\n    auths_model.observation.observation_conditions_hold conditions actionValues facts = Aeneas.Std.Result.ok false"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_observation_conditions_hold_refines_conditions_hold",
+      "statement": "∀ (env : Auths.Observation.Environment) (observation : Auths.Observation.ObservationRecord)\n  (conditions : Aeneas.Std.Slice auths_model.observation.ObservationCondition)\n  (actionValues : Aeneas.Std.Slice (Option auths_model.observation.FactValue))\n  (facts : auths_model.observation.ObservationFacts),\n  (∀ value ∈ ↑conditions, Auths.Refinement.Observation.ConditionValid value) →\n    (∀ value ∈ ↑actionValues, Auths.Refinement.Observation.OptionValid value) →\n      Auths.Refinement.Observation.FactsValid facts →\n        observation.facts = Auths.Refinement.Observation.factsOf facts →\n          (↑conditions).length = (↑actionValues).length →\n            Auths.Refinement.Observation.ActionValuesMatch env ↑conditions ↑actionValues →\n              auths_model.observation.observation_conditions_hold conditions actionValues facts =\n                Aeneas.Std.Result.ok\n                  (Auths.Observation.conditionsHold env observation\n                    (List.map Auths.Refinement.Observation.condition ↑conditions))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_requirement_verdict_refines_model",
+      "statement": "∀ (anyEligible anySatisfying : Bool),\n  ∃ verdict,\n    auths_model.observation.requirement_verdict anyEligible anySatisfying = Aeneas.Std.Result.ok verdict ∧\n      Auths.Refinement.Observation.decisionOf verdict =\n        if anySatisfying = true then Auths.Observation.Decision.satisfied\n        else if anyEligible = true then Auths.Observation.Decision.denied else Auths.Observation.Decision.indeterminate"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_requirement_verdict_refines_requirement_decision",
+      "statement": "∀ (env : Auths.Observation.Environment) (observations : List Auths.Observation.ObservationRecord)\n  (requirement : Auths.Observation.Requirement),\n  Auths.Observation.actionFactsAvailable env requirement = true →\n    ∃ verdict,\n      auths_model.observation.requirement_verdict (observations.any (Auths.Observation.eligible env requirement))\n            (Auths.Observation.satisfied env observations requirement) =\n          Aeneas.Std.Result.ok verdict ∧\n        Auths.Refinement.Observation.decisionOf verdict =\n          Auths.Observation.requirementDecision env observations requirement"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_observer_anchor_id_equal_refines_model",
+      "statement": "∀ (left right : auths_model.observation.ObserverAnchorId),\n  Auths.Refinement.StringBounded left →\n    Auths.Refinement.StringBounded right →\n      auths_model.observation.observer_anchor_id_equal left right = Aeneas.Std.Result.ok (decide (left = right))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_observation_schema_equal_refines_model",
+      "statement": "∀ (left right : auths_model.observation.ObservationSchemaId),\n  Auths.Refinement.StringBounded left →\n    Auths.Refinement.StringBounded right →\n      auths_model.observation.observation_schema_equal left right = Aeneas.Std.Result.ok (decide (left = right))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_requirement_subject_equal_refines_model",
+      "statement": "∀ (left right : auths_model.observation.ObservationSubject),\n  Auths.Refinement.Observation.SubjectValid left →\n    Auths.Refinement.Observation.SubjectValid right →\n      auths_model.observation.requirement_subject_equal left right =\n        Aeneas.Std.Result.ok\n          (decide (Auths.Refinement.Observation.subjectOf left = Auths.Refinement.Observation.subjectOf right))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_member_values_equal_refines_model",
+      "statement": "∀ (left right : auths_model.observation.MemberValues),\n  (∀ value ∈ ↑left, Auths.Refinement.Observation.FactValueValid value) →\n    (∀ value ∈ ↑right, Auths.Refinement.Observation.FactValueValid value) →\n      auths_model.observation.member_values_equal left right =\n        Aeneas.Std.Result.ok\n          (decide\n            (List.map Auths.Refinement.Observation.factValue ↑left =\n              List.map Auths.Refinement.Observation.factValue ↑right))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_condition_test_equal_refines_model",
+      "statement": "∀ (left right : auths_model.observation.ConditionTest),\n  Auths.Refinement.Observation.TestComparable left →\n    Auths.Refinement.Observation.TestComparable right →\n      ∀ (factName : String),\n        auths_model.observation.condition_test_equal left right =\n          Aeneas.Std.Result.ok\n            (decide\n              (Auths.Refinement.Observation.conditionOf factName left =\n                Auths.Refinement.Observation.conditionOf factName right))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_observation_condition_equal_refines_model",
+      "statement": "∀ (left right : auths_model.observation.ObservationCondition),\n  Auths.Refinement.Observation.ConditionComparable left →\n    Auths.Refinement.Observation.ConditionComparable right →\n      auths_model.observation.observation_condition_equal left right =\n        Aeneas.Std.Result.ok\n          (decide (Auths.Refinement.Observation.condition left = Auths.Refinement.Observation.condition right))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_observation_conditions_contain_refines_model",
+      "statement": "∀ (conditions : Aeneas.Std.Slice auths_model.observation.ObservationCondition)\n  (value : auths_model.observation.ObservationCondition),\n  (∀ member ∈ ↑conditions, Auths.Refinement.Observation.ConditionComparable member) →\n    Auths.Refinement.Observation.ConditionComparable value →\n      auths_model.observation.observation_conditions_contain conditions value =\n        Aeneas.Std.Result.ok\n          (decide\n            (Auths.Refinement.Observation.condition value ∈\n              List.map Auths.Refinement.Observation.condition ↑conditions))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_observation_conditions_include_refines_model",
+      "statement": "∀ (narrower wider : Aeneas.Std.Slice auths_model.observation.ObservationCondition),\n  (∀ member ∈ ↑narrower, Auths.Refinement.Observation.ConditionComparable member) →\n    (∀ member ∈ ↑wider, Auths.Refinement.Observation.ConditionComparable member) →\n      auths_model.observation.observation_conditions_include narrower wider =\n        Aeneas.Std.Result.ok\n          (decide\n            (∀ value ∈ List.map Auths.Refinement.Observation.condition ↑wider,\n              value ∈ List.map Auths.Refinement.Observation.condition ↑narrower))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_observation_conditions_equal_refines_model",
+      "statement": "∀ (left right : Aeneas.Std.Slice auths_model.observation.ObservationCondition),\n  (∀ member ∈ ↑left, Auths.Refinement.Observation.ConditionComparable member) →\n    (∀ member ∈ ↑right, Auths.Refinement.Observation.ConditionComparable member) →\n      auths_model.observation.observation_conditions_equal left right =\n        Aeneas.Std.Result.ok\n          (decide\n            (List.map Auths.Refinement.Observation.condition ↑left =\n              List.map Auths.Refinement.Observation.condition ↑right))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_observation_requirement_same_target_refines_model",
+      "statement": "∀ (child parent : auths_model.observation.ObservationRequirement),\n  Auths.Refinement.Observation.RequirementValid child →\n    Auths.Refinement.Observation.RequirementValid parent →\n      auths_model.observation.observation_requirement_same_target child parent =\n        Aeneas.Std.Result.ok\n          (decide\n            (Auths.Observation.sameTarget (Auths.Refinement.Observation.requirementOf child)\n              (Auths.Refinement.Observation.requirementOf parent)))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_observation_requirement_equal_refines_model",
+      "statement": "∀ (child parent : auths_model.observation.ObservationRequirement),\n  Auths.Refinement.Observation.RequirementValid child →\n    Auths.Refinement.Observation.RequirementValid parent →\n      auths_model.observation.observation_requirement_equal child parent =\n        Aeneas.Std.Result.ok\n          (decide\n            (Auths.Refinement.Observation.requirementOf child = Auths.Refinement.Observation.requirementOf parent))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_observation_requirement_narrows_refines_model",
+      "statement": "∀ (child parent : auths_model.observation.ObservationRequirement),\n  Auths.Refinement.Observation.RequirementValid child →\n    Auths.Refinement.Observation.RequirementValid parent →\n      auths_model.observation.observation_requirement_narrows child parent =\n        Aeneas.Std.Result.ok\n          (decide\n            (Auths.Observation.narrows (Auths.Refinement.Observation.requirementOf child)\n              (Auths.Refinement.Observation.requirementOf parent)))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_observation_requirement_covers_refines_model",
+      "statement": "∀ (child parent : auths_model.observation.ObservationRequirement),\n  Auths.Refinement.Observation.RequirementValid child →\n    Auths.Refinement.Observation.RequirementValid parent →\n      auths_model.observation.observation_requirement_covers child parent =\n        Aeneas.Std.Result.ok\n          (decide\n            (Auths.Observation.covers (Auths.Refinement.Observation.requirementOf child)\n              (Auths.Refinement.Observation.requirementOf parent)))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_observation_requirement_retained_refines_model",
+      "statement": "∀ (child : auths_model.observation.ObservationRequirements) (parent : auths_model.observation.ObservationRequirement),\n  (∀ requirement ∈ ↑child, Auths.Refinement.Observation.RequirementValid requirement) →\n    Auths.Refinement.Observation.RequirementValid parent →\n      auths_model.observation.observation_requirement_retained child parent =\n        Aeneas.Std.Result.ok\n          (decide\n            (∃ candidate ∈ List.map Auths.Refinement.Observation.requirementOf ↑child,\n              Auths.Observation.covers candidate (Auths.Refinement.Observation.requirementOf parent)))"
+    },
+    {
+      "axioms": [
+        "propext",
+        "Classical.choice",
+        "Quot.sound"
+      ],
+      "kind": "theorem",
+      "module": "Auths.Refinement.Observation",
+      "name": "Auths.Refinement.Observation.translated_observation_requirements_attenuate_refines_model",
+      "statement": "∀ (child parent : auths_model.observation.ObservationRequirements),\n  (∀ requirement ∈ ↑child, Auths.Refinement.Observation.RequirementValid requirement) →\n    (∀ requirement ∈ ↑parent, Auths.Refinement.Observation.RequirementValid requirement) →\n      auths_model.observation.observation_requirements_attenuate child parent =\n        Aeneas.Std.Result.ok\n          (decide\n            (Auths.Observation.requirementsAttenuate (List.map Auths.Refinement.Observation.requirementOf ↑child)\n              (List.map Auths.Refinement.Observation.requirementOf ↑parent)))"
+    }
+  ],
+  "schema": "auths-proof-lean-assurance-audit/v1"
+}

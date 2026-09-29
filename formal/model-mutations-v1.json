@@ -1,0 +1,4127 @@
+{
+  "schema": "auths-proof-model-mutations/v1",
+  "tool_version": "1",
+  "campaigns": {
+    "s1": {
+      "formal_inputs_sha256": "1d9790549bb97e8f9ce7af130bd90443f1fd641e6c5e541728ce2f49ed606048",
+      "mutants": [
+        {
+          "id": "validity-start-direction",
+          "file": "formal/Auths/Rich/Semantics.lean",
+          "definition": "windowContained",
+          "operator": "Reverse the inclusive lower-bound comparison.",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 2046,
+            "column": 56,
+            "declaration": "richWindow_contained_iff"
+          },
+          "caught": "witness"
+        },
+        {
+          "id": "validity-end-direction",
+          "file": "formal/Auths/Rich/Semantics.lean",
+          "definition": "windowContained",
+          "operator": "Reverse the inclusive upper-bound comparison.",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 2046,
+            "column": 56,
+            "declaration": "richWindow_contained_iff"
+          },
+          "caught": "witness"
+        },
+        {
+          "id": "permission-subset-direction",
+          "file": "formal/Auths/Rich/Semantics.lean",
+          "definition": "evaluateAuthorScope",
+          "operator": "Reverse child and parent in permission subset evaluation.",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Mutations.lean",
+            "line": 168,
+            "column": 28,
+            "declaration": "permission_subset_direction"
+          },
+          "caught": "witness"
+        },
+        {
+          "id": "audience-subset-direction",
+          "file": "formal/Auths/Rich/Semantics.lean",
+          "definition": "evaluateAuthorScope",
+          "operator": "Reverse child and parent in audience subset evaluation.",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Mutations.lean",
+            "line": 174,
+            "column": 28,
+            "declaration": "audience_subset_direction"
+          },
+          "caught": "witness"
+        },
+        {
+          "id": "permission-membership-decision",
+          "file": "formal/Auths/Rich/Semantics.lean",
+          "definition": "evaluateCoverage",
+          "operator": "Negate permission membership.",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Mutations.lean",
+            "line": 178,
+            "column": 39,
+            "declaration": "permission_membership_decision"
+          },
+          "caught": "witness"
+        },
+        {
+          "id": "audience-membership-decision",
+          "file": "formal/Auths/Rich/Semantics.lean",
+          "definition": "evaluateCoverage",
+          "operator": "Negate audience membership.",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Mutations.lean",
+            "line": 178,
+            "column": 39,
+            "declaration": "permission_membership_decision"
+          },
+          "caught": "witness"
+        },
+        {
+          "id": "body-digest-membership-decision",
+          "file": "formal/Auths/Rich/Semantics.lean",
+          "definition": "actionConstraintAllows",
+          "operator": "Negate body-digest membership.",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Mutations.lean",
+            "line": 189,
+            "column": 50,
+            "declaration": "body_digest_membership_decision"
+          },
+          "caught": "witness"
+        },
+        {
+          "id": "body-digest-subset-direction",
+          "file": "formal/Auths/Rich/Semantics.lean",
+          "definition": "actionConstraintLe",
+          "operator": "Reverse child and parent in body-digest subset evaluation.",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Mutations.lean",
+            "line": 195,
+            "column": 28,
+            "declaration": "body_digest_subset_direction"
+          },
+          "caught": "witness"
+        },
+        {
+          "id": "action-exact-equality",
+          "file": "formal/Auths/Rich/Semantics.lean",
+          "definition": "actionConstraintAllows",
+          "operator": "Accept a different digest for an exact-body constraint.",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Mutations.lean",
+            "line": 204,
+            "column": 48,
+            "declaration": "action_exact_equality"
+          },
+          "caught": "witness"
+        },
+        {
+          "id": "action-constructor-fallback",
+          "file": "formal/Auths/Rich/Semantics.lean",
+          "definition": "actionConstraintLe",
+          "operator": "Accept a multi-digest allowed-body set beneath an exact-body parent.",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Mutations.lean",
+            "line": 210,
+            "column": 41,
+            "declaration": "action_constructor_fallback"
+          },
+          "caught": "witness"
+        },
+        {
+          "id": "action-singleton-exact-rejection",
+          "file": "formal/Auths/Rich/Semantics.lean",
+          "definition": "actionConstraintLe",
+          "operator": "Reject a singleton allowed-body set beneath its equivalent exact-body parent.",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 1734,
+            "column": 42,
+            "declaration": "action_constraint_attenuates_spec"
+          },
+          "caught": "witness"
+        },
+        {
+          "id": "budget-value-direction",
+          "file": "formal/Auths/Rich/Semantics.lean",
+          "definition": "budgetLe",
+          "operator": "Reverse the numeric budget ceiling comparison.",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Mutations.lean",
+            "line": 232,
+            "column": 34,
+            "declaration": "budget_value_direction"
+          },
+          "caught": "witness"
+        },
+        {
+          "id": "budget-algebra-equality",
+          "file": "formal/Auths/Rich/Semantics.lean",
+          "definition": "budgetLe",
+          "operator": "Ignore the budget algebra identifier.",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Mutations.lean",
+            "line": 240,
+            "column": 34,
+            "declaration": "budget_algebra_equality"
+          },
+          "caught": "witness"
+        },
+        {
+          "id": "optional-budget-bounded-parent",
+          "file": "formal/Auths/Rich/Semantics.lean",
+          "definition": "budgetLe",
+          "operator": "Allow an unbounded child beneath a bounded parent.",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Mutations.lean",
+            "line": 248,
+            "column": 34,
+            "declaration": "optional_budget_bounded_parent"
+          },
+          "caught": "witness"
+        },
+        {
+          "id": "optional-budget-no-request",
+          "file": "formal/Auths/Rich/Semantics.lean",
+          "definition": "budgetCovers",
+          "operator": "Treat a missing action budget request as vacuously covered by a bounded ceiling.",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Semantics.lean",
+            "line": 92,
+            "column": 77,
+            "declaration": "budgetCoversAction_expressible_absent_bounded"
+          },
+          "caught": "elsewhere"
+        },
+        {
+          "id": "status-age-direction",
+          "file": "formal/Auths/Rich/Semantics.lean",
+          "definition": "statusLe",
+          "operator": "Reverse the maximum status age comparison.",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Mutations.lean",
+            "line": 277,
+            "column": 34,
+            "declaration": "status_age_direction"
+          },
+          "caught": "witness"
+        },
+        {
+          "id": "status-method-equality",
+          "file": "formal/Auths/Rich/Semantics.lean",
+          "definition": "statusLe",
+          "operator": "Ignore the status method identifier.",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Mutations.lean",
+            "line": 285,
+            "column": 34,
+            "declaration": "status_method_equality"
+          },
+          "caught": "witness"
+        },
+        {
+          "id": "profile-version-equality",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "profile_ref_equal",
+          "operator": "Ignore the profile version.",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 508,
+            "column": 34,
+            "declaration": "profile_ref_equal_spec"
+          },
+          "caught": "witness"
+        },
+        {
+          "id": "assurance-equality",
+          "file": "formal/Auths/Rich/Semantics.lean",
+          "definition": "evaluateAuthorScope",
+          "operator": "Treat distinct assurance policy identifiers as equal.",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Mutations.lean",
+            "line": 293,
+            "column": 31,
+            "declaration": "assurance_equality"
+          },
+          "caught": "witness"
+        },
+        {
+          "id": "critical-extension-law",
+          "file": "formal/Auths/Rich/Semantics.lean",
+          "definition": "extensionRetained",
+          "operator": "Accept a child critical extension without applying its identifier's attenuation law.",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Mutations.lean",
+            "line": 332,
+            "column": 38,
+            "declaration": "critical_extension_law"
+          },
+          "caught": "witness"
+        },
+        {
+          "id": "delegation-depth-strictness",
+          "file": "formal/Auths/Rich/Semantics.lean",
+          "definition": "scopeDepthChecks",
+          "operator": "Accept equal parent and child delegation depth.",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Mutations.lean",
+            "line": 267,
+            "column": 56,
+            "declaration": "delegation_depth_strictness"
+          },
+          "caught": "witness"
+        },
+        {
+          "id": "principal-linkage-equality",
+          "file": "formal/Auths/Rich/Semantics.lean",
+          "definition": "rootPreserved",
+          "operator": "Treat distinct principals using the same DID method as equal.",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Mutations.lean",
+            "line": 315,
+            "column": 48,
+            "declaration": "principal_linkage_equality"
+          },
+          "caught": "witness"
+        },
+        {
+          "id": "grant-linkage-equality",
+          "file": "formal/Auths/Rich/Semantics.lean",
+          "definition": "linked",
+          "operator": "Treat any two present grant identifiers as equal.",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Mutations.lean",
+            "line": 322,
+            "column": 53,
+            "declaration": "grant_linkage_equality"
+          },
+          "caught": "witness"
+        }
+      ]
+    },
+    "s2": {
+      "formal_inputs_sha256": "1d9790549bb97e8f9ce7af130bd90443f1fd641e6c5e541728ce2f49ed606048",
+      "mutants": [
+        {
+          "id": "Observation:93:42",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "valueHolds",
+          "operator": "≤→<",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 276,
+            "column": 2,
+            "declaration": "translated_uint_range_contains_refines_model"
+          }
+        },
+        {
+          "id": "Observation:93:51",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "valueHolds",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 276,
+            "column": 2,
+            "declaration": "translated_uint_range_contains_refines_model"
+          }
+        },
+        {
+          "id": "Observation:93:68",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "valueHolds",
+          "operator": "≤→<",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 276,
+            "column": 2,
+            "declaration": "translated_uint_range_contains_refines_model"
+          }
+        },
+        {
+          "id": "Observation:119:22",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "fresh",
+          "operator": "≤→<",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 197,
+            "column": 6,
+            "declaration": "translated_observation_fresh_refines_model"
+          }
+        },
+        {
+          "id": "Observation:119:29",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "fresh",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Observation.lean",
+            "line": 234,
+            "column": 2,
+            "declaration": "future_observation_never_fresh"
+          }
+        },
+        {
+          "id": "Observation:119:57",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "fresh",
+          "operator": "≤→<",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 197,
+            "column": 6,
+            "declaration": "translated_observation_fresh_refines_model"
+          }
+        },
+        {
+          "id": "Observation:119:67",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "fresh",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Observation.lean",
+            "line": 234,
+            "column": 2,
+            "declaration": "future_observation_never_fresh"
+          }
+        },
+        {
+          "id": "Observation:120:23",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "fresh",
+          "operator": "≤→<",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 197,
+            "column": 6,
+            "declaration": "translated_observation_fresh_refines_model"
+          }
+        },
+        {
+          "id": "Observation:120:37",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "fresh",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Observation.lean",
+            "line": 234,
+            "column": 2,
+            "declaration": "future_observation_never_fresh"
+          }
+        },
+        {
+          "id": "Observation:120:59",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "fresh",
+          "operator": "≤→<",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 197,
+            "column": 6,
+            "declaration": "translated_observation_fresh_refines_model"
+          }
+        },
+        {
+          "id": "Observation:130:56",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "eligible",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Observation.lean",
+            "line": 259,
+            "column": 10,
+            "declaration": "satisfied_requires_action_facts"
+          }
+        },
+        {
+          "id": "Observation:131:56",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "eligible",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Observation.lean",
+            "line": 259,
+            "column": 10,
+            "declaration": "satisfied_requires_action_facts"
+          }
+        },
+        {
+          "id": "Observation:132:52",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "eligible",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Observation.lean",
+            "line": 259,
+            "column": 10,
+            "declaration": "satisfied_requires_action_facts"
+          }
+        },
+        {
+          "id": "Observation:133:82",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "eligible",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Observation.lean",
+            "line": 259,
+            "column": 10,
+            "declaration": "satisfied_requires_action_facts"
+          }
+        },
+        {
+          "id": "Observation:134:53",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "eligible",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Observation.lean",
+            "line": 259,
+            "column": 10,
+            "declaration": "satisfied_requires_action_facts"
+          }
+        },
+        {
+          "id": "Observation:141:42",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "satisfied",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Observation.lean",
+            "line": 198,
+            "column": 9,
+            "declaration": "conditions_monotone"
+          }
+        },
+        {
+          "id": "Observation:153:12",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "chainAuthorized",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Observation.lean",
+            "line": 211,
+            "column": 8,
+            "declaration": "child_requirements_superset_attenuates"
+          }
+        },
+        {
+          "id": "Observation:158:57",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "actionFactsAvailable",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Observation.lean",
+            "line": 252,
+            "column": 2,
+            "declaration": "satisfied_requires_action_facts"
+          }
+        },
+        {
+          "id": "Observation:177:60",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "requirementDecision",
+          "operator": ".denied→.authorized (result position)",
+          "outcome": "stillborn",
+          "first_error": {
+            "file": "formal/Auths/Observation.lean",
+            "line": 177,
+            "column": 59,
+            "declaration": "requirementDecision"
+          }
+        },
+        {
+          "id": "Observation:339:48",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "sameTarget",
+          "operator": "∧→∨",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Observation.lean",
+            "line": 371,
+            "column": 10,
+            "declaration": "narrows_monotone"
+          }
+        },
+        {
+          "id": "Observation:339:79",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "sameTarget",
+          "operator": "∧→∨",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Observation.lean",
+            "line": 371,
+            "column": 10,
+            "declaration": "narrows_monotone"
+          }
+        },
+        {
+          "id": "Observation:344:27",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "narrows",
+          "operator": "∧→∨",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Observation.lean",
+            "line": 371,
+            "column": 10,
+            "declaration": "narrows_monotone"
+          }
+        },
+        {
+          "id": "Observation:344:42",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "narrows",
+          "operator": "≤→<",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Observation.lean",
+            "line": 386,
+            "column": 42,
+            "declaration": "narrows_monotone"
+          }
+        },
+        {
+          "id": "Observation:344:58",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "narrows",
+          "operator": "∧→∨",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Observation.lean",
+            "line": 371,
+            "column": 9,
+            "declaration": "narrows_monotone"
+          }
+        },
+        {
+          "id": "Observation:345:69",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "narrows",
+          "operator": "∧→∨",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Observation.lean",
+            "line": 371,
+            "column": 9,
+            "declaration": "narrows_monotone"
+          }
+        },
+        {
+          "id": "Observation:346:19",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "narrows",
+          "operator": "<→≤",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Observation.lean",
+            "line": 415,
+            "column": 17,
+            "declaration": "covers_trans"
+          }
+        },
+        {
+          "id": "Observation:346:35",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "narrows",
+          "operator": "∨→∧",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Observation.lean",
+            "line": 415,
+            "column": 4,
+            "declaration": "covers_trans"
+          }
+        },
+        {
+          "id": "Observation:351:18",
+          "file": "formal/Auths/Observation.lean",
+          "definition": "covers",
+          "operator": "∨→∧",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Observation.lean",
+            "line": 396,
+            "column": 2,
+            "declaration": "covers_monotone"
+          }
+        },
+        {
+          "id": "Composition:8:32",
+          "file": "formal/Auths/Composition.lean",
+          "definition": "all",
+          "operator": ".denied→.authorized (result position)",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Composition.lean",
+            "line": 30,
+            "column": 38,
+            "declaration": "all_associative"
+          }
+        },
+        {
+          "id": "Composition:10:33",
+          "file": "formal/Auths/Composition.lean",
+          "definition": "all",
+          "operator": ".authorized→.denied (result position)",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Composition.lean",
+            "line": 30,
+            "column": 38,
+            "declaration": "all_associative"
+          }
+        },
+        {
+          "id": "Composition:14:40",
+          "file": "formal/Auths/Composition.lean",
+          "definition": "any",
+          "operator": ".authorized→.denied (result position)",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Composition.lean",
+            "line": 39,
+            "column": 38,
+            "declaration": "any_associative"
+          }
+        },
+        {
+          "id": "Composition:16:25",
+          "file": "formal/Auths/Composition.lean",
+          "definition": "any",
+          "operator": ".denied→.authorized (result position)",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Composition.lean",
+            "line": 39,
+            "column": 38,
+            "declaration": "any_associative"
+          }
+        },
+        {
+          "id": "Composition:21:16",
+          "file": "formal/Auths/Composition.lean",
+          "definition": "thresholdTwo",
+          "operator": ".authorized→.denied (result position)",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Composition.lean",
+            "line": 55,
+            "column": 0,
+            "declaration": "threshold_zero_authorized"
+          }
+        },
+        {
+          "id": "Composition:24:16",
+          "file": "formal/Auths/Composition.lean",
+          "definition": "thresholdTwo",
+          "operator": ".denied→.authorized (result position)",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Composition.lean",
+            "line": 64,
+            "column": 16,
+            "declaration": "threshold_above_inputs_denied"
+          }
+        },
+        {
+          "id": "Algebra:30:28",
+          "file": "formal/Auths/Generated/Algebra.lean",
+          "definition": "attenuationAccepts",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Theorems.lean",
+            "line": 765,
+            "column": 68,
+            "declaration": "broken_root_denies_every_projection"
+          }
+        },
+        {
+          "id": "Algebra:31:29",
+          "file": "formal/Auths/Generated/Algebra.lean",
+          "definition": "attenuationAccepts",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Theorems.lean",
+            "line": 765,
+            "column": 68,
+            "declaration": "broken_root_denies_every_projection"
+          }
+        },
+        {
+          "id": "Algebra:32:32",
+          "file": "formal/Auths/Generated/Algebra.lean",
+          "definition": "attenuationAccepts",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Theorems.lean",
+            "line": 765,
+            "column": 68,
+            "declaration": "broken_root_denies_every_projection"
+          }
+        },
+        {
+          "id": "Algebra:33:35",
+          "file": "formal/Auths/Generated/Algebra.lean",
+          "definition": "attenuationAccepts",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Theorems.lean",
+            "line": 765,
+            "column": 68,
+            "declaration": "broken_root_denies_every_projection"
+          }
+        },
+        {
+          "id": "Algebra:34:33",
+          "file": "formal/Auths/Generated/Algebra.lean",
+          "definition": "attenuationAccepts",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Theorems.lean",
+            "line": 765,
+            "column": 68,
+            "declaration": "broken_root_denies_every_projection"
+          }
+        },
+        {
+          "id": "Algebra:35:33",
+          "file": "formal/Auths/Generated/Algebra.lean",
+          "definition": "attenuationAccepts",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Theorems.lean",
+            "line": 765,
+            "column": 68,
+            "declaration": "broken_root_denies_every_projection"
+          }
+        },
+        {
+          "id": "Algebra:36:41",
+          "file": "formal/Auths/Generated/Algebra.lean",
+          "definition": "attenuationAccepts",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Theorems.lean",
+            "line": 765,
+            "column": 68,
+            "declaration": "broken_root_denies_every_projection"
+          }
+        },
+        {
+          "id": "Algebra:37:31",
+          "file": "formal/Auths/Generated/Algebra.lean",
+          "definition": "attenuationAccepts",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Theorems.lean",
+            "line": 765,
+            "column": 68,
+            "declaration": "broken_root_denies_every_projection"
+          }
+        },
+        {
+          "id": "Algebra:38:31",
+          "file": "formal/Auths/Generated/Algebra.lean",
+          "definition": "attenuationAccepts",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Theorems.lean",
+            "line": 765,
+            "column": 68,
+            "declaration": "broken_root_denies_every_projection"
+          }
+        },
+        {
+          "id": "Algebra:39:34",
+          "file": "formal/Auths/Generated/Algebra.lean",
+          "definition": "attenuationAccepts",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Rich/Theorems.lean",
+            "line": 765,
+            "column": 68,
+            "declaration": "broken_root_denies_every_projection"
+          }
+        },
+        {
+          "id": "Algebra:43:17",
+          "file": "formal/Auths/Generated/Algebra.lean",
+          "definition": "thresholdCounts",
+          "operator": "≥→>",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Composition.lean",
+            "line": 93,
+            "column": 6,
+            "declaration": "thresholdTwo_eq_thresholdCounts"
+          }
+        },
+        {
+          "id": "Algebra:43:33",
+          "file": "formal/Auths/Generated/Algebra.lean",
+          "definition": "thresholdCounts",
+          "operator": ".authorized→.denied (result position)",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Composition.lean",
+            "line": 83,
+            "column": 76,
+            "declaration": "thresholdCounts_antitone_required"
+          }
+        },
+        {
+          "id": "Algebra:44:38",
+          "file": "formal/Auths/Generated/Algebra.lean",
+          "definition": "thresholdCounts",
+          "operator": "≥→>",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Composition.lean",
+            "line": 95,
+            "column": 37,
+            "declaration": "thresholdTwo_eq_thresholdCounts"
+          }
+        },
+        {
+          "id": "Algebra:45:8",
+          "file": "formal/Auths/Generated/Algebra.lean",
+          "definition": "thresholdCounts",
+          "operator": ".denied→.authorized (result position)",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Composition.lean",
+            "line": 83,
+            "column": 76,
+            "declaration": "thresholdCounts_antitone_required"
+          }
+        },
+        {
+          "id": "CeilingCount:84:12",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "codeOf",
+          "operator": ">→≥",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 208,
+            "column": 29,
+            "declaration": "code_eligible_iff"
+          }
+        },
+        {
+          "id": "CeilingCount:85:17",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "codeOf",
+          "operator": "≥→>",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 208,
+            "column": 29,
+            "declaration": "code_eligible_iff"
+          }
+        },
+        {
+          "id": "CeilingCount:93:24",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "numericTightens",
+          "operator": ">→≥",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 233,
+            "column": 90,
+            "declaration": "numericTightens_iff"
+          }
+        },
+        {
+          "id": "CeilingCount:94:25",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "numericTightens",
+          "operator": "≤→<",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 233,
+            "column": 90,
+            "declaration": "numericTightens_iff"
+          }
+        },
+        {
+          "id": "CeilingCount:124:52",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "sumAdmits",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 284,
+            "column": 17,
+            "declaration": "sumAdmits_narrows"
+          }
+        },
+        {
+          "id": "CeilingCount:126:66",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "sumAdmits",
+          "operator": "≤→<",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 776,
+            "column": 6,
+            "declaration": "chain_admits_parts"
+          }
+        },
+        {
+          "id": "CeilingCount:131:36",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "admitsValue",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 296,
+            "column": 9,
+            "declaration": "tightening_never_admits_more"
+          }
+        },
+        {
+          "id": "CeilingCount:132:43",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "admitsValue",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 296,
+            "column": 9,
+            "declaration": "tightening_never_admits_more"
+          }
+        },
+        {
+          "id": "CeilingCount:137:58",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "admits",
+          "operator": "∧→∨",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 294,
+            "column": 9,
+            "declaration": "tightening_never_admits_more"
+          }
+        },
+        {
+          "id": "CeilingCount:144:36",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "valuesNarrow",
+          "operator": "∧→∨",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 211,
+            "column": 69,
+            "declaration": "valuesNarrowB_iff"
+          }
+        },
+        {
+          "id": "CeilingCount:155:19",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "sumNarrows",
+          "operator": "≤→<",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 220,
+            "column": 65,
+            "declaration": "sumTightens_iff"
+          }
+        },
+        {
+          "id": "CeilingCount:155:34",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "sumNarrows",
+          "operator": "∧→∨",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 220,
+            "column": 65,
+            "declaration": "sumTightens_iff"
+          }
+        },
+        {
+          "id": "CeilingCount:167:36",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "tightens",
+          "operator": "∧→∨",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 241,
+            "column": 2,
+            "declaration": "decider_iff_tightens"
+          }
+        },
+        {
+          "id": "CeilingCount:167:67",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "tightens",
+          "operator": "∧→∨",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 241,
+            "column": 2,
+            "declaration": "decider_iff_tightens"
+          }
+        },
+        {
+          "id": "CeilingCount:168:19",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "tightens",
+          "operator": "≤→<",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 241,
+            "column": 2,
+            "declaration": "decider_iff_tightens"
+          }
+        },
+        {
+          "id": "CeilingCount:168:36",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "tightens",
+          "operator": "∧→∨",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 241,
+            "column": 2,
+            "declaration": "decider_iff_tightens"
+          }
+        },
+        {
+          "id": "CeilingCount:168:53",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "tightens",
+          "operator": "≤→<",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 241,
+            "column": 2,
+            "declaration": "decider_iff_tightens"
+          }
+        },
+        {
+          "id": "CeilingCount:168:71",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "tightens",
+          "operator": "∧→∨",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 241,
+            "column": 2,
+            "declaration": "decider_iff_tightens"
+          }
+        },
+        {
+          "id": "CeilingCount:169:37",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "tightens",
+          "operator": "∧→∨",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 241,
+            "column": 2,
+            "declaration": "decider_iff_tightens"
+          }
+        },
+        {
+          "id": "CeilingCount:173:45",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "valuesNarrowB",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 211,
+            "column": 69,
+            "declaration": "valuesNarrowB_iff"
+          }
+        },
+        {
+          "id": "CeilingCount:187:27",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "sumTightens",
+          "operator": "≤→<",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 220,
+            "column": 65,
+            "declaration": "sumTightens_iff"
+          }
+        },
+        {
+          "id": "CeilingCount:187:43",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "sumTightens",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 220,
+            "column": 65,
+            "declaration": "sumTightens_iff"
+          }
+        },
+        {
+          "id": "CeilingCount:199:45",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "decider",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 241,
+            "column": 2,
+            "declaration": "decider_iff_tightens"
+          }
+        },
+        {
+          "id": "CeilingCount:201:52",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "decider",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 241,
+            "column": 2,
+            "declaration": "decider_iff_tightens"
+          }
+        },
+        {
+          "id": "CeilingCount:202:38",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "decider",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 241,
+            "column": 2,
+            "declaration": "decider_iff_tightens"
+          }
+        },
+        {
+          "id": "CeilingCount:445:62",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "evaluator",
+          "operator": ".denied→.authorized (result position)",
+          "outcome": "stillborn",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 445,
+            "column": 61,
+            "declaration": "evaluator"
+          }
+        },
+        {
+          "id": "CeilingCount:487:56",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "linkAdmits",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 597,
+            "column": 9,
+            "declaration": "scope_admits_only_listed"
+          }
+        },
+        {
+          "id": "CeilingCount:623:38",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "countsAdmit",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 668,
+            "column": 28,
+            "declaration": "countsAdmit_map"
+          }
+        },
+        {
+          "id": "CeilingCount:624:62",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "countsAdmit",
+          "operator": "<→≤",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 668,
+            "column": 28,
+            "declaration": "countsAdmit_map"
+          }
+        },
+        {
+          "id": "CeilingCount:629:36",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "sumsAdmit",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 677,
+            "column": 28,
+            "declaration": "sumsAdmit_map"
+          }
+        },
+        {
+          "id": "CeilingCount:630:68",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "sumsAdmit",
+          "operator": "≤→<",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 677,
+            "column": 28,
+            "declaration": "sumsAdmit_map"
+          }
+        },
+        {
+          "id": "CeilingCount:817:35",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "containingIn",
+          "operator": "&&→||",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 950,
+            "column": 17,
+            "declaration": "sumInvariant_preserved"
+          }
+        },
+        {
+          "id": "CeilingCount:854:36",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "countInvariant",
+          "operator": "≤→<",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 892,
+            "column": 5,
+            "declaration": "aggregate_count_bound"
+          }
+        },
+        {
+          "id": "CeilingCount:854:62",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "countInvariant",
+          "operator": "∧→∨",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 865,
+            "column": 11,
+            "declaration": "countInvariant_preserved"
+          }
+        },
+        {
+          "id": "CeilingCount:855:38",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "countInvariant",
+          "operator": "≤→<",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 876,
+            "column": 27,
+            "declaration": "countInvariant_preserved"
+          }
+        },
+        {
+          "id": "CeilingCount:855:56",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "countInvariant",
+          "operator": "∧→∨",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 865,
+            "column": 11,
+            "declaration": "countInvariant_preserved"
+          }
+        },
+        {
+          "id": "CeilingCount:856:55",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "countInvariant",
+          "operator": "≤→<",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 892,
+            "column": 49,
+            "declaration": "aggregate_count_bound"
+          }
+        },
+        {
+          "id": "CeilingCount:917:71",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "sumInvariant",
+          "operator": "≤→<",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 972,
+            "column": 5,
+            "declaration": "aggregate_sum_bound"
+          }
+        },
+        {
+          "id": "CeilingCount:918:43",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "sumInvariant",
+          "operator": "∧→∨",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 929,
+            "column": 11,
+            "declaration": "sumInvariant_preserved"
+          }
+        },
+        {
+          "id": "CeilingCount:919:73",
+          "file": "formal/Auths/Product/CeilingCount.lean",
+          "definition": "sumInvariant",
+          "operator": "≤→<",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/CeilingCount.lean",
+            "line": 952,
+            "column": 6,
+            "declaration": "sumInvariant_preserved"
+          }
+        }
+      ]
+    },
+    "s3": {
+      "formal_inputs_sha256": "1d9790549bb97e8f9ce7af130bd90443f1fd641e6c5e541728ce2f49ed606048",
+      "mutants": [
+        {
+          "id": "auths_model::bounded::{auths_model::bounded::BoundedSet<T, MAX>}::as_slice",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "bounded.BoundedSet.as_slice",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 783,
+            "column": 6,
+            "declaration": "permission_set_contains_spec"
+          }
+        },
+        {
+          "id": "auths_model::bounded::{auths_model::bounded::BoundedSet<T, MAX>}::len",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "bounded.BoundedSet.len",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 780,
+            "column": 4,
+            "declaration": "permission_set_contains_spec"
+          }
+        },
+        {
+          "id": "auths_model::{auths_model::Digest}::as_bytes",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "Digest.as_bytes",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 668,
+            "column": 2,
+            "declaration": "grant_id_equal_spec"
+          }
+        },
+        {
+          "id": "auths_model::byte_slices_equal",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "byte_slices_equal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 50,
+            "column": 2,
+            "declaration": "byte_slices_equal_spec"
+          }
+        },
+        {
+          "id": "auths_model::bounded_policy::digest_equal",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "bounded_policy.digest_equal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/BoundedPolicy.lean",
+            "line": 46,
+            "column": 49,
+            "declaration": "digest_equal_spec"
+          }
+        },
+        {
+          "id": "auths_model::bounded_policy::bounded_policy_link_accepts",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "bounded_policy.bounded_policy_link_accepts",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/BoundedPolicy.lean",
+            "line": 71,
+            "column": 29,
+            "declaration": "translated_bounded_policy_link_accepts_refines_model"
+          }
+        },
+        {
+          "id": "auths_model::principal_id_equal",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "principal_id_equal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 486,
+            "column": 2,
+            "declaration": "principal_id_equal_spec"
+          }
+        },
+        {
+          "id": "auths_model::{auths_model::GrantId}::as_bytes",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "GrantId.as_bytes",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 667,
+            "column": 38,
+            "declaration": "grant_id_equal_spec"
+          }
+        },
+        {
+          "id": "auths_model::inclusive_window_contains",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "inclusive_window_contains",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 699,
+            "column": 2,
+            "declaration": "validity_window_contains_spec"
+          }
+        },
+        {
+          "id": "auths_model::validity_window_contains",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "validity_window_contains",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 697,
+            "column": 9,
+            "declaration": "validity_window_contains_spec"
+          }
+        },
+        {
+          "id": "auths_model::profile_ref_equal",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "profile_ref_equal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 501,
+            "column": 2,
+            "declaration": "profile_ref_equal_spec"
+          }
+        },
+        {
+          "id": "auths_model::profile_slice_contains",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "profile_slice_contains",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 553,
+            "column": 9,
+            "declaration": "profile_slice_contains_spec"
+          }
+        },
+        {
+          "id": "auths_model::assurance_policy_id_equal",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "assurance_policy_id_equal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 647,
+            "column": 2,
+            "declaration": "assurance_policy_id_equal_spec"
+          }
+        },
+        {
+          "id": "auths_model::grant_id_equal",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "grant_id_equal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 667,
+            "column": 9,
+            "declaration": "grant_id_equal_spec"
+          }
+        },
+        {
+          "id": "auths_model::optional_grant_id_equal",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "optional_grant_id_equal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 678,
+            "column": 54,
+            "declaration": "optional_grant_id_equal_spec"
+          }
+        },
+        {
+          "id": "auths_model::permissions_equal",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "permissions_equal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 717,
+            "column": 2,
+            "declaration": "permissions_equal_spec"
+          }
+        },
+        {
+          "id": "auths_model::permission_set_contains",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "permission_set_contains",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 763,
+            "column": 9,
+            "declaration": "permission_set_contains_spec"
+          }
+        },
+        {
+          "id": "auths_model::permission_set_is_subset",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "permission_set_is_subset",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 851,
+            "column": 9,
+            "declaration": "permission_set_is_subset_spec"
+          }
+        },
+        {
+          "id": "auths_model::audiences_equal",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "audiences_equal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 952,
+            "column": 2,
+            "declaration": "audiences_equal_spec"
+          }
+        },
+        {
+          "id": "auths_model::audience_set_contains",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "audience_set_contains",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 973,
+            "column": 9,
+            "declaration": "audience_set_contains_spec"
+          }
+        },
+        {
+          "id": "auths_model::audience_set_is_subset",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "audience_set_is_subset",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 1062,
+            "column": 9,
+            "declaration": "audience_set_is_subset_spec"
+          }
+        },
+        {
+          "id": "auths_model::digests_equal",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "digests_equal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 1158,
+            "column": 9,
+            "declaration": "digests_equal_spec"
+          }
+        },
+        {
+          "id": "auths_model::body_digest_set_contains",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "body_digest_set_contains",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 1177,
+            "column": 9,
+            "declaration": "body_digest_set_contains_spec"
+          }
+        },
+        {
+          "id": "auths_model::body_digest_set_is_subset",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "body_digest_set_is_subset",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 1265,
+            "column": 9,
+            "declaration": "body_digest_set_is_subset_spec"
+          }
+        },
+        {
+          "id": "auths_model::body_digest_set_only_contains",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "body_digest_set_only_contains",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 1354,
+            "column": 9,
+            "declaration": "body_digest_set_only_contains_spec"
+          }
+        },
+        {
+          "id": "auths_model::action_constraint_allows",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "action_constraint_allows",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 1708,
+            "column": 12,
+            "declaration": "action_constraint_allows_spec"
+          }
+        },
+        {
+          "id": "auths_model::action_constraint_attenuates",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "action_constraint_attenuates",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 1729,
+            "column": 74,
+            "declaration": "action_constraint_attenuates_spec"
+          }
+        },
+        {
+          "id": "auths_model::budget_ceiling_attenuates",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "budget_ceiling_attenuates",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 1773,
+            "column": 2,
+            "declaration": "budget_ceiling_attenuates_spec"
+          }
+        },
+        {
+          "id": "auths_model::{auths_model::BudgetCeiling}::attenuates",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "BudgetCeiling.attenuates",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 1815,
+            "column": 4,
+            "declaration": "optional_budget_attenuates_spec"
+          }
+        },
+        {
+          "id": "auths_model::{auths_model::BudgetCeiling}::covers",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "BudgetCeiling.covers",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 1837,
+            "column": 11,
+            "declaration": "optional_budget_covers_spec"
+          }
+        },
+        {
+          "id": "auths_model::optional_budget_attenuates",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "optional_budget_attenuates",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 1809,
+            "column": 62,
+            "declaration": "optional_budget_attenuates_spec"
+          }
+        },
+        {
+          "id": "auths_model::optional_budget_covers",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "optional_budget_covers",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 1826,
+            "column": 67,
+            "declaration": "optional_budget_covers_spec"
+          }
+        },
+        {
+          "id": "auths_model::budget_ceiling_covers_action",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "budget_ceiling_covers_action",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 1865,
+            "column": 0,
+            "declaration": "translated_expressible_absent_request_is_denied"
+          }
+        },
+        {
+          "id": "auths_model::status_policy_attenuates",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "status_policy_attenuates",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 1905,
+            "column": 77,
+            "declaration": "status_policy_attenuates_spec"
+          }
+        },
+        {
+          "id": "auths_model::critical_extension_find",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "critical_extension_find",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 136,
+            "column": 9,
+            "declaration": "critical_extension_find_spec"
+          }
+        },
+        {
+          "id": "auths_model::critical_extension_entries",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "critical_extension_entries",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 205,
+            "column": 53,
+            "declaration": "critical_extension_entries_spec"
+          }
+        },
+        {
+          "id": "auths_model::critical_extension_id",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "critical_extension_id",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 212,
+            "column": 37,
+            "declaration": "critical_extension_id_spec"
+          }
+        },
+        {
+          "id": "auths_model::critical_extension_payload",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "critical_extension_payload",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 219,
+            "column": 58,
+            "declaration": "critical_extension_payload_spec"
+          }
+        },
+        {
+          "id": "auths_model::observation::fact_name_equal",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.fact_name_equal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 163,
+            "column": 2,
+            "declaration": "fact_name_equal_spec"
+          }
+        },
+        {
+          "id": "auths_model::observation::observation_fresh",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.observation_fresh",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 185,
+            "column": 2,
+            "declaration": "translated_observation_fresh_refines_model"
+          }
+        },
+        {
+          "id": "auths_model::observation::observation_subject_equal",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.observation_subject_equal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 217,
+            "column": 2,
+            "declaration": "translated_observation_subject_equal_refines_model"
+          }
+        },
+        {
+          "id": "auths_model::observation::fact_value_equal",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.fact_value_equal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 231,
+            "column": 10,
+            "declaration": "fact_value_equal_spec"
+          }
+        },
+        {
+          "id": "auths_model::observation::uint_range_contains",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.uint_range_contains",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 275,
+            "column": 2,
+            "declaration": "translated_uint_range_contains_refines_model"
+          }
+        },
+        {
+          "id": "auths_model::observation::member_values_contain",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.member_values_contain",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 292,
+            "column": 4,
+            "declaration": "member_values_contain_spec"
+          }
+        },
+        {
+          "id": "auths_model::observation::observation_fact",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.observation_fact",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 376,
+            "column": 4,
+            "declaration": "observation_fact_spec"
+          }
+        },
+        {
+          "id": "auths_model::observation::condition_value_holds",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.condition_value_holds",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 435,
+            "column": 6,
+            "declaration": "condition_value_holds_spec"
+          }
+        },
+        {
+          "id": "auths_model::observation::observation_condition_holds",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.observation_condition_holds",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 497,
+            "column": 2,
+            "declaration": "observation_condition_holds_spec"
+          }
+        },
+        {
+          "id": "auths_model::observation::observation_conditions_hold",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.observation_conditions_hold",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 550,
+            "column": 2,
+            "declaration": "observation_conditions_hold_spec"
+          }
+        },
+        {
+          "id": "auths_model::observation::requirement_verdict",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.requirement_verdict",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 727,
+            "column": 33,
+            "declaration": "translated_requirement_verdict_refines_model"
+          }
+        },
+        {
+          "id": "auths_model::observation::observer_anchor_id_equal",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.observer_anchor_id_equal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 811,
+            "column": 2,
+            "declaration": "observer_anchor_id_equal_spec"
+          }
+        },
+        {
+          "id": "auths_model::observation::observation_schema_equal",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.observation_schema_equal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 827,
+            "column": 2,
+            "declaration": "observation_schema_equal_spec"
+          }
+        },
+        {
+          "id": "auths_model::observation::requirement_subject_equal",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.requirement_subject_equal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 848,
+            "column": 10,
+            "declaration": "requirement_subject_equal_spec"
+          }
+        },
+        {
+          "id": "auths_model::observation::member_values_equal",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.member_values_equal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 879,
+            "column": 2,
+            "declaration": "member_values_equal_spec"
+          }
+        },
+        {
+          "id": "auths_model::observation::condition_test_equal",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.condition_test_equal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 946,
+            "column": 10,
+            "declaration": "condition_test_equal_spec"
+          }
+        },
+        {
+          "id": "auths_model::observation::observation_condition_equal",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.observation_condition_equal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 1021,
+            "column": 2,
+            "declaration": "observation_condition_equal_spec"
+          }
+        },
+        {
+          "id": "auths_model::observation::observation_conditions_contain",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.observation_conditions_contain",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 1052,
+            "column": 4,
+            "declaration": "observation_conditions_contain_spec"
+          }
+        },
+        {
+          "id": "auths_model::observation::observation_conditions_include",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.observation_conditions_include",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 1107,
+            "column": 4,
+            "declaration": "observation_conditions_include_spec"
+          }
+        },
+        {
+          "id": "auths_model::observation::observation_conditions_equal",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.observation_conditions_equal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 1165,
+            "column": 2,
+            "declaration": "observation_conditions_equal_spec"
+          }
+        },
+        {
+          "id": "auths_model::observation::observation_requirement_same_target",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.observation_requirement_same_target",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 1230,
+            "column": 2,
+            "declaration": "observation_requirement_same_target_spec"
+          }
+        },
+        {
+          "id": "auths_model::observation::observation_requirement_equal",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.observation_requirement_equal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 1272,
+            "column": 2,
+            "declaration": "observation_requirement_equal_spec"
+          }
+        },
+        {
+          "id": "auths_model::observation::observation_requirement_narrows",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.observation_requirement_narrows",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 1311,
+            "column": 2,
+            "declaration": "observation_requirement_narrows_spec"
+          }
+        },
+        {
+          "id": "auths_model::observation::observation_requirement_covers",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.observation_requirement_covers",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 1367,
+            "column": 2,
+            "declaration": "observation_requirement_covers_spec"
+          }
+        },
+        {
+          "id": "auths_model::observation::observation_requirement_retained",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.observation_requirement_retained",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 1397,
+            "column": 4,
+            "declaration": "observation_requirement_retained_spec"
+          }
+        },
+        {
+          "id": "auths_model::observation::observation_requirements_attenuate",
+          "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+          "definition": "observation.observation_requirements_attenuate",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Observation.lean",
+            "line": 1456,
+            "column": 4,
+            "declaration": "observation_requirements_attenuate_spec"
+          }
+        },
+        {
+          "id": "auths_algebra_kernel::generated::attenuation_checks_accept",
+          "file": "formal/qualification/aeneas/generated/algebra/Funs.lean",
+          "definition": "generated.attenuation_checks_accept",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 2528,
+            "column": 2,
+            "declaration": "attenuation_checks_accept_spec"
+          }
+        },
+        {
+          "id": "auths_algebra_kernel::root_preserved",
+          "file": "formal/qualification/aeneas/generated/algebra/Funs.lean",
+          "definition": "root_preserved",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 2379,
+            "column": 4,
+            "declaration": "root_preserved_rich_spec"
+          }
+        },
+        {
+          "id": "auths_lifecycle::model::{auths_lifecycle::model::LifecycleState}::is_terminal",
+          "file": "formal/qualification/aeneas/generated/lifecycle/Funs.lean",
+          "definition": "model.LifecycleState.is_terminal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Lifecycle/Refinement.lean",
+            "line": 173,
+            "column": 18,
+            "declaration": "translated_terminal_refines_rich"
+          }
+        },
+        {
+          "id": "auths_lifecycle::kernel::reconciliation_code",
+          "file": "formal/qualification/aeneas/generated/lifecycle/Funs.lean",
+          "definition": "kernel.reconciliation_code",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Lifecycle/Refinement.lean",
+            "line": 204,
+            "column": 8,
+            "declaration": "translated_transition_refines_rich"
+          }
+        },
+        {
+          "id": "auths_lifecycle::kernel::transition_code",
+          "file": "formal/qualification/aeneas/generated/lifecycle/Funs.lean",
+          "definition": "kernel.transition_code",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Lifecycle/Refinement.lean",
+            "line": 193,
+            "column": 8,
+            "declaration": "translated_transition_refines_rich"
+          }
+        },
+        {
+          "id": "auths_lifecycle::kernel::additive_capacity_available",
+          "file": "formal/qualification/aeneas/generated/lifecycle/Funs.lean",
+          "definition": "kernel.additive_capacity_available",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Lifecycle/Refinement.lean",
+            "line": 221,
+            "column": 2,
+            "declaration": "translated_additive_capacity_refines_rich"
+          }
+        },
+        {
+          "id": "auths_lifecycle::kernel::exclusive_capacity_available",
+          "file": "formal/qualification/aeneas/generated/lifecycle/Funs.lean",
+          "definition": "kernel.exclusive_capacity_available",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Lifecycle/Refinement.lean",
+            "line": 212,
+            "column": 54,
+            "declaration": "translated_exclusive_capacity_refines_rich"
+          }
+        },
+        {
+          "id": "auths_lifecycle::kernel::replay_code",
+          "file": "formal/qualification/aeneas/generated/lifecycle/Funs.lean",
+          "definition": "kernel.replay_code",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Lifecycle/Refinement.lean",
+            "line": 276,
+            "column": 52,
+            "declaration": "translated_replay_refines_rich"
+          }
+        },
+        {
+          "id": "auths_authority::{impl core::cmp::PartialEq<auths_authority::CanonicalPrincipal<'_0>> for auths_authority::CanonicalPrincipal<'_0>}::eq",
+          "file": "formal/qualification/aeneas/generated/authority/Funs.lean",
+          "definition": "CanonicalPrincipal.Insts.CoreCmpPartialEqCanonicalPrincipal.eq",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 2382,
+            "column": 4,
+            "declaration": "root_preserved_rich_spec"
+          }
+        },
+        {
+          "id": "auths_authority::parent_extension_retained",
+          "file": "formal/qualification/aeneas/generated/authority/Funs.lean",
+          "definition": "parent_extension_retained",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 237,
+            "column": 2,
+            "declaration": "parent_extension_retained_spec"
+          }
+        },
+        {
+          "id": "auths_authority::child_extension_admitted",
+          "file": "formal/qualification/aeneas/generated/authority/Funs.lean",
+          "definition": "child_extension_admitted",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 275,
+            "column": 2,
+            "declaration": "child_extension_admitted_spec"
+          }
+        },
+        {
+          "id": "auths_authority::parent_extensions_retained",
+          "file": "formal/qualification/aeneas/generated/authority/Funs.lean",
+          "definition": "parent_extensions_retained",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 306,
+            "column": 2,
+            "declaration": "parent_extensions_retained_spec"
+          }
+        },
+        {
+          "id": "auths_authority::child_extensions_admitted",
+          "file": "formal/qualification/aeneas/generated/authority/Funs.lean",
+          "definition": "child_extensions_admitted",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 366,
+            "column": 2,
+            "declaration": "child_extensions_admitted_spec"
+          }
+        },
+        {
+          "id": "auths_authority::critical_extensions_attenuate",
+          "file": "formal/qualification/aeneas/generated/authority/Funs.lean",
+          "definition": "critical_extensions_attenuate",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 425,
+            "column": 2,
+            "declaration": "critical_extensions_attenuate_spec"
+          }
+        },
+        {
+          "id": "auths_authority::extensions_attenuate",
+          "file": "formal/qualification/aeneas/generated/authority/Funs.lean",
+          "definition": "extensions_attenuate",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 465,
+            "column": 9,
+            "declaration": "extensions_attenuate_spec"
+          }
+        },
+        {
+          "id": "auths_authority::depth_decreases",
+          "file": "formal/qualification/aeneas/generated/authority/Funs.lean",
+          "definition": "depth_decreases",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 2344,
+            "column": 2,
+            "declaration": "depth_decreases_spec"
+          }
+        },
+        {
+          "id": "auths_authority::root_linkage",
+          "file": "formal/qualification/aeneas/generated/authority/Funs.lean",
+          "definition": "root_linkage",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 2798,
+            "column": 2,
+            "declaration": "translated_coverage_refines_rich_spec"
+          }
+        },
+        {
+          "id": "auths_authority::selected_profile_attenuates",
+          "file": "formal/qualification/aeneas/generated/authority/Funs.lean",
+          "definition": "selected_profile_attenuates",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 626,
+            "column": 6,
+            "declaration": "selected_profile_attenuates_spec"
+          }
+        },
+        {
+          "id": "auths_authority::evaluate_author_scope_view",
+          "file": "formal/qualification/aeneas/generated/authority/Funs.lean",
+          "definition": "evaluate_author_scope_view",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 2612,
+            "column": 2,
+            "declaration": "translated_rust_refines_rich_spec"
+          }
+        },
+        {
+          "id": "auths_authority::evaluate_grant_view",
+          "file": "formal/qualification/aeneas/generated/authority/Funs.lean",
+          "definition": "evaluate_grant_view",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 2988,
+            "column": 45,
+            "declaration": "translated_delegation_refines_rich_spec"
+          }
+        },
+        {
+          "id": "auths_authority::evaluate_action_coverage_view",
+          "file": "formal/qualification/aeneas/generated/authority/Funs.lean",
+          "definition": "evaluate_action_coverage_view",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Refinement/Production.lean",
+            "line": 2797,
+            "column": 9,
+            "declaration": "translated_coverage_refines_rich_spec"
+          }
+        },
+        {
+          "id": "auths_bounded_policy::kernel::configuration_match_code",
+          "file": "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
+          "definition": "kernel.configuration_match_code",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement.lean",
+            "line": 34,
+            "column": 4,
+            "declaration": "translated_configuration_refines_projection"
+          }
+        },
+        {
+          "id": "auths_bounded_policy::kernel::checked_add_u64",
+          "file": "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
+          "definition": "kernel.checked_add_u64",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement.lean",
+            "line": 44,
+            "column": 22,
+            "declaration": "translated_checked_add_refines_nat"
+          }
+        },
+        {
+          "id": "auths_bounded_policy::kernel::checked_sub_u64",
+          "file": "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
+          "definition": "kernel.checked_sub_u64",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement.lean",
+            "line": 57,
+            "column": 22,
+            "declaration": "translated_checked_sub_refines_nat"
+          }
+        },
+        {
+          "id": "auths_bounded_policy::kernel::checked_mul_u64",
+          "file": "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
+          "definition": "kernel.checked_mul_u64",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement.lean",
+            "line": 71,
+            "column": 22,
+            "declaration": "translated_checked_mul_refines_nat"
+          }
+        },
+        {
+          "id": "auths_bounded_policy::kernel::checked_div_u64",
+          "file": "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
+          "definition": "kernel.checked_div_u64",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement.lean",
+            "line": 83,
+            "column": 12,
+            "declaration": "translated_checked_div_rejects_zero"
+          }
+        },
+        {
+          "id": "auths_bounded_policy::kernel::ceiling_count_code",
+          "file": "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
+          "definition": "kernel.ceiling_count_code",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement.lean",
+            "line": 112,
+            "column": 2,
+            "declaration": "translated_ceiling_count_refines_model"
+          }
+        },
+        {
+          "id": "auths_bounded_policy::kernel::ceiling_count_tightens",
+          "file": "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
+          "definition": "kernel.ceiling_count_tightens",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement.lean",
+            "line": 134,
+            "column": 4,
+            "declaration": "translated_ceiling_count_tightens_refines_model"
+          }
+        },
+        {
+          "id": "auths_bounded_policy::kernel::window_index",
+          "file": "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
+          "definition": "kernel.window_index",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement.lean",
+            "line": 92,
+            "column": 45,
+            "declaration": "translated_window_index_refines_nat"
+          }
+        },
+        {
+          "id": "auths_bounded_policy::kernel::chain_counts_admit",
+          "file": "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
+          "definition": "kernel.chain_counts_admit",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement.lean",
+            "line": 201,
+            "column": 2,
+            "declaration": "translated_chain_counts_admit_refines_model"
+          }
+        },
+        {
+          "id": "auths_bounded_policy::kernel::chain_sums_admit",
+          "file": "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
+          "definition": "kernel.chain_sums_admit",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement.lean",
+            "line": 257,
+            "column": 2,
+            "declaration": "translated_chain_sums_admit_refines_model"
+          }
+        },
+        {
+          "id": "auths_bounded_policy::kernel::bytes_equal",
+          "file": "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
+          "definition": "kernel.bytes_equal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement.lean",
+            "line": 327,
+            "column": 2,
+            "declaration": "bytes_equal_spec"
+          }
+        },
+        {
+          "id": "auths_bounded_policy::kernel::values_contain",
+          "file": "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
+          "definition": "kernel.values_contain",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement.lean",
+            "line": 394,
+            "column": 52,
+            "declaration": "values_contain_spec"
+          }
+        },
+        {
+          "id": "auths_bounded_policy::kernel::values_subset",
+          "file": "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
+          "definition": "kernel.values_subset",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement.lean",
+            "line": 438,
+            "column": 51,
+            "declaration": "values_subset_spec"
+          }
+        },
+        {
+          "id": "auths_bounded_policy::kernel::values_narrow",
+          "file": "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
+          "definition": "kernel.values_narrow",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement.lean",
+            "line": 480,
+            "column": 2,
+            "declaration": "values_narrow_spec"
+          }
+        },
+        {
+          "id": "auths_bounded_policy::kernel::partition_narrows",
+          "file": "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
+          "definition": "kernel.partition_narrows",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement.lean",
+            "line": 500,
+            "column": 2,
+            "declaration": "partition_narrows_spec"
+          }
+        },
+        {
+          "id": "auths_bounded_policy::kernel::sum_tightens",
+          "file": "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
+          "definition": "kernel.sum_tightens",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement.lean",
+            "line": 512,
+            "column": 2,
+            "declaration": "sum_tightens_spec"
+          }
+        },
+        {
+          "id": "auths_bounded_policy::kernel::scope_tightens",
+          "file": "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
+          "definition": "kernel.scope_tightens",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement.lean",
+            "line": 530,
+            "column": 2,
+            "declaration": "scope_tightens_spec"
+          }
+        },
+        {
+          "id": "auths_bounded_policy::kernel::argument_policy_tightens",
+          "file": "formal/qualification/aeneas/generated/bounded_policy/Funs.lean",
+          "definition": "kernel.argument_policy_tightens",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement.lean",
+            "line": 543,
+            "column": 2,
+            "declaration": "translated_argument_policy_tightens_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::append_bytes",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.append_bytes",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 109,
+            "column": 32,
+            "declaration": "append_bytes_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::copy_bytes",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.copy_bytes",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 138,
+            "column": 2,
+            "declaration": "copy_bytes_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::is_alphanumeric",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.is_alphanumeric",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 148,
+            "column": 2,
+            "declaration": "is_alphanumeric_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::is_path_literal",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.is_path_literal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 154,
+            "column": 2,
+            "declaration": "is_path_literal_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::is_form_literal",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.is_form_literal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 161,
+            "column": 2,
+            "declaration": "is_form_literal_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::hex_upper",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.hex_upper",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 178,
+            "column": 4,
+            "declaration": "hex_upper_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::hex_lower",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.hex_lower",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 193,
+            "column": 4,
+            "declaration": "hex_lower_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::append_percent",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.append_percent",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 243,
+            "column": 2,
+            "declaration": "append_percent_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::append_path_byte",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.append_path_byte",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 260,
+            "column": 2,
+            "declaration": "append_path_byte_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::append_path_encoded",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.append_path_encoded",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 276,
+            "column": 39,
+            "declaration": "append_path_encoded_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::segment_value_valid",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.segment_value_valid",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1082,
+            "column": 2,
+            "declaration": "segment_value_valid_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::segment_error",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.segment_error",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1107,
+            "column": 2,
+            "declaration": "segment_error_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::path_error",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.path_error",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1130,
+            "column": 30,
+            "declaration": "path_error_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::append_segment",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.append_segment",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1171,
+            "column": 2,
+            "declaration": "append_segment_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::append_segments",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.append_segments",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1216,
+            "column": 35,
+            "declaration": "append_segments_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::build_url",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.build_url",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1264,
+            "column": 2,
+            "declaration": "build_url_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::fixed_url",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.fixed_url",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1301,
+            "column": 29,
+            "declaration": "fixed_url_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::copy_header",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.copy_header",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1351,
+            "column": 2,
+            "declaration": "copy_header_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::append_version_headers",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.append_version_headers",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1367,
+            "column": 42,
+            "declaration": "append_version_headers_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::is_account_byte",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.is_account_byte",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 168,
+            "column": 2,
+            "declaration": "is_account_byte_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::account_bytes_valid",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.account_bytes_valid",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1404,
+            "column": 39,
+            "declaration": "account_bytes_valid_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::scope_value_valid",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.scope_value_valid",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1462,
+            "column": 6,
+            "declaration": "scope_value_valid_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::account_scope_header",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.account_scope_header",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1503,
+            "column": 67,
+            "declaration": "account_scope_header_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::action_headers",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.action_headers",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1546,
+            "column": 2,
+            "declaration": "action_headers_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::append_json_byte",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.append_json_byte",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 352,
+            "column": 8,
+            "declaration": "append_json_byte_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::append_json_escaped",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.append_json_escaped",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 494,
+            "column": 39,
+            "declaration": "append_json_escaped_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::append_json_string",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.append_json_string",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 640,
+            "column": 2,
+            "declaration": "append_json_string_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::append_json_argument",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.append_json_argument",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 662,
+            "column": 6,
+            "declaration": "append_json_argument_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::json_piece_valid",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.json_piece_valid",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 699,
+            "column": 74,
+            "declaration": "json_piece_valid_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::json_pieces_valid",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.json_pieces_valid",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 708,
+            "column": 37,
+            "declaration": "json_pieces_valid_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::append_json_piece",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.append_json_piece",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 749,
+            "column": 6,
+            "declaration": "append_json_piece_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::append_json_pieces",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.append_json_pieces",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 779,
+            "column": 38,
+            "declaration": "append_json_pieces_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::append_form_byte",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.append_form_byte",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 329,
+            "column": 4,
+            "declaration": "append_form_byte_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::append_form_encoded",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.append_form_encoded",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 454,
+            "column": 39,
+            "declaration": "append_form_encoded_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::form_piece_valid",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.form_piece_valid",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 823,
+            "column": 2,
+            "declaration": "form_piece_valid_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::form_pieces_valid",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.form_pieces_valid",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 844,
+            "column": 37,
+            "declaration": "form_pieces_valid_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::append_form_piece",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.append_form_piece",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 897,
+            "column": 4,
+            "declaration": "append_form_piece_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::append_form_pieces",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.append_form_pieces",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 946,
+            "column": 38,
+            "declaration": "append_form_pieces_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::build_body",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.build_body",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 998,
+            "column": 4,
+            "declaration": "build_body_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::construct_write",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.construct_write",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1617,
+            "column": 2,
+            "declaration": "translated_construct_write_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::construct_action_read",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.construct_action_read",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1688,
+            "column": 2,
+            "declaration": "translated_construct_action_read_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::construct::construct_credential_read",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "construct.construct_credential_read",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1722,
+            "column": 2,
+            "declaration": "translated_construct_credential_read_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::start",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.start",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1962,
+            "column": 56,
+            "declaration": "translated_start_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::go",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.go",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1985,
+            "column": 6,
+            "declaration": "after_denied_refused_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::stop",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.stop",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1997,
+            "column": 2,
+            "declaration": "after_denied_refused_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::halt",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.halt",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1997,
+            "column": 2,
+            "declaration": "after_denied_refused_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::not_entered",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.not_entered",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2019,
+            "column": 29,
+            "declaration": "after_denied_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::lease_failed",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.lease_failed",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2019,
+            "column": 29,
+            "declaration": "after_denied_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::after_reads",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.after_reads",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1986,
+            "column": 4,
+            "declaration": "after_denied_refused_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::ceiling_from",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.ceiling_from",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1986,
+            "column": 4,
+            "declaration": "after_denied_refused_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::pre_entry_from",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.pre_entry_from",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1986,
+            "column": 4,
+            "declaration": "after_denied_refused_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::after_credentials",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.after_credentials",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1986,
+            "column": 4,
+            "declaration": "after_denied_refused_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::denied_from",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.denied_from",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1983,
+            "column": 64,
+            "declaration": "after_denied_refused_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::after_prefix",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.after_prefix",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2047,
+            "column": 74,
+            "declaration": "translated_next_step_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::after_admission",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.after_admission",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2070,
+            "column": 24,
+            "declaration": "translated_next_step_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::pre_claim",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.pre_claim",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2044,
+            "column": 8,
+            "declaration": "translated_next_step_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::after_claim",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.after_claim",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2070,
+            "column": 24,
+            "declaration": "translated_next_step_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::after_account",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.after_account",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2070,
+            "column": 24,
+            "declaration": "translated_next_step_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::after_denied",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.after_denied",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1977,
+            "column": 8,
+            "declaration": "after_denied_refused_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::after_pre_entry",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.after_pre_entry",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2070,
+            "column": 24,
+            "declaration": "translated_next_step_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::ratio::relative_ceiling_admits",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "ratio.relative_ceiling_admits",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1744,
+            "column": 2,
+            "declaration": "translated_relative_ceiling_admits_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::after_ceiling",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.after_ceiling",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2029,
+            "column": 17,
+            "declaration": "after_ceiling_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::after_write",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.after_write",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2070,
+            "column": 24,
+            "declaration": "translated_next_step_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::after_response",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.after_response",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2070,
+            "column": 24,
+            "declaration": "translated_next_step_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::after_read_back",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.after_read_back",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2070,
+            "column": 24,
+            "declaration": "translated_next_step_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::pre_claim_step",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.pre_claim_step",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2070,
+            "column": 24,
+            "declaration": "translated_next_step_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::lease_step",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.lease_step",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2070,
+            "column": 24,
+            "declaration": "translated_next_step_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::entry_step",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.entry_step",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2070,
+            "column": 24,
+            "declaration": "translated_next_step_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::order::next_step",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "order.next_step",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2070,
+            "column": 24,
+            "declaration": "translated_next_step_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::ratio::relative_basis",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "ratio.relative_basis",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 1779,
+            "column": 10,
+            "declaration": "translated_relative_basis_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::recovery::provider_link",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "recovery.provider_link",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 83,
+            "column": 77,
+            "declaration": "translated_recovery_capability_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::recovery::recovery_class",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "recovery.recovery_class",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 83,
+            "column": 77,
+            "declaration": "translated_recovery_capability_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::recovery::unknown_resolution",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "recovery.unknown_resolution",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 83,
+            "column": 77,
+            "declaration": "translated_recovery_capability_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::recovery::recovery_capability",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "recovery.recovery_capability",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 83,
+            "column": 77,
+            "declaration": "translated_recovery_capability_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::transition::absent",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "transition.absent",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2131,
+            "column": 8,
+            "declaration": "absent_eq"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::transition::same_bytes_from",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "transition.same_bytes_from",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2141,
+            "column": 36,
+            "declaration": "same_bytes_from_spec"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::transition::same_bytes",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "transition.same_bytes",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2185,
+            "column": 2,
+            "declaration": "same_bytes_eq"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::transition::resolves_unknown",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "transition.resolves_unknown",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2208,
+            "column": 89,
+            "declaration": "consistent_eq"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::transition::has_link",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "transition.has_link",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2208,
+            "column": 89,
+            "declaration": "consistent_eq"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::transition::refusal_stage",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "transition.refusal_stage",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2222,
+            "column": 24,
+            "declaration": "consistent_eq"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::transition::requires_response",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "transition.requires_response",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2207,
+            "column": 8,
+            "declaration": "consistent_eq"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::transition::permits_response",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "transition.permits_response",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2207,
+            "column": 8,
+            "declaration": "consistent_eq"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::transition::observed_stage",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "transition.observed_stage",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2207,
+            "column": 8,
+            "declaration": "consistent_eq"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::transition::provider_stage",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "transition.provider_stage",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2208,
+            "column": 89,
+            "declaration": "consistent_eq"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::transition::has_reading",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "transition.has_reading",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2207,
+            "column": 8,
+            "declaration": "consistent_eq"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::transition::consistent",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "transition.consistent",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2222,
+            "column": 24,
+            "declaration": "consistent_eq"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::transition::stage_transition_allowed",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "transition.stage_transition_allowed",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2246,
+            "column": 24,
+            "declaration": "translated_valid_transition_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::transition::adds_pre_entry",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "transition.adds_pre_entry",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2246,
+            "column": 24,
+            "declaration": "translated_valid_transition_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::transition::adds_response",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "transition.adds_response",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2226,
+            "column": 8,
+            "declaration": "translated_valid_transition_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::transition::checkpoint_valid",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "transition.checkpoint_valid",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2246,
+            "column": 24,
+            "declaration": "translated_valid_transition_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::transition::pre_entry_kept",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "transition.pre_entry_kept",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2226,
+            "column": 8,
+            "declaration": "translated_valid_transition_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::transition::response_kept",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "transition.response_kept",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2226,
+            "column": 8,
+            "declaration": "translated_valid_transition_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::transition::link_equal",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "transition.link_equal",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2246,
+            "column": 24,
+            "declaration": "translated_valid_transition_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::transition::plan_kept",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "transition.plan_kept",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2246,
+            "column": 24,
+            "declaration": "translated_valid_transition_refines_model"
+          }
+        },
+        {
+          "id": "auths_gateway_kernel::transition::valid_transition",
+          "file": "formal/qualification/aeneas/generated/gateway/Funs.lean",
+          "definition": "transition.valid_transition",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Gateway.lean",
+            "line": 2245,
+            "column": 24,
+            "declaration": "translated_valid_transition_refines_model"
+          }
+        },
+        {
+          "id": "auths_connections::kernel::next_generation",
+          "file": "formal/qualification/aeneas/generated/connections/Funs.lean",
+          "definition": "kernel.next_generation",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Connections.lean",
+            "line": 35,
+            "column": 2,
+            "declaration": "translated_next_generation_refines_model"
+          }
+        },
+        {
+          "id": "auths_connections::kernel::state_change",
+          "file": "formal/qualification/aeneas/generated/connections/Funs.lean",
+          "definition": "kernel.state_change",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Connections.lean",
+            "line": 63,
+            "column": 6,
+            "declaration": "translated_state_change_refines_model"
+          }
+        },
+        {
+          "id": "auths_connections::kernel::rotation",
+          "file": "formal/qualification/aeneas/generated/connections/Funs.lean",
+          "definition": "kernel.rotation",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Connections.lean",
+            "line": 80,
+            "column": 6,
+            "declaration": "translated_rotation_refines_model"
+          }
+        },
+        {
+          "id": "auths_connections::kernel::retained_generation",
+          "file": "formal/qualification/aeneas/generated/connections/Funs.lean",
+          "definition": "kernel.retained_generation",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Connections.lean",
+            "line": 179,
+            "column": 6,
+            "declaration": "translated_retained_generation_refines_model"
+          }
+        },
+        {
+          "id": "auths_connections::kernel::lease_generation",
+          "file": "formal/qualification/aeneas/generated/connections/Funs.lean",
+          "definition": "kernel.lease_generation",
+          "operator": "body → fail .panic",
+          "outcome": "killed",
+          "first_error": {
+            "file": "formal/Auths/Product/Refinement/Connections.lean",
+            "line": 197,
+            "column": 6,
+            "declaration": "translated_lease_generation_refines_model"
+          }
+        }
+      ]
+    }
+  },
+  "explanations": {}
+}

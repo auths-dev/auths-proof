@@ -6,11 +6,18 @@ Commands, in the order the README runs them:
     python refunds.py setup   --state DIR --gateway auths-gateway
     python refunds.py request --state DIR --operation-id ID --payment-intent PI \\
                               --amount CENTS --approvers a,b --out REQUESTS \\
-                              [--currency usd] [--connect-account acct_...]
+                              [--currency usd] [--connect-account acct_...] [--precheck]
     auths approve REQUESTS/manager-a.request \\
                               --signer DIR/signers/manager-a.json --out REQUESTS/manager-a.response
     python refunds.py submit  --state DIR --socket SOCK --operation-id ID --responses REQUESTS
     python refunds.py export  --state DIR --out audit-bundle.json
+
+``submit`` sends every assembled proof to the gateway: only the gateway
+decides the approval threshold, the ceiling, the per-window count, and
+whether an operation ID may run again. ``request --precheck`` is an opt-in,
+client-side pre-check and not an enforcement boundary. Every outcome record
+says who decided it in ``decided_by``: ``gateway``, ``approver``, or
+``client``.
 
 ``python refunds.py grant --state DIR --agent NAME --max-count N`` issues one
 more agent its own grant with the same limits and another count; the journey
@@ -70,6 +77,9 @@ HERE = Path(__file__).resolve().parent
 RECIPE = HERE / "recipe.json"
 PROFILE_LOCK = HERE / "profile.lock.json"
 MANAGERS = ("manager-a", "manager-b", "manager-c")
+# The gateway's trusted context requires this many authorized approvals from
+# as many distinct actors and roots: the agent and two managers.
+APPROVALS_REQUIRED = 3
 ROLES = ("root", "agent") + MANAGERS
 ASSURANCE = "raw-key-baseline"
 DAY = 86_400
@@ -308,7 +318,7 @@ def setup(args: argparse.Namespace) -> None:
         audience,
         challenge,
         now,
-        3,
+        APPROVALS_REQUIRED,
         extension,
     )
     sdk_context = _trusted_context(
@@ -317,7 +327,7 @@ def setup(args: argparse.Namespace) -> None:
         audience,
         challenge,
         now,
-        3,
+        APPROVALS_REQUIRED,
         extension,
     )
 
@@ -343,6 +353,7 @@ def setup(args: argparse.Namespace) -> None:
         "challenge_hex": challenge.hex(),
         "trusted_context_sha256": hashlib.sha256(gateway_context).hexdigest(),
         "principals": principals,
+        "approvals_required": APPROVALS_REQUIRED,
         "connect_account": args.connect_account,
         "limits": limits,
         "bound": {
@@ -415,15 +426,76 @@ def _agent_grants(state: Path, agent: str) -> tuple[GrantEvidence, ...]:
     return (GrantEvidence((state / f"{agent}.grant.cbor").read_bytes(), (root.evidence,)),)
 
 
+PRECHECK_NOTE = (
+    "client-side pre-check; not an enforcement boundary. "
+    "The gateway enforces this rule whether or not the pre-check runs."
+)
+
+
+def _precheck(facts: Dict[str, Any], listed: List[str], amount: int) -> Optional[str]:
+    """The rule a request breaks by what ``setup.json`` states, if any. It
+    checks no signature, window count, or operation ID: only the gateway
+    decides those."""
+    if len(set(listed)) != len(listed):
+        return "repeated-approver"
+    if 1 + len(set(listed)) < facts["approvals_required"]:
+        return "approvals-below-threshold"
+    if amount > facts["bound"]["ceiling"]:
+        return "above-ceiling"
+    return None
+
+
+def _write_pending(state: Path, operation: str, data: bytes) -> None:
+    """Writes the request's inputs. An earlier request for the same operation
+    ID is kept under the first free ``<id>.json.N``: whether the ID may run
+    again is the gateway's decision, not this program's."""
+    path = state / "pending" / f"{operation}.json"
+    if path.exists():
+        number = 1
+        while path.with_name(f"{path.name}.{number}").exists():
+            number += 1
+        path.rename(path.with_name(f"{path.name}.{number}"))
+        print(
+            f"{operation} was requested before; the earlier request is kept as "
+            f"{path.name}.{number}. The gateway's attempt store decides whether "
+            "this operation ID may run again.",
+            file=sys.stderr,
+        )
+    _private_write(path, data)
+
+
 async def _request(args: argparse.Namespace) -> Dict[str, Any]:
     state: Path = args.state
     facts = json.loads((state / "setup.json").read_text())
     principals = _principals(state)
-    managers = [name for name in args.approvers.split(",") if name]
-    if not set(managers) <= set(MANAGERS) or len(set(managers)) != len(managers):
-        raise SystemExit(f"approvers must be distinct names from {', '.join(MANAGERS)}")
+    listed = [name for name in args.approvers.split(",") if name]
+    unknown = sorted(set(listed) - set(MANAGERS))
+    if unknown:
+        raise SystemExit(f"approvers must be names from {', '.join(MANAGERS)}; got {', '.join(unknown)}")
     if args.agent in MANAGERS or args.agent == "root" or args.agent not in principals:
         raise SystemExit(f"{args.agent} is not an agent of {state}")
+    if args.precheck:
+        rule = _precheck(facts, listed, args.amount)
+        if rule is not None:
+            return {
+                "operation_id": args.operation_id,
+                "outcome": "not-submitted",
+                "decided_by": "client",
+                "reason": "precheck",
+                "precheck": rule,
+                "note": PRECHECK_NOTE,
+            }
+    managers: List[str] = []
+    for name in listed:
+        if name in managers:
+            print(
+                f"dropped the repeated approver {name}: a proposal cannot name one "
+                "approver twice; the gateway decides the threshold for the approvers "
+                "that remain",
+                file=sys.stderr,
+            )
+            continue
+        managers.append(name)
     pending = {
         "agent": args.agent,
         "managers": managers,
@@ -433,7 +505,7 @@ async def _request(args: argparse.Namespace) -> Dict[str, Any]:
         "connect_account": args.connect_account or facts["connect_account"],
         "evaluation_time": int(time.time()),
     }
-    _private_write(state / "pending" / f"{args.operation_id}.json", json.dumps(pending).encode())
+    _write_pending(state, args.operation_id, json.dumps(pending).encode())
     proposal = _proposal(state, args.operation_id)
     names = {principal: name for name, principal in principals.items()}
     out: Path = args.out
@@ -452,7 +524,36 @@ async def _request(args: argparse.Namespace) -> Dict[str, Any]:
         path = out / f"{name}.request"
         path.write_text(request.text + "\n")
         written[name] = str(path)
-    return {"operation_id": args.operation_id, "requests": written}
+    return {
+        "operation_id": args.operation_id,
+        "requests": written,
+        "action_b64": _b64(proposal.action),
+    }
+
+
+def _record_entry(audit: Path, entry: Dict[str, Any]) -> str:
+    """Keeps at most one bundle entry per operation ID: the first submission,
+    or a later one that the gateway recorded in place of one it did not."""
+    log = audit / "entries.jsonl"
+    entries = (
+        [json.loads(line) for line in log.read_text().splitlines() if line] if log.exists() else []
+    )
+    for index, existing in enumerate(entries):
+        if existing["operation_id"] != entry["operation_id"]:
+            continue
+        if existing["outcome_b64"] is None and entry["outcome_b64"] is not None:
+            entries[index] = entry
+            replacement = log.with_name(log.name + ".new")
+            replacement.write_text(
+                "".join(json.dumps(item, separators=(",", ":")) + "\n" for item in entries),
+                encoding="utf-8",
+            )
+            replacement.replace(log)
+            return "replaced"
+        return "unchanged"
+    with log.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(entry, separators=(",", ":")) + "\n")
+    return "appended"
 
 
 async def _submit(args: argparse.Namespace) -> Dict[str, Any]:
@@ -472,7 +573,12 @@ async def _submit(args: argparse.Namespace) -> Dict[str, Any]:
     statuses = {names.get(item.approver, item.approver): item for item in collection.statuses}
     declined = sorted(name for name, item in statuses.items() if item.status == "declined")
     if declined:
-        record.update(stage="collection", outcome="declined", declined=declined)
+        record.update(
+            outcome="not-submitted",
+            decided_by="approver",
+            reason="approver-declined",
+            declined=declined,
+        )
         return record
     waiting = {
         name: item.code or item.status
@@ -480,14 +586,24 @@ async def _submit(args: argparse.Namespace) -> Dict[str, Any]:
         if item.status != "approved"
     }
     if waiting:
-        record.update(stage="collection", outcome="incomplete", waiting=waiting)
+        # No proof exists until every listed approver approved this exact
+        # request, so nothing can be sent; this is not a policy refusal.
+        record.update(
+            outcome="not-submitted",
+            decided_by="client",
+            reason="approvals-incomplete",
+            waiting=waiting,
+            unattributed=[[index, code] for index, code in collection.unattributed],
+        )
         return record
-    # Collection checks every envelope byte for byte; the gateway's verifier
-    # checks the signatures and the threshold of its installed trust.
+    # Every assembled proof goes to the gateway. Collection checks every
+    # envelope byte for byte; only the gateway decides the threshold, the
+    # ceiling, the count, and whether the operation ID may run.
     proof = collection.assemble()
     gateway = GatewayClient(GatewayEndpoint(args.socket.resolve()))
     result = await gateway.submit(proof=proof, action=proposal.action)
     record.update(dataclasses.asdict(result))
+    record["decided_by"] = "gateway"
     observation = await gateway.observe_outcome(args.operation_id)
     outcome = observation.observation if isinstance(observation, GatewaySignedObservation) else None
     entry = {
@@ -496,8 +612,7 @@ async def _submit(args: argparse.Namespace) -> Dict[str, Any]:
         "action_b64": _b64(proposal.action),
         "outcome_b64": _b64(outcome) if outcome is not None else None,
     }
-    with (audit / "entries.jsonl").open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(entry, separators=(",", ":")) + "\n")
+    record["bundle"] = _record_entry(audit, entry)
     return record
 
 
@@ -551,6 +666,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     request.add_argument("--connect-account", help="defaults to the account in the grant's scope")
     request.add_argument("--agent", default="agent", help="the requesting agent")
     request.add_argument("--out", type=Path, required=True, help="directory for requests and responses")
+    request.add_argument(
+        "--precheck",
+        action="store_true",
+        help="client-side pre-check, not an enforcement boundary: refuse before writing any "
+        "request when the approvers are fewer than the threshold, one repeats, or the amount "
+        "is above the ceiling that setup.json records. The gateway enforces these rules "
+        "whether or not the pre-check runs.",
+    )
     submit = commands.add_parser("submit", help="collect the responses and submit through the gateway")
     submit.add_argument("--state", type=Path, required=True)
     submit.add_argument("--socket", type=Path, required=True)

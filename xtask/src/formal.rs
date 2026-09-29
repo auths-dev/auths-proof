@@ -1690,9 +1690,21 @@ pub(crate) fn formal_assurance_audit(formal_root: &Path, update: bool) -> Result
     evidence.push(b'\n');
     fs::write(
         evidence_directory.join("lean-assurance-audit.json"),
-        evidence,
+        &evidence,
     )
     .map_err(|error| format!("could not write Lean assurance evidence: {error}"))?;
+    let committed_audit = root().join(formal_coverage::AUDIT_PATH);
+    if update {
+        fs::write(&committed_audit, &evidence)
+            .map_err(|error| format!("could not write {}: {error}", committed_audit.display()))?;
+    } else if fs::read(&committed_audit).ok().as_deref() != Some(evidence.as_slice()) {
+        return Err(format!(
+            "{} differs from the compiled Lean assurance audit; run `cargo xtask formal --update`",
+            formal_coverage::AUDIT_PATH
+        ));
+    }
+    formal_coverage::synchronize_coverage(&root(), update)?;
+    println!("Proof coverage:             committed measurement matches a fresh run");
     println!(
         "Formal assurance audit:     PASS ({} compiled statements; transitive axioms reviewed)",
         reviewed.len()
@@ -2104,6 +2116,10 @@ fn qualified_refinement_metadata(
                 .map(|metadata| (metadata, MODEL_TRANSLATION))
         })
         .or_else(|| {
+            bounded_policy_link_refinement_metadata(declaration)
+                .map(|metadata| (metadata, MODEL_TRANSLATION))
+        })
+        .or_else(|| {
             gateway_refinement_metadata(declaration).map(|metadata| (metadata, GATEWAY_TRANSLATION))
         })
         .or_else(|| {
@@ -2114,6 +2130,40 @@ fn qualified_refinement_metadata(
             connections_refinement_metadata(declaration)
                 .map(|metadata| (metadata, CONNECTIONS_TRANSLATION))
         })
+}
+
+fn bounded_policy_link_refinement_metadata(
+    declaration: &str,
+) -> Option<ProductionRefinementMetadata> {
+    const UNCONDITIONAL: &str = "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the reviewed transparent external bridges, and the listed foundational axioms are trusted; the theorem has no premise.";
+    const BOUNDARY: &str = "Decoding the bounded-policy extension, computing the digest of the parent's extension bytes, and the verifier's stage orchestration are outside this theorem.";
+    const RESIDUAL: &[&str] = &[UNCONDITIONAL, BOUNDARY];
+    const DIGEST_EQUAL: &str = "auths_model::bounded_policy::digest_equal";
+    let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
+        "Auths.Product.Refinement.BoundedPolicy.translated_digest_equal_refines_model" => (
+            "The mechanically translated digest comparison returns exactly the equality of the digests' byte values.",
+            &[DIGEST_EQUAL],
+            "Every pair of 32-byte digests.",
+        ),
+        "Auths.Product.Refinement.BoundedPolicy.translated_bounded_policy_link_accepts_refines_model" => {
+            (
+                "The mechanically translated parent-link check returns exactly the model's link rule: a kept extension links exactly its parent's extension digest, and an added one carries no link.",
+                &[
+                    "auths_model::bounded_policy::bounded_policy_link_accepts",
+                    DIGEST_EQUAL,
+                ],
+                "Every optional child link and optional parent digest.",
+            )
+        }
+        _ => return None,
+    };
+    Some(ProductionRefinementMetadata {
+        claim_text,
+        rust_symbols,
+        scope,
+        residual_assumptions: RESIDUAL,
+        translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+    })
 }
 
 fn connections_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
@@ -2168,6 +2218,8 @@ fn bounded_policy_refinement_metadata(declaration: &str) -> Option<ProductionRef
     const DECIDER_BOUNDARY: &str = "Decoding the canonical policy bytes and projecting them onto the decider's members is outside this theorem; it is covered by the policy codec tests and the bounds fixtures.";
     const CHAIN_RESIDUAL: &[&str] = &[UNCONDITIONAL, CHAIN_BOUNDARY];
     const DECIDER_RESIDUAL: &[&str] = &[UNCONDITIONAL, DECIDER_BOUNDARY];
+    const WINDOW_BOUNDARY: &str = "Reading the gateway clock and choosing the window length from the policy are outside this theorem; the clock is unauthenticated and assumed.";
+    const WINDOW_RESIDUAL: &[&str] = &[UNCONDITIONAL, WINDOW_BOUNDARY];
     let (claim_text, rust_symbols, scope, residual_assumptions): (
         &str,
         &[&str],
@@ -2185,6 +2237,12 @@ fn bounded_policy_refinement_metadata(declaration: &str) -> Option<ProductionRef
             &["auths_bounded_policy::kernel::chain_sums_admit"],
             "Every u64 argument and pair of u64 slices of running sums and capacities, including slices of different lengths.",
             CHAIN_RESIDUAL,
+        ),
+        "Auths.Product.Refinement.translated_window_index_refines_nat" => (
+            "The mechanically translated window index returns exactly the natural-number quotient of the time by the window length, and none for a zero-length window.",
+            &["auths_bounded_policy::kernel::window_index"],
+            "Every pair of u64 time and window length.",
+            WINDOW_RESIDUAL,
         ),
         "Auths.Product.Refinement.translated_argument_policy_tightens_refines_model" => (
             "The mechanically translated tightening decider of policy /2 returns exactly the model's decider: the same argument, the unchanged ceiling and count rule, and the sum, partition, and scope rules.",
@@ -2231,6 +2289,12 @@ fn gateway_refinement_metadata(declaration: &str) -> Option<ProductionRefinement
         &str,
         &'static [&'static str],
     ) = match declaration {
+        "Auths.Product.Refinement.Gateway.translated_start_refines_model" => (
+            "The mechanically translated initial submit state returns exactly the model's start state of the abstracted plan.",
+            &["auths_gateway_kernel::order::start"],
+            "Every submit plan.",
+            ORDER_RESIDUAL,
+        ),
         "Auths.Product.Refinement.Gateway.translated_recovery_capability_refines_model" => (
             "The mechanically translated recovery-capability leaf returns exactly the model's capability for every declaration set.",
             &[RECOVERY],
@@ -2445,6 +2509,21 @@ fn observation_refinement_metadata(declaration: &str) -> Option<ProductionRefine
     const OBSERVATION_CONDITIONS_HOLD: &str =
         "auths_model::observation::observation_conditions_hold";
     const REQUIREMENT_VERDICT: &str = "auths_model::observation::requirement_verdict";
+    const ANCHOR_EQUAL: &str = "auths_model::observation::observer_anchor_id_equal";
+    const SCHEMA_EQUAL: &str = "auths_model::observation::observation_schema_equal";
+    const SUBJECT_EQUAL: &str = "auths_model::observation::requirement_subject_equal";
+    const MEMBERS_EQUAL: &str = "auths_model::observation::member_values_equal";
+    const TEST_EQUAL: &str = "auths_model::observation::condition_test_equal";
+    const CONDITION_EQUAL: &str = "auths_model::observation::observation_condition_equal";
+    const CONDITIONS_CONTAIN: &str = "auths_model::observation::observation_conditions_contain";
+    const CONDITIONS_INCLUDE: &str = "auths_model::observation::observation_conditions_include";
+    const CONDITIONS_EQUAL: &str = "auths_model::observation::observation_conditions_equal";
+    const SAME_TARGET: &str = "auths_model::observation::observation_requirement_same_target";
+    const REQUIREMENT_EQUAL: &str = "auths_model::observation::observation_requirement_equal";
+    const NARROWS: &str = "auths_model::observation::observation_requirement_narrows";
+    const COVERS: &str = "auths_model::observation::observation_requirement_covers";
+    const RETAINED: &str = "auths_model::observation::observation_requirement_retained";
+    const ATTENUATE: &str = "auths_model::observation::observation_requirements_attenuate";
     const CONDITION_CLOSURE: &[&str] = &[
         OBSERVATION_CONDITIONS_HOLD,
         OBSERVATION_CONDITION_HOLDS,
@@ -2543,6 +2622,89 @@ fn observation_refinement_metadata(declaration: &str) -> Option<ProductionRefine
                 "When every referenced action fact is available, the mechanically translated verdict over the model's eligibility and satisfaction is exactly requirementDecision.",
                 &[REQUIREMENT_VERDICT],
                 "The per-requirement verdict when the requirement's action facts are available; unavailable action facts are indeterminate in the model.",
+            )
+        }
+        "Auths.Refinement.Observation.translated_observer_anchor_id_equal_refines_model" => (
+            "The mechanically translated observer-anchor comparison returns exactly the model's String equality.",
+            &[ANCHOR_EQUAL],
+            "UTF-8 byte comparison of two observer-anchor identifiers, bridged to String equality.",
+        ),
+        "Auths.Refinement.Observation.translated_observation_schema_equal_refines_model" => (
+            "The mechanically translated schema comparison returns exactly the model's String equality.",
+            &[SCHEMA_EQUAL],
+            "UTF-8 byte comparison of two observation-schema identifiers, bridged to String equality.",
+        ),
+        "Auths.Refinement.Observation.translated_requirement_subject_equal_refines_model" => (
+            "The mechanically translated subject comparison returns exactly the model's equality of requirement subjects.",
+            &[SUBJECT_EQUAL, FACT_NAME_EQUAL],
+            "Literal-resource and action-fact subjects, including every cross-kind pair.",
+        ),
+        "Auths.Refinement.Observation.translated_member_values_equal_refines_model" => (
+            "The mechanically translated membership-list comparison returns exactly the model's positional equality of abstracted values.",
+            &[MEMBERS_EQUAL, FACT_VALUE_EQUAL],
+            "The length guard and the terminating positional loop over two finite literal lists.",
+        ),
+        "Auths.Refinement.Observation.translated_condition_test_equal_refines_model" => (
+            "The mechanically translated condition-atom comparison returns exactly the model's equality of condition atoms over one fact name.",
+            &[TEST_EQUAL, FACT_VALUE_EQUAL, FACT_NAME_EQUAL, MEMBERS_EQUAL],
+            "All four condition atoms, including every cross-atom pair.",
+        ),
+        "Auths.Refinement.Observation.translated_observation_condition_equal_refines_model" => (
+            "The mechanically translated condition comparison returns exactly the model's equality of abstracted conditions.",
+            &[CONDITION_EQUAL, FACT_NAME_EQUAL, TEST_EQUAL],
+            "The fact name and the condition atom of two named conditions.",
+        ),
+        "Auths.Refinement.Observation.translated_observation_conditions_contain_refines_model" => (
+            "The mechanically translated containment loop returns exactly the model's membership of the abstracted condition.",
+            &[CONDITIONS_CONTAIN, CONDITION_EQUAL],
+            "The terminating scan of a condition slice for one condition.",
+        ),
+        "Auths.Refinement.Observation.translated_observation_conditions_include_refines_model" => (
+            "The mechanically translated inclusion loop returns exactly the model's inclusion of condition atoms.",
+            &[CONDITIONS_INCLUDE, CONDITIONS_CONTAIN, CONDITION_EQUAL],
+            "Every atom of the wider slice occurring in the narrower slice, compared as a set of canonical atoms.",
+        ),
+        "Auths.Refinement.Observation.translated_observation_conditions_equal_refines_model" => (
+            "The mechanically translated condition-list comparison returns exactly the model's positional equality of abstracted conditions.",
+            &[CONDITIONS_EQUAL, CONDITION_EQUAL],
+            "The length guard and the terminating positional loop over two condition slices.",
+        ),
+        "Auths.Refinement.Observation.translated_observation_requirement_same_target_refines_model" => {
+            (
+                "The mechanically translated same-target check returns exactly the model's sameTarget.",
+                &[SAME_TARGET, ANCHOR_EQUAL, SCHEMA_EQUAL, SUBJECT_EQUAL],
+                "The observer anchor, schema, and subject of two requirements.",
+            )
+        }
+        "Auths.Refinement.Observation.translated_observation_requirement_equal_refines_model" => (
+            "The mechanically translated requirement comparison returns exactly the model's equality of abstracted requirements.",
+            &[REQUIREMENT_EQUAL, SAME_TARGET, CONDITIONS_EQUAL],
+            "The target, the u64 maximum age, and the positional condition list of two requirements.",
+        ),
+        "Auths.Refinement.Observation.translated_observation_requirement_narrows_refines_model" => {
+            (
+                "The mechanically translated narrowing check returns exactly the model's narrows.",
+                &[NARROWS, SAME_TARGET, CONDITIONS_INCLUDE],
+                "The same target, a maximum age no larger, a superset of condition atoms, and a strictly narrower age or atom set.",
+            )
+        }
+        "Auths.Refinement.Observation.translated_observation_requirement_covers_refines_model" => (
+            "The mechanically translated cover check returns exactly the model's covers.",
+            &[COVERS, REQUIREMENT_EQUAL, NARROWS],
+            "An identical requirement or a strict narrowing.",
+        ),
+        "Auths.Refinement.Observation.translated_observation_requirement_retained_refines_model" => {
+            (
+                "The mechanically translated retention loop returns exactly the model's existence of a covering child requirement.",
+                &[RETAINED, COVERS],
+                "The terminating scan of a child requirement list for one parent requirement.",
+            )
+        }
+        "Auths.Refinement.Observation.translated_observation_requirements_attenuate_refines_model" => {
+            (
+                "The mechanically translated observation-requirement attenuation law returns exactly the model's requirementsAttenuate.",
+                &[ATTENUATE, RETAINED, COVERS, NARROWS, REQUIREMENT_EQUAL],
+                "Every parent requirement covered by some child requirement, over requirement lists of any length.",
             )
         }
         _ => return None,
@@ -2917,7 +3079,7 @@ mod phase_ordering {
             .collect::<Vec<_>>();
         assert_eq!(
             declarations.len(),
-            8,
+            9,
             "every gateway refinement is inventoried"
         );
         for declaration in &declarations {
@@ -2989,7 +3151,7 @@ mod phase_ordering {
             .collect::<Vec<_>>();
         assert_eq!(
             declarations.len(),
-            14,
+            29,
             "every observation refinement is inventoried"
         );
         for declaration in &declarations {

@@ -65,3 +65,10 @@ af4791caed6a8cb6fc37313f9cacfe52bc0e2394:product/integrations/auths-stripe/fixtu
 # Stripe's read-only account endpoint on 2026-07-30 and returned HTTP 401.
 572a038ff87e5e0d058de76a8afd4d4a048d1014:demos/stripe-payment-mandate/src/app.rs:stripe-access-token:1055
 750e6930cc1f91030a52c2c9a54aefe3a9e7fe1a:demos/stripe-subscription-create/src/app.rs:stripe-access-token:957
+
+# Proof-coverage measurement, first published revision: a public git commit
+# identifier under the key "auths_proof_commit" and the sha256 digest of the
+# public source file product/runtime/auths-connections/src/credential.rs. The
+# generator now names the key "commit" and writes digests as "sha256:<hex>".
+d92064d919b7c2498ce62588ff48a82284f0bcd7:formal/proof-coverage-v1.json:generic-api-key:9
+d92064d919b7c2498ce62588ff48a82284f0bcd7:formal/proof-coverage-v1.json:generic-api-key:84

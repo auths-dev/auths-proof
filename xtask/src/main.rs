@@ -12,6 +12,8 @@ mod error_registry;
 mod evolution_policy;
 mod fixtures;
 mod formal;
+mod formal_coverage;
+mod formal_mutations;
 mod formal_qualification;
 mod fuzz;
 mod kani_harness;
@@ -55,7 +57,7 @@ pub(crate) use sdk_vocabulary::*;
 pub(crate) use semantic_freeze::*;
 pub(crate) use stripe::*;
 
-const USAGE: &str = "usage: cargo xtask <fmt|arch [--update]|semantic-freeze [--update]|evolution-policy [--update]|sdk-experience [--update]|sdk-vocabulary|error-registry [--update]|mcp-session-contract [--update]|mechanism-conformance [--update]|product-waist-conformance [--update]|public-naming|release-contract|release-control <finalize|compare|verify-promotion> ...|binding-semantics|core-boundary|workspace-msrv|abi|core|exchange|product|bindings|demos|package|wire [--update]|spec-sync|conformance|exchange-conformance|product-conformance|stripe-profiles|bounded-domains|compliance|matrix|cross-language|conformance-compare <report.jsonl>|product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|fuzz-campaign --shard <0|1> --seconds <n> [--toolchain <name>]|platform-artifact [output]|formal [--skip-kani] [--update]|formal qualify aeneas [--update]|adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|bench <prepare|run|report|compare|verify-artifact|bounded>|ci [preflight|authoritative|formal-proof-fast|formal-translation-reproduce|formal-translation-reuse|formal-lean-authoritative|formal-kani|formal-evidence|compliance]|release-check>";
+const USAGE: &str = "usage: cargo xtask <fmt|arch [--update]|semantic-freeze [--update]|evolution-policy [--update]|sdk-experience [--update]|sdk-vocabulary|error-registry [--update]|mcp-session-contract [--update]|mechanism-conformance [--update]|product-waist-conformance [--update]|public-naming|release-contract|release-control <finalize|compare|verify-promotion> ...|binding-semantics|core-boundary|workspace-msrv|abi|core|exchange|product|bindings|demos|package|wire [--update]|spec-sync|conformance|exchange-conformance|product-conformance|stripe-profiles|bounded-domains|compliance|matrix|cross-language|conformance-compare <report.jsonl>|product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|fuzz-campaign --shard <0|1> --seconds <n> [--toolchain <name>]|platform-artifact [output]|formal [--skip-kani] [--update]|formal coverage [--update]|formal mutations <s1|s2|s3|all> [--update] [--jobs <n>]|formal qualify aeneas [--update]|adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|bench <prepare|run|report|compare|verify-artifact|bounded>|ci [preflight|authoritative|formal-proof-fast|formal-translation-reproduce|formal-translation-reuse|formal-lean-authoritative|formal-kani|formal-evidence|compliance]|release-check>";
 
 fn main() -> ExitCode {
     match run() {
@@ -148,6 +150,13 @@ fn dispatch(arguments: impl IntoIterator<Item = String>) -> Result<(), String> {
                 {
                     formal_qualify_aeneas(true)
                 }
+                [mutations, rest @ ..] if mutations == "mutations" => {
+                    formal_mutations::formal_mutations(rest)
+                }
+                [coverage] if coverage == "coverage" => formal_coverage::formal_coverage(false),
+                [coverage, update] if coverage == "coverage" && update == "--update" => {
+                    formal_coverage::formal_coverage(true)
+                }
                 _ => formal(
                     arguments.iter().any(|arg| arg == "--skip-kani"),
                     arguments.iter().any(|arg| arg == "--update"),
@@ -180,7 +189,7 @@ mod tests {
     fn help_output_is_stable() {
         assert_eq!(
             USAGE,
-            "usage: cargo xtask <fmt|arch [--update]|semantic-freeze [--update]|evolution-policy [--update]|sdk-experience [--update]|sdk-vocabulary|error-registry [--update]|mcp-session-contract [--update]|mechanism-conformance [--update]|product-waist-conformance [--update]|public-naming|release-contract|release-control <finalize|compare|verify-promotion> ...|binding-semantics|core-boundary|workspace-msrv|abi|core|exchange|product|bindings|demos|package|wire [--update]|spec-sync|conformance|exchange-conformance|product-conformance|stripe-profiles|bounded-domains|compliance|matrix|cross-language|conformance-compare <report.jsonl>|product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|fuzz-campaign --shard <0|1> --seconds <n> [--toolchain <name>]|platform-artifact [output]|formal [--skip-kani] [--update]|formal qualify aeneas [--update]|adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|bench <prepare|run|report|compare|verify-artifact|bounded>|ci [preflight|authoritative|formal-proof-fast|formal-translation-reproduce|formal-translation-reuse|formal-lean-authoritative|formal-kani|formal-evidence|compliance]|release-check>"
+            "usage: cargo xtask <fmt|arch [--update]|semantic-freeze [--update]|evolution-policy [--update]|sdk-experience [--update]|sdk-vocabulary|error-registry [--update]|mcp-session-contract [--update]|mechanism-conformance [--update]|product-waist-conformance [--update]|public-naming|release-contract|release-control <finalize|compare|verify-promotion> ...|binding-semantics|core-boundary|workspace-msrv|abi|core|exchange|product|bindings|demos|package|wire [--update]|spec-sync|conformance|exchange-conformance|product-conformance|stripe-profiles|bounded-domains|compliance|matrix|cross-language|conformance-compare <report.jsonl>|product-fixtures [--update]|semantic-digest|wasm|live-demo|fuzz-inventory|fuzz-smoke|fuzz-campaign --shard <0|1> --seconds <n> [--toolchain <name>]|platform-artifact [output]|formal [--skip-kani] [--update]|formal coverage [--update]|formal mutations <s1|s2|s3|all> [--update] [--jobs <n>]|formal qualify aeneas [--update]|adversarial-conformance [--surface <name>|--adapter <name>|--case <id>]|bench <prepare|run|report|compare|verify-artifact|bounded>|ci [preflight|authoritative|formal-proof-fast|formal-translation-reproduce|formal-translation-reuse|formal-lean-authoritative|formal-kani|formal-evidence|compliance]|release-check>"
         );
     }
 

@@ -16784,6 +16784,20 @@
     {
       "source": "xtask",
       "source_layer": "tooling",
+      "target": "proc-macro2",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "span-locations"
+      ]
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
       "target": "serde",
       "target_layer": null,
       "scope": "external",
@@ -16822,6 +16836,22 @@
       "optional": false,
       "default_features": false,
       "features": []
+    },
+    {
+      "source": "xtask",
+      "source_layer": "tooling",
+      "target": "syn",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "normal",
+      "target_condition": null,
+      "optional": false,
+      "default_features": false,
+      "features": [
+        "full",
+        "parsing",
+        "visit"
+      ]
     },
     {
       "source": "xtask",

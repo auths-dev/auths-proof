@@ -8,27 +8,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import base64
-import importlib
-import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Sequence, cast
+from typing import Sequence
 
-from . import _native
-from .adapters.custody import (
-    CustodyDescriptor,
-    CustodyKeyState,
-    CustodyKind,
-    CustodyLifecycle,
-    CustodySignatureDescriptor,
-    CustodySigned,
-    CustodySigner,
-    PublicControlEvidence,
-    SigningRequest,
-    SigningResponse,
-)
+from ._operator import load_signer_file
+from .adapters.custody import CustodySigner
 from .authoring import (
     ApprovalRefused,
     ApprovalReview,
@@ -39,114 +25,8 @@ from .authoring import (
     open_approval_request,
 )
 
-_SIGNER_SCHEMA = "auths.approval-signer/1"
 _REQUEST_PREFIX = "auths-ar1-"
 _MAX_INPUT_BYTES = 131_072
-_MAX_CONFIG_BYTES = 1_048_576
-
-
-class _DevelopmentSigner:
-    """Development custody over a local Ed25519 seed file."""
-
-    def __init__(self, seed: bytes) -> None:
-        self._key = _native.DevelopmentEd25519Key.from_seed(seed)
-        self.descriptor = CustodyDescriptor(
-            "signer-custody/2",
-            CustodyKind.WORKLOAD,
-            "auths.development-ed25519",
-            self._key.principal,
-            CustodySignatureDescriptor(
-                self._key.principal_method, self._key.verification_method, self._key.suite
-            ),
-            "development-1",
-            CustodyKeyState.ACTIVE_CURRENT,
-            CustodyLifecycle.EPHEMERAL,
-        )
-
-    async def sign(self, request: SigningRequest) -> CustodySigned:
-        return CustodySigned(
-            "signed",
-            SigningResponse(
-                request.request_id,
-                request.object_id,
-                self.descriptor.principal,
-                self.descriptor.signature,
-                self.descriptor.key_version,
-                request.transaction_digest,
-                bytes(self._key.sign(request.signing_preimage)),
-                (
-                    PublicControlEvidence(
-                        self._key.evidence_type, self._key.media_type, bytes(self._key.evidence)
-                    ),
-                ),
-            ),
-        )
-
-    async def aclose(self) -> None:
-        return None
-
-
-def _b64(value: object) -> bytes:
-    if not isinstance(value, str):
-        raise ValueError("signer configuration base64 values must be strings")
-    return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
-
-
-def _mapping(value: object) -> dict[str, object]:
-    if not isinstance(value, dict):
-        raise ValueError("signer configuration entries must be objects")
-    return cast(dict[str, object], value)
-
-
-def _items(value: object, limit: int) -> list[object]:
-    if not isinstance(value, list) or len(cast(list[object], value)) > limit:
-        raise ValueError(f"signer configuration lists hold at most {limit} entries")
-    return cast(list[object], value)
-
-
-def _grant(value: object) -> GrantEvidence:
-    grant = _mapping(value)
-    return GrantEvidence(
-        _b64(grant.get("signed_grant_b64")),
-        tuple(
-            PublicControlEvidence(
-                str(item.get("evidence_type")), str(item.get("media_type")), _b64(item.get("bytes_b64"))
-            )
-            for item in map(_mapping, _items(grant.get("evidence", []), 32))
-        ),
-    )
-
-
-def _signer(path: Path) -> tuple[CustodySigner, tuple[GrantEvidence, ...], bool]:
-    """Returns the signer, its grant chain, and whether it is development custody."""
-    if path.is_symlink() or not path.is_file() or path.stat().st_size > _MAX_CONFIG_BYTES:
-        raise ValueError("signer configuration is unavailable or outside bounds")
-    config = _mapping(json.loads(path.read_text(encoding="utf-8")))
-    if config.get("schema") != _SIGNER_SCHEMA:
-        raise ValueError(f"signer configuration must declare schema {_SIGNER_SCHEMA}")
-    grants = tuple(_grant(item) for item in _items(config.get("grants", []), 16))
-    custody = config.get("custody")
-    if custody == "development-ed25519":
-        seed_file = config.get("seed_file")
-        if not isinstance(seed_file, str):
-            raise ValueError("development custody needs seed_file")
-        seed = (path.parent / seed_file).resolve().read_bytes()
-        if len(seed) != 32:
-            raise ValueError("development seed must contain 32 bytes")
-        return _DevelopmentSigner(seed), grants, True
-    if custody == "module":
-        target = config.get("python")
-        if not isinstance(target, str) or ":" not in target:
-            raise ValueError("module custody needs python = 'package.module:factory'")
-        module_name, _, factory_name = target.partition(":")
-        factory: Callable[[dict[str, object]], CustodySigner] = getattr(
-            importlib.import_module(module_name), factory_name
-        )
-        signer = factory(config)
-        if signer.descriptor.contract != "signer-custody/2":
-            raise ValueError("module custody factory did not return a custody signer")
-        return signer, grants, False
-    raise ValueError("signer custody must be development-ed25519 or module")
 
 
 def _moment(seconds: int) -> str:
@@ -181,11 +61,11 @@ def _read_request(value: str) -> bytes:
 
 
 async def _run(args: argparse.Namespace, interactive: bool) -> int:
-    signer, grants, development = _signer(args.signer)
+    loaded = load_signer_file(args.signer)
     try:
-        return await _answer(args, interactive, signer, grants, development)
+        return await _answer(args, interactive, loaded.signer, loaded.grants, loaded.development)
     finally:
-        await signer.aclose()
+        await loaded.signer.aclose()
 
 
 async def _answer(

@@ -102,6 +102,8 @@ GatewayUnknown
 
 [auths.self_hosted]
 ArrayField
+AssurancePolicy
+AssuranceRequirement
 AuthorizedCommand
 BooleanField
 BytesField
@@ -111,11 +113,19 @@ ExactMcpTool
 IntegerField
 ObjectField
 OptionalField
+Permission
 PreparedMcpAction
+Profile
 RejectedCommand
 SignedObservationAttachment
+SignerFile
 StringField
+TrustAnchor
+TrustedContextRequest
 attach_observations
+author_root_grant
+compile_trusted_context
+load_signer_file
 verify_command
 
 [auths.identity]
