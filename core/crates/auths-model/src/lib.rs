@@ -2361,6 +2361,35 @@ pub fn status_issuer_in_scope(
         .all(|rule| rule.scope().covers(issuer, anchor))
 }
 
+/// Whose status evaluation a snapshot statement may take part in.
+#[derive(Clone, Copy, Debug)]
+pub enum StatusView<'a> {
+    /// A branch evaluated under this trust anchor.
+    Anchor(&'a TrustAnchor),
+    /// An approver. No trust anchor names an approver, so only an issuer the
+    /// verifier trusts for every subject (scope `any`), or one no rule names,
+    /// takes part.
+    Approver,
+}
+
+/// Returns whether a status statement from `issuer` takes part in the status
+/// evaluation `view` describes: [`status_issuer_in_scope`] for a branch, and
+/// for an approver, when every rule that names the issuer has scope `any`.
+#[must_use]
+pub fn status_issuer_visible(
+    trust: &[StatusTrustRule],
+    issuer: &PrincipalId,
+    view: StatusView<'_>,
+) -> bool {
+    match view {
+        StatusView::Anchor(anchor) => status_issuer_in_scope(trust, issuer, anchor),
+        StatusView::Approver => trust
+            .iter()
+            .filter(|rule| rule.issuer() == issuer)
+            .all(|rule| matches!(rule.scope(), StatusScope::AnyAnchor)),
+    }
+}
+
 /// Context-pinned authorization for one status issuer and exact method, with
 /// the trust anchors under which that issuer's statements count.
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]

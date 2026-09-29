@@ -15,8 +15,8 @@ use auths_model::{
     BudgetCeiling, CanonicalAction, CriticalExtensionLaws, ExtensionId, GrantId, GrantState,
     GrantStatusSnapshot, PrincipalId, PrincipalMethodId, PrincipalState, PrincipalStatusSnapshot,
     ProfilePolicyId, RegistryManifestId, ResourceId, ResourceMatcherId, SignatureSuiteId,
-    StatusMethodId, StatusPolicy, Timestamp, TrustAnchor, VerifierConfigurationId,
-    status_issuer_in_scope,
+    StatusMethodId, StatusPolicy, StatusView, Timestamp, VerifierConfigurationId,
+    status_issuer_visible,
 };
 use auths_ports::{
     AssuranceClaimRule, AssuranceImplication, BudgetAlgebra, CriticalExtensionHandler,
@@ -419,7 +419,7 @@ impl StatusMethod for ExactStatusMethod {
         policy: &StatusPolicy,
         snapshot: &PrincipalStatusSnapshot,
         principal: &PrincipalId,
-        anchor: &TrustAnchor,
+        view: StatusView<'_>,
         evaluation_time: Timestamp,
     ) -> Result<StatusDecision, RegistryOperationError> {
         let StatusPolicy::SnapshotRequired { method, .. } = policy else {
@@ -437,7 +437,7 @@ impl StatusMethod for ExactStatusMethod {
             .map(auths_model::SignedPrincipalStatus::statement)
             .filter(|statement| {
                 statement.principal() == principal
-                    && status_issuer_in_scope(snapshot.trust(), statement.issuer(), anchor)
+                    && status_issuer_visible(snapshot.trust(), statement.issuer(), view)
             })
             .collect();
         select_principal(policy, snapshot, &candidates, evaluation_time)
@@ -448,7 +448,7 @@ impl StatusMethod for ExactStatusMethod {
         policy: &StatusPolicy,
         snapshot: &GrantStatusSnapshot,
         grant: GrantId,
-        anchor: &TrustAnchor,
+        view: StatusView<'_>,
         evaluation_time: Timestamp,
     ) -> Result<StatusDecision, RegistryOperationError> {
         let StatusPolicy::SnapshotRequired { method, .. } = policy else {
@@ -466,7 +466,7 @@ impl StatusMethod for ExactStatusMethod {
             .map(auths_model::SignedGrantStatus::statement)
             .filter(|statement| {
                 statement.grant_id() == grant
-                    && status_issuer_in_scope(snapshot.trust(), statement.issuer(), anchor)
+                    && status_issuer_visible(snapshot.trust(), statement.issuer(), view)
             })
             .collect();
         select_grant(policy, snapshot, &candidates, evaluation_time)
@@ -1259,7 +1259,8 @@ mod tests {
     use auths_model::{
         ConditionTest, FactName, ObservationCondition, ObservationRequirement,
         ObservationRequirements, ObservationSchemaId, ObservationSubject, ObserverAnchorId,
-        StatusScope, StatusScopeAnchors, StatusTrustRule, UintRange,
+        StatusScope, StatusScopeAnchors, StatusTrustRule, TrustAnchor, UintRange,
+        status_issuer_in_scope,
     };
 
     fn laws() -> CoreExtensionLaws {
@@ -1616,7 +1617,13 @@ mod tests {
         let subject = principal("raw:v-actor");
         let under = |anchor: &TrustAnchor| {
             exact()
-                .principal(&required(), &snapshot, &subject, anchor, Timestamp::new(50))
+                .principal(
+                    &required(),
+                    &snapshot,
+                    &subject,
+                    StatusView::Anchor(anchor),
+                    Timestamp::new(50),
+                )
                 .expect("evaluation")
         };
         // Visible, the statement forces a method mismatch.
@@ -1747,7 +1754,13 @@ mod tests {
                 for subject in subjects.map(principal) {
                     let evaluate = |snapshot: &PrincipalStatusSnapshot| {
                         exact()
-                            .principal(&required(), snapshot, &subject, anchor, Timestamp::new(50))
+                            .principal(
+                                &required(),
+                                snapshot,
+                                &subject,
+                                StatusView::Anchor(anchor),
+                                Timestamp::new(50),
+                            )
                             .expect("principal evaluation")
                     };
                     assert_eq!(evaluate(&scoped_principal), evaluate(&reduced_principal));
@@ -1755,7 +1768,13 @@ mod tests {
                 for grant in grants {
                     let evaluate = |snapshot: &GrantStatusSnapshot| {
                         exact()
-                            .grant(&required(), snapshot, grant, anchor, Timestamp::new(50))
+                            .grant(
+                                &required(),
+                                snapshot,
+                                grant,
+                                StatusView::Anchor(anchor),
+                                Timestamp::new(50),
+                            )
                             .expect("grant evaluation")
                     };
                     assert_eq!(evaluate(&scoped_grant), evaluate(&reduced_grant));

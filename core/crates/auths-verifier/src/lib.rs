@@ -5,6 +5,7 @@
 
 extern crate alloc;
 
+mod approval;
 pub mod causal;
 mod observation;
 pub mod trace;
@@ -23,13 +24,14 @@ use auths_composition::{
     BranchOutcome, EvaluationEvent, evaluate_observed as evaluate_plan_observed,
 };
 use auths_model::{
-    ActionId, AssuranceSatisfaction, CanonicalAction, ContextDigest, DenialReason, Digest,
-    EvidenceObject, GrantId, GrantStatusId, ObservationSatisfaction, ParticipantAssurance,
-    ParticipantRole, PlanId, PortableVerificationResult, PrincipalId, PrincipalStatusId,
-    ProfileBudgetExpression, ProofBundle, ProofRef, Requirement, SignatureEnvelope, SignedAction,
-    SignedGrant, SignedGrantStatus, SignedPrincipalStatus, StatementRef, StatusPolicy, Timestamp,
-    TrustAnchor, TrustedContext, VerificationCode, VerificationDecision, VerificationResources,
-    VerificationStage, VerifierConfigurationId, status_issuer_in_scope,
+    ActionId, ApprovalSatisfaction, AssuranceSatisfaction, CanonicalAction, ContextDigest,
+    DenialReason, Digest, EvidenceObject, GrantId, GrantStatusId, ObservationSatisfaction,
+    ParticipantAssurance, ParticipantRole, PlanId, PortableVerificationResult, PrincipalId,
+    PrincipalStatusId, ProfileBudgetExpression, ProofBundle, ProofRef, Requirement,
+    SignatureEnvelope, SignedAction, SignedGrant, SignedGrantStatus, SignedPrincipalStatus,
+    StatementRef, StatusPolicy, Timestamp, TrustAnchor, TrustedContext, VerificationCode,
+    VerificationDecision, VerificationResources, VerificationStage, VerifierConfigurationId,
+    status_issuer_in_scope,
 };
 use auths_ports::{
     ControlEvidence, ControlPurpose, PrincipalControlError, PrincipalControlInput, ProfileDecision,
@@ -142,6 +144,9 @@ struct AuthorityDiagnostics {
     authorized_branches: usize,
     distinct_actors: usize,
     distinct_roots: usize,
+    /// Counted approvers, threshold, and verdict of each context approval
+    /// requirement evaluated, in evaluation order.
+    context_approvals: Vec<(usize, u16, FactResult)>,
 }
 
 impl AuthorityDiagnostics {
@@ -152,6 +157,7 @@ impl AuthorityDiagnostics {
             authorized_branches: 0,
             distinct_actors: 0,
             distinct_roots: 0,
+            context_approvals: Vec::new(),
         }
     }
 
@@ -162,6 +168,19 @@ impl AuthorityDiagnostics {
             authorized_branches: 0,
             distinct_actors: 0,
             distinct_roots: 0,
+            context_approvals: Vec::new(),
+        }
+    }
+
+    fn record_context_approval(&mut self, evaluated: &approval::Evaluated) {
+        if self.collect {
+            let result = match evaluated.verdict {
+                approval::Verdict::Authorized(_) => FactResult::Satisfied,
+                approval::Verdict::Denied => FactResult::Contradicted,
+                approval::Verdict::Indeterminate => FactResult::Unavailable,
+            };
+            self.context_approvals
+                .push((evaluated.counts.counted, evaluated.threshold, result));
         }
     }
 
@@ -276,6 +295,7 @@ pub struct VerifiedAuthority {
     assurance: Vec<ParticipantAssurance>,
     assurance_satisfactions: Vec<AssuranceSatisfaction>,
     observation_satisfactions: Vec<ObservationSatisfaction>,
+    approval_satisfactions: Vec<ApprovalSatisfaction>,
     work_units: u64,
 }
 
@@ -295,6 +315,7 @@ pub struct VerifiedAction {
     assurance: Vec<ParticipantAssurance>,
     assurance_satisfactions: Vec<AssuranceSatisfaction>,
     observation_satisfactions: Vec<ObservationSatisfaction>,
+    approval_satisfactions: Vec<ApprovalSatisfaction>,
     work_units: u64,
 }
 
@@ -394,6 +415,14 @@ impl VerifiedAction {
     #[must_use]
     pub fn observation_satisfactions(&self) -> &[ObservationSatisfaction] {
         &self.observation_satisfactions
+    }
+
+    /// Returns, for each approval requirement of the trusted context and of
+    /// every authorized branch's chain, the approvals that counted: one per
+    /// counted approver.
+    #[must_use]
+    pub fn approval_satisfactions(&self) -> &[ApprovalSatisfaction] {
+        &self.approval_satisfactions
     }
 
     /// Returns deterministic proof-kernel work charged.
@@ -714,13 +743,14 @@ fn verify_internal(
         Ok(authority) => authority,
         Err(failure) => {
             let plan_root = record_plan_events(trace, &diagnostics.plan_events, principal_node);
+            // Once the plan authorizes, only the composition floors and the
+            // context's approval requirements can refuse.
             let node = if plan_root.is_some()
                 && matches!(
                     diagnostics.plan_events.last().map(|event| event.outcome()),
                     Some(BranchOutcome::Authorized)
                 )
-                && failure
-                    == VerificationFailure::Denied(DenialReason::CompositionRequirementNotMet)
+                && failure != VerificationFailure::Denied(DenialReason::ResourceLimitExceeded)
             {
                 record_composition_decision(
                     trace,
@@ -879,6 +909,30 @@ fn record_composition_decision(
             (!satisfied).then_some(VerificationCode::Denied(
                 DenialReason::CompositionRequirementNotMet,
             )),
+            &plan_parents,
+        ) {
+            parents.push(node);
+        }
+    }
+    for &(counted, threshold, result) in &diagnostics.context_approvals {
+        if let Some(node) = trace.record_with_parents(
+            VerificationStage::Authority,
+            FactKind::ApprovalRequirement,
+            FactOrigin::TrustedContext,
+            FactValue::Count {
+                actual: u64::try_from(counted).unwrap_or(u64::MAX),
+                required: u64::from(threshold),
+            },
+            result,
+            match result {
+                FactResult::Satisfied | FactResult::NotEvaluated => None,
+                FactResult::Contradicted => Some(VerificationCode::Denied(
+                    DenialReason::ApprovalThresholdNotMet,
+                )),
+                FactResult::Unavailable => Some(VerificationCode::Indeterminate(
+                    Requirement::ApprovalUnavailable,
+                )),
+            },
             &plan_parents,
         ) {
             parents.push(node);
@@ -1053,7 +1107,8 @@ fn verify_portable_sealed(
         .saturating_add(bundle.bindings().len())
         .saturating_add(bundle.principal_status().len())
         .saturating_add(bundle.grant_status().len())
-        .saturating_add(bundle.attachments().len());
+        .saturating_add(bundle.attachments().len())
+        .saturating_add(bundle.approvals().len());
     let shape = bundle.plan().validate(context.limits()).ok();
     resources = VerificationResources::new(
         resources.proof_bytes(),
@@ -1156,7 +1211,8 @@ fn verify_portable_sealed(
                     Some(context.configuration()),
                     local_configuration,
                 )
-                .with_observation_satisfactions(authority.observation_satisfactions.clone()),
+                .with_observation_satisfactions(authority.observation_satisfactions.clone())
+                .with_approval_satisfactions(authority.approval_satisfactions.clone()),
             );
             (portable, Some(Box::new(bind_verified_action(authority))))
         }
@@ -1568,6 +1624,7 @@ fn verify_status_controls(
 /// # Errors
 ///
 /// Returns a stable denial or indeterminate requirement.
+#[allow(clippy::too_many_lines)]
 fn verify_authority_measured(
     controlled: ControlVerifiedProof,
     canonical_action: &CanonicalAction,
@@ -1582,8 +1639,16 @@ fn verify_authority_measured(
     let mut assurance = Vec::new();
     let mut assurance_satisfactions = Vec::new();
     let mut observation_satisfactions = Vec::new();
+    let mut approval_requirements = Vec::new();
     let mut action_ids = Vec::new();
     let bundle = controlled.resolved.decoded.bundle();
+    let mut approvals = approval::Approvals::new(bundle)?;
+    let approval_inputs = approval::Inputs {
+        controlled: &controlled,
+        canonical: canonical_action,
+        context,
+        registries,
+    };
 
     let outcome = evaluate_plan_observed(
         bundle.plan(),
@@ -1595,6 +1660,8 @@ fn verify_authority_measured(
             context,
             registries,
             meter,
+            &mut approvals,
+            &approval_inputs,
         ) {
             Ok(branch) => {
                 authorized_branches.push(reference);
@@ -1602,6 +1669,7 @@ fn verify_authority_measured(
                 assurance.extend(branch.assurance);
                 assurance_satisfactions.extend(branch.assurance_satisfactions);
                 observation_satisfactions.extend(branch.observation_satisfactions);
+                approval_requirements.extend(branch.approval_requirements);
                 BranchOutcome::Authorized
             }
             Err(VerificationFailure::Denied(reason)) => BranchOutcome::Denied(reason),
@@ -1647,6 +1715,13 @@ fn verify_authority_measured(
             DenialReason::CompositionRequirementNotMet,
         ));
     }
+    approval_requirements.extend(evaluate_context_approvals(
+        &mut approvals,
+        &approval_inputs,
+        meter,
+        diagnostics,
+    )?);
+    let approval_satisfactions = approvals.satisfactions(&approval_requirements);
     assurance.sort_by(|left, right| {
         left.role()
             .cmp(&right.role())
@@ -1672,8 +1747,32 @@ fn verify_authority_measured(
         assurance,
         assurance_satisfactions,
         observation_satisfactions,
+        approval_satisfactions,
         work_units: meter.used,
     })
+}
+
+/// Evaluates the trusted context's approval requirements once the plan has
+/// authorized and the composition floors hold, records each for the trace,
+/// and returns their identifiers.
+fn evaluate_context_approvals(
+    approvals: &mut approval::Approvals<'_>,
+    inputs: &approval::Inputs<'_, '_>,
+    meter: &mut WorkMeter,
+    diagnostics: &mut AuthorityDiagnostics,
+) -> Result<Vec<auths_model::ApprovalRequirementId>, VerificationFailure> {
+    let requirements = approval::context_requirements(inputs.context)?;
+    let result = approvals.evaluate_list(&requirements, inputs, meter);
+    for (identifier, _) in &requirements {
+        if let Some(evaluated) = approvals.get(*identifier) {
+            diagnostics.record_context_approval(evaluated);
+        }
+    }
+    result?;
+    Ok(requirements
+        .into_iter()
+        .map(|(identifier, _)| identifier)
+        .collect())
 }
 
 /// Seals a verified authority result as a downstream-consumable action.
@@ -1689,6 +1788,7 @@ pub(crate) fn bind_verified_action(authority: VerifiedAuthority) -> VerifiedActi
         assurance: authority.assurance,
         assurance_satisfactions: authority.assurance_satisfactions,
         observation_satisfactions: authority.observation_satisfactions,
+        approval_satisfactions: authority.approval_satisfactions,
         work_units: authority.work_units,
     }
 }
@@ -1864,62 +1964,17 @@ fn verify_signed(
     registries: &ImmutableRegistries<'_>,
     meter: &mut WorkMeter,
 ) -> Result<VerifiedControl, VerificationFailure> {
-    let descriptor = signature.descriptor();
-    let result = (|| {
-        let method = registries
-            .principal_method(context.accepted_registries(), descriptor.principal_method())
-            .ok_or(VerificationFailure::Indeterminate(
-                Requirement::UnsupportedPrincipalMethod,
-            ))?;
-        let suite = registries
-            .signature_suite(context.accepted_registries(), descriptor.suite())
-            .ok_or(VerificationFailure::Indeterminate(
-                Requirement::UnsupportedSignatureSuite,
-            ))?;
-        let evidence = bound_evidence(bundle, statement)?;
-        if evidence.iter().any(|object| {
-            !context
-                .accepted_registries()
-                .accepts_evidence_type(object.evidence_type())
-        }) {
-            return Err(VerificationFailure::Indeterminate(
-                Requirement::UnsupportedEvidenceType,
-            ));
-        }
-        let method_reservation = method.maximum_work_units();
-        meter.reserve(method_reservation)?;
-        meter.reserve(suite.work_units())?;
-        let control = method
-            .evaluate_control(
-                PrincipalControlInput {
-                    principal,
-                    verification_method: descriptor.verification_method(),
-                    signature_suite: descriptor.suite(),
-                    purpose,
-                    signing_preimage,
-                    signature: signature.signature().as_slice(),
-                    asserted_signing_time,
-                    evidence: &evidence,
-                    evaluation_time: context.evaluation_time(),
-                },
-                DiagnosticMode::Discard,
-            )
-            .into_result()
-            .map_err(control_failure)?;
-        if control.work_units() > method_reservation {
-            return Err(VerificationFailure::Denied(
-                DenialReason::ResourceLimitExceeded,
-            ));
-        }
-        suite
-            .verify(SignatureInput {
-                verification_key: control.verification_key(),
-                signing_preimage: control.signature_message().unwrap_or(signing_preimage),
-                signature: signature.signature().as_slice(),
-            })
-            .map_err(signature_failure)?;
-        Ok(control)
-    })();
+    let result = evaluate_signature(
+        principal,
+        signature,
+        signing_preimage,
+        purpose,
+        asserted_signing_time,
+        || bound_evidence(bundle, statement),
+        context,
+        registries,
+        meter,
+    );
     if result
         == Err(VerificationFailure::Denied(
             DenialReason::ResourceLimitExceeded,
@@ -1934,6 +1989,79 @@ fn verify_signed(
         principal: principal.clone(),
         result,
     })
+}
+
+/// Establishes principal control over one signature: the registered principal
+/// method and signature suite, the control evidence `evidence` returns, whose
+/// types the context must accept, and work reserved before evaluation. Every
+/// failure is returned, resource exhaustion included; the caller decides
+/// which failures stop the verification.
+#[allow(clippy::too_many_arguments)]
+fn evaluate_signature<'e>(
+    principal: &PrincipalId,
+    signature: &SignatureEnvelope,
+    signing_preimage: &[u8],
+    purpose: ControlPurpose,
+    asserted_signing_time: Timestamp,
+    evidence: impl FnOnce() -> Result<Vec<&'e EvidenceObject>, VerificationFailure>,
+    context: &TrustedContext,
+    registries: &ImmutableRegistries<'_>,
+    meter: &mut WorkMeter,
+) -> Result<ControlEvidence, VerificationFailure> {
+    let descriptor = signature.descriptor();
+    let method = registries
+        .principal_method(context.accepted_registries(), descriptor.principal_method())
+        .ok_or(VerificationFailure::Indeterminate(
+            Requirement::UnsupportedPrincipalMethod,
+        ))?;
+    let suite = registries
+        .signature_suite(context.accepted_registries(), descriptor.suite())
+        .ok_or(VerificationFailure::Indeterminate(
+            Requirement::UnsupportedSignatureSuite,
+        ))?;
+    let evidence = evidence()?;
+    if evidence.iter().any(|object| {
+        !context
+            .accepted_registries()
+            .accepts_evidence_type(object.evidence_type())
+    }) {
+        return Err(VerificationFailure::Indeterminate(
+            Requirement::UnsupportedEvidenceType,
+        ));
+    }
+    let method_reservation = method.maximum_work_units();
+    meter.reserve(method_reservation)?;
+    meter.reserve(suite.work_units())?;
+    let control = method
+        .evaluate_control(
+            PrincipalControlInput {
+                principal,
+                verification_method: descriptor.verification_method(),
+                signature_suite: descriptor.suite(),
+                purpose,
+                signing_preimage,
+                signature: signature.signature().as_slice(),
+                asserted_signing_time,
+                evidence: &evidence,
+                evaluation_time: context.evaluation_time(),
+            },
+            DiagnosticMode::Discard,
+        )
+        .into_result()
+        .map_err(control_failure)?;
+    if control.work_units() > method_reservation {
+        return Err(VerificationFailure::Denied(
+            DenialReason::ResourceLimitExceeded,
+        ));
+    }
+    suite
+        .verify(SignatureInput {
+            verification_key: control.verification_key(),
+            signing_preimage: control.signature_message().unwrap_or(signing_preimage),
+            signature: signature.signature().as_slice(),
+        })
+        .map_err(signature_failure)?;
+    Ok(control)
 }
 
 fn bound_evidence(
@@ -2191,8 +2319,10 @@ struct BranchAuthority {
     assurance: Vec<ParticipantAssurance>,
     assurance_satisfactions: Vec<AssuranceSatisfaction>,
     observation_satisfactions: Vec<ObservationSatisfaction>,
+    approval_requirements: Vec<auths_model::ApprovalRequirementId>,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn verify_branch(
     controlled: &ControlVerifiedProof,
     proof_ref: ProofRef,
@@ -2200,6 +2330,8 @@ fn verify_branch(
     context: &TrustedContext,
     registries: &ImmutableRegistries<'_>,
     meter: &mut WorkMeter,
+    approvals: &mut approval::Approvals<'_>,
+    approval_inputs: &approval::Inputs<'_, '_>,
 ) -> Result<BranchAuthority, VerificationFailure> {
     let bundle = controlled.resolved.decoded.bundle();
     let action = bundle
@@ -2234,7 +2366,7 @@ fn verify_branch(
             context,
             registries,
         };
-        match verify_branch_from_anchor(&branch, anchor, meter) {
+        match verify_branch_from_anchor(&branch, anchor, meter, approvals, approval_inputs) {
             Ok(authority) => return Ok(authority),
             Err(failure) => first_failure.get_or_insert(failure),
         };
@@ -2258,6 +2390,8 @@ fn verify_branch_from_anchor(
     branch: &BranchInput<'_, '_>,
     anchor: &TrustAnchor,
     meter: &mut WorkMeter,
+    approvals: &mut approval::Approvals<'_>,
+    approval_inputs: &approval::Inputs<'_, '_>,
 ) -> Result<BranchAuthority, VerificationFailure> {
     let BranchInput {
         controlled,
@@ -2338,11 +2472,17 @@ fn verify_branch_from_anchor(
         registries,
     }
     .evaluate(meter)?;
+    let approval_requirements = approval::chain_requirements(chain)?;
+    approvals.evaluate_list(&approval_requirements, approval_inputs, meter)?;
     Ok(BranchAuthority {
         action_id,
         assurance: reports,
         assurance_satisfactions,
         observation_satisfactions,
+        approval_requirements: approval_requirements
+            .into_iter()
+            .map(|(identifier, _)| identifier)
+            .collect(),
     })
 }
 
@@ -2590,7 +2730,7 @@ fn check_principal_status(
             policy,
             context.principal_status_snapshot(),
             principal,
-            anchor,
+            auths_model::StatusView::Anchor(anchor),
             context.evaluation_time(),
         )
         .map_err(registry_operation_failure)?;
@@ -2638,7 +2778,7 @@ fn check_grant_status(
             policy,
             context.grant_status_snapshot(),
             grant_id,
-            anchor,
+            auths_model::StatusView::Anchor(anchor),
             context.evaluation_time(),
         )
         .map_err(registry_operation_failure)?;

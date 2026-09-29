@@ -590,9 +590,9 @@ fn build_bundle(case: &Case) -> (ProofBundle, TrustedContext, CanonicalAction) {
     (bundle, context, canonical)
 }
 
-fn build(case: Case) -> CorpusFixture {
+fn build(case: &Case) -> CorpusFixture {
     let (name, expected) = (case.name, case.expected);
-    let (bundle, context, canonical) = build_bundle(&case);
+    let (bundle, context, canonical) = build_bundle(case);
     fixture(
         name,
         class_of(expected),
@@ -649,74 +649,74 @@ pub(crate) fn approval_vectors() -> Vec<CorpusFixture> {
     let unavailable = Expected::Indeterminate(Requirement::ApprovalUnavailable);
     let expanded = Expected::Denied(DenialReason::DelegationExpanded);
     let mut vectors = vec![
-        build(context_case(
+        build(&context_case(
             "approval-2-of-3",
             authorized,
             vec![approval(A), approval(B)],
         )),
-        build(context_case(
+        build(&context_case(
             "approval-3-of-3",
             authorized,
             vec![approval(A), approval(B), approval(C)],
         )),
-        build(context_case(
+        build(&context_case(
             "approval-order-independent",
             authorized,
             vec![approval(B), approval(A)],
         )),
-        build(context_case(
+        build(&context_case(
             "approval-with-stray-action",
             authorized,
             vec![approval(A), approval(B), faulty(C, Fault::OtherBody)],
         )),
-        build(context_case("approval-single", not_met, vec![approval(A)])),
-        build(context_case(
+        build(&context_case("approval-single", not_met, vec![approval(A)])),
+        build(&context_case(
             "approval-duplicate",
             not_met,
             vec![approval(A), approval(A)],
         )),
-        build(context_case(
+        build(&context_case(
             "approval-other-action",
             not_met,
             vec![approval(A), faulty(B, Fault::OtherBody)],
         )),
-        build(context_case(
+        build(&context_case(
             "approval-outsider",
             not_met,
             vec![approval(A), approval(Outsider)],
         )),
-        build(context_case(
+        build(&context_case(
             "approval-forged",
             not_met,
             vec![approval(A), faulty(B, Fault::Forged)],
         )),
-        build(context_case("approval-none", not_met, Vec::new())),
-        build(Case {
+        build(&context_case("approval-none", not_met, Vec::new())),
+        build(&Case {
             context_requirements: vec![with_actor()],
             actor_listed: true,
             ..context_case("approval-self", not_met, vec![approval(A), approval(Actor)])
         }),
-        build(context_case(
+        build(&context_case(
             "approval-wrong-audience",
             not_met,
             vec![approval(A), faulty(B, Fault::OtherAudience)],
         )),
-        build(context_case(
+        build(&context_case(
             "approval-wrong-challenge",
             not_met,
             vec![approval(A), faulty(B, Fault::OtherChallenge)],
         )),
-        build(context_case(
+        build(&context_case(
             "approval-wrong-requirement",
             not_met,
             vec![approval(A), faulty(B, Fault::OtherRequirement)],
         )),
-        build(context_case(
+        build(&context_case(
             "approval-expired",
             not_met,
             vec![approval(A), faulty(B, Fault::Expired)],
         )),
-        build(Case {
+        build(&Case {
             status: Status::BActive,
             ..context_case(
                 "approval-status-active",
@@ -724,11 +724,11 @@ pub(crate) fn approval_vectors() -> Vec<CorpusFixture> {
                 vec![approval(A), approval(B)],
             )
         }),
-        build(Case {
+        build(&Case {
             status: Status::BRevoked,
             ..context_case("approval-revoked", not_met, vec![approval(A), approval(B)])
         }),
-        build(Case {
+        build(&Case {
             status: Status::BMissing,
             ..context_case(
                 "approval-status-unavailable",
@@ -736,7 +736,7 @@ pub(crate) fn approval_vectors() -> Vec<CorpusFixture> {
                 vec![approval(A), approval(B)],
             )
         }),
-        build(Case {
+        build(&Case {
             status: Status::BRevokedOutOfScope,
             ..context_case(
                 "approval-status-out-of-scope",
@@ -744,17 +744,17 @@ pub(crate) fn approval_vectors() -> Vec<CorpusFixture> {
                 vec![approval(A), approval(B)],
             )
         }),
-        build(grant_case(
+        build(&grant_case(
             "approval-grant-2-of-3",
             authorized,
             vec![approval(A), approval(B)],
         )),
-        build(grant_case(
+        build(&grant_case(
             "approval-grant-single",
             not_met,
             vec![approval(A)],
         )),
-        build(Case {
+        build(&Case {
             status: Status::BMissing,
             ..grant_case(
                 "approval-grant-status-unavailable",
@@ -762,7 +762,7 @@ pub(crate) fn approval_vectors() -> Vec<CorpusFixture> {
                 vec![approval(A), approval(B)],
             )
         }),
-        build(Case {
+        build(&Case {
             chain: Chain::Delegated(Some(vec![managers()])),
             ..grant_case(
                 "approval-grant-child-keeps",
@@ -770,7 +770,7 @@ pub(crate) fn approval_vectors() -> Vec<CorpusFixture> {
                 vec![approval(A), approval(B)],
             )
         }),
-        build(Case {
+        build(&Case {
             chain: Chain::Delegated(Some(vec![narrowed()])),
             ..grant_case(
                 "approval-grant-child-narrows",
@@ -783,7 +783,7 @@ pub(crate) fn approval_vectors() -> Vec<CorpusFixture> {
                 ],
             )
         }),
-        build(Case {
+        build(&Case {
             chain: Chain::Delegated(Some(vec![narrowed()])),
             ..grant_case(
                 "approval-grant-narrowed-parent-unmet",
@@ -791,7 +791,7 @@ pub(crate) fn approval_vectors() -> Vec<CorpusFixture> {
                 vec![for_requirement(A, narrowed), for_requirement(B, narrowed)],
             )
         }),
-        build(Case {
+        build(&Case {
             chain: Chain::Delegated(Some(vec![managers(), clerks()])),
             ..grant_case(
                 "approval-grant-child-adds",
@@ -799,7 +799,7 @@ pub(crate) fn approval_vectors() -> Vec<CorpusFixture> {
                 vec![approval(A), approval(B), for_requirement(C, clerks)],
             )
         }),
-        build(Case {
+        build(&Case {
             chain: Chain::AddedByDelegate,
             ..grant_case(
                 "approval-grant-added-by-delegate",
@@ -807,7 +807,7 @@ pub(crate) fn approval_vectors() -> Vec<CorpusFixture> {
                 vec![approval(A), approval(B)],
             )
         }),
-        build(Case {
+        build(&Case {
             chain: Chain::Delegated(Some(vec![widened()])),
             ..grant_case(
                 "approval-grant-child-widens",
@@ -815,7 +815,7 @@ pub(crate) fn approval_vectors() -> Vec<CorpusFixture> {
                 vec![approval(A), approval(B), for_requirement(A, widened)],
             )
         }),
-        build(Case {
+        build(&Case {
             chain: Chain::Delegated(Some(vec![lowered()])),
             ..grant_case(
                 "approval-grant-child-lowers",
@@ -823,7 +823,7 @@ pub(crate) fn approval_vectors() -> Vec<CorpusFixture> {
                 vec![approval(A), approval(B), for_requirement(A, lowered)],
             )
         }),
-        build(Case {
+        build(&Case {
             chain: Chain::Delegated(None),
             ..grant_case(
                 "approval-grant-child-drops",
@@ -837,7 +837,7 @@ pub(crate) fn approval_vectors() -> Vec<CorpusFixture> {
     // of A, which count once.
     let mut at_limit = vec![approval(A), approval(B)];
     at_limit.extend(core::iter::repeat_n(approval(A), 126));
-    vectors.push(build(context_case(
+    vectors.push(build(&context_case(
         "approval-count-at-limit",
         authorized,
         at_limit,
