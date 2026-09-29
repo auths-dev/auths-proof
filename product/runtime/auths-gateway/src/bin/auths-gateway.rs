@@ -22,7 +22,9 @@ mod unix {
         SessionLimits, app_session, read_frame, write_frame,
     };
     use auths_gateway::listener::{ADMIN_CAPACITY, check_socket_path_length, serve_listener};
-    use auths_gateway::{ArgumentCeilingPolicy, AuditPins, ListedValues, audit_bundle};
+    use auths_gateway::{
+        ArgumentCeilingPolicy, AuditPins, ListedValues, UnverifiedEntries, audit_bundle,
+    };
     use auths_gateway::{
         CompiledRecipe, FileGatewayAttemptStore, GatewayAttempts, GatewayConnectionDescriptor,
         GatewayEngine, GatewayObserveRequest, GatewayObserveResult, GatewayObserver,
@@ -233,7 +235,8 @@ mod unix {
         /// bound the grant's subject and every delegate together.
         BoundExtension(BoundOptions),
         /// Audit an exported bundle offline against pinned trust and observer.
-        /// Opens no socket and reads no gateway state.
+        /// Opens no socket and reads no gateway state. Exits non-zero when an
+        /// entry is inconsistent or has no gateway-signed outcome.
         Audit {
             #[arg(long)]
             bundle: PathBuf,
@@ -243,6 +246,12 @@ mod unix {
             /// Gateway observer principal, from the operator.
             #[arg(long)]
             observer: String,
+            /// Accept entries without a gateway-signed outcome whose proof this
+            /// audit refuses, such as a proof the gateway denied. An entry whose
+            /// proof verifies still needs its outcome, even when the gateway
+            /// refused it before recording it (for example while disabled).
+            #[arg(long, default_value_t = false)]
+            allow_unverified_refusals: bool,
         },
         /// Submit proof and action to the app socket, never a provider request.
         Submit {
@@ -1508,7 +1517,12 @@ mod unix {
         Ok(())
     }
 
-    fn audit(bundle: &Path, trust_sha256: &str, observer: &str) -> Result<(), &'static str> {
+    fn audit(
+        bundle: &Path,
+        trust_sha256: &str,
+        observer: &str,
+        unverified: UnverifiedEntries,
+    ) -> Result<(), &'static str> {
         let pinned: [u8; 32] = hex::decode(trust_sha256)
             .ok()
             .and_then(|bytes| bytes.try_into().ok())
@@ -1527,11 +1541,7 @@ mod unix {
             "{}",
             serde_json::to_string_pretty(&report).map_err(|_| "audit.output")?
         );
-        if report.inconsistent == 0 {
-            Ok(())
-        } else {
-            Err("audit.inconsistent")
-        }
+        report.verdict(unverified)
     }
 
     fn engine_recipe_marker(state_dir: &Path) -> Result<String, &'static str> {
@@ -2004,7 +2014,17 @@ mod unix {
                 bundle,
                 trusted_context_sha256,
                 observer,
-            } => Ok(audit(&bundle, &trusted_context_sha256, &observer)?),
+                allow_unverified_refusals,
+            } => Ok(audit(
+                &bundle,
+                &trusted_context_sha256,
+                &observer,
+                if allow_unverified_refusals {
+                    UnverifiedEntries::AllowRefusals
+                } else {
+                    UnverifiedEntries::Fail
+                },
+            )?),
             Command::Submit {
                 app_socket,
                 proof,

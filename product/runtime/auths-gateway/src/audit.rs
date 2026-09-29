@@ -25,11 +25,26 @@
 //! requirements. No socket, provider, or gateway state is touched.
 //!
 //! An entry is `verified` when the auditor admits it and the gateway signed an
-//! entered outcome for its exact action commitment; `refused` when the auditor
-//! refuses it (with the gateway's stable code) or the gateway recorded a
-//! refusal (with the outcome's `refusal`); and `inconsistent` when the two
-//! disagree or the evidence does not verify. Any inconsistent entry means the
-//! bundle was altered or the gateway entered a provider without authority.
+//! entered outcome for its exact action commitment; `refused` when the gateway
+//! signed a not-entered outcome for it, with the auditor's refusal code when
+//! the auditor refuses it and the outcome's `refusal` when it admits it;
+//! `unverified` when it carries no gateway-signed outcome, so nothing in the
+//! bundle shows whether the gateway entered the provider; and `inconsistent`
+//! when the auditor and the outcome disagree or the evidence does not verify.
+//! Any inconsistent entry means the bundle was altered or the gateway entered
+//! a provider without authority. Every entry also reports `admitted`: whether
+//! the auditor's own verification admitted its proof and action.
+//!
+//! A gateway records nothing, and so signs no outcome, for a submission it
+//! refuses before it claims the operation: a proof or bound it refuses, an
+//! admission check, a connection it cannot prepare (disabled, revoked,
+//! changed, or mismatched), a claim it cannot make, or an unavailable clock.
+//! A gateway without an observer key signs no outcome at all. An honest
+//! bundle can therefore hold unverified entries, admitted ones included.
+//! Offline, such an entry cannot be told apart from one whose outcome was
+//! removed from the bundle, so [`AuditReport::verdict`] fails every
+//! unverified entry by default, and every admitted one under
+//! [`UnverifiedEntries::AllowRefusals`].
 //!
 //! `verified` means authorized and entered, never accepted by the provider:
 //! the provider's result is reported beside it in `provider_result`, so a
@@ -64,7 +79,7 @@ use std::collections::{BTreeMap, BTreeSet};
 /// Schema of an audit bundle.
 pub const AUDIT_BUNDLE_SCHEMA: &str = "auths.gateway-audit-bundle/2";
 /// Schema of an audit report.
-pub const AUDIT_REPORT_SCHEMA: &str = "auths.gateway-audit-report/2";
+pub const AUDIT_REPORT_SCHEMA: &str = "auths.gateway-audit-report/3";
 /// Largest audit bundle, in bytes.
 pub const MAX_AUDIT_BUNDLE_BYTES: usize = 64 * 1024 * 1024;
 /// Largest number of entries one bundle may carry.
@@ -93,12 +108,30 @@ pub struct AuditPins {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum AuditStatus {
-    /// Authorized, inside every bound, and entered by the gateway.
+    /// Admitted by the auditor, inside every bound, and entered by the
+    /// gateway, as the gateway-signed outcome for its exact action shows.
     Verified,
-    /// Refused with a stable code, and never entered by the gateway.
+    /// The gateway-signed outcome for its exact action shows that the gateway
+    /// did not enter the provider; `code` says why.
     Refused,
+    /// The entry carries no gateway-signed outcome, so nothing shows whether
+    /// the gateway entered the provider; `admitted` says whether the
+    /// auditor's verification admitted the proof.
+    Unverified,
     /// The evidence does not verify or disagrees with the gateway's record.
     Inconsistent,
+}
+
+/// How [`AuditReport::verdict`] treats entries without a gateway-signed
+/// outcome.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum UnverifiedEntries {
+    /// Every unverified entry fails the audit.
+    #[default]
+    Fail,
+    /// An unverified entry whose proof the auditor refused does not fail the
+    /// audit; one whose proof it admitted still does.
+    AllowRefusals,
 }
 
 /// What the pre-entry observations of one entry show.
@@ -147,6 +180,12 @@ pub struct AuditedEntry {
     pub status: AuditStatus,
     /// `audit.verified`, a gateway refusal code, or an `audit.*` finding.
     pub code: String,
+    /// Whether the auditor's own verification admitted the proof and action
+    /// at `evaluated_at`: signatures, trust, threshold, bound admission, and
+    /// the per-proof observer check. False for an entry the audit could not
+    /// evaluate: malformed, duplicated, with an invalid outcome, or filed
+    /// under another operation.
+    pub admitted: bool,
     /// Actors of the authorized branches when the proof verified.
     pub approvals: Vec<String>,
     /// Verified action arguments when the proof verified.
@@ -194,8 +233,38 @@ pub struct AuditReport {
     pub verified: usize,
     /// Number of refused entries.
     pub refused: usize,
+    /// Number of unverified entries.
+    pub unverified: usize,
     /// Number of inconsistent entries.
     pub inconsistent: usize,
+}
+
+impl AuditReport {
+    /// Whether the audit passes under `unverified`.
+    ///
+    /// # Errors
+    /// `audit.inconsistent` when any entry is inconsistent; otherwise
+    /// `audit.unverified` when any entry is unverified, except that under
+    /// [`UnverifiedEntries::AllowRefusals`] an unverified entry the auditor
+    /// did not admit passes. No policy passes an unverified entry the auditor
+    /// admitted.
+    pub fn verdict(&self, unverified: UnverifiedEntries) -> Result<(), &'static str> {
+        if self
+            .entries
+            .iter()
+            .any(|entry| entry.status == AuditStatus::Inconsistent)
+        {
+            return Err("audit.inconsistent");
+        }
+        let fails = |entry: &AuditedEntry| {
+            entry.status == AuditStatus::Unverified
+                && (unverified == UnverifiedEntries::Fail || entry.admitted)
+        };
+        if self.entries.iter().any(fails) {
+            return Err("audit.unverified");
+        }
+        Ok(())
+    }
 }
 
 #[derive(Deserialize)]
@@ -298,6 +367,7 @@ fn finding(operation_id: &str, code: &str, evaluated_at: u64) -> Pending {
             operation_id: operation_id.to_owned(),
             status: AuditStatus::Inconsistent,
             code: code.to_owned(),
+            admitted: false,
             approvals: Vec::new(),
             arguments: None,
             evaluated_at,
@@ -373,6 +443,7 @@ pub fn audit_bundle(bytes: &[u8], pins: &AuditPins) -> Result<AuditReport, &'sta
         observer: pins.observer.as_str().to_owned(),
         verified: count(AuditStatus::Verified),
         refused: count(AuditStatus::Refused),
+        unverified: count(AuditStatus::Unverified),
         inconsistent: count(AuditStatus::Inconsistent),
         entries,
         approval_responses,
@@ -556,6 +627,7 @@ impl Pending {
                 operation_id: operation.to_owned(),
                 status: AuditStatus::Refused,
                 code: String::new(),
+                admitted: false,
                 approvals: Vec::new(),
                 arguments: None,
                 evaluated_at,
@@ -617,6 +689,7 @@ fn audit_entry(
             if verified.request.operation_id() != &operation_id {
                 return finding(operation, "audit.operation-mismatch", evaluated_at);
             }
+            item.entry.admitted = true;
             item.entry.status = AuditStatus::Verified;
             "audit.verified".clone_into(&mut item.entry.code);
             item.entry.approvals = verified
@@ -848,21 +921,25 @@ fn reconcile(item: Pending, recounted: Option<&'static str>) -> AuditedEntry {
         entry
     };
     let Some(outcome) = outcome else {
-        return if entry.status == AuditStatus::Verified {
-            AuditedEntry {
-                status: AuditStatus::Refused,
-                code: "audit.outcome-missing".to_owned(),
-                ..entry
-            }
+        // Without the gateway's signed outcome nothing shows whether it
+        // entered the provider, whatever the auditor's verification found.
+        let code = if entry.admitted {
+            "audit.outcome-missing".to_owned()
         } else {
-            entry
+            entry.code
+        };
+        return AuditedEntry {
+            status: AuditStatus::Unverified,
+            code,
+            ..entry
         };
     };
     if commitment.as_deref() != Some(outcome.commitment()) {
         return inconsistent(entry, "audit.outcome-commitment-mismatch");
     }
     match (entry.status, outcome.entered()) {
-        (AuditStatus::Refused, false) | (AuditStatus::Inconsistent, _) => entry,
+        (AuditStatus::Refused, false)
+        | (AuditStatus::Inconsistent | AuditStatus::Unverified, _) => entry,
         (AuditStatus::Verified, false) => {
             entry.status = AuditStatus::Refused;
             outcome

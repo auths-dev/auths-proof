@@ -195,9 +195,9 @@ class Journey {
     ]).stdout) as Json];
   }
 
-  audit(bundle: string, trust: string, observer: string): SpawnSyncReturns<string> {
+  audit(bundle: string, trust: string, observer: string, ...options: string[]): SpawnSyncReturns<string> {
     let command = this.gateway;
-    let args = ["audit", "--bundle", bundle, "--trusted-context-sha256", trust, "--observer", observer];
+    let args = ["audit", "--bundle", bundle, "--trusted-context-sha256", trust, "--observer", observer, ...options];
     // Prove the audit needs no network where the platform allows it.
     if (platform() === "linux" && spawnSync("unshare", ["-rn", "true"]).status === 0) {
       args = ["-rn", command, ...args];
@@ -667,15 +667,33 @@ async function main(): Promise<void> {
     const providerRequests = journey.providerEntries();
     await journey.stop();
 
-    // README step 9: the offline audit, with the gateway stopped.
-    const audited = await journey.step("offline audit (gateway stopped)",
+    // README step 9: the offline audit, with the gateway stopped. The gateway
+    // recorded nothing for the refusals it made before the claim, so their
+    // entries carry no outcome and the audit reports them unverified: the
+    // default policy fails the bundle, and --allow-unverified-refusals passes
+    // it because the audit itself refuses each of those proofs.
+    const exported = JSON.parse(readFileSync(bundlePath, "utf8")) as { entries: Json[] };
+    const unrecorded = new Set(exported.entries
+      .filter((entry) => entry.outcome_b64 === null || entry.outcome_b64 === undefined)
+      .map((entry) => entry.operation_id as string));
+    // refund-7-repeated's unsigned entry was replaced by its signed retry.
+    expect(JSON.stringify([...unrecorded].sort()) === JSON.stringify([
+      "refund-2-one-approval", "refund-3-over-ceiling", "refund-6-no-manager", "refund-other-account",
+    ]),
+    `entries without a signed outcome: ${JSON.stringify([...unrecorded])}`);
+    const strict = await journey.step("offline audit (gateway stopped)",
       () => journey.audit(bundlePath, facts.trusted_context_sha256, observer));
+    expect(strict.status !== 0 && strict.stderr.trim() === "audit.unverified",
+      `audit without --allow-unverified-refusals: ${String(strict.status)} ${strict.stderr}`);
+    const audited = await journey.step("offline audit accepting unverified refusals",
+      () => journey.audit(bundlePath, facts.trusted_context_sha256, observer, "--allow-unverified-refusals"));
     expect(audited.status === 0, `audit failed: ${audited.stderr}`);
+    expect(audited.stdout === strict.stdout, "the option changed the audit report");
     const report = JSON.parse(audited.stdout) as {
-      verified: number; refused: number; inconsistent: number;
+      verified: number; refused: number; unverified: number; inconsistent: number;
       recovery: { class: string };
       entries: {
-        operation_id: string; status: string; code: string; approvals: string[];
+        operation_id: string; status: string; code: string; admitted: boolean; approvals: string[];
         provider_result: {
           stage: string; http_status: number | null; response_digest: string | null;
           refusal: string | null; recount: string | null;
@@ -684,12 +702,11 @@ async function main(): Promise<void> {
       approval_responses: { operation_id: string; approver: string; decision: string }[];
     };
     const verdicts = Object.fromEntries(report.entries.map((entry) =>
-      [entry.operation_id, `${entry.status} ${entry.code}`]));
+      [entry.operation_id, `${entry.status} ${entry.code} ${String(entry.admitted)}`]));
     // One bundle entry per operation ID: the replay left refund-1's alone, the
     // retry replaced refund-7-repeated's unsigned one, and the journey's own
     // reused-approvals submission has none.
-    const bundled = (JSON.parse(readFileSync(bundlePath, "utf8")) as { entries: { operation_id: string }[] })
-      .entries.map((entry) => entry.operation_id);
+    const bundled = exported.entries.map((entry) => entry.operation_id as string);
     const auditedRefusals: Record<string, string> = Object.fromEntries(Object.entries(expectedRefusals)
       .filter(([operation]) => !["refund-1-replay", "refund-8-reuse", "refund-7-retry"].includes(operation))
       .map(([operation, [, code]]) => [operation, code]));
@@ -698,10 +715,12 @@ async function main(): Promise<void> {
     expect(JSON.stringify([...bundled].sort()) ===
       JSON.stringify(["refund-1", "refund-4", ...Object.keys(auditedRefusals)].sort()),
     `bundle entries ${JSON.stringify([...bundled].sort())}`);
-    expect(verdicts["refund-1"] === "verified audit.verified", `audit refund-1 ${JSON.stringify(verdicts)}`);
-    expect(verdicts["refund-4"] === "verified audit.verified", `audit refund-4 ${JSON.stringify(verdicts)}`);
+    for (const operation of ["refund-1", "refund-4"]) {
+      expect(verdicts[operation] === "verified audit.verified true", `audit ${operation}: ${verdicts[operation]}`);
+    }
     for (const [operation, code] of Object.entries(auditedRefusals)) {
-      expect(verdicts[operation] === `refused ${code}`, `audit ${operation}: ${verdicts[operation]}`);
+      const expected = unrecorded.has(operation) ? `unverified ${code} false` : `refused ${code} true`;
+      expect(verdicts[operation] === expected, `audit ${operation}: ${verdicts[operation]}`);
     }
     // Every entered refund shows the provider's result beside its verdict, the
     // one the provider rejected included.
@@ -745,9 +764,22 @@ async function main(): Promise<void> {
         `audit approval responses ${JSON.stringify([...recorded])}`);
     }
 
-    // Hostile: a tampered bundle is detected.
+    // Hostile: a tampered bundle is detected. Each case runs with
+    // --allow-unverified-refusals, so that only the tampering can fail it.
     const bundle = JSON.parse(readFileSync(bundlePath, "utf8")) as { entries: Json[] } & Json;
     const refund4 = bundle.entries.find((entry) => entry.operation_id === "refund-4")!;
+    type Audited = {
+      inconsistent: number;
+      entries: { operation_id: string; status: string; code: string; admitted: boolean }[];
+    };
+    const tamperedPath = join(journey.work, "tampered.json");
+    const auditTampered = (value: Json): SpawnSyncReturns<string> => {
+      writeFileSync(tamperedPath, JSON.stringify(value));
+      return journey.audit(tamperedPath, facts.trusted_context_sha256, observer, "--allow-unverified-refusals");
+    };
+    const refund1 = (result: SpawnSyncReturns<string>) =>
+      (JSON.parse(result.stdout) as Audited).entries.find((entry) => entry.operation_id === "refund-1")!;
+    const dropOutcome = (entry: Json): void => { delete entry.outcome_b64; };
     const tampered: Record<string, readonly [Json, string]> = {
       "proof byte flipped": [tamper(bundle, "refund-1", flipProofByte), "audit.entered-without-authority"],
       "action swapped": [
@@ -760,24 +792,46 @@ async function main(): Promise<void> {
       ],
     };
     const detections: Record<string, string> = {};
-    const tamperedPath = join(journey.work, "tampered.json");
     for (const [label, [value, code]] of Object.entries(tampered)) {
-      writeFileSync(tamperedPath, JSON.stringify(value));
-      const result = journey.audit(tamperedPath, facts.trusted_context_sha256, observer);
-      const findings = (JSON.parse(result.stdout) as { entries: { status: string; code: string }[] }).entries
+      const result = auditTampered(value);
+      const findings = (JSON.parse(result.stdout) as Audited).entries
         .filter((entry) => entry.status === "inconsistent").map((entry) => entry.code);
       expect(result.status !== 0 && JSON.stringify(findings) === JSON.stringify([code]),
         `tamper '${label}' not detected: ${JSON.stringify(findings)} ${result.stderr}`);
       detections[label] = code;
     }
-    writeFileSync(tamperedPath, JSON.stringify({
+    // An entered refund whose outcome was left out verifies, so it stays
+    // unverified and fails the audit even with the option.
+    const removed = auditTampered(tamper(bundle, "refund-1", dropOutcome));
+    const removedEntry = refund1(removed);
+    expect(removed.status !== 0 && removed.stderr.trim() === "audit.unverified" &&
+      (JSON.parse(removed.stdout) as Audited).inconsistent === 0 &&
+      `${removedEntry.status} ${removedEntry.code} ${String(removedEntry.admitted)}` ===
+        "unverified audit.outcome-missing true",
+    `tamper 'outcome removed' not detected: ${JSON.stringify(removedEntry)} ${removed.stderr}`);
+    detections["outcome removed"] = "audit.unverified";
+    const replaced = auditTampered({
       ...bundle,
       trusted_context_b64: readFileSync(join(journey.state, "trust", "sdk.context.cbor")).toString("base64url"),
-    }));
-    const replaced = journey.audit(tamperedPath, facts.trusted_context_sha256, observer);
+    });
     expect(replaced.status !== 0 && replaced.stderr.includes("audit.trust-pin-mismatch"),
       "replaced trust not detected");
     detections["trust replaced"] = "audit.trust-pin-mismatch";
+    // The documented limit of --allow-unverified-refusals: with its outcome
+    // removed, an altered proof is refused by the audit and so accepted by the
+    // option. It is reported unverified, never refused, and the default policy
+    // still fails it. This is not a detection.
+    const limited = auditTampered(tamper(bundle, "refund-1", (entry) => {
+      dropOutcome(entry);
+      flipProofByte(entry);
+    }));
+    const limitedEntry = refund1(limited);
+    expect(limited.status === 0 && (JSON.parse(limited.stdout) as Audited).inconsistent === 0 &&
+      limitedEntry.status === "unverified" && !limitedEntry.admitted,
+    `known limit changed: ${JSON.stringify(limitedEntry)} ${String(limited.status)} ${limited.stderr}`);
+    const knownLimits = {
+      "outcome removed and proof byte flipped": { exit: limited.status, "refund-1": limitedEntry.status },
+    };
     journey.steps.push({ step: "tampered bundles detected", seconds: 0 });
 
     const writes = providerRequests.filter((entry) => entry.kind === "write");
@@ -797,10 +851,12 @@ async function main(): Promise<void> {
       provider_requests: live ? null : providerRequests.length,
       provider_writes: live ? null : writes.length,
       audit: {
-        verified: report.verified, refused: report.refused, inconsistent: report.inconsistent,
+        verified: report.verified, refused: report.refused, unverified: report.unverified,
+        inconsistent: report.inconsistent,
         http_status: Object.fromEntries(entered.map((operation) => [operation, providerResults[operation]!.http_status])),
       },
       tamper_detected: detections,
+      known_limits: knownLimits,
       hostile,
       negative_control: negativeControl,
       gateway_witness: journey.witnessLines(),

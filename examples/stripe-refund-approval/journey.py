@@ -266,7 +266,9 @@ class Journey:
                 raise SystemExit(f"{manager} could not answer: {answered.stderr.strip()}")
         return requested, self.submit(operation, folder)
 
-    def audit(self, bundle: Path, trust: str, observer: str) -> subprocess.CompletedProcess[str]:
+    def audit(
+        self, bundle: Path, trust: str, observer: str, *options: str
+    ) -> subprocess.CompletedProcess[str]:
         command = [
             self.gateway,
             "audit",
@@ -276,6 +278,7 @@ class Journey:
             trust,
             "--observer",
             observer,
+            *options,
         ]
         # Prove the audit needs no network where the platform allows it.
         if platform.system() == "Linux" and shutil.which("unshare"):
@@ -1035,20 +1038,57 @@ def main() -> int:
         )
         journey.stop()
 
-        # README step 9: the offline audit, with the gateway stopped.
-        audited = journey.step(
+        # README step 9: the offline audit, with the gateway stopped. The
+        # gateway recorded nothing for the refusals it made before the claim,
+        # so their entries carry no outcome and the audit reports them
+        # unverified: the default policy fails the bundle, and
+        # --allow-unverified-refusals passes it because the audit itself
+        # refuses each of those proofs.
+        exported = json.loads(bundle_path.read_text())
+        unrecorded = {
+            entry["operation_id"]
+            for entry in exported["entries"]
+            if entry.get("outcome_b64") is None
+        }
+        # refund-7-repeated's unsigned entry was replaced by its signed retry.
+        expect(
+            unrecorded
+            == {
+                "refund-2-one-approval",
+                "refund-6-no-manager",
+                "refund-3-over-ceiling",
+                "refund-other-account",
+            },
+            f"entries without a signed outcome: {sorted(unrecorded)}",
+        )
+        strict = journey.step(
             "offline audit (gateway stopped)",
             lambda: journey.audit(bundle_path, facts["trusted_context_sha256"], observer),
         )
+        expect(
+            strict.returncode != 0 and strict.stderr.strip() == "audit.unverified",
+            f"audit without --allow-unverified-refusals: {strict.returncode} {strict.stderr}",
+        )
+        audited = journey.step(
+            "offline audit accepting unverified refusals",
+            lambda: journey.audit(
+                bundle_path,
+                facts["trusted_context_sha256"],
+                observer,
+                "--allow-unverified-refusals",
+            ),
+        )
         expect(audited.returncode == 0, f"audit failed: {audited.stderr}")
         report = json.loads(audited.stdout)
+        expect(report == json.loads(strict.stdout), "the option changed the audit report")
         verdicts = {
-            entry["operation_id"]: (entry["status"], entry["code"]) for entry in report["entries"]
+            entry["operation_id"]: (entry["status"], entry["code"], entry["admitted"])
+            for entry in report["entries"]
         }
         # One bundle entry per operation ID: the replay left refund-1's
         # alone, the retry replaced refund-7-repeated's unsigned one, and the
         # journey's own reused-approvals submission has none.
-        bundled = [entry["operation_id"] for entry in json.loads(bundle_path.read_text())["entries"]]
+        bundled = [entry["operation_id"] for entry in exported["entries"]]
         audited_refusals = {
             operation: code
             for operation, (_, code) in expected_refusals.items()
@@ -1060,13 +1100,16 @@ def main() -> int:
             set(bundled) == {"refund-1", "refund-4", *audited_refusals},
             f"bundle entries {sorted(bundled)}",
         )
-        expect(verdicts["refund-1"] == ("verified", "audit.verified"), f"audit refund-1 {verdicts}")
-        expect(verdicts["refund-4"] == ("verified", "audit.verified"), f"audit refund-4 {verdicts}")
-        for operation, code in audited_refusals.items():
+        for operation in ("refund-1", "refund-4"):
             expect(
-                verdicts[operation] == ("refused", code),
+                verdicts[operation] == ("verified", "audit.verified", True),
                 f"audit {operation}: {verdicts[operation]}",
             )
+        for operation, code in audited_refusals.items():
+            expected = (
+                ("unverified", code, False) if operation in unrecorded else ("refused", code, True)
+            )
+            expect(verdicts[operation] == expected, f"audit {operation}: {verdicts[operation]}")
         # Every entered refund shows the provider's result beside its verdict,
         # the one the provider rejected included.
         provider_results = {
@@ -1131,8 +1174,27 @@ def main() -> int:
             f"audit approval responses {sorted(recorded)}",
         )
 
-        # Hostile: a tampered bundle is detected.
+        # Hostile: a tampered bundle is detected. Each case runs with
+        # --allow-unverified-refusals, so that only the tampering can fail it.
         bundle = json.loads(bundle_path.read_text())
+
+        def audit_tampered(value: Dict[str, Any]) -> subprocess.CompletedProcess[str]:
+            path = journey.work / "tampered.json"
+            path.write_text(json.dumps(value))
+            return journey.audit(
+                path, facts["trusted_context_sha256"], observer, "--allow-unverified-refusals"
+            )
+
+        def refund_1(result: subprocess.CompletedProcess[str]) -> Dict[str, Any]:
+            return next(
+                entry
+                for entry in json.loads(result.stdout)["entries"]
+                if entry["operation_id"] == "refund-1"
+            )
+
+        def drop_outcome(entry: Dict[str, Any]) -> None:
+            entry.pop("outcome_b64", None)
+
         outcome_of_4 = next(
             entry for entry in bundle["entries"] if entry["operation_id"] == "refund-4"
         )["outcome_b64"]
@@ -1160,9 +1222,7 @@ def main() -> int:
         }
         detections: Dict[str, str] = {}
         for label, (value, code) in tampered.items():
-            path = journey.work / "tampered.json"
-            path.write_text(json.dumps(value))
-            result = journey.audit(path, facts["trusted_context_sha256"], observer)
+            result = audit_tampered(value)
             findings = [
                 entry["code"]
                 for entry in json.loads(result.stdout)["entries"]
@@ -1173,6 +1233,19 @@ def main() -> int:
                 f"tamper '{label}' not detected: {findings} {result.stderr}",
             )
             detections[label] = code
+        # An entered refund whose outcome was left out verifies, so it stays
+        # unverified and fails the audit even with the option.
+        removed = audit_tampered(tamper(bundle, "refund-1", drop_outcome))
+        removed_entry = refund_1(removed)
+        expect(
+            removed.returncode != 0
+            and removed.stderr.strip() == "audit.unverified"
+            and json.loads(removed.stdout)["inconsistent"] == 0
+            and (removed_entry["status"], removed_entry["code"], removed_entry["admitted"])
+            == ("unverified", "audit.outcome-missing", True),
+            f"tamper 'outcome removed' not detected: {removed_entry} {removed.stderr}",
+        )
+        detections["outcome removed"] = "audit.unverified"
         swapped_trust = dict(
             bundle,
             trusted_context_b64=base64.urlsafe_b64encode(
@@ -1181,14 +1254,35 @@ def main() -> int:
             .rstrip(b"=")
             .decode(),
         )
-        path = journey.work / "tampered.json"
-        path.write_text(json.dumps(swapped_trust))
-        result = journey.audit(path, facts["trusted_context_sha256"], observer)
+        result = audit_tampered(swapped_trust)
         expect(
             result.returncode != 0 and "audit.trust-pin-mismatch" in result.stderr,
             "replaced trust not detected",
         )
         detections["trust replaced"] = "audit.trust-pin-mismatch"
+        # The documented limit of --allow-unverified-refusals: with its outcome
+        # removed, an altered proof is refused by the audit and so accepted by
+        # the option. It is reported unverified, never refused, and the
+        # default policy still fails it. This is not a detection.
+        def remove_and_flip(entry: Dict[str, Any]) -> None:
+            drop_outcome(entry)
+            flip_proof_byte(entry)
+
+        limited = audit_tampered(tamper(bundle, "refund-1", remove_and_flip))
+        limited_entry = refund_1(limited)
+        expect(
+            limited.returncode == 0
+            and json.loads(limited.stdout)["inconsistent"] == 0
+            and limited_entry["status"] == "unverified"
+            and not limited_entry["admitted"],
+            f"known limit changed: {limited_entry} {limited.returncode} {limited.stderr}",
+        )
+        known_limits = {
+            "outcome removed and proof byte flipped": {
+                "exit": limited.returncode,
+                "refund-1": limited_entry["status"],
+            }
+        }
         journey.steps.append({"step": "tampered bundles detected", "seconds": 0})
 
         writes = [entry for entry in journey.provider_entries() if entry["kind"] == "write"]
@@ -1216,6 +1310,7 @@ def main() -> int:
             "audit": {
                 "verified": report["verified"],
                 "refused": report["refused"],
+                "unverified": report["unverified"],
                 "inconsistent": report["inconsistent"],
                 "http_status": {
                     operation: provider_results[operation]["http_status"]
@@ -1223,6 +1318,7 @@ def main() -> int:
                 },
             },
             "tamper_detected": detections,
+            "known_limits": known_limits,
             "hostile": hostile,
             "negative_control": negative_control,
             "gateway_witness": journey.witness_lines(),
