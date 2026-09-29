@@ -921,7 +921,6 @@ impl PyStatusSnapshot {
     }
 }
 
-#[pyfunction]
 /// A status scope from its kind (`own`, `anchors`, or `any`) and, for
 /// `anchors` only, at least one listed trust-anchor ID.
 fn status_scope(kind: &str, anchors: Vec<String>) -> PyResult<StatusScope> {
@@ -944,6 +943,7 @@ fn status_scope(kind: &str, anchors: Vec<String>) -> PyResult<StatusScope> {
     }
 }
 
+#[pyfunction]
 #[allow(clippy::too_many_arguments)]
 fn status_snapshot(
     py: Python<'_>,

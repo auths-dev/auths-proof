@@ -169,7 +169,9 @@ class StatusTrustRule:
     scope: StatusScope
 
 
-def _native_trust(trust: Sequence[StatusTrustRule]) -> list:
+def _native_trust(
+    trust: Sequence[StatusTrustRule],
+) -> list[Tuple[str, str, int, str, list[str]]]:
     return [
         (
             value.method,
