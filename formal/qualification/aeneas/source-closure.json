@@ -1,6 +1,6 @@
 {
   "schema": "auths-proof-translation-source-closure/v2",
-  "digest": "51b5e455a813e16eb5c76ae5614a4d19a4087717c58a6fb1dcfefb82b26027ac",
+  "digest": "3c5cc1264e9a1f372f3adb8d88faea5178d8a60e02227c96d6ccbc340b983967",
   "files": [
     {
       "path": ".cargo/config.toml",
@@ -8,12 +8,12 @@
     },
     {
       "path": "Cargo.lock",
-      "sha256": "b34be72b36839ca86a87080eea244b0b01c37dbceb53c9cc4bee6abaf386d572",
+      "sha256": "c0fb8a390f817b1b080db3f3947a5849f7c55a561962411129a0a740c8e37491",
       "normalization": "translated-cargo-closure-v1"
     },
     {
       "path": "Cargo.toml",
-      "sha256": "e1b4230455a9d1815ee793cd66db4eccec6e0d5396765501ddccd8d1aeca9940"
+      "sha256": "5c93a8dad4d173e3d0a229967c859a805b88f556df57af2ab281d6806a2e613e"
     },
     {
       "path": "core/crates/auths-algebra-kernel/Cargo.toml",
@@ -89,7 +89,7 @@
     },
     {
       "path": "formal/qualification/aeneas/qualification.toml",
-      "sha256": "df7fb29407f222750b2b464bde9f2df640aa8c052144dc397cf24a1ac42c4086"
+      "sha256": "66082a1e48dbea94cda4e46331add492b26dbc12462fed3de9d57007c03be9f1"
     },
     {
       "path": "formal/translation-toolchain.lock",
@@ -257,7 +257,7 @@
     },
     {
       "path": "xtask/Cargo.toml",
-      "sha256": "d1ef9514d9b7331865bbf207646c7dcec072c995830b47399f2dc483636bf729"
+      "sha256": "ec016a7130a9a604c146f56458e30fef96c9dedc82790f07047dabeac1142e2d"
     },
     {
       "path": "xtask/ci-plan/Cargo.toml",
@@ -297,7 +297,7 @@
     },
     {
       "path": "xtask/src/checks.rs",
-      "sha256": "edd9203b9160e1a5b85ff12f26048b2d9090133c8228c8259d4364a8dda54fcf"
+      "sha256": "d67a92a45d88be5d59e558b5fba1bd59a3ca676bfc57cc8fa9a587c2df6780f3"
     },
     {
       "path": "xtask/src/compliance.rs",
@@ -317,15 +317,23 @@
     },
     {
       "path": "xtask/src/fixtures.rs",
-      "sha256": "014b875e179292a6dc83c4b41ed89ca068e79853a4263b8dea54296287c53db6"
+      "sha256": "66dd891f26593edea1978b8d4419ebab7cd7caac7f61b851aa10edb507824a82"
     },
     {
       "path": "xtask/src/formal.rs",
-      "sha256": "336c7a0a3feca326a6129a06a809808873c85cfbf605ffc9378b805ddfa8a03d"
+      "sha256": "7c7bfe74acfcda91833a8da60674a1005e230233c8285c7596259016399aac56"
+    },
+    {
+      "path": "xtask/src/formal_coverage.rs",
+      "sha256": "e1ef8dba3d0300a0e7e7f74d98eb13f3a3908a7b08791ba89fa7168ccb3ad182"
+    },
+    {
+      "path": "xtask/src/formal_mutations.rs",
+      "sha256": "56784a51c9ae2f008f042770a668fb54f56c2091c9155286a42b79e31744f4eb"
     },
     {
       "path": "xtask/src/formal_qualification.rs",
-      "sha256": "753d7115994e607f52bf72a21cd54098ce7438930812ad2c097a2e366f5b0805"
+      "sha256": "fa7fd3d83a1dbf12ea83717f1b31214aab55d2b4c5d8378eae91722085719f2a"
     },
     {
       "path": "xtask/src/fuzz.rs",
@@ -341,7 +349,7 @@
     },
     {
       "path": "xtask/src/main.rs",
-      "sha256": "36101ebf96fae735af19be2764968e57a817aa13e92b56e2628cd07a38a98ac2"
+      "sha256": "e04c9b6cd31215b5163a8f58fa700ae01ee22a3e603928cdcb3b27c107951762"
     },
     {
       "path": "xtask/src/mcp_session_contract.rs",
@@ -369,7 +377,7 @@
     },
     {
       "path": "xtask/src/release.rs",
-      "sha256": "787352db2f5932519fe601e011fda044cf616f6c580334d0249050c271b31e52"
+      "sha256": "46b7f15530d8cda42636f585381f00c9e952d0d4048a0e536e7fa23f0a0f659e"
     },
     {
       "path": "xtask/src/release_control.rs",

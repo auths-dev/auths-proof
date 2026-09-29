@@ -1,0 +1,2619 @@
+{
+  "schema": "auths-proof-proof-coverage/v1",
+  "tool": {
+    "command": "cargo xtask formal coverage",
+    "version": "1"
+  },
+  "revision": "the commit that contains this file",
+  "reference_reproduction": {
+    "auths_proof_commit": "8bf2970c68ef01302a70b52861ecc256cf1bb06a",
+    "fixture": "formal/coverage/pin-8bf2970c.tar.zst",
+    "fixture_manifest_sha256": "9e0180592542ef51e05c4f73fe9f1fafb80ee65f6c91ad0aa958e652b661cc36",
+    "result": "byte-identical to study 006's proof_coverage.json and proof_coverage_functions.tsv"
+  },
+  "toolchain": {
+    "lean_toolchain": "leanprover/lean4:v4.31.0",
+    "translation_toolchain_lock_sha256": "0c45a8a08ac06e313d775e669749097bd3a0abfb8e3395c69416ba0238770d53"
+  },
+  "scope_definition_sha256": "b3243135c3122e985f3e750e78493ffb0c3bdf316dab629bd00c6a8bca7ce7ed",
+  "inputs_sha256": "1a04d38e26b7f20c66417713e1f847a19ac0a57b46deb5e63ccdef7ad8393c60",
+  "inputs": {
+    "Cargo.toml": "5c93a8dad4d173e3d0a229967c859a805b88f556df57af2ab281d6806a2e613e",
+    "core/crates/auths-algebra-kernel/Cargo.toml": "0cb078915287b8c47d20fb97b6fa14135ed1c61c4985c4de2753855563c27bba",
+    "core/crates/auths-algebra-kernel/src/generated.rs": "ae4bcbef42a408c7ffa0c6a74a42f7de177a6f14479e51d205acf830bda05960",
+    "core/crates/auths-algebra-kernel/src/lib.rs": "6654667eeb9b353d6648954c9fd2e8838462a82ce6b2803eb49e1366892c68c6",
+    "core/crates/auths-assurance/Cargo.toml": "afcb12a97ddd09d7a264b9ecd3fcaefc865ff2c9b4539ee85b00883420ba333a",
+    "core/crates/auths-assurance/src/lib.rs": "0fb2ec844d674b25a9e20b1601452c89c2454901fa506adfa9bb38ef9a7fa213",
+    "core/crates/auths-authority/Cargo.toml": "4f68212938029f79ebd857b4f3038494eb85d0163d49f07e51376715cf959815",
+    "core/crates/auths-authority/src/lib.rs": "da88d5194de4e17449e69972c0fb042afa3c39798a8f570f30771e77c384f1eb",
+    "core/crates/auths-codec/Cargo.toml": "e20e51826e17814effd9d8925d18d5fbdd6c0d37bf50231e743ec2611314722c",
+    "core/crates/auths-codec/src/bounded_policy.rs": "d21f6728be2d8a04b6d94921f2b683f7e61cbb42e0ac6866f1c88a49caa534c3",
+    "core/crates/auths-codec/src/decode.rs": "15c1e13c6a7e95ebe318ccbefa7f236b3e08cefb4a60ca0a1aa6bdb62b789b20",
+    "core/crates/auths-codec/src/encode.rs": "c091ee05cd95cb04bc63a34a1a8c043490445b9e1e73c965f8f7541b4dab09a8",
+    "core/crates/auths-codec/src/error.rs": "fecb0737c16deb42d859f1dc7727c698438d9ac12064fd99e0024629642c390c",
+    "core/crates/auths-codec/src/hash.rs": "8c147f62e97f9615915fb448b8f788fd8e875f2f4224c9eeecf7f84f668a3184",
+    "core/crates/auths-codec/src/lib.rs": "ebb2008a0abfdf873547c2d7c0cce45e27df5af02b5d37c7f146685c601043e4",
+    "core/crates/auths-codec/src/observation.rs": "38328b0c71ff97a4196eeade8b4faa889527ff1f80bb168468bcd49082a3987e",
+    "core/crates/auths-composition/Cargo.toml": "331e13025eb82588b5269ed3975929eb41c823d588c49e4c296273d85c6fe80e",
+    "core/crates/auths-composition/src/lib.rs": "e42e3b0b6a9985b73c533aeb23799c638979aa27a9ce7d0f10a8d60340570fb1",
+    "core/crates/auths-model/Cargo.toml": "565c15302b0cc9270db1e28efa3862804846850ba933cc17aea8abcec4a65987",
+    "core/crates/auths-model/src/bounded.rs": "f90496abc0a06c028b4d850af6ddab7d850bfafeaa3d042f1b1246a41d8bbbc9",
+    "core/crates/auths-model/src/bounded_policy.rs": "306a8f049cc7cfc7635fe0e4de47eb7813eed63d3c14c3be2b51586aa4eea450",
+    "core/crates/auths-model/src/lib.rs": "83341b98277ee2253d268b84f6da42c9988585639b6ed0a7bc7c516cb47e348d",
+    "core/crates/auths-model/src/observation.rs": "b3ed3e3cc090afca2896a7d3de7988afccc1ee1ea0ebd91b51a8bc0f20ad8dbb",
+    "core/crates/auths-ports/Cargo.toml": "596a9b0f5af3717c16a6d13f7054d8a106bcd9f01f5f72c2235dd2afcf0ab16c",
+    "core/crates/auths-ports/src/binding.rs": "a16c012d40aa4249e3ec54372b9611006d0bfe8c7dc3c741911c2194ad17736d",
+    "core/crates/auths-ports/src/diagnostics.rs": "aa596572503b5a65a918bb2ff38281c144ff53821ee914e9325c852828d852df",
+    "core/crates/auths-ports/src/lib.rs": "e4df596622424dcfef6029e27c217d7fc070d7f787d803d3b6078150ca8e79b6",
+    "core/crates/auths-ports/src/path.rs": "b68fc547b4e4d97a60cbbc1cc1939fc6b34a8233b81f840bd396914a707e3ea1",
+    "core/crates/auths-registries/Cargo.toml": "590e49e58b0622d9d6274fea46796dcdb07dec9550eff295cce6a6427ffa51e2",
+    "core/crates/auths-registries/src/lib.rs": "e19134f798da30dd06d443abb0f12e8a7c3b67bc395f040528421de65ad6c5b9",
+    "core/crates/auths-registries/src/template.rs": "3da40fe94af379f033fecca55db3d6e4bd842af27f8700fc7565301fd2b0165a",
+    "core/crates/auths-verifier/Cargo.toml": "13d3b71645edea72cc2b2442198d6acb39f241e68e19fc211bef40f2b65a9370",
+    "core/crates/auths-verifier/src/causal.rs": "9635230f33b13a263573d319ac8a1976addbcc07677514a43e3c7bf28dc04587",
+    "core/crates/auths-verifier/src/lib.rs": "a810835ff5c3d8b9c2c305f6f2e13af78613721da033c88020600b4da99b6d4a",
+    "core/crates/auths-verifier/src/observation.rs": "0bb07f06a0f9524c88427df1c972b1de8ba038a9eeeb15d3134c25125ae84b1e",
+    "core/crates/auths-verifier/src/trace.rs": "760f965c76c9336fdc760333be508461daaf1cfe1a2badbc225a7fd33a1a55fa",
+    "formal/check-site-functions-v1.toml": "77ae710a647bc25150007951b1bd2616298a0b6fd20c36d727b1abe6795c1696",
+    "formal/coverage-scope-v1.toml": "b3243135c3122e985f3e750e78493ffb0c3bdf316dab629bd00c6a8bca7ce7ed",
+    "formal/lean-assurance-audit-v1.json": "aa7206bc630119ef9614eea121204608cc815935652f428d8c18850719a497a5",
+    "formal/qualification/aeneas/generated/algebra/Funs.lean": "f78659289b73410828dceb4557cd4fbf2fa801b06ca083e8268be33074f68960",
+    "formal/qualification/aeneas/generated/algebra/translation.json": "7b486aa626850f509f6c1038dbc5c74c753d53707d0085260e30321e570fab9d",
+    "formal/qualification/aeneas/generated/authority/Funs.lean": "2bb401ffca0136622cd79bb14a5a38852061649a06cc46100503870c22d300c7",
+    "formal/qualification/aeneas/generated/authority/translation.json": "eee824b621fceb6bd2cfea4e113dd4d1e1486acabe9970d571dbd1560da63437",
+    "formal/qualification/aeneas/generated/bounded_policy/Funs.lean": "ba7aea214063b8a698fbd2c9c8cd95a717bf0ec0eaef70a92844444bf7e9f22e",
+    "formal/qualification/aeneas/generated/bounded_policy/translation.json": "3be48bd557146aef4d7452b17af0793fd61ed1e390c2274d7c75908a80fd79f5",
+    "formal/qualification/aeneas/generated/connections/Funs.lean": "dfa1998e3506f06dce142222dc383116d0952155517edc399f5d94e688e22912",
+    "formal/qualification/aeneas/generated/connections/translation.json": "c43f8a044ad0c19c676d43e3a6f7e24a492864c94f50b8fa4afbd08dd01f82ba",
+    "formal/qualification/aeneas/generated/gateway/Funs.lean": "c8c86db058f313ab46ee86370d79ee70130c1ead3860dd7dabd49f2a89af1636",
+    "formal/qualification/aeneas/generated/gateway/translation.json": "4b9e3e1158b6751a458ae6581e7e2230a1b242913d9a4842710d3bea3e08ee45",
+    "formal/qualification/aeneas/generated/lifecycle/Funs.lean": "817dcbb854a599fb14c89854d8023809a390f7a00e1cc70dbc7151d7b254649f",
+    "formal/qualification/aeneas/generated/lifecycle/translation.json": "b729089853215acf4d019aae5f04da6d902b75ac4910feeeb8d801e9991cdb4a",
+    "formal/qualification/aeneas/generated/model/Funs.lean": "aa3f5bf6211f243c8cf937f08bddda0bc5f6219d935bd9a67c9214bb1799f598",
+    "formal/qualification/aeneas/generated/model/translation.json": "cd82831b4a4412890f957783368b829c6c88b85a7989dc6b2dd549bc115a322e",
+    "formal/qualification/aeneas/qualification.toml": "66082a1e48dbea94cda4e46331add492b26dbc12462fed3de9d57007c03be9f1",
+    "formal/theorem-kinds-v1.toml": "17770cdd38d7beab4caf299a39d09ca6f4f05da37c9ce05700abb02c03101515",
+    "product/policy/auths-bounded-policy/src/arithmetic.rs": "75e43c5d4eab8d1f71c1daf53839f5f9fe45a400afc1f63a30c6f55ce3632627",
+    "product/policy/auths-bounded-policy/src/commitment.rs": "c5706f2d583454e1a7f570f7ada138d4d864bef0205dfae7c1296774f396bb3f",
+    "product/policy/auths-bounded-policy/src/eligibility.rs": "c9acdfb793074e687fc36efad506be27dbd99ffbf40387bc66c8de39ef238432",
+    "product/policy/auths-bounded-policy/src/identifier.rs": "0006a32bae9eb16c4178cf797df418d2b0a781f2bc6474b741dc1a908141831c",
+    "product/policy/auths-bounded-policy/src/kernel.rs": "99187c28b161ac70bee1afed60711f7f645adb4d1671a01863f9849b369811d5",
+    "product/policy/auths-bounded-policy/src/lib.rs": "76a18638b810e62e594d6e951504679305ce21841388e0c282ad51cd7841b91c",
+    "product/policy/auths-bounded-policy/src/receipt.rs": "3b9eae82f349956d3e7f29b57b254bff5ce67cc703e6cf43445ce2827676d1ad",
+    "product/policy/auths-bounded-policy/src/registry.rs": "4e251ea5833559841f8ee0bd9b66c0c01c39fa5e3a21720a19c4e8adbfcb99d0",
+    "product/runtime/auths-connections/src/credential.rs": "9314436e813b8b5c496301e7f10dc0175e1c75bad3e59d3ac3597fc0b02ded59",
+    "product/runtime/auths-connections/src/kernel.rs": "a456af19526ef7b19278551fd8d97606b6e7aa5a195e70bdd85d1e0786090ce8",
+    "product/runtime/auths-connections/src/lib.rs": "0164e5f6a109f4da16d007e8cde9d38f7e902fff9ac4c76261d9c833b433640b",
+    "product/runtime/auths-connections/src/model.rs": "f09288d441edcab8bd9e2c4a8c4e1d299c28a91ec2a7ecd207a235a2b8956453",
+    "product/runtime/auths-connections/src/registry.rs": "1855dc8140370f57fa52489684e43e4fa1f4672bb65117cb4cd71d4edff5ae83",
+    "product/runtime/auths-gateway-kernel/src/construct.rs": "e9d65744bae273d65face4285e5d2da75c06a92ab48f7b8333d496604e31c63c",
+    "product/runtime/auths-gateway-kernel/src/lib.rs": "cfda6f8453426564c085475f183b6f790b438768a19668f1b65d33ba59dc8632",
+    "product/runtime/auths-gateway-kernel/src/order.rs": "e0045f877c4b7fe3860c291039853885064ddcdebba7c9b345ab65e81e646dda",
+    "product/runtime/auths-gateway-kernel/src/outcome.rs": "e9785b1afe70788c89b51b18655bcd5acff7b0c8e3d12fb79c6f05a202e67e6b",
+    "product/runtime/auths-gateway-kernel/src/ratio.rs": "7ace22264812e6fc1ef3a62afee402cf43494bb71ae0d3de219ad1b39d690bcb",
+    "product/runtime/auths-gateway-kernel/src/recovery.rs": "9f46dcd1685ab6e4d1ba04a3fc286a9f3afee8fb47829be1fbc670a7926a2dc6",
+    "product/runtime/auths-gateway-kernel/src/transition.rs": "cefb8f01d915880f6921f2501ff881ad94b9de61072c34d9cd19220992f97374",
+    "product/runtime/auths-lifecycle/src/codec.rs": "51c4b746749150e8bfcd8ff972b3f6c1ef40bec15583448ec1b471d9ad737dc0",
+    "product/runtime/auths-lifecycle/src/digest.rs": "55282cd7d8aba37713c2dcb5357c9877819edb72a30eadefb860d28d7d3a3eb7",
+    "product/runtime/auths-lifecycle/src/identifier.rs": "31620e8c16de68d3d2d3b84d6353c1a5b9d4151d8247f91fa389b906a8e660f1",
+    "product/runtime/auths-lifecycle/src/kernel.rs": "2abb8c094b36d35b364e74d78091d14c5d6f3d1eb6552cca3b5538dbd017ce23",
+    "product/runtime/auths-lifecycle/src/lib.rs": "afe5a345cd309b5a4f08ffba3170a6d7f16ff914892b3f2006d5208ed24ec736",
+    "product/runtime/auths-lifecycle/src/model.rs": "1af12bbeeeaa65ec02ddcebd7d2c8c92ec1e339fa40ae85b45ab9b01a722a4fa",
+    "product/runtime/auths-lifecycle/src/operation.rs": "78e6d05fcf5d7ea4f148032a3fa26fdfcab77eb346019effe927b08e0d64d732",
+    "product/runtime/auths-lifecycle/src/registry.rs": "53495fe6f7a77422593a41623e28716f1c140dcc1e00f87f6b0ffbfb93a5ef90",
+    "product/runtime/auths-lifecycle/src/sealed.rs": "2e0c03b5813c926c159598bb7890d1523825edbe57cd687d42a5dfb3374a0c19",
+    "product/runtime/auths-lifecycle/src/test_support.rs": "221d9a5c5ef8e1f9f8fd66927484eaf813571d0568470278ecd8fa08a5eec8cd",
+    "product/runtime/auths-lifecycle/src/transition.rs": "011805a28efdd541f44ccea54dd0e34a1e58f4004447ee58013703b4fb6b2822"
+  },
+  "claim": {
+    "decision_functions": 953,
+    "decision_closure_functions": 103,
+    "decision_code_lines": 10346,
+    "decision_closure_code_lines": 1201,
+    "check_sites": 72,
+    "covered_check_sites": 15,
+    "uncovered_components": [
+      "the staged verifier control flow",
+      "the composition evaluator",
+      "the registry handlers",
+      "the codec",
+      "the signature suites"
+    ]
+  },
+  "scope": {
+    "verifier_dependency_closure": [
+      "core/crates/auths-algebra-kernel",
+      "core/crates/auths-assurance",
+      "core/crates/auths-authority",
+      "core/crates/auths-codec",
+      "core/crates/auths-composition",
+      "core/crates/auths-model",
+      "core/crates/auths-ports",
+      "core/crates/auths-registries",
+      "core/crates/auths-verifier"
+    ],
+    "decision_kernel_crates": [
+      "product/runtime/auths-lifecycle",
+      "product/policy/auths-bounded-policy"
+    ],
+    "translated_crates": [
+      "core/crates/auths-model",
+      "core/crates/auths-algebra-kernel",
+      "core/crates/auths-authority",
+      "product/runtime/auths-lifecycle",
+      "product/policy/auths-bounded-policy",
+      "product/runtime/auths-gateway-kernel",
+      "product/runtime/auths-connections"
+    ],
+    "excluded_roles": [
+      "crypto",
+      "decoding",
+      "explanation",
+      "interface",
+      "storage"
+    ],
+    "non_decision_files": {
+      "core/crates/auths-codec/src/bounded_policy.rs": "decoding",
+      "core/crates/auths-codec/src/decode.rs": "decoding",
+      "core/crates/auths-codec/src/encode.rs": "decoding",
+      "core/crates/auths-codec/src/error.rs": "decoding",
+      "core/crates/auths-codec/src/hash.rs": "decoding",
+      "core/crates/auths-codec/src/lib.rs": "decoding",
+      "core/crates/auths-codec/src/observation.rs": "decoding",
+      "core/crates/auths-ports/src/binding.rs": "interface",
+      "core/crates/auths-ports/src/diagnostics.rs": "interface",
+      "core/crates/auths-ports/src/lib.rs": "interface",
+      "core/crates/auths-ports/src/path.rs": "interface",
+      "core/crates/auths-verifier/src/causal.rs": "explanation",
+      "core/crates/auths-verifier/src/trace.rs": "explanation",
+      "product/runtime/auths-lifecycle/src/codec.rs": "decoding",
+      "product/runtime/auths-lifecycle/src/sealed.rs": "storage",
+      "product/runtime/auths-lifecycle/src/test_support.rs": "test-support"
+    }
+  },
+  "metrics": {
+    "decision": {
+      "scope": "decision",
+      "minimum_code_lines": 0,
+      "functions": 953,
+      "span_lines": 10387,
+      "code_lines": 10346,
+      "by_level": {
+        "translated": {
+          "functions": 103,
+          "function_share": 0.1081,
+          "span_lines": 1212,
+          "span_line_share": 0.1167,
+          "code_lines": 1201,
+          "code_line_share": 0.1161
+        },
+        "direct": {
+          "functions": 49,
+          "function_share": 0.0514,
+          "span_lines": 779,
+          "span_line_share": 0.075,
+          "code_lines": 768,
+          "code_line_share": 0.0742
+        },
+        "closure": {
+          "functions": 103,
+          "function_share": 0.1081,
+          "span_lines": 1212,
+          "span_line_share": 0.1167,
+          "code_lines": 1201,
+          "code_line_share": 0.1161
+        }
+      }
+    },
+    "verifier-core": {
+      "scope": "verifier-core",
+      "minimum_code_lines": 0,
+      "functions": 707,
+      "span_lines": 7833,
+      "code_lines": 7795,
+      "by_level": {
+        "translated": {
+          "functions": 79,
+          "function_share": 0.1117,
+          "span_lines": 830,
+          "span_line_share": 0.106,
+          "code_lines": 819,
+          "code_line_share": 0.1051
+        },
+        "direct": {
+          "functions": 34,
+          "function_share": 0.0481,
+          "span_lines": 481,
+          "span_line_share": 0.0614,
+          "code_lines": 470,
+          "code_line_share": 0.0603
+        },
+        "closure": {
+          "functions": 79,
+          "function_share": 0.1117,
+          "span_lines": 830,
+          "span_line_share": 0.106,
+          "code_lines": 819,
+          "code_line_share": 0.1051
+        }
+      }
+    },
+    "translated-crates": {
+      "scope": "translated-crates",
+      "minimum_code_lines": 0,
+      "functions": 1060,
+      "span_lines": 10014,
+      "code_lines": 9995,
+      "by_level": {
+        "translated": {
+          "functions": 203,
+          "function_share": 0.1915,
+          "span_lines": 2431,
+          "span_line_share": 0.2428,
+          "code_lines": 2420,
+          "code_line_share": 0.2421
+        },
+        "direct": {
+          "functions": 63,
+          "function_share": 0.0594,
+          "span_lines": 947,
+          "span_line_share": 0.0946,
+          "code_lines": 936,
+          "code_line_share": 0.0936
+        },
+        "closure": {
+          "functions": 203,
+          "function_share": 0.1915,
+          "span_lines": 2431,
+          "span_line_share": 0.2428,
+          "code_lines": 2420,
+          "code_line_share": 0.2421
+        }
+      }
+    },
+    "verifier-closure": {
+      "scope": "verifier-closure",
+      "minimum_code_lines": 0,
+      "functions": 977,
+      "span_lines": 12307,
+      "code_lines": 12245,
+      "by_level": {
+        "translated": {
+          "functions": 79,
+          "function_share": 0.0809,
+          "span_lines": 830,
+          "span_line_share": 0.0674,
+          "code_lines": 819,
+          "code_line_share": 0.0669
+        },
+        "direct": {
+          "functions": 34,
+          "function_share": 0.0348,
+          "span_lines": 481,
+          "span_line_share": 0.0391,
+          "code_lines": 470,
+          "code_line_share": 0.0384
+        },
+        "closure": {
+          "functions": 79,
+          "function_share": 0.0809,
+          "span_lines": 830,
+          "span_line_share": 0.0674,
+          "code_lines": 819,
+          "code_line_share": 0.0669
+        }
+      }
+    },
+    "decision-nontrivial": {
+      "scope": "decision",
+      "minimum_code_lines": 4,
+      "functions": 401,
+      "span_lines": 8728,
+      "code_lines": 8690,
+      "by_level": {
+        "translated": {
+          "functions": 74,
+          "function_share": 0.1845,
+          "span_lines": 1125,
+          "span_line_share": 0.1289,
+          "code_lines": 1114,
+          "code_line_share": 0.1282
+        },
+        "direct": {
+          "functions": 37,
+          "function_share": 0.0923,
+          "span_lines": 743,
+          "span_line_share": 0.0851,
+          "code_lines": 732,
+          "code_line_share": 0.0842
+        },
+        "closure": {
+          "functions": 74,
+          "function_share": 0.1845,
+          "span_lines": 1125,
+          "span_line_share": 0.1289,
+          "code_lines": 1114,
+          "code_line_share": 0.1282
+        }
+      }
+    }
+  },
+  "sensitivities": {
+    "decision_without_macro_rules_functions": {
+      "scope": "decision",
+      "minimum_code_lines": 0,
+      "functions": 936,
+      "span_lines": 10334,
+      "code_lines": 10293,
+      "by_level": {
+        "translated": {
+          "functions": 102,
+          "function_share": 0.109,
+          "span_lines": 1209,
+          "span_line_share": 0.117,
+          "code_lines": 1198,
+          "code_line_share": 0.1164
+        },
+        "direct": {
+          "functions": 49,
+          "function_share": 0.0524,
+          "span_lines": 779,
+          "span_line_share": 0.0754,
+          "code_lines": 768,
+          "code_line_share": 0.0746
+        },
+        "closure": {
+          "functions": 102,
+          "function_share": 0.109,
+          "span_lines": 1209,
+          "span_line_share": 0.117,
+          "code_lines": 1198,
+          "code_line_share": 0.1164
+        }
+      }
+    },
+    "decision_exact_or_verdict_exact_theorems": {
+      "scope": "decision",
+      "minimum_code_lines": 0,
+      "functions": 953,
+      "span_lines": 10387,
+      "code_lines": 10346,
+      "by_level": {
+        "translated": {
+          "functions": 103,
+          "function_share": 0.1081,
+          "span_lines": 1212,
+          "span_line_share": 0.1167,
+          "code_lines": 1201,
+          "code_line_share": 0.1161
+        },
+        "direct": {
+          "functions": 49,
+          "function_share": 0.0514,
+          "span_lines": 779,
+          "span_line_share": 0.075,
+          "code_lines": 768,
+          "code_line_share": 0.0742
+        },
+        "closure": {
+          "functions": 102,
+          "function_share": 0.107,
+          "span_lines": 1209,
+          "span_line_share": 0.1164,
+          "code_lines": 1198,
+          "code_line_share": 0.1158
+        }
+      }
+    },
+    "decision_exact_theorems": {
+      "scope": "decision",
+      "minimum_code_lines": 0,
+      "functions": 953,
+      "span_lines": 10387,
+      "code_lines": 10346,
+      "by_level": {
+        "translated": {
+          "functions": 103,
+          "function_share": 0.1081,
+          "span_lines": 1212,
+          "span_line_share": 0.1167,
+          "code_lines": 1201,
+          "code_line_share": 0.1161
+        },
+        "direct": {
+          "functions": 49,
+          "function_share": 0.0514,
+          "span_lines": 779,
+          "span_line_share": 0.075,
+          "code_lines": 768,
+          "code_line_share": 0.0742
+        },
+        "closure": {
+          "functions": 98,
+          "function_share": 0.1028,
+          "span_lines": 1114,
+          "span_line_share": 0.1072,
+          "code_lines": 1110,
+          "code_line_share": 0.1073
+        }
+      }
+    },
+    "decision_without_trait_instance_records": {
+      "scope": "decision",
+      "minimum_code_lines": 0,
+      "functions": 953,
+      "span_lines": 10387,
+      "code_lines": 10346,
+      "by_level": {
+        "translated": {
+          "functions": 103,
+          "function_share": 0.1081,
+          "span_lines": 1212,
+          "span_line_share": 0.1167,
+          "code_lines": 1201,
+          "code_line_share": 0.1161
+        },
+        "direct": {
+          "functions": 49,
+          "function_share": 0.0514,
+          "span_lines": 779,
+          "span_line_share": 0.075,
+          "code_lines": 768,
+          "code_line_share": 0.0742
+        },
+        "closure": {
+          "functions": 101,
+          "function_share": 0.106,
+          "span_lines": 1206,
+          "span_line_share": 0.1161,
+          "code_lines": 1195,
+          "code_line_share": 0.1155
+        }
+      }
+    }
+  },
+  "per_crate_decision": {
+    "core/crates/auths-algebra-kernel": {
+      "decision_functions": 15,
+      "decision_code_lines": 73,
+      "translated": 2,
+      "refined_closure": 2,
+      "refined_closure_code_lines": 17
+    },
+    "core/crates/auths-assurance": {
+      "decision_functions": 3,
+      "decision_code_lines": 89,
+      "translated": 0,
+      "refined_closure": 0,
+      "refined_closure_code_lines": 0
+    },
+    "core/crates/auths-authority": {
+      "decision_functions": 21,
+      "decision_code_lines": 341,
+      "translated": 13,
+      "refined_closure": 13,
+      "refined_closure_code_lines": 241
+    },
+    "core/crates/auths-codec": {
+      "decision_functions": 0,
+      "decision_code_lines": 0,
+      "translated": 0,
+      "refined_closure": 0,
+      "refined_closure_code_lines": 0
+    },
+    "core/crates/auths-composition": {
+      "decision_functions": 8,
+      "decision_code_lines": 160,
+      "translated": 0,
+      "refined_closure": 0,
+      "refined_closure_code_lines": 0
+    },
+    "core/crates/auths-model": {
+      "decision_functions": 485,
+      "decision_code_lines": 3422,
+      "translated": 64,
+      "refined_closure": 64,
+      "refined_closure_code_lines": 561
+    },
+    "core/crates/auths-ports": {
+      "decision_functions": 0,
+      "decision_code_lines": 0,
+      "translated": 0,
+      "refined_closure": 0,
+      "refined_closure_code_lines": 0
+    },
+    "core/crates/auths-registries": {
+      "decision_functions": 75,
+      "decision_code_lines": 1052,
+      "translated": 0,
+      "refined_closure": 0,
+      "refined_closure_code_lines": 0
+    },
+    "core/crates/auths-verifier": {
+      "decision_functions": 100,
+      "decision_code_lines": 2700,
+      "translated": 0,
+      "refined_closure": 0,
+      "refined_closure_code_lines": 0
+    },
+    "product/policy/auths-bounded-policy": {
+      "decision_functions": 108,
+      "decision_code_lines": 716,
+      "translated": 18,
+      "refined_closure": 18,
+      "refined_closure_code_lines": 182
+    },
+    "product/runtime/auths-connections": {
+      "decision_functions": 130,
+      "decision_code_lines": 1684,
+      "translated": 5,
+      "refined_closure": 5,
+      "refined_closure_code_lines": 51
+    },
+    "product/runtime/auths-gateway-kernel": {
+      "decision_functions": 98,
+      "decision_code_lines": 1194,
+      "translated": 95,
+      "refined_closure": 95,
+      "refined_closure_code_lines": 1168
+    },
+    "product/runtime/auths-lifecycle": {
+      "decision_functions": 138,
+      "decision_code_lines": 1835,
+      "translated": 6,
+      "refined_closure": 6,
+      "refined_closure_code_lines": 200
+    }
+  },
+  "second_parser": {
+    "parser": "syn 2 (full syntax tree), independent of the scanner's tokenizer",
+    "decision_functions": 953,
+    "decision_files": 28,
+    "agreements": 936,
+    "agreement_share": 0.9822,
+    "disagreements": [
+      {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "function": "name::parse",
+        "scanner_span": [
+          133,
+          135
+        ],
+        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
+      },
+      {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "function": "name::as_str",
+        "scanner_span": [
+          138,
+          140
+        ],
+        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
+      },
+      {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "function": "name::fmt",
+        "scanner_span": [
+          144,
+          146
+        ],
+        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
+      },
+      {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "function": "name::new",
+        "scanner_span": [
+          260,
+          262
+        ],
+        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
+      },
+      {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "function": "name::from_digest",
+        "scanner_span": [
+          265,
+          267
+        ],
+        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
+      },
+      {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "function": "name::digest",
+        "scanner_span": [
+          270,
+          272
+        ],
+        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
+      },
+      {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "function": "name::as_bytes",
+        "scanner_span": [
+          275,
+          277
+        ],
+        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
+      },
+      {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "function": "name::from",
+        "scanner_span": [
+          281,
+          283
+        ],
+        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
+      },
+      {
+        "file": "core/crates/auths-model/src/lib.rs",
+        "function": "Digest::from",
+        "scanner_span": [
+          287,
+          289
+        ],
+        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
+      },
+      {
+        "file": "product/policy/auths-bounded-policy/src/identifier.rs",
+        "function": "name::parse",
+        "scanner_span": [
+          69,
+          72
+        ],
+        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
+      },
+      {
+        "file": "product/policy/auths-bounded-policy/src/identifier.rs",
+        "function": "name::as_str",
+        "scanner_span": [
+          76,
+          78
+        ],
+        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
+      },
+      {
+        "file": "product/runtime/auths-lifecycle/src/digest.rs",
+        "function": "name::from_bytes",
+        "scanner_span": [
+          28,
+          30
+        ],
+        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
+      },
+      {
+        "file": "product/runtime/auths-lifecycle/src/digest.rs",
+        "function": "name::as_bytes",
+        "scanner_span": [
+          32,
+          34
+        ],
+        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
+      },
+      {
+        "file": "product/runtime/auths-lifecycle/src/digest.rs",
+        "function": "name::new",
+        "scanner_span": [
+          40,
+          42
+        ],
+        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
+      },
+      {
+        "file": "product/runtime/auths-lifecycle/src/digest.rs",
+        "function": "name::bytes",
+        "scanner_span": [
+          46,
+          48
+        ],
+        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
+      },
+      {
+        "file": "product/runtime/auths-lifecycle/src/identifier.rs",
+        "function": "name::parse",
+        "scanner_span": [
+          65,
+          68
+        ],
+        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
+      },
+      {
+        "file": "product/runtime/auths-lifecycle/src/identifier.rs",
+        "function": "name::as_str",
+        "scanner_span": [
+          72,
+          74
+        ],
+        "reason": "inside a macro_rules! body (syn parses it as a token tree)"
+      }
+    ],
+    "parser_only_functions": []
+  },
+  "check_sites": {
+    "total": 72,
+    "covered": 15,
+    "share": 0.2083,
+    "sites": [
+      {
+        "site": "decode.action-bytes",
+        "code": "resource-limit-exceeded",
+        "covered": false,
+        "stage": "codec: AP-SPEC-061",
+        "note": "Whole canonical-action input over the action-bytes limit; codec_failure maps LimitExceeded to resource-limit-exceeded.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-codec/src/decode.rs",
+            "function": "decode_canonical_action",
+            "begin_line": 1484,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "decode.action-body-bytes",
+        "code": "resource-limit-exceeded",
+        "covered": false,
+        "stage": "codec: AP-SPEC-061",
+        "note": "Canonical body byte string over the canonical-body-bytes limit passed by decode_canonical_action.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-codec/src/decode.rs",
+            "function": "bounded_bytes",
+            "begin_line": 78,
+            "refined_closure": false
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-codec/src/decode.rs",
+            "function": "decode_canonical_action",
+            "begin_line": 1484,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "decode.attachment-bytes",
+        "code": "resource-limit-exceeded",
+        "covered": false,
+        "stage": "codec: AP-SPEC-061",
+        "note": "Single detached attachment over the attachment-bytes limit, rejected per attachment before the cumulative check.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-codec/src/decode.rs",
+            "function": "bounded_bytes",
+            "begin_line": 78,
+            "refined_closure": false
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-codec/src/decode.rs",
+            "function": "decode_canonical_action",
+            "begin_line": 1484,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "binding.embedded-body",
+        "code": "action-body-mismatch",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "Body embedded in the proof differs from the canonical action body.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_action_binding",
+            "begin_line": 1983,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "binding.profile",
+        "code": "action-body-mismatch",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "Signed action profile differs from the canonical action profile.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_action_binding",
+            "begin_line": 1983,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "binding.media-type",
+        "code": "action-body-mismatch",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "Signed body media type differs from the canonical action media type.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_action_binding",
+            "begin_line": 1983,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "binding.body-digest",
+        "code": "action-body-mismatch",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "Signed canonical body digest differs from the digest of the canonical body.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_action_binding",
+            "begin_line": 1983,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "binding.permission",
+        "code": "action-body-mismatch",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "Signed permission differs from the canonical action permission.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_action_binding",
+            "begin_line": 1983,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "binding.requested-budget",
+        "code": "action-body-mismatch",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "Signed requested budget differs from the canonical action budget.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_action_binding",
+            "begin_line": 1983,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "binding.profile-accepted",
+        "code": "unsupported-profile",
+        "covered": false,
+        "stage": "stages 2 and 3",
+        "note": "Action profile not accepted by the trusted context's registries.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_action_binding",
+            "begin_line": 1983,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "AcceptedRegistries::accepts_profile",
+            "begin_line": 3928,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "binding.audience",
+        "code": "audience-mismatch",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "Signed audience differs from the expected audience.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_action_binding",
+            "begin_line": 1983,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "binding.challenge",
+        "code": "challenge-mismatch",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "Signed challenge differs from the expected challenge.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_action_binding",
+            "begin_line": 1983,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "binding.evaluation-time",
+        "code": "action-outside-validity",
+        "covered": false,
+        "stage": "stages 2 and 3",
+        "note": "Evaluation time outside the signed action validity window.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_action_binding",
+            "begin_line": 1983,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "ValidityWindow::contains",
+            "begin_line": 392,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "binding.channel",
+        "code": "local-policy-denied",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "Signed channel binding differs from the context channel policy.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_action_binding",
+            "begin_line": 1983,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "binding.shared-meaning",
+        "code": "plan-action-mismatch",
+        "covered": false,
+        "stage": "stages 2 and 3",
+        "note": "Plan actions do not share one action meaning.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_action_binding",
+            "begin_line": 1983,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "same_shared_action",
+            "begin_line": 2157,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "binding.action-extension-accepted",
+        "code": "critical-extension-unknown",
+        "covered": false,
+        "stage": "stages 2 and 3",
+        "note": "Action critical extension not accepted by the context.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "evaluate_extensions",
+            "begin_line": 2468,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "AcceptedRegistries::accepts_critical_extension",
+            "begin_line": 3922,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "binding.action-extension-handler",
+        "code": "unsupported-critical-extension",
+        "covered": false,
+        "stage": "stages 2 and 3",
+        "note": "Accepted action critical extension has no executable handler.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "evaluate_extensions",
+            "begin_line": 2468,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "ImmutableRegistries::extension_handler",
+            "begin_line": 1026,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "binding.action-extension-evaluation",
+        "code": "local-policy-denied",
+        "covered": false,
+        "stage": "stages 2 and 3",
+        "note": "Handler rejects the action extension payload; registry_operation_failure maps InvalidInput to local-policy-denied.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "evaluate_extensions",
+            "begin_line": 2468,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "ExactMarkerExtension::evaluate",
+            "begin_line": 189,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "binding.observation-attachments",
+        "code": "resource-limit-exceeded",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "Signed observation attachments exceed the count or per-attachment byte bound.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/observation.rs",
+            "function": "validate_observation_attachments",
+            "begin_line": 58,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "binding.attachment-descriptors",
+        "code": "unused-critical-attachment",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "Signed attachment descriptors differ from the bundle's attachment descriptors.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_attachments",
+            "begin_line": 2065,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "binding.attachment-missing",
+        "code": "attachment-missing",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "Required attachment descriptor has no detached bytes.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_attachments",
+            "begin_line": 2065,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "binding.attachment-length",
+        "code": "attachment-length-mismatch",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "Detached attachment length differs from its descriptor.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_attachments",
+            "begin_line": 2065,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "binding.attachment-digest",
+        "code": "attachment-digest-mismatch",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "Detached attachment bytes do not hash to the descriptor digest.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_attachments",
+            "begin_line": 2065,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "binding.attachment-opaque",
+        "code": "opaque-attachment-not-allowed",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "Encrypted attachment whose descriptor requires it to be inspectable.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_attachments",
+            "begin_line": 2065,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "binding.attachment-unused",
+        "code": "unused-critical-attachment",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "Detached attachment named by no signed descriptor.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_attachments",
+            "begin_line": 2065,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "binding.profile-policy",
+        "code": "unsupported-profile-policy",
+        "covered": false,
+        "stage": "stages 2 and 3",
+        "note": "Context profile policy has no executable implementation.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_action_binding",
+            "begin_line": 1983,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "ImmutableRegistries::profile_policy",
+            "begin_line": 986,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "branch.root-control",
+        "code": "invalid-signature",
+        "covered": false,
+        "stage": "stage 3; signature suites: AP-SPEC-061",
+        "note": "Root statement signature fails; verify_signed records the failure and verify_branch surfaces it through control_for.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "verify_signed",
+            "begin_line": 1842,
+            "refined_closure": false
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "control_for",
+            "begin_line": 2434,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "branch.untrusted-root",
+        "code": "untrusted-root",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "No trust anchor names the branch root principal.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "verify_branch",
+            "begin_line": 2183,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "branch.principal-status-extension-accepted",
+        "code": "critical-extension-unknown",
+        "covered": false,
+        "stage": "stages 2 and 3",
+        "note": "Principal status statement carries a critical extension the context does not accept.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "check_status_extensions",
+            "begin_line": 2505,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "AcceptedRegistries::accepts_critical_extension",
+            "begin_line": 3922,
+            "refined_closure": false
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "check_principal_status",
+            "begin_line": 2537,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "branch.principal-status-extension-handler",
+        "code": "unsupported-critical-extension",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "Principal status statement carries an accepted critical extension, which has no status handler.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "check_status_extensions",
+            "begin_line": 2505,
+            "refined_closure": false
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "check_principal_status",
+            "begin_line": 2537,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "branch.anchor-principal-status",
+        "code": "principal-revoked",
+        "covered": false,
+        "stage": "stages 2 and 3",
+        "note": "Trust anchor principal is revoked in the status snapshot.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "status_decision",
+            "begin_line": 2624,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "select_principal",
+            "begin_line": 465,
+            "refined_closure": false
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "check_principal_status",
+            "begin_line": 2537,
+            "refined_closure": false
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "ExactStatusMethod::principal",
+            "begin_line": 414,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "branch.grant-status-extension-accepted",
+        "code": "critical-extension-unknown",
+        "covered": false,
+        "stage": "stages 2 and 3",
+        "note": "Grant status statement carries a critical extension the context does not accept.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "check_status_extensions",
+            "begin_line": 2505,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "AcceptedRegistries::accepts_critical_extension",
+            "begin_line": 3922,
+            "refined_closure": false
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "check_grant_status",
+            "begin_line": 2584,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "branch.grant-status-extension-handler",
+        "code": "unsupported-critical-extension",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "Grant status statement carries an accepted critical extension, which has no status handler.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "check_status_extensions",
+            "begin_line": 2505,
+            "refined_closure": false
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "check_grant_status",
+            "begin_line": 2584,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "branch.grant-status",
+        "code": "grant-revoked",
+        "covered": false,
+        "stage": "stages 2 and 3",
+        "note": "Grant is revoked in the grant status snapshot.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "status_decision",
+            "begin_line": 2624,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "select_grant",
+            "begin_line": 535,
+            "refined_closure": false
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "check_grant_status",
+            "begin_line": 2584,
+            "refined_closure": false
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "ExactStatusMethod::grant",
+            "begin_line": 439,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "branch.subject-principal-status",
+        "code": "principal-revoked",
+        "covered": false,
+        "stage": "stages 2 and 3",
+        "note": "Grant subject principal is revoked in the status snapshot.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "status_decision",
+            "begin_line": 2624,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "select_principal",
+            "begin_line": 465,
+            "refined_closure": false
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "check_principal_status",
+            "begin_line": 2537,
+            "refined_closure": false
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "ExactStatusMethod::principal",
+            "begin_line": 414,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "branch.resource-matcher",
+        "code": "unsupported-resource-matcher",
+        "covered": false,
+        "stage": "stage 2",
+        "note": "Context resource matcher has no executable implementation.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_resource_constraints",
+            "begin_line": 2650,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "ImmutableRegistries::resource_matcher",
+            "begin_line": 966,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "branch.grant-namespace",
+        "code": "resource-namespace-mismatch",
+        "covered": false,
+        "stage": "stage 2",
+        "note": "Grant permission resource outside every anchor namespace.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_resource_constraints",
+            "begin_line": 2650,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "UriNamespaceMatcher::matches",
+            "begin_line": 93,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "branch.action-namespace",
+        "code": "resource-namespace-mismatch",
+        "covered": false,
+        "stage": "stage 2",
+        "note": "Action permission resource outside every anchor namespace.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_resource_constraints",
+            "begin_line": 2650,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "UriNamespaceMatcher::matches",
+            "begin_line": 93,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "branch.budget-edge-algebra",
+        "code": "unsupported-budget-algebra",
+        "covered": false,
+        "stage": "stage 2",
+        "note": "Parent budget ceiling algebra on a delegation edge has no implementation.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_budget_constraints",
+            "begin_line": 2685,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "ImmutableRegistries::budget_algebra",
+            "begin_line": 1006,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "branch.budget-edge-mismatch",
+        "code": "local-policy-denied",
+        "covered": false,
+        "stage": "stage 2",
+        "note": "Child and parent ceilings use different algebras; InvalidInput maps to local-policy-denied.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_budget_constraints",
+            "begin_line": 2685,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "NumericBudgetAlgebra::attenuates",
+            "begin_line": 149,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "branch.budget-edge",
+        "code": "delegation-expanded",
+        "covered": false,
+        "stage": "stage 2",
+        "note": "Child budget ceiling exceeds its parent's.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_budget_constraints",
+            "begin_line": 2685,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "NumericBudgetAlgebra::attenuates",
+            "begin_line": 149,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "branch.budget-absent",
+        "code": "budget-ceiling-exceeded",
+        "covered": false,
+        "stage": "stage 2",
+        "note": "Bounded terminal authority with no requested budget from a profile that can express one.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_budget_constraints",
+            "begin_line": 2685,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "AcceptedRegistries::profile_budget_expression",
+            "begin_line": 3951,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "branch.budget-algebra",
+        "code": "unsupported-budget-algebra",
+        "covered": false,
+        "stage": "stage 2",
+        "note": "Terminal budget ceiling algebra has no implementation.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_budget_constraints",
+            "begin_line": 2685,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "ImmutableRegistries::budget_algebra",
+            "begin_line": 1006,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "branch.budget-request-mismatch",
+        "code": "local-policy-denied",
+        "covered": false,
+        "stage": "stage 2",
+        "note": "Requested budget and terminal ceiling use different algebras; InvalidInput maps to local-policy-denied.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_budget_constraints",
+            "begin_line": 2685,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "NumericBudgetAlgebra::covers",
+            "begin_line": 160,
+            "refined_closure": false
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "NumericBudgetAlgebra::attenuates",
+            "begin_line": 149,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "branch.budget-coverage",
+        "code": "budget-ceiling-exceeded",
+        "covered": false,
+        "stage": "stage 2",
+        "note": "Requested budget exceeds the terminal ceiling.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_budget_constraints",
+            "begin_line": 2685,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "NumericBudgetAlgebra::covers",
+            "begin_line": 160,
+            "refined_closure": false
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "NumericBudgetAlgebra::attenuates",
+            "begin_line": 149,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "branch.requirement-dropped",
+        "code": "observation-requirement-dropped",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "Child grant addresses none of a parent observation requirement; an unreadable child list counts as empty.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/observation.rs",
+            "function": "require_parent_requirements",
+            "begin_line": 111,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-verifier/src/observation.rs",
+            "function": "chain_requirements",
+            "begin_line": 80,
+            "refined_closure": false
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-model/src/observation.rs",
+            "function": "observation_schema_equal",
+            "begin_line": 770,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-model/src/observation.rs",
+            "function": "requirement_subject_equal",
+            "begin_line": 778,
+            "refined_closure": true
+          }
+        ]
+      },
+      {
+        "site": "branch.delegation-linkage",
+        "code": "broken-grant-chain",
+        "covered": true,
+        "stage": "covered",
+        "note": "Grant issuer is not the parent's subject.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "evaluate_grant_view",
+            "begin_line": 360,
+            "refined_closure": true
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-algebra-kernel/src/lib.rs",
+            "function": "root_preserved",
+            "begin_line": 49,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "CanonicalPrincipal::eq",
+            "begin_line": 148,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "optional_grant_id_equal",
+            "begin_line": 500,
+            "refined_closure": true
+          }
+        ]
+      },
+      {
+        "site": "branch.delegation-depth",
+        "code": "delegation-expanded",
+        "covered": true,
+        "stage": "covered",
+        "note": "Grant depth does not strictly decrease.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "evaluate_grant_view",
+            "begin_line": 360,
+            "refined_closure": true
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "depth_decreases",
+            "begin_line": 266,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-algebra-kernel/src/generated.rs",
+            "function": "attenuation_checks_accept",
+            "begin_line": 141,
+            "refined_closure": true
+          }
+        ]
+      },
+      {
+        "site": "branch.delegation-profile",
+        "code": "delegation-expanded",
+        "covered": true,
+        "stage": "covered",
+        "note": "Child grant selects a profile other than its parent's.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "evaluate_grant_view",
+            "begin_line": 360,
+            "refined_closure": true
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "selected_profile_attenuates",
+            "begin_line": 286,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "profile_ref_equal",
+            "begin_line": 465,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-algebra-kernel/src/generated.rs",
+            "function": "attenuation_checks_accept",
+            "begin_line": 141,
+            "refined_closure": true
+          }
+        ]
+      },
+      {
+        "site": "branch.delegation-permissions",
+        "code": "delegation-expanded",
+        "covered": true,
+        "stage": "covered",
+        "note": "Grant permissions are not a subset of the parent's.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "evaluate_grant_view",
+            "begin_line": 360,
+            "refined_closure": true
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "permission_set_is_subset",
+            "begin_line": 591,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "permission_set_contains",
+            "begin_line": 577,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-algebra-kernel/src/generated.rs",
+            "function": "attenuation_checks_accept",
+            "begin_line": 141,
+            "refined_closure": true
+          }
+        ]
+      },
+      {
+        "site": "branch.delegation-validity",
+        "code": "delegation-expanded",
+        "covered": true,
+        "stage": "covered",
+        "note": "Grant validity window exceeds the parent's.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "evaluate_grant_view",
+            "begin_line": 360,
+            "refined_closure": true
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "validity_window_contains",
+            "begin_line": 422,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "inclusive_window_contains",
+            "begin_line": 410,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-algebra-kernel/src/generated.rs",
+            "function": "attenuation_checks_accept",
+            "begin_line": 141,
+            "refined_closure": true
+          }
+        ]
+      },
+      {
+        "site": "branch.delegation-audiences",
+        "code": "delegation-expanded",
+        "covered": true,
+        "stage": "covered",
+        "note": "Grant audiences are not a subset of the parent's.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "evaluate_grant_view",
+            "begin_line": 360,
+            "refined_closure": true
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "audience_set_is_subset",
+            "begin_line": 658,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "audience_set_contains",
+            "begin_line": 644,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-algebra-kernel/src/generated.rs",
+            "function": "attenuation_checks_accept",
+            "begin_line": 141,
+            "refined_closure": true
+          }
+        ]
+      },
+      {
+        "site": "branch.delegation-action-constraint",
+        "code": "delegation-expanded",
+        "covered": true,
+        "stage": "covered",
+        "note": "Grant action constraint is looser than the parent's.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "evaluate_grant_view",
+            "begin_line": 360,
+            "refined_closure": true
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "action_constraint_attenuates",
+            "begin_line": 814,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-algebra-kernel/src/generated.rs",
+            "function": "attenuation_checks_accept",
+            "begin_line": 141,
+            "refined_closure": true
+          }
+        ]
+      },
+      {
+        "site": "branch.delegation-status",
+        "code": "delegation-expanded",
+        "covered": true,
+        "stage": "covered",
+        "note": "Grant status policy is weaker than the parent's.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "evaluate_grant_view",
+            "begin_line": 360,
+            "refined_closure": true
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "status_policy_attenuates",
+            "begin_line": 1013,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-algebra-kernel/src/generated.rs",
+            "function": "attenuation_checks_accept",
+            "begin_line": 141,
+            "refined_closure": true
+          }
+        ]
+      },
+      {
+        "site": "branch.delegation-assurance",
+        "code": "delegation-expanded",
+        "covered": true,
+        "stage": "covered",
+        "note": "Grant assurance floor differs from the parent's policy.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "evaluate_grant_view",
+            "begin_line": 360,
+            "refined_closure": true
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "assurance_policy_id_equal",
+            "begin_line": 486,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-algebra-kernel/src/generated.rs",
+            "function": "attenuation_checks_accept",
+            "begin_line": 141,
+            "refined_closure": true
+          }
+        ]
+      },
+      {
+        "site": "branch.delegation-extensions",
+        "code": "delegation-expanded",
+        "covered": false,
+        "stage": "stage 2",
+        "note": "Child drops a parent critical extension, or adds one its law refuses.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "evaluate_grant_view",
+            "begin_line": 360,
+            "refined_closure": true
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "extensions_attenuate",
+            "begin_line": 245,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "critical_extensions_attenuate",
+            "begin_line": 226,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "parent_extension_retained",
+            "begin_line": 155,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "child_extension_admitted",
+            "begin_line": 174,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "AcceptedExtensionLaws::attenuates",
+            "begin_line": 1165,
+            "refined_closure": false
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "ObservationRequirementExtension::attenuates",
+            "begin_line": 260,
+            "refined_closure": false
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-algebra-kernel/src/generated.rs",
+            "function": "attenuation_checks_accept",
+            "begin_line": 141,
+            "refined_closure": true
+          }
+        ]
+      },
+      {
+        "site": "branch.grant-extension",
+        "code": "local-policy-denied",
+        "covered": false,
+        "stage": "stages 2 and 3; codec: AP-SPEC-061",
+        "note": "Grant critical extension payload rejected by its handler; InvalidInput maps to local-policy-denied.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "evaluate_extensions",
+            "begin_line": 2468,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "BoundedPolicyCommitmentExtension::evaluate",
+            "begin_line": 311,
+            "refined_closure": false
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "decode_bounded_policy",
+            "begin_line": 279,
+            "refined_closure": false
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-codec/src/bounded_policy.rs",
+            "function": "decode_bounded_policy_commitment",
+            "begin_line": 117,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "branch.coverage-linkage",
+        "code": "broken-grant-chain",
+        "covered": true,
+        "stage": "covered",
+        "note": "Action actor is not the terminal grant subject.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "evaluate_action_coverage_view",
+            "begin_line": 446,
+            "refined_closure": true
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-algebra-kernel/src/lib.rs",
+            "function": "root_preserved",
+            "begin_line": 49,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "CanonicalPrincipal::eq",
+            "begin_line": 148,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "optional_grant_id_equal",
+            "begin_line": 500,
+            "refined_closure": true
+          }
+        ]
+      },
+      {
+        "site": "branch.coverage-profile",
+        "code": "broken-grant-chain",
+        "covered": true,
+        "stage": "covered",
+        "note": "Action profile differs from the terminal grant's selected profile.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "evaluate_action_coverage_view",
+            "begin_line": 446,
+            "refined_closure": true
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "selected_profile_attenuates",
+            "begin_line": 286,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "profile_ref_equal",
+            "begin_line": 465,
+            "refined_closure": true
+          }
+        ]
+      },
+      {
+        "site": "branch.coverage-permission",
+        "code": "permission-not-granted",
+        "covered": true,
+        "stage": "covered",
+        "note": "Action permission not in the terminal authority's permissions.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "evaluate_action_coverage_view",
+            "begin_line": 446,
+            "refined_closure": true
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "permission_set_contains",
+            "begin_line": 577,
+            "refined_closure": true
+          }
+        ]
+      },
+      {
+        "site": "branch.coverage-validity",
+        "code": "action-outside-validity",
+        "covered": true,
+        "stage": "covered",
+        "note": "Action validity window exceeds the terminal authority's.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "evaluate_action_coverage_view",
+            "begin_line": 446,
+            "refined_closure": true
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "validity_window_contains",
+            "begin_line": 422,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "inclusive_window_contains",
+            "begin_line": 410,
+            "refined_closure": true
+          }
+        ]
+      },
+      {
+        "site": "branch.coverage-audience",
+        "code": "audience-mismatch",
+        "covered": true,
+        "stage": "covered",
+        "note": "Action audience not in the terminal authority's audiences.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "evaluate_action_coverage_view",
+            "begin_line": 446,
+            "refined_closure": true
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "audience_set_contains",
+            "begin_line": 644,
+            "refined_closure": true
+          }
+        ]
+      },
+      {
+        "site": "branch.coverage-constraint",
+        "code": "action-constraint-mismatch",
+        "covered": true,
+        "stage": "covered",
+        "note": "Action body digest not allowed by the terminal action constraint.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-authority/src/lib.rs",
+            "function": "evaluate_action_coverage_view",
+            "begin_line": 446,
+            "refined_closure": true
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "action_constraint_allows",
+            "begin_line": 803,
+            "refined_closure": true
+          }
+        ]
+      },
+      {
+        "site": "branch.assurance-claim",
+        "code": "unsupported-assurance-claim",
+        "covered": false,
+        "stage": "stages 2 and 3",
+        "note": "Participant assurance claim kind has no registered rule.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "validate_assurance_claims",
+            "begin_line": 2753,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-registries/src/lib.rs",
+            "function": "ImmutableRegistries::assurance_claim",
+            "begin_line": 1095,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "branch.assurance-requirement",
+        "code": "assurance-requirement-not-met",
+        "covered": false,
+        "stage": "stages 2 and 3",
+        "note": "No exact or implied participant claim satisfies an assurance requirement.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-assurance/src/lib.rs",
+            "function": "evaluate_with_implications",
+            "begin_line": 36,
+            "refined_closure": false
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "evaluate_branch_assurance",
+            "begin_line": 2378,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "branch.observer-in-chain",
+        "code": "observer-in-authority-chain",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "Required observer's principal is in the branch's authority chain.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/observation.rs",
+            "function": "Stage::evaluate",
+            "begin_line": 137,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-verifier/src/observation.rs",
+            "function": "Stage::in_authority_chain",
+            "begin_line": 181,
+            "refined_closure": false
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-model/src/lib.rs",
+            "function": "principal_id_equal",
+            "begin_line": 192,
+            "refined_closure": true
+          }
+        ]
+      },
+      {
+        "site": "branch.observation-condition",
+        "code": "observation-condition-false",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "An eligible observation exists but none satisfies the conditions.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/observation.rs",
+            "function": "Stage::requirement",
+            "begin_line": 218,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-model/src/observation.rs",
+            "function": "observation_conditions_hold",
+            "begin_line": 712,
+            "refined_closure": true
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-model/src/observation.rs",
+            "function": "requirement_verdict",
+            "begin_line": 750,
+            "refined_closure": true
+          }
+        ]
+      },
+      {
+        "site": "branch.observation-missing",
+        "code": "observation-missing",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "No eligible observation for a requirement.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/observation.rs",
+            "function": "Stage::requirement",
+            "begin_line": 218,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-model/src/observation.rs",
+            "function": "requirement_verdict",
+            "begin_line": 750,
+            "refined_closure": true
+          }
+        ]
+      },
+      {
+        "site": "branch.observation-action-fact",
+        "code": "observation-action-fact-unavailable",
+        "covered": false,
+        "stage": "stage 3",
+        "note": "Profile policy cannot supply an action fact the requirement needs.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/observation.rs",
+            "function": "Stage::requirement",
+            "begin_line": 218,
+            "refined_closure": false
+          },
+          {
+            "role": "guard",
+            "file": "core/crates/auths-verifier/src/observation.rs",
+            "function": "Stage::action_facts",
+            "begin_line": 285,
+            "refined_closure": false
+          },
+          {
+            "role": "also",
+            "file": "core/crates/auths-ports/src/lib.rs",
+            "function": "ProfilePolicy::action_fact",
+            "begin_line": 356,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "composition.authorized-branches",
+        "code": "composition-requirement-not-met",
+        "covered": false,
+        "stage": "stage 2",
+        "note": "Fewer authorized branches than the composition minimum.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "verify_authority_measured",
+            "begin_line": 1569,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "composition.distinct-actors",
+        "code": "composition-requirement-not-met",
+        "covered": false,
+        "stage": "stage 2",
+        "note": "Fewer distinct actors than the composition minimum.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "verify_authority_measured",
+            "begin_line": 1569,
+            "refined_closure": false
+          }
+        ]
+      },
+      {
+        "site": "composition.distinct-roots",
+        "code": "composition-requirement-not-met",
+        "covered": false,
+        "stage": "stage 2",
+        "note": "Fewer distinct roots than the composition minimum.",
+        "functions": [
+          {
+            "role": "refusal",
+            "file": "core/crates/auths-verifier/src/lib.rs",
+            "function": "verify_authority_measured",
+            "begin_line": 1569,
+            "refined_closure": false
+          }
+        ]
+      }
+    ]
+  },
+  "translated_outside_closure": [],
+  "theorem_kinds": {
+    "classified": {
+      "Auths.Lifecycle.Refinement.translated_additive_capacity_refines_rich": "exact",
+      "Auths.Lifecycle.Refinement.translated_exclusive_capacity_refines_rich": "exact",
+      "Auths.Lifecycle.Refinement.translated_replay_refines_rich": "exact",
+      "Auths.Lifecycle.Refinement.translated_transition_refines_rich": "exact",
+      "Auths.Product.Refinement.BoundedPolicy.translated_bounded_policy_link_accepts_refines_model": "exact",
+      "Auths.Product.Refinement.BoundedPolicy.translated_digest_equal_refines_model": "exact",
+      "Auths.Product.Refinement.Connections.translated_lease_generation_refines_model": "exact",
+      "Auths.Product.Refinement.Connections.translated_next_generation_refines_model": "exact",
+      "Auths.Product.Refinement.Connections.translated_retained_generation_refines_model": "exact",
+      "Auths.Product.Refinement.Connections.translated_rotation_refines_model": "exact",
+      "Auths.Product.Refinement.Connections.translated_state_change_refines_model": "exact",
+      "Auths.Product.Refinement.Gateway.translated_construct_action_read_refines_model": "exact",
+      "Auths.Product.Refinement.Gateway.translated_construct_credential_read_refines_model": "exact",
+      "Auths.Product.Refinement.Gateway.translated_construct_write_refines_model": "exact",
+      "Auths.Product.Refinement.Gateway.translated_next_step_refines_model": "exact",
+      "Auths.Product.Refinement.Gateway.translated_recovery_capability_refines_model": "exact",
+      "Auths.Product.Refinement.Gateway.translated_relative_basis_refines_model": "exact",
+      "Auths.Product.Refinement.Gateway.translated_relative_ceiling_admits_refines_model": "exact",
+      "Auths.Product.Refinement.Gateway.translated_start_refines_model": "exact",
+      "Auths.Product.Refinement.Gateway.translated_valid_transition_refines_model": "exact",
+      "Auths.Product.Refinement.translated_argument_policy_tightens_refines_model": "exact",
+      "Auths.Product.Refinement.translated_ceiling_count_refines_model": "exact",
+      "Auths.Product.Refinement.translated_ceiling_count_tightens_refines_model": "exact",
+      "Auths.Product.Refinement.translated_chain_counts_admit_refines_model": "exact",
+      "Auths.Product.Refinement.translated_chain_sums_admit_refines_model": "exact",
+      "Auths.Product.Refinement.translated_checked_add_refines_nat": "exact",
+      "Auths.Product.Refinement.translated_checked_div_rejects_zero": "partial",
+      "Auths.Product.Refinement.translated_checked_mul_refines_nat": "exact",
+      "Auths.Product.Refinement.translated_checked_sub_refines_nat": "exact",
+      "Auths.Product.Refinement.translated_configuration_refines_projection": "exact",
+      "Auths.Product.Refinement.translated_window_index_refines_nat": "exact",
+      "Auths.Refinement.Observation.translated_condition_test_equal_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_condition_value_holds_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_fact_name_equal_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_fact_value_equal_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_member_values_contain_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_member_values_equal_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_observation_condition_equal_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_observation_condition_holds_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_observation_conditions_contain_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_observation_conditions_equal_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_observation_conditions_hold_refines_conditions_hold": "partial",
+      "Auths.Refinement.Observation.translated_observation_conditions_hold_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_observation_conditions_include_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_observation_conditions_length_mismatch_fails_closed": "partial",
+      "Auths.Refinement.Observation.translated_observation_fact_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_observation_fresh_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_observation_requirement_covers_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_observation_requirement_equal_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_observation_requirement_narrows_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_observation_requirement_retained_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_observation_requirement_same_target_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_observation_requirements_attenuate_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_observation_schema_equal_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_observation_subject_equal_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_observer_anchor_id_equal_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_requirement_subject_equal_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_requirement_verdict_refines_model": "exact",
+      "Auths.Refinement.Observation.translated_requirement_verdict_refines_requirement_decision": "partial",
+      "Auths.Refinement.Observation.translated_uint_range_contains_refines_model": "exact",
+      "Auths.Refinement.translated_absent_ceiling_covers_anything": "partial",
+      "Auths.Refinement.translated_bounded_ceiling_denies_absent_request": "partial",
+      "Auths.Refinement.translated_coverage_refines_rich_spec": "exact",
+      "Auths.Refinement.translated_delegation_refines_rich_spec": "verdict-exact",
+      "Auths.Refinement.translated_expressible_absent_request_is_denied": "partial",
+      "Auths.Refinement.translated_inexpressible_absent_request_is_covered": "partial",
+      "Auths.Refinement.translated_rust_refines_rich_spec": "exact",
+      "Auths.Rich.Mutations.profile_version_equality": "case"
+    }
+  },
+  "translation_inventory": {
+    "aeneas_local_definitions": 299,
+    "by_kind": {
+      "function": 203,
+      "derived": 16,
+      "loop": 80
+    },
+    "refined_direct": 63,
+    "refined_closure": 208,
+    "theorems_naming_translated_functions": 68
+  },
+  "mutation_adequacy": null
+}
