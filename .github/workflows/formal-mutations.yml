@@ -1,0 +1,69 @@
+name: Formal mutations
+
+# Mutation adequacy of the formal development (study 006's S1, S2, and S3).
+# It reports every survivor and fails on one that has neither a fix nor an
+# explanation in formal/model-mutations-v1.json. It never runs on pull
+# requests; `cargo xtask release-check` requires current results with every
+# survivor explained before a release.
+
+on:
+  schedule:
+    - cron: "23 4 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: formal-mutations-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  formal-mutations:
+    name: formal mutations (${{ matrix.campaign }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        campaign: [s1, s2, s3]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Reclaim disk before Lean setup
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo rm -rf \
+            /opt/ghc \
+            /opt/hostedtoolcache/CodeQL \
+            /usr/local/.ghcup \
+            /usr/local/lib/android \
+            /usr/share/dotnet
+          sudo docker system prune --all --force
+          sudo apt-get clean
+          df -h /
+      - uses: ./.github/actions/setup-rust-cache
+        with:
+          toolchain: 1.97.1
+          compiler-cache: "false"
+      - uses: ./.github/actions/setup-lean
+      - name: Run the campaign
+        shell: bash
+        env:
+          CAMPAIGN: ${{ matrix.campaign }}
+        run: |
+          set -euo pipefail
+          mkdir -p target/formal/mutations
+          cargo xtask formal mutations "$CAMPAIGN" --jobs 2 \
+            --output "target/formal/mutations/$CAMPAIGN.json" \
+            2>&1 | tee "target/formal/mutations/$CAMPAIGN.log"
+      - name: Preserve the campaign results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: auths-formal-mutations-${{ matrix.campaign }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/formal/mutations/
+          if-no-files-found: warn
+          retention-days: 90

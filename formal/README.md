@@ -83,6 +83,35 @@ the compiled theorem inventory and transitive axioms, the qualified production
 translation, generated-source drift, generated-vector drift, Rust refinement
 tests, domain property tests, and Kani harnesses.
 
+## Proof coverage and mutation adequacy
+
+How much of the decision logic the proofs reach is measured, not stated:
+
+```text
+cargo xtask formal coverage            # check the committed measurement
+cargo xtask formal coverage --update   # regenerate it after an intentional change
+```
+
+The tool ports study 006's scanner and first reproduces the study's figures
+byte for byte from the vendored inputs of commit `8bf2970c`
+(`coverage/pin-8bf2970c.tar.zst`). It reads the scope and file roles from
+`coverage-scope-v1.toml`, theorem kinds from `theorem-kinds-v1.toml`, the
+check-site map from `check-site-functions-v1.toml`, and the compiled theorem
+statements from `lean-assurance-audit-v1.json`, which `cargo xtask formal`
+keeps equal to the compiled audit. It writes `proof-coverage-v1.json`,
+`proof-coverage-functions-v1.tsv`, and
+[`docs/assurance/PROOF_COVERAGE.md`](../docs/assurance/PROOF_COVERAGE.md); the
+authoritative and formal gates reject drift.
+
+```text
+cargo xtask formal mutations all --update --jobs 3
+```
+
+runs the three mutation campaigns over a built `formal/` and records every
+outcome in `model-mutations-v1.json`. A survivor needs a fix or an entry in
+its `explanations` before a release; `cargo xtask release-check` refuses stale
+results. The scheduled `Formal mutations` workflow re-runs them weekly.
+
 ## Hosted CI feedback and qualification
 
 The pull-request check named **formal proof fast (feedback, not qualification)**

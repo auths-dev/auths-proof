@@ -748,4 +748,762 @@ theorem translated_requirement_verdict_refines_requirement_decision
   rw [decided]
   simp [requirementDecision, available]
 
+/-! ## Requirement attenuation -/
+
+def subjectOf : auths_model.observation.ObservationSubject → Subject
+  | .Resource resource => .literal resource
+  | .ActionFact factName => .actionFact factName
+
+def requirementOf (value : auths_model.observation.ObservationRequirement) :
+    Requirement where
+  observerAnchor := value.observer_anchor
+  schema := value.schema
+  subject := subjectOf value.subject
+  maxAge := value.max_age_seconds.val
+  conditions := value.conditions.val.map condition
+
+def SubjectValid : auths_model.observation.ObservationSubject → Prop
+  | .Resource resource => StringBounded resource
+  | .ActionFact factName => StringBounded factName
+
+def TestComparable : auths_model.observation.ConditionTest → Prop
+  | .EqLiteral value => FactValueValid value
+  | .EqAction reference => StringBounded reference
+  | .UintRange _ => True
+  | .Member values => ∀ value ∈ values.val, FactValueValid value
+
+def ConditionComparable (value : auths_model.observation.ObservationCondition) : Prop :=
+  StringBounded value.«name» ∧ TestComparable value.test
+
+def RequirementValid (value : auths_model.observation.ObservationRequirement) : Prop :=
+  StringBounded value.observer_anchor ∧ StringBounded value.schema ∧
+    SubjectValid value.subject ∧
+    ∀ condition ∈ value.conditions.val, ConditionComparable condition
+
+instance (child parent : Requirement) : Decidable (sameTarget child parent) := by
+  unfold sameTarget; infer_instance
+
+instance (child parent : Requirement) : Decidable (narrows child parent) := by
+  unfold narrows; infer_instance
+
+instance (child parent : Requirement) : Decidable (covers child parent) := by
+  unfold covers; infer_instance
+
+instance (child parent : List Requirement) :
+    Decidable (requirementsAttenuate child parent) := by
+  unfold requirementsAttenuate; infer_instance
+
+theorem drop_map_eq_iff {α β : Type} (f : α → β) (left right : List α) (index : Nat)
+    (inBounds : index < left.length) (sameLength : left.length = right.length) :
+    (left.drop index).map f = (right.drop index).map f ↔
+      f left[index] = f (right[index]'(sameLength ▸ inBounds)) ∧
+        (left.drop (index + 1)).map f = (right.drop (index + 1)).map f := by
+  have rightInBounds : index < right.length := sameLength ▸ inBounds
+  rw [List.drop_eq_getElem_cons inBounds, List.drop_eq_getElem_cons rightInBounds]
+  simp only [List.map_cons, List.cons.injEq]
+
+@[step] theorem observer_anchor_id_equal_spec
+    (left right : auths_model.observation.ObserverAnchorId)
+    (leftBounded : StringBounded left) (rightBounded : StringBounded right) :
+    auths_model.observation.observer_anchor_id_equal left right
+      ⦃ result => result = decide (left = right) ⦄ := by
+  unfold auths_model.observation.observer_anchor_id_equal
+  exact string_equal_spec left right leftBounded rightBounded
+
+/-- Observer-anchor identifiers compare as the model's `String` equality. -/
+theorem translated_observer_anchor_id_equal_refines_model
+    (left right : auths_model.observation.ObserverAnchorId)
+    (leftBounded : StringBounded left) (rightBounded : StringBounded right) :
+    auths_model.observation.observer_anchor_id_equal left right =
+      ok (decide (left = right)) :=
+  result_eq_ok_of_spec (observer_anchor_id_equal_spec left right leftBounded rightBounded)
+
+@[step] theorem observation_schema_equal_spec
+    (left right : auths_model.observation.ObservationSchemaId)
+    (leftBounded : StringBounded left) (rightBounded : StringBounded right) :
+    auths_model.observation.observation_schema_equal left right
+      ⦃ result => result = decide (left = right) ⦄ := by
+  unfold auths_model.observation.observation_schema_equal
+  exact string_equal_spec left right leftBounded rightBounded
+
+/-- Observation-schema identifiers compare as the model's `String` equality. -/
+theorem translated_observation_schema_equal_refines_model
+    (left right : auths_model.observation.ObservationSchemaId)
+    (leftBounded : StringBounded left) (rightBounded : StringBounded right) :
+    auths_model.observation.observation_schema_equal left right =
+      ok (decide (left = right)) :=
+  result_eq_ok_of_spec (observation_schema_equal_spec left right leftBounded rightBounded)
+
+@[step] theorem requirement_subject_equal_spec
+    (left right : auths_model.observation.ObservationSubject)
+    (leftValid : SubjectValid left) (rightValid : SubjectValid right) :
+    auths_model.observation.requirement_subject_equal left right
+      ⦃ result => result = decide (subjectOf left = subjectOf right) ⦄ := by
+  unfold auths_model.observation.requirement_subject_equal
+  cases left with
+  | Resource left =>
+      cases right with
+      | Resource right =>
+          simp only [SubjectValid] at leftValid rightValid
+          dsimp only
+          rw [translated_observation_subject_equal_refines_model left right leftValid
+            rightValid]
+          simp [subjectOf]
+      | ActionFact _ => simp [subjectOf]
+  | ActionFact left =>
+      cases right with
+      | Resource _ => simp [subjectOf]
+      | ActionFact right =>
+          simp only [SubjectValid] at leftValid rightValid
+          apply WP.spec_mono (fact_name_equal_spec left right leftValid rightValid)
+          intro result resultEq
+          simp [resultEq, subjectOf]
+
+/-- Requirement subjects compare as model subjects: the same literal resource
+or the same action-fact name. -/
+theorem translated_requirement_subject_equal_refines_model
+    (left right : auths_model.observation.ObservationSubject)
+    (leftValid : SubjectValid left) (rightValid : SubjectValid right) :
+    auths_model.observation.requirement_subject_equal left right =
+      ok (decide (subjectOf left = subjectOf right)) :=
+  result_eq_ok_of_spec (requirement_subject_equal_spec left right leftValid rightValid)
+
+@[step] theorem member_values_equal_spec
+    (left right : auths_model.observation.MemberValues)
+    (leftValid : ∀ value ∈ left.val, FactValueValid value)
+    (rightValid : ∀ value ∈ right.val, FactValueValid value) :
+    auths_model.observation.member_values_equal left right
+      ⦃ result => result =
+        decide (left.val.map factValue = right.val.map factValue) ⦄ := by
+  unfold auths_model.observation.member_values_equal
+  dsimp only
+  split <;> rename_i lengthCondition
+  · simp only [spec_ok]
+    have : left.val.length ≠ right.val.length := by scalar_tac
+    have : left.val.map factValue ≠ right.val.map factValue := fun same =>
+      this (by simpa using congrArg List.length same)
+    simp [this]
+  · have sameLength : left.val.length = right.val.length := by scalar_tac
+    unfold auths_model.observation.member_values_equal_loop
+    apply loop.spec_decr_nat
+      (measure := fun index => left.val.length - index.val)
+      (inv := fun index =>
+        index.val ≤ left.val.length ∧
+        (left.val.map factValue = right.val.map factValue ↔
+          (left.val.drop index.val).map factValue =
+            (right.val.drop index.val).map factValue))
+    · rintro index ⟨indexBound, equalDrop⟩
+      unfold auths_model.observation.member_values_equal_loop.body
+      dsimp only
+      split <;> rename_i withinBounds
+      · have inBounds : index.val < left.val.length := by simpa using withinBounds
+        have rightInBounds : index.val < right.val.length := by omega
+        step as ⟨leftValue, leftEq⟩
+        step as ⟨rightValue, rightEq⟩
+        have leftValueValid : FactValueValid leftValue := by
+          rw [leftEq]; exact leftValid _ (List.getElem_mem inBounds)
+        have rightValueValid : FactValueValid rightValue := by
+          rw [rightEq]; exact rightValid _ (List.getElem_mem rightInBounds)
+        step with fact_value_equal_spec as ⟨equal, equalEq⟩
+        rw [drop_map_eq_iff factValue _ _ _ inBounds sameLength, ← leftEq, ← rightEq]
+          at equalDrop
+        split <;> rename_i matched
+        · step as ⟨nextIndex, nextIndexPost⟩
+          refine ⟨by scalar_tac, ?_, by scalar_tac⟩
+          rw [equalDrop, nextIndexPost]
+          simp_all
+        · simp only [spec_ok]
+          simp_all
+      · simp only [spec_ok]
+        have atEnd : left.val.length ≤ index.val := by simpa using withinBounds
+        have rightAtEnd : right.val.length ≤ index.val := by omega
+        rw [List.drop_eq_nil_of_le atEnd, List.drop_eq_nil_of_le rightAtEnd] at equalDrop
+        simp [equalDrop]
+    · exact ⟨by simp, by simp⟩
+
+
+/-- Membership lists compare positionally as lists of model values. -/
+theorem translated_member_values_equal_refines_model
+    (left right : auths_model.observation.MemberValues)
+    (leftValid : ∀ value ∈ left.val, FactValueValid value)
+    (rightValid : ∀ value ∈ right.val, FactValueValid value) :
+    auths_model.observation.member_values_equal left right =
+      ok (decide (left.val.map factValue = right.val.map factValue)) :=
+  result_eq_ok_of_spec (member_values_equal_spec left right leftValid rightValid)
+
+@[step] theorem condition_test_equal_spec
+    (left right : auths_model.observation.ConditionTest)
+    (leftComparable : TestComparable left) (rightComparable : TestComparable right)
+    (factName : String) :
+    auths_model.observation.condition_test_equal left right
+      ⦃ result => result =
+        decide (conditionOf factName left = conditionOf factName right) ⦄ := by
+  unfold auths_model.observation.condition_test_equal
+  cases left with
+  | EqLiteral left =>
+      cases right with
+      | EqLiteral right =>
+          apply WP.spec_mono (fact_value_equal_spec left right leftComparable rightComparable)
+          intro result resultEq
+          simp [resultEq, conditionOf]
+      | EqAction _ => simp [conditionOf]
+      | UintRange _ => simp [conditionOf]
+      | Member _ => simp [conditionOf]
+  | EqAction left =>
+      cases right with
+      | EqLiteral _ => simp [conditionOf]
+      | EqAction right =>
+          apply WP.spec_mono (fact_name_equal_spec left right leftComparable rightComparable)
+          intro result resultEq
+          simp [resultEq, conditionOf]
+      | UintRange _ => simp [conditionOf]
+      | Member _ => simp [conditionOf]
+  | UintRange left =>
+      cases right with
+      | EqLiteral _ => simp [conditionOf]
+      | EqAction _ => simp [conditionOf]
+      | UintRange right =>
+          dsimp only
+          simp only [conditionOf, Condition.uintRange.injEq, true_and]
+          split <;> rename_i sameLo
+          · simp [sameLo, UScalar.val_eq_imp_iff]
+          · have : left.lo.val ≠ right.lo.val := fun same =>
+              sameLo (UScalar.eq_of_val_eq same)
+            simp [this]
+      | Member _ => simp [conditionOf]
+  | Member left =>
+      cases right with
+      | EqLiteral _ => simp [conditionOf]
+      | EqAction _ => simp [conditionOf]
+      | UintRange _ => simp [conditionOf]
+      | Member right =>
+          apply WP.spec_mono
+            (member_values_equal_spec left right leftComparable rightComparable)
+          intro result resultEq
+          simp [resultEq, conditionOf]
+
+/-- Condition atoms compare as model conditions over the same fact name. -/
+theorem translated_condition_test_equal_refines_model
+    (left right : auths_model.observation.ConditionTest)
+    (leftComparable : TestComparable left) (rightComparable : TestComparable right)
+    (factName : String) :
+    auths_model.observation.condition_test_equal left right =
+      ok (decide (conditionOf factName left = conditionOf factName right)) :=
+  result_eq_ok_of_spec
+    (condition_test_equal_spec left right leftComparable rightComparable factName)
+
+theorem conditionName_conditionOf (factName : String)
+    (test : auths_model.observation.ConditionTest) :
+    conditionName (conditionOf factName test) = factName := by
+  cases test <;> rfl
+
+theorem condition_eq_iff (left right : auths_model.observation.ObservationCondition) :
+    condition left = condition right ↔
+      left.«name» = right.«name» ∧
+        conditionOf left.«name» left.test = conditionOf left.«name» right.test := by
+  constructor
+  · intro same
+    have sameName : left.«name» = right.«name» := by
+      have := congrArg conditionName same
+      simpa [condition, conditionName_conditionOf] using this
+    refine ⟨sameName, ?_⟩
+    simpa [condition, sameName] using same
+  · rintro ⟨sameName, sameTest⟩
+    simpa [condition, sameName] using sameTest
+
+@[step] theorem observation_condition_equal_spec
+    (left right : auths_model.observation.ObservationCondition)
+    (leftComparable : ConditionComparable left)
+    (rightComparable : ConditionComparable right) :
+    auths_model.observation.observation_condition_equal left right
+      ⦃ result => result = decide (condition left = condition right) ⦄ := by
+  unfold auths_model.observation.observation_condition_equal
+  step with fact_name_equal_spec as ⟨sameName, sameNameEq⟩
+  split <;> rename_i named
+  · have names : left.«name» = right.«name» := by simpa [sameNameEq] using named
+    apply WP.spec_mono
+      (condition_test_equal_spec left.test right.test leftComparable.2
+        rightComparable.2 left.«name»)
+    intro result resultEq
+    simp [resultEq, condition_eq_iff, names]
+  · have names : left.«name» ≠ right.«name» := by simpa [sameNameEq] using named
+    simp [condition_eq_iff, names]
+
+/-- One condition compares as the model condition: the same fact name and the
+same atom. -/
+theorem translated_observation_condition_equal_refines_model
+    (left right : auths_model.observation.ObservationCondition)
+    (leftComparable : ConditionComparable left)
+    (rightComparable : ConditionComparable right) :
+    auths_model.observation.observation_condition_equal left right =
+      ok (decide (condition left = condition right)) :=
+  result_eq_ok_of_spec
+    (observation_condition_equal_spec left right leftComparable rightComparable)
+
+
+@[step] theorem observation_conditions_contain_spec
+    (conditions : Slice auths_model.observation.ObservationCondition)
+    (value : auths_model.observation.ObservationCondition)
+    (conditionsComparable : ∀ member ∈ conditions.val, ConditionComparable member)
+    (valueComparable : ConditionComparable value) :
+    auths_model.observation.observation_conditions_contain conditions value
+      ⦃ result => result = decide (condition value ∈ conditions.val.map condition) ⦄ := by
+  unfold auths_model.observation.observation_conditions_contain
+    auths_model.observation.observation_conditions_contain_loop
+  apply loop.spec_decr_nat
+    (measure := fun index => conditions.val.length - index.val)
+    (inv := fun index =>
+      index.val ≤ conditions.val.length ∧
+      (condition value ∈ conditions.val.map condition ↔
+        condition value ∈ (conditions.val.drop index.val).map condition))
+  · rintro index ⟨indexBound, memberDrop⟩
+    unfold auths_model.observation.observation_conditions_contain_loop.body
+    dsimp only
+    split <;> rename_i withinBounds
+    · have inBounds : index.val < conditions.val.length := by simpa using withinBounds
+      step as ⟨current, currentEq⟩
+      have currentComparable : ConditionComparable current := by
+        rw [currentEq]; exact conditionsComparable _ (List.getElem_mem inBounds)
+      step with observation_condition_equal_spec as ⟨equal, equalEq⟩
+      rw [List.drop_eq_getElem_cons inBounds, List.map_cons, List.mem_cons,
+        ← currentEq] at memberDrop
+      split <;> rename_i matched
+      · simp only [spec_ok]
+        have : condition current = condition value := by simpa [equalEq] using matched
+        simp [memberDrop, this]
+      · step as ⟨nextIndex, nextIndexPost⟩
+        have : condition value ≠ condition current := by
+          intro same; exact matched (by simp [equalEq, same])
+        refine ⟨by scalar_tac, ?_, by scalar_tac⟩
+        rw [memberDrop, nextIndexPost]
+        simp [this]
+    · simp only [spec_ok]
+      have atEnd : conditions.val.length ≤ index.val := by simpa using withinBounds
+      rw [List.drop_eq_nil_of_le atEnd] at memberDrop
+      simp [memberDrop]
+  · exact ⟨by simp, by simp⟩
+
+/-- Condition-list containment is membership of the model condition. -/
+theorem translated_observation_conditions_contain_refines_model
+    (conditions : Slice auths_model.observation.ObservationCondition)
+    (value : auths_model.observation.ObservationCondition)
+    (conditionsComparable : ∀ member ∈ conditions.val, ConditionComparable member)
+    (valueComparable : ConditionComparable value) :
+    auths_model.observation.observation_conditions_contain conditions value =
+      ok (decide (condition value ∈ conditions.val.map condition)) :=
+  result_eq_ok_of_spec
+    (observation_conditions_contain_spec conditions value conditionsComparable
+      valueComparable)
+
+@[step] theorem observation_conditions_include_spec
+    (narrower wider : Slice auths_model.observation.ObservationCondition)
+    (narrowerComparable : ∀ member ∈ narrower.val, ConditionComparable member)
+    (widerComparable : ∀ member ∈ wider.val, ConditionComparable member) :
+    auths_model.observation.observation_conditions_include narrower wider
+      ⦃ result => result =
+        decide (∀ value ∈ wider.val.map condition,
+          value ∈ narrower.val.map condition) ⦄ := by
+  unfold auths_model.observation.observation_conditions_include
+    auths_model.observation.observation_conditions_include_loop
+  apply loop.spec_decr_nat
+    (measure := fun index => wider.val.length - index.val)
+    (inv := fun index =>
+      index.val ≤ wider.val.length ∧
+      ((∀ value ∈ wider.val.map condition, value ∈ narrower.val.map condition) ↔
+        ∀ value ∈ (wider.val.drop index.val).map condition,
+          value ∈ narrower.val.map condition))
+  · rintro index ⟨indexBound, allDrop⟩
+    unfold auths_model.observation.observation_conditions_include_loop.body
+    dsimp only
+    split <;> rename_i withinBounds
+    · have inBounds : index.val < wider.val.length := by simpa using withinBounds
+      step as ⟨current, currentEq⟩
+      have currentComparable : ConditionComparable current := by
+        rw [currentEq]; exact widerComparable _ (List.getElem_mem inBounds)
+      step with observation_conditions_contain_spec as ⟨contained, containedEq⟩
+      rw [List.drop_eq_getElem_cons inBounds, List.map_cons, List.forall_mem_cons,
+        ← currentEq] at allDrop
+      split <;> rename_i matched
+      · step as ⟨nextIndex, nextIndexPost⟩
+        have : condition current ∈ narrower.val.map condition := by
+          simpa [containedEq] using matched
+        refine ⟨by scalar_tac, ?_, by scalar_tac⟩
+        rw [allDrop, nextIndexPost]
+        simp [this]
+      · simp only [spec_ok]
+        have : condition current ∉ narrower.val.map condition := by
+          simpa [containedEq] using matched
+        simp only [allDrop, this, false_and, decide_false]
+    · simp only [spec_ok]
+      have atEnd : wider.val.length ≤ index.val := by simpa using withinBounds
+      rw [List.drop_eq_nil_of_le atEnd] at allDrop
+      simp only [allDrop, List.map_nil, List.not_mem_nil, false_implies, implies_true,
+        decide_true]
+  · exact ⟨by simp, by simp⟩
+
+/-- Condition-list inclusion is the model's atom-set inclusion: every atom of
+`wider` occurs in `narrower`. -/
+theorem translated_observation_conditions_include_refines_model
+    (narrower wider : Slice auths_model.observation.ObservationCondition)
+    (narrowerComparable : ∀ member ∈ narrower.val, ConditionComparable member)
+    (widerComparable : ∀ member ∈ wider.val, ConditionComparable member) :
+    auths_model.observation.observation_conditions_include narrower wider =
+      ok (decide (∀ value ∈ wider.val.map condition,
+        value ∈ narrower.val.map condition)) :=
+  result_eq_ok_of_spec
+    (observation_conditions_include_spec narrower wider narrowerComparable
+      widerComparable)
+
+@[step] theorem observation_conditions_equal_spec
+    (left right : Slice auths_model.observation.ObservationCondition)
+    (leftComparable : ∀ member ∈ left.val, ConditionComparable member)
+    (rightComparable : ∀ member ∈ right.val, ConditionComparable member) :
+    auths_model.observation.observation_conditions_equal left right
+      ⦃ result => result =
+        decide (left.val.map condition = right.val.map condition) ⦄ := by
+  unfold auths_model.observation.observation_conditions_equal
+  dsimp only
+  split <;> rename_i lengthCondition
+  · simp only [spec_ok]
+    have : left.val.length ≠ right.val.length := by scalar_tac
+    have : left.val.map condition ≠ right.val.map condition := fun same =>
+      this (by simpa using congrArg List.length same)
+    simp [this]
+  · have sameLength : left.val.length = right.val.length := by scalar_tac
+    unfold auths_model.observation.observation_conditions_equal_loop
+    apply loop.spec_decr_nat
+      (measure := fun index => left.val.length - index.val)
+      (inv := fun index =>
+        index.val ≤ left.val.length ∧
+        (left.val.map condition = right.val.map condition ↔
+          (left.val.drop index.val).map condition =
+            (right.val.drop index.val).map condition))
+    · rintro index ⟨indexBound, equalDrop⟩
+      unfold auths_model.observation.observation_conditions_equal_loop.body
+      dsimp only
+      split <;> rename_i withinBounds
+      · have inBounds : index.val < left.val.length := by simpa using withinBounds
+        have rightInBounds : index.val < right.val.length := by omega
+        step as ⟨leftValue, leftEq⟩
+        step as ⟨rightValue, rightEq⟩
+        have leftValueComparable : ConditionComparable leftValue := by
+          rw [leftEq]; exact leftComparable _ (List.getElem_mem inBounds)
+        have rightValueComparable : ConditionComparable rightValue := by
+          rw [rightEq]; exact rightComparable _ (List.getElem_mem rightInBounds)
+        step with observation_condition_equal_spec as ⟨equal, equalEq⟩
+        rw [drop_map_eq_iff condition _ _ _ inBounds sameLength, ← leftEq, ← rightEq]
+          at equalDrop
+        split <;> rename_i matched
+        · step as ⟨nextIndex, nextIndexPost⟩
+          refine ⟨by scalar_tac, ?_, by scalar_tac⟩
+          rw [equalDrop, nextIndexPost]
+          simp_all
+        · simp only [spec_ok]
+          simp_all
+      · simp only [spec_ok]
+        have atEnd : left.val.length ≤ index.val := by simpa using withinBounds
+        have rightAtEnd : right.val.length ≤ index.val := by omega
+        rw [List.drop_eq_nil_of_le atEnd, List.drop_eq_nil_of_le rightAtEnd] at equalDrop
+        simp [equalDrop]
+    · exact ⟨by simp, by simp⟩
+
+/-- Condition lists compare positionally as lists of model conditions. -/
+theorem translated_observation_conditions_equal_refines_model
+    (left right : Slice auths_model.observation.ObservationCondition)
+    (leftComparable : ∀ member ∈ left.val, ConditionComparable member)
+    (rightComparable : ∀ member ∈ right.val, ConditionComparable member) :
+    auths_model.observation.observation_conditions_equal left right =
+      ok (decide (left.val.map condition = right.val.map condition)) :=
+  result_eq_ok_of_spec
+    (observation_conditions_equal_spec left right leftComparable rightComparable)
+
+
+@[step] theorem observation_requirement_same_target_spec
+    (child parent : auths_model.observation.ObservationRequirement)
+    (childValid : RequirementValid child) (parentValid : RequirementValid parent) :
+    auths_model.observation.observation_requirement_same_target child parent
+      ⦃ result => result =
+        decide (sameTarget (requirementOf child) (requirementOf parent)) ⦄ := by
+  obtain ⟨childAnchor, childSchema, childSubject, _⟩ := childValid
+  obtain ⟨parentAnchor, parentSchema, parentSubject, _⟩ := parentValid
+  unfold auths_model.observation.observation_requirement_same_target
+  step with observer_anchor_id_equal_spec as ⟨sameAnchor, sameAnchorEq⟩
+  split <;> rename_i anchored
+  · have anchors : child.observer_anchor = parent.observer_anchor := by
+      simpa [sameAnchorEq] using anchored
+    step with observation_schema_equal_spec as ⟨sameSchema, sameSchemaEq⟩
+    split <;> rename_i schemed
+    · have schemas : child.schema = parent.schema := by
+        simpa [sameSchemaEq] using schemed
+      apply WP.spec_mono
+        (requirement_subject_equal_spec child.subject parent.subject childSubject
+          parentSubject)
+      intro result resultEq
+      simp [resultEq, sameTarget, requirementOf, anchors, schemas]
+    · have schemas : child.schema ≠ parent.schema := by
+        simpa [sameSchemaEq] using schemed
+      simp [sameTarget, requirementOf, schemas]
+  · have anchors : child.observer_anchor ≠ parent.observer_anchor := by
+      simpa [sameAnchorEq] using anchored
+    simp [sameTarget, requirementOf, anchors]
+
+/-- The translated same-target check is the model's `sameTarget`. -/
+theorem translated_observation_requirement_same_target_refines_model
+    (child parent : auths_model.observation.ObservationRequirement)
+    (childValid : RequirementValid child) (parentValid : RequirementValid parent) :
+    auths_model.observation.observation_requirement_same_target child parent =
+      ok (decide (sameTarget (requirementOf child) (requirementOf parent))) :=
+  result_eq_ok_of_spec
+    (observation_requirement_same_target_spec child parent childValid parentValid)
+
+theorem requirementOf_eq_iff (child parent : auths_model.observation.ObservationRequirement) :
+    requirementOf child = requirementOf parent ↔
+      sameTarget (requirementOf child) (requirementOf parent) ∧
+        child.max_age_seconds.val = parent.max_age_seconds.val ∧
+        child.conditions.val.map condition = parent.conditions.val.map condition := by
+  simp only [requirementOf, sameTarget, Requirement.mk.injEq, and_assoc]
+
+@[step] theorem observation_requirement_equal_spec
+    (child parent : auths_model.observation.ObservationRequirement)
+    (childValid : RequirementValid child) (parentValid : RequirementValid parent) :
+    auths_model.observation.observation_requirement_equal child parent
+      ⦃ result => result = decide (requirementOf child = requirementOf parent) ⦄ := by
+  unfold auths_model.observation.observation_requirement_equal
+  step with observation_requirement_same_target_spec as ⟨target, targetEq⟩
+  split <;> rename_i targeted
+  · have sameTargets : sameTarget (requirementOf child) (requirementOf parent) := by
+      simpa [targetEq] using targeted
+    split <;> rename_i ageDiffers
+    · have : child.max_age_seconds.val ≠ parent.max_age_seconds.val := by
+        scalar_tac
+      simp [requirementOf_eq_iff, this]
+    · have ages : child.max_age_seconds.val = parent.max_age_seconds.val := by
+        scalar_tac
+      apply WP.spec_mono
+        (observation_conditions_equal_spec (alloc.vec.Vec.deref child.conditions)
+          (alloc.vec.Vec.deref parent.conditions) childValid.2.2.2 parentValid.2.2.2)
+      intro result resultEq
+      simp only [alloc.vec.Vec.deref] at resultEq
+      simp [resultEq, requirementOf_eq_iff, sameTargets, ages]
+  · have : ¬ sameTarget (requirementOf child) (requirementOf parent) := by
+      simpa [targetEq] using targeted
+    simp [requirementOf_eq_iff, this]
+
+/-- Byte identity of two canonical requirements is equality of the model
+requirements. -/
+theorem translated_observation_requirement_equal_refines_model
+    (child parent : auths_model.observation.ObservationRequirement)
+    (childValid : RequirementValid child) (parentValid : RequirementValid parent) :
+    auths_model.observation.observation_requirement_equal child parent =
+      ok (decide (requirementOf child = requirementOf parent)) :=
+  result_eq_ok_of_spec
+    (observation_requirement_equal_spec child parent childValid parentValid)
+
+
+@[step] theorem observation_requirement_narrows_spec
+    (child parent : auths_model.observation.ObservationRequirement)
+    (childValid : RequirementValid child) (parentValid : RequirementValid parent) :
+    auths_model.observation.observation_requirement_narrows child parent
+      ⦃ result => result = decide (narrows (requirementOf child) (requirementOf parent)) ⦄ := by
+  have childConditions := childValid.2.2.2
+  have parentConditions := parentValid.2.2.2
+  unfold auths_model.observation.observation_requirement_narrows
+  step with observation_requirement_same_target_spec as ⟨target, targetEq⟩
+  split <;> rename_i targeted
+  · have sameTargets : sameTarget (requirementOf child) (requirementOf parent) := by
+      simpa [targetEq] using targeted
+    split <;> rename_i older
+    · have : ¬ child.max_age_seconds.val ≤ parent.max_age_seconds.val := by
+        scalar_tac
+      simp [narrows, requirementOf, this]
+    · have noOlder : child.max_age_seconds.val ≤ parent.max_age_seconds.val := by
+        scalar_tac
+      simp only [alloc.vec.Vec.deref]
+      step with observation_conditions_include_spec as ⟨superset, supersetEq⟩
+      split <;> rename_i isSuperset
+      · have superset' : ∀ value ∈ parent.conditions.val.map condition,
+            value ∈ child.conditions.val.map condition := by
+          simpa [supersetEq] using isSuperset
+        split <;> rename_i younger
+        · have : child.max_age_seconds.val < parent.max_age_seconds.val := by
+            scalar_tac
+          simp only [spec_ok]
+          exact (decide_eq_true ⟨sameTargets, noOlder, superset', Or.inl this⟩).symm
+        · have : ¬ child.max_age_seconds.val < parent.max_age_seconds.val := by
+            scalar_tac
+          step with observation_conditions_include_spec as ⟨subset, subsetEq⟩
+          simp only [subsetEq, decide_eq_true_eq]
+          rw [decide_eq_decide]
+          constructor
+          · intro notSubset
+            exact ⟨sameTargets, noOlder, superset', Or.inr notSubset⟩
+          · rintro ⟨_, _, _, strict⟩
+            exact strict.resolve_left this
+      · have : ¬ ∀ value ∈ parent.conditions.val.map condition,
+            value ∈ child.conditions.val.map condition := by
+          simpa [supersetEq] using isSuperset
+        simp only [spec_ok]
+        simp only [narrows, requirementOf] at this ⊢
+        simp only [this, false_and, and_false, decide_false]
+  · have : ¬ sameTarget (requirementOf child) (requirementOf parent) := by
+      simpa [targetEq] using targeted
+    simp [narrows, this]
+
+/-- The translated strict-narrowing check is the model's `narrows`. -/
+theorem translated_observation_requirement_narrows_refines_model
+    (child parent : auths_model.observation.ObservationRequirement)
+    (childValid : RequirementValid child) (parentValid : RequirementValid parent) :
+    auths_model.observation.observation_requirement_narrows child parent =
+      ok (decide (narrows (requirementOf child) (requirementOf parent))) :=
+  result_eq_ok_of_spec
+    (observation_requirement_narrows_spec child parent childValid parentValid)
+
+@[step] theorem observation_requirement_covers_spec
+    (child parent : auths_model.observation.ObservationRequirement)
+    (childValid : RequirementValid child) (parentValid : RequirementValid parent) :
+    auths_model.observation.observation_requirement_covers child parent
+      ⦃ result => result = decide (covers (requirementOf child) (requirementOf parent)) ⦄ := by
+  unfold auths_model.observation.observation_requirement_covers
+  step with observation_requirement_equal_spec as ⟨equal, equalEq⟩
+  split <;> rename_i same
+  · have : requirementOf child = requirementOf parent := by simpa [equalEq] using same
+    simp [covers, this]
+  · have : requirementOf child ≠ requirementOf parent := by simpa [equalEq] using same
+    apply WP.spec_mono
+      (observation_requirement_narrows_spec child parent childValid parentValid)
+    intro result resultEq
+    simp [resultEq, covers, this]
+
+/-- The translated cover check is the model's `covers`: identical, or a strict
+narrowing. -/
+theorem translated_observation_requirement_covers_refines_model
+    (child parent : auths_model.observation.ObservationRequirement)
+    (childValid : RequirementValid child) (parentValid : RequirementValid parent) :
+    auths_model.observation.observation_requirement_covers child parent =
+      ok (decide (covers (requirementOf child) (requirementOf parent))) :=
+  result_eq_ok_of_spec
+    (observation_requirement_covers_spec child parent childValid parentValid)
+
+@[step] theorem observation_requirement_retained_spec
+    (child : auths_model.observation.ObservationRequirements)
+    (parent : auths_model.observation.ObservationRequirement)
+    (childValid : ∀ requirement ∈ child.val, RequirementValid requirement)
+    (parentValid : RequirementValid parent) :
+    auths_model.observation.observation_requirement_retained child parent
+      ⦃ result => result =
+        decide (∃ candidate ∈ child.val.map requirementOf,
+          covers candidate (requirementOf parent)) ⦄ := by
+  unfold auths_model.observation.observation_requirement_retained
+    auths_model.observation.observation_requirement_retained_loop
+  apply loop.spec_decr_nat
+    (measure := fun state => state.1.val.length - state.2.val)
+    (inv := fun state =>
+      state.1 = child ∧ state.2.val ≤ child.val.length ∧
+      ((∃ candidate ∈ child.val.map requirementOf,
+          covers candidate (requirementOf parent)) ↔
+        ∃ candidate ∈ (child.val.drop state.2.val).map requirementOf,
+          covers candidate (requirementOf parent)))
+  · rintro ⟨current, index⟩ ⟨rfl, indexBound, existsDrop⟩
+    unfold auths_model.observation.observation_requirement_retained_loop.body
+    dsimp only
+    split <;> rename_i withinBounds
+    · have inBounds : index.val < current.val.length := by simpa using withinBounds
+      step as ⟨candidate, candidateEq⟩
+      have candidateValid : RequirementValid candidate := by
+        rw [candidateEq]; exact childValid _ (List.getElem_mem inBounds)
+      step with observation_requirement_covers_spec as ⟨covered, coveredEq⟩
+      rw [List.drop_eq_getElem_cons inBounds, List.map_cons, List.exists_mem_cons_iff,
+        ← candidateEq] at existsDrop
+      split <;> rename_i matched
+      · simp only [spec_ok]
+        have : covers (requirementOf candidate) (requirementOf parent) := by
+          simpa [coveredEq] using matched
+        exact (decide_eq_true (existsDrop.mpr (Or.inl this))).symm
+      · step as ⟨nextIndex, nextIndexPost⟩
+        have : ¬ covers (requirementOf candidate) (requirementOf parent) := by
+          simpa [coveredEq] using matched
+        refine ⟨by scalar_tac, ?_, by scalar_tac⟩
+        rw [existsDrop, nextIndexPost]
+        simp [this]
+    · simp only [spec_ok]
+      have atEnd : current.val.length ≤ index.val := by simpa using withinBounds
+      rw [List.drop_eq_nil_of_le atEnd] at existsDrop
+      simp only [existsDrop, List.map_nil, List.not_mem_nil, false_and, exists_false,
+        decide_false]
+  · exact ⟨rfl, by simp, by simp⟩
+
+/-- Some child requirement covers the parent requirement, in the model's sense. -/
+theorem translated_observation_requirement_retained_refines_model
+    (child : auths_model.observation.ObservationRequirements)
+    (parent : auths_model.observation.ObservationRequirement)
+    (childValid : ∀ requirement ∈ child.val, RequirementValid requirement)
+    (parentValid : RequirementValid parent) :
+    auths_model.observation.observation_requirement_retained child parent =
+      ok (decide (∃ candidate ∈ child.val.map requirementOf,
+        covers candidate (requirementOf parent))) :=
+  result_eq_ok_of_spec
+    (observation_requirement_retained_spec child parent childValid parentValid)
+
+@[step] theorem observation_requirements_attenuate_spec
+    (child parent : auths_model.observation.ObservationRequirements)
+    (childValid : ∀ requirement ∈ child.val, RequirementValid requirement)
+    (parentValid : ∀ requirement ∈ parent.val, RequirementValid requirement) :
+    auths_model.observation.observation_requirements_attenuate child parent
+      ⦃ result => result =
+        decide (requirementsAttenuate (child.val.map requirementOf)
+          (parent.val.map requirementOf)) ⦄ := by
+  unfold auths_model.observation.observation_requirements_attenuate
+    auths_model.observation.observation_requirements_attenuate_loop
+  unfold requirementsAttenuate
+  apply loop.spec_decr_nat
+    (measure := fun state => state.1.val.length - state.2.val)
+    (inv := fun state =>
+      state.1 = parent ∧ state.2.val ≤ parent.val.length ∧
+      ((∀ requirement ∈ parent.val.map requirementOf,
+          ∃ candidate ∈ child.val.map requirementOf, covers candidate requirement) ↔
+        ∀ requirement ∈ (parent.val.drop state.2.val).map requirementOf,
+          ∃ candidate ∈ child.val.map requirementOf, covers candidate requirement))
+  · rintro ⟨current, index⟩ ⟨rfl, indexBound, allDrop⟩
+    unfold auths_model.observation.observation_requirements_attenuate_loop.body
+    dsimp only
+    split <;> rename_i withinBounds
+    · have inBounds : index.val < current.val.length := by simpa using withinBounds
+      step as ⟨requirement, requirementEq⟩
+      have requirementValid : RequirementValid requirement := by
+        rw [requirementEq]; exact parentValid _ (List.getElem_mem inBounds)
+      step with observation_requirement_retained_spec as ⟨retained, retainedEq⟩
+      rw [List.drop_eq_getElem_cons inBounds, List.map_cons, List.forall_mem_cons,
+        ← requirementEq] at allDrop
+      split <;> rename_i matched
+      · step as ⟨nextIndex, nextIndexPost⟩
+        have : ∃ candidate ∈ child.val.map requirementOf,
+            covers candidate (requirementOf requirement) := by
+          simpa [retainedEq] using matched
+        refine ⟨by scalar_tac, ?_, by scalar_tac⟩
+        rw [allDrop, nextIndexPost]
+        simp only [this, true_and]
+      · simp only [spec_ok]
+        have : ¬ ∃ candidate ∈ child.val.map requirementOf,
+            covers candidate (requirementOf requirement) := by
+          simpa [retainedEq] using matched
+        simp only [allDrop, this, false_and, decide_false]
+    · simp only [spec_ok]
+      have atEnd : current.val.length ≤ index.val := by simpa using withinBounds
+      rw [List.drop_eq_nil_of_le atEnd] at allDrop
+      simp only [allDrop, List.map_nil, List.not_mem_nil, false_implies, implies_true,
+        decide_true]
+  · exact ⟨rfl, by simp, by simp⟩
+
+/-- The translated attenuation check for two requirement lists is the model's
+`requirementsAttenuate` on the abstracted lists. -/
+theorem translated_observation_requirements_attenuate_refines_model
+    (child parent : auths_model.observation.ObservationRequirements)
+    (childValid : ∀ requirement ∈ child.val, RequirementValid requirement)
+    (parentValid : ∀ requirement ∈ parent.val, RequirementValid requirement) :
+    auths_model.observation.observation_requirements_attenuate child parent =
+      ok (decide (requirementsAttenuate (child.val.map requirementOf)
+        (parent.val.map requirementOf))) :=
+  result_eq_ok_of_spec
+    (observation_requirements_attenuate_spec child parent childValid parentValid)
+
 end Auths.Refinement.Observation

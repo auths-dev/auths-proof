@@ -1,0 +1,168 @@
+{
+  "schema": "auths-proof-s1-mutation-edits/v1",
+  "source": "formal/refinement-mutations-v1.json",
+  "provenance": "Study 006's S1 patches (auths-research studies/006-formal-comparison-prior-art/harness/formal/s1, checked by its second rater), one per case of the matrix.",
+  "edits": [
+    {
+      "id": "validity-start-direction",
+      "file": "formal/Auths/Rich/Semantics.lean",
+      "before": "  parent.start ≤ child.start ∧ child.finish ≤ parent.finish",
+      "after": "  child.start ≤ parent.start ∧ child.finish ≤ parent.finish",
+      "note": "windowContained: the lower-bound test parent.start ≤ child.start is reversed."
+    },
+    {
+      "id": "validity-end-direction",
+      "file": "formal/Auths/Rich/Semantics.lean",
+      "before": "  parent.start ≤ child.start ∧ child.finish ≤ parent.finish",
+      "after": "  parent.start ≤ child.start ∧ parent.finish ≤ child.finish",
+      "note": "windowContained: the upper-bound test child.finish ≤ parent.finish is reversed."
+    },
+    {
+      "id": "permission-subset-direction",
+      "file": "formal/Auths/Rich/Semantics.lean",
+      "before": "  else if ¬ child.permissions ⊆ parent.permissions then",
+      "after": "  else if ¬ parent.permissions ⊆ child.permissions then",
+      "note": "evaluateAuthorScope's permission test: child and parent swapped in ⊆."
+    },
+    {
+      "id": "audience-subset-direction",
+      "file": "formal/Auths/Rich/Semantics.lean",
+      "before": "  else if ¬ child.audiences ⊆ parent.audiences then",
+      "after": "  else if ¬ parent.audiences ⊆ child.audiences then",
+      "note": "evaluateAuthorScope's audience test: child and parent swapped in ⊆."
+    },
+    {
+      "id": "permission-membership-decision",
+      "file": "formal/Auths/Rich/Semantics.lean",
+      "before": "    if action.permission ∉ authority.scope.permissions then",
+      "after": "    if action.permission ∈ authority.scope.permissions then",
+      "note": "evaluateCoverage's permission test: ∉ becomes ∈ (membership negated)."
+    },
+    {
+      "id": "audience-membership-decision",
+      "file": "formal/Auths/Rich/Semantics.lean",
+      "before": "    else if action.audience ∉ authority.scope.audiences then",
+      "after": "    else if action.audience ∈ authority.scope.audiences then",
+      "note": "evaluateCoverage's audience test: ∉ becomes ∈ (membership negated)."
+    },
+    {
+      "id": "body-digest-membership-decision",
+      "file": "formal/Auths/Rich/Semantics.lean",
+      "before": "  | .allowedBodyDigests allowed => digest ∈ allowed",
+      "after": "  | .allowedBodyDigests allowed => digest ∉ allowed",
+      "note": "actionConstraintAllows, allowed-body arm: ∈ becomes ∉."
+    },
+    {
+      "id": "body-digest-subset-direction",
+      "file": "formal/Auths/Rich/Semantics.lean",
+      "before": "  | .allowedBodyDigests child, .allowedBodyDigests parent => child ⊆ parent",
+      "after": "  | .allowedBodyDigests child, .allowedBodyDigests parent => parent ⊆ child",
+      "note": "actionConstraintLe, allowed-under-allowed arm: child and parent swapped in ⊆."
+    },
+    {
+      "id": "action-exact-equality",
+      "file": "formal/Auths/Rich/Semantics.lean",
+      "before": "  | .exactBodyDigest expected => digest = expected",
+      "after": "  | .exactBodyDigest _ => True",
+      "note": "actionConstraintAllows, exact-body arm: any digest is accepted."
+    },
+    {
+      "id": "action-constructor-fallback",
+      "file": "formal/Auths/Rich/Semantics.lean",
+      "before": "  | .allowedBodyDigests child, .exactBodyDigest parent => child ⊆ {parent}",
+      "after": "  | .allowedBodyDigests child, .exactBodyDigest parent => child = ∅ ∨ parent ∈ child",
+      "note": "actionConstraintLe, allowed-under-exact arm: also accepts any allowed set that contains the parent's digest, so a multi-digest set is accepted beneath an exact parent; the empty set stays accepted (revised to the second rater's form, S1 check 1)."
+    },
+    {
+      "id": "action-singleton-exact-rejection",
+      "file": "formal/Auths/Rich/Semantics.lean",
+      "before": "  | .allowedBodyDigests child, .exactBodyDigest parent => child ⊆ {parent}",
+      "after": "  | .allowedBodyDigests child, .exactBodyDigest parent => child ⊂ {parent}",
+      "note": "actionConstraintLe, allowed-under-exact arm: strict subset, so the singleton {d} is rejected beneath Exact(d); the empty set stays accepted (revised to the second rater's form, S1 check 1)."
+    },
+    {
+      "id": "budget-value-direction",
+      "file": "formal/Auths/Rich/Semantics.lean",
+      "before": "      child.algebra = parent.algebra ∧ child.value ≤ parent.value",
+      "after": "      child.algebra = parent.algebra ∧ parent.value ≤ child.value",
+      "note": "budgetLe: the numeric test child.value ≤ parent.value is reversed."
+    },
+    {
+      "id": "budget-algebra-equality",
+      "file": "formal/Auths/Rich/Semantics.lean",
+      "before": "      child.algebra = parent.algebra ∧ child.value ≤ parent.value",
+      "after": "      child.value ≤ parent.value",
+      "note": "budgetLe: the algebra-identifier equality is dropped."
+    },
+    {
+      "id": "optional-budget-bounded-parent",
+      "file": "formal/Auths/Rich/Semantics.lean",
+      "before": "    (child parent : Option (BudgetCeiling v)) : Prop :=\n  match child, parent with\n  | _, none => True\n  | none, some _ => False",
+      "after": "    (child parent : Option (BudgetCeiling v)) : Prop :=\n  match child, parent with\n  | _, none => True\n  | none, some _ => True",
+      "note": "budgetLe: the arm (none, some _) becomes True."
+    },
+    {
+      "id": "optional-budget-no-request",
+      "file": "formal/Auths/Rich/Semantics.lean",
+      "before": "  | some _, none => False",
+      "after": "  | some _, none => True",
+      "note": "budgetCovers: the arm (some ceiling, no request) becomes True."
+    },
+    {
+      "id": "status-age-direction",
+      "file": "formal/Auths/Rich/Semantics.lean",
+      "before": "      childMethod = parentMethod ∧ childAge.seconds ≤ parentAge.seconds",
+      "after": "      childMethod = parentMethod ∧ parentAge.seconds ≤ childAge.seconds",
+      "note": "statusLe: the maximum-age test is reversed."
+    },
+    {
+      "id": "status-method-equality",
+      "file": "formal/Auths/Rich/Semantics.lean",
+      "before": "      childMethod = parentMethod ∧ childAge.seconds ≤ parentAge.seconds",
+      "after": "      childAge.seconds ≤ parentAge.seconds",
+      "note": "statusLe: the status-method equality is dropped."
+    },
+    {
+      "id": "profile-version-equality",
+      "file": "formal/qualification/aeneas/generated/model/Funs.lean",
+      "before": "  (left : ProfileRef) (right : ProfileRef) : Result Bool := do\n  if left.version = right.version",
+      "after": "  (left : ProfileRef) (right : ProfileRef) : Result Bool := do\n  if True",
+      "note": "the translated auths_model.profile_ref_equal (the witness is stated against it): the version test becomes True, so only the identifiers are compared."
+    },
+    {
+      "id": "assurance-equality",
+      "file": "formal/Auths/Rich/Semantics.lean",
+      "before": "  else if child.assurance ≠ parent.assurance then",
+      "after": "  else if False then",
+      "note": "evaluateAuthorScope's assurance test: distinct identifiers never refuse."
+    },
+    {
+      "id": "critical-extension-law",
+      "file": "formal/Auths/Rich/Semantics.lean",
+      "before": "  ∃ entry ∈ child.entries, entry.id = parentEntry.id ∧\n    extensionLawAccepts parentEntry.id (some entry.body) (some parentEntry.body)",
+      "after": "  ∃ entry ∈ child.entries, entry.id = parentEntry.id",
+      "note": "extensionRetained: the identifier's law is no longer applied."
+    },
+    {
+      "id": "delegation-depth-strictness",
+      "file": "formal/Auths/Rich/Semantics.lean",
+      "before": "  grant.remainingDepth < parent.remainingDepth ∧",
+      "after": "  grant.remainingDepth ≤ parent.remainingDepth ∧",
+      "note": "scopeDepthChecks: < becomes ≤, so equal depth is accepted."
+    },
+    {
+      "id": "principal-linkage-equality",
+      "file": "formal/Auths/Rich/Semantics.lean",
+      "before": "  rooted parent ∧ grant.issuer = parent.subject",
+      "after": "  rooted parent ∧ True",
+      "note": "rootPreserved: the issuer-subject equality is always true. The rich model's principals are opaque carriers with no DID-method component, so 'distinct principals using the same DID method' can only be rendered as 'distinct principals'."
+    },
+    {
+      "id": "grant-linkage-equality",
+      "file": "formal/Auths/Rich/Semantics.lean",
+      "before": "  rootPreserved parent grant ∧ grant.parent = parent.lastGrant",
+      "after": "  rootPreserved parent grant ∧\n    ((grant.parent.isSome = true ∧ parent.lastGrant.isSome = true) ∨\n      grant.parent = parent.lastGrant)",
+      "note": "linked: any two present grant identifiers compare equal."
+    }
+  ]
+}
