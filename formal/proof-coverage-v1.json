@@ -2615,5 +2615,55 @@
     "refined_closure": 208,
     "theorems_naming_translated_functions": 68
   },
-  "mutation_adequacy": null
+  "mutation_adequacy": {
+    "results": "formal/model-mutations-v1.json",
+    "current_formal_inputs_sha256": "1d9790549bb97e8f9ce7af130bd90443f1fd641e6c5e541728ce2f49ed606048",
+    "fresh": true,
+    "campaigns": {
+      "s1": {
+        "formal_inputs_sha256": "1d9790549bb97e8f9ce7af130bd90443f1fd641e6c5e541728ce2f49ed606048",
+        "fresh": true,
+        "mutants": 23,
+        "killed": 23,
+        "killed_elsewhere": 1,
+        "survived": 0,
+        "stillborn": 0,
+        "survivors": [],
+        "stillborn_mutants": []
+      },
+      "s2": {
+        "formal_inputs_sha256": "1d9790549bb97e8f9ce7af130bd90443f1fd641e6c5e541728ce2f49ed606048",
+        "fresh": true,
+        "mutants": 88,
+        "killed": 86,
+        "killed_elsewhere": 0,
+        "survived": 0,
+        "stillborn": 2,
+        "survivors": [],
+        "stillborn_mutants": [
+          {
+            "id": "Observation:177:60",
+            "definition": "requirementDecision",
+            "operator": ".denied→.authorized (result position)"
+          },
+          {
+            "id": "CeilingCount:445:62",
+            "definition": "evaluator",
+            "operator": ".denied→.authorized (result position)"
+          }
+        ]
+      },
+      "s3": {
+        "formal_inputs_sha256": "1d9790549bb97e8f9ce7af130bd90443f1fd641e6c5e541728ce2f49ed606048",
+        "fresh": true,
+        "mutants": 203,
+        "killed": 203,
+        "killed_elsewhere": 0,
+        "survived": 0,
+        "stillborn": 0,
+        "survivors": [],
+        "stillborn_mutants": []
+      }
+    }
+  }
 }

@@ -173,9 +173,16 @@ None: every function Aeneas translates is in the refined closure.
 
 ## 6. Mutation adequacy
 
-`cargo xtask formal mutations` runs study 006's three campaigns: S1 applies each case of `formal/refinement-mutations-v1.json`, S2 mutates comparison, Boolean, and result-position operators in the model's `def` bodies, and S3 replaces each translated function's body with `fail .panic`. A mutant is killed when the build of the audited targets fails; the first error and its declaration are recorded, and for S1 a first error outside the case's named witness is reported as killed elsewhere. Every survivor must be fixed or explained before a release; pull requests are not blocked.
+`cargo xtask formal mutations` runs study 006's three campaigns: S1 applies each case of `formal/refinement-mutations-v1.json`, S2 mutates comparison, Boolean, and result-position operators in the model's `def` bodies, and S3 replaces each translated function's body with `fail .panic`. A mutant is killed when the build of the audited targets fails, and stillborn when its first error lies in the mutated definition itself. The first error (the earliest in the mutated file, else the least location among the failing modules, so that parallel builds record the same one) and its declaration are recorded; an S1 mutant whose build reports no error in its case's named witness is reported as killed elsewhere. Every survivor must be fixed or explained before a release; pull requests are not blocked.
 
-No campaign results are committed.
+| Campaign | Mutants | Killed | Of which killed elsewhere | Survived | Stillborn | Current |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| S1 | 23 | 23 | 1 | 0 | 0 | yes |
+| S2 | 88 | 86 | 0 | 0 | 2 | yes |
+| S3 | 203 | 203 | 0 | 0 | 0 | yes |
+
+- Stillborn S2 `Observation:177:60` in `requirementDecision` (.denied→.authorized (result position)): the mutated definition does not elaborate.
+- Stillborn S2 `CeilingCount:445:62` in `evaluator` (.denied→.authorized (result position)): the mutated definition does not elaborate.
 
 ## 7. Theorem kinds
 
