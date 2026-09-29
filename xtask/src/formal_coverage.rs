@@ -2584,7 +2584,7 @@ pub(crate) fn publish(root: &Path) -> Result<Published, String> {
         .reads()
         .borrow()
         .iter()
-        .map(|(path, digest)| (path.clone(), Value::from(digest.clone())))
+        .map(|(path, digest)| (path.clone(), Value::from(format!("sha256:{digest}"))))
         .collect();
     let mut inputs_digest = Sha256::new();
     for (path, digest) in &inputs {
@@ -2612,7 +2612,7 @@ pub(crate) fn publish(root: &Path) -> Result<Published, String> {
         "tool": {"command": "cargo xtask formal coverage", "version": TOOL_VERSION},
         "revision": "the commit that contains this file",
         "reference_reproduction": {
-            "auths_proof_commit": PIN,
+            "commit": PIN,
             "fixture": PIN_FIXTURE,
             "fixture_manifest_sha256": sha256_file(&root.join(PIN_FIXTURE_MANIFEST))?,
             "result": "byte-identical to study 006's proof_coverage.json and proof_coverage_functions.tsv",
