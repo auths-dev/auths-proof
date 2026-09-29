@@ -257,13 +257,20 @@ def test_writes_exactly_the_layout_with_modes_and_defaults(
             "platform_account": "acct_1AuthsPlatform0",
             "connect_account": "acct_1AuthsConnected",
         }
-        assert summary["next"][1:] == [
+        key = shlex.quote(f"{directory}.key")
+        assert summary["next"] == [
+            f"cd {shlex.quote(str(directory))}",
             "bin/setup",
-            "bin/install-gateway < KEY_FILE",
+            "( umask 077; printf 'rk_test_%s\\n' \"$(od -An -tx1 -N12 /dev/urandom | tr -d ' \\n')\" "
+            f"> {key} )",
+            f"bin/install-gateway < {key}",
             "bin/start",
-            "AUTHS_SELFTEST_KEY_FILE=KEY_FILE bin/selftest",
+            f"AUTHS_SELFTEST_KEY_FILE={key} bin/selftest",
             "bin/stop",
         ]
+        # The README's quick start is the same sequence.
+        readme = (directory / "README.md").read_text()
+        assert "\n".join(summary["next"]) in readme
         assert summary["deployment"] == NON_CLAIMS
 
 
@@ -355,6 +362,13 @@ def test_a_recipe_with_profile_options_is_a_usage_error(
         status, refused = init(capsys, "stripe-refund-approval", option, "python", "--directory", str(short_root / "p"))
         assert status == 2 and refused["error"] == "auths.init.usage"
     assert not (short_root / "p").exists()
+
+
+def test_the_profile_init_help_names_the_recipes(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as exited:
+        main(["init", "--help"])
+    assert exited.value.code == 0
+    assert "Recipes: stripe-refund-approval." in " ".join(capsys.readouterr().out.split())
 
 
 def test_a_gateway_without_the_loopback_provider_is_refused_for_the_double(
@@ -470,6 +484,9 @@ def test_double_mode_hands_the_key_on_unchanged_and_writes_only_its_digest(
     for pid in stopped["stopped"].values():
         with pytest.raises(OSError):
             os.kill(pid, 0)
+    assert not [path for path in (directory / "run").iterdir() if path.is_socket()]
+    status, again, _ = run(directory, "stop")
+    assert (status, again) == (0, {"stopped": {}})
 
 
 def test_stripe_test_mode_never_reads_the_key_and_serves_without_the_double(
@@ -486,7 +503,7 @@ def test_stripe_test_mode_never_reads_the_key_and_serves_without_the_double(
         "acct_connected456",
         loopback=False,
     )
-    assert "AUTHS_SELFTEST_KEY_FILE=KEY_FILE bin/selftest" not in summary["next"]
+    assert not [step for step in summary["next"] if "bin/selftest" in step or "rk_test_" in step]
     pretend_setup(directory)
     piped = b"rk_test_mock_xyz\n" + bytes(range(256)) + b"trailing bytes"
     status, installed, stderr = run(directory, "install-gateway", stdin=piped)

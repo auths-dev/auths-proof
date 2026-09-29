@@ -80,6 +80,12 @@ _WRAPPERS = (
     ("selftest", "lib/selftest.py", "run"),
 )
 _FOLDERS = ("recipe", "bin", "app", "dev", "lib")
+# A made-up key with the recipe's prefix, which is all the double needs, in a
+# file beside the project that only its owner can read.
+_DOUBLE_KEY = (
+    "( umask 077; printf 'rk_test_%s\\n' "
+    "\"$(od -An -tx1 -N12 /dev/urandom | tr -d ' \\n')\" > {key} )"
+)
 
 
 class InitFailed(Exception):
@@ -444,6 +450,10 @@ def _parameter_table(parameters: _Parameters, provider: str) -> str:
     )
 
 
+def _key_file(directory: Path) -> str:
+    return shlex.quote(str(directory) + ".key")
+
+
 def _render(
     staging: Path,
     directory: Path,
@@ -477,6 +487,7 @@ def _render(
         (templates / "README.md.tmpl").read_text(encoding="utf-8"),
         {
             "DIR": shlex.quote(str(directory)),
+            "KEY_FILE": _key_file(directory),
             "PARAMETERS": _parameter_table(parameters, provider),
             "APPROVERS": ",".join(parameters.managers[: parameters.approvals - 1]),
             "FIRST_MANAGER": parameters.managers[0],
@@ -520,10 +531,17 @@ def _init(argv: List[str]) -> Dict[str, object]:
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
         raise
-    quoted = shlex.quote(str(directory))
-    steps = [f"cd {quoted}", "bin/setup", "bin/install-gateway < KEY_FILE", "bin/start"]
+    steps = [f"cd {shlex.quote(str(directory))}", "bin/setup"]
     if provider == "double":
-        steps.append("AUTHS_SELFTEST_KEY_FILE=KEY_FILE bin/selftest")
+        key = _key_file(directory)
+        steps += [
+            _DOUBLE_KEY.format(key=key),
+            f"bin/install-gateway < {key}",
+            "bin/start",
+            f"AUTHS_SELFTEST_KEY_FILE={key} bin/selftest",
+        ]
+    else:
+        steps += ["bin/install-gateway < KEY_FILE", "bin/start"]
     steps.append("bin/stop")
     return {
         "project": str(directory),

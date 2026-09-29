@@ -464,6 +464,12 @@ def stop(arguments: List[str]) -> Dict[str, Any]:
         pid = stop_pid(RUN / f"{name}.pid")
         if pid is not None:
             stopped[name] = pid
+    # A stopped listener leaves its socket file behind; nothing the project
+    # started still listens on one.
+    for name in ("relay.sock", "app.sock", "admin.sock"):
+        path = RUN / name
+        if path.is_socket():
+            path.unlink()
     return {"stopped": stopped}
 
 

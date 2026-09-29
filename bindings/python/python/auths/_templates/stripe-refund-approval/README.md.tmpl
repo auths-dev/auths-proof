@@ -47,7 +47,38 @@ sha256. Every command refuses to run if the project was moved or copied, or
 if the gateway binary changed (`auths.gateway.changed`): run `auths init`
 again instead.
 
-## Commands, in order
+## Check the deployment first
+
+In double mode, the default, run the self-test right after setup. Copy these
+lines as they are:
+
+```sh
+cd @@DIR@@
+bin/setup
+( umask 077; printf 'rk_test_%s\n' "$(od -An -tx1 -N12 /dev/urandom | tr -d ' \n')" > @@KEY_FILE@@ )
+bin/install-gateway < @@KEY_FILE@@
+bin/start
+AUTHS_SELFTEST_KEY_FILE=@@KEY_FILE@@ bin/selftest
+bin/stop
+```
+
+The key file sits beside this directory, readable only by you. With the
+double, any made-up value with the `rk_test_` prefix works: the double checks
+only the gateway's bearer token against the digest the install recorded.
+
+The self-test passes when it exits 0 and its JSON says `"passed": true`; the
+`exit` values of 1 inside that JSON are the refusals and detections it
+expects. It takes a minute or more, most of it scanning `/tmp` for the key,
+and prints its progress on standard error; the scan skips the key file
+itself. It writes the same report to `audit/selftest.json`. `bin/stop` stops
+every process the project started and removes their socket files; run again,
+it prints `{"stopped": {}}`.
+
+The self-test makes its own refunds, so it refuses a project that has already
+made one (`auths.selftest.not-fresh`), and it uses up the agent's refunds for
+the current window. Try your own refunds in a second project.
+
+## Your own refunds
 
 Every command prints one JSON object on standard output. It exits 0 on
 success or on a normal refusal, and non-zero with a stable code otherwise.
@@ -55,15 +86,22 @@ success or on a normal refusal, and non-zero with a stable code otherwise.
 ```sh
 cd @@DIR@@
 bin/setup
-bin/install-gateway < KEY_FILE
+( umask 077; printf 'rk_test_%s\n' "$(od -An -tx1 -N12 /dev/urandom | tr -d ' \n')" > @@KEY_FILE@@ )
+bin/install-gateway < @@KEY_FILE@@
 bin/start
-bin/request --operation-id refund-1 --payment-intent PI --amount 1500 --approvers @@APPROVERS@@
+bin/request --operation-id refund-1 --payment-intent pi_mock_journey --amount 1500 --approvers @@APPROVERS@@
 bin/approve @@FIRST_MANAGER@@ requests/refund-1/@@FIRST_MANAGER@@.request   # each listed manager
 bin/submit --operation-id refund-1
 bin/export
 bin/audit
 bin/stop
 ```
+
+With the double, `pi_mock_journey` is a PaymentIntent that received 60.00
+USD; the recipe refunds at most half of what a PaymentIntent received.
+`pi_mock_refunded` has been refunded in full, so the double rejects a refund
+of it after the gateway enters it. In Stripe test mode, name a PaymentIntent
+of your own test account.
 
 **`bin/setup`** (operator) creates the root, agent, and manager keys, the
 gateway's trusted context, and the agent's grant carrying the limits above.
@@ -77,21 +115,11 @@ it under `enforcement/gateway/`; no file, argument, environment variable, or
 log here receives it, and a terminal on standard input is refused. The
 recipe accepts only a Stripe restricted test key, whose prefix is
 `rk_test_`; the gateway refuses any other before it stores anything
-(`gateway.install.credential-guard`). With the Stripe double (the default),
-the wrapper reads the key into memory to give the double the sha256 of the
-bearer token it must expect, less one trailing newline, and writes only that
-digest. In Stripe test mode it never reads its standard input: the install
-inherits it. A second install is refused (`gateway.install.already-installed`).
-
-With the double, the key can be any made-up value with the `rk_test_` prefix:
-the double checks only the gateway's bearer token against the digest the
-install recorded. Keep `KEY_FILE` outside this directory and readable only by
-you, for example:
-
-```sh
-( umask 077; printf 'rk_test_%s\n' "$(od -An -tx1 -N12 /dev/urandom | tr -d ' \n')" > ../refunds.key )
-bin/install-gateway < ../refunds.key
-```
+(`gateway.install.credential-guard`). With the double, the wrapper reads the
+key into memory to give the double the sha256 of the bearer token it must
+expect, less one trailing newline, and writes only that digest. In Stripe
+test mode it never reads its standard input: the install inherits it. A
+second install is refused (`gateway.install.already-installed`).
 
 **`bin/start`** and **`bin/stop`** (operator) start and stop the gateway, and
 in double mode the counting Stripe double on 127.0.0.1. The gateway listens
@@ -124,26 +152,17 @@ whose outcome was removed and whose proof was then altered also passes, as
 bundle would. The audit checks the entries in the bundle; it cannot show
 that none were left out.
 
-**`bin/selftest`** (anyone), in double mode, right after `bin/start` on a
-fresh project: it makes its own refunds, so it refuses a project that has
-already made one (`auths.selftest.not-fresh`), and it uses up the agent's
-refunds for the current window. Try your own refunds in a second project.
-
-```sh
-AUTHS_SELFTEST_KEY_FILE=KEY_FILE bin/selftest
-```
-
-It sends hostile refunds through a witness, a relay on the application
-socket that runs as its own process, and requires the gateway to decide
-each one; a request refused only by `request --precheck` must fail that
-check. It then exports, audits with and without
+**`bin/selftest`** (anyone) sends hostile refunds through a witness, a relay
+on the application socket that runs as its own process, and requires the
+gateway to decide each one; a request refused only by `request --precheck`
+must fail that check. It then exports, audits with and without
 `--allow-unverified-refusals`, checks that eight tampered copies of the
 bundle fail and that the known limit above behaves as stated, checks that a
-second install is refused, and scans this project, `$TMPDIR`, and `/tmp` for
-the key outside `enforcement/gateway/`. It reads the key file only for that
-scan, and writes `audit/selftest.json`. It shows what the gateway decides
-against a counting double on one host. It does not show credential
-isolation, and the double is not Stripe.
+second install is refused, scans this project, `$TMPDIR`, and `/tmp` for the
+key outside `enforcement/gateway/`, and checks the modes of every directory
+and key file here. It reads the key file only for that scan. It shows what
+the gateway decides against a counting double on one host. It does not show
+credential isolation, and the double is not Stripe.
 
 ## Stripe test mode
 

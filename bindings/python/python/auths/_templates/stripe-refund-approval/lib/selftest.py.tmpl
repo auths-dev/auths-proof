@@ -389,7 +389,9 @@ def selftest(arguments: List[str]) -> Dict[str, Any]:
         stop_pid(RUN / "witness.pid")
         write_file(AUDIT / "selftest.json", (json.dumps(report, indent=2) + "\n").encode(), 0o644, replace=True)
     if not report["passed"]:
+        print(f"selftest: failed: {report['failure']}", file=sys.stderr, flush=True)
         raise CommandFailed("auths.selftest.failed", failure=report["failure"], report=str(AUDIT / "selftest.json"))
+    print(f"selftest: passed; the report is in {AUDIT / 'selftest.json'}", file=sys.stderr, flush=True)
     return report
 
 
@@ -401,10 +403,17 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
     report["seconds"] = seconds
     clock = [time.monotonic()]
 
-    def lap(phase: str) -> None:
+    def lap(phase: str, following: Optional[str] = None) -> None:
+        """Times ``phase`` and reports it, and what comes next, on standard
+        error; standard output stays one JSON object."""
         now = time.monotonic()
         seconds[phase] = round(now - clock[0], 2)
         clock[0] = now
+        print(f"selftest: {phase} checked ({seconds[phase]} s)", file=sys.stderr, flush=True)
+        if following:
+            print(f"selftest: {following}", file=sys.stderr, flush=True)
+
+    print("selftest: sending the refunds through the witness", file=sys.stderr, flush=True)
 
     WITNESS_SOCKET.unlink(missing_ok=True)
     WITNESS_LOG.unlink(missing_ok=True)
@@ -661,7 +670,7 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
     writes = [entry for entry in lines(LEDGER) if entry["kind"] == "write"]
     expect(len(writes) == 2, f"expected exactly 2 provider writes, saw {len(writes)}")
     expect([entry["amount"] for entry in writes] == [1_500, 4_000], f"provider writes {writes}")
-    lap("refunds")
+    lap("refunds", "exporting and auditing the bundle")
     report.update(
         hostile=hostile,
         negative_control=negative_control,
@@ -717,7 +726,7 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
     report["audit"] = {key: relaxed[key] for key in ("verified", "refused", "unverified", "inconsistent")}
     report["audit"]["default_rule"] = {"exit": strict_status, "stderr": strict_stderr.strip()}
     report["audit"]["allow_unverified_refusals"] = {"exit": relaxed_status, "same_report": True}
-    lap("export and audit")
+    lap("export and audit", "auditing tampered copies of the bundle")
 
     # Tampered copies, each under --allow-unverified-refusals, so that only
     # the tampering can fail it.
@@ -802,7 +811,7 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
         and limited.get("admitted") is False,
         f"the known limit changed: {limited} {status} {stderr.strip()}",
     )
-    lap("tampered copies")
+    lap("tampered copies", "installing a second time")
     report["known_limits"] = {
         "outcome removed and proof byte flipped": {
             "exit": status,
@@ -819,7 +828,7 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
         f"second install: {status} {second} {stderr.strip()}",
     )
     report["second_install"] = {"exit": status, "error": second["error"]}
-    lap("second install")
+    lap("second install", "scanning this project, $TMPDIR, and /tmp for the key; this can take a minute")
 
     scan = key_scan(key_file, started)
     expect(not scan["outside_enforcement"], f"the key appears outside enforcement/gateway/: {scan}")

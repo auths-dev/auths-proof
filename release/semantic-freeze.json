@@ -631,7 +631,7 @@
         "core/crates/auths-model/src/lib.rs",
         "core/spec/v1/auths-proof.cddl"
       ],
-      "sha256": "122219333a3dd91a6dfba48695f3e08eb7afa4a1d4b7db2f524c50601c9b9008"
+      "sha256": "0b856629aac9f91ab926283cf68792a346c0dd026bbf527b4c65df8bffe509de"
     },
     {
       "id": "auths.product.bounded-domains",

@@ -781,9 +781,19 @@ def _main_text(argv: Sequence[str] | None = None) -> int:
         from ._enforcement_init import init_enforcement_main
 
         return init_enforcement_main(values[1:])
+    from ._enforcement_init import RECIPES
+
     parser = argparse.ArgumentParser(prog="auths")
     actions = parser.add_subparsers(dest="action", required=True)
-    init = actions.add_parser("init")
+    init = actions.add_parser(
+        "init",
+        help="write a profile scaffold, or with a recipe an enforcement point",
+        epilog=(
+            "auths init RECIPE [--directory DIR] [--gateway PATH] ... writes a development "
+            f"enforcement point instead. Recipes: {', '.join(RECIPES)}. "
+            "Run auths init RECIPE --help for its options."
+        ),
+    )
     init.add_argument("--language", choices=("python",), required=True)
     init.add_argument("--name", required=True)
     init.add_argument("--directory", type=Path, default=Path("."))
