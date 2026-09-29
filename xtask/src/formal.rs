@@ -1690,9 +1690,21 @@ pub(crate) fn formal_assurance_audit(formal_root: &Path, update: bool) -> Result
     evidence.push(b'\n');
     fs::write(
         evidence_directory.join("lean-assurance-audit.json"),
-        evidence,
+        &evidence,
     )
     .map_err(|error| format!("could not write Lean assurance evidence: {error}"))?;
+    let committed_audit = root().join(formal_coverage::AUDIT_PATH);
+    if update {
+        fs::write(&committed_audit, &evidence)
+            .map_err(|error| format!("could not write {}: {error}", committed_audit.display()))?;
+    } else if fs::read(&committed_audit).ok().as_deref() != Some(evidence.as_slice()) {
+        return Err(format!(
+            "{} differs from the compiled Lean assurance audit; run `cargo xtask formal --update`",
+            formal_coverage::AUDIT_PATH
+        ));
+    }
+    formal_coverage::synchronize_coverage(&root(), update)?;
+    println!("Proof coverage:             committed measurement matches a fresh run");
     println!(
         "Formal assurance audit:     PASS ({} compiled statements; transitive axioms reviewed)",
         reviewed.len()
