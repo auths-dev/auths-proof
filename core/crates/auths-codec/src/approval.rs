@@ -382,6 +382,30 @@ pub(crate) fn signed_approval(
     SignedApproval::new(statement, signature, objects).map_err(CodecError::from)
 }
 
+/// Decodes one standalone unsigned approval statement of at most 4 KiB, the
+/// bound a signed approval carrying it obeys.
+///
+/// # Errors
+///
+/// Returns [`CodecError::LimitExceeded`] above the byte bound, and a typed
+/// error for malformed, non-canonical, or invalid bytes.
+pub fn decode_approval_statement(
+    input: &[u8],
+    limits: &VerifierLimits,
+) -> Result<ApprovalStatement, CodecError> {
+    limits.validate()?;
+    if input.len() > MAX_SIGNED_APPROVAL_BYTES {
+        return Err(CodecError::LimitExceeded);
+    }
+    let mut decoder = Decoder::new(input);
+    let statement = approval_statement(&mut decoder)?;
+    ensure_complete(&decoder, input)?;
+    if encode_approval_statement(&statement)?.as_slice() != input {
+        return Err(CodecError::NonCanonical);
+    }
+    Ok(statement)
+}
+
 /// Decodes one standalone signed approval of at most 4 KiB.
 ///
 /// # Errors

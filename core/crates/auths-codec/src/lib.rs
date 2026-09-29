@@ -15,9 +15,9 @@ mod hash;
 mod observation;
 
 pub use approval::{
-    decode_approval_requirements, decode_signed_approval, encode_approval_requirement,
-    encode_approval_requirements, encode_approval_signing_input, encode_approval_statement,
-    encode_signed_approval, sorted_approval_requirements,
+    decode_approval_requirements, decode_approval_statement, decode_signed_approval,
+    encode_approval_requirement, encode_approval_requirements, encode_approval_signing_input,
+    encode_approval_statement, encode_signed_approval, sorted_approval_requirements,
 };
 pub use bounded_policy::{
     bounded_policy_digest, bounded_policy_link, decode_bounded_policy_commitment,

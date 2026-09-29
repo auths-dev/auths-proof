@@ -323,7 +323,7 @@ pub(crate) fn admitted(
     Ok(VerifiedCommand {
         request,
         bound,
-        actors: Vec::new(),
+        approvers: Vec::new(),
         arguments,
         requirements,
         canonical_action,

@@ -1057,7 +1057,8 @@ pub(crate) struct VerifiedCommand {
     pub(crate) request: ClosedProviderRequest,
     /// The bounded branch's links and the counters its claim reserves.
     pub(crate) bound: Option<BoundAdmission>,
-    pub(crate) actors: Vec<auths_model::PrincipalId>,
+    /// Every approver whose approval the verifier counted, ascending.
+    pub(crate) approvers: Vec<auths_model::PrincipalId>,
     pub(crate) arguments: Map<String, Value>,
     /// Every observation requirement of every grant of every authorized
     /// branch.
@@ -1135,7 +1136,7 @@ pub(crate) fn verify_detailed(
     Ok(VerifiedCommand {
         request,
         bound,
-        actors: branches.actors,
+        approvers: branches.approvers,
         arguments: command.arguments().clone(),
         requirements: branches.requirements,
         canonical_action: action.canonical_action().clone(),

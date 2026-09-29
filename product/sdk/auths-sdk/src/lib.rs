@@ -4,9 +4,10 @@
 
 use auths_kernel_runtime::AuthsKernel;
 use auths_model::{
-    AssurancePolicy, Audience, Challenge, ChannelBindingId, CompositionRequirement, EvidenceTypeId,
-    ExtensionId, GrantStatusSnapshot, PrincipalStatusSnapshot, ProfileRef, SignatureSuiteId,
-    Timestamp, TrustAnchor, TrustedContext, VerifierConfigurationId, VerifierLimits,
+    ApprovalRequirement, ApproverAnchor, AssurancePolicy, Audience, Challenge, ChannelBindingId,
+    CompositionRequirement, EvidenceTypeId, ExtensionId, GrantStatusSnapshot,
+    PrincipalStatusSnapshot, ProfileRef, SignatureSuiteId, Timestamp, TrustAnchor, TrustedContext,
+    VerifierConfigurationId, VerifierLimits,
 };
 use auths_profile_api::{ActionProfile, ProfileContractError};
 use auths_registries::TrustedContextTemplate;
@@ -160,6 +161,26 @@ impl TrustedContextBuilder {
         Self {
             template: self.template.accept_critical_extension(identifier),
         }
+    }
+
+    /// Requires approvals: the anchors naming who may approve and the
+    /// requirements every verified action must satisfy.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed model failure when an approver anchor's principal
+    /// method is not a valid evidence identifier. [`Self::build`] rejects
+    /// anchors or requirements the trusted context cannot carry.
+    pub fn with_approvals(
+        self,
+        approver_anchors: Vec<ApproverAnchor>,
+        approval_requirements: Vec<ApprovalRequirement>,
+    ) -> Result<Self, SdkError> {
+        Ok(Self {
+            template: self
+                .template
+                .with_approvals(approver_anchors, approval_requirements)?,
+        })
     }
 
     /// Declares one profile whose canonical actions cannot express a requested
