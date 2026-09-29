@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import errno
 import json
+import os
+import shutil
+import socket
 import struct
 import sys
+import tempfile
 from pathlib import Path
-from typing import Optional
+from typing import Iterator, Optional
 
 import pytest
 
@@ -27,6 +32,20 @@ from auths.gateway import (
 
 _ECHO = "auths-e1-" + "ab" * 32
 _DIGEST = "cd" * 32
+_SOCKET_PATH_LIMIT = 107 if sys.platform.startswith("linux") else 103
+
+
+@pytest.fixture
+def socket_dir() -> Iterator[Path]:
+    """A short directory for test sockets: on macOS pytest's ``tmp_path``
+    lies under ``/var/folders`` and is too long for a Unix socket path."""
+    directory = Path(
+        tempfile.mkdtemp(dir=None if sys.platform == "win32" else "/tmp")
+    ).resolve()
+    try:
+        yield directory
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
 
 
 def _provider_result(status: object = 200, **evidence: object) -> bytes:
@@ -45,9 +64,9 @@ def _provider_result(status: object = 200, **evidence: object) -> bytes:
 @pytest.mark.skipif(
     sys.platform == "win32", reason="first gateway deployment is Unix-only"
 )
-def test_client_sends_only_proof_and_action(tmp_path) -> None:
+def test_client_sends_only_proof_and_action(socket_dir) -> None:
     async def scenario() -> None:
-        socket = tmp_path / "gateway.sock"
+        socket = socket_dir / "gateway.sock"
         seen: list[dict[str, str]] = []
 
         async def handle(
@@ -78,10 +97,10 @@ def test_client_sends_only_proof_and_action(tmp_path) -> None:
     asyncio.run(scenario())
 
 
-def test_client_rejects_invalid_endpoint_and_oversized_input(tmp_path) -> None:
+def test_client_rejects_invalid_endpoint_and_oversized_input(socket_dir) -> None:
     with pytest.raises(ValueError):
-        GatewayEndpoint(tmp_path.name)  # type: ignore[arg-type]
-    client = GatewayClient(GatewayEndpoint(tmp_path / "gateway.sock"))
+        GatewayEndpoint(socket_dir.name)  # type: ignore[arg-type]
+    client = GatewayClient(GatewayEndpoint(socket_dir / "gateway.sock"))
     with pytest.raises(ValueError):
         asyncio.run(client.submit(proof=b"", action=b"action"))
 
@@ -165,12 +184,12 @@ async def _serve_once(
 @pytest.mark.skipif(
     sys.platform == "win32", reason="first gateway deployment is Unix-only"
 )
-def test_client_requests_read_back_and_returns_signed_bytes(tmp_path) -> None:
+def test_client_requests_read_back_and_returns_signed_bytes(socket_dir) -> None:
     async def scenario() -> None:
         seen: list[dict[str, object]] = []
-        server = await _serve_once(tmp_path / "gateway.sock", _signed(), seen)
+        server = await _serve_once(socket_dir / "gateway.sock", _signed(), seen)
         async with server:
-            client = GatewayClient(GatewayEndpoint(tmp_path / "gateway.sock"))
+            client = GatewayClient(GatewayEndpoint(socket_dir / "gateway.sock"))
             result = await client.observe_read_back({"record_id": "recTEST0000000001"})
         assert result == GatewaySignedObservation(
             "auths.gateway-readback/1",
@@ -195,12 +214,12 @@ def test_client_requests_read_back_and_returns_signed_bytes(tmp_path) -> None:
 @pytest.mark.skipif(
     sys.platform == "win32", reason="first gateway deployment is Unix-only"
 )
-def test_client_requests_outcome_and_surfaces_refusal(tmp_path) -> None:
+def test_client_requests_outcome_and_surfaces_refusal(socket_dir) -> None:
     async def scenario(reply: bytes) -> tuple[object, list[dict[str, object]]]:
         seen: list[dict[str, object]] = []
-        server = await _serve_once(tmp_path / "gateway.sock", reply, seen)
+        server = await _serve_once(socket_dir / "gateway.sock", reply, seen)
         async with server:
-            client = GatewayClient(GatewayEndpoint(tmp_path / "gateway.sock"))
+            client = GatewayClient(GatewayEndpoint(socket_dir / "gateway.sock"))
             return await client.observe_outcome("step-1"), seen
 
     subject = "auths-gateway://ns/operations/step-1"
@@ -225,11 +244,11 @@ def test_client_requests_outcome_and_surfaces_refusal(tmp_path) -> None:
 @pytest.mark.skipif(
     sys.platform == "win32", reason="first gateway deployment is Unix-only"
 )
-def test_client_rejects_malformed_observation_frames(tmp_path) -> None:
+def test_client_rejects_malformed_observation_frames(socket_dir) -> None:
     async def scenario(reply: bytes, outcome: Optional[str] = None) -> object:
-        server = await _serve_once(tmp_path / "gateway.sock", reply, [])
+        server = await _serve_once(socket_dir / "gateway.sock", reply, [])
         async with server:
-            client = GatewayClient(GatewayEndpoint(tmp_path / "gateway.sock"))
+            client = GatewayClient(GatewayEndpoint(socket_dir / "gateway.sock"))
             if outcome is not None:
                 return await client.observe_outcome(outcome)
             return await client.observe_read_back({"record_id": "rec1"})
@@ -270,13 +289,13 @@ def test_client_rejects_malformed_observation_frames(tmp_path) -> None:
     sys.platform == "win32", reason="first gateway deployment is Unix-only"
 )
 def test_client_requests_pre_entry_observations_and_refuses_malformed_replies(
-    tmp_path,
+    socket_dir,
 ) -> None:
     async def scenario(reply: bytes) -> tuple[object, list[dict[str, object]]]:
         seen: list[dict[str, object]] = []
-        server = await _serve_once(tmp_path / "gateway.sock", reply, seen)
+        server = await _serve_once(socket_dir / "gateway.sock", reply, seen)
         async with server:
-            client = GatewayClient(GatewayEndpoint(tmp_path / "gateway.sock"))
+            client = GatewayClient(GatewayEndpoint(socket_dir / "gateway.sock"))
             return await client.observe_pre_entry("step-1"), seen
 
     def reply(**overrides: object) -> bytes:
@@ -315,8 +334,8 @@ def test_client_requests_pre_entry_observations_and_refuses_malformed_replies(
             asyncio.run(scenario(hostile))
 
 
-def test_client_rejects_unbounded_observation_requests(tmp_path) -> None:
-    client = GatewayClient(GatewayEndpoint(tmp_path / "gateway.sock"))
+def test_client_rejects_unbounded_observation_requests(socket_dir) -> None:
+    client = GatewayClient(GatewayEndpoint(socket_dir / "gateway.sock"))
     for arguments in [
         {},
         {"record_id": ""},
@@ -333,3 +352,51 @@ def test_client_rejects_unbounded_observation_requests(tmp_path) -> None:
             asyncio.run(client.observe_outcome(operation))
         with pytest.raises(ValueError):
             asyncio.run(client.observe_pre_entry(operation))
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix socket paths only")
+def test_endpoint_limit_is_the_platform_sun_path_less_its_nul() -> None:
+    GatewayEndpoint(Path("/" + "a" * (_SOCKET_PATH_LIMIT - 1)))
+    path = "/" + "a" * _SOCKET_PATH_LIMIT
+    with pytest.raises(ValueError) as refused:
+        GatewayEndpoint(Path(path))
+    text = str(refused.value)
+    assert path in text
+    assert f"{_SOCKET_PATH_LIMIT + 1} bytes" in text
+    assert f"at most {_SOCKET_PATH_LIMIT}" in text
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix socket paths only")
+def test_endpoint_counts_bytes_not_characters() -> None:
+    path = Path("/" + "\u00e9" * (_SOCKET_PATH_LIMIT // 2 + 1))
+    assert len(str(path)) <= _SOCKET_PATH_LIMIT < len(os.fsencode(path))
+    with pytest.raises(ValueError):
+        GatewayEndpoint(path)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix socket paths only")
+def test_endpoint_limit_matches_the_operating_system(socket_dir: Path) -> None:
+    def padded(size: int) -> Path:
+        path = socket_dir / ("s" * (size - len(os.fsencode(socket_dir)) - 1))
+        assert len(os.fsencode(path)) == size
+        return path
+
+    longest = padded(_SOCKET_PATH_LIMIT)
+    with socket.socket(socket.AF_UNIX) as listener:
+        listener.bind(str(longest))
+    GatewayEndpoint(longest)
+    with socket.socket(socket.AF_UNIX) as listener:
+        with pytest.raises(OSError):
+            listener.bind(str(padded(_SOCKET_PATH_LIMIT + 1)))
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix socket paths only")
+def test_connect_failure_names_the_path_and_cause(socket_dir: Path) -> None:
+    missing = socket_dir / "missing.sock"
+    client = GatewayClient(GatewayEndpoint(missing))
+    with pytest.raises(GatewayProtocolError) as failed:
+        asyncio.run(client.submit(proof=b"p", action=b"a"))
+    text = str(failed.value)
+    assert "outcome may be unknown" in text
+    assert str(missing) in text
+    assert os.strerror(errno.ENOENT) in text

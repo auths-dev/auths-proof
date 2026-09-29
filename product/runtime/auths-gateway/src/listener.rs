@@ -6,8 +6,22 @@
 //! is closed at accept without a response. An accept error is logged and
 //! followed by a back-off; it never ends the loop, so a transient shortage of
 //! descriptors cannot stop the gateway.
+//!
+//! A socket path must fit in the platform's `sun_path` with its terminating
+//! NUL: at most 103 bytes on macOS and 107 on Linux.
+//! [`check_socket_path_length`] refuses a longer path before anything binds
+//! or connects.
 
-use std::{convert::Infallible, future::Future, io, sync::Arc, time::Duration};
+use std::{
+    convert::Infallible,
+    fmt,
+    future::Future,
+    io,
+    os::unix::ffi::OsStrExt as _,
+    path::Path,
+    sync::{Arc, OnceLock},
+    time::Duration,
+};
 use tokio::{
     net::{UnixListener, UnixStream},
     sync::{OwnedSemaphorePermit, Semaphore},
@@ -22,6 +36,65 @@ pub const ADMIN_CAPACITY: usize = 4;
 
 /// Wait after a failed accept before the listener accepts again.
 pub const ACCEPT_BACKOFF: Duration = Duration::from_millis(100);
+
+/// Longest length probed when measuring the platform's socket path limit.
+const SOCKET_PATH_PROBE_LIMIT: usize = 4_096;
+
+/// The longest Unix socket path, in bytes, this platform accepts: the
+/// largest length `std::os::unix::net::SocketAddr::from_pathname` accepts,
+/// which is the rule tokio's bind and connect apply. It is the size of
+/// `sun_path` less its terminating NUL: 103 on macOS and 107 on Linux.
+///
+/// It is measured once, without creating a socket or touching a file.
+#[must_use]
+pub fn max_socket_path_bytes() -> usize {
+    static MAX: OnceLock<usize> = OnceLock::new();
+    *MAX.get_or_init(|| {
+        (1..=SOCKET_PATH_PROBE_LIMIT)
+            .take_while(|&length| {
+                std::os::unix::net::SocketAddr::from_pathname("a".repeat(length)).is_ok()
+            })
+            .last()
+            .unwrap_or(0)
+    })
+}
+
+/// A socket path longer than [`max_socket_path_bytes`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SocketPathTooLong {
+    /// The path's length in bytes.
+    pub bytes: usize,
+    /// The longest path this platform accepts, in bytes.
+    pub max: usize,
+}
+
+impl fmt::Display for SocketPathTooLong {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "{} bytes; this platform allows at most {} (sun_path is {} bytes, including the terminating NUL)",
+            self.bytes,
+            self.max,
+            self.max + 1
+        )
+    }
+}
+
+impl std::error::Error for SocketPathTooLong {}
+
+/// Refuses a socket path whose byte length exceeds
+/// [`max_socket_path_bytes`], before anything binds or connects to it.
+///
+/// # Errors
+/// Returns the path's length and the platform maximum when it is too long.
+pub fn check_socket_path_length(path: &Path) -> Result<(), SocketPathTooLong> {
+    let bytes = path.as_os_str().as_bytes().len();
+    let max = max_socket_path_bytes();
+    if bytes > max {
+        return Err(SocketPathTooLong { bytes, max });
+    }
+    Ok(())
+}
 
 /// Where a listener's connections come from: a bound [`UnixListener`], or a
 /// test double that injects accept errors.
@@ -109,6 +182,53 @@ mod tests {
                 .await
                 .map(|(stream, _)| stream)
         }
+    }
+
+    #[test]
+    fn socket_path_limit_is_sun_path_less_its_nul() {
+        let max = max_socket_path_bytes();
+        #[cfg(target_os = "linux")]
+        assert_eq!(max, 107);
+        #[cfg(target_os = "macos")]
+        assert_eq!(max, 103);
+        assert!(std::os::unix::net::SocketAddr::from_pathname("a".repeat(max)).is_ok());
+        assert!(std::os::unix::net::SocketAddr::from_pathname("a".repeat(max + 1)).is_err());
+    }
+
+    #[test]
+    fn the_kernel_binds_the_longest_path() {
+        let max = max_socket_path_bytes();
+        let directory = tempfile::tempdir_in("/tmp").expect("short directory");
+        let base = std::fs::canonicalize(directory.path()).expect("canonical directory");
+        let prefix = base.as_os_str().as_bytes().len() + 1;
+        assert!(prefix < max, "the temporary directory is too long");
+        let longest = base.join("s".repeat(max - prefix));
+        assert_eq!(longest.as_os_str().as_bytes().len(), max);
+        let listener = std::os::unix::net::UnixListener::bind(&longest).expect("bind at max");
+        drop(listener);
+        let over = base.join("t".repeat(max + 1 - prefix));
+        let refused = std::os::unix::net::UnixListener::bind(&over)
+            .expect_err("a path one byte over the maximum binds");
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
+    }
+
+    #[test]
+    fn check_socket_path_length_reports_the_figures() {
+        let max = max_socket_path_bytes();
+        let path = "/".repeat(max + 5);
+        let refused = check_socket_path_length(Path::new(&path)).expect_err("too long");
+        assert_eq!(
+            refused,
+            SocketPathTooLong {
+                bytes: max + 5,
+                max
+            }
+        );
+        let text = refused.to_string();
+        for figure in [max + 5, max, max + 1] {
+            assert!(text.contains(&figure.to_string()), "{text}");
+        }
+        assert!(check_socket_path_length(Path::new(&"/".repeat(max))).is_ok());
     }
 
     async fn closed_without_response(stream: &mut UnixStream) -> bool {

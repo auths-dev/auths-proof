@@ -83,16 +83,21 @@ $ auths-node gateway recipe check --recipe recipe.json --profile-lock profile.lo
   # Review the exact JSON mapping and immutable digest; no token is loaded.
 
 # Separate operator/admin identity and channel:
-$ auths-gateway install --state-dir <private-short-path> --recipe recipe.json \
+$ auths-gateway install --state-dir <state-dir> --recipe recipe.json \
     --profile-lock profile.lock.json --trusted-context trusted.context.cbor \
     --approve-digest <reviewed-digest> --provider <provider> --alias <alias> \
     --account-label <account> --credential-header <operator-selected-header> \
     --credential-stdin
   # The operator pipes a credential on stdin; no token appears in argv.
-$ auths-gateway serve --state-dir <private-short-path> --app-socket <app-socket>
-$ auths-gateway doctor --state-dir <private-short-path> \
+$ auths-gateway serve --state-dir <state-dir> --app-socket <app-socket>
+$ auths-gateway doctor --state-dir <state-dir> \
     --app-socket <app-socket> --app-uid <app-uid> --app-gid <app-gid>
   # Doctor needs authority to probe the actual distinct app identity.
+  # <state-dir> is private: absolute, canonical, owned by the gateway UID,
+  # mode 0700. A Unix socket path holds at most 103 bytes on macOS and 107
+  # on Linux, and the admin socket defaults to <state-dir>/admin.sock; for a
+  # longer state directory pass --admin-socket <path> in a second private
+  # directory to serve, doctor, and every admin command.
 
 # Application channel:
 $ auths-gateway submit --app-socket <app-socket> \

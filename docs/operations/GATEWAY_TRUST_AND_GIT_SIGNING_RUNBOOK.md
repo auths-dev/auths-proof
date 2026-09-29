@@ -149,6 +149,30 @@ held which key, is operator evidence and is not produced by this code.
   descriptor limit is below both capacities plus the store pool plus 32
   (`gateway.serve.descriptor-limit`). A failed accept is logged as
   `gateway.serve.accept-failed` and retried; it does not stop `serve`.
+- **Socket paths.** A Unix socket path must fit in the platform's `sun_path`
+  with its terminating NUL: at most 103 bytes on macOS and 107 on Linux.
+  The admin socket defaults to `<state-dir>/admin.sock`, 11 bytes longer than
+  the state directory, so a state directory longer than 92 bytes on macOS or
+  96 on Linux needs `serve --admin-socket <path>`. The admin socket's parent
+  must already exist, equal its canonical path (on macOS `/tmp` resolves to
+  `/private/tmp`), be owned by the gateway's UID, and grant no group or
+  other permission (mode 0700 or narrower); `rotate` sends the credential
+  over this socket. Give `disable`, `enable`, `status`, `reobserve`,
+  `revoke`, `rotate`, `operator-attest`, and `doctor` the same
+  `--admin-socket`; without it they look for `<state-dir>/admin.sock` and
+  report `gateway.admin.socket-unavailable` naming that path. The admin
+  commands also refuse a listener that runs as neither their own UID nor
+  root. Before binding either socket, `serve` checks both paths:
+  `gateway.serve.app-socket-too-long`, `gateway.serve.admin-socket-too-long`,
+  `gateway.serve.invalid-admin-socket` (relative, holding `.` or `..`, or
+  equal to `--app-socket`), and `gateway.serve.unsafe-admin-socket-directory`.
+  It binds the admin socket first and the app socket last, prints its
+  readiness line once both have their modes, and removes any socket it bound
+  if startup then fails. Errors print one line: the code, then for these
+  failures a detail such as
+  `gateway.serve.admin-bind-failed path=/srv/gw/admin.sock: Permission denied (os error 13)`.
+  Match the first token, not the line; a detail holds only paths, lengths,
+  modes, UIDs, and operating-system errors.
 - **Observer custody.** A production installation refuses the software
   observer seed (`gateway.production.observer-software-custody`), and
   `observer-init` refuses to create one. The engine accepts a custody-held

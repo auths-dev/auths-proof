@@ -1,5 +1,6 @@
 //! Hosted-only deployment probe: a distinct application UID can reach only
-//! the application socket, not the gateway credential or admin socket.
+//! the application socket, not the gateway credential or admin socket,
+//! including an admin socket moved to a second private directory.
 
 #![cfg(target_os = "linux")]
 
@@ -9,7 +10,7 @@ use std::{
     io::Write as _,
     os::unix::fs::PermissionsExt as _,
     os::unix::net::UnixStream,
-    path::Path,
+    path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     thread,
     time::{Duration, Instant},
@@ -32,12 +33,26 @@ impl Drop for RunningGateway {
 }
 
 fn start_gateway(state: &Path, app_socket: &Path) -> RunningGateway {
-    let child = Command::new(BIN)
+    start_gateway_with(state, app_socket, None)
+}
+
+fn start_gateway_with(
+    state: &Path,
+    app_socket: &Path,
+    admin_socket: Option<&Path>,
+) -> RunningGateway {
+    let mut command = Command::new(BIN);
+    command
         .arg("serve")
         .arg("--state-dir")
         .arg(state)
         .arg("--app-socket")
-        .arg(app_socket)
+        .arg(app_socket);
+    if let Some(admin_socket) = admin_socket {
+        command.arg("--admin-socket").arg(admin_socket);
+    }
+    let admin_socket = admin_socket.map_or_else(|| state.join("admin.sock"), Path::to_path_buf);
+    let child = command
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
@@ -45,9 +60,7 @@ fn start_gateway(state: &Path, app_socket: &Path) -> RunningGateway {
     let gateway = RunningGateway(child);
     let deadline = Instant::now() + Duration::from_secs(5);
     while Instant::now() < deadline {
-        if UnixStream::connect(app_socket).is_ok()
-            && UnixStream::connect(state.join("admin.sock")).is_ok()
-        {
+        if UnixStream::connect(app_socket).is_ok() && UnixStream::connect(&admin_socket).is_ok() {
             return gateway;
         }
         thread::sleep(Duration::from_millis(20));
@@ -56,18 +69,7 @@ fn start_gateway(state: &Path, app_socket: &Path) -> RunningGateway {
 }
 
 fn run_doctor(state: &Path, app_socket: &Path, group: &str, phase: &str) {
-    let doctor = Command::new("sudo")
-        .arg("-n")
-        .arg(BIN)
-        .arg("doctor")
-        .arg("--state-dir")
-        .arg(state)
-        .arg("--app-socket")
-        .arg(app_socket)
-        .arg("--app-uid")
-        .arg("65534")
-        .arg("--app-gid")
-        .arg(group)
+    let doctor = doctor_command(state, None, app_socket, group)
         .output()
         .expect("run distinct-UID doctor");
     assert!(
@@ -78,6 +80,32 @@ fn run_doctor(state: &Path, app_socket: &Path, group: &str, phase: &str) {
     assert!(
         String::from_utf8_lossy(&doctor.stdout).contains("gateway state and admin socket denied")
     );
+}
+
+fn doctor_command(
+    state: &Path,
+    admin_socket: Option<&Path>,
+    app_socket: &Path,
+    group: &str,
+) -> Command {
+    let mut doctor = Command::new("sudo");
+    doctor
+        .arg("-n")
+        .arg(BIN)
+        .arg("doctor")
+        .arg("--state-dir")
+        .arg(state);
+    if let Some(admin_socket) = admin_socket {
+        doctor.arg("--admin-socket").arg(admin_socket);
+    }
+    doctor
+        .arg("--app-socket")
+        .arg(app_socket)
+        .arg("--app-uid")
+        .arg("65534")
+        .arg("--app-gid")
+        .arg(group);
+    doctor
 }
 
 fn install(
@@ -206,4 +234,55 @@ fn distinct_uid_cannot_read_credential_or_reach_admin() {
     drop(gateway);
     let _restarted = start_gateway(&state, &app_socket);
     run_doctor(&state, &app_socket, group.trim(), "restarted service");
+}
+
+#[test]
+#[ignore = "requires hosted Linux sudo and a distinct app UID"]
+fn distinct_uid_cannot_reach_a_relocated_admin_socket() {
+    let root = tempfile::tempdir().expect("short temporary root");
+    fs::set_permissions(root.path(), fs::Permissions::from_mode(0o755))
+        .expect("app may traverse socket parent");
+    let recipe_path = root.path().join("recipe.json");
+    let lock_path = root.path().join("profile.lock.json");
+    let trust_path = root.path().join("trusted.context.cbor");
+    fs::write(&recipe_path, RECIPE).expect("recipe");
+    fs::write(&lock_path, LOCK).expect("lock");
+    fs::write(&trust_path, TRUST).expect("trust fixture");
+    let digest = CompiledRecipe::compile(RECIPE, LOCK)
+        .expect("compiled recipe")
+        .digest_hex();
+    let state = root.path().join("state");
+    let installed = install(&state, &recipe_path, &lock_path, &trust_path, &digest);
+    assert!(
+        installed.status.success(),
+        "synthetic gateway installation refused"
+    );
+    let admin_directory = root.path().join("admin");
+    fs::create_dir(&admin_directory).expect("admin directory");
+    fs::set_permissions(&admin_directory, fs::Permissions::from_mode(0o700))
+        .expect("private admin directory");
+    let admin_socket: PathBuf = admin_directory.join("admin.sock");
+    let app_socket = root.path().join("app.sock");
+    let _gateway = start_gateway_with(&state, &app_socket, Some(&admin_socket));
+
+    let group = Command::new("id").arg("-g").output().expect("runner group");
+    assert!(group.status.success());
+    let group = String::from_utf8(group.stdout).expect("numeric group");
+    let relocated = doctor_command(&state, Some(&admin_socket), &app_socket, group.trim())
+        .output()
+        .expect("run distinct-UID doctor");
+    assert!(
+        relocated.status.success(),
+        "distinct-UID boundary failed with a relocated admin socket: {}",
+        String::from_utf8_lossy(&relocated.stderr)
+    );
+
+    let forgotten = doctor_command(&state, None, &app_socket, group.trim())
+        .output()
+        .expect("run doctor without the admin socket");
+    assert!(!forgotten.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&forgotten.stderr).trim(),
+        "gateway.doctor.admin-unavailable"
+    );
 }
