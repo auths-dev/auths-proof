@@ -236,6 +236,8 @@ For every refund it re-verifies, with the gateway's own verifier:
   approving principals);
 - the ceiling, and the per-window count and per-currency sum recounted
   across the bundle without relying on the order of the entries;
+- the connected account: every bounded grant the refund rests on lists the
+  account it names, as the recipe's account scope requires;
 - the gateway-signed outcome: signed by the pinned observer, for this exact
   action, with its recorded stage, the time the gateway evaluated it, the
   counters it reserved, which must match the ones the audit derives, and

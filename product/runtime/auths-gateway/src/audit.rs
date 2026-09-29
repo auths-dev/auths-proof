@@ -7,10 +7,10 @@
 //! and trusted context. The auditor pins the trusted context by digest and
 //! the observer by principal; nothing in the bundle can replace either pin.
 //!
-//! Each entry is re-verified with the gateway's own verifier and bounded-
-//! policy admission at the outcome's `evaluated-at` (or, without an outcome,
-//! at the start of the approvals' validity), which derives the count and sum
-//! counters of its links in that fixed window. For an entered entry those
+//! Each entry is re-verified with the gateway's own verifier, bounded-policy
+//! admission, and account-scope binding at the outcome's `evaluated-at` (or,
+//! without an outcome, at the start of the approvals' validity), which
+//! derives the count and sum counters of its links in that fixed window. For an entered entry those
 //! counters must digest to the outcome's `counters-digest`. The bounds are
 //! then recounted without any order: the gateway gave each entered entry a
 //! distinct slot below its capacity, which is possible exactly when, for
@@ -181,10 +181,10 @@ pub struct AuditedEntry {
     /// `audit.verified`, a gateway refusal code, or an `audit.*` finding.
     pub code: String,
     /// Whether the auditor's own verification admitted the proof and action
-    /// at `evaluated_at`: signatures, trust, threshold, bound admission, and
-    /// the per-proof observer check. False for an entry the audit could not
-    /// evaluate: malformed, duplicated, with an invalid outcome, or filed
-    /// under another operation.
+    /// at `evaluated_at`: signatures, trust, threshold, bound admission, the
+    /// per-proof observer check, and the recipe's account-scope binding.
+    /// False for an entry the audit could not evaluate: malformed,
+    /// duplicated, with an invalid outcome, or filed under another operation.
     pub admitted: bool,
     /// Actors of the authorized branches when the proof verified.
     pub approvals: Vec<String>,
@@ -675,14 +675,19 @@ fn audit_entry(
         .map_or_else(|| validity_start(&proof), |value| value.record.evaluated_at);
     let mut item = Pending::refused(operation, evaluated_at, outcome);
     // The auditor applies the per-proof observer check the gateway admits
-    // with; it does not re-run the retention rule or pre-entry selection
-    // here, and checks the pre-entry evidence of entered entries below.
-    let verification =
-        verify_detailed(recipe, context, evaluated_at, &proof, &action).and_then(|verified| {
-            match verified.observer_refusal {
-                Some(code) => Err(crate::engine::not_entered(code)),
-                None => Ok(verified),
-            }
+    // with, then the recipe's account-scope binding, as the gateway does
+    // before the claim; it does not re-run the retention rule or pre-entry
+    // selection here, and checks the pre-entry evidence of entered entries
+    // below.
+    let verification = verify_detailed(recipe, context, evaluated_at, &proof, &action)
+        .and_then(|verified| match verified.observer_refusal {
+            Some(code) => Err(crate::engine::not_entered(code)),
+            None => Ok(verified),
+        })
+        .and_then(|verified| {
+            crate::bounds::bind_account_scope(recipe, verified.bound.as_ref(), &verified.arguments)
+                .map_err(crate::engine::not_entered)
+                .map(|()| verified)
         });
     match verification {
         Ok(verified) => {
