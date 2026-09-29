@@ -147,6 +147,9 @@ def theoremInventory : List Lean.Name :=
     `Auths.Product.Refinement.translated_checked_sub_refines_nat,
     `Auths.Product.Refinement.translated_checked_mul_refines_nat,
     `Auths.Product.Refinement.translated_checked_div_rejects_zero,
+    `Auths.Product.Refinement.translated_window_index_refines_nat,
+    `Auths.Product.Refinement.BoundedPolicy.translated_digest_equal_refines_model,
+    `Auths.Product.Refinement.BoundedPolicy.translated_bounded_policy_link_accepts_refines_model,
     `Auths.Product.Refinement.translated_ceiling_count_refines_model,
     `Auths.Product.Refinement.translated_ceiling_count_tightens_refines_model,
     `Auths.Product.Refinement.translated_chain_counts_admit_refines_model,
@@ -199,6 +202,7 @@ def theoremInventory : List Lean.Name :=
     `Auths.Product.RequestConstruction.account_scope_header_exact,
     `Auths.Product.RequestConstruction.credential_reads_fixed,
     `Auths.Product.RequestConstruction.body_bounded,
+    `Auths.Product.Refinement.Gateway.translated_start_refines_model,
     `Auths.Product.Refinement.Gateway.translated_recovery_capability_refines_model,
     `Auths.Product.Refinement.Gateway.translated_construct_write_refines_model,
     `Auths.Product.Refinement.Gateway.translated_construct_action_read_refines_model,
@@ -297,7 +301,22 @@ def theoremInventory : List Lean.Name :=
     `Auths.Refinement.Observation.translated_observation_conditions_length_mismatch_fails_closed,
     `Auths.Refinement.Observation.translated_observation_conditions_hold_refines_conditions_hold,
     `Auths.Refinement.Observation.translated_requirement_verdict_refines_model,
-    `Auths.Refinement.Observation.translated_requirement_verdict_refines_requirement_decision
+    `Auths.Refinement.Observation.translated_requirement_verdict_refines_requirement_decision,
+    `Auths.Refinement.Observation.translated_observer_anchor_id_equal_refines_model,
+    `Auths.Refinement.Observation.translated_observation_schema_equal_refines_model,
+    `Auths.Refinement.Observation.translated_requirement_subject_equal_refines_model,
+    `Auths.Refinement.Observation.translated_member_values_equal_refines_model,
+    `Auths.Refinement.Observation.translated_condition_test_equal_refines_model,
+    `Auths.Refinement.Observation.translated_observation_condition_equal_refines_model,
+    `Auths.Refinement.Observation.translated_observation_conditions_contain_refines_model,
+    `Auths.Refinement.Observation.translated_observation_conditions_include_refines_model,
+    `Auths.Refinement.Observation.translated_observation_conditions_equal_refines_model,
+    `Auths.Refinement.Observation.translated_observation_requirement_same_target_refines_model,
+    `Auths.Refinement.Observation.translated_observation_requirement_equal_refines_model,
+    `Auths.Refinement.Observation.translated_observation_requirement_narrows_refines_model,
+    `Auths.Refinement.Observation.translated_observation_requirement_covers_refines_model,
+    `Auths.Refinement.Observation.translated_observation_requirement_retained_refines_model,
+    `Auths.Refinement.Observation.translated_observation_requirements_attenuate_refines_model
   ]
 
 end Auths

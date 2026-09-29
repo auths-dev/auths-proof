@@ -1955,9 +1955,12 @@ def decisionOf (decision : order.SubmitDecision) : Decision where
   state := stateOf decision.state
   action := actionOf decision.action
 
+/-- The translated initial state is the model's `start` state of the
+abstracted plan. -/
 theorem translated_start_refines_model (plan : order.SubmitPlan) :
-    order.start plan ⦃ state => stateOf state = start (planOf plan) ⦄ := by
-  simp [order.start, stateOf, start, phaseOf]
+    ∃ state, order.start plan = ok state ∧ stateOf state = start (planOf plan) := by
+  refine ⟨{ plan, phase := .Start, argument := 0#u64 }, rfl, ?_⟩
+  simp [stateOf, start, phaseOf]
 
 /-- The next denied index of a refused read never overflows `u8`: it is at
 most the declared count. -/

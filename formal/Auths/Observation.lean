@@ -37,10 +37,12 @@ inductive Condition where
   | eqAction (name : String) (actionFact : String)
   | uintRange (name : String) (lo hi : Nat)
   | member (name : String) (values : List FactValue)
+  deriving DecidableEq
 
 inductive Subject where
   | literal (resource : String)
   | actionFact (name : String)
+  deriving DecidableEq
 
 structure ObservationRecord where
   observer : String
@@ -55,6 +57,7 @@ structure Requirement where
   subject : Subject
   maxAge : Nat
   conditions : List Condition
+  deriving DecidableEq
 
 structure ObserverAnchor where
   principal : String
