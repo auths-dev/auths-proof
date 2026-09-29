@@ -16256,6 +16256,18 @@
       ]
     },
     {
+      "source": "auths-verifier",
+      "source_layer": "core",
+      "target": "proptest",
+      "target_layer": null,
+      "scope": "external",
+      "kind": "dev",
+      "target_condition": null,
+      "optional": false,
+      "default_features": true,
+      "features": []
+    },
+    {
       "source": "auths-webauthn",
       "source_layer": "core",
       "target": "auths-model",
