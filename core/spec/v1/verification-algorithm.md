@@ -58,7 +58,9 @@ and carries no plan digest.
    that names a principal without an approver anchor, that repeats a
    requirement, or whose K exceeds its number of approvers, and an approver
    anchor accepting a principal method or principal-status method the
-   context does not accept.
+   context does not accept. More approver anchors or requirements than the
+   context's limits, or more than 16 approvers in one requirement, is
+   `resource-limit-exceeded`.
 2. The canonical action, before any proof byte is read:
    1. `decode.action-bytes`: an input longer than the canonical-action input
       limit is `resource-limit-exceeded`, before any byte is read.
@@ -561,8 +563,9 @@ For each approval, in digest order:
    principal status as a trust anchor's (with an absent statement giving
    `missing-principal-status`), where only statements whose issuer the
    snapshot does not know, or whose every rule has scope `any`, take part:
-   any denial skips the approval, and a missing, stale, or unsupported status
-   makes it pending.
+   any denial skips the approval, and any indeterminate result (a missing,
+   stale, or unsupported status, or an unavailable fact of a status
+   statement's control or extension check) makes it pending.
 6. Otherwise the approval counts: its approver becomes counted, and the
    approval's digest is recorded. A pending approval makes its approver
    pending unless it is already counted.

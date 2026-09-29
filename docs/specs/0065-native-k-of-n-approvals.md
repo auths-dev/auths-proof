@@ -287,9 +287,10 @@ order the rest by ascending approval digest. Start with every approver in S
    an approver anchor is no trust anchor, so a snapshot statement is out of
    scope unless the snapshot does not know its issuer or every rule naming
    its issuer has scope `any` (AP-SPEC-064 §2). A result of revoked,
-   superseded, or any other denial skips x; a missing, stale, or unsupported
-   status makes x *pending*; `resource-limit-exceeded` fails the whole
-   verification.
+   superseded, or any other denial skips x; any indeterminate result — a
+   missing, stale, or unsupported status, or an unavailable fact of a status
+   statement's control or extension check — makes x *pending*;
+   `resource-limit-exceeded` fails the whole verification.
 9. Otherwise x is **counted**: its approver becomes *counted* and x's digest
    is recorded for R. A *pending* x makes its approver *pending* unless it is
    already *counted*.
@@ -369,9 +370,10 @@ accepted method exists to verify them.
 | Signed approvals in one proof | 128 (verifier-limits key 27) | `resource-limit-exceeded` at decode |
 | One signed approval | 4096 bytes | `resource-limit-exceeded` at decode |
 | Evidence objects in one approval | 4 | `resource-limit-exceeded` at decode |
-| Approver anchors in one context | 32 (key 28) | context rejected at decode |
-| Approval requirements in one context | 4 (key 29) | context rejected at decode |
-| Approvers in one requirement; K | 16; 1 to 16 | rejected at decode |
+| Approver anchors in one context | 32 (key 28) | `resource-limit-exceeded` at context decode |
+| Approval requirements in one context | 4 (key 29) | `resource-limit-exceeded` at context decode |
+| Approvers in one requirement | 16 | `resource-limit-exceeded` at decode (context or grant extension) |
+| K in one requirement | 1 to the number of approvers | `malformed-proof` at context decode; invalid input for the grant handler |
 | Requirements in one grant extension | 4 | `resource-limit-exceeded`, as for every handler |
 | Distinct requirements in one chain | 16 | `resource-limit-exceeded` |
 | Distinct requirements evaluated in one verification | 64 | `resource-limit-exceeded` |
@@ -540,7 +542,3 @@ each the narrower fail-closed reading, until the owner confirms them
 | 21 | Approval statement key 8 | Compared with `null` until track B (§3.3). | PROVISIONAL |
 | 22 | Result object count | Includes signed approvals; the signature-count limit does not, since key 27 bounds them. | PROVISIONAL |
 | 23 | Grant extension order | Strictly ascending by identifier, as context key 16. | PROVISIONAL |
-</content>
-</invoke>
-<invoke name="Bash">
-<parameter name="command">cd /Users/bordumb/workspace/repositories/auths-proof-base/auths-proof-kofn; grep -rn "0063\|AP-SPEC-06[0-4]" docs/specs/README.md 2>/dev/null | head; ls docs/specs | head -3; grep -rln "0064-status-issuer-scope" docs | head
