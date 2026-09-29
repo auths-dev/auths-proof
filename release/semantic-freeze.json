@@ -1,6 +1,6 @@
 {
   "schema": "auths.semantic-freeze/1",
-  "freezeVersion": 339,
+  "freezeVersion": 337,
   "publicSurface": {
     "rustRoots": [
       "auths",
@@ -73,7 +73,7 @@
   "entries": [
     {
       "id": "auths.core.protocol",
-      "version": 35,
+      "version": 34,
       "classification": "frozen-meaning",
       "categories": [
         "protocol-versions",
@@ -90,7 +90,7 @@
         "core/crates/auths-verifier/src",
         "core/spec/v1"
       ],
-      "sha256": "ac56d5cff226cdc140ddf70ab422b4bf4c8428b952ec79bc0cfd775f99e3f7a5"
+      "sha256": "52d163a053a9f17bd55d97c356a4d9e3c2b3f0e12d6a17123d47d4de79680b26"
     },
     {
       "id": "auths.frozen-bytes/architecture/dependency-graph.json",
@@ -166,7 +166,7 @@
     },
     {
       "id": "auths.frozen-bytes/core/fixtures/v1/manifest.json",
-      "version": 16,
+      "version": 15,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -238,7 +238,7 @@
     },
     {
       "id": "auths.frozen-bytes/formal/qualification/aeneas/source-closure.json",
-      "version": 88,
+      "version": 87,
       "classification": "frozen-bytes",
       "categories": [
         "canonical-generated-evidence"
@@ -611,7 +611,7 @@
     },
     {
       "id": "auths.portable-abi-bindings",
-      "version": 119,
+      "version": 118,
       "classification": "frozen-meaning",
       "categories": [
         "portable-abi",
@@ -1011,7 +1011,7 @@
     },
     {
       "id": "auths.release.public-surface",
-      "version": 339,
+      "version": 337,
       "classification": "release-metadata",
       "categories": [
         "package-names",
@@ -1103,7 +1103,7 @@
         "xtask/src/release_control.rs",
         "xtask/src/semantic_freeze.rs"
       ],
-      "sha256": "b5fa76455c885a02f53980e87897dc40b184440bec14216b28ae42ea48df4781"
+      "sha256": "136c570715201259a9df92d4ae65f40777816eb8bf24da1bf1ccb0b02674eb85"
     }
   ]
 }
