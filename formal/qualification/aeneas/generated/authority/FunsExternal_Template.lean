@@ -34,7 +34,7 @@ axiom auths_algebra_kernel.root_preserved
   auths_algebra_kernel.RootLinkage Identity → Result Bool
 
 /-- [auths_model::principal_id_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 192:0-192:74
+    Source: 'core/crates/auths-model/src/lib.rs', lines 201:0-201:74
     Name pattern: [auths_model::principal_id_equal]
     Visibility: public -/
 @[rust_fun "auths_model::principal_id_equal"]
@@ -42,7 +42,7 @@ axiom auths_model.principal_id_equal
   : auths_model.PrincipalId → auths_model.PrincipalId → Result Bool
 
 /-- [auths_model::validity_window_contains]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 422:0-422:92
+    Source: 'core/crates/auths-model/src/lib.rs', lines 435:0-435:92
     Name pattern: [auths_model::validity_window_contains]
     Visibility: public -/
 @[rust_fun "auths_model::validity_window_contains"]
@@ -50,7 +50,7 @@ axiom auths_model.validity_window_contains
   : auths_model.ValidityWindow → auths_model.ValidityWindow → Result Bool
 
 /-- [auths_model::profile_ref_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 465:0-465:71
+    Source: 'core/crates/auths-model/src/lib.rs', lines 478:0-478:71
     Name pattern: [auths_model::profile_ref_equal]
     Visibility: public -/
 @[rust_fun "auths_model::profile_ref_equal"]
@@ -58,7 +58,7 @@ axiom auths_model.profile_ref_equal
   : auths_model.ProfileRef → auths_model.ProfileRef → Result Bool
 
 /-- [auths_model::profile_slice_contains]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 472:0-472:84
+    Source: 'core/crates/auths-model/src/lib.rs', lines 485:0-485:84
     Name pattern: [auths_model::profile_slice_contains]
     Visibility: public -/
 @[rust_fun "auths_model::profile_slice_contains"]
@@ -66,7 +66,7 @@ axiom auths_model.profile_slice_contains
   : Slice auths_model.ProfileRef → auths_model.ProfileRef → Result Bool
 
 /-- [auths_model::assurance_policy_id_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 486:0-486:93
+    Source: 'core/crates/auths-model/src/lib.rs', lines 499:0-499:93
     Name pattern: [auths_model::assurance_policy_id_equal]
     Visibility: public -/
 @[rust_fun "auths_model::assurance_policy_id_equal"]
@@ -76,7 +76,7 @@ axiom auths_model.assurance_policy_id_equal
     Bool
 
 /-- [auths_model::optional_grant_id_equal]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 500:0-500:85
+    Source: 'core/crates/auths-model/src/lib.rs', lines 513:0-513:85
     Name pattern: [auths_model::optional_grant_id_equal]
     Visibility: public -/
 @[rust_fun "auths_model::optional_grant_id_equal"]
@@ -84,7 +84,7 @@ axiom auths_model.optional_grant_id_equal
   : Option auths_model.GrantId → Option auths_model.GrantId → Result Bool
 
 /-- [auths_model::permission_set_contains]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 577:0-577:84
+    Source: 'core/crates/auths-model/src/lib.rs', lines 590:0-590:84
     Name pattern: [auths_model::permission_set_contains]
     Visibility: public -/
 @[rust_fun "auths_model::permission_set_contains"]
@@ -92,7 +92,7 @@ axiom auths_model.permission_set_contains
   : auths_model.PermissionSet → auths_model.Permission → Result Bool
 
 /-- [auths_model::permission_set_is_subset]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 591:0-591:86
+    Source: 'core/crates/auths-model/src/lib.rs', lines 604:0-604:86
     Name pattern: [auths_model::permission_set_is_subset]
     Visibility: public -/
 @[rust_fun "auths_model::permission_set_is_subset"]
@@ -100,7 +100,7 @@ axiom auths_model.permission_set_is_subset
   : auths_model.PermissionSet → auths_model.PermissionSet → Result Bool
 
 /-- [auths_model::audience_set_contains]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 644:0-644:76
+    Source: 'core/crates/auths-model/src/lib.rs', lines 657:0-657:76
     Name pattern: [auths_model::audience_set_contains]
     Visibility: public -/
 @[rust_fun "auths_model::audience_set_contains"]
@@ -108,7 +108,7 @@ axiom auths_model.audience_set_contains
   : auths_model.AudienceSet → auths_model.Audience → Result Bool
 
 /-- [auths_model::audience_set_is_subset]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 658:0-658:80
+    Source: 'core/crates/auths-model/src/lib.rs', lines 671:0-671:80
     Name pattern: [auths_model::audience_set_is_subset]
     Visibility: public -/
 @[rust_fun "auths_model::audience_set_is_subset"]
@@ -116,7 +116,7 @@ axiom auths_model.audience_set_is_subset
   : auths_model.AudienceSet → auths_model.AudienceSet → Result Bool
 
 /-- [auths_model::action_constraint_allows]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 803:0-803:86
+    Source: 'core/crates/auths-model/src/lib.rs', lines 816:0-816:86
     Name pattern: [auths_model::action_constraint_allows]
     Visibility: public -/
 @[rust_fun "auths_model::action_constraint_allows"]
@@ -124,7 +124,7 @@ axiom auths_model.action_constraint_allows
   : auths_model.ActionConstraint → auths_model.Digest → Result Bool
 
 /-- [auths_model::action_constraint_attenuates]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 814:0-814:96
+    Source: 'core/crates/auths-model/src/lib.rs', lines 827:0-827:96
     Name pattern: [auths_model::action_constraint_attenuates]
     Visibility: public -/
 @[rust_fun "auths_model::action_constraint_attenuates"]
@@ -133,7 +133,7 @@ axiom auths_model.action_constraint_attenuates
   auths_model.ActionConstraint → auths_model.ActionConstraint → Result Bool
 
 /-- [auths_model::optional_budget_attenuates]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 883:0-886:9
+    Source: 'core/crates/auths-model/src/lib.rs', lines 896:0-899:9
     Name pattern: [auths_model::optional_budget_attenuates]
     Visibility: public -/
 @[rust_fun "auths_model::optional_budget_attenuates"]
@@ -143,7 +143,7 @@ axiom auths_model.optional_budget_attenuates
     Result Bool
 
 /-- [auths_model::budget_ceiling_covers_action]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 951:0-955:9
+    Source: 'core/crates/auths-model/src/lib.rs', lines 964:0-968:9
     Name pattern: [auths_model::budget_ceiling_covers_action]
     Visibility: public -/
 @[rust_fun "auths_model::budget_ceiling_covers_action"]
@@ -153,7 +153,7 @@ axiom auths_model.budget_ceiling_covers_action
     auths_model.ProfileBudgetExpression → Result Bool
 
 /-- [auths_model::status_policy_attenuates]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1013:0-1013:84
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1026:0-1026:84
     Name pattern: [auths_model::status_policy_attenuates]
     Visibility: public -/
 @[rust_fun "auths_model::status_policy_attenuates"]
@@ -161,7 +161,7 @@ axiom auths_model.status_policy_attenuates
   : auths_model.StatusPolicy → auths_model.StatusPolicy → Result Bool
 
 /-- [auths_model::critical_extension_find]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1116:0-1119:34
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1129:0-1132:34
     Name pattern: [auths_model::critical_extension_find]
     Visibility: public -/
 @[rust_fun "auths_model::critical_extension_find"]
@@ -171,7 +171,7 @@ axiom auths_model.critical_extension_find
     auths_model.CriticalExtension)
 
 /-- [auths_model::critical_extension_entries]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1133:0-1133:90
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1146:0-1146:90
     Name pattern: [auths_model::critical_extension_entries]
     Visibility: public -/
 @[rust_fun "auths_model::critical_extension_entries"]
@@ -181,7 +181,7 @@ axiom auths_model.critical_extension_entries
     auths_model.CriticalExtension)
 
 /-- [auths_model::critical_extension_id]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1140:0-1140:75
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1153:0-1153:75
     Name pattern: [auths_model::critical_extension_id]
     Visibility: public -/
 @[rust_fun "auths_model::critical_extension_id"]
@@ -189,7 +189,7 @@ axiom auths_model.critical_extension_id
   : auths_model.CriticalExtension → Result auths_model.ExtensionId
 
 /-- [auths_model::critical_extension_payload]:
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1147:0-1147:73
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1160:0-1160:73
     Name pattern: [auths_model::critical_extension_payload]
     Visibility: public -/
 @[rust_fun "auths_model::critical_extension_payload"]

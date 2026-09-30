@@ -3520,7 +3520,7 @@ fn readme_sentence(json: &Value) -> String {
         })
         .unwrap_or_default();
     let sentence = format!(
-        "{} of {} decision-scope functions ({}) and {} of {} code lines ({}) are translated to Lean and reached from audited theorem statements, and {s} of {sites} kernel check sites map only to such functions. The rest of the decision path, including {}, is tested, not proved. For K-of-N approval the proofs cover the threshold count function and the two-input helper, not the plan evaluator or the distinct-actor floor. Figures, method, and what they do not mean: [`{DOCUMENT}`]({DOCUMENT}).",
+        "{} of {} decision-scope functions ({}) and {} of {} code lines ({}) are translated to Lean and reached from audited theorem statements, and {s} of {sites} kernel check sites map only to such functions. The rest of the decision path, including {}, is tested, not proved. For K-of-N approval the proofs cover the approval count and per-approver verdict functions and the requirement attenuation law, not the verifier step that classifies each approval (binding, window, signature, status). Figures, method, and what they do not mean: [`{DOCUMENT}`]({DOCUMENT}).",
         grouped(n),
         grouped(m),
         percent(n, m),

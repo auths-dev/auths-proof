@@ -54,7 +54,7 @@ submission, and an offline audit.
 
 `@auths-dev/sdk/self-hosted` generates an exact MCP-shaped tool from a
 `profile.toml`, and `@auths-dev/sdk/identity` authors identities. To require
-that a threshold of named approvers sign one exact action before it is
+approvals from any K of N named approvers before an agent's exact action is
 submitted, see [approval quorum](../../docs/product/APPROVAL_QUORUM.md). The
 installed `auths` command runs `auths generate` for exact-tool code and
 `auths approve` for approval requests.

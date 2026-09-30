@@ -1,34 +1,40 @@
-//! Authoring of one exact action approved by a threshold of distinct approvers.
+//! Authoring of one exact action approved by any `K` of `N` named approvers.
 //!
-//! A [`QuorumProposal`] fixes the canonical action, the approver set, and a
-//! core `k_of_n` [`AuthorizationPlan`] over one proof leaf per approver. Every
-//! approver signs its own envelope; each envelope commits to the whole plan,
-//! so the approver set is fixed before the first signature and every listed
-//! approver must sign before the bundle can be assembled. Replacing an
-//! approver is a new proposal.
+//! A [`QuorumProposal`] fixes the canonical action, the actor that submits
+//! it, and an [`ApprovalRequirement`]: `required` of the listed approvers.
+//! The actor signs one action envelope under a single-proof plan, with its
+//! own grant chain. Each approver signs one [`ApprovalStatement`] bound to
+//! the action's meaning, the relying party's audience and challenge, and the
+//! requirement's identifier. Any `required` distinct approvers suffice; who
+//! they are is decided by who answers, not fixed before the first signature.
+//! The actor is never one of the approvers: self-approval never counts.
 //!
-//! Every envelope carries the same validity window, from the evaluation time
-//! for `validity_seconds` ([`DEFAULT_QUORUM_VALIDITY_SECONDS`] when `None`, at
-//! most [`MAX_QUORUM_VALIDITY_SECONDS`]), cut to the earliest terminal-grant
-//! expiry among the approvers. Human approvers need hours, not the seconds a
+//! The envelope and every statement carry the same validity window, from the
+//! evaluation time for `validity_seconds` ([`DEFAULT_QUORUM_VALIDITY_SECONDS`]
+//! when `None`, at most [`MAX_QUORUM_VALIDITY_SECONDS`]), cut to the actor's
+//! terminal-grant expiry. Human approvers need hours, not the seconds a
 //! single signer gets, so the quorum path has its own bounds; the window
-//! arithmetic is core's `ActionValidityPolicy`. All approvals must be
-//! collected and verified inside the window.
+//! arithmetic is core's `ActionValidityPolicy`. Approvals must be collected
+//! and verified inside the window.
 //!
 //! This crate assembles bytes only. Whether the approvals authorize is decided
-//! by the verifier against a trusted context whose composition requirement
-//! names the threshold (see [`quorum_requirement`]) and whose trust anchors
-//! name the members. A proof-carried plan alone never sets the threshold.
+//! by the verifier against a trusted context that carries the requirement
+//! ([`QuorumProposal::requirement`]) and one approver anchor per listed
+//! approver. A proof never sets its own threshold.
 
 #![forbid(unsafe_code)]
 
-use auths_author::{ActionValidityPolicy, PlanBuilder, PlanningError, WorkflowAssemblyError};
-use auths_codec::{CodecError, action_id, body_digest, domain_commitment, grant_id, plan_id};
+use auths_author::{ActionValidityPolicy, PlanBuilder, WorkflowAssemblyError};
+use auths_codec::{
+    CodecError, action_id, approval_digest, approval_requirement_id, body_digest,
+    domain_commitment, grant_id,
+};
 use auths_model::{
-    ActionEnvelope, Audience, AuthorizationPlan, BundleHeader, CanonicalAction, Challenge,
-    ChannelBindingId, CompositionRequirement, ControlBinding, CriticalExtensions, EvidenceId,
-    EvidenceObject, GrantId, ModelError, PrincipalId, ProofBundle, ProofRef, SignedAction,
-    SignedGrant, StatementRef, VerifierLimits,
+    ActionEnvelope, ApprovalRequirement, ApprovalRequirementId, ApprovalStatement, Audience,
+    AuthorizationPlan, BundleHeader, CanonicalAction, Challenge, ChannelBindingId, ControlBinding,
+    CriticalExtensions, EvidenceId, EvidenceObject, GrantId, MAX_APPROVAL_EVIDENCE,
+    MAX_APPROVERS_PER_REQUIREMENT, ModelError, PrincipalId, ProofBundle, ProofRef, SignedAction,
+    SignedApproval, SignedGrant, StatementRef, VerifierLimits,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use thiserror::Error;
@@ -40,15 +46,18 @@ pub const DEFAULT_QUORUM_VALIDITY_SECONDS: u64 = 86_400;
 pub const MAX_QUORUM_VALIDITY_SECONDS: u64 = 604_800;
 
 /// Largest approver set one proposal accepts.
-pub const MAX_APPROVERS: usize = 16;
+pub const MAX_APPROVERS: usize = MAX_APPROVERS_PER_REQUIREMENT;
 
-/// Largest grant chain one approval may carry.
-pub const MAX_APPROVAL_GRANTS: usize = 16;
+/// Largest grant chain the actor may carry.
+pub const MAX_ACTOR_GRANTS: usize = 16;
 
-/// Largest evidence collection bound to one statement.
+/// Largest evidence collection bound to one grant or action statement.
 pub const MAX_STATEMENT_EVIDENCE: usize = 32;
 
-const MEMBER_REFERENCE_DOMAIN: &str = "auths.approval-quorum.member/1";
+/// Largest evidence collection one approval carries.
+pub const MAX_APPROVER_EVIDENCE: usize = MAX_APPROVAL_EVIDENCE;
+
+const ACTOR_REFERENCE_DOMAIN: &str = "auths.approval-quorum.actor/1";
 
 /// Typed authoring failure. No variant carries secret material.
 #[derive(Clone, Debug, Eq, PartialEq, Error)]
@@ -63,19 +72,26 @@ pub enum QuorumError {
     /// The same principal appears twice in one approver set.
     #[error("approval quorum names the same approver twice")]
     DuplicateApprover,
-    /// A signed approval does not equal any envelope of this proposal.
-    #[error("approval does not match any envelope of this proposal")]
+    /// The actor is listed as an approver; its approval would never count.
+    #[error("approval quorum names the actor as an approver")]
+    SelfApproval,
+    /// The signed action is not this proposal's envelope.
+    #[error("signed action is not this proposal's envelope")]
+    ActionMismatch,
+    /// A signed approval does not equal this proposal's statement for its
+    /// approver, or names an approver the proposal does not list.
+    #[error("approval does not match this proposal")]
     UnknownApproval,
     /// Two approvals were supplied for the same approver.
     #[error("approval was supplied twice for the same approver")]
     DuplicateApproval,
-    /// At least one listed approver has not signed.
-    #[error("approval quorum has {signed} of {approvers} approver signatures")]
+    /// Fewer distinct listed approvers approved than the threshold.
+    #[error("approval quorum has {approved} of {required} required approvals")]
     Incomplete {
-        /// Signatures supplied.
-        signed: usize,
-        /// Approvers listed in the proposal.
-        approvers: usize,
+        /// Distinct listed approvers that approved.
+        approved: usize,
+        /// The threshold.
+        required: u16,
     },
     /// A grant chain, evidence set, or the resulting bundle exceeds bounds.
     #[error("approval quorum material exceeds collection bounds")]
@@ -113,26 +129,17 @@ impl From<WorkflowAssemblyError> for QuorumError {
     }
 }
 
-impl From<PlanningError> for QuorumError {
-    fn from(error: PlanningError) -> Self {
-        match error {
-            PlanningError::Codec(error) => Self::Codec(error),
-            PlanningError::InvalidPlan | PlanningError::Expanded(_) => Self::InvalidQuorum,
-        }
-    }
-}
-
-/// One member asked to approve, with the terminal grant its authority
-/// descends from. `None` means the member is itself a trust anchor.
+/// The principal that submits the action, with the terminal grant its
+/// authority descends from. `None` means the actor is itself a trust anchor.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct QuorumApprover {
+pub struct QuorumActor {
     actor: PrincipalId,
     terminal_grant: Option<GrantId>,
     grant_expires_at: Option<u64>,
 }
 
-impl QuorumApprover {
-    /// Names one approver.
+impl QuorumActor {
+    /// Names the actor.
     ///
     /// # Errors
     ///
@@ -152,35 +159,40 @@ impl QuorumApprover {
         })
     }
 
-    /// Returns the approving principal.
+    /// Returns the submitting principal.
     #[must_use]
     pub const fn actor(&self) -> &PrincipalId {
         &self.actor
     }
 }
 
-/// Exact envelopes and threshold plan for one canonical action.
+/// The exact envelope, requirement, and approval statements for one
+/// canonical action.
 #[derive(Clone, Debug)]
 pub struct QuorumProposal {
     canonical: CanonicalAction,
-    required: u16,
+    requirement: ApprovalRequirement,
+    requirement_id: ApprovalRequirementId,
     plan: AuthorizationPlan,
-    envelopes: Vec<ActionEnvelope>,
+    envelope: ActionEnvelope,
+    statements: Vec<ApprovalStatement>,
 }
 
 impl QuorumProposal {
-    /// Builds one unsigned envelope per approver under a `required`-of-N
-    /// plan. Proof references are derived from the challenge and the
-    /// approver, so one proposal is reproducible from its inputs. The
-    /// validity window follows the module rule above.
+    /// Builds the actor's unsigned envelope and one unsigned approval
+    /// statement per approver for a `required`-of-N requirement. The proof
+    /// reference is derived from the challenge and the actor, so one proposal
+    /// is reproducible from its inputs. The validity window follows the
+    /// module rule above.
     ///
     /// # Errors
     ///
     /// Returns [`QuorumError::InvalidQuorum`] for an impossible threshold or
-    /// approver count, [`QuorumError::ActionValidity`] for a validity outside
-    /// bounds, [`QuorumError::DuplicateApprover`] for a repeated
-    /// principal, and model or codec errors from plan and envelope
-    /// construction.
+    /// approver count, [`QuorumError::DuplicateApprover`] for a repeated
+    /// principal, [`QuorumError::SelfApproval`] when the actor is listed,
+    /// [`QuorumError::ActionValidity`] for a validity outside bounds, and
+    /// model or codec errors from envelope construction.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         canonical: CanonicalAction,
         audience: &Audience,
@@ -188,7 +200,8 @@ impl QuorumProposal {
         evaluation_time: u64,
         validity_seconds: Option<u64>,
         required: u16,
-        approvers: &[QuorumApprover],
+        approvers: &[PrincipalId],
+        actor: &QuorumActor,
     ) -> Result<Self, QuorumError> {
         if approvers.is_empty()
             || approvers.len() > MAX_APPROVERS
@@ -197,148 +210,202 @@ impl QuorumProposal {
         {
             return Err(QuorumError::InvalidQuorum);
         }
-        let distinct: BTreeSet<&str> = approvers
-            .iter()
-            .map(|approver| approver.actor.as_str())
-            .collect();
+        let distinct: BTreeSet<&PrincipalId> = approvers.iter().collect();
         if distinct.len() != approvers.len() {
             return Err(QuorumError::DuplicateApprover);
         }
+        if distinct.contains(&actor.actor) {
+            return Err(QuorumError::SelfApproval);
+        }
+        let requirement = ApprovalRequirement::new(approvers.to_vec(), required)?;
+        let requirement_id = approval_requirement_id(&requirement)?;
         let validity = quorum_validity()?
-            .window(
-                evaluation_time,
-                validity_seconds,
-                approvers
-                    .iter()
-                    .filter_map(|approver| approver.grant_expires_at),
-            )
+            .window(evaluation_time, validity_seconds, actor.grant_expires_at)
             .map_err(QuorumError::from)?;
-        let references = approvers
-            .iter()
-            .map(|approver| member_reference(&challenge, &approver.actor))
-            .collect::<Result<Vec<_>, _>>()?;
+        let reference = actor_reference(&challenge, &actor.actor)?;
         let limits = VerifierLimits::default_deployment();
-        let builder = PlanBuilder::new(&limits);
-        let plan = builder.threshold(
-            required,
-            references
-                .iter()
-                .copied()
-                .map(|reference| builder.proof(reference))
-                .collect(),
-        )?;
-        let plan_identifier = plan_id(&plan)?;
-        let channel = ChannelBindingId::parse("none-v1")?;
-        let envelopes = approvers
+        let plan = PlanBuilder::new(&limits).proof(reference);
+        let plan_identifier = auths_codec::plan_id(&plan)?;
+        let digest = body_digest(canonical.body());
+        let envelope = ActionEnvelope::new(
+            canonical.profile().clone(),
+            canonical.media_type().clone(),
+            digest,
+            canonical.permission().clone(),
+            canonical.requested_budget().cloned(),
+            audience.clone(),
+            Challenge::new(challenge),
+            validity,
+            actor.actor.clone(),
+            actor.terminal_grant,
+            plan_identifier,
+            ChannelBindingId::parse("none-v1")?,
+            reference,
+            Vec::new(),
+            CriticalExtensions::empty(),
+        );
+        let statements = requirement
+            .approvers()
             .iter()
-            .zip(references)
-            .map(|(approver, reference)| {
-                ActionEnvelope::new(
-                    canonical.profile().clone(),
+            .map(|approver| {
+                ApprovalStatement::new(
+                    approver.clone(),
+                    requirement_id,
                     canonical.media_type().clone(),
-                    body_digest(canonical.body()),
+                    digest,
                     canonical.permission().clone(),
                     canonical.requested_budget().cloned(),
+                    None,
                     audience.clone(),
                     Challenge::new(challenge),
                     validity,
-                    approver.actor.clone(),
-                    approver.terminal_grant,
-                    plan_identifier,
-                    channel.clone(),
-                    reference,
-                    Vec::new(),
-                    CriticalExtensions::empty(),
                 )
             })
             .collect();
         Ok(Self {
             canonical,
-            required,
+            requirement,
+            requirement_id,
             plan,
-            envelopes,
+            envelope,
+            statements,
         })
     }
 
-    /// Returns the canonical action every approver signs.
+    /// Returns the canonical action the actor submits and approvers approve.
     #[must_use]
     pub const fn canonical(&self) -> &CanonicalAction {
         &self.canonical
     }
 
-    /// Returns the plan threshold.
+    /// Returns the approval requirement the verifier's trusted context must
+    /// carry.
     #[must_use]
-    pub const fn required(&self) -> u16 {
-        self.required
+    pub const fn requirement(&self) -> &ApprovalRequirement {
+        &self.requirement
     }
 
-    /// Returns the core threshold plan.
+    /// Returns the requirement's identifier, which every statement binds.
+    #[must_use]
+    pub const fn requirement_id(&self) -> ApprovalRequirementId {
+        self.requirement_id
+    }
+
+    /// Returns the threshold.
+    #[must_use]
+    pub const fn required(&self) -> u16 {
+        self.requirement.threshold()
+    }
+
+    /// Returns the listed approvers in ascending order.
+    #[must_use]
+    pub fn approvers(&self) -> &[PrincipalId] {
+        self.requirement.approvers()
+    }
+
+    /// Returns the actor.
+    #[must_use]
+    pub const fn actor(&self) -> &PrincipalId {
+        self.envelope.actor()
+    }
+
+    /// Returns the actor's single-proof plan.
     #[must_use]
     pub const fn plan(&self) -> &AuthorizationPlan {
         &self.plan
     }
 
-    /// Returns one unsigned envelope per approver, in approver order.
+    /// Returns the unsigned envelope the actor signs.
     #[must_use]
-    pub fn envelopes(&self) -> &[ActionEnvelope] {
-        &self.envelopes
+    pub const fn envelope(&self) -> &ActionEnvelope {
+        &self.envelope
     }
 
-    /// Assembles the proof from exactly one approval per listed approver.
+    /// Returns one unsigned statement per listed approver, in ascending
+    /// approver order.
+    #[must_use]
+    pub fn statements(&self) -> &[ApprovalStatement] {
+        &self.statements
+    }
+
+    /// Returns the statement `approver` signs, or `None` when the proposal
+    /// does not list it.
+    #[must_use]
+    pub fn statement(&self, approver: &PrincipalId) -> Option<&ApprovalStatement> {
+        self.slot(approver).map(|index| &self.statements[index])
+    }
+
+    /// Assembles the proof from the actor's signed action and the approvals
+    /// of at least `required` distinct listed approvers.
     ///
     /// Signatures are not checked here; the verifier checks them. An approval
-    /// is accepted only when its envelope equals one of this proposal's
-    /// envelopes byte for byte.
+    /// is accepted only when its statement equals this proposal's statement
+    /// for its approver. Every accepted approval is carried, ordered by
+    /// approval digest, so a later signature failure of one approver does
+    /// not by itself lose the quorum.
     ///
     /// # Errors
     ///
-    /// Returns [`QuorumError::UnknownApproval`], [`QuorumError::DuplicateApproval`],
-    /// [`QuorumError::Incomplete`], [`QuorumError::CollectionLimit`], or a
-    /// model or codec error from bundle construction.
-    pub fn assemble(&self, approvals: &[QuorumApproval]) -> Result<ProofBundle, QuorumError> {
-        let mut filled = vec![false; self.envelopes.len()];
-        let mut grants: Vec<SignedGrant> = Vec::new();
-        let mut grant_ids: BTreeSet<GrantId> = BTreeSet::new();
-        let mut evidence: BTreeMap<EvidenceId, EvidenceObject> = BTreeMap::new();
-        let mut bound: BTreeMap<StatementRef, BTreeSet<EvidenceId>> = BTreeMap::new();
-        let mut actions = Vec::with_capacity(approvals.len());
+    /// Returns [`QuorumError::ActionMismatch`], [`QuorumError::UnknownApproval`],
+    /// [`QuorumError::DuplicateApproval`], [`QuorumError::Incomplete`],
+    /// [`QuorumError::CollectionLimit`], or a model or codec error from
+    /// bundle construction.
+    pub fn assemble(
+        &self,
+        action: &QuorumAction,
+        approvals: &[SignedApproval],
+    ) -> Result<ProofBundle, QuorumError> {
+        if action.action.envelope() != &self.envelope {
+            return Err(QuorumError::ActionMismatch);
+        }
+        let mut filled = vec![false; self.statements.len()];
         for approval in approvals {
             let slot = self
-                .envelopes
-                .iter()
-                .position(|envelope| envelope == approval.action.envelope())
+                .slot(approval.statement().approver())
+                .filter(|slot| &self.statements[*slot] == approval.statement())
                 .ok_or(QuorumError::UnknownApproval)?;
             if std::mem::replace(&mut filled[slot], true) {
                 return Err(QuorumError::DuplicateApproval);
             }
-            for (grant, grant_evidence) in &approval.grants {
-                let id = grant_id(grant.statement())?;
-                if grant_ids.insert(id) {
-                    grants.push(grant.clone());
-                }
-                bind(
-                    &mut evidence,
-                    &mut bound,
-                    StatementRef::Grant(id),
-                    grant_evidence,
-                )?;
+            if bad_approval_evidence(approval.evidence()) {
+                return Err(QuorumError::CollectionLimit);
             }
-            let statement = StatementRef::Action(action_id(approval.action.envelope())?);
+        }
+        let approved = filled.iter().filter(|value| **value).count();
+        if approved < usize::from(self.required()) {
+            return Err(QuorumError::Incomplete {
+                approved,
+                required: self.required(),
+            });
+        }
+        let mut ordered = approvals
+            .iter()
+            .map(|approval| Ok((approval_digest(approval)?, approval.clone())))
+            .collect::<Result<Vec<_>, CodecError>>()?;
+        ordered.sort_by_key(|(digest, _)| *digest);
+
+        let mut grants: Vec<SignedGrant> = Vec::new();
+        let mut grant_ids: BTreeSet<GrantId> = BTreeSet::new();
+        let mut evidence: BTreeMap<EvidenceId, EvidenceObject> = BTreeMap::new();
+        let mut bound: BTreeMap<StatementRef, BTreeSet<EvidenceId>> = BTreeMap::new();
+        for (grant, grant_evidence) in &action.grants {
+            let id = grant_id(grant.statement())?;
+            if grant_ids.insert(id) {
+                grants.push(grant.clone());
+            }
             bind(
                 &mut evidence,
                 &mut bound,
-                statement,
-                &approval.action_evidence,
+                StatementRef::Grant(id),
+                grant_evidence,
             )?;
-            actions.push(approval.action.clone());
         }
-        let signed = filled.iter().filter(|value| **value).count();
-        if signed != self.envelopes.len() {
-            return Err(QuorumError::Incomplete {
-                signed,
-                approvers: self.envelopes.len(),
-            });
-        }
+        bind(
+            &mut evidence,
+            &mut bound,
+            StatementRef::Action(action_id(action.action.envelope())?),
+            &action.action_evidence,
+        )?;
         grants.sort_by_cached_key(|grant| grant_id(grant.statement()).ok());
         let bindings = bound
             .into_iter()
@@ -347,7 +414,7 @@ impl QuorumProposal {
         ProofBundle::new(
             BundleHeader::v1(),
             grants,
-            actions,
+            vec![action.action.clone()],
             self.plan.clone(),
             evidence.into_values().collect(),
             bindings,
@@ -356,23 +423,30 @@ impl QuorumProposal {
             Vec::new(),
             Some(self.canonical.body().to_vec()),
         )
+        .and_then(|bundle| {
+            bundle.with_approvals(ordered.into_iter().map(|(_, approval)| approval).collect())
+        })
         .map_err(|error| match error {
             ModelError::CollectionLimitExceeded => QuorumError::CollectionLimit,
             other => QuorumError::Model(other),
         })
     }
+
+    fn slot(&self, approver: &PrincipalId) -> Option<usize> {
+        self.requirement.approvers().binary_search(approver).ok()
+    }
 }
 
-/// One approver's signed envelope with its public control material.
+/// The actor's signed envelope with its public control material.
 #[derive(Clone, Debug)]
-pub struct QuorumApproval {
+pub struct QuorumAction {
     action: SignedAction,
     grants: Vec<(SignedGrant, Vec<EvidenceObject>)>,
     action_evidence: Vec<EvidenceObject>,
 }
 
-impl QuorumApproval {
-    /// Pairs a signed envelope with the approver's grant chain (root first)
+impl QuorumAction {
+    /// Pairs the actor's signed envelope with its grant chain (root first)
     /// and the public evidence controlling each grant and the action.
     ///
     /// # Errors
@@ -384,7 +458,7 @@ impl QuorumApproval {
         grants: Vec<(SignedGrant, Vec<EvidenceObject>)>,
         action_evidence: Vec<EvidenceObject>,
     ) -> Result<Self, QuorumError> {
-        if grants.len() > MAX_APPROVAL_GRANTS
+        if grants.len() > MAX_ACTOR_GRANTS
             || grants
                 .iter()
                 .any(|(_, evidence)| bad_evidence_count(evidence))
@@ -398,25 +472,12 @@ impl QuorumApproval {
             action_evidence,
         })
     }
-}
 
-/// The verifier-trusted composition an operator installs for a
-/// `required`-of-N quorum: `required` authorized branches from `required`
-/// distinct actors. Two approvals by one principal count once.
-///
-/// # Errors
-///
-/// Returns a model error when the minimums are zero or out of protocol range.
-pub fn quorum_requirement(
-    required: u16,
-    minimum_distinct_roots: u16,
-) -> Result<CompositionRequirement, QuorumError> {
-    Ok(CompositionRequirement::new(
-        None,
-        required,
-        required,
-        minimum_distinct_roots,
-    )?)
+    /// Returns the signed envelope.
+    #[must_use]
+    pub const fn action(&self) -> &SignedAction {
+        &self.action
+    }
 }
 
 fn quorum_validity() -> Result<ActionValidityPolicy, QuorumError> {
@@ -424,20 +485,21 @@ fn quorum_validity() -> Result<ActionValidityPolicy, QuorumError> {
         .map_err(QuorumError::from)
 }
 
-pub(crate) fn member_reference(
-    challenge: &[u8; 32],
-    actor: &PrincipalId,
-) -> Result<ProofRef, QuorumError> {
+fn actor_reference(challenge: &[u8; 32], actor: &PrincipalId) -> Result<ProofRef, QuorumError> {
     let mut canonical = Vec::with_capacity(32 + actor.as_str().len());
     canonical.extend_from_slice(challenge);
     canonical.extend_from_slice(actor.as_str().as_bytes());
     Ok(ProofRef::new(
-        *domain_commitment(MEMBER_REFERENCE_DOMAIN, &canonical)?.as_bytes(),
+        *domain_commitment(ACTOR_REFERENCE_DOMAIN, &canonical)?.as_bytes(),
     ))
 }
 
 fn bad_evidence_count(evidence: &[EvidenceObject]) -> bool {
     evidence.is_empty() || evidence.len() > MAX_STATEMENT_EVIDENCE
+}
+
+pub(crate) fn bad_approval_evidence(evidence: &[EvidenceObject]) -> bool {
+    evidence.is_empty() || evidence.len() > MAX_APPROVER_EVIDENCE
 }
 
 fn bind(

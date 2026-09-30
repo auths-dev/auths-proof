@@ -53,8 +53,8 @@ own test key.
 ## What you get
 
 - **Approval of the exact action.** Approvers sign the exact request (this
-  refund, this amount, this payment), not a permission scope. A plan can
-  require K of N approvers.
+  refund, this amount, this payment), not a permission scope. The verifier's
+  trusted context can require any K of N named approvers, whoever responds.
 - **Limits per agent.** The agent's grant carries its limits, such as a maximum
   refund and a number per day, and the gateway enforces them. Delegation can
   narrow authority but never widen it.
@@ -71,14 +71,15 @@ own test key.
   verifiers agree on a shared corpus of test vectors.
 - **Proof coverage, measured.**
   <!-- proof-coverage:begin -->
-  103 of 960 decision-scope functions (10.7%) and 1,201 of 10,424 code lines
-  (11.5%) are translated to Lean and reached from audited theorem statements,
-  and 15 of 78 kernel check sites map only to such functions. The rest of the
+  110 of 1,031 decision-scope functions (10.7%) and 1,289 of 11,353 code lines
+  (11.4%) are translated to Lean and reached from audited theorem statements,
+  and 15 of 82 kernel check sites map only to such functions. The rest of the
   decision path, including the staged verifier control flow, the composition
   evaluator, the registry handlers, the codec, and the signature suites, is
-  tested, not proved. For K-of-N approval the proofs cover the threshold count
-  function and the two-input helper, not the plan evaluator or the
-  distinct-actor floor. Figures, method, and what they do not mean:
+  tested, not proved. For K-of-N approval the proofs cover the approval count
+  and per-approver verdict functions and the requirement attenuation law, not
+  the verifier step that classifies each approval (binding, window, signature,
+  status). Figures, method, and what they do not mean:
   [`docs/assurance/PROOF_COVERAGE.md`](docs/assurance/PROOF_COVERAGE.md).
   <!-- proof-coverage:end -->
 

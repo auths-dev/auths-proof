@@ -1,17 +1,18 @@
-// Two of three managers approve one exact action before the agent submits it.
+// Any two of three managers approve one exact action before the agent submits it.
 //
 //   node examples/approval-quorum/typescript/two-of-three.mjs [fixture.json]
 //
-// The managers' keys are the public test vectors of
-// bindings/fixtures/gateway/approval-quorum.json; production approvers sign
-// through their own custody adapters. The operator's trust template anchors
-// the three managers and requires two authorized approvals from two distinct
-// actors.
+// The agent and managers' keys are the public test vectors of
+// bindings/fixtures/gateway/approval-quorum.json; production signers use their
+// own custody adapters. The operator's trust template anchors the agent for
+// one MCP tool, names the three managers as approvers, and requires approvals
+// from any two of them. The agent signs the action; each approving manager
+// signs an approval of that exact action. Which two approve does not matter.
 
 import { createPrivateKey, sign } from "node:crypto";
 import { readFileSync } from "node:fs";
 import {
-  AuthoringUnsuccessful, authorMcpQuorumProof, enumField, exactMcpTool, stringField,
+  authorMcpQuorumProof, enumField, exactMcpTool, stringField, verifyCommand,
 } from "@auths-dev/sdk/self-hosted";
 
 const fixturePath = process.argv[2] ??
@@ -31,8 +32,8 @@ const tool = exactMcpTool({
   },
 });
 
-// A manager's signer. The seed is a public test vector, never a secret.
-function manager(member) {
+// A member's signer. The seed is a public test vector, never a secret.
+function signer(member) {
   const key = createPrivateKey({
     key: Buffer.concat([
       Buffer.from("302e020100300506032b657004220420", "hex"),
@@ -41,7 +42,7 @@ function manager(member) {
     format: "der", type: "pkcs8",
   });
   const descriptor = {
-    contract: "signer-custody/2", kind: "workload", adapterId: "example.manager",
+    contract: "signer-custody/2", kind: "workload", adapterId: "example.member",
     principal: member.principal,
     signature: { principalMethod: "raw-key-v1", verificationMethod: member.principal, suite: "ed25519-v1" },
     keyVersion: "example-key-1", keyState: "active-current", lifecycle: "ephemeral",
@@ -67,32 +68,44 @@ function manager(member) {
   };
 }
 
-const managers = new Map(fixture.members.map((member) => [member.name, manager(member)]));
-const vector = fixture.cases.find((item) => item.id === "two-of-three-managers");
-const author = (names, required) => authorMcpQuorumProof({
+const signers = new Map(fixture.members.map((member) => [member.name, signer(member)]));
+const approvers = fixture.approvers.map((name) => signers.get(name).descriptor.principal);
+const template = bytes(fixture.sdk_trusted_context_b64);
+const challenge = new Uint8Array(Buffer.from(fixture.challenge_hex, "hex"));
+const vector = fixture.cases.find((item) => item.id === "managers-a-and-b");
+const author = (names) => authorMcpQuorumProof({
   contract: tool,
   command: tool.decode(JSON.parse(vector.arguments_json)),
-  required,
-  approvers: names.map((name) => ({ signer: managers.get(name) })),
-  trustedContextTemplate: bytes(fixture.sdk_trusted_context_b64),
-  challenge: new Uint8Array(Buffer.from(fixture.challenge_hex, "hex")),
+  actor: signers.get(fixture.actor),
+  required: fixture.required,
+  approvers,
+  signers: names.map((name) => signers.get(name)),
+  trustedContextTemplate: template,
+  challenge,
   evaluationTime: BigInt(fixture.authored_at),
 });
 
-const authored = await author(["manager-a", "manager-b"], 2);
-let single = "authorized";
-try {
-  await author(["manager-a"], 1);
-} catch (error) {
-  if (!(error instanceof AuthoringUnsuccessful)) throw error;
-  single = error.code;
-}
+const authored = await author(["manager-a", "manager-b"]);
+// A different pair authorizes the same action: any two of the three suffice.
+const otherPair = await author(["manager-b", "manager-c"]);
+
+// One approval is not enough: the verifier denies the gateway's own vector.
+const single = fixture.cases.find((item) => item.id === "one-of-three-managers");
+const denied = await verifyCommand({
+  contract: tool,
+  proof: bytes(single.proof_b64),
+  action: bytes(single.action_b64),
+  trustedContext: authored.trustedContext,
+});
+
 console.log(JSON.stringify({
   example: "approval-quorum",
   outcome: "authorized",
-  approvals: authored.plan.approvers.length,
-  members: fixture.members.filter((member) => member.member).length,
-  plan_id: Buffer.from(authored.plan.planId).toString("hex"),
+  approvals: 2,
+  approvers: authored.requirement.approvers.length,
+  required: authored.requirement.required,
+  requirement_id: Buffer.from(authored.requirement.requirementId).toString("hex"),
   matches_gateway_vector: Buffer.from(authored.proof).equals(Buffer.from(bytes(vector.proof_b64))),
-  single_approval: single,
+  any_two_authorize: otherPair.proof.length > 0,
+  single_approval: denied.kind === "authorized" ? "authorized" : denied.code,
 }));

@@ -15,6 +15,7 @@ class SigningObjectKind(_StringEnum):
     ACTION = "action"
     PRINCIPAL_STATUS = "principal-status"
     GRANT_STATUS = "grant-status"
+    APPROVAL = "approval"
     APPROVAL_DECLINE = "approval-decline"
 
 

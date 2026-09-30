@@ -24,7 +24,7 @@ use auths_model::{
     BudgetAlgebraId, BudgetCeiling, CanonicalAction, CriticalExtension, EvidenceId, EvidenceObject,
     ExtensionId, FactName, FactValue, GrantId, GrantStatusSnapshot, PrincipalId, PrincipalMethodId,
     PrincipalStatusSnapshot, ProfilePolicyId, ResourceId, ResourceMatcherId, SignatureSuiteId,
-    StatusMethodId, StatusPolicy, Timestamp, TrustAnchor, VerificationMethod,
+    StatusMethodId, StatusPolicy, StatusView, Timestamp, VerificationMethod,
 };
 use core::fmt;
 use diagnostics::{ControlEvaluation, DiagnosticMode};
@@ -455,11 +455,12 @@ pub trait StatusMethod {
     fn configuration_id(&self) -> AdapterConfigurationId;
     /// Returns a conservative pre-execution work reservation.
     fn maximum_work_units(&self, statement_count: usize) -> u64;
-    /// Evaluates principal status for a branch under `anchor`.
+    /// Evaluates principal status for a branch under a trust anchor, or for an
+    /// approver.
     ///
-    /// Only statements in scope for `anchor` take part
-    /// ([`auths_model::status_issuer_in_scope`]); the result equals the result
-    /// on the same snapshot with every out-of-scope statement removed.
+    /// Only statements visible to `view` take part
+    /// ([`auths_model::status_issuer_visible`]); the result equals the result
+    /// on the same snapshot with every other statement removed.
     ///
     /// # Errors
     ///
@@ -469,11 +470,11 @@ pub trait StatusMethod {
         policy: &StatusPolicy,
         snapshot: &PrincipalStatusSnapshot,
         principal: &PrincipalId,
-        anchor: &TrustAnchor,
+        view: StatusView<'_>,
         evaluation_time: Timestamp,
     ) -> Result<StatusDecision, RegistryOperationError>;
-    /// Evaluates grant status for a branch under `anchor`, with the same scope
-    /// and selection rules.
+    /// Evaluates grant status for a branch under a trust anchor, with the same
+    /// visibility and selection rules.
     ///
     /// # Errors
     ///
@@ -483,7 +484,7 @@ pub trait StatusMethod {
         policy: &StatusPolicy,
         snapshot: &GrantStatusSnapshot,
         grant: GrantId,
-        anchor: &TrustAnchor,
+        view: StatusView<'_>,
         evaluation_time: Timestamp,
     ) -> Result<StatusDecision, RegistryOperationError>;
 }

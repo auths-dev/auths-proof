@@ -2120,6 +2120,9 @@ fn qualified_refinement_metadata(
                 .map(|metadata| (metadata, MODEL_TRANSLATION))
         })
         .or_else(|| {
+            approval_refinement_metadata(declaration).map(|metadata| (metadata, MODEL_TRANSLATION))
+        })
+        .or_else(|| {
             gateway_refinement_metadata(declaration).map(|metadata| (metadata, GATEWAY_TRANSLATION))
         })
         .or_else(|| {
@@ -2130,6 +2133,64 @@ fn qualified_refinement_metadata(
             connections_refinement_metadata(declaration)
                 .map(|metadata| (metadata, CONNECTIONS_TRANSLATION))
         })
+}
+
+fn approval_refinement_metadata(declaration: &str) -> Option<ProductionRefinementMetadata> {
+    const COMMON: &str = "Lean's kernel, the pinned Rust/Charon/Aeneas/Lean toolchain, the reviewed transparent external bridges, the listed foundational axioms, and the theorem's explicit representation-validity premises (every compared principal fits the u32 UTF-8 byte bound) are trusted.";
+    const BOUNDARY: &str = "Approval signature verification, principal status, CBOR decoding, requirement identifiers, and the verifier's stage orchestration are outside this theorem.";
+    const RESIDUAL: &[&str] = &[COMMON, BOUNDARY];
+    const APPROVER_VERDICT: &str = "auths_model::approval::approver_verdict";
+    const COUNTS: &str = "auths_model::approval::approval_counts";
+    const CONTAIN: &str = "auths_model::approval::principal_ids_contain";
+    const SUBSET: &str = "auths_model::approval::principal_ids_subset";
+    const COVERS: &str = "auths_model::approval::approval_requirement_covers";
+    const RETAINED: &str = "auths_model::approval::approval_requirement_retained";
+    const ATTENUATE: &str = "auths_model::approval::approval_requirements_attenuate";
+    let (claim_text, rust_symbols, scope): (&str, &[&str], &str) = match declaration {
+        "Auths.Refinement.Approval.translated_approver_verdict_refines_model" => (
+            "The mechanically translated approver verdict returns exactly the model's approverVerdict over the abstracted outcomes.",
+            &[APPROVER_VERDICT],
+            "The terminating scan of per-approval outcomes for one approver: counted when some outcome is counted, pending when none is and some is pending, ignored otherwise.",
+        ),
+        "Auths.Refinement.Approval.translated_approval_counts_refines_model" => (
+            "The mechanically translated distinct counting returns exactly the model's counted and pending approver counts, whose threshold decision is the model's decideCounts.",
+            &[COUNTS, APPROVER_VERDICT],
+            "The terminating loop over a requirement's listed approvers, each counted once, for every outcome list and every u16 threshold.",
+        ),
+        "Auths.Refinement.Approval.translated_principal_ids_contain_refines_model" => (
+            "The mechanically translated principal-list membership returns exactly the model's list membership.",
+            &[CONTAIN],
+            "The terminating scan of a principal slice for one principal, compared by UTF-8 bytes bridged to String equality.",
+        ),
+        "Auths.Refinement.Approval.translated_principal_ids_subset_refines_model" => (
+            "The mechanically translated principal-list inclusion returns exactly the model's list subset.",
+            &[SUBSET, CONTAIN],
+            "Every principal of the narrower slice occurring in the wider slice.",
+        ),
+        "Auths.Refinement.Approval.translated_approval_requirement_covers_refines_model" => (
+            "The mechanically translated cover check returns exactly the model's covers: approvers a subset and a threshold no lower.",
+            &[COVERS, SUBSET, CONTAIN],
+            "One child and one parent approval requirement.",
+        ),
+        "Auths.Refinement.Approval.translated_approval_requirement_retained_refines_model" => (
+            "The mechanically translated retention loop returns exactly the model's existence of a covering child requirement.",
+            &[RETAINED, COVERS],
+            "The terminating scan of a child requirement list for one parent requirement.",
+        ),
+        "Auths.Refinement.Approval.translated_approval_requirements_attenuate_refines_model" => (
+            "The mechanically translated approval-requirement-v1 attenuation law returns exactly the model's requirementsAttenuate.",
+            &[ATTENUATE, RETAINED, COVERS, SUBSET],
+            "Every parent requirement covered by some child requirement, over requirement lists of any length.",
+        ),
+        _ => return None,
+    };
+    Some(ProductionRefinementMetadata {
+        claim_text,
+        rust_symbols,
+        scope,
+        residual_assumptions: RESIDUAL,
+        translation_evidence_kind: FormalEvidenceKind::MechanicalTranslation,
+    })
 }
 
 fn bounded_policy_link_refinement_metadata(
@@ -3137,6 +3198,34 @@ mod phase_ordering {
             )
             .is_none()
         );
+    }
+
+    #[test]
+    fn approval_refinement_metadata_binds_every_claim_to_the_model_translation() {
+        let inventory = include_str!("../../formal/Auths/Theorems.lean");
+        let qualification = include_str!("../../formal/qualification/aeneas/qualification.toml");
+        let declarations = inventory
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix('`'))
+            .map(|name| name.trim_end_matches(','))
+            .filter(|name| name.starts_with("Auths.Refinement.Approval."))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            declarations.len(),
+            7,
+            "every approval refinement is inventoried"
+        );
+        for declaration in &declarations {
+            let (metadata, artifact) = qualified_refinement_metadata(declaration)
+                .unwrap_or_else(|| panic!("{declaration} lacks qualified metadata"));
+            assert_eq!(artifact, MODEL_TRANSLATION);
+            for symbol in metadata.rust_symbols {
+                assert!(
+                    qualification.contains(&format!("\"{symbol}\"")),
+                    "{declaration} cites {symbol}, which is not a qualified translation symbol"
+                );
+            }
+        }
     }
 
     #[test]

@@ -2,11 +2,11 @@
 
 use alloc::{vec, vec::Vec};
 use auths_model::{
-    AcceptedRegistries, AssurancePolicy, Audience, BudgetAlgebraId, Challenge, ChannelBindingId,
-    CompositionRequirement, EvidenceTypeId, ExtensionId, GrantStatusSnapshot, ModelError,
-    PrincipalStatusSnapshot, ProfilePolicyId, ProfileRef, ResourceMatcherId, SignatureSuiteId,
-    StatusPolicy, StatusSnapshotId, Timestamp, TrustAnchor, TrustedContext,
-    VerifierConfigurationId, VerifierLimits,
+    AcceptedRegistries, ApprovalRequirement, ApproverAnchor, AssurancePolicy, Audience,
+    BudgetAlgebraId, Challenge, ChannelBindingId, CompositionRequirement, EvidenceTypeId,
+    ExtensionId, GrantStatusSnapshot, ModelError, PrincipalStatusSnapshot, ProfilePolicyId,
+    ProfileRef, ResourceMatcherId, SignatureSuiteId, StatusPolicy, StatusSnapshotId, Timestamp,
+    TrustAnchor, TrustedContext, VerifierConfigurationId, VerifierLimits,
 };
 
 use crate::{EXACT_PROFILE_V1, NUMERIC_CEILING_V1, TARGET_V1_REGISTRY_MANIFEST, URI_NAMESPACE_V1};
@@ -20,9 +20,9 @@ const TEMPLATE_AUDIENCE: &str = "auths://request-template";
 /// and the WASM package's template function, so equal inputs give equal
 /// context bytes in every language.
 ///
-/// The accepted registries derive from the inputs: every anchor's principal
-/// methods and profiles, the status method of every anchor whose status
-/// policy requires a snapshot, the assurance policy's claims, and the given
+/// The accepted registries derive from the inputs: every trust anchor's and
+/// approver anchor's principal methods, every trust anchor's profiles, the
+/// status method of every anchor whose status policy requires a snapshot, the assurance policy's claims, and the given
 /// signature suites, evidence types, and critical extensions. The resource
 /// matcher, budget algebra, and profile policy are the target V1 ones. The
 /// template names no request: its audience, challenge, and evaluation time
@@ -40,6 +40,8 @@ pub struct TrustedContextTemplate {
     evidence_types: Vec<EvidenceTypeId>,
     critical_extensions: Vec<ExtensionId>,
     budget_free_profiles: Vec<ProfileRef>,
+    approver_anchors: Vec<ApproverAnchor>,
+    approval_requirements: Vec<ApprovalRequirement>,
 }
 
 impl TrustedContextTemplate {
@@ -92,7 +94,37 @@ impl TrustedContextTemplate {
             evidence_types,
             critical_extensions: Vec::new(),
             budget_free_profiles: Vec::new(),
+            approver_anchors: Vec::new(),
+            approval_requirements: Vec::new(),
         })
+    }
+
+    /// Requires approvals: the anchors that name who may approve and the
+    /// requirements every verified action must satisfy.
+    ///
+    /// Each approver anchor's principal methods are also accepted as evidence
+    /// types. [`Self::compile`] rejects anchors or requirements the trusted
+    /// context cannot carry.
+    ///
+    /// # Errors
+    ///
+    /// Returns a model error when an approver anchor's principal method is
+    /// not a valid evidence identifier.
+    pub fn with_approvals(
+        mut self,
+        approver_anchors: Vec<ApproverAnchor>,
+        approval_requirements: Vec<ApprovalRequirement>,
+    ) -> Result<Self, ModelError> {
+        for method in approver_anchors
+            .iter()
+            .flat_map(ApproverAnchor::accepted_methods)
+        {
+            self.evidence_types
+                .push(EvidenceTypeId::parse(method.as_str())?);
+        }
+        self.approver_anchors = approver_anchors;
+        self.approval_requirements = approval_requirements;
+        Ok(self)
     }
 
     /// Replaces the principal status snapshot.
@@ -162,6 +194,11 @@ impl TrustedContextTemplate {
             self.trust_anchors
                 .iter()
                 .flat_map(TrustAnchor::accepted_methods)
+                .chain(
+                    self.approver_anchors
+                        .iter()
+                        .flat_map(ApproverAnchor::accepted_methods),
+                )
                 .cloned()
                 .collect(),
         );
@@ -175,7 +212,13 @@ impl TrustedContextTemplate {
         let principal_status_methods = sorted_unique(
             self.trust_anchors
                 .iter()
-                .filter_map(|anchor| match anchor.status_policy() {
+                .map(TrustAnchor::status_policy)
+                .chain(
+                    self.approver_anchors
+                        .iter()
+                        .map(ApproverAnchor::status_policy),
+                )
+                .filter_map(|policy| match policy {
                     StatusPolicy::ExpiryOnly => None,
                     StatusPolicy::SnapshotRequired { method, .. } => Some(method.clone()),
                 })
@@ -223,7 +266,8 @@ impl TrustedContextTemplate {
             ProfilePolicyId::parse(EXACT_PROFILE_V1)?,
             self.channel_policy,
             self.limits,
-        )
+        )?
+        .with_approvals(self.approver_anchors, self.approval_requirements)
     }
 }
 
@@ -391,6 +435,55 @@ mod tests {
             context.accepted_registries().budget_free_profiles(),
             [profile("auths.mcp")]
         );
+    }
+
+    #[test]
+    fn approver_anchors_contribute_their_methods_and_the_requirements_compile() {
+        let approver = |name: &str| {
+            ApproverAnchor::new(
+                PrincipalId::parse(name).expect("approver"),
+                vec![PrincipalMethodId::parse("did-key-v1").expect("method")],
+                ValidityWindow::new(Timestamp::new(0), Timestamp::new(100)).expect("validity"),
+                snapshot_policy(),
+            )
+            .expect("approver anchor")
+        };
+        let requirement = ApprovalRequirement::new(
+            vec![
+                PrincipalId::parse("raw:approver-b").expect("approver"),
+                PrincipalId::parse("raw:approver-a").expect("approver"),
+            ],
+            1,
+        )
+        .expect("requirement");
+        let context = template(vec![anchor(
+            "raw:root-a",
+            "raw-key-v1",
+            profile("auths.mcp"),
+            StatusPolicy::ExpiryOnly,
+        )])
+        .with_approvals(
+            vec![approver("raw:approver-b"), approver("raw:approver-a")],
+            vec![requirement.clone()],
+        )
+        .expect("approvals")
+        .compile()
+        .expect("context");
+        let registries = context.accepted_registries();
+        assert!(
+            registries
+                .accepts_principal_method(&PrincipalMethodId::parse("did-key-v1").expect("method"))
+        );
+        assert_eq!(
+            registries
+                .principal_status_methods()
+                .iter()
+                .map(StatusMethodId::as_str)
+                .collect::<Vec<_>>(),
+            ["auths-principal-status-v1"],
+        );
+        assert_eq!(context.approver_anchors().len(), 2);
+        assert_eq!(context.approval_requirements(), [requirement]);
     }
 
     #[test]

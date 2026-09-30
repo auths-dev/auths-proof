@@ -258,11 +258,13 @@ type Context = {
   principalSnapshot: Snapshot<PrincipalStatus>; grantSnapshot: Snapshot<GrantStatus>;
   resourceMatcher: string; profilePolicy: string; channelPolicy: string; limits: bigint[];
   observerAnchors: ObserverAnchor[];
+  approverAnchors: ApproverAnchor[];
+  approvalRequirements: ApprovalRequirement[];
 };
 type Bundle = {
   raw: Uint8Array; grants: Grant[]; actions: Action[]; plan: Plan; evidence: Evidence[];
   bindings: Binding[]; principalStatus: PrincipalStatus[]; grantStatus: GrantStatus[];
-  attachments: V[]; canonicalBody?: Uint8Array;
+  attachments: V[]; canonicalBody?: Uint8Array; approvals: SignedApproval[];
 };
 
 function profile(value: V): Profile {
@@ -600,9 +602,9 @@ function snapshot<T>(value: V, decode: (entry: V) => T): Snapshot<T> {
 
 function context(data: Uint8Array): Context {
   const root = new Decoder(data).complete();
-  exactMap(root, 15);
+  exactMap(root, 17);
   const limitMap = mapAt(root, 0);
-  exactMap(limitMap, 27);
+  exactMap(limitMap, 30);
   const compositionValue = mapAt(root, 2);
   exactMap(compositionValue, 4);
   const expectedPlan = mapAt(compositionValue, 0);
@@ -681,9 +683,13 @@ function context(data: Uint8Array): Context {
     resourceMatcher: text(mapAt(root, 11)),
     profilePolicy: text(mapAt(root, 12)),
     channelPolicy: text(mapAt(root, 13)),
-    limits: Array.from({ length: 27 }, (_, index) => uint(mapAt(limitMap, index))),
+    limits: Array.from({ length: 30 }, (_, index) => uint(mapAt(limitMap, index))),
     observerAnchors: observerAnchors(mapAt(root, 14)),
+    approverAnchors: [],
+    approvalRequirements: [],
   };
+  result.approverAnchors = approverAnchors(mapAt(root, 15), result.limits);
+  result.approvalRequirements = contextApprovalRequirements(mapAt(root, 16), result.limits);
   // Trust anchors are strictly ascending by ID in UTF-8 byte order, so an ID
   // names at most one anchor.
   if (!strictlyAscendingUtf8(result.anchors.map((anchor) => anchor.id))) {
@@ -693,6 +699,7 @@ function context(data: Uint8Array): Context {
   // context invalid.
   validateStatusScopes(result.principalSnapshot.trust, result.anchors);
   validateStatusScopes(result.grantSnapshot.trust, result.anchors);
+  validateApprovalContext(result);
   return result;
 }
 
@@ -708,7 +715,7 @@ function bundle(data: Uint8Array, limits: bigint[]): Bundle {
     }
     throw denied("malformed-proof");
   }
-  exactMap(root, 10);
+  exactMap(root, 11);
   const header = mapAt(root, 0);
   exactMap(header, 2);
   const version = uint(mapAt(header, 0));
@@ -721,13 +728,15 @@ function bundle(data: Uint8Array, limits: bigint[]): Bundle {
   const bindingValues = array(mapAt(root, 5));
   const principalValues = array(mapAt(root, 6));
   const grantValues = array(mapAt(root, 7));
+  const approvalValues = array(mapAt(root, 10));
   if (
     BigInt(grants.length) > limits[3]! ||
     BigInt(actions.length) > limits[4]! ||
     BigInt(evidenceValues.length) > limits[8]! ||
     BigInt(bindingValues.length) > limits[10]! ||
     BigInt(principalValues.length) > limits[11]! ||
-    BigInt(grantValues.length) > limits[12]!
+    BigInt(grantValues.length) > limits[12]! ||
+    BigInt(approvalValues.length) > limits[27]!
   ) throw denied("resource-limit-exceeded");
   const decodedPlan = plan(mapAt(root, 3), 1, limits);
   if (BigInt(collectLeaves(decodedPlan).length) > limits[5]!) {
@@ -751,6 +760,7 @@ function bundle(data: Uint8Array, limits: bigint[]): Bundle {
     grantStatus: grantValues.map(grantStatus),
     attachments,
     canonicalBody,
+    approvals: approvalValues.map((entry) => signedApproval(entry, limits)),
   };
 }
 
@@ -1530,10 +1540,11 @@ function verifyControl(
   contextValue: Context,
   adapters: any,
   { bindings, evidenceByID }: Resolved,
+  meter: WorkMeter,
 ): VerifiedControl[] {
   // Principal control starts by requiring the executable registry and
   // configuration, after every reference has resolved.
-  if (!equal(contextValue.registryManifest, new Uint8Array(32).fill(0x36))) {
+  if (!equal(contextValue.registryManifest, new Uint8Array(32).fill(0x37))) {
     throw denied("registry-manifest-mismatch");
   }
   const localConfiguration = typeof adapters.configuration === "string"
@@ -1642,6 +1653,7 @@ function verifyControl(
   if (value.evidence.some((object) => !consumed.has(keyOf(object.id)))) {
     throw denied("unused-critical-evidence");
   }
+  meter.used = work;
   return controls;
 }
 
@@ -1736,6 +1748,7 @@ function extensionLaw(
   if (child === undefined || !contains(accepted, id)) return false;
   if (id === "exact-marker-v1") return parent !== undefined && equal(child.bytes, parent.bytes);
   if (id === BOUNDED_POLICY_EXTENSION) return boundedPolicyLaw(child, parent);
+  if (id === APPROVAL_EXTENSION) return approvalRequirementLaw(child, parent);
   if (id !== OBSERVATION_EXTENSION) return false;
   try {
     const childRequirements = observationRequirements(child.bytes);
@@ -1904,11 +1917,16 @@ function outOfScope(trust: StatusTrust[], issuer: string, anchor: Anchor): boole
   return trust.some((rule) => rule.issuer === issuer && !scopeCovers(rule, anchor));
 }
 
+/**
+ * Evaluates a principal's status under `policy`. `outside` names the issuers
+ * whose snapshot statements take no part: for a branch, those out of scope for
+ * its trust anchor.
+ */
 function checkPrincipalStatus(
   policy: StatusPolicy,
   principal: string,
   listing: StatusListing,
-  anchor: Anchor,
+  outside: (issuer: string) => boolean,
   contextValue: Context,
   controls: Map<string, VerifiedControl>,
 ): void {
@@ -1919,7 +1937,7 @@ function checkPrincipalStatus(
   const snapshotValue = contextValue.principalSnapshot;
   const candidates: StatusEntry[] = [];
   for (const item of snapshotValue.statements) {
-    if (item.principal !== principal || outOfScope(snapshotValue.trust, item.issuer, anchor)) continue;
+    if (item.principal !== principal || outside(item.issuer)) continue;
     statusControl(controls, 2n, item.id);
     evaluateStatusExtensions(item.extensions, contextValue.extensions);
     candidates.push(item);
@@ -2012,11 +2030,13 @@ function verifyFromAnchor(
   // checked under the anchor's policy: by chain linkage the subjects are every
   // issuer after the root and the actor. Each check sees only the snapshot
   // statements in scope for this anchor.
-  checkPrincipalStatus(anchor.status, anchor.principal, "required", anchor, contextValue, controls);
+  const outside = (issuer: string): boolean =>
+    outOfScope(contextValue.principalSnapshot.trust, issuer, anchor);
+  checkPrincipalStatus(anchor.status, anchor.principal, "required", outside, contextValue, controls);
   for (const grantValue of chain) {
     checkGrantStatus(grantValue.status, grantValue.id, anchor, contextValue, controls);
     checkPrincipalStatus(
-      anchor.status, grantValue.subject, "revocation-list", anchor, contextValue, controls,
+      anchor.status, grantValue.subject, "revocation-list", outside, contextValue, controls,
     );
   }
   if (
@@ -2206,6 +2226,10 @@ function evaluateCriticalExtensions(values: Extension[], accepted: string[]): vo
       evaluateBoundedPolicyExtension(value);
       continue;
     }
+    if (value.id === APPROVAL_EXTENSION) {
+      evaluateApprovalExtension(value);
+      continue;
+    }
     if (value.id !== "exact-marker-v1") throw indeterminate("unsupported-critical-extension");
     if (!equal(value.bytes, Uint8Array.of(1))) throw denied("local-policy-denied");
   }
@@ -2238,6 +2262,7 @@ function verifyAuthority(
   contextValue: Context,
   canonical: CanonicalAction,
   adapters: any,
+  meter: WorkMeter,
 ): { actionIDs: Uint8Array[]; branches: Uint8Array[]; assurance: Participant[] } {
   // Action binding runs once, before any branch: the carried body, each
   // signed action in proof order, the attachments, then the profile policy.
@@ -2279,6 +2304,9 @@ function verifyAuthority(
   const branches: Uint8Array[] = [];
   const actionIDs: Uint8Array[] = [];
   const reports: Participant[] = [];
+  const approvals = new ApprovalEvaluator(
+    value, canonical, contextValue, adapters, controlByStatement, meter,
+  );
   const branch = (reference: Uint8Array): BranchResult => {
     const actionValue = actionByRef.get(keyOf(reference));
     if (!actionValue) return { error: denied("missing-reference") };
@@ -2306,6 +2334,7 @@ function verifyAuthority(
           actionValue, chain, rootControl, anchor, contextValue, controlByStatement,
         );
         evaluateObservations(chain, anchor.principal, actionValue, canonical, contextValue, adapters);
+        approvals.evaluateChain(chain);
         return { actionID: actionValue.id, reports: branchReports };
       } catch (error) {
         if (error instanceof Failure && firstFailure === undefined) firstFailure = error;
@@ -2331,6 +2360,7 @@ function verifyAuthority(
     BigInt(actors.size) < contextValue.composition.minimumDistinctActors ||
     BigInt(roots.size) < contextValue.composition.minimumDistinctRoots
   ) throw denied("composition-requirement-not-met");
+  approvals.evaluateContext();
   return {
     actionIDs: uniqueDigests(actionIDs),
     branches: uniqueBranches,
@@ -2380,9 +2410,10 @@ export function verify(
     }
     const resolved = resolveReferences(proof, contextValue);
     verdict.stage = "principal-control";
-    const controls = verifyControl(proof, contextValue, adapters, resolved);
+    const meter: WorkMeter = { used: 0n };
+    const controls = verifyControl(proof, contextValue, adapters, resolved, meter);
     verdict.stage = "authority";
-    const authority = verifyAuthority(proof, controls, contextValue, canonical, adapters);
+    const authority = verifyAuthority(proof, controls, contextValue, canonical, adapters, meter);
     verdict.stage = "complete";
     verdict.decision = "authorized";
     verdict.code = "authorized";
@@ -3230,5 +3261,445 @@ function boundedPolicyLaw(child: Extension, parent: Extension | undefined): bool
       equal(decoded.parent, domainCommitment("auths.bounded-policy-commitment.v1", parent.bytes));
   } catch {
     return false;
+  }
+}
+
+// Native K-of-N approvals: approver anchors and approval requirements in the
+// trusted context, the approval-requirement-v1 grant critical extension, and
+// signed approvals carried by the proof. Written from the V1 specification,
+// not from the Rust verifier.
+
+const APPROVAL_EXTENSION = "approval-requirement-v1";
+const MAX_APPROVAL_BYTES = 4096;
+const MAX_APPROVAL_EVIDENCE = 4;
+const MAX_APPROVERS = 16;
+const MAX_GRANT_APPROVAL_REQUIREMENTS = 4;
+const MAX_CHAIN_APPROVAL_REQUIREMENTS = 16;
+const MAX_EVALUATED_APPROVAL_REQUIREMENTS = 64;
+
+/** Shared accounting of reserved work units across the stages. */
+type WorkMeter = { used: bigint };
+
+type ApproverAnchor = {
+  principal: string; methods: string[]; notBefore: bigint; expiresAt: bigint; status: StatusPolicy;
+};
+/** "K of these approvers"; `id` is the identifier-type-12 domain hash of its bytes. */
+type ApprovalRequirement = { id: Uint8Array; approvers: string[]; k: bigint };
+type SignedApproval = {
+  raw: Uint8Array; digest: Uint8Array; statementRaw: Uint8Array;
+  approver: string; requirement: Uint8Array; mediaType: string; bodyDigest: Uint8Array;
+  permission: Permission; budget?: Budget; attributes?: Uint8Array; audience: string;
+  challenge: Uint8Array; notBefore: bigint; expiresAt: bigint;
+  signature: Signature; evidence: Evidence[];
+};
+type ApprovalVerdict = "authorized" | "denied" | "indeterminate";
+
+class ApprovalLimit extends Error {}
+
+function boundedText(value: V, maximum: number): string {
+  const result = text(value);
+  const length = Buffer.byteLength(result);
+  if (length === 0 || length > maximum) throw new Error("text outside its size bounds");
+  return result;
+}
+
+/**
+ * Reads one `approval-requirement`: 1 to 16 approver principals, strictly
+ * ascending in UTF-8 byte order, and K from 1 to the number of approvers.
+ * More than 16 approvers throws `ApprovalLimit`; any other invalid shape
+ * throws a plain error.
+ */
+function approvalRequirement(value: V): ApprovalRequirement {
+  exactMap(value, 2);
+  const nodes = array(mapAt(value, 0));
+  if (nodes.length > MAX_APPROVERS) throw new ApprovalLimit();
+  if (nodes.length === 0) throw new Error("approval requirement names no approver");
+  const approvers = nodes.map((node) => boundedText(node, 512));
+  if (!strictlyAscendingUtf8(approvers)) throw new Error("approvers are not strictly ascending");
+  const k = uint(mapAt(value, 1));
+  if (k === 0n || k > BigInt(approvers.length)) throw new Error("approval threshold out of range");
+  return { id: domainHash(12, value.raw), approvers, k };
+}
+
+/** Requirements strictly ascending by identifier, so none repeats. */
+function requirementsAscending(values: ApprovalRequirement[]): boolean {
+  return values.every((value, index) => index === 0 || Buffer.compare(values[index - 1]!.id, value.id) < 0);
+}
+
+/**
+ * Decodes the exact bytes of an `approval-requirement-v1` extension: one to
+ * four requirements, strictly ascending by identifier. Over-bound bytes throw
+ * `ApprovalLimit`.
+ */
+function approvalRequirements(data: Uint8Array): ApprovalRequirement[] {
+  const nodes = array(new Decoder(data).complete());
+  if (nodes.length > MAX_GRANT_APPROVAL_REQUIREMENTS) throw new ApprovalLimit();
+  if (nodes.length === 0) throw new Error("empty approval requirement list");
+  const requirements = nodes.map(approvalRequirement);
+  if (!requirementsAscending(requirements)) throw new Error("approval requirements are not strictly ascending");
+  return requirements;
+}
+
+/** The handler: a bound is a resource limit, any other invalid bytes invalid input. */
+function evaluateApprovalExtension(value: Extension): void {
+  try {
+    approvalRequirements(value.bytes);
+  } catch (error) {
+    throw error instanceof ApprovalLimit
+      ? denied("resource-limit-exceeded")
+      : denied("local-policy-denied");
+  }
+}
+
+/**
+ * A child requirement covers a parent requirement when its approvers are a
+ * subset of the parent's and its K is no lower. Every parent requirement
+ * must be covered; the child may add requirements, and may add the extension
+ * where the parent has none.
+ */
+function approvalRequirementLaw(child: Extension, parent: Extension | undefined): boolean {
+  try {
+    const childRequirements = approvalRequirements(child.bytes);
+    if (parent === undefined) return true;
+    return approvalRequirements(parent.bytes).every((required) =>
+      childRequirements.some((candidate) =>
+        candidate.k >= required.k &&
+        candidate.approvers.every((approver) => required.approvers.includes(approver))));
+  } catch {
+    return false;
+  }
+}
+
+function approverAnchors(value: V, limits: bigint[]): ApproverAnchor[] {
+  const nodes = array(value);
+  if (nodes.length > 32 || BigInt(nodes.length) > limits[28]!) throw denied("resource-limit-exceeded");
+  const anchors = nodes.map((node) => {
+    exactMap(node, 5);
+    const anchor: ApproverAnchor = {
+      principal: boundedText(mapAt(node, 0), 512),
+      methods: array(mapAt(node, 1)).map((entry) => boundedText(entry, 128)),
+      notBefore: uint(mapAt(node, 2)),
+      expiresAt: uint(mapAt(node, 3)),
+      status: statusPolicy(mapAt(node, 4)),
+    };
+    if (anchor.methods.length === 0 || anchor.methods.length > 1024 ||
+        !strictlyAscendingUtf8(anchor.methods) || anchor.notBefore > anchor.expiresAt) {
+      throw new Error("invalid approver anchor");
+    }
+    return anchor;
+  });
+  if (!strictlyAscendingUtf8(anchors.map((anchor) => anchor.principal))) {
+    throw new Error("approver anchors are not strictly ascending by principal");
+  }
+  return anchors;
+}
+
+function contextApprovalRequirements(value: V, limits: bigint[]): ApprovalRequirement[] {
+  const nodes = array(value);
+  if (nodes.length > 4 || BigInt(nodes.length) > limits[29]!) throw denied("resource-limit-exceeded");
+  let requirements: ApprovalRequirement[];
+  try {
+    requirements = nodes.map(approvalRequirement);
+  } catch (error) {
+    // More than 16 approvers in one requirement is a resource limit, like
+    // too many approver anchors or requirements.
+    if (error instanceof ApprovalLimit) throw denied("resource-limit-exceeded");
+    throw error;
+  }
+  if (!requirementsAscending(requirements)) {
+    throw new Error("context approval requirements are not strictly ascending");
+  }
+  return requirements;
+}
+
+/**
+ * Rejects a context whose approval configuration is inconsistent: a
+ * requirement naming a principal without an approver anchor, or an approver
+ * anchor accepting a principal method or principal-status method the context
+ * does not accept. Repeated requirements and K above the approver count are
+ * rejected as the requirements are read.
+ */
+function validateApprovalContext(contextValue: Context): void {
+  const principals = new Set(contextValue.approverAnchors.map((anchor) => anchor.principal));
+  for (const requirement of contextValue.approvalRequirements) {
+    if (!requirement.approvers.every((approver) => principals.has(approver))) {
+      throw new Error("approval requirement names a principal without an approver anchor");
+    }
+  }
+  for (const anchor of contextValue.approverAnchors) {
+    if (!anchor.methods.every((method) => contains(contextValue.principalMethods, method))) {
+      throw new Error("approver anchor accepts a principal method the context does not");
+    }
+    if (anchor.status.kind === 1n && !contains(contextValue.principalStatuses, anchor.status.method!)) {
+      throw new Error("approver anchor names a status method the context does not accept");
+    }
+  }
+}
+
+/**
+ * Decodes one signed approval from the proof bundle. An approval longer than
+ * 4096 bytes or with more than four evidence objects is a resource limit;
+ * every other invalid shape is malformed.
+ */
+function signedApproval(value: V, limits: bigint[]): SignedApproval {
+  if (value.raw.length > MAX_APPROVAL_BYTES) throw denied("resource-limit-exceeded");
+  exactMap(value, 3);
+  const evidenceNodes = array(mapAt(value, 2));
+  if (evidenceNodes.length > MAX_APPROVAL_EVIDENCE) throw denied("resource-limit-exceeded");
+  const statement = mapAt(value, 0);
+  exactMap(statement, 13);
+  if (uint(mapAt(statement, 0)) !== 1n) throw new Error("unsupported approval protocol");
+  const notBefore = uint(mapAt(statement, 11));
+  const expiresAt = uint(mapAt(statement, 12));
+  if (notBefore > expiresAt) throw new Error("invalid approval validity");
+  const evidenceValues: Evidence[] = [];
+  for (const node of evidenceNodes) {
+    const object = evidence(node, limits[9]!);
+    const previous = evidenceValues[evidenceValues.length - 1];
+    if (previous !== undefined && Buffer.compare(previous.id, object.id) >= 0) {
+      throw new Error("approval evidence is not strictly ordered");
+    }
+    evidenceValues.push(object);
+  }
+  return {
+    raw: value.raw,
+    digest: sha256(value.raw),
+    statementRaw: statement.raw,
+    approver: boundedText(mapAt(statement, 1), 512),
+    requirement: bytes(mapAt(statement, 2), 32),
+    mediaType: boundedText(mapAt(statement, 3), 128),
+    bodyDigest: bytes(mapAt(statement, 4), 32),
+    permission: {
+      capability: boundedText(mapAt(statement, 5), 128),
+      resource: boundedText(mapAt(statement, 6), 1024),
+    },
+    budget: budget(mapAt(statement, 7)),
+    attributes: optionalBytes(mapAt(statement, 8)),
+    audience: boundedText(mapAt(statement, 9), 512),
+    challenge: bytes(mapAt(statement, 10), 32),
+    notBefore,
+    expiresAt,
+    signature: signature(mapAt(value, 1)),
+    evidence: evidenceValues,
+  };
+}
+
+/**
+ * Evaluates approval requirements for one verification. A requirement's
+ * verdict depends only on the requirement, the proof, the canonical action,
+ * and the context, so each distinct requirement is evaluated once and later
+ * appearances reuse the verdict; the 65th distinct requirement is a resource
+ * limit.
+ */
+class ApprovalEvaluator {
+  private readonly verdicts = new Map<string, ApprovalVerdict>();
+  private readonly authorities: Set<string>;
+  private readonly approvals: SignedApproval[];
+  private readonly canonical: CanonicalAction;
+  private readonly contextValue: Context;
+  private readonly adapters: any;
+  private readonly controls: Map<string, VerifiedControl>;
+  private readonly meter: WorkMeter;
+
+  constructor(
+    proof: Bundle,
+    canonical: CanonicalAction,
+    contextValue: Context,
+    adapters: any,
+    controls: Map<string, VerifiedControl>,
+    meter: WorkMeter,
+  ) {
+    this.canonical = canonical;
+    this.contextValue = contextValue;
+    this.adapters = adapters;
+    this.controls = controls;
+    this.meter = meter;
+    // The authority principals: every grant's issuer and subject and every
+    // action's actor in the proof.
+    this.authorities = new Set<string>();
+    for (const grantValue of proof.grants) {
+      this.authorities.add(grantValue.issuer);
+      this.authorities.add(grantValue.subject);
+    }
+    for (const actionValue of proof.actions) this.authorities.add(actionValue.actor);
+    // Byte-identical repetitions removed, the rest in approval-digest order.
+    const unique = new Map<string, SignedApproval>();
+    for (const approval of proof.approvals) unique.set(keyOf(approval.raw), approval);
+    this.approvals = [...unique.values()].sort((left, right) => Buffer.compare(left.digest, right.digest));
+  }
+
+  /** The grant-carried requirements of one branch's chain, root first. */
+  evaluateChain(chain: Grant[]): void {
+    const requirements: ApprovalRequirement[] = [];
+    for (const grantValue of chain) {
+      for (const extension of grantValue.extensions) {
+        if (extension.id !== APPROVAL_EXTENSION) continue;
+        let decoded: ApprovalRequirement[];
+        try {
+          decoded = approvalRequirements(extension.bytes);
+        } catch (error) {
+          throw error instanceof ApprovalLimit
+            ? denied("resource-limit-exceeded")
+            : denied("local-policy-denied");
+        }
+        for (const requirement of decoded) {
+          if (!requirements.some((existing) => equal(existing.id, requirement.id))) {
+            requirements.push(requirement);
+          }
+        }
+      }
+    }
+    if (requirements.length > MAX_CHAIN_APPROVAL_REQUIREMENTS) throw denied("resource-limit-exceeded");
+    this.evaluateList(requirements);
+  }
+
+  /** The trusted context's requirements, in ascending identifier order. */
+  evaluateContext(): void {
+    this.evaluateList(this.contextValue.approvalRequirements);
+  }
+
+  private evaluateList(requirements: ApprovalRequirement[]): void {
+    let unavailable = false;
+    for (const requirement of requirements) {
+      const verdict = this.verdict(requirement);
+      if (verdict === "denied") throw denied("approval-threshold-not-met");
+      if (verdict === "indeterminate") unavailable = true;
+    }
+    if (unavailable) throw indeterminate("approval-unavailable");
+  }
+
+  private verdict(requirement: ApprovalRequirement): ApprovalVerdict {
+    const key = keyOf(requirement.id);
+    const cached = this.verdicts.get(key);
+    if (cached !== undefined) return cached;
+    if (this.verdicts.size >= MAX_EVALUATED_APPROVAL_REQUIREMENTS) throw denied("resource-limit-exceeded");
+    const verdict = this.evaluate(requirement);
+    this.verdicts.set(key, verdict);
+    return verdict;
+  }
+
+  private evaluate(requirement: ApprovalRequirement): ApprovalVerdict {
+    const counted = new Set<string>();
+    const pending = new Set<string>();
+    for (const approval of this.approvals) {
+      const approver = approval.approver;
+      if (!requirement.approvers.includes(approver) || this.authorities.has(approver) ||
+          counted.has(approver)) continue;
+      if (!this.bindsAction(approval, requirement)) continue;
+      const anchor = this.eligibleAnchor(approval);
+      if (anchor === undefined) continue;
+      const signatureResult = this.verifyApprovalSignature(approval);
+      if (signatureResult === "skip") continue;
+      if (signatureResult === "pending") {
+        pending.add(approver);
+        continue;
+      }
+      const statusResult = this.approverStatus(anchor);
+      if (statusResult === "skip") continue;
+      if (statusResult === "pending") {
+        pending.add(approver);
+        continue;
+      }
+      counted.add(approver);
+    }
+    const a = BigInt(counted.size);
+    const i = BigInt([...pending].filter((approver) => !counted.has(approver)).length);
+    if (a >= requirement.k) return "authorized";
+    if (a + i >= requirement.k) return "indeterminate";
+    return "denied";
+  }
+
+  /** The exact requirement, canonical action, audience, and challenge. */
+  private bindsAction(approval: SignedApproval, requirement: ApprovalRequirement): boolean {
+    return equal(approval.requirement, requirement.id) &&
+      approval.mediaType === this.canonical.mediaType &&
+      equal(approval.bodyDigest, sha256(this.canonical.body)) &&
+      samePermission(approval.permission, this.canonical.permission) &&
+      sameBudget(approval.budget, this.canonical.budget) &&
+      approval.attributes === undefined &&
+      approval.audience === this.contextValue.expectedAudience &&
+      equal(approval.challenge, this.contextValue.expectedChallenge);
+  }
+
+  /**
+   * The approval's window contains the evaluation time, and so does the
+   * window of the approver anchor for its approver, which accepts the
+   * approval's principal method.
+   */
+  private eligibleAnchor(approval: SignedApproval): ApproverAnchor | undefined {
+    const now = this.contextValue.evaluationTime;
+    if (now < approval.notBefore || now > approval.expiresAt) return undefined;
+    const anchor = this.contextValue.approverAnchors.find((candidate) =>
+      candidate.principal === approval.approver);
+    if (anchor === undefined || now < anchor.notBefore || now > anchor.expiresAt) return undefined;
+    if (!contains(anchor.methods, approval.signature.descriptor.method)) return undefined;
+    return anchor;
+  }
+
+  /**
+   * Verifies the signature as stage 3 verifies a statement's, over the object
+   * type 10 preimage with the canonical action's profile, purpose assertion,
+   * signing time `not_before`, and the approval's own evidence. An
+   * unavailable capability or an indeterminate method result is pending;
+   * any other failure, or consumed evidence other than the approval's, skips.
+   */
+  private verifyApprovalSignature(approval: SignedApproval): "counted" | "pending" | "skip" {
+    const descriptor = approval.signature.descriptor;
+    const preimage = signingPreimage(10, this.canonical.profile, approval.statementRaw, descriptor.raw);
+    let verified: Control;
+    try {
+      verified = control(
+        descriptor.method, approval.approver, descriptor, 2n, approval.notBefore,
+        preimage, approval.evidence, this.contextValue, this.adapters,
+      );
+    } catch (error) {
+      return error instanceof Failure && error.decision === "indeterminate" ? "pending" : "skip";
+    }
+    const limit = this.contextValue.limits[26]!;
+    this.meter.used += verified.work;
+    if (this.meter.used > limit) throw denied("resource-limit-exceeded");
+    this.meter.used += descriptor.suite === "p256-sha256-v1" ? 250n : 100n;
+    if (this.meter.used > limit) throw denied("resource-limit-exceeded");
+    const consumed = verified.consumed.map((id) => keyOf(id)).sort();
+    const supplied = approval.evidence.map((object) => keyOf(object.id)).sort();
+    if (consumed.length !== supplied.length || consumed.some((id, index) => id !== supplied[index])) {
+      return "skip";
+    }
+    let valid: boolean;
+    try {
+      valid = verifySignature(
+        descriptor.suite, verified.key, verified.signatureMessage ?? preimage,
+        approval.signature.signature,
+      );
+    } catch {
+      valid = false;
+    }
+    return valid ? "counted" : "skip";
+  }
+
+  /**
+   * Under a snapshot-required policy, the approver's principal status is
+   * evaluated as a trust anchor's, where a statement takes part only when no
+   * rule of the snapshot names its issuer or every rule naming it has scope
+   * `any`: an approver anchor is no trust anchor. A denial skips the
+   * approval; an indeterminate status makes it pending.
+   */
+  private approverStatus(anchor: ApproverAnchor): "counted" | "pending" | "skip" {
+    if (anchor.status.kind === 0n) return "counted";
+    const trust = this.contextValue.principalSnapshot.trust;
+    const outside = (issuer: string): boolean =>
+      trust.some((rule) => rule.issuer === issuer && rule.scope.kind !== "any");
+    try {
+      checkPrincipalStatus(
+        anchor.status, anchor.principal, "required", outside, this.contextValue, this.controls,
+      );
+    } catch (error) {
+      if (error instanceof Failure) {
+        if (error.code === "resource-limit-exceeded") throw error;
+        return error.decision === "indeterminate" ? "pending" : "skip";
+      }
+      return "skip";
+    }
+    return "counted";
   }
 }

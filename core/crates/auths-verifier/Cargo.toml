@@ -40,6 +40,7 @@ auths-spiffe-x509 = { path = "../../adapters/auths-spiffe-x509", default-feature
 auths-testkit = { path = "../../testkit/auths-testkit" }
 auths-webauthn = { path = "../../adapters/auths-webauthn", default-features = false, features = ["std"] }
 ed25519-dalek.workspace = true
+proptest.workspace = true
 
 [lints]
 workspace = true

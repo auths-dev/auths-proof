@@ -45,7 +45,7 @@ structure auths_algebra_kernel.RootLinkage (Identity : Type) where
   grant_issuer : Identity
 
 /-- Trait declaration: [auths_model::CriticalExtensionLaws]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1108:0-1108:31
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1121:0-1121:31
     Name pattern: [auths_model::CriticalExtensionLaws]
     Visibility: public -/
 @[rust_trait "auths_model::CriticalExtensionLaws"]
@@ -54,7 +54,7 @@ structure auths_model.CriticalExtensionLaws (Self : Type) where
     Option (Slice Std.U8) → Result Bool
 
 /-- [auths_model::GrantAuthorityView]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1356:0-1356:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1369:0-1369:33
     Name pattern: [auths_model::GrantAuthorityView]
     Visibility: public -/
 @[rust_type "auths_model::GrantAuthorityView"]
@@ -74,7 +74,7 @@ structure auths_model.GrantAuthorityView where
   extensions : auths_model.CriticalExtensions
 
 /-- [auths_model::ScopeAuthorityView]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1376:0-1376:33
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1389:0-1389:33
     Name pattern: [auths_model::ScopeAuthorityView]
     Visibility: public -/
 @[rust_type "auths_model::ScopeAuthorityView"]
@@ -91,7 +91,7 @@ structure auths_model.ScopeAuthorityView where
   extensions : auths_model.CriticalExtensions
 
 /-- [auths_model::ActionAuthorityView]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 1584:0-1584:34
+    Source: 'core/crates/auths-model/src/lib.rs', lines 1597:0-1597:34
     Name pattern: [auths_model::ActionAuthorityView]
     Visibility: public -/
 @[rust_type "auths_model::ActionAuthorityView"]
@@ -106,7 +106,7 @@ structure auths_model.ActionAuthorityView where
   terminal_grant : Option auths_model.GrantId
 
 /-- [auths_model::DenialReason]
-    Source: 'core/crates/auths-model/src/lib.rs', lines 4675:0-4675:21
+    Source: 'core/crates/auths-model/src/lib.rs', lines 4879:0-4879:21
     Name pattern: [auths_model::DenialReason]
     Visibility: public -/
 @[discriminant isize, rust_type "auths_model::DenialReason"]
@@ -156,6 +156,7 @@ inductive auths_model.DenialReason where
 | ObservationConditionFalse : auths_model.DenialReason
 | ObserverInAuthorityChain : auths_model.DenialReason
 | ObservationRequirementDropped : auths_model.DenialReason
+| ApprovalThresholdNotMet : auths_model.DenialReason
 
 /-- [auths_authority::AcceptedTransition]
     Source: 'core/crates/auths-authority/src/lib.rs', lines 54:0-66:1

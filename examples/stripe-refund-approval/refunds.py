@@ -1,20 +1,21 @@
-"""Stripe refunds an AI agent may request only with two of three manager
-approvals and inside a per-agent limit, submitted through the Auths gateway.
+"""Stripe refunds an AI agent may make only once any two of three managers
+approved them, inside a per-agent limit, submitted through the Auths gateway.
 
 Commands, in the order the README runs them:
 
     python refunds.py setup   --state DIR --gateway auths-gateway
     python refunds.py request --state DIR --operation-id ID --payment-intent PI \\
-                              --amount CENTS --approvers a,b --out REQUESTS \\
+                              --amount CENTS --out REQUESTS \\
                               [--currency usd] [--connect-account acct_...] [--precheck]
     auths approve REQUESTS/manager-a.request \\
                               --signer DIR/signers/manager-a.json --out REQUESTS/manager-a.response
     python refunds.py submit  --state DIR --socket SOCK --operation-id ID --responses REQUESTS
     python refunds.py export  --state DIR --out audit-bundle.json
 
-``submit`` sends every assembled proof to the gateway: only the gateway
-decides the approval threshold, the ceiling, the per-window count, and
-whether an operation ID may run again. ``request --precheck`` is an opt-in,
+``submit`` has the agent sign its refund and sends the assembled proof to the
+gateway once two managers approved: only the gateway decides the approval
+threshold, the ceiling, the per-window count, and whether an operation ID may
+run again. ``request --precheck`` is an opt-in,
 client-side pre-check and not an enforcement boundary. Every outcome record
 says who decided it in ``decided_by``: ``gateway``, ``approver``, or
 ``client``.
@@ -23,9 +24,12 @@ says who decided it in ``decided_by``: ``gateway``, ``approver``, or
 more agent its own grant with the same limits and another count; the journey
 uses it for the refusals that consume a count slot.
 
-The agent writes one approval request per manager; each manager answers with
-``auths approve`` on their own machine, and the agent collects the
-response files. Everything here uses development keys stored under
+The agent writes one approval request per manager; any manager may answer
+with ``auths approve`` on their own machine, and the agent collects whatever
+response files exist. Whoever answers first counts: the third manager need
+not answer. The agent's own approval never counts. ``request --required N``
+lowers the threshold the requests name; it is a hostile lever for the
+journey, and the gateway refuses what it produces. Everything here uses development keys stored under
 ``DIR/keys`` so one person can play every role; they are development custody.
 In production the root and each manager sign through their own custody
 adapters, and the agent never holds the managers' keys. The Stripe secret key
@@ -60,14 +64,12 @@ from auths.adapters.custody import (
     SigningResponse,
 )
 from auths.authoring import (
-    ApprovalMember,
     ApprovalProposal,
     GrantEvidence,
     approval_requests,
-    approve,
     collect_approvals,
-    open_approval_request,
     propose_mcp_approval,
+    sign_approval_action,
 )
 from auths.gateway import GatewayClient, GatewayEndpoint, GatewaySignedObservation
 
@@ -77,9 +79,9 @@ HERE = Path(__file__).resolve().parent
 RECIPE = HERE / "recipe.json"
 PROFILE_LOCK = HERE / "profile.lock.json"
 MANAGERS = ("manager-a", "manager-b", "manager-c")
-# The gateway's trusted context requires this many authorized approvals from
-# as many distinct actors and roots: the agent and two managers.
-APPROVALS_REQUIRED = 3
+# The gateway's trusted context requires approvals from this many of the
+# three managers, any of them.
+APPROVALS_REQUIRED = 2
 ROLES = ("root", "agent") + MANAGERS
 ASSURANCE = "raw-key-baseline"
 DAY = 86_400
@@ -224,14 +226,15 @@ def _root_grant(
 def _trusted_context(
     configuration: bytes,
     anchors: List[Any],
+    approvers: List[Any],
+    requirement: tuple[List[str], int],
     audience: str,
     challenge: bytes,
     now: int,
-    required: int,
     extension: str,
 ) -> bytes:
-    """``required`` authorized approvals from as many distinct actors and
-    distinct roots, under the anchors given."""
+    """One authorized branch from one actor under one root, and approvals
+    from any `threshold` of the approvers ``requirement`` names."""
     assurance = _native.AssurancePolicy(
         ASSURANCE,
         [
@@ -243,9 +246,9 @@ def _trusted_context(
     template = _native.compile_trusted_context(
         configuration,
         None,
-        required,
-        required,
-        required,
+        1,
+        1,
+        1,
         anchors,
         assurance,
         None,
@@ -253,6 +256,8 @@ def _trusted_context(
         "none-v1",
         ["raw-key-v1"],
         [extension],
+        approvers,
+        [requirement],
     )
     return bytes(_native.inspect_trusted_context(template.bind_request(audience, challenge, now)))
 
@@ -309,25 +314,35 @@ def setup(args: argparse.Namespace) -> None:
             None,
         )
 
-    # The root may delegate once (to the agent); managers approve directly.
-    anchors = [anchor("root", 1)] + [anchor(name, 0) for name in MANAGERS]
+    # The root is the only trust anchor and may delegate once, to the agent.
+    # The managers are approver anchors: they approve and hold no authority.
+    anchors = [anchor("root", 1)]
+    approvers = [
+        _native.ApproverAnchor(
+            _native.Principal(principals[name]), ["raw-key-v1"], not_before, expires_at, None
+        )
+        for name in MANAGERS
+    ]
+    requirement = ([principals[name] for name in MANAGERS], APPROVALS_REQUIRED)
     extension = bound["extension_id"]
     gateway_context = _trusted_context(
         bytes.fromhex(review["verifier_configuration"]),
         anchors,
+        approvers,
+        requirement,
         audience,
         challenge,
         now,
-        APPROVALS_REQUIRED,
         extension,
     )
     sdk_context = _trusted_context(
         bytes(_native.self_contained_configuration()),
         anchors,
+        approvers,
+        requirement,
         audience,
         challenge,
         now,
-        APPROVALS_REQUIRED,
         extension,
     )
 
@@ -354,6 +369,7 @@ def setup(args: argparse.Namespace) -> None:
         "trusted_context_sha256": hashlib.sha256(gateway_context).hexdigest(),
         "principals": principals,
         "approvals_required": APPROVALS_REQUIRED,
+        "approvers": list(MANAGERS),
         "connect_account": args.connect_account,
         "limits": limits,
         "bound": {
@@ -397,9 +413,6 @@ def _proposal(state: Path, operation: str) -> ApprovalProposal[CreateRefund]:
     facts = json.loads((state / "setup.json").read_text())
     principals = _principals(state)
     pending = json.loads((state / "pending" / f"{operation}.json").read_text())
-    managers = pending["managers"]
-    requester = principals[pending["agent"]]
-    agent = ApprovalMember(requester, (state / f"{pending['agent']}.grant.cbor").read_bytes())
     return propose_mcp_approval(
         contract=CONTRACT,
         command=CreateRefund(
@@ -411,10 +424,11 @@ def _proposal(state: Path, operation: str) -> ApprovalProposal[CreateRefund]:
             connect_account=pending["connect_account"],
             currency=pending["currency"],
         ),
-        # The agent and every listed manager approve the same exact refund.
-        required=1 + len(managers),
-        approvers=[agent] + [ApprovalMember(principals[name]) for name in managers],
-        requester=requester,
+        # Any `required` of the three managers approve the agent's exact refund.
+        required=pending["required"],
+        approvers=[principals[name] for name in MANAGERS],
+        actor=principals[pending["agent"]],
+        actor_grant=(state / f"{pending['agent']}.grant.cbor").read_bytes(),
         challenge=bytes.fromhex(facts["challenge_hex"]),
         evaluation_time=pending["evaluation_time"],
         validity_seconds=APPROVAL_WINDOW,
@@ -432,13 +446,11 @@ PRECHECK_NOTE = (
 )
 
 
-def _precheck(facts: Dict[str, Any], listed: List[str], amount: int) -> Optional[str]:
+def _precheck(facts: Dict[str, Any], required: int, amount: int) -> Optional[str]:
     """The rule a request breaks by what ``setup.json`` states, if any. It
     checks no signature, window count, or operation ID: only the gateway
     decides those."""
-    if len(set(listed)) != len(listed):
-        return "repeated-approver"
-    if 1 + len(set(listed)) < facts["approvals_required"]:
+    if required < facts["approvals_required"]:
         return "approvals-below-threshold"
     if amount > facts["bound"]["ceiling"]:
         return "above-ceiling"
@@ -464,18 +476,15 @@ def _write_pending(state: Path, operation: str, data: bytes) -> None:
     _private_write(path, data)
 
 
-async def _request(args: argparse.Namespace) -> Dict[str, Any]:
+def _request(args: argparse.Namespace) -> Dict[str, Any]:
     state: Path = args.state
     facts = json.loads((state / "setup.json").read_text())
     principals = _principals(state)
-    listed = [name for name in args.approvers.split(",") if name]
-    unknown = sorted(set(listed) - set(MANAGERS))
-    if unknown:
-        raise SystemExit(f"approvers must be names from {', '.join(MANAGERS)}; got {', '.join(unknown)}")
     if args.agent in MANAGERS or args.agent == "root" or args.agent not in principals:
         raise SystemExit(f"{args.agent} is not an agent of {state}")
+    required = facts["approvals_required"] if args.required is None else args.required
     if args.precheck:
-        rule = _precheck(facts, listed, args.amount)
+        rule = _precheck(facts, required, args.amount)
         if rule is not None:
             return {
                 "operation_id": args.operation_id,
@@ -485,20 +494,15 @@ async def _request(args: argparse.Namespace) -> Dict[str, Any]:
                 "precheck": rule,
                 "note": PRECHECK_NOTE,
             }
-    managers: List[str] = []
-    for name in listed:
-        if name in managers:
-            print(
-                f"dropped the repeated approver {name}: a proposal cannot name one "
-                "approver twice; the gateway decides the threshold for the approvers "
-                "that remain",
-                file=sys.stderr,
-            )
-            continue
-        managers.append(name)
+    if required != facts["approvals_required"]:
+        print(
+            f"the requests name a threshold of {required}, not the {facts['approvals_required']} "
+            "the trust installs; the gateway decides whether the approvals count",
+            file=sys.stderr,
+        )
     pending = {
         "agent": args.agent,
-        "managers": managers,
+        "required": required,
         "payment_intent": args.payment_intent,
         "amount": args.amount,
         "currency": args.currency,
@@ -513,19 +517,12 @@ async def _request(args: argparse.Namespace) -> Dict[str, Any]:
     written: Dict[str, str] = {}
     for request in approval_requests(proposal):
         name = names[request.approver]
-        if name == args.agent:
-            # The agent approves its own request like any other approver.
-            reviewed = open_approval_request(request.data)
-            response = await approve(
-                reviewed, _signer(state, name), grants=_agent_grants(state, name)
-            )
-            (out / "agent.response").write_text(response.text + "\n")
-            continue
         path = out / f"{name}.request"
         path.write_text(request.text + "\n")
         written[name] = str(path)
     return {
         "operation_id": args.operation_id,
+        "required": proposal.requirement.required,
         "requests": written,
         "action_b64": _b64(proposal.action),
     }
@@ -571,35 +568,40 @@ async def _submit(args: argparse.Namespace) -> Dict[str, Any]:
             handle.write(json.dumps(line, separators=(",", ":")) + "\n")
     collection = collect_approvals(proposal, texts)
     statuses = {names.get(item.approver, item.approver): item for item in collection.statuses}
+    approved = sorted(name for name, item in statuses.items() if item.status == "approved")
     declined = sorted(name for name, item in statuses.items() if item.status == "declined")
+    pending = sum(item.status == "pending" for item in statuses.values())
+    record.update(approved=approved, required=collection.required)
     if declined:
-        record.update(
-            outcome="not-submitted",
-            decided_by="approver",
-            reason="approver-declined",
-            declined=declined,
-        )
-        return record
-    waiting = {
-        name: item.code or item.status
-        for name, item in statuses.items()
-        if item.status != "approved"
-    }
-    if waiting:
-        # No proof exists until every listed approver approved this exact
+        record["declined"] = declined
+    if collection.approved < collection.required:
+        if declined and collection.approved + pending < collection.required:
+            # Too many managers declined for any later answer to make a quorum.
+            record.update(outcome="not-submitted", decided_by="approver", reason="approvers-declined")
+            return record
+        # No proof exists until `required` managers approved this exact
         # request, so nothing can be sent; this is not a policy refusal.
         record.update(
             outcome="not-submitted",
             decided_by="client",
             reason="approvals-incomplete",
-            waiting=waiting,
+            waiting={
+                name: item.code or item.status
+                for name, item in statuses.items()
+                if item.status != "approved"
+            },
             unattributed=[[index, code] for index, code in collection.unattributed],
         )
         return record
-    # Every assembled proof goes to the gateway. Collection checks every
-    # envelope byte for byte; only the gateway decides the threshold, the
-    # ceiling, the count, and whether the operation ID may run.
-    proof = collection.assemble()
+    # The agent signs its exact refund only now, and every assembled proof
+    # goes to the gateway. Collection checks every approval statement byte for
+    # byte; only the gateway decides the threshold, the ceiling, the count,
+    # and whether the operation ID may run.
+    agent = json.loads((state / "pending" / f"{args.operation_id}.json").read_text())["agent"]
+    action = await sign_approval_action(
+        proposal, _signer(state, agent), grants=_agent_grants(state, agent)
+    )
+    proof = collection.assemble(action)
     gateway = GatewayClient(GatewayEndpoint(args.socket.resolve()))
     result = await gateway.submit(proof=proof, action=proposal.action)
     record.update(dataclasses.asdict(result))
@@ -661,7 +663,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     request.add_argument("--operation-id", required=True)
     request.add_argument("--payment-intent", required=True)
     request.add_argument("--amount", type=int, required=True, help="cents")
-    request.add_argument("--approvers", required=True, help="comma-separated manager names")
+    request.add_argument(
+        "--required",
+        type=int,
+        help="the threshold the requests name; defaults to the installed one. A lower value "
+        "is a hostile lever: approvals of it never count toward the installed threshold.",
+    )
     request.add_argument("--currency", default="usd")
     request.add_argument("--connect-account", help="defaults to the account in the grant's scope")
     request.add_argument("--agent", default="agent", help="the requesting agent")
@@ -670,9 +677,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         "--precheck",
         action="store_true",
         help="client-side pre-check, not an enforcement boundary: refuse before writing any "
-        "request when the approvers are fewer than the threshold, one repeats, or the amount "
-        "is above the ceiling that setup.json records. The gateway enforces these rules "
-        "whether or not the pre-check runs.",
+        "request when --required is below the threshold or the amount is above the ceiling "
+        "that setup.json records. The gateway enforces these rules whether or not the "
+        "pre-check runs.",
     )
     submit = commands.add_parser("submit", help="collect the responses and submit through the gateway")
     submit.add_argument("--state", type=Path, required=True)
@@ -688,7 +695,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     elif args.command == "grant":
         grant(args)
     elif args.command == "request":
-        print(json.dumps(asyncio.run(_request(args))))
+        print(json.dumps(_request(args)))
     elif args.command == "submit":
         print(json.dumps(asyncio.run(_submit(args))))
     else:

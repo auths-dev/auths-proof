@@ -1,7 +1,8 @@
-# Stripe refunds behind 2-of-3 manager approval and a per-agent limit
+# Stripe refunds behind approval by any two of three managers and a per-agent limit
 
-Your AI agent may refund a Stripe payment only when two of your three
-managers approve that exact refund, and only up to its own limit: at most
+Your AI agent may refund a Stripe payment only when any two of your three
+managers approve that exact refund, whichever two answer, and only up to its
+own limit: at most
 50.00 per refund, 60.00 per currency per UTC day, and two refunds per UTC
 day. The Stripe key lives only in the Auths gateway, which also checks the
 key and the payment with Stripe before each refund. An auditor checks every
@@ -14,8 +15,8 @@ gateway the first time takes a few minutes.
 | Who | Holds | Can do |
 | --- | --- | --- |
 | Root (you, the operator) | root key | issue the agent's grant, with its limits |
-| Managers A, B, C | one key each, on their own machines | review and approve one exact refund with `auths approve` |
-| Agent | its key and grant | request approvals, collect them, submit; never sees the Stripe key or a manager's key |
+| Managers A, B, C | one key each, on their own machines | review and approve (or decline) one exact refund with `auths approve`; approve only, with no authority to act |
+| Agent | its key and grant | request approvals, collect them, sign its exact refund, submit; never sees the Stripe key or a manager's key |
 | Gateway | the Stripe key | submit a refund only after verifying approvals and limits and checking the key and the payment with Stripe |
 | Auditor | two pinned values | verify every refund from a file, with no network |
 
@@ -71,12 +72,19 @@ This writes development keys for `root`, `manager-a`, `manager-b`,
 `manager-c`, and `agent`, one `auths approve` signer file per manager
 under `state/signers/` (development custody over that manager's key), and:
 
-- a trusted context for the gateway: refunds need **three authorized
-  approvals from three distinct roots**. The agent's authority descends from
-  the root, so it counts once; the other two must be managers. The approvals
-  are the core `k_of_n` plan the approval-quorum SDK builds, collected from
-  each approver as a remote approval (`propose_mcp_approval`,
-  `approval_requests`, `collect_approvals`);
+- a trusted context for the gateway: refunds need **approvals from any two
+  of the three managers**. The root is the only trust anchor, and it may
+  delegate once, to the agent; one authorized branch from one actor under
+  one root is the whole composition. Managers A, B, and C are approver
+  anchors (`raw-key-v1`, the trust's validity, expiry-only status): the
+  verifier accepts their approvals and nothing else from them, and they hold
+  no authority of their own. The approval requirement is any 2 of
+  {A, B, C}; the agent's own approval never counts. Each approval is a native
+  approval statement bound to the exact refund, the gateway's audience and
+  challenge, the approval window, and the requirement, collected from each
+  manager as a remote approval (`propose_mcp_approval`, `approval_requests`,
+  `collect_approvals`); the agent signs the refund itself
+  (`sign_approval_action`);
 - the agent's grant from the root, carrying a bounded-policy commitment:
   `amount` at most 5000 (cents), at most 2 refunds and at most 6000 (cents)
   per currency (EUR or USD) per fixed, epoch-aligned 86400 s window, which is
@@ -150,20 +158,20 @@ nothing if one fails: a key without `rk_test_` is refused
 `observer_anchor.principal`: the key the gateway signs its outcomes with.
 Give it and `trusted_context_sha256` to your auditor.
 
-**6. The agent asks for a refund; managers A and B approve; the gateway submits.**
+**6. The agent asks for a refund; managers A and B approve; manager C never answers; the gateway submits.**
 
-The agent writes one approval request per manager. Each request is a file of
-text (`auths-ar1-…`) you can send any way you like, for example pasted into
-chat; it is not secret, and it carries no text of its own.
+The agent writes one approval request to each of the three managers. Each
+request is a file of text (`auths-ar2-…`) you can send any way you like, for
+example pasted into chat; it is not secret, and it carries no text of its
+own.
 
 ```sh
 python refunds.py request --state "$WORK/state" --operation-id refund-1 \
-  --payment-intent pi_mock_journey --amount 1500 --approvers manager-a,manager-b \
-  --out "$WORK/refund-1"
+  --payment-intent pi_mock_journey --amount 1500 --out "$WORK/refund-1"
 ```
 
 The refund is in USD (`--currency`) in the connected account the grant lists
-(`--connect-account`). Each manager answers on their own machine:
+(`--connect-account`). Any two managers answer, each on their own machine:
 
 ```sh
 auths approve "$WORK/refund-1/manager-a.request" \
@@ -173,22 +181,23 @@ auths approve "$WORK/refund-1/manager-b.request" \
 ```
 
 `auths approve` checks the request natively, prints the review that
-the SDK derives from the exact refund the manager signs (the arguments, the
-requester, the other approvers, and the approval window), and asks
+the SDK derives from the exact refund the manager approves (the arguments,
+the requesting agent, the approvers and how many must approve, and the
+approval window), and asks
 `Approve this action? [y/N]`. Only `y` signs; without a terminal it signs only
 with `--yes`. `--decline` signs a refusal instead. The signer files that step 3
 wrote are development custody: a seed file on disk, and the command says so.
 In production each manager points `--signer` at their own custody adapter.
 
-The agent approved its own request in the first command. It now collects the
-responses and submits:
+Manager C never answers, and need not: whoever answers first counts. The
+agent collects whatever responses exist, signs its exact refund, and submits:
 
 ```sh
 python refunds.py submit --state "$WORK/state" --socket "$WORK/app.sock" \
   --operation-id refund-1 --responses "$WORK/refund-1"
 ```
 
-`submit` sends every request whose approvals are all in to the gateway, and
+`submit` sends a refund to the gateway once two managers approved it, and
 decides nothing itself: only the gateway enforces the approval threshold,
 the ceiling, the per-window count and sum, and at most one run per operation
 ID. It prints the gateway's result with `"decided_by": "gateway"`, here
@@ -196,37 +205,44 @@ ID. It prints the gateway's result with `"decided_by": "gateway"`, here
 "bundle": "appended", ...}`: the gateway checked the key and the
 PaymentIntent (60.00 received, so at most 30.00 refundable here), sent the
 refund, and found its echo token in the refund it read back. The ledger has
-one write. When a manager declines, or a response is missing, no approved
-request exists and nothing is sent: `submit` prints
-`"outcome": "not-submitted"` with `"decided_by": "approver"` or `"client"`
-and a `reason`, never a gateway code.
+one write. The record lists the managers who approved (`"approved"`) and any
+who declined (`"declined"`). One decline beside two approvals does not stop
+the refund. When too many managers declined for two approvals to remain
+possible, or fewer than two approved so far, no proof exists and nothing is
+sent: `submit` prints `"outcome": "not-submitted"` with
+`"decided_by": "approver"` (`"reason": "approvers-declined"`) or `"client"`
+(`"reason": "approvals-incomplete"`, with who is still `waiting`), never a
+gateway code.
 
 **7. Watch the refusals.** These happen before any credential lease:
 
 | Attempt | Decided by | Result | Stripe calls |
 | --- | --- | --- | --- |
-| Only manager A approves | gateway | `denied` `composition-requirement-not-met` | 0 |
-| No manager: only the agent (`--approvers ""`) | gateway | `denied` `composition-requirement-not-met` | 0 |
-| Manager A listed twice | gateway, on the threshold. `request` drops the repeat, because a proposal cannot name one approver twice, and sends a one-manager request; the gateway never sees a duplicate | `denied` `composition-requirement-not-met` | 0 |
+| The agent lowers the threshold (`request --required 1`); only manager A approves | gateway | `denied` `approval-threshold-not-met` | 0 |
+| The agent lowers the threshold to 1; managers A and B both approve it | gateway: each approval is bound to the requirement it was asked for, so none counts toward the installed one | `denied` `approval-threshold-not-met` | 0 |
 | 90.00, above the 50.00 ceiling | gateway | `not-entered` `gateway.policy.above-ceiling` | 0 |
 | `--connect-account acct_1AuthsOtherAcct`, which the grant does not list | gateway | `not-entered` `gateway.policy.scope-denied` | 0 |
 | 50.00 when 45.00 of the day's 60.00 USD is left | gateway | `not-entered` `gateway.policy.sum-exhausted` | 0 |
 | A third refund on the same UTC day | gateway | `not-entered` `gateway.policy.window-exhausted` | 0 |
 | `refund-1` requested again, with fresh approvals | gateway | `not-entered` `gateway.attempt.replay` | 0 |
 | `refund-1`'s proof sent for another refund | gateway | `denied` `action-body-mismatch` | 0 |
-| A refused refund requested again, after the window is full | gateway | `not-entered` `gateway.policy.window-exhausted`: a verification denial claims nothing, so this is not a replay | 0 |
-| Manager B runs `auths approve … --decline` | manager B | `not-submitted`: no approved request exists, so nothing is sent | 0 |
+| The first lowered-threshold refund requested again at the installed threshold, after the window is full | gateway | `not-entered` `gateway.policy.window-exhausted`: a verification denial claims nothing, so this is not a replay | 0 |
+| Managers B and C run `auths approve … --decline` | managers B and C | `not-submitted` (`approvers-declined`): manager A's approval alone cannot make a quorum, so nothing is sent | 0 |
+| Manager A's response collected twice, beside manager B's | the agent's collector | `not-submitted` (`approvals-incomplete`): a second response from one manager refuses that manager (`approval.duplicate-response`), leaving one approval | 0 |
 | A request edited to show another amount | manager A's `auths approve` | refuses `approval.action-mismatch` and signs nothing | 0 |
 
 `request` accepts an operation ID it requested before: it keeps the earlier
 request as `pending/<id>.json.N` and says on stderr that the gateway's
-attempt store decides whether the ID may run again. The agent's collection
-checks that every response signs its own request's envelope byte for byte;
-the gateway's verifier checks every signature and the threshold of its
-installed trust.
+attempt store decides whether the ID may run again. `request --required N`
+names another threshold than the installed one and says so on stderr; the
+gateway, which holds the installed requirement, refuses what it produces. The
+agent's collection checks that every response signs its own request's
+approval statement byte for byte; the gateway's verifier checks every
+signature and the threshold of its installed trust.
 
-Refund 4 (40.00, approved by managers B and C) names a PaymentIntent whose
-charge is already fully refunded. It is authorized and within half of that
+Refund 4 (40.00) is approved by managers A and C while manager B declines: a
+different pair from refund 1, and one decline beside two approvals still
+submits. It names a PaymentIntent whose charge is already fully refunded. It is authorized and within half of that
 PaymentIntent's 100.00, so the gateway enters it and records
 `{"outcome": "response-recorded", "status": 400}`: one Stripe write, no
 refund. It still uses the agent's second refund of the day, which is why the
@@ -259,10 +275,10 @@ gateway records nothing, and so signs no outcome, for a submission it
 refuses before it claims the operation: a proof that does not verify, a
 refund above the ceiling or in an account the grant does not list, or any
 submission while the connection is disabled, revoked, or cannot be
-prepared, or while the attempt store or the clock is unavailable. Four of
-step 7's refusals are such entries: one approval, no manager, above the
-ceiling, and the unlisted account. The repeated-manager refund's entry is
-the signed one of its later retry. The bundle also holds every approval
+prepared, or while the attempt store or the clock is unavailable. Three of
+step 7's refusals are such entries: the lowered threshold that two managers
+approved, above the ceiling, and the unlisted account. The first
+lowered-threshold refund's entry is the signed one of its later retry. The bundle also holds every approval
 response the agent collected (declines included), and the installed recipe
 and trusted context.
 
@@ -276,9 +292,11 @@ auths-gateway audit --bundle audit-bundle.json \
 
 For every refund it re-verifies, with the gateway's own verifier:
 
-- the proof chain from the agent to the root, and each manager's signature;
-- the approval threshold of the pinned trusted context (the report lists the
-  approving principals);
+- the proof chain from the agent to the root, and each approving manager's
+  signature;
+- the approval threshold of the pinned trusted context (the report lists,
+  per entry, the managers whose approvals counted; the agent, which signed
+  the refund, is never among them);
 - the ceiling, and the per-window count and per-currency sum recounted
   across the bundle without relying on the order of the entries;
 - the connected account: every bounded grant the refund rests on lists the
@@ -310,7 +328,7 @@ replaced trust (`audit.trust-pin-mismatch`); when any entry is inconsistent
 (`audit.outcome-commitment-mismatch`), or a replayed outcome
 (`audit.outcome-invalid`); and when any entry is unverified
 (`audit.unverified`). `--allow-unverified-refusals` lets an unverified entry
-pass when the audit itself refuses its proof, as for the four refusals of
+pass when the audit itself refuses its proof, as for the three refusals of
 step 7 that the gateway made before recording anything. An unverified entry
 whose proof verifies still fails: a refund whose outcome was left out of the
 export, or a valid refund the gateway refused while its connection was
@@ -325,7 +343,9 @@ python journey.py --gateway "$(command -v auths-gateway)"
 ```
 
 This runs steps 3–9 with every manager answering through `auths approve`:
-a declined manager, a tampered request, a key without `rk_test_` refused at
+refund 1 approved by two managers while the third never answers, refund 4
+approved by another pair beside a decline, two declined managers, a response
+collected twice, a tampered request, a key without `rk_test_` refused at
 install, every refusal of step 7 before and after the credential lease, the
 audit with and without `--allow-unverified-refusals`, five tampering cases,
 and one case that shows the limit of that option. Every submission goes
@@ -351,9 +371,9 @@ first refund: three writes, one refund. CI runs it from the packed wheel
 ### Optional: a client-side pre-check
 
 `python refunds.py request --precheck` refuses, before it writes any request,
-a refund whose agent and distinct managers number fewer than the gateway's
-threshold (`approvals_required` in `setup.json`), whose managers repeat, or
-whose amount is above the recorded ceiling. It prints
+a refund whose `--required` is below the gateway's threshold
+(`approvals_required` in `setup.json`) or whose amount is above the recorded
+ceiling. It prints
 `{"outcome": "not-submitted", "decided_by": "client", "reason": "precheck", ...}`
 and exits 0. It is a client-side pre-check, not an enforcement boundary: it
 only spares managers a request the gateway would refuse, and the gateway
@@ -449,26 +469,26 @@ install step, on stdin; the secret key reaches only `curl`.
 - The recipe is not qualified. Under ADR 0013, a recipe earns a qualified
   provider claim only through its own later ADR, with differential and
   live-provider evidence.
-- Every listed approver must sign: to replace a manager who declines, start a
-  new request (see `docs/product/APPROVAL_QUORUM.md`).
+- Any two of the three managers suffice, whoever answers; the approver set
+  and the threshold are the operator's, fixed in the installed trust, never
+  the request's. A decline carries no authority: it stops a refund only when
+  too few managers remain to approve it.
 - A request is not confidential: anyone who receives it sees the refund. The
   requester it names is not authenticated by the request; the agent's own
-  approval is. The guarantee that a manager signs what they saw holds only for
+  signature on the refund is. The guarantee that a manager signs what they saw holds only for
   a surface that shows what the SDK returned, as `auths approve` does.
-- Three managers acting together, without the agent, also meet the
-  approval threshold. The gateway still refuses their refund before any
-  claim (`gateway.policy.sum-required`), because this recipe requires a
-  bounded grant with the per-currency sum; that is a property of this
-  recipe, not of the threshold.
+- Managers approve; they cannot act. The trust anchors only the root, so
+  only the agent, under its grant from the root, can submit a refund, and no
+  number of approvals stands in for the agent's signature and grant.
 - The audit checks the entries in the bundle. It cannot show that none were
   left out; the gateway's attempt store is the complete record.
 - The bundle keeps one entry per operation ID. A resubmission of an
   operation ID is not in it, and an entry without a signed outcome is
   replaced by a later submission of the same ID that the gateway recorded:
   the audit then reports that later refusal, as `refused`, not the first.
-  The four refusals step 9 accepts as `unverified` are the ones no later
-  submission replaced; the repeated-manager refund is audited through its
-  retry.
+  The three refusals step 9 accepts as `unverified` are the ones no later
+  submission replaced; the first lowered-threshold refund is audited through
+  its retry.
 - An `unverified` entry is evidence neither way: without the gateway's signed
   outcome, the bundle does not show whether the gateway entered the provider.
   `--allow-unverified-refusals` accepts such an entry only when the audit

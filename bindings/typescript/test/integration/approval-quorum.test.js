@@ -8,7 +8,9 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 import {
-  AuthoringUnsuccessful, authorMcpQuorumProof, enumField, exactMcpTool, stringField, verifyCommand,
+  AuthoringUnsuccessful, approvalRequests, approve, authorMcpQuorumProof, collectApprovals,
+  enumField, exactMcpTool, openApprovalRequest, proposeMcpApproval, signApprovalAction,
+  stringField, verifyCommand,
 } from "../../dist/self-hosted.js";
 
 const fixture = JSON.parse(readFileSync(
@@ -18,6 +20,8 @@ const members = new Map(fixture.members.map((member) => [member.name, member]));
 const cases = new Map(fixture.cases.map((item) => [item.id, item]));
 const challenge = Uint8Array.from(Buffer.from(fixture.challenge_hex, "hex"));
 const template = b64(fixture.sdk_trusted_context_b64);
+const approvers = fixture.approvers.map((name) => members.get(name).principal);
+const authoredAt = BigInt(fixture.authored_at);
 
 const contract = exactMcpTool({
   service: fixture.service,
@@ -58,7 +62,7 @@ async function seededSigner(name, { reject = false } = {}) {
     format: "der", type: "pkcs8",
   });
   const descriptor = {
-    contract: "signer-custody/2", kind: "workload", adapterId: "test.seeded-manager", principal,
+    contract: "signer-custody/2", kind: "workload", adapterId: "test.seeded-member", principal,
     signature: { principalMethod: "raw-key-v1", verificationMethod: principal, suite: "ed25519-v1" },
     keyVersion: "test-key-1", keyState: "active-current", lifecycle: "ephemeral",
   };
@@ -84,62 +88,97 @@ async function seededSigner(name, { reject = false } = {}) {
   };
 }
 
-async function author(caseId, names, required, signers, validitySeconds) {
+function command(caseId) {
+  return contract.decode(JSON.parse(cases.get(caseId).arguments_json));
+}
+
+async function author(caseId, names, { required = fixture.required, signers, actor, validitySeconds } = {}) {
   return authorMcpQuorumProof({
     contract,
-    command: contract.decode(JSON.parse(cases.get(caseId).arguments_json)),
+    command: command(caseId),
+    actor: actor ?? await seededSigner(fixture.actor),
     required,
-    approvers: (signers ?? await Promise.all(names.map((name) => seededSigner(name))))
-      .map((signer) => ({ signer })),
+    approvers,
+    signers: signers ?? await Promise.all(names.map((name) => seededSigner(name))),
     trustedContextTemplate: template,
     challenge,
-    evaluationTime: BigInt(fixture.authored_at),
+    evaluationTime: authoredAt,
     ...(validitySeconds === undefined ? {} : { validitySeconds }),
   });
 }
 
-for (const item of fixture.cases.filter((candidate) => candidate.decision === "authorized")) {
-  test(`TypeScript authors the exact gateway quorum bytes: ${item.id}`, async () => {
-    const authored = await author(item.id, item.approvers, item.required);
+for (const item of fixture.cases.filter((candidate) =>
+  candidate.authoring === "sdk" && candidate.decision === "authorized")) {
+  test(`TypeScript authors the exact gateway quorum bytes in process: ${item.id}`, async () => {
+    const authored = await author(item.id, item.approvers, { required: item.required });
     assert.deepEqual(authored.proof, b64(item.proof_b64));
     assert.deepEqual(authored.action, b64(item.action_b64));
     assert.deepEqual(authored.command, JSON.parse(item.arguments_json));
-    assert.equal(authored.plan.required, item.required);
-    assert.deepEqual(authored.plan.approvers, item.approvers.map((name) => members.get(name).principal));
-    assert.equal(new Set(authored.plan.proofReferences.map((value) => Buffer.from(value).toString("hex"))).size,
-      item.approvers.length);
-    assert.deepEqual([authored.plan.validFrom, authored.plan.validUntil],
-      [BigInt(fixture.authored_at), BigInt(fixture.authored_at + fixture.validity_seconds)]);
+    assert.equal(authored.requirement.required, item.required);
+    assert.deepEqual(authored.requirement.approvers, [...approvers].sort());
+    assert.equal(authored.requirement.requirementId.length, 32);
+    assert.deepEqual([authored.requirement.validFrom, authored.requirement.validUntil],
+      [authoredAt, authoredAt + BigInt(fixture.validity_seconds)]);
+  });
+}
+
+for (const item of fixture.cases.filter((candidate) => candidate.authoring === "sdk")) {
+  test(`TypeScript authors the exact gateway quorum bytes remotely: ${item.id}`, async () => {
+    const proposal = await proposeMcpApproval({
+      contract, command: command(item.id), required: item.required, approvers,
+      actor: members.get(fixture.actor).principal, challenge, evaluationTime: authoredAt,
+    });
+    assert.deepEqual(proposal.action, b64(item.action_b64));
+    const issued = await approvalRequests(proposal);
+    const responses = [];
+    for (const name of item.approvers) {
+      const request = issued.find((candidate) => candidate.approver === members.get(name).principal);
+      const review = await openApprovalRequest(request.text, { now: authoredAt });
+      responses.push((await approve(review, await seededSigner(name))).data);
+    }
+    const action = await signApprovalAction(proposal, await seededSigner(fixture.actor));
+    const collection = await collectApprovals(proposal, responses);
+    assert.equal(collection.approved, item.approvers.length);
+    assert.equal(collection.required, item.required);
+    assert.equal(collection.isComplete, true);
+    assert.deepEqual(collection.assemble(action), b64(item.proof_b64));
   });
 }
 
 test("the quorum window defaults to a day and is configurable", async () => {
-  const item = cases.get("two-of-three-managers");
+  const item = cases.get("managers-a-and-b");
   assert.equal(fixture.validity_seconds, 86_400);
-  const explicit = await author(item.id, item.approvers, 2, undefined, fixture.validity_seconds);
+  const explicit = await author(item.id, item.approvers, { validitySeconds: fixture.validity_seconds });
   assert.deepEqual(explicit.proof, b64(item.proof_b64));
-  const shorter = await author(item.id, item.approvers, 2, undefined, 3_600);
-  assert.equal(shorter.plan.validUntil, BigInt(fixture.authored_at + 3_600));
+  const shorter = await author(item.id, item.approvers, { validitySeconds: 3_600 });
+  assert.equal(shorter.requirement.validUntil, authoredAt + 3_600n);
   assert.notDeepEqual(shorter.proof, explicit.proof);
-  // A week passes the native bound; the one-day trust anchors then refuse it.
-  await assert.rejects(author(item.id, item.approvers, 2, undefined, 604_800), (error) =>
+  // A week passes the native bound; the one-day anchors then refuse it.
+  await assert.rejects(author(item.id, item.approvers, { validitySeconds: 604_800 }), (error) =>
     error instanceof AuthoringUnsuccessful && error.code === "action-outside-validity");
   for (const invalid of [0, 604_801]) {
-    await assert.rejects(author(item.id, item.approvers, 2, undefined, invalid), (error) =>
+    await assert.rejects(author(item.id, item.approvers, { validitySeconds: invalid }), (error) =>
       !(error instanceof AuthoringUnsuccessful));
   }
 });
 
-test("every approver reviews the same action and quorum", async () => {
-  const signers = await Promise.all(["manager-a", "manager-b", "manager-c"].map((name) => seededSigner(name)));
-  await author("three-of-three-managers", undefined, 2, signers);
-  const displays = new Set(signers.map((signer) => JSON.stringify(signer.requests[0].display)));
+test("the actor and every approver review the same action and requirement", async () => {
+  const actor = await seededSigner(fixture.actor);
+  const signers = await Promise.all(fixture.approvers.map((name) => seededSigner(name)));
+  await author("three-of-three-managers", undefined, { actor, signers });
+  const everyone = [actor, ...signers];
+  assert.ok(everyone.every((signer) => signer.requests.length === 1));
+  const displays = new Set(everyone.map((signer) => JSON.stringify(signer.requests[0].display)));
   assert.equal(displays.size, 1);
-  const fields = Object.fromEntries(signers[0].requests[0].display.map((field) => [field.label, field.value]));
-  assert.equal(fields["approval quorum"], "2 of 3");
-  assert.equal(new Set(signers.map((signer) => Buffer.from(signer.requests[0].objectId).toString("hex"))).size, 3);
-  assert.ok(signers.every((signer) => signer.requests[0].expiresAtUnixSeconds ===
-    BigInt(fixture.authored_at + fixture.validity_seconds)));
+  const fields = Object.fromEntries(actor.requests[0].display.map((field) => [field.label, field.value]));
+  assert.equal(fields["approvals required"], "any 2 of 3");
+  assert.equal(fields.actor, members.get(fixture.actor).principal);
+  assert.equal(actor.requests[0].objectKind, "action");
+  assert.ok(signers.every((signer) => signer.requests[0].objectKind === "approval" &&
+    signer.requests[0].requestId.startsWith("approval:")));
+  assert.equal(new Set(everyone.map((signer) => Buffer.from(signer.requests[0].objectId).toString("hex"))).size, 4);
+  assert.ok(everyone.every((signer) => signer.requests[0].expiresAtUnixSeconds ===
+    authoredAt + BigInt(fixture.validity_seconds)));
 });
 
 test("the TypeScript verifier decides every gateway vector identically", async () => {
@@ -156,28 +195,41 @@ test("the TypeScript verifier decides every gateway vector identically", async (
   }
 });
 
-test("one approval or an outsider never authors a quorum", async () => {
-  await assert.rejects(author("one-of-three-managers", ["manager-a"], 1), (error) =>
-    error instanceof AuthoringUnsuccessful && error.kind === "rejected" &&
-    error.code === cases.get("one-of-three-managers").code);
-  await assert.rejects(author("outsider-does-not-count", ["manager-a", "outsider"], 2), (error) =>
-    error instanceof AuthoringUnsuccessful && error.kind === "rejected" &&
-    error.code === cases.get("outsider-does-not-count").code);
-});
-
-test("a duplicate approver or impossible threshold is refused before signing", async () => {
-  for (const [names, required] of [[["manager-a", "manager-a"], 2], [["manager-a", "manager-b"], 3],
-    [["manager-a", "manager-b"], 0]]) {
-    const signers = await Promise.all(names.map((name) => seededSigner(name)));
-    await assert.rejects(author("two-of-three-managers", undefined, required, signers));
-    assert.ok(signers.every((signer) => signer.requests.length === 0));
+test("too few, unlisted, repeated, or self approvals are refused before anything is signed", async () => {
+  const attempts = [
+    { names: ["manager-a"] },
+    { names: ["manager-a", "outsider"] },
+    { names: ["manager-a", "manager-a"] },
+    { names: ["manager-a", "manager-b"], required: 0 },
+    { names: ["manager-a", "manager-b"], required: 4 },
+    { names: ["manager-a", fixture.actor] },
+  ];
+  for (const attempt of attempts) {
+    const actor = await seededSigner(fixture.actor);
+    const signers = await Promise.all(attempt.names.map((name) => seededSigner(name)));
+    await assert.rejects(author("managers-a-and-b", undefined, {
+      actor, signers, ...(attempt.required === undefined ? {} : { required: attempt.required }),
+    }), (error) => !(error instanceof AuthoringUnsuccessful), JSON.stringify(attempt));
+    assert.ok([actor, ...signers].every((signer) => signer.requests.length === 0), JSON.stringify(attempt));
   }
+  // The actor is never an approver: listing it is refused natively.
+  const actor = await seededSigner(fixture.actor);
+  await assert.rejects(authorMcpQuorumProof({
+    contract, command: command("managers-a-and-b"), actor, required: 2,
+    approvers: [...approvers.slice(0, 2), members.get(fixture.actor).principal],
+    signers: await Promise.all(["manager-a", "manager-b"].map((name) => seededSigner(name))),
+    trustedContextTemplate: template, challenge, evaluationTime: authoredAt,
+  }), (error) => !(error instanceof AuthoringUnsuccessful));
+  assert.equal(actor.requests.length, 0);
 });
 
-test("a declining approver stops the quorum", async () => {
-  const signers = [await seededSigner("manager-a"), await seededSigner("manager-b", { reject: true })];
-  await assert.rejects(author("two-of-three-managers", undefined, 2, signers), (error) =>
-    error instanceof AuthoringUnsuccessful && error.kind === "rejected");
+test("a declining approver or actor stops the in-process quorum", async () => {
+  const declining = [await seededSigner("manager-a"), await seededSigner("manager-b", { reject: true })];
+  await assert.rejects(author("managers-a-and-b", undefined, { signers: declining }), (error) =>
+    error instanceof AuthoringUnsuccessful && error.kind === "rejected" && error.code === "denied");
+  await assert.rejects(author("managers-a-and-b", ["manager-a", "manager-b"], {
+    actor: await seededSigner(fixture.actor, { reject: true }),
+  }), (error) => error instanceof AuthoringUnsuccessful && error.kind === "rejected");
 });
 
 test("the runnable example authors the gateway quorum through the package exports", () => {
@@ -195,8 +247,9 @@ test("the runnable example authors the gateway quorum through the package export
     ], { encoding: "utf8" });
     const report = JSON.parse(output.trim().split("\n").at(-1));
     assert.equal(report.outcome, "authorized");
-    assert.deepEqual([report.approvals, report.members], [2, 3]);
+    assert.deepEqual([report.approvals, report.approvers, report.required], [2, 3, 2]);
     assert.equal(report.matches_gateway_vector, true);
+    assert.equal(report.any_two_authorize, true);
     assert.equal(report.single_approval, cases.get("one-of-three-managers").code);
   } finally {
     rmSync(directory, { recursive: true, force: true });

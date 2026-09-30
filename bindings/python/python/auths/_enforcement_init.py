@@ -155,8 +155,9 @@ def _parser() -> _Parser:
     parser.add_argument(
         "--approvals",
         type=int,
-        default=3,
-        help="distinct approvals the gateway requires, counting the agent once",
+        default=2,
+        help="approvals from distinct managers the gateway requires, whichever managers "
+        "answer; the agent's own approval never counts",
     )
     parser.add_argument("--ceiling", type=int, default=5_000, help="largest refund, in cents")
     parser.add_argument("--max-count", type=int, default=2, help="refunds per window")
@@ -190,9 +191,9 @@ def _parameters(args: argparse.Namespace) -> _Parameters:
     if _RESERVED & set(managers):
         raise InitFailed("auths.init.invalid-managers", reserved=sorted(_RESERVED & set(managers)))
     approvals = int(args.approvals)
-    if not 2 <= approvals <= 1 + len(managers):
+    if not 1 <= approvals <= len(managers):
         raise InitFailed(
-            "auths.init.invalid-approvals", approvals=approvals, minimum=2, maximum=1 + len(managers)
+            "auths.init.invalid-approvals", approvals=approvals, minimum=1, maximum=len(managers)
         )
     for option in ("ceiling", "max_count", "window_seconds", "days", "sum_limit"):
         value = int(getattr(args, option))
@@ -435,7 +436,11 @@ def _parameter_table(parameters: _Parameters, provider: str) -> str:
     rows = [
         ("provider", "the counting Stripe double on 127.0.0.1" if provider == "double" else "Stripe test mode"),
         ("managers", ", ".join(parameters.managers)),
-        ("approvals", f"{parameters.approvals} distinct approvals, counting the agent once"),
+        (
+            "approvals",
+            f"any {parameters.approvals} of the {len(parameters.managers)} managers; "
+            "the agent's own approval never counts",
+        ),
         ("ceiling", f"{parameters.ceiling} cents per refund"),
         ("max-count", f"{parameters.max_count} refunds per window"),
         ("sum-limit", f"{parameters.sum_limit} cents per currency per window"),
@@ -489,7 +494,7 @@ def _render(
             "DIR": shlex.quote(str(directory)),
             "KEY_FILE": _key_file(directory),
             "PARAMETERS": _parameter_table(parameters, provider),
-            "APPROVERS": ",".join(parameters.managers[: parameters.approvals - 1]),
+            "APPROVALS": str(parameters.approvals),
             "FIRST_MANAGER": parameters.managers[0],
         },
     )

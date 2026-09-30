@@ -70,6 +70,7 @@ CONNECTED_ACCOUNT = "acct_1AuthsConnected"
 OTHER_ACCOUNT = "acct_1AuthsOtherAcct"
 REFUNDED_PAYMENT_INTENT = "pi_mock_refunded"
 STRIPE_VERSION = "2025-03-31.basil"
+MANAGERS = ("manager-a", "manager-b", "manager-c")
 # The second agent, whose refunds the checks after the credential lease refuse.
 CHECKS_AGENT = "agent-checks"
 # A clearly fake key without the recipe's `rk_test_` prefix.
@@ -167,17 +168,16 @@ class Journey:
         self,
         operation: str,
         amount: int,
-        approvers: str,
         payment_intent: str,
         *,
         out: Optional[str] = None,
         precheck: bool = False,
         **extra: str,
     ) -> tuple[Path, Dict[str, Any]]:
-        """The agent writes one request per manager (and its own response),
-        into ``approvals/<out or operation>``, and prints its record; its
-        warnings are kept in ``last_warnings``. ``extra`` passes
-        ``currency``, ``connect_account``, or ``agent``."""
+        """The agent writes one request per manager into
+        ``approvals/<out or operation>`` and prints its record; its warnings
+        are kept in ``last_warnings``. ``extra`` passes ``currency``,
+        ``connect_account``, ``agent``, or ``required``."""
         folder = self.work / "approvals" / (out or operation)
         options = [
             item
@@ -196,8 +196,6 @@ class Journey:
             payment_intent,
             "--amount",
             str(amount),
-            "--approvers",
-            approvers,
             "--out",
             str(folder),
             *options,
@@ -244,7 +242,7 @@ class Journey:
         self,
         operation: str,
         amount: int,
-        approvers: str,
+        answering: str,
         payment_intent: str,
         declines: tuple[str, ...] = (),
         *,
@@ -252,15 +250,16 @@ class Journey:
         precheck: bool = False,
         **extra: str,
     ) -> tuple[Dict[str, Any], Dict[str, Any]]:
-        """Requests, has each distinct listed manager answer once, and
-        submits. Returns the request's record and the outcome record; a
-        pre-check refusal is the outcome, and nothing is asked or sent."""
+        """Requests, has each manager named in ``answering`` answer once (the
+        others never answer), and submits. Returns the request's record and
+        the outcome record; a pre-check refusal is the outcome, and nothing
+        is asked or sent."""
         folder, requested = self.request(
-            operation, amount, approvers, payment_intent, out=out, precheck=precheck, **extra
+            operation, amount, payment_intent, out=out, precheck=precheck, **extra
         )
         if requested.get("outcome") == "not-submitted":
             return requested, requested
-        for manager in dict.fromkeys(name for name in approvers.split(",") if name):
+        for manager in dict.fromkeys(name for name in answering.split(",") if name):
             answered = self.answer(folder, manager, decline=manager in declines)
             if answered.returncode != 0:
                 raise SystemExit(f"{manager} could not answer: {answered.stderr.strip()}")
@@ -437,7 +436,7 @@ def main() -> int:
     try:
         # README step 3: principals, trust, and the agent's bounded grant.
         facts = journey.step(
-            "setup: root, three managers, agent, trust, bounded grant",
+            "setup: root, three approving managers, agent, trust, bounded grant",
             lambda: json.loads(
                 journey.run(
                     PYTHON,
@@ -622,7 +621,7 @@ def main() -> int:
         def submit(
             case: str,
             amount: int,
-            approvers: str,
+            answering: str,
             declines: tuple[str, ...] = (),
             payment_intent: Optional[str] = None,
             operation: Optional[str] = None,
@@ -630,7 +629,7 @@ def main() -> int:
         ) -> None:
             def run() -> Dict[str, Any]:
                 requested, record = journey.refund(
-                    operation or case, amount, approvers, payment_intent or pi, declines, **extra
+                    operation or case, amount, answering, payment_intent or pi, declines, **extra
                 )
                 requests[case] = requested
                 warnings[case] = journey.last_warnings
@@ -640,7 +639,7 @@ def main() -> int:
 
         def reused_approvals() -> Dict[str, Any]:
             """refund-1's approved proof, sent with another refund's action."""
-            _, requested = journey.request("refund-8-reuse", 1_000, "manager-a,manager-b", pi)
+            _, requested = journey.request("refund-8-reuse", 1_000, pi)
             requests["refund-8-reuse"] = requested
             log = journey.state / "audit" / "entries.jsonl"
             first = next(
@@ -669,16 +668,15 @@ def main() -> int:
         # and the witness saw exactly one submit frame with that answer.
         # Refused before any credential lease: no provider request at all.
         before_lease = {
-            "refund-2-one-approval": ("denied", "composition-requirement-not-met"),
-            "refund-6-no-manager": ("denied", "composition-requirement-not-met"),
-            "refund-7-repeated": ("denied", "composition-requirement-not-met"),
+            "refund-2-lowered-threshold": ("denied", "approval-threshold-not-met"),
+            "refund-6-lowered-two-approvals": ("denied", "approval-threshold-not-met"),
             "refund-3-over-ceiling": ("not-entered", "gateway.policy.above-ceiling"),
             "refund-other-account": ("not-entered", "gateway.policy.scope-denied"),
             "refund-over-sum": ("not-entered", "gateway.policy.sum-exhausted"),
             "refund-5-window": ("not-entered", "gateway.policy.window-exhausted"),
             "refund-1-replay": ("not-entered", "gateway.attempt.replay"),
             "refund-8-reuse": ("denied", "action-body-mismatch"),
-            "refund-7-retry": ("not-entered", "gateway.policy.window-exhausted"),
+            "refund-2-retry": ("not-entered", "gateway.policy.window-exhausted"),
         }
         # Refused after the lease by a provider check: reads, never a write.
         after_lease = {
@@ -703,25 +701,30 @@ def main() -> int:
             )
         expected_refusals = {**before_lease, **after_lease}
 
-        # README step 6: the agent writes a request per manager, each manager
-        # answers with `auths approve`, and the gateway submits.
+        # README step 6: the agent writes a request to every manager, any two
+        # answer with `auths approve`, and the agent signs and submits.
         journey.step(
-            "refund 1: 15.00, agent + manager-a + manager-b (remote approvals)",
+            "refund 1: 15.00, approved by manager-a and manager-b; manager-c never answers",
             lambda: submit("refund-1", 1_500, "manager-a,manager-b"),
         )
         journey.step(
-            "declined: manager-b declines, nothing is submitted",
-            lambda: submit("refund-declined", 2_000, "manager-a,manager-b", declines=("manager-b",)),
+            "declined: manager-b and manager-c decline, nothing is submitted",
+            lambda: submit(
+                "refund-two-declines",
+                2_000,
+                "manager-a,manager-b,manager-c",
+                declines=("manager-b", "manager-c"),
+            ),
         )
 
         def tampered_request() -> Dict[str, Any]:
-            folder, _ = journey.request("refund-tampered", 1_500, "manager-a,manager-b", pi)
+            folder, _ = journey.request("refund-tampered", 1_500, pi)
             original = (folder / "manager-a.request").read_text().strip()
-            raw = bytearray(unb64(original[len("auths-ar1-"):]))
+            raw = bytearray(unb64(original[len("auths-ar2-"):]))
             at = bytes(raw).index(b'"amount":1500')
             raw[at : at + len(b'"amount":1500')] = b'"amount":9500'
             edited = folder / "manager-a.edited"
-            edited.write_text("auths-ar1-" + base64.urlsafe_b64encode(bytes(raw)).rstrip(b"=").decode())
+            edited.write_text("auths-ar2-" + base64.urlsafe_b64encode(bytes(raw)).rstrip(b"=").decode())
             answered = journey.answer(folder, "manager-a", request=edited)
             return {
                 "exit": answered.returncode,
@@ -740,16 +743,29 @@ def main() -> int:
             lambda: watched("refund-tampered", tampered_case),
         )
         journey.step(
-            "hostile: 1 of 3 approvals",
-            lambda: submit("refund-2-one-approval", 1_200, "manager-a"),
+            "hostile: the agent lowers the threshold to 1; only manager-a approves",
+            lambda: submit("refund-2-lowered-threshold", 1_200, "manager-a", required="1"),
         )
         journey.step(
-            "hostile: no manager, only the agent",
-            lambda: submit("refund-6-no-manager", 1_100, ""),
+            "hostile: the agent lowers the threshold to 1; manager-a and manager-b approve it",
+            lambda: submit(
+                "refund-6-lowered-two-approvals", 1_100, "manager-a,manager-b", required="1"
+            ),
         )
+
+        def repeated_response() -> Dict[str, Any]:
+            """manager-a's response arrives twice beside manager-b's."""
+            folder, requested = journey.request("refund-7-repeated", 1_300, pi)
+            requests["refund-7-repeated"] = requested
+            for manager in ("manager-a", "manager-b"):
+                answered = journey.answer(folder, manager)
+                expect(answered.returncode == 0, f"{manager}: {answered.stderr.strip()}")
+            shutil.copy(folder / "manager-a.response", folder / "manager-a-again.response")
+            return journey.submit("refund-7-repeated", folder)
+
         journey.step(
-            "hostile: manager-a listed twice (request drops the repeat)",
-            lambda: submit("refund-7-repeated", 1_300, "manager-a,manager-a"),
+            "repeated: manager-a's response twice counts for nobody, nothing is submitted",
+            lambda: watched("refund-7-repeated", repeated_response),
         )
         journey.step(
             "hostile: over the 50.00 ceiling",
@@ -766,11 +782,13 @@ def main() -> int:
             lambda: submit("refund-over-sum", 5_000, "manager-a,manager-b"),
         )
         journey.step(
-            "refund 4: 40.00 of a PaymentIntent already refunded (rejected)",
+            "refund 4: 40.00 of a PaymentIntent already refunded; manager-a and manager-c "
+            "approve, manager-b declines (rejected by the provider)",
             lambda: submit(
                 "refund-4",
                 4_000,
-                "manager-b,manager-c",
+                "manager-a,manager-b,manager-c",
+                declines=("manager-b",),
                 payment_intent=args.rejected_payment_intent,
             ),
         )
@@ -793,21 +811,21 @@ def main() -> int:
             lambda: watched("refund-8-reuse", reused_approvals),
         )
         journey.step(
-            "retry after denial: refund-7-repeated again, with managers B and C",
+            "retry after denial: refund-2-lowered-threshold again, at the installed threshold",
             lambda: submit(
-                "refund-7-retry",
-                1_300,
+                "refund-2-retry",
+                1_200,
                 "manager-b,manager-c",
-                operation="refund-7-repeated",
-                out="refund-7-retry",
+                operation="refund-2-lowered-threshold",
+                out="refund-2-retry",
             ),
         )
 
         # The negative control: a client-side pre-check refuses locally, and
         # the guard must reject it as not decided by the gateway.
         journey.step(
-            "negative control: an under-approved request refused by --precheck",
-            lambda: submit("refund-9-precheck", 1_200, "manager-a", precheck=True),
+            "negative control: a lowered threshold refused by --precheck",
+            lambda: submit("refund-9-precheck", 1_200, "manager-a", precheck=True, required="1"),
         )
 
         # The recipe's checks after the credential lease, each refusing one
@@ -848,6 +866,12 @@ def main() -> int:
         )
         expect(observed["evidence"]["channel"] == "read-back", f"refund-1: {observed}")
         expect(observed["bundle"] == "appended", f"refund-1: {observed}")
+        expect(
+            observed["approved"] == ["manager-a", "manager-b"]
+            and "declined" not in observed
+            and sorted(requests["refund-1"]["requests"]) == list(MANAGERS),
+            f"refund-1: one request per manager, approved by two: {observed} {requests['refund-1']}",
+        )
         expect_gateway_decided(
             "refund-4",
             results["refund-4"],
@@ -856,11 +880,39 @@ def main() -> int:
             status=400,
             action_b64=requests["refund-4"]["action_b64"],
         )
-        declined = results["refund-declined"]
-        expect_not_submitted("refund-declined", declined, frames["refund-declined"], "approver", "approver-declined")
         expect(
-            declined.get("declined") == ["manager-b"] and declined["provider_requests"] == 0,
-            f"refund-declined: {declined}",
+            results["refund-4"]["approved"] == ["manager-a", "manager-c"]
+            and results["refund-4"]["declined"] == ["manager-b"],
+            f"refund-4: one declined manager beside two approvals still submits: {results['refund-4']}",
+        )
+        declined = results["refund-two-declines"]
+        expect_not_submitted(
+            "refund-two-declines",
+            declined,
+            frames["refund-two-declines"],
+            "approver",
+            "approvers-declined",
+        )
+        expect(
+            declined.get("declined") == ["manager-b", "manager-c"]
+            and declined.get("approved") == ["manager-a"]
+            and declined["provider_requests"] == 0,
+            f"refund-two-declines: {declined}",
+        )
+        repeated = results["refund-7-repeated"]
+        expect_not_submitted(
+            "refund-7-repeated",
+            repeated,
+            frames["refund-7-repeated"],
+            "client",
+            "approvals-incomplete",
+        )
+        expect(
+            repeated.get("approved") == ["manager-b"]
+            and repeated.get("waiting")
+            == {"manager-a": "approval.duplicate-response", "manager-c": "pending"}
+            and repeated["provider_requests"] == 0,
+            f"refund-7-repeated: {repeated}",
         )
         expect(
             tampered_run == {"exit": 1, "refused": True, "signed": False},
@@ -893,17 +945,19 @@ def main() -> int:
             len(frames["refund-8-reuse"]) == 1,
             f"refund-8-reuse: the witness saw {frames['refund-8-reuse']}",
         )
-        expect(
-            "dropped the repeated approver manager-a" in warnings["refund-7-repeated"],
-            f"refund-7-repeated: request did not name the dropped repeat: {warnings['refund-7-repeated']}",
-        )
-        for case in ("refund-1-replay", "refund-7-retry"):
+        for case in ("refund-2-lowered-threshold", "refund-6-lowered-two-approvals"):
+            expect(
+                requests[case]["required"] == 1
+                and "not the 2 the trust installs" in warnings[case],
+                f"{case}: request did not name the lowered threshold: {warnings[case]}",
+            )
+        for case in ("refund-1-replay", "refund-2-retry"):
             expect(
                 "attempt store decides" in warnings[case],
                 f"{case}: request did not warn that the operation ID was requested before",
             )
         expect(results["refund-1-replay"]["bundle"] == "unchanged", f"replay: {results['refund-1-replay']}")
-        expect(results["refund-7-retry"]["bundle"] == "replaced", f"retry: {results['refund-7-retry']}")
+        expect(results["refund-2-retry"]["bundle"] == "replaced", f"retry: {results['refund-2-retry']}")
 
         control = results["refund-9-precheck"]
         expect_not_submitted("refund-9-precheck", control, frames["refund-9-precheck"], "client", "precheck")
@@ -914,7 +968,7 @@ def main() -> int:
                 control,
                 frames["refund-9-precheck"],
                 "denied",
-                "composition-requirement-not-met",
+                "approval-threshold-not-met",
             )
         except SystemExit as rejected:
             negative_control = {"guard_rejected": True, "reason": str(rejected)}
@@ -927,7 +981,7 @@ def main() -> int:
             "submit_frames": len(submit_frames(frames["refund-9-precheck"])),
             "guard_rejected": True,
         }
-        for case in ("refund-1-replay", "refund-8-reuse", "refund-7-retry", "refund-9-precheck"):
+        for case in ("refund-1-replay", "refund-8-reuse", "refund-2-retry", "refund-9-precheck"):
             expect(results[case]["provider_requests"] == 0, f"{case} reached the provider")
 
         state_loss: Optional[Dict[str, Any]] = None
@@ -1050,12 +1104,12 @@ def main() -> int:
             for entry in exported["entries"]
             if entry.get("outcome_b64") is None
         }
-        # refund-7-repeated's unsigned entry was replaced by its signed retry.
+        # refund-2-lowered-threshold's unsigned entry was replaced by its
+        # signed retry.
         expect(
             unrecorded
             == {
-                "refund-2-one-approval",
-                "refund-6-no-manager",
+                "refund-6-lowered-two-approvals",
                 "refund-3-over-ceiling",
                 "refund-other-account",
             },
@@ -1086,15 +1140,15 @@ def main() -> int:
             for entry in report["entries"]
         }
         # One bundle entry per operation ID: the replay left refund-1's
-        # alone, the retry replaced refund-7-repeated's unsigned one, and the
-        # journey's own reused-approvals submission has none.
+        # alone, the retry replaced refund-2-lowered-threshold's unsigned one,
+        # and the journey's own reused-approvals submission has none.
         bundled = [entry["operation_id"] for entry in exported["entries"]]
         audited_refusals = {
             operation: code
             for operation, (_, code) in expected_refusals.items()
-            if operation not in ("refund-1-replay", "refund-8-reuse", "refund-7-retry")
+            if operation not in ("refund-1-replay", "refund-8-reuse", "refund-2-retry")
         }
-        audited_refusals["refund-7-repeated"] = expected_refusals["refund-7-retry"][1]
+        audited_refusals["refund-2-lowered-threshold"] = expected_refusals["refund-2-retry"][1]
         expect(len(bundled) == len(set(bundled)), f"bundle repeats an operation ID: {bundled}")
         expect(
             set(bundled) == {"refund-1", "refund-4", *audited_refusals},
@@ -1151,12 +1205,19 @@ def main() -> int:
             report["recovery"]["class"] == "linked-after-response",
             f"audit recovery {report['recovery']}",
         )
+        # Only the managers whose approvals counted are listed; the agent,
+        # which signed the action, never is.
         verified = next(entry for entry in report["entries"] if entry["operation_id"] == "refund-1")
-        expect(len(verified["approvals"]) == 3, "refund-1 should carry the agent and two managers")
         expect(
-            set(verified["approvals"])
-            == {facts["principals"][name] for name in ("agent", "manager-a", "manager-b")},
-            "refund-1 approvers",
+            sorted(verified["approvals"])
+            == sorted(facts["principals"][name] for name in ("manager-a", "manager-b")),
+            f"refund-1 approvals: {verified['approvals']}",
+        )
+        refund_4 = next(entry for entry in report["entries"] if entry["operation_id"] == "refund-4")
+        expect(
+            sorted(refund_4["approvals"])
+            == sorted(facts["principals"][name] for name in ("manager-a", "manager-c")),
+            f"refund-4 approvals: {refund_4['approvals']}",
         )
         recorded = {
             (item["operation_id"], item["approver"], item["decision"])
@@ -1165,10 +1226,12 @@ def main() -> int:
         principals = facts["principals"]
         expect(
             {
-                ("refund-declined", principals["manager-a"], "approve"),
-                ("refund-declined", principals["manager-b"], "decline"),
+                ("refund-two-declines", principals["manager-a"], "approve"),
+                ("refund-two-declines", principals["manager-b"], "decline"),
+                ("refund-two-declines", principals["manager-c"], "decline"),
                 ("refund-1", principals["manager-a"], "approve"),
                 ("refund-1", principals["manager-b"], "approve"),
+                ("refund-4", principals["manager-b"], "decline"),
             }
             <= recorded,
             f"audit approval responses {sorted(recorded)}",

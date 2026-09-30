@@ -270,38 +270,18 @@ async def author_mcp_proof(
 
 
 @dataclass(frozen=True)
-class QuorumApprover:
-    """One member asked to approve, with the custody signer that holds its key.
+class QuorumRequirement:
+    """Projection of the native approval requirement every approval binds.
 
-    ``grants`` is the member's grant chain, root first; leave it empty when the
-    member is itself a trust anchor of the operator's installation.
-    """
-
-    signer: CustodySigner
-    grants: tuple[GrantEvidence, ...] = ()
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "grants", tuple(self.grants))
-        if len(self.grants) > 16:
-            raise ValueError("approver grant chain count is outside bounds")
-        if not all(isinstance(grant, GrantEvidence) for grant in self.grants):
-            raise TypeError("approver grants must be GrantEvidence values")
-
-
-@dataclass(frozen=True)
-class QuorumPlan:
-    """Projection of the native threshold plan every approval signed.
-
-    ``approvers`` and ``proof_references`` are in approver order; the plan
-    itself is canonical and independent of that order. Every approval is
-    valid from ``valid_from`` through ``valid_until`` inclusive.
+    Any ``required`` distinct approvers of ``approvers`` (ascending) suffice.
+    The verifier enforces the requirement installed in its own trusted
+    context, never one a proof carries. The actor's action and every approval
+    are valid from ``valid_from`` through ``valid_until`` inclusive.
     """
 
     required: int
     approvers: tuple[str, ...]
-    plan_id: bytes
-    canonical_plan: bytes
-    proof_references: tuple[bytes, ...]
+    requirement_id: bytes
     valid_from: int
     valid_until: int
 
@@ -314,129 +294,219 @@ class AuthoredMcpQuorumProof(Generic[CommandT]):
     trusted_context: bytes
     action_commitment: bytes
     review_fields: tuple[tuple[str, str], ...]
-    plan: QuorumPlan
+    requirement: QuorumRequirement
+
+
+_MAX_APPROVERS = 16
+
+
+def _requirement(quorum: _native.McpQuorum) -> QuorumRequirement:
+    return QuorumRequirement(
+        quorum.required,
+        tuple(quorum.approvers),
+        bytes(quorum.requirement_id),
+        *quorum.validity,
+    )
+
+
+def _quorum_review(quorum: _native.McpQuorum) -> tuple[ReviewField, ...]:
+    fields = tuple(quorum.review_fields) + (
+        ("Approvals required", f"any {quorum.required} of {len(quorum.approvers)}"),
+        ("Approval requirement", bytes(quorum.requirement_id).hex()),
+    )
+    return tuple(ReviewField(label, value) for label, value in fields)
+
+
+def _prepare_quorum(
+    contract: ExactMcpTool[CommandT],
+    command: CommandT,
+    required: int,
+    approvers: Sequence[str],
+    actor: str,
+    actor_grant: Optional[_native.SignedObject],
+    challenge: bytes,
+    evaluation_time: int,
+    validity_seconds: Optional[int],
+) -> tuple[CommandT, _native.McpQuorum]:
+    if type(command) is not contract.command_type:
+        raise TypeError("command does not belong to this exact tool")
+    values = tuple(approvers)
+    if type(required) is not int or not 1 <= required <= len(values) <= _MAX_APPROVERS:
+        raise ValueError("quorum threshold or approver count is outside bounds")
+    if any(type(value) is not str or not value for value in values):
+        raise TypeError("approvers must be principal strings")
+    if len(challenge) != 32:
+        raise ValueError("challenge must contain 32 bytes")
+    if type(evaluation_time) is not int or not 0 <= evaluation_time < 2**64:
+        raise ValueError("evaluation time is outside bounds")
+    arguments = contract.encode(command)
+    checked = contract.validate_arguments(arguments)
+    quorum = _native.prepare_mcp_quorum(
+        contract.service,
+        contract.name,
+        _canonical_arguments(arguments),
+        required,
+        list(values),
+        actor,
+        actor_grant,
+        bytes(challenge),
+        evaluation_time,
+        validity_seconds,
+    )
+    return checked, quorum
+
+
+def _action_request(
+    quorum: _native.McpQuorum, descriptor: CustodyDescriptor
+) -> tuple[_native.SigningRequest, SigningRequest]:
+    signature = descriptor.signature
+    request = _native.prepare_signing(
+        quorum.unsigned_action(),
+        signature.principal_method,
+        signature.verification_method,
+        signature.suite,
+    )
+    return request, SigningRequest(
+        request.request_id,
+        SigningObjectKind.ACTION,
+        bytes(request.object_id),
+        descriptor,
+        bytes(request.transaction_digest),
+        bytes(request.signing_preimage),
+        quorum.validity[1],
+        _quorum_review(quorum),
+    )
+
+
+def _quorum_action(
+    request: _native.SigningRequest,
+    response: SigningResponse,
+    grants: Sequence[GrantEvidence],
+) -> _native.QuorumAction:
+    return _native.QuorumAction(
+        request.complete(bytes(response.signature)),
+        [_native.parse_signed("grant", grant.signed_grant) for grant in grants],
+        [[_evidence_tuple(item) for item in grant.evidence] for grant in grants],
+        [_evidence_tuple(item) for item in response.evidence],
+    )
+
+
+def _actor_grants(grants: Sequence[GrantEvidence]) -> tuple[GrantEvidence, ...]:
+    values = tuple(grants)
+    if len(values) > 16:
+        raise ValueError("actor grant chain count is outside bounds")
+    if not all(isinstance(grant, GrantEvidence) for grant in values):
+        raise TypeError("actor grants must be GrantEvidence values")
+    return values
 
 
 async def author_mcp_quorum_proof(
     *,
     contract: ExactMcpTool[CommandT],
     command: CommandT,
+    actor: CustodySigner,
+    grants: Sequence[GrantEvidence] = (),
     required: int,
-    approvers: Sequence[QuorumApprover],
+    approvers: Sequence[str],
+    signers: Sequence[CustodySigner],
     trusted_context_template: bytes,
     challenge: bytes,
     evaluation_time: int,
     validity_seconds: Optional[int] = None,
 ) -> AuthoredMcpQuorumProof[CommandT]:
-    """Collect one signature per approver over one exact action and assemble
-    a ``required``-of-N threshold proof.
+    """Have ``actor`` sign one exact action and any ``required`` of
+    ``approvers`` approve it, in process, and assemble the proof.
 
-    Each signature commits to the whole approver set, so every listed approver
-    must sign; list only the approvers being asked. The threshold the verifier
-    enforces comes from the operator's trusted context (branches and distinct
-    actors), never from the proof. Signers are asked concurrently and are not
-    closed.
+    ``actor`` submits the action under its own grant chain ``grants``, root
+    first (empty when the actor is itself a trust anchor). ``approvers`` are
+    the principals of the approval requirement the operator installed;
+    ``signers`` are the custody signers of the approvers who approve, each
+    listed, distinct, at least ``required`` of them. The actor never counts
+    as an approver. The actor and the approvers are asked concurrently;
+    signers are not closed.
 
-    Every approval is valid from ``evaluation_time`` for ``validity_seconds``
-    (the native quorum default when ``None``, bounded natively), cut to the
-    earliest approver grant expiry; every approval must be collected and
-    verified inside that window, and each custody request stays valid for
-    the whole window.
+    The proof is verified against ``trusted_context_template`` bound to this
+    request before it is returned; a proof the verifier would not authorize
+    raises :class:`AuthoringUnsuccessful` with the verifier's code. The action
+    and every approval are valid from ``evaluation_time`` for
+    ``validity_seconds`` (the native quorum default when ``None``, bounded
+    natively), cut to the actor's terminal-grant expiry; each custody request
+    stays valid for that whole window.
     """
-    if type(required) is not int or not 1 <= required <= len(approvers) <= 16:
-        raise ValueError("quorum threshold or approver count is outside bounds")
-    if not all(isinstance(approver, QuorumApprover) for approver in approvers):
-        raise TypeError("approvers must be QuorumApprover values")
-    if len(challenge) != 32:
-        raise ValueError("challenge must contain 32 bytes")
-    if type(evaluation_time) is not int or not 0 <= evaluation_time < 2**64:
-        raise ValueError("evaluation time is outside bounds")
-    descriptors = [approver.signer.descriptor for approver in approvers]
-    if any(descriptor.contract != "signer-custody/2" for descriptor in descriptors):
-        raise ValueError("signer does not implement the custody contract")
-    if type(command) is not contract.command_type:
-        raise TypeError("command does not belong to this exact tool")
-    arguments = contract.encode(command)
-    checked = contract.validate_arguments(arguments)
-    chains = [
-        [_native.parse_signed("grant", grant.signed_grant) for grant in approver.grants]
-        for approver in approvers
-    ]
-    quorum = _native.prepare_mcp_quorum(
-        contract.service,
-        contract.name,
-        _canonical_arguments(arguments),
-        [
-            (_native.Principal(descriptor.principal), chain[-1] if chain else None)
-            for descriptor, chain in zip(descriptors, chains)
-        ],
+    chain = _actor_grants(grants)
+    signer_values = tuple(signers)
+    listed = set(approvers)
+    descriptors = [_custody(actor)] + [_custody(signer) for signer in signer_values]
+    principals = [descriptor.principal for descriptor in descriptors[1:]]
+    if len(set(principals)) != len(principals):
+        raise ValueError("an approver signer appears twice")
+    if not listed.issuperset(principals):
+        raise ValueError("every approving signer must be a listed approver")
+    if type(required) is not int or len(principals) < required:
+        raise ValueError("fewer approving signers than the threshold")
+    signed_grants = [_native.parse_signed("grant", grant.signed_grant) for grant in chain]
+    checked, quorum = _prepare_quorum(
+        contract,
+        command,
         required,
-        bytes(challenge),
+        approvers,
+        descriptors[0].principal,
+        signed_grants[-1] if signed_grants else None,
+        challenge,
         evaluation_time,
         validity_seconds,
     )
     template = _native.parse_trusted_context(bytes(trusted_context_template))
     context = template.bind_request(quorum.audience, bytes(challenge), evaluation_time)
-    _, valid_until = quorum.validity
-    review = tuple(quorum.review_fields) + (
-        ("Approval quorum", f"{required} of {len(approvers)}"),
-        ("Quorum plan", bytes(quorum.plan_id).hex()),
-    )
-    requests = [
-        _native.prepare_signing(
-            quorum.unsigned(index),
+    action_request, action_custody = _action_request(quorum, descriptors[0])
+    review = _quorum_review(quorum)
+    approval_requests = [
+        quorum.prepare_approval(
+            descriptor.principal,
             descriptor.signature.principal_method,
             descriptor.signature.verification_method,
             descriptor.signature.suite,
         )
-        for index, descriptor in enumerate(descriptors)
+        for descriptor in descriptors[1:]
     ]
-    custody_requests = [
+    approval_custody = [
         SigningRequest(
             request.request_id,
-            SigningObjectKind.ACTION,
+            SigningObjectKind.APPROVAL,
             bytes(request.object_id),
             descriptor,
             bytes(request.transaction_digest),
             bytes(request.signing_preimage),
-            valid_until,
-            tuple(ReviewField(label, value) for label, value in review),
+            request.expires_at,
+            review,
         )
-        for request, descriptor in zip(requests, descriptors)
+        for request, descriptor in zip(approval_requests, descriptors[1:])
     ]
     outcomes = await asyncio.gather(
+        actor.sign(action_custody),
         *(
-            approver.signer.sign(custody_request)
-            for approver, custody_request in zip(approvers, custody_requests)
-        )
+            signer.sign(custody_request)
+            for signer, custody_request in zip(signer_values, approval_custody)
+        ),
     )
-    approvals: list[
-        tuple[
-            _native.SignedObject,
-            list[_native.SignedObject],
-            list[list[tuple[str, str, bytes]]],
-            list[tuple[str, str, bytes]],
-        ]
-    ] = []
-    for approver, chain, request, custody_request, outcome in zip(
-        approvers, chains, requests, custody_requests, outcomes
+    action = _quorum_action(
+        action_request, _signed_response(outcomes[0], action_custody), chain
+    )
+    approvals: list[_native.SignedApproval] = []
+    for request, custody_request, outcome in zip(
+        approval_requests, approval_custody, outcomes[1:]
     ):
         response = _signed_response(outcome, custody_request)
         approvals.append(
-            (
-                request.complete(bytes(response.signature)),
-                chain,
-                [
-                    [_evidence_tuple(item) for item in grant.evidence]
-                    for grant in approver.grants
-                ],
+            request.complete(
+                bytes(response.signature),
                 [_evidence_tuple(item) for item in response.evidence],
             )
         )
-    proof = bytes(_native.assemble_mcp_quorum_proof(quorum, approvals))
-    action = bytes(quorum.canonical_action)
+    proof = bytes(_native.assemble_mcp_quorum_proof(quorum, action, approvals))
+    canonical_action = bytes(quorum.canonical_action)
     trusted_context = bytes(_native.inspect_trusted_context(context))
-    verdict = _native.verify_v1(proof, action, trusted_context)
+    verdict = _native.verify_v1(proof, canonical_action, trusted_context)
     if verdict.kind != "authorized":
         kind: Literal["rejected", "indeterminate"] = (
             "rejected" if verdict.kind == "denied" else "indeterminate"
@@ -445,18 +515,11 @@ async def author_mcp_quorum_proof(
     return AuthoredMcpQuorumProof(
         checked,
         proof,
-        action,
+        canonical_action,
         trusted_context,
-        bytes(_native.commit_canonical_v1("auths.canonical-action.v1", action)),
+        bytes(_native.commit_canonical_v1("auths.canonical-action.v1", canonical_action)),
         tuple(quorum.review_fields),
-        QuorumPlan(
-            quorum.required,
-            tuple(quorum.approvers),
-            bytes(quorum.plan_id),
-            bytes(quorum.canonical_plan),
-            tuple(bytes(reference) for reference in quorum.proof_references),
-            *quorum.validity,
-        ),
+        _requirement(quorum),
     )
 
 
@@ -478,25 +541,25 @@ def _refusals() -> Iterator[None]:
 
 
 @dataclass(frozen=True)
-class ApprovalMember:
-    """One approver named in a remote proposal. ``terminal_grant`` is the
-    canonical signed grant its authority descends from; ``None`` when the
-    approver is itself a trust anchor."""
-
-    principal: str
-    terminal_grant: Optional[bytes] = None
-
-
-@dataclass(frozen=True)
 class ApprovalProposal(Generic[CommandT]):
-    """One exact action, its envelopes, and the threshold plan, built by the
-    requester. ``action`` is the canonical action the assembled proof carries."""
+    """One exact action the actor submits and any ``requirement.required``
+    of ``requirement.approvers`` approve, built by the actor. ``action`` is
+    the canonical action the assembled proof carries."""
 
     command: CommandT
     action: bytes
-    requester: str
-    plan: QuorumPlan
+    actor: str
+    requirement: QuorumRequirement
     _quorum: _native.McpQuorum = field(repr=False, compare=False)
+
+
+@dataclass(frozen=True)
+class ApprovalAction:
+    """The actor's signature over a proposal's envelope, with its grant
+    chain. Opaque; pass it to :meth:`ApprovalCollection.assemble`."""
+
+    actor: str
+    _handle: _native.QuorumAction = field(repr=False, compare=False)
 
 
 @dataclass(frozen=True)
@@ -513,7 +576,9 @@ class ApprovalRequest:
 class ApprovalReview:
     """A request that passed every native check. The title, fields, and
     display digest are the profile's review of the exact canonical action;
-    render them and nothing else."""
+    render them and nothing else. ``requester`` is the actor that will submit
+    the action; its own signature on the action, not the request,
+    authenticates it."""
 
     title: str
     fields: tuple[tuple[str, str], ...]
@@ -547,18 +612,26 @@ class ApproverStatus:
 
 @dataclass(frozen=True)
 class ApprovalCollection:
-    """Where each listed approver stands, in proposal order.
-    ``unattributed`` lists responses matched to no approver, by input index."""
+    """Where each listed approver stands, in ascending approver order, and
+    how many approved of the ``required``. ``unattributed`` lists responses
+    matched to no approver, by input index."""
 
     statuses: tuple[ApproverStatus, ...]
     unattributed: tuple[tuple[int, str], ...]
+    approved: int
+    required: int
     _handle: _native.ApprovalCollection = field(repr=False, compare=False)
 
-    def assemble(self) -> bytes:
-        """Returns the proof once every listed approver approved; raises
-        :class:`ApprovalRefused` with ``approval.incomplete`` otherwise."""
+    def assemble(self, action: ApprovalAction) -> bytes:
+        """Returns the proof once ``required`` listed approvers approved,
+        carrying every matching approval and the actor's signed ``action``.
+        Raises :class:`ApprovalRefused` with ``approval.incomplete`` below
+        the threshold and ``approval.action-mismatch`` when ``action`` is not
+        the proposal's envelope."""
+        if not isinstance(action, ApprovalAction):
+            raise TypeError("action must be an ApprovalAction")
         with _refusals():
-            return bytes(self._handle.assemble())
+            return bytes(self._handle.assemble(action._handle))
 
 
 def _message(data: Union[bytes, str]) -> bytes:
@@ -572,65 +645,73 @@ def propose_mcp_approval(
     contract: ExactMcpTool[CommandT],
     command: CommandT,
     required: int,
-    approvers: Sequence[ApprovalMember],
-    requester: str,
+    approvers: Sequence[str],
+    actor: str,
+    actor_grant: Optional[bytes],
     challenge: bytes,
     evaluation_time: int,
     validity_seconds: Optional[int] = None,
 ) -> ApprovalProposal[CommandT]:
-    """Build a ``required``-of-N proposal for approvers on their own devices.
+    """Build a proposal for approvers on their own devices: ``actor`` submits
+    the action and any ``required`` of ``approvers`` approve it.
 
-    Every listed approver must approve; ``requester`` is the listed approver
-    building the proposal. The window follows :func:`author_mcp_quorum_proof`.
+    ``actor_grant`` is the canonical signed grant the actor's authority
+    descends from, ``None`` when the actor is itself a trust anchor. The
+    actor may not be listed as an approver. The window follows
+    :func:`author_mcp_quorum_proof`.
     """
-    if type(command) is not contract.command_type:
-        raise TypeError("command does not belong to this exact tool")
-    if not all(isinstance(approver, ApprovalMember) for approver in approvers):
-        raise TypeError("approvers must be ApprovalMember values")
-    arguments = contract.encode(command)
-    checked = contract.validate_arguments(arguments)
-    quorum = _native.prepare_mcp_quorum(
-        contract.service,
-        contract.name,
-        _canonical_arguments(arguments),
-        [
-            (
-                _native.Principal(approver.principal),
-                None
-                if approver.terminal_grant is None
-                else _native.parse_signed("grant", bytes(approver.terminal_grant)),
-            )
-            for approver in approvers
-        ],
+    if type(actor) is not str or not actor:
+        raise TypeError("actor must be a principal string")
+    checked, quorum = _prepare_quorum(
+        contract,
+        command,
         required,
-        bytes(challenge),
+        approvers,
+        actor,
+        None
+        if actor_grant is None
+        else _native.parse_signed("grant", bytes(actor_grant)),
+        challenge,
         evaluation_time,
         validity_seconds,
     )
     return ApprovalProposal(
         checked,
         bytes(quorum.canonical_action),
-        requester,
-        QuorumPlan(
-            quorum.required,
-            tuple(quorum.approvers),
-            bytes(quorum.plan_id),
-            bytes(quorum.canonical_plan),
-            tuple(bytes(reference) for reference in quorum.proof_references),
-            *quorum.validity,
-        ),
+        quorum.actor,
+        _requirement(quorum),
         quorum,
     )
 
 
 def approval_requests(proposal: ApprovalProposal[CommandT]) -> tuple[ApprovalRequest, ...]:
-    """One request per listed approver, in proposal order."""
+    """One request per listed approver, in ascending approver order."""
     with _refusals():
-        issued = _native.approval_requests(proposal._quorum, proposal.requester)
+        issued = _native.approval_requests(proposal._quorum)
     return tuple(
         ApprovalRequest(approver, bytes(data), text, bytes(request_id))
         for approver, data, text, request_id in issued
     )
+
+
+async def sign_approval_action(
+    proposal: ApprovalProposal[CommandT],
+    signer: CustodySigner,
+    *,
+    grants: Sequence[GrantEvidence] = (),
+) -> ApprovalAction:
+    """Have the actor's custody ``signer`` sign the proposal's envelope.
+    ``grants`` is the actor's grant chain, root first, ending in the
+    proposal's ``actor_grant``. The custody request shows the action's review
+    and the requirement and expires at the window's end. The signer is not
+    closed."""
+    chain = _actor_grants(grants)
+    descriptor = _custody(signer)
+    if descriptor.principal != proposal.actor:
+        raise ValueError("signer is not the proposal's actor")
+    request, custody_request = _action_request(proposal._quorum, descriptor)
+    response = _signed_response(await signer.sign(custody_request), custody_request)
+    return ApprovalAction(proposal.actor, _quorum_action(request, response, chain))
 
 
 def open_approval_request(
@@ -660,9 +741,7 @@ def open_approval_request(
 
 
 async def _answer(
-    pending: _native.PendingApproval,
-    signer: CustodySigner,
-    grants: Sequence[GrantEvidence],
+    pending: _native.PendingApproval, signer: CustodySigner
 ) -> ApprovalResponse:
     descriptor = signer.descriptor
     request = SigningRequest(
@@ -682,8 +761,6 @@ async def _answer(
     with _refusals():
         data, text = pending.complete(
             bytes(response.signature),
-            [_native.parse_signed("grant", grant.signed_grant) for grant in grants],
-            [[_evidence_tuple(item) for item in grant.evidence] for grant in grants],
             [_evidence_tuple(item) for item in response.evidence],
         )
     return ApprovalResponse(decision, bytes(data), text)
@@ -696,15 +773,10 @@ def _custody(signer: CustodySigner) -> CustodyDescriptor:
     return descriptor
 
 
-async def approve(
-    reviewed: ApprovalReview,
-    signer: CustodySigner,
-    *,
-    grants: Sequence[GrantEvidence] = (),
-) -> ApprovalResponse:
-    """Sign the reviewed envelope with ``signer``, whose custody request shows
-    the same review and expires at the window's end. ``grants`` is the
-    approver's grant chain, root first. The signer is not closed."""
+async def approve(reviewed: ApprovalReview, signer: CustodySigner) -> ApprovalResponse:
+    """Sign the reviewed approval statement with ``signer``, whose custody
+    request shows the same review and expires at the window's end. An
+    approval carries no grant chain. The signer is not closed."""
     descriptor = _custody(signer)
     signature = descriptor.signature
     with _refusals():
@@ -714,7 +786,7 @@ async def approve(
             signature.verification_method,
             signature.suite,
         )
-    return await _answer(pending, signer, grants)
+    return await _answer(pending, signer)
 
 
 async def decline(
@@ -722,10 +794,9 @@ async def decline(
     signer: CustodySigner,
     *,
     now: Optional[int] = None,
-    grants: Sequence[GrantEvidence] = (),
 ) -> ApprovalResponse:
-    """Sign a refusal at ``now``. A decline carries no authority; it stops
-    the collector and records who refused."""
+    """Sign a refusal at ``now``. A decline carries no authority; it records
+    who refused and when."""
     descriptor = _custody(signer)
     signature = descriptor.signature
     with _refusals():
@@ -736,7 +807,7 @@ async def decline(
             signature.suite,
             int(time.time()) if now is None else now,
         )
-    return await _answer(pending, signer, grants)
+    return await _answer(pending, signer)
 
 
 def collect_approvals(
@@ -759,6 +830,8 @@ def collect_approvals(
             for approver, status, code, decided_at in collection.statuses
         ),
         tuple((index, code) for index, code in collection.unattributed),
+        collection.approved,
+        collection.required,
         collection,
     )
 
@@ -794,8 +867,8 @@ def _evidence_tuple(value: PublicControlEvidence) -> tuple[str, str, bytes]:
 
 
 __all__ = [
+    "ApprovalAction",
     "ApprovalCollection",
-    "ApprovalMember",
     "ApprovalProposal",
     "ApprovalRefused",
     "ApprovalRequest",
@@ -807,8 +880,7 @@ __all__ = [
     "AuthoringUnsuccessful",
     "GrantEvidence",
     "ProductionAuthoringInputs",
-    "QuorumApprover",
-    "QuorumPlan",
+    "QuorumRequirement",
     "approval_requests",
     "approve",
     "author_mcp_proof",
@@ -818,4 +890,5 @@ __all__ = [
     "decline",
     "open_approval_request",
     "propose_mcp_approval",
+    "sign_approval_action",
 ]

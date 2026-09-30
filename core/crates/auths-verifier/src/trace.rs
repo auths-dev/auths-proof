@@ -47,6 +47,7 @@ pub enum FactKind {
     MinimumAuthorizedBranches,
     MinimumDistinctActors,
     MinimumDistinctRoots,
+    ApprovalRequirement,
     WorkReservation,
     Decision,
 }
@@ -94,6 +95,7 @@ impl FactKind {
             Self::MinimumAuthorizedBranches => "minimum-authorized-branches",
             Self::MinimumDistinctActors => "minimum-distinct-actors",
             Self::MinimumDistinctRoots => "minimum-distinct-roots",
+            Self::ApprovalRequirement => "approval-requirement",
             Self::WorkReservation => "work-reservation",
             Self::Decision => "decision",
         }

@@ -12,11 +12,11 @@ use auths_author::{
     prepare_grant, prepare_grant_status, prepare_principal_status, prepare_profile_action,
 };
 use auths_model::{
-    ActionConstraint, ActionEnvelope, AssuranceClaimId, AssurancePolicy, AssurancePolicyId,
-    AssuranceQuantifier, AssuranceRequirement, Audience, AudienceSet, AuthorizationPlan,
-    BudgetAlgebraId, BudgetCeiling, CanonicalAction, Challenge, ChannelBindingId,
-    CompositionRequirement, CriticalExtension, CriticalExtensions, Digest, EvidenceId,
-    FreshnessLimit, GrantId, GrantState, GrantStatusSnapshot, GrantStatusStatement,
+    ActionConstraint, ActionEnvelope, ApprovalRequirement, ApproverAnchor, AssuranceClaimId,
+    AssurancePolicy, AssurancePolicyId, AssuranceQuantifier, AssuranceRequirement, Audience,
+    AudienceSet, AuthorizationPlan, BudgetAlgebraId, BudgetCeiling, CanonicalAction, Challenge,
+    ChannelBindingId, CompositionRequirement, CriticalExtension, CriticalExtensions, Digest,
+    EvidenceId, FreshnessLimit, GrantId, GrantState, GrantStatusSnapshot, GrantStatusStatement,
     ParticipantRole, Permission, PermissionSet, PrincipalId, PrincipalMethodId, PrincipalState,
     PrincipalStatusSnapshot, PrincipalStatusStatement, ProfileId, ProfileRef, ProofRef, ResourceId,
     SignatureBytes, SignatureDescriptor, SignatureSuiteId, SignedAction, SignedGrant,
@@ -899,6 +899,45 @@ impl PyTrustAnchor {
     }
 }
 
+/// Who may approve: one approver's principal, accepted principal methods,
+/// validity, and status policy. An approver anchor lets the verifier check
+/// that approver's approvals and nothing else; it grants no authority.
+#[pyclass(name = "ApproverAnchor", frozen, module = "auths._native")]
+pub struct PyApproverAnchor {
+    inner: ApproverAnchor,
+}
+
+#[pymethods]
+impl PyApproverAnchor {
+    #[new]
+    fn new(
+        principal: PyRef<'_, PyPrincipal>,
+        accepted_methods: Vec<String>,
+        not_before: u64,
+        expires_at: u64,
+        status: Option<(String, u64)>,
+    ) -> PyResult<Self> {
+        Ok(Self {
+            inner: ApproverAnchor::new(
+                principal.inner.clone(),
+                accepted_methods
+                    .into_iter()
+                    .map(|value| PrincipalMethodId::parse(&value).map_err(value_error))
+                    .collect::<PyResult<Vec<_>>>()?,
+                ValidityWindow::new(Timestamp::new(not_before), Timestamp::new(expires_at))
+                    .map_err(value_error)?,
+                status_policy(status)?,
+            )
+            .map_err(value_error)?,
+        })
+    }
+
+    #[getter]
+    fn principal(&self) -> &str {
+        self.inner.principal().as_str()
+    }
+}
+
 #[derive(Clone)]
 enum StatusSnapshot {
     Principal(PrincipalStatusSnapshot),
@@ -1051,6 +1090,12 @@ impl PyTrustedContext {
 }
 
 #[pyfunction]
+#[pyo3(signature = (
+    configuration, expected_plan, minimum_authorized_branches, minimum_distinct_actors,
+    minimum_distinct_roots, anchors, assurance_policy, principal_status, grant_status,
+    channel_policy, evidence_types, critical_extensions, approver_anchors = Vec::new(),
+    approval_requirements = Vec::new()
+))]
 #[allow(clippy::too_many_arguments)]
 fn compile_trusted_context(
     py: Python<'_>,
@@ -1066,6 +1111,8 @@ fn compile_trusted_context(
     channel_policy: &str,
     evidence_types: Vec<String>,
     critical_extensions: Vec<String>,
+    approver_anchors: Vec<Py<PyApproverAnchor>>,
+    approval_requirements: Vec<(Vec<String>, u16)>,
 ) -> PyResult<PyTrustedContext> {
     let expected_plan = expected_plan
         .as_ref()
@@ -1087,6 +1134,17 @@ fn compile_trusted_context(
         composition,
         anchors.clone(),
         assurance_policy.inner.clone(),
+    )
+    .map_err(value_error)?
+    .with_approvals(
+        approver_anchors
+            .iter()
+            .map(|anchor| anchor.get().inner.clone())
+            .collect(),
+        approval_requirements
+            .into_iter()
+            .map(|(approvers, threshold)| approval_requirement(approvers, threshold))
+            .collect::<PyResult<Vec<_>>>()?,
     )
     .map_err(value_error)?;
     if let Some(snapshot) = principal_status {
@@ -1311,6 +1369,7 @@ pub fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyMcpAction>()?;
     module.add_class::<PyAssurancePolicy>()?;
     module.add_class::<PyTrustAnchor>()?;
+    module.add_class::<PyApproverAnchor>()?;
     module.add_class::<PyStatusSnapshot>()?;
     module.add_class::<PyTrustedContext>()?;
     module.add_function(wrap_pyfunction!(root_grant, module)?)?;
@@ -1439,6 +1498,21 @@ fn budget_ceiling(value: Option<(String, u64)>) -> PyResult<Option<BudgetCeiling
             ))
         })
         .transpose()
+}
+
+/// Refuses more approvers than a requirement can carry before parsing any.
+fn approval_requirement(approvers: Vec<String>, threshold: u16) -> PyResult<ApprovalRequirement> {
+    if approvers.len() > auths_model::MAX_APPROVERS_PER_REQUIREMENT {
+        return Err(value_error("approval requirement names too many approvers"));
+    }
+    ApprovalRequirement::new(
+        approvers
+            .iter()
+            .map(|value| PrincipalId::parse(value).map_err(value_error))
+            .collect::<PyResult<Vec<_>>>()?,
+        threshold,
+    )
+    .map_err(value_error)
 }
 
 fn status_policy(value: Option<(String, u64)>) -> PyResult<StatusPolicy> {

@@ -94,22 +94,32 @@ function authorAs(agent, grant, template) {
 
 test("compileTrustedContext reproduces the Rust SDK builder's quorum template byte for byte", async () => {
   const audience = `mcp://${quorum.service}`;
-  const anchors = quorum.members.filter((member) => member.member).map((member) => ({
-    id: member.name, principal: member.principal, acceptedMethods: ["raw-key-v1"], profiles: [MCP],
-    permissions: [{ capability: "tools/call", resource: `${audience}/tools/${quorum.tool}` }],
-    resourceNamespaces: [audience], audiences: [audience],
-    notBefore: BigInt(quorum.evaluation_time - 86_400), expiresAt: BigInt(quorum.evaluation_time + 86_400),
-    maxDelegationDepth: 0, assurancePolicy: "approval-quorum-test-v1",
-  }));
-  const compiled = await compileTrustedContext({
-    anchors,
+  const principal = (name) => quorum.members.find((member) => member.name === name).principal;
+  const notBefore = BigInt(quorum.evaluation_time - 86_400);
+  const expiresAt = BigInt(quorum.evaluation_time + 86_400);
+  const input = {
+    anchors: [{
+      id: quorum.actor, principal: principal(quorum.actor), acceptedMethods: ["raw-key-v1"], profiles: [MCP],
+      permissions: [{ capability: "tools/call", resource: `${audience}/tools/${quorum.tool}` }],
+      resourceNamespaces: [audience], audiences: [audience], notBefore, expiresAt,
+      maxDelegationDepth: 0, assurancePolicy: "approval-quorum-test-v1",
+    }],
     assurance: { ...ASSURANCE, id: "approval-quorum-test-v1" },
-    minimumAuthorizedBranches: quorum.required,
-    minimumDistinctActors: quorum.required,
-    minimumDistinctRoots: 1,
     evidenceTypes: ["raw-key-v1"],
-  });
-  assert.deepEqual(compiled, b64(quorum.sdk_trusted_context_b64));
+    approverAnchors: quorum.approvers.map((name) => ({
+      principal: principal(name), acceptedMethods: ["raw-key-v1"], notBefore, expiresAt,
+    })),
+    approvalRequirements: [{ approvers: quorum.approvers.map(principal), threshold: quorum.required }],
+  };
+  assert.deepEqual(await compileTrustedContext(input), b64(quorum.sdk_trusted_context_b64));
+  const { approverAnchors: _anchors, approvalRequirements: _requirements, ...withoutApprovals } = input;
+  assert.notDeepEqual(await compileTrustedContext(withoutApprovals), b64(quorum.sdk_trusted_context_b64));
+  await assert.rejects(compileTrustedContext({
+    ...input, approvalRequirements: [{ approvers: quorum.approvers.map(principal), threshold: 4 }],
+  }));
+  await assert.rejects(compileTrustedContext({
+    ...input, approverAnchors: [{ ...input.approverAnchors[0], acceptedMethods: [] }],
+  }));
 });
 
 test("developmentEd25519Key derives the fixture principals and evidence natively", async () => {

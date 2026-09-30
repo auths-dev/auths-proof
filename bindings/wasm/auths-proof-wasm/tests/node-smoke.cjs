@@ -55,6 +55,9 @@ for (const { id } of scenarios) {
 if (!scenarios.some(({ name }) => name.startsWith("observation-"))) {
   throw new Error("WASM scenario replay omits the evidence-conditioned authority vectors");
 }
+if (!scenarios.some(({ name }) => name.startsWith("approval-"))) {
+  throw new Error("WASM scenario replay omits the approval vectors");
+}
 if (wasm.configurationV1().length !== 32) {
   throw new Error("WASM configuration commitment must be 32 bytes");
 }

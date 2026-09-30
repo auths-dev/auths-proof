@@ -1,13 +1,17 @@
-"""Two of three managers approve one exact action before the agent submits it.
+"""Any two of three managers approve the agent's exact action before it is
+submitted. Whoever answers counts: every pair works, and the third manager
+need not answer.
 
 Run from the repository root:
 
     python examples/approval-quorum/python/two_of_three.py
 
-The managers' keys are the public test vectors of
-``bindings/fixtures/gateway/approval-quorum.json``; production approvers sign
-through their own custody adapters. The operator's trust template anchors the
-three managers and requires two authorized approvals from two distinct actors.
+The keys are the public test vectors of
+``bindings/fixtures/gateway/approval-quorum.json``; production signers use
+their own custody adapters. The operator's trust template anchors the agent
+for one tool, names the three managers as approvers, and requires approvals
+from any two of them. The agent signs the action; each approving manager signs
+an approval of that exact action. The agent's own approval never counts.
 """
 
 from __future__ import annotations
@@ -32,7 +36,7 @@ from auths.adapters.custody import (
     SigningRequest,
     SigningResponse,
 )
-from auths.authoring import AuthoringUnsuccessful, QuorumApprover, author_mcp_quorum_proof
+from auths.authoring import AuthoringUnsuccessful, author_mcp_quorum_proof
 from auths.self_hosted import EnumField, ExactMcpTool, StringField
 
 DEFAULT_FIXTURE = (
@@ -67,8 +71,8 @@ def b64(value: str) -> bytes:
     return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
 
 
-class Manager:
-    """A manager's signer. The seed is a public test vector, never a secret."""
+class Signer:
+    """A test signer. The seed is a public test vector, never a secret."""
 
     def __init__(self, member: dict[str, Any]) -> None:
         self.key = _native.DevelopmentEd25519Key.from_seed(bytes([member["seed_byte"]]) * 32)
@@ -78,7 +82,7 @@ class Manager:
         self.descriptor = CustodyDescriptor(
             "signer-custody/2",
             CustodyKind.WORKLOAD,
-            "example.manager",
+            "example.test-vector",
             member["principal"],
             CustodySignatureDescriptor("raw-key-v1", member["principal"], "ed25519-v1"),
             "example-key-1",
@@ -107,36 +111,52 @@ class Manager:
 
 async def main(fixture_path: Path) -> None:
     fixture = json.loads(fixture_path.read_text())
-    managers = {member["name"]: Manager(member) for member in fixture["members"]}
-    case = next(item for item in fixture["cases"] if item["id"] == "two-of-three-managers")
-    command = TOOL.validate_arguments(json.loads(case["arguments_json"]))
+    signers = {member["name"]: Signer(member) for member in fixture["members"]}
+    cases = {case["id"]: case for case in fixture["cases"]}
+    managers = [signers[name].descriptor.principal for name in fixture["approvers"]]
 
-    async def author(names: list[str], required: int) -> Any:
+    async def author(case_id: str, names: list[str], required: int) -> Any:
+        case = cases[case_id]
         return await author_mcp_quorum_proof(
             contract=TOOL,
-            command=command,
+            command=TOOL.validate_arguments(json.loads(case["arguments_json"])),
+            actor=signers[fixture["actor"]],
             required=required,
-            approvers=[QuorumApprover(managers[name]) for name in names],
+            approvers=managers,
+            signers=[signers[name] for name in names],
             trusted_context_template=b64(fixture["sdk_trusted_context_b64"]),
             challenge=bytes.fromhex(fixture["challenge_hex"]),
             evaluation_time=fixture["authored_at"],
         )
 
-    authored = await author(["manager-a", "manager-b"], 2)
+    pairs: dict[str, str] = {}
+    matches = True
+    requirement = None
+    for case_id, names in (
+        ("managers-a-and-b", ["manager-a", "manager-b"]),
+        ("managers-a-and-c", ["manager-a", "manager-c"]),
+        ("managers-b-and-c", ["manager-b", "manager-c"]),
+    ):
+        authored = await author(case_id, names, 2)
+        pairs["+".join(names)] = "authorized"
+        matches = matches and authored.proof == b64(cases[case_id]["proof_b64"])
+        requirement = authored.requirement
     try:
-        await author(["manager-a"], 1)
+        await author("approvals-for-a-lowered-threshold", ["manager-a"], 1)
         single = "authorized"
     except AuthoringUnsuccessful as refused:
         single = refused.code
+    assert requirement is not None
     print(
         json.dumps(
             {
                 "example": "approval-quorum",
                 "outcome": "authorized",
-                "approvals": len(authored.plan.approvers),
-                "members": sum(1 for member in fixture["members"] if member["member"]),
-                "plan_id": authored.plan.plan_id.hex(),
-                "matches_gateway_vector": authored.proof == b64(case["proof_b64"]),
+                "required": requirement.required,
+                "approvers": len(requirement.approvers),
+                "requirement_id": requirement.requirement_id.hex(),
+                "pairs": pairs,
+                "matches_gateway_vector": matches,
                 "single_approval": single,
             }
         )

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Literal, Optional, Protocol, Sequence, Tuple, runtime_checkable
+from typing import List, Literal, Optional, Protocol, Sequence, Tuple, runtime_checkable
 
 from . import _native as native
 from ._authority import ProofPlan, _native_proof_plan
@@ -203,10 +203,13 @@ def compile_trust(
     critical_extensions: Sequence[str] = (),
     offline_evidence: Optional[OfflineEvidenceBundle] = None,
     configuration: Optional[bytes] = None,
+    approver_anchors: Sequence[native.ApproverAnchor] = (),
+    approval_requirements: Sequence[Tuple[List[str], int]] = (),
 ) -> CompiledTrust:
     """Compiles typed anchors into a trusted context that pins
     ``configuration``, the 32-byte verifier configuration, or this package's
-    own verifier when it is ``None``."""
+    own verifier when it is ``None``. ``approver_anchors`` and
+    ``approval_requirements`` name who may approve and how many must."""
     anchor_values = tuple(anchors)
     if not anchor_values or any(
         type(value) is not TrustAnchor for value in anchor_values
@@ -225,6 +228,8 @@ def compile_trust(
         channel_policy,
         list(evidence_types),
         list(critical_extensions),
+        list(approver_anchors),
+        [(list(approvers), threshold) for approvers, threshold in approval_requirements],
     )
     return CompiledTrust(
         context,

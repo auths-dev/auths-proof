@@ -7,7 +7,6 @@ file.
 
 from __future__ import annotations
 
-import base64
 import importlib
 import json
 from dataclasses import dataclass
@@ -96,6 +95,61 @@ class TrustAnchor:
 
 
 @dataclass(frozen=True)
+class ApproverAnchor:
+    """One principal the operator accepts approvals from, and nothing else.
+
+    An approver anchor lets the verifier check that approver's signatures
+    from ``not_before`` through ``expires_at``; it is not a trust anchor and
+    grants no authority. Approver anchors use expiry-only status.
+    """
+
+    principal: str
+    accepted_methods: Tuple[str, ...]
+    not_before: int
+    expires_at: int
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "accepted_methods", tuple(self.accepted_methods))
+        if type(self.principal) is not str or not self.principal:
+            raise TypeError("approver anchor principal must be a non-empty string")
+        if not 1 <= len(self.accepted_methods) <= 32 or any(
+            type(value) is not str or not value for value in self.accepted_methods
+        ):
+            raise ValueError("approver anchor needs 1 to 32 accepted methods")
+        for value in (self.not_before, self.expires_at):
+            if type(value) is not int or not 0 <= value <= _MAX_U64:
+                raise ValueError("approver anchor validity is outside bounds")
+
+    def _native(self) -> _native.ApproverAnchor:
+        return _native.ApproverAnchor(
+            _native.Principal(self.principal),
+            list(self.accepted_methods),
+            self.not_before,
+            self.expires_at,
+            None,
+        )
+
+
+@dataclass(frozen=True)
+class ApprovalRequirement:
+    """Any ``threshold`` distinct principals of ``approvers`` must approve
+    every verified action. Each approver needs an :class:`ApproverAnchor`;
+    an actor's own approval never counts."""
+
+    approvers: Tuple[str, ...]
+    threshold: int
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "approvers", tuple(self.approvers))
+        if not 1 <= len(self.approvers) <= 16 or any(
+            type(value) is not str or not value for value in self.approvers
+        ):
+            raise ValueError("approval requirement names 1 to 16 approvers")
+        if type(self.threshold) is not int or not 1 <= self.threshold <= len(self.approvers):
+            raise ValueError("approval threshold is outside 1 to the approver count")
+
+
+@dataclass(frozen=True)
 class TrustedContextRequest:
     """The one audience, challenge, and evaluation time a trusted context is
     bound to, as a gateway installation needs."""
@@ -124,6 +178,8 @@ def compile_trusted_context(
     critical_extensions: Sequence[str] = (),
     channel_policy: str = "none-v1",
     request: Optional[TrustedContextRequest] = None,
+    approver_anchors: Sequence[ApproverAnchor] = (),
+    approval_requirements: Sequence[ApprovalRequirement] = (),
 ) -> bytes:
     """Compiles an operator's trusted context and returns its canonical bytes.
 
@@ -134,6 +190,10 @@ def compile_trusted_context(
     audience, challenge, and evaluation time, as a gateway installation
     needs; without it the unbound template is returned. The parameters are
     those of the TypeScript SDK's ``compileTrustedContext``.
+
+    ``approver_anchors`` name who may approve and ``approval_requirements``
+    the approvals every verified action needs; an approver is never a trust
+    anchor.
 
     Raises ``TypeError`` or ``ValueError`` for malformed or unbounded input
     before native code runs, and the native error for input the Rust model
@@ -150,6 +210,16 @@ def compile_trusted_context(
         raise ValueError("verifier configuration must contain 32 bytes")
     if request is not None and type(request) is not TrustedContextRequest:
         raise TypeError("request must be a TrustedContextRequest")
+    approver_values = tuple(approver_anchors)
+    requirement_values = tuple(approval_requirements)
+    if len(approver_values) > 32 or any(
+        type(value) is not ApproverAnchor for value in approver_values
+    ):
+        raise TypeError("approver anchors must be at most 32 ApproverAnchor values")
+    if len(requirement_values) > 4 or any(
+        type(value) is not ApprovalRequirement for value in requirement_values
+    ):
+        raise TypeError("approval requirements must be at most 4 ApprovalRequirement values")
     compiled = compile_trust(
         anchors=[value._private() for value in values],
         assurance=assurance,
@@ -160,6 +230,10 @@ def compile_trusted_context(
         evidence_types=evidence_types,
         critical_extensions=critical_extensions,
         configuration=None if configuration is None else bytes(configuration),
+        approver_anchors=[value._native() for value in approver_values],
+        approval_requirements=[
+            (list(value.approvers), value.threshold) for value in requirement_values
+        ],
     )
     context = compiled.context
     if request is not None:
@@ -351,46 +425,17 @@ class _DevelopmentSigner:
 
 @dataclass(frozen=True)
 class SignerFile:
-    """What an ``auths.approval-signer/1`` file describes: a custody signer,
-    the grant chain its approvals carry, and whether the signer is
-    development custody over a local key file."""
+    """What an ``auths.approval-signer/1`` file describes: a custody signer
+    and whether it is development custody over a local key file."""
 
     signer: CustodySigner
-    grants: Tuple["GrantEvidence", ...]
     development: bool
-
-
-def _b64(value: object) -> bytes:
-    if not isinstance(value, str):
-        raise ValueError("signer configuration base64 values must be strings")
-    return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
 
 
 def _mapping(value: object) -> dict[str, object]:
     if not isinstance(value, dict):
         raise ValueError("signer configuration entries must be objects")
     return cast(dict[str, object], value)
-
-
-def _items(value: object, limit: int) -> list[object]:
-    if not isinstance(value, list) or len(cast(list[object], value)) > limit:
-        raise ValueError(f"signer configuration lists hold at most {limit} entries")
-    return cast(list[object], value)
-
-
-def _grant(value: object) -> "GrantEvidence":
-    from .authoring import GrantEvidence
-
-    grant = _mapping(value)
-    return GrantEvidence(
-        _b64(grant.get("signed_grant_b64")),
-        tuple(
-            PublicControlEvidence(
-                str(item.get("evidence_type")), str(item.get("media_type")), _b64(item.get("bytes_b64"))
-            )
-            for item in map(_mapping, _items(grant.get("evidence", []), 32))
-        ),
-    )
 
 
 def load_signer_file(path: Union[str, Path]) -> SignerFile:
@@ -417,7 +462,8 @@ def load_signer_file(path: Union[str, Path]) -> SignerFile:
     config = _mapping(json.loads(location.read_text(encoding="utf-8")))
     if config.get("schema") != _SIGNER_SCHEMA:
         raise ValueError(f"signer configuration must declare schema {_SIGNER_SCHEMA}")
-    grants = tuple(_grant(item) for item in _items(config.get("grants", []), 16))
+    if "grants" in config:
+        raise ValueError("an approval signer carries no grant chain; remove grants")
     custody = config.get("custody")
     if custody == "development-ed25519":
         seed_file = config.get("seed_file")
@@ -426,7 +472,7 @@ def load_signer_file(path: Union[str, Path]) -> SignerFile:
         seed = (location.parent / seed_file).resolve().read_bytes()
         if len(seed) != 32:
             raise ValueError("development seed must contain 32 bytes")
-        return SignerFile(_DevelopmentSigner(seed), grants, True)
+        return SignerFile(_DevelopmentSigner(seed), True)
     if custody == "module":
         target = config.get("python")
         if not isinstance(target, str) or ":" not in target:
@@ -438,11 +484,13 @@ def load_signer_file(path: Union[str, Path]) -> SignerFile:
         signer = factory(config)
         if signer.descriptor.contract != "signer-custody/2":
             raise ValueError("module custody factory did not return a custody signer")
-        return SignerFile(signer, grants, False)
+        return SignerFile(signer, False)
     raise ValueError("signer custody must be development-ed25519 or module")
 
 
 __all__ = [
+    "ApprovalRequirement",
+    "ApproverAnchor",
     "SignerFile",
     "TrustAnchor",
     "TrustedContextRequest",

@@ -36,8 +36,8 @@ verify_many
 verify_receipt
 
 [auths.authoring]
+ApprovalAction
 ApprovalCollection
-ApprovalMember
 ApprovalProposal
 ApprovalRefused
 ApprovalRequest
@@ -49,8 +49,7 @@ AuthoredMcpQuorumProof
 AuthoringUnsuccessful
 GrantEvidence
 ProductionAuthoringInputs
-QuorumApprover
-QuorumPlan
+QuorumRequirement
 approval_requests
 approve
 author_mcp_proof
@@ -60,6 +59,7 @@ collect_approvals
 decline
 open_approval_request
 propose_mcp_approval
+sign_approval_action
 
 [auths.attempts]
 AttemptRecord
@@ -101,6 +101,8 @@ GatewaySignedObservation
 GatewayUnknown
 
 [auths.self_hosted]
+ApprovalRequirement
+ApproverAnchor
 ArrayField
 AssurancePolicy
 AssuranceRequirement

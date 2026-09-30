@@ -445,10 +445,11 @@ async fn postgres_per_principal_bounds_admit_only_actions_inside_the_signer_boun
     bounded_hostile_suite(Backend::Postgres).await;
 }
 
-/// A root with one delegation edge, three managers anchored directly, and
+/// A root with one delegation edge, three managers named as approvers, and
 /// agents holding bounded grants from the root. Installed trust requires
-/// three authorized approvals from three distinct actors and `roots`
-/// distinct roots, so a bounded agent needs two managers beside it.
+/// `branches` authorized branches and approvals from any two of the three
+/// managers, so a bounded agent needs two managers' approvals beside its own
+/// signature.
 struct RefundQuorum {
     harness: Harness,
     managers: [Signer; 3],
@@ -457,21 +458,48 @@ struct RefundQuorum {
     other_grant: SignedGrant,
 }
 
+const MANAGER_APPROVALS: u16 = 2;
+
 impl RefundQuorum {
-    fn open(ceiling: u64, max_count: u64, roots: u16) -> Self {
+    fn open(ceiling: u64, max_count: u64, branches: u16) -> Self {
         let root = Signer::new(0x11);
         let managers = [Signer::new(0xa1), Signer::new(0xb2), Signer::new(0xc3)];
         let observer = GatewayObserver::from_test_seed(0x33);
-        let anchors: Vec<&Signer> = vec![&root, &managers[0], &managers[1], &managers[2]];
+        let approvers = managers
+            .iter()
+            .map(|manager| {
+                auths_model::ApproverAnchor::new(
+                    manager.principal.clone(),
+                    vec![
+                        auths_model::PrincipalMethodId::parse(auths_raw_key::RAW_KEY_V1)
+                            .expect("method"),
+                    ],
+                    window(NOW - 86_400, NOW + 86_400),
+                    StatusPolicy::ExpiryOnly,
+                )
+                .expect("approver anchor")
+            })
+            .collect();
+        let requirement = auths_model::ApprovalRequirement::new(
+            managers
+                .iter()
+                .map(|manager| manager.principal.clone())
+                .collect(),
+            MANAGER_APPROVALS,
+        )
+        .expect("requirement");
         let context = h::context_with_roots(
-            &anchors,
+            &[&root],
             observer.principal(),
             None,
             NOW,
             1,
-            auths_model::CompositionRequirement::new(None, 3, 3, roots).expect("composition"),
+            auths_model::CompositionRequirement::new(None, branches, branches, 1)
+                .expect("composition"),
         )
-        .expect("refund trust");
+        .expect("refund trust")
+        .with_approvals(approvers, vec![requirement])
+        .expect("approvals");
         let harness = Harness::with(
             bounds_recipe(),
             context,
@@ -494,68 +522,207 @@ impl RefundQuorum {
         }
     }
 
-    /// One exact action signed by every listed approver under the core
-    /// threshold plan the approval-quorum SDK builds.
-    fn submission(
-        &self,
-        operation: &str,
-        amount: u64,
-        signers: &[(&Signer, Option<&SignedGrant>)],
-    ) -> Submission {
+    fn canonical(&self, operation: &str, amount: u64) -> CanonicalAction {
         let arguments = self
             .harness
             .arguments(operation, RECORD, &json!({"amount": amount}));
         let bytes = call(&arguments).canonical_bytes().expect("canonical call");
-        let canonical: CanonicalAction = McpProfile.canonicalize(&bytes).expect("canonical");
-        let approvers: Vec<_> = signers
-            .iter()
-            .map(|(signer, grant)| {
-                auths_approval_quorum::QuorumApprover::new(signer.principal.clone(), *grant)
-                    .expect("approver")
-            })
-            .collect();
-        let proposal = auths_approval_quorum::QuorumProposal::new(
+        McpProfile.canonicalize(&bytes).expect("canonical")
+    }
+
+    fn proposal(
+        &self,
+        canonical: &CanonicalAction,
+        actor: (&Signer, Option<&SignedGrant>),
+    ) -> auths_approval_quorum::QuorumProposal {
+        auths_approval_quorum::QuorumProposal::new(
             canonical.clone(),
             &audience(),
             [0; 32],
             NOW - 600,
             Some(3_600),
-            u16::try_from(signers.len()).expect("count"),
-            &approvers,
+            MANAGER_APPROVALS,
+            &self
+                .managers
+                .iter()
+                .map(|manager| manager.principal.clone())
+                .collect::<Vec<_>>(),
+            &auths_approval_quorum::QuorumActor::new(actor.0.principal.clone(), actor.1)
+                .expect("actor"),
         )
-        .expect("proposal");
-        let approvals: Vec<_> = signers
+        .expect("proposal")
+    }
+
+    fn approvals(
+        proposal: &auths_approval_quorum::QuorumProposal,
+        approvers: &[&Signer],
+    ) -> Vec<auths_model::SignedApproval> {
+        approvers
             .iter()
-            .zip(proposal.envelopes())
-            .map(|((signer, grant), envelope)| {
-                auths_approval_quorum::QuorumApproval::new(
-                    sign_action(signer, envelope.clone()),
-                    grant
-                        .map(|grant| vec![(grant.clone(), vec![self.harness.root.evidence()])])
-                        .unwrap_or_default(),
-                    vec![signer.evidence()],
+            .map(|approver| {
+                let statement = proposal
+                    .statement(&approver.principal)
+                    .expect("listed manager")
+                    .clone();
+                let descriptor = approver.descriptor();
+                let signature = approver.sign(
+                    &auths_codec::approval_signing_preimage(
+                        &statement,
+                        &descriptor,
+                        proposal.canonical().profile(),
+                    )
+                    .expect("preimage"),
+                );
+                auths_model::SignedApproval::new(
+                    statement,
+                    SignatureEnvelope::new(descriptor, signature),
+                    vec![approver.evidence()],
                 )
                 .expect("approval")
             })
-            .collect();
-        let bundle = proposal.assemble(&approvals).expect("assembled");
-        let action = encode_canonical_action(&canonical).expect("action bytes");
+            .collect()
+    }
+
+    fn finish(canonical: &CanonicalAction, bundle: &ProofBundle) -> Submission {
+        let action = encode_canonical_action(canonical).expect("action bytes");
         let commitment = *domain_commitment("auths.canonical-action.v1", &action)
             .expect("commitment")
             .as_bytes();
         Submission {
-            proof: encode_bundle(&bundle).expect("proof bytes"),
+            proof: encode_bundle(bundle).expect("proof bytes"),
             action,
             commitment,
         }
+    }
+
+    /// One exact action signed by `actor` and approved by `approvers`, as
+    /// the approval-quorum SDK assembles it. Fewer approvers than the
+    /// threshold, which the SDK refuses to assemble, are carried as given.
+    fn submission(
+        &self,
+        operation: &str,
+        amount: u64,
+        actor: (&Signer, Option<&SignedGrant>),
+        approvers: &[&Signer],
+    ) -> Submission {
+        let canonical = self.canonical(operation, amount);
+        let proposal = self.proposal(&canonical, actor);
+        let action = auths_approval_quorum::QuorumAction::new(
+            sign_action(actor.0, proposal.envelope().clone()),
+            actor
+                .1
+                .map(|grant| vec![(grant.clone(), vec![self.harness.root.evidence()])])
+                .unwrap_or_default(),
+            vec![actor.0.evidence()],
+        )
+        .expect("action");
+        let approvals = Self::approvals(&proposal, approvers);
+        let bundle = if approvers.len() >= usize::from(MANAGER_APPROVALS) {
+            proposal.assemble(&action, &approvals).expect("assembled")
+        } else {
+            let full = Self::approvals(&proposal, &[&self.managers[0], &self.managers[1]]);
+            proposal
+                .assemble(&action, &full)
+                .expect("assembled")
+                .with_approvals(approvals)
+                .expect("fewer approvals")
+        };
+        Self::finish(&canonical, &bundle)
+    }
+
+    /// One action signed by every actor, each on its own leaf of an
+    /// all-of plan, approved by `approvers`.
+    fn composed(
+        &self,
+        operation: &str,
+        amount: u64,
+        actors: &[(&Signer, &SignedGrant)],
+        approvers: &[&Signer],
+    ) -> Submission {
+        let canonical = self.canonical(operation, amount);
+        let references: Vec<ProofRef> = (1..=actors.len())
+            .map(|index| ProofRef::new([u8::try_from(index).expect("small"); 32]))
+            .collect();
+        let plan = AuthorizationPlan::all_of(
+            references
+                .iter()
+                .copied()
+                .map(AuthorizationPlan::proof)
+                .collect(),
+        )
+        .expect("plan");
+        let mut evidence = vec![self.harness.root.evidence()];
+        let mut bindings = Vec::new();
+        let mut grants = Vec::new();
+        let mut actions = Vec::new();
+        for ((signer, grant), reference) in actors.iter().zip(&references) {
+            let proposal = self.proposal(&canonical, (signer, Some(grant)));
+            let envelope = proposal.envelope();
+            let envelope = ActionEnvelope::new(
+                envelope.profile().clone(),
+                envelope.body_media_type().clone(),
+                envelope.canonical_body_digest(),
+                envelope.permission().clone(),
+                envelope.requested_budget().cloned(),
+                envelope.audience().clone(),
+                envelope.challenge(),
+                envelope.validity(),
+                envelope.actor().clone(),
+                envelope.terminal_grant(),
+                plan_id(&plan).expect("plan ID"),
+                envelope.channel_binding().clone(),
+                *reference,
+                Vec::new(),
+                CriticalExtensions::empty(),
+            );
+            let action = sign_action(signer, envelope);
+            bindings.push(
+                ControlBinding::new(
+                    StatementRef::Action(action_id(action.envelope()).expect("action ID")),
+                    vec![signer.evidence().id()],
+                )
+                .expect("binding"),
+            );
+            bindings.push(
+                ControlBinding::new(
+                    StatementRef::Grant(grant_id(grant.statement()).expect("grant ID")),
+                    vec![self.harness.root.evidence().id()],
+                )
+                .expect("binding"),
+            );
+            evidence.push(signer.evidence());
+            grants.push((*grant).clone());
+            actions.push(action);
+        }
+        evidence.sort_by_key(EvidenceObject::id);
+        evidence.dedup();
+        bindings.sort_by_key(ControlBinding::statement);
+        grants.sort_by_cached_key(|grant| grant_id(grant.statement()).ok());
+        let approvals = Self::approvals(&self.proposal(&canonical, (actors[0].0, None)), approvers);
+        let bundle = ProofBundle::new(
+            BundleHeader::v1(),
+            grants,
+            actions,
+            plan,
+            evidence,
+            bindings,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Some(canonical.body().to_vec()),
+        )
+        .expect("composed bundle")
+        .with_approvals(approvals)
+        .expect("approvals");
+        Self::finish(&canonical, &bundle)
     }
 
     fn agent(&self) -> (&Signer, Option<&SignedGrant>) {
         (&self.harness.agent, Some(&self.grant))
     }
 
-    fn manager(&self, index: usize) -> (&Signer, Option<&SignedGrant>) {
-        (&self.managers[index], None)
+    fn manager(&self, index: usize) -> &Signer {
+        &self.managers[index]
     }
 
     /// The refund journey's submissions in order: one inside the bound, one
@@ -567,19 +734,21 @@ impl RefundQuorum {
                 self.submission(
                     "refund-1",
                     400,
-                    &[self.agent(), self.manager(0), self.manager(1)],
+                    self.agent(),
+                    &[self.manager(0), self.manager(1)],
                 ),
             ),
             (
                 "refund-2",
-                self.submission("refund-2", 100, &[self.agent(), self.manager(0)]),
+                self.submission("refund-2", 100, self.agent(), &[self.manager(0)]),
             ),
             (
                 "refund-3",
                 self.submission(
                     "refund-3",
                     600,
-                    &[self.agent(), self.manager(0), self.manager(1)],
+                    self.agent(),
+                    &[self.manager(0), self.manager(1)],
                 ),
             ),
             (
@@ -587,7 +756,8 @@ impl RefundQuorum {
                 self.submission(
                     "refund-4",
                     100,
-                    &[self.agent(), self.manager(1), self.manager(2)],
+                    self.agent(),
+                    &[self.manager(1), self.manager(2)],
                 ),
             ),
         ]
@@ -608,7 +778,7 @@ fn verdict(result: &GatewaySubmitResult) -> (&'static str, Option<&str>) {
 
 #[tokio::test]
 async fn bounded_agent_needs_two_managers_and_stays_inside_its_bound() {
-    let quorum = RefundQuorum::open(500, 1, 3);
+    let quorum = RefundQuorum::open(500, 1, 1);
     let mut results = Vec::new();
     for (_, submission) in quorum.journey() {
         results.push(quorum.harness.submit(&submission, NOW).await);
@@ -617,7 +787,7 @@ async fn bounded_agent_needs_two_managers_and_stays_inside_its_bound() {
         results.iter().map(verdict).collect::<Vec<_>>(),
         vec![
             ("entered", None),
-            ("denied", Some("composition-requirement-not-met")),
+            ("denied", Some("approval-threshold-not-met")),
             ("not-entered", Some("gateway.policy.above-ceiling")),
             ("not-entered", Some("gateway.policy.window-exhausted")),
         ]
@@ -631,13 +801,16 @@ async fn bounded_agent_needs_two_managers_and_stays_inside_its_bound() {
 }
 
 #[tokio::test]
-async fn unbounded_composition_is_admitted_without_a_count() {
-    let quorum = RefundQuorum::open(500, 1, 3);
-    let managers = [quorum.manager(0), quorum.manager(1), quorum.manager(2)];
-    for operation in ["managers-1", "managers-2"] {
+async fn an_unbounded_actor_is_admitted_without_a_count() {
+    let quorum = RefundQuorum::open(500, 1, 1);
+    let managers = [quorum.manager(0), quorum.manager(2)];
+    for operation in ["root-1", "root-2"] {
         let result = quorum
             .harness
-            .submit(&quorum.submission(operation, 900, &managers), NOW)
+            .submit(
+                &quorum.submission(operation, 900, (&quorum.harness.root, None), &managers),
+                NOW,
+            )
             .await;
         assert_eq!(verdict(&result), ("entered", None), "{operation}");
     }
@@ -647,25 +820,24 @@ async fn unbounded_composition_is_admitted_without_a_count() {
 
 #[tokio::test]
 async fn one_bounded_branch_is_admitted_and_counted_against_its_actor() {
-    let quorum = RefundQuorum::open(500, 1, 3);
+    let quorum = RefundQuorum::open(500, 1, 1);
     let first = quorum.submission(
         "bounded-1",
         100,
-        &[quorum.agent(), quorum.manager(0), quorum.manager(1)],
+        quorum.agent(),
+        &[quorum.manager(0), quorum.manager(1)],
     );
     let second = quorum.submission(
         "bounded-2",
         100,
-        &[quorum.agent(), quorum.manager(1), quorum.manager(2)],
+        quorum.agent(),
+        &[quorum.manager(1), quorum.manager(2)],
     );
     let other = quorum.submission(
         "other-agent",
         100,
-        &[
-            (&quorum.other, Some(&quorum.other_grant)),
-            quorum.manager(0),
-            quorum.manager(2),
-        ],
+        (&quorum.other, Some(&quorum.other_grant)),
+        &[quorum.manager(0), quorum.manager(2)],
     );
     assert_eq!(
         verdict(&quorum.harness.submit(&first, NOW).await),
@@ -688,14 +860,14 @@ async fn one_bounded_branch_is_admitted_and_counted_against_its_actor() {
 #[tokio::test]
 async fn two_bounded_branches_in_one_composition_are_refused() {
     let quorum = RefundQuorum::open(500, 3, 2);
-    let submission = quorum.submission(
+    let submission = quorum.composed(
         "two-bounded",
         100,
         &[
-            quorum.agent(),
-            (&quorum.other, Some(&quorum.other_grant)),
-            quorum.manager(0),
+            (&quorum.harness.agent, &quorum.grant),
+            (&quorum.other, &quorum.other_grant),
         ],
+        &[quorum.manager(0), quorum.manager(1)],
     );
     let result = quorum.harness.submit(&submission, NOW).await;
     assert_eq!(
@@ -834,7 +1006,7 @@ fn swap_evidence(bundle: &mut Value, first: usize, second: usize) {
 #[tokio::test]
 async fn offline_audit_reproduces_every_gateway_decision() {
     use crate::AuditStatus::{Refused, Unverified, Verified};
-    let quorum = RefundQuorum::open(500, 1, 3);
+    let quorum = RefundQuorum::open(500, 1, 1);
     let bundle = journey_bundle(&quorum).await;
     let report = audit(&bundle, &pins(&quorum));
     // The two refusals made before the claim carry no outcome, so nothing
@@ -843,11 +1015,7 @@ async fn offline_audit_reproduces_every_gateway_decision() {
         rows(&report),
         vec![
             (Verified, "audit.verified".to_owned(), true),
-            (
-                Unverified,
-                "composition-requirement-not-met".to_owned(),
-                false
-            ),
+            (Unverified, "approval-threshold-not-met".to_owned(), false),
             (Unverified, "gateway.policy.above-ceiling".to_owned(), false),
             (Refused, "gateway.policy.window-exhausted".to_owned(), true),
         ]
@@ -860,7 +1028,6 @@ async fn offline_audit_reproduces_every_gateway_decision() {
         .map(String::as_str)
         .collect();
     let expected: BTreeSet<&str> = [
-        quorum.harness.agent.principal.as_str(),
         quorum.managers[0].principal.as_str(),
         quorum.managers[1].principal.as_str(),
     ]
@@ -889,7 +1056,7 @@ async fn offline_audit_reproduces_every_gateway_decision() {
 /// does not show it, because a bundle may be incomplete.
 #[tokio::test]
 async fn offline_audit_reports_an_exhaustion_the_bundle_does_not_show() {
-    let quorum = RefundQuorum::open(500, 1, 3);
+    let quorum = RefundQuorum::open(500, 1, 1);
     let mut bundle = journey_bundle(&quorum).await;
     let pins = pins(&quorum);
     let recount = |bundle: &Value| {
@@ -927,7 +1094,7 @@ async fn offline_audit_reports_an_exhaustion_the_bundle_does_not_show() {
 
 #[tokio::test]
 async fn offline_audit_detects_a_tampered_bundle() {
-    let quorum = RefundQuorum::open(500, 1, 3);
+    let quorum = RefundQuorum::open(500, 1, 1);
     let bundle = journey_bundle(&quorum).await;
     let pins = pins(&quorum);
     let finding = |bundle: &Value, pins: &crate::AuditPins| {
@@ -999,7 +1166,7 @@ async fn offline_audit_detects_a_tampered_bundle() {
 #[tokio::test]
 async fn offline_audit_without_outcomes_reports_every_entry_unverified() {
     use crate::AuditStatus::Unverified;
-    let quorum = RefundQuorum::open(500, 1, 3);
+    let quorum = RefundQuorum::open(500, 1, 1);
     let mut bundle = journey_bundle(&quorum).await;
     strip_outcomes(&mut bundle);
     let report = audit(&bundle, &pins(&quorum));
@@ -1007,11 +1174,7 @@ async fn offline_audit_without_outcomes_reports_every_entry_unverified() {
         rows(&report),
         vec![
             (Unverified, "audit.outcome-missing".to_owned(), true),
-            (
-                Unverified,
-                "composition-requirement-not-met".to_owned(),
-                false
-            ),
+            (Unverified, "approval-threshold-not-met".to_owned(), false),
             (Unverified, "gateway.policy.above-ceiling".to_owned(), false),
             (Unverified, "audit.outcome-missing".to_owned(), true),
         ]
@@ -1028,7 +1191,7 @@ async fn offline_audit_without_outcomes_reports_every_entry_unverified() {
 #[tokio::test]
 async fn offline_audit_without_outcomes_never_passes_an_altered_proof() {
     use crate::AuditStatus::Unverified;
-    let quorum = RefundQuorum::open(500, 1, 3);
+    let quorum = RefundQuorum::open(500, 1, 1);
     let mut bundle = journey_bundle(&quorum).await;
     strip_outcomes(&mut bundle);
     flip_proof(&mut bundle, 0);
@@ -1037,11 +1200,7 @@ async fn offline_audit_without_outcomes_never_passes_an_altered_proof() {
         rows(&report),
         vec![
             (Unverified, "missing-reference".to_owned(), false),
-            (
-                Unverified,
-                "composition-requirement-not-met".to_owned(),
-                false
-            ),
+            (Unverified, "approval-threshold-not-met".to_owned(), false),
             (Unverified, "gateway.policy.above-ceiling".to_owned(), false),
             (Unverified, "audit.outcome-missing".to_owned(), true),
         ]
@@ -1057,7 +1216,7 @@ async fn offline_audit_without_outcomes_never_passes_an_altered_proof() {
 #[tokio::test]
 async fn offline_audit_without_outcomes_flags_a_duplicated_entry() {
     use crate::AuditStatus::{Inconsistent, Unverified};
-    let quorum = RefundQuorum::open(500, 1, 3);
+    let quorum = RefundQuorum::open(500, 1, 1);
     let mut bundle = journey_bundle(&quorum).await;
     strip_outcomes(&mut bundle);
     duplicate(&mut bundle, 0);
@@ -1082,7 +1241,7 @@ async fn offline_audit_without_outcomes_flags_a_duplicated_entry() {
 #[tokio::test]
 async fn offline_audit_without_outcomes_flags_misfiled_proofs() {
     use crate::AuditStatus::{Inconsistent, Unverified};
-    let quorum = RefundQuorum::open(500, 1, 3);
+    let quorum = RefundQuorum::open(500, 1, 1);
     let mut bundle = journey_bundle(&quorum).await;
     strip_outcomes(&mut bundle);
     swap_evidence(&mut bundle, 0, 3);
@@ -1091,11 +1250,7 @@ async fn offline_audit_without_outcomes_flags_misfiled_proofs() {
         rows(&report),
         vec![
             (Inconsistent, "audit.operation-mismatch".to_owned(), false),
-            (
-                Unverified,
-                "composition-requirement-not-met".to_owned(),
-                false
-            ),
+            (Unverified, "approval-threshold-not-met".to_owned(), false),
             (Unverified, "gateway.policy.above-ceiling".to_owned(), false),
             (Inconsistent, "audit.operation-mismatch".to_owned(), false),
         ]
@@ -1114,18 +1269,15 @@ async fn offline_audit_without_outcomes_flags_misfiled_proofs() {
 #[tokio::test]
 async fn offline_audit_fails_a_valid_submission_refused_while_disabled() {
     use crate::AuditStatus::{Refused, Unverified, Verified};
-    let quorum = RefundQuorum::open(500, 1, 3);
+    let quorum = RefundQuorum::open(500, 1, 1);
     let mut bundle = journey_bundle(&quorum).await;
     quorum.harness.disable_entry();
     // The second agent's count is untouched, so only the connection stops it.
     let submission = quorum.submission(
         "refund-5",
         100,
-        &[
-            (&quorum.other, Some(&quorum.other_grant)),
-            quorum.manager(0),
-            quorum.manager(1),
-        ],
+        (&quorum.other, Some(&quorum.other_grant)),
+        &[quorum.manager(0), quorum.manager(1)],
     );
     assert_eq!(
         verdict(&quorum.harness.submit(&submission, NOW).await),
@@ -1146,11 +1298,7 @@ async fn offline_audit_fails_a_valid_submission_refused_while_disabled() {
         rows(&report),
         vec![
             (Verified, "audit.verified".to_owned(), true),
-            (
-                Unverified,
-                "composition-requirement-not-met".to_owned(),
-                false
-            ),
+            (Unverified, "approval-threshold-not-met".to_owned(), false),
             (Unverified, "gateway.policy.above-ceiling".to_owned(), false),
             (Refused, "gateway.policy.window-exhausted".to_owned(), true),
             (Unverified, "audit.outcome-missing".to_owned(), true),
@@ -1168,7 +1316,7 @@ async fn offline_audit_fails_a_valid_submission_refused_while_disabled() {
 #[tokio::test]
 async fn offline_audit_fails_an_admitted_entry_whose_outcome_was_removed() {
     use crate::AuditStatus::{Refused, Unverified};
-    let quorum = RefundQuorum::open(500, 1, 3);
+    let quorum = RefundQuorum::open(500, 1, 1);
     let mut bundle = journey_bundle(&quorum).await;
     remove_outcome(&mut bundle, 0);
     let report = audit(&bundle, &pins(&quorum));
@@ -1176,11 +1324,7 @@ async fn offline_audit_fails_an_admitted_entry_whose_outcome_was_removed() {
         rows(&report),
         vec![
             (Unverified, "audit.outcome-missing".to_owned(), true),
-            (
-                Unverified,
-                "composition-requirement-not-met".to_owned(),
-                false
-            ),
+            (Unverified, "approval-threshold-not-met".to_owned(), false),
             (Unverified, "gateway.policy.above-ceiling".to_owned(), false),
             (Refused, "gateway.policy.window-exhausted".to_owned(), true),
         ]
@@ -1206,7 +1350,7 @@ async fn offline_audit_fails_an_admitted_entry_whose_outcome_was_removed() {
 #[tokio::test]
 async fn offline_audit_allowing_unverified_refusals_accepts_an_altered_proof_without_its_outcome() {
     use crate::AuditStatus::{Refused, Unverified};
-    let quorum = RefundQuorum::open(500, 1, 3);
+    let quorum = RefundQuorum::open(500, 1, 1);
     let mut bundle = journey_bundle(&quorum).await;
     remove_outcome(&mut bundle, 0);
     flip_proof(&mut bundle, 0);
@@ -1215,11 +1359,7 @@ async fn offline_audit_allowing_unverified_refusals_accepts_an_altered_proof_wit
         rows(&report),
         vec![
             (Unverified, "missing-reference".to_owned(), false),
-            (
-                Unverified,
-                "composition-requirement-not-met".to_owned(),
-                false
-            ),
+            (Unverified, "approval-threshold-not-met".to_owned(), false),
             (Unverified, "gateway.policy.above-ceiling".to_owned(), false),
             (Refused, "gateway.policy.window-exhausted".to_owned(), true),
         ]
@@ -1230,7 +1370,7 @@ async fn offline_audit_allowing_unverified_refusals_accepts_an_altered_proof_wit
 
 #[tokio::test]
 async fn offline_audit_report_names_unverified_entries() {
-    let quorum = RefundQuorum::open(500, 1, 3);
+    let quorum = RefundQuorum::open(500, 1, 1);
     let report = audit(&journey_bundle(&quorum).await, &pins(&quorum));
     let value = serde_json::to_value(&report).expect("report JSON");
     assert_eq!(value["schema"], "auths.gateway-audit-report/3");
@@ -1249,9 +1389,9 @@ async fn offline_audit_report_names_unverified_entries() {
 #[tokio::test]
 async fn offline_audit_flags_an_over_admission_without_any_order() {
     use crate::AuditStatus::{Inconsistent, Unverified};
-    let first = RefundQuorum::open(500, 1, 3);
+    let first = RefundQuorum::open(500, 1, 1);
     let mut bundle = journey_bundle(&first).await;
-    let second = RefundQuorum::open(500, 1, 3);
+    let second = RefundQuorum::open(500, 1, 1);
     let (operation, submission) = second.journey().remove(3);
     assert_eq!(
         verdict(&second.harness.submit(&submission, NOW).await),
@@ -1269,7 +1409,7 @@ async fn offline_audit_flags_an_over_admission_without_any_order() {
         statuses(&report),
         vec![
             (Inconsistent, "audit.bound-exceeded".to_owned()),
-            (Unverified, "composition-requirement-not-met".to_owned()),
+            (Unverified, "approval-threshold-not-met".to_owned()),
             (Unverified, "gateway.policy.above-ceiling".to_owned()),
             (Inconsistent, "audit.bound-exceeded".to_owned()),
         ]
@@ -1309,7 +1449,7 @@ async fn offline_audit_lists_recorded_approval_responses_without_changing_verdic
             .to_text()
             .expect("text")
     };
-    let quorum = RefundQuorum::open(500, 1, 3);
+    let quorum = RefundQuorum::open(500, 1, 1);
     let bundle = journey_bundle(&quorum).await;
     let plain = audit(&bundle, &pins(&quorum));
     let mut recorded = bundle.clone();
@@ -1345,7 +1485,7 @@ async fn offline_audit_lists_recorded_approval_responses_without_changing_verdic
     );
     let mut malformed = bundle.clone();
     malformed["approval_responses"] =
-        json!([{"operation_id": "refund-declined", "response": "auths-as1-AAAA"}]);
+        json!([{"operation_id": "refund-declined", "response": "auths-as2-AAAA"}]);
     assert_eq!(
         crate::audit_bundle(
             &serde_json::to_vec(&malformed).expect("bundle"),

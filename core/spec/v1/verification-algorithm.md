@@ -53,7 +53,14 @@ and carries no plan digest.
    status scope is `malformed-proof`: a status trust rule with scope `own`
    whose issuer is the principal of no trust anchor in the context, a rule
    with scope `anchors` listing an identifier that names no trust anchor, or
-   two rules in one snapshot that name one issuer with different scopes.
+   two rules in one snapshot that name one issuer with different scopes. So
+   is a context whose approval requirements are inconsistent: a requirement
+   that names a principal without an approver anchor, that repeats a
+   requirement, or whose K exceeds its number of approvers, and an approver
+   anchor accepting a principal method or principal-status method the
+   context does not accept. More approver anchors or requirements than the
+   context's limits, or more than 16 approvers in one requirement, is
+   `resource-limit-exceeded`.
 2. The canonical action, before any proof byte is read:
    1. `decode.action-bytes`: an input longer than the canonical-action input
       limit is `resource-limit-exceeded`, before any byte is read.
@@ -87,7 +94,11 @@ and carries no plan digest.
    `resource-limit-exceeded` before any byte is read. Then strictly decode
    deterministic CBOR, and reject invalid map keys, non-minimal forms, invalid
    UTF-8, duplicate keys, unknown critical fields, unsorted sets, trailing
-   bytes, and collection overflow. Produce `DecodedProof`.
+   bytes, and collection overflow. Signed approvals (proof key 10) are an
+   array whose order and repetitions carry no meaning: more than the
+   approvals limit, an approval longer than 4096 bytes, or one with more than
+   four evidence objects is `resource-limit-exceeded`, and the duplicate-object
+   rule does not apply to them. Produce `DecodedProof`.
 
 A canonical action constructed in process has no input bytes. For it, only
 the aggregate detached-attachment limit applies, at action binding.
@@ -477,6 +488,21 @@ passes.
 5. Record, for each requirement, its content identifier and the attachment
    digest of the observation that satisfied it.
 
+### 5b. Grant-carried approval requirements
+
+Runs for each branch, within each trust anchor's attempt (as step 10 of
+that attempt, after the observation stage), and before the branch counts as
+authorized. Like every failure inside a branch, a limit reached here, the
+per-chain bound or the per-verification bound below included, is the
+branch's result, which the plan combines. Collect the distinct requirements, by identifier,
+carried by the `approval-requirement-v1` extensions of every grant in the
+chain, root first, in first-appearance order; more than 16 is
+`resource-limit-exceeded`. With none, the step passes. Evaluate each
+requirement in that order as "Approval requirements" below: the first
+denied requirement denies the branch with `approval-threshold-not-met`
+(`branch.approval-threshold`); otherwise any indeterminate requirement makes
+it indeterminate with `approval-unavailable` (`branch.approval-unavailable`).
+
 ### 6. Plan evaluation and composition
 
 1. Evaluate every `Proof`, `AllOf`, `AnyOf`, and `KOfN` child from its local
@@ -492,8 +518,65 @@ passes.
    (`composition.distinct-actors`), and distinct roots
    (`composition.distinct-roots`), else `composition-requirement-not-met`.
    The expected plan was checked in stage 2.
-6. Sort authorized branches canonically and construct `VerifiedAction`
+6. Then the trusted context's approval requirements, in ascending identifier
+   order, are evaluated as "Approval requirements" below: the first denied
+   requirement is `approval-threshold-not-met`
+   (`composition.approval-threshold`); otherwise any indeterminate requirement
+   is `approval-unavailable` (`composition.approval-unavailable`).
+7. Sort authorized branches canonically and construct `VerifiedAction`
    through a private constructor.
+
+#### Approval requirements
+
+An approval requirement names up to 16 approver principals and a threshold
+K. Approvals confer no authority: they are never branches and never count
+toward the composition minimums.
+
+The **authority principals** of a proof are the issuer and subject of every
+grant and the actor of every action in it. Remove byte-identical
+repetitions from the proof's signed approvals and order the rest by
+approval digest (the SHA-256 of the exact signed-approval bytes). A
+requirement's verdict depends only on the requirement, the proof, the
+canonical action, and the context, so each distinct requirement is
+evaluated at most once per verification: the first evaluation, in the order
+above (branches in plan order, then the context's requirements), reserves
+the work, and later appearances reuse its verdict. The 65th distinct
+requirement is `resource-limit-exceeded`: a branch result inside a branch,
+and the verification's result in stage 6.
+
+For requirement R with identifier r, every listed approver starts absent.
+For each approval, in digest order:
+
+1. Skip it when its approver is not listed in R, is an authority principal,
+   or is already counted.
+2. Skip it unless its requirement is r and its media type, body digest,
+   capability, resource, requested budget, request-attributes digest (which
+   must be null), audience, and challenge equal the canonical action's and
+   the context's expected audience and challenge.
+3. Skip it unless its window contains the evaluation time, the context has
+   an approver anchor for its approver whose window contains the evaluation
+   time, and that anchor accepts its signature's principal method.
+4. Verify its signature as stage 3 verifies a statement's, over the object
+   type 10 preimage with the canonical action's profile, purpose assertion,
+   asserted signing time `not_before`, and the approval's own evidence: an
+   unaccepted or uninstalled principal method, signature suite, or evidence
+   type makes it pending; reserve the method's and suite's work; a method
+   result stage 3 maps to indeterminate makes it pending; any other failure,
+   or consumed evidence that differs from the approval's evidence, skips it.
+5. When the anchor's status policy requires a snapshot, check the approver's
+   principal status as a trust anchor's (with an absent statement giving
+   `missing-principal-status`), where only statements whose issuer the
+   snapshot does not know, or whose every rule has scope `any`, take part:
+   any denial skips the approval, and any indeterminate result (a missing,
+   stale, or unsupported status, or an unavailable fact of a status
+   statement's control or extension check) makes it pending.
+6. Otherwise the approval counts: its approver becomes counted, and the
+   approval's digest is recorded. A pending approval makes its approver
+   pending unless it is already counted.
+
+With a the counted and i the pending approvers, R's verdict is
+`threshold_counts(K, a, i)`. Resource exhaustion anywhere is
+`resource-limit-exceeded`; every other refusal only skips the approval.
 
 The portable entry point is:
 
@@ -505,8 +588,10 @@ verify_v1(proof_cbor, canonical_action_cbor, trusted_context_cbor)
 The result contains the three-way verdict, final stage and stable code, proof,
 action, context, plan, self-binding result, and verifier-configuration
 digests, authorized branches, assurance reports and exact requirement
-satisfactions, resource/work totals, registry manifest, ABI version 3, and
-the observation that satisfied each observation requirement. The
+satisfactions, resource/work totals, registry manifest, ABI version 4, the
+observation that satisfied each observation requirement, and, for each
+approval requirement of the context and of every authorized branch's chain,
+the approvals that counted. The
 native convenience API projects that result to `Authorized(VerifiedAction)`,
 `Denied(DenialReason)`, or `Indeterminate(Requirement)`.
 

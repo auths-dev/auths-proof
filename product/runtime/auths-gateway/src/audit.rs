@@ -186,7 +186,7 @@ pub struct AuditedEntry {
     /// False for an entry the audit could not evaluate: malformed,
     /// duplicated, with an invalid outcome, or filed under another operation.
     pub admitted: bool,
-    /// Actors of the authorized branches when the proof verified.
+    /// Approvers whose approvals the verified proof counted, ascending.
     pub approvals: Vec<String>,
     /// Verified action arguments when the proof verified.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -698,7 +698,7 @@ fn audit_entry(
             item.entry.status = AuditStatus::Verified;
             "audit.verified".clone_into(&mut item.entry.code);
             item.entry.approvals = verified
-                .actors
+                .approvers
                 .iter()
                 .map(|actor| actor.as_str().to_owned())
                 .collect();

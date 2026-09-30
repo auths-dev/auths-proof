@@ -1117,19 +1117,19 @@ kind = "cargo"
 layer = "product"
 path = "product/sdk/auths-approval-quorum"
 core_apis = ["auths-author", "auths-codec", "auths-model", "auths-raw-key", "auths-signature"]
-protocol_versions = ["auths-proof/v1", "auths.approval-request/1", "auths.approval-response/1"]
-wire_objects = ["ActionEnvelope", "ApprovalRequest", "ApprovalResponse", "AuthorizationPlan", "CanonicalAction", "CompositionRequirement", "ProofBundle", "SignedAction", "SignedDecline", "SignedGrant"]
+protocol_versions = ["auths-proof/v1", "auths.approval-request/2", "auths.approval-response/2"]
+wire_objects = ["ActionEnvelope", "ApprovalRequest", "ApprovalRequirement", "ApprovalResponse", "ApprovalStatement", "AuthorizationPlan", "CanonicalAction", "ProofBundle", "SignedAction", "SignedApproval", "SignedDecline", "SignedGrant"]
 fixture_suites = ["bindings/fixtures/approval", "bindings/fixtures/gateway"]
 principal_families = []
 signature_families = []
 profiles = ["caller-defined"]
 transports = []
-configuration_inputs = ["composition-requirement", "registered-review-profiles", "trust-anchors"]
+configuration_inputs = ["approval-requirements", "approver-anchors", "registered-review-profiles", "trust-anchors"]
 security_state = []
 
 [packages.auths-approval-quorum.claims]
-core-api-consumer = ["product/sdk/auths-approval-quorum/src/tests.rs#every_envelope_shares_the_action_and_the_threshold_plan", "product/sdk/auths-approval-quorum/src/tests.rs#quorum_requirement_counts_distinct_actors"]
-proof-author-or-assembler = ["product/sdk/auths-approval-quorum/src/tests.rs#assembly_needs_one_exact_approval_per_listed_approver", "product/sdk/auths-approval-quorum/src/tests.rs#impossible_thresholds_and_duplicate_approvers_are_refused", "product/sdk/auths-approval-quorum/src/remote_tests.rs#every_fixture_vector_replays", "product/sdk/auths-approval-quorum/src/remote_tests.rs#remote_approval_fixture_is_current"]
+core-api-consumer = ["product/sdk/auths-approval-quorum/src/tests.rs#every_statement_binds_the_action_and_the_requirement", "product/sdk/auths-approval-quorum/src/remote_tests.rs#an_approval_signs_the_profile_bound_statement"]
+proof-author-or-assembler = ["product/sdk/auths-approval-quorum/src/tests.rs#any_threshold_of_distinct_listed_approvers_assembles", "product/sdk/auths-approval-quorum/src/tests.rs#impossible_thresholds_duplicates_and_self_approval_are_refused", "product/sdk/auths-approval-quorum/src/remote_tests.rs#every_fixture_vector_replays", "product/sdk/auths-approval-quorum/src/remote_tests.rs#remote_approval_fixture_is_current"]
 
 [packages.auths-bounded-policy]
 kind = "cargo"
@@ -1351,8 +1351,8 @@ configuration_inputs = ["executed-verifier-configuration", "registry-manifest", 
 security_state = []
 
 [packages.auths-proof-wasm.claims]
-core-wire-consumer = ["bindings/wasm/auths-proof-wasm/src/lib.rs#authoring_abi_planning_matches_the_native_owner", "bindings/wasm/auths-proof-wasm/src/lib.rs#native_mcp_authorization_assembly_matches_profile_and_core_owners", "bindings/wasm/auths-proof-wasm/src/lib.rs#native_wasm_boundary_matches_the_portable_contract", "bindings/wasm/auths-proof-wasm/src/lib.rs#root_grant_statement_matches_the_native_model", "bindings/wasm/auths-proof-wasm/src/lib.rs#trusted_context_template_matches_the_rust_sdk_builder"]
-language-binding = ["bindings/typescript/test/integration/remote-approval.test.js#TypeScript issues the native requests", "bindings/typescript/test/integration/remote-approval.test.js#TypeScript opens every request vector with the native code", "bindings/typescript/test/integration/remote-approval.test.js#TypeScript collects every vector with the native statuses and proof", "bindings/typescript/test/integration/approval-quorum.test.js#TypeScript authors the exact gateway quorum bytes", "bindings/typescript/test/integration/approval-quorum.test.js#the TypeScript verifier decides every gateway vector identically", "bindings/typescript/test/unit/portable-receipt-v1.test.js#packaged WASM exposes the canonical portable receipt decoder", "bindings/typescript/test/unit/public-api-v2.test.js#clean-cut modules expose the intended domain-neutral surface", "bindings/typescript/test/unit/self-hosted-authority.test.js#compileTrustedContext reproduces the Rust SDK builder's quorum template byte for byte", "bindings/typescript/test/unit/self-hosted-authority.test.js#a root grant's critical extension reaches the verifier, which enforces it", "bindings/typescript/test/integration/gateway-outcome-v2.test.js#the TypeScript client accepts every signed outcome /2", "bindings/typescript/test/integration/gateway-outcome-v2.test.js#the TypeScript verifier reaches the gateway verdict on every outcome /2 case"]
+core-wire-consumer = ["bindings/wasm/auths-proof-wasm/src/lib.rs#authoring_abi_planning_matches_the_native_owner", "bindings/wasm/auths-proof-wasm/src/lib.rs#native_mcp_authorization_assembly_matches_profile_and_core_owners", "bindings/wasm/auths-proof-wasm/src/lib.rs#native_wasm_boundary_matches_the_portable_contract", "bindings/wasm/auths-proof-wasm/src/lib.rs#root_grant_statement_matches_the_native_model", "bindings/wasm/auths-proof-wasm/src/lib.rs#trusted_context_template_matches_the_rust_sdk_builder", "bindings/wasm/auths-proof-wasm/src/lib.rs#trusted_context_template_carries_approvals_like_the_rust_sdk_builder"]
+language-binding = ["bindings/typescript/test/integration/remote-approval.test.js#TypeScript issues the native requests", "bindings/typescript/test/integration/remote-approval.test.js#TypeScript opens every request vector with the native code", "bindings/typescript/test/integration/remote-approval.test.js#TypeScript collects every vector with the native statuses and proof", "bindings/typescript/test/integration/approval-quorum.test.js#TypeScript authors the exact gateway quorum bytes", "bindings/typescript/test/integration/approval-quorum.test.js#the TypeScript verifier decides every gateway vector identically", "bindings/typescript/test/integration/approval-quorum.test.js#TypeScript authors the exact gateway quorum bytes remotely", "bindings/typescript/test/integration/remote-approval.test.js#the actor signs the native action with its grant chain", "bindings/typescript/test/unit/portable-receipt-v1.test.js#packaged WASM exposes the canonical portable receipt decoder", "bindings/typescript/test/unit/public-api-v2.test.js#clean-cut modules expose the intended domain-neutral surface", "bindings/typescript/test/unit/self-hosted-authority.test.js#compileTrustedContext reproduces the Rust SDK builder's quorum template byte for byte", "bindings/typescript/test/unit/self-hosted-authority.test.js#a root grant's critical extension reaches the verifier, which enforces it", "bindings/typescript/test/integration/gateway-outcome-v2.test.js#the TypeScript client accepts every signed outcome /2", "bindings/typescript/test/integration/gateway-outcome-v2.test.js#the TypeScript verifier reaches the gateway verdict on every outcome /2 case"]
 
 [packages.auths-openapi-derive-wasm]
 kind = "cargo"
@@ -1566,10 +1566,10 @@ principal-evidence-integration = [
   "product/runtime/auths-gateway/src/property_tests.rs#audit_conditions_agree_with_every_arrival_order",
 ]
 runtime-enforcement-boundary = [
-  "product/runtime/auths-gateway/src/quorum_tests.rs#approval_quorum_hostile_cases_admit_only_a_two_manager_quorum",
-  "product/runtime/auths-gateway/src/quorum_tests.rs#a_proof_carried_plan_cannot_lower_the_installed_threshold",
+  "product/runtime/auths-gateway/src/quorum_tests.rs#approval_quorum_hostile_cases_admit_only_two_distinct_managers",
+  "product/runtime/auths-gateway/src/quorum_tests.rs#a_proof_cannot_lower_the_installed_threshold",
   "product/runtime/auths-gateway/src/quorum_tests.rs#a_quorum_still_authorizes_23_hours_after_approval_and_only_once",
-  "product/runtime/auths-gateway/src/quorum_tests.rs#remote_approvals_authorize_only_at_the_threshold",
+  "product/runtime/auths-gateway/src/quorum_tests.rs#remote_approvals_from_any_two_managers_authorize",
   "product/runtime/auths-gateway/src/quorum_tests.rs#a_quorum_after_its_window_is_refused_before_any_lease",
   "product/runtime/auths-gateway/src/observed_tests.rs#fresh_matching_read_back_authorizes_the_replacement_write",
   "product/runtime/auths-gateway/src/observed_tests.rs#stale_changed_or_missing_expected_is_refused_before_credential_access",
@@ -1582,7 +1582,7 @@ runtime-enforcement-boundary = [
   "product/runtime/auths-gateway/src/bounds_tests.rs#per_principal_bounds_admit_only_actions_inside_the_signer_bound",
   "product/runtime/auths-gateway/src/bounds_tests.rs#bounded_agent_needs_two_managers_and_stays_inside_its_bound",
   "product/runtime/auths-gateway/src/bounds_tests.rs#two_bounded_branches_in_one_composition_are_refused",
-  "product/runtime/auths-gateway/src/bounds_tests.rs#unbounded_composition_is_admitted_without_a_count",
+  "product/runtime/auths-gateway/src/bounds_tests.rs#an_unbounded_actor_is_admitted_without_a_count",
   "product/runtime/auths-gateway/src/bounds_tests.rs#one_bounded_branch_is_admitted_and_counted_against_its_actor",
   "product/runtime/auths-gateway/src/bounds.rs#registry_refuses_unregistered_and_mismatched_evaluators",
   "product/runtime/auths-gateway/src/bounds.rs#decider_accepts_only_a_tighter_bound_on_the_same_argument_and_window",
