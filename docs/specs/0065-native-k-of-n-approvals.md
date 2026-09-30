@@ -1,7 +1,7 @@
 # AP-SPEC-065: Native K-of-N approvals
 
-- **Status:** Draft, being implemented in the pull request that adds it
-  (branch `kofn-approvals`). This is track A of auths-research spec 10
+- **Status:** Implemented in draft PR #200 (branch `kofn-approvals`), epic
+  steps 1–10 (§11); awaiting owner review of the PROVISIONAL readings in §14. This is track A of auths-research spec 10
   ("Native K-of-N approvals and boolean rules in the verifier kernel"),
   option K-B, including the grant-carried variant A14, which the owner moved
   into this first release on 2026-09-30. Track B (request attributes and
