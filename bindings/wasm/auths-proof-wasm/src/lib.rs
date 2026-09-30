@@ -15,18 +15,19 @@ use auths_identity::{
 };
 use auths_identity_raw_key::RawKeyIdentityMethod;
 use auths_model::{
-    AcceptedRegistries, ActionConstraint, AssuranceClaimId, AssuranceImplicationId,
-    AssurancePolicy, AssurancePolicyId, AssuranceQuantifier, AssuranceRequirement, Audience,
-    AudienceSet, AuthorizationPlan, BodyDigestSet, BudgetAlgebraId, BudgetCeiling, CapabilityId,
-    Challenge, ChannelBindingId, CompositionRequirement, CriticalExtension, CriticalExtensions,
-    Digest, EvidenceId, EvidenceObject, EvidenceTypeId, ExtensionId, FreshnessLimit, GrantId,
-    GrantState, GrantStatusSnapshot, GrantStatusStatement, LimitKind, MediaType, ParticipantRole,
-    Permission, PermissionSet, PrincipalId, PrincipalMethodId, PrincipalState,
-    PrincipalStatusSnapshot, PrincipalStatusStatement, ProfileBudgetExpression, ProfileId,
-    ProfilePolicyId, ProfileRef, ProofRef, ResourceId, ResourceMatcherId, SignatureBytes,
-    SignatureDescriptor, SignatureSuiteId, StatusMethodId, StatusPolicy, StatusScope,
-    StatusScopeAnchors, StatusSnapshotId, StatusTrustRule, Timestamp, TrustAnchor, TrustAnchorId,
-    TrustedContext, ValidityWindow, VerificationMethod, VerifierConfigurationId, VerifierLimits,
+    AcceptedRegistries, ActionConstraint, ApprovalRequirement, ApproverAnchor, AssuranceClaimId,
+    AssuranceImplicationId, AssurancePolicy, AssurancePolicyId, AssuranceQuantifier,
+    AssuranceRequirement, Audience, AudienceSet, AuthorizationPlan, BodyDigestSet, BudgetAlgebraId,
+    BudgetCeiling, CapabilityId, Challenge, ChannelBindingId, CompositionRequirement,
+    CriticalExtension, CriticalExtensions, Digest, EvidenceId, EvidenceObject, EvidenceTypeId,
+    ExtensionId, FreshnessLimit, GrantId, GrantState, GrantStatusSnapshot, GrantStatusStatement,
+    LimitKind, MAX_APPROVERS_PER_REQUIREMENT, MediaType, ParticipantRole, Permission,
+    PermissionSet, PrincipalId, PrincipalMethodId, PrincipalState, PrincipalStatusSnapshot,
+    PrincipalStatusStatement, ProfileBudgetExpression, ProfileId, ProfilePolicyId, ProfileRef,
+    ProofRef, ResourceId, ResourceMatcherId, SignatureBytes, SignatureDescriptor, SignatureSuiteId,
+    StatusMethodId, StatusPolicy, StatusScope, StatusScopeAnchors, StatusSnapshotId,
+    StatusTrustRule, Timestamp, TrustAnchor, TrustAnchorId, TrustedContext, ValidityWindow,
+    VerificationMethod, VerifierConfigurationId, VerifierLimits,
 };
 use auths_ports::{PrincipalMethod, SignatureSuite};
 use auths_production_client::project_sdk_event_v2;
@@ -70,7 +71,7 @@ pub use approval::{
     ApprovalCollectionV1, ApprovalCollectorV1, ApprovalRequestsV1, ApprovalResponseV1,
     PendingApprovalV1, ReviewedApprovalRequestV1, approval_requests_v1, open_approval_request_v1,
 };
-pub use quorum::{McpQuorumApproversV1, McpQuorumProofBuilderV1, McpQuorumV1};
+pub use quorum::{McpQuorumActionV1, McpQuorumProofBuilderV1, McpQuorumV1, prepare_mcp_quorum_v1};
 
 /// Version of the repository-owned authoring ABI exposed by this WASM module.
 pub const AUTHORING_ABI_V1: u16 = 1;
@@ -895,6 +896,60 @@ pub fn compile_trusted_context_v1(
     })
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ApproverAnchorInput {
+    principal: String,
+    accepted_methods: Vec<String>,
+    not_before: u64,
+    expires_at: u64,
+    status_policy: StatusPolicyInput,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ApprovalRequirementInput {
+    approvers: Vec<String>,
+    threshold: u16,
+}
+
+fn approver_anchor(input: ApproverAnchorInput) -> Result<ApproverAnchor, EngineError> {
+    if contains_duplicates(&input.accepted_methods) {
+        return Err(EngineError::Abi(
+            "approver anchor repeats an accepted method",
+        ));
+    }
+    Ok(ApproverAnchor::new(
+        PrincipalId::parse(&input.principal)?,
+        input
+            .accepted_methods
+            .iter()
+            .map(|value| PrincipalMethodId::parse(value))
+            .collect::<Result<Vec<_>, _>>()?,
+        ValidityWindow::new(
+            Timestamp::new(input.not_before),
+            Timestamp::new(input.expires_at),
+        )?,
+        status_policy(input.status_policy)?,
+    )?)
+}
+
+fn approval_requirement(
+    input: &ApprovalRequirementInput,
+) -> Result<ApprovalRequirement, EngineError> {
+    if input.approvers.len() > MAX_APPROVERS_PER_REQUIREMENT {
+        return Err(auths_model::ModelError::InvalidApprovalRequirement.into());
+    }
+    Ok(ApprovalRequirement::new(
+        input
+            .approvers
+            .iter()
+            .map(|value| PrincipalId::parse(value))
+            .collect::<Result<Vec<_>, _>>()?,
+        input.threshold,
+    )?)
+}
+
 struct TrustedContextTemplateInput {
     configuration: Option<Vec<u8>>,
     composition: CompositionInput,
@@ -903,6 +958,8 @@ struct TrustedContextTemplateInput {
     channel_policy: Option<String>,
     evidence_types: Vec<String>,
     critical_extensions: Vec<String>,
+    approver_anchors: Vec<ApproverAnchorInput>,
+    approval_requirements: Vec<ApprovalRequirementInput>,
 }
 
 /// Builds one trusted-context template exactly as the Rust SDK's
@@ -919,15 +976,21 @@ struct TrustedContextTemplateInput {
 /// challenge, or evaluation time until `bindTrustedContextRequestV1` binds one.
 ///
 /// `composition`, `trustAnchors`, and `assurance` take the shapes
-/// `compileTrustedContextV1` reads.
+/// `compileTrustedContextV1` reads. `approverAnchors` lists
+/// `{ principal, acceptedMethods, notBefore, expiresAt, statusPolicy }`
+/// entries naming who may approve, and `approvalRequirements` lists
+/// `{ approvers, threshold }` entries every verified action must satisfy:
+/// any `threshold` distinct listed approvers. Both may be empty; an approver
+/// anchor's methods are also accepted as evidence types.
 ///
 /// # Errors
 ///
 /// Returns a JavaScript error for a configuration that is not 32 bytes,
-/// repeated evidence types or extensions, an empty or invalid anchor set, or
-/// inconsistent composition, assurance, or registry input.
+/// repeated evidence types or extensions, an empty or invalid anchor set,
+/// an invalid approver anchor or requirement, or inconsistent composition,
+/// assurance, or registry input.
 // wasm-bindgen marshals JavaScript string arrays as owned vectors.
-#[allow(clippy::needless_pass_by_value)]
+#[allow(clippy::needless_pass_by_value, clippy::too_many_arguments)]
 #[wasm_bindgen(js_name = buildTrustedContextTemplateV1)]
 pub fn build_trusted_context_template_v1(
     configuration: Option<Vec<u8>>,
@@ -937,6 +1000,8 @@ pub fn build_trusted_context_template_v1(
     channel_policy: Option<String>,
     evidence_types: Vec<String>,
     critical_extensions: Vec<String>,
+    approver_anchors: JsValue,
+    approval_requirements: JsValue,
 ) -> Result<Vec<u8>, JsValue> {
     let input = TrustedContextTemplateInput {
         configuration,
@@ -946,6 +1011,9 @@ pub fn build_trusted_context_template_v1(
         channel_policy,
         evidence_types,
         critical_extensions,
+        approver_anchors: serde_wasm_bindgen::from_value(approver_anchors).map_err(js_error)?,
+        approval_requirements: serde_wasm_bindgen::from_value(approval_requirements)
+            .map_err(js_error)?,
     };
     build_trusted_context_template_native(input).map_err(js_error)
 }
@@ -1008,6 +1076,20 @@ fn build_trusted_context_template_native(
     }
     if let Some(policy) = input.channel_policy.as_deref() {
         template = template.with_channel_policy(ChannelBindingId::parse(policy)?);
+    }
+    if !input.approver_anchors.is_empty() || !input.approval_requirements.is_empty() {
+        template = template.with_approvals(
+            input
+                .approver_anchors
+                .into_iter()
+                .map(approver_anchor)
+                .collect::<Result<Vec<_>, _>>()?,
+            input
+                .approval_requirements
+                .iter()
+                .map(approval_requirement)
+                .collect::<Result<Vec<_>, _>>()?,
+        )?;
     }
     Ok(auths_codec::encode_verifier_context(&template.compile()?)?)
 }
@@ -6316,6 +6398,8 @@ mod tests {
             channel_policy: Some("none-v1".to_owned()),
             evidence_types: vec!["raw-key-v1".to_owned()],
             critical_extensions: vec!["bounded-policy-commitment-v1".to_owned()],
+            approver_anchors: Vec::new(),
+            approval_requirements: Vec::new(),
         }
     }
 
@@ -6430,6 +6514,93 @@ mod tests {
                 &[],
             )
         );
+    }
+
+    #[test]
+    fn trusted_context_template_carries_approvals_like_the_rust_sdk_builder() {
+        const APPROVERS: [&str; 3] = [
+            "did:web:approver-c.refunds.auths.example",
+            "did:web:approver-a.refunds.auths.example",
+            "did:web:approver-b.refunds.auths.example",
+        ];
+        let approver_input = |principal: &str| ApproverAnchorInput {
+            principal: principal.to_owned(),
+            accepted_methods: vec!["raw-key-v1".to_owned()],
+            not_before: 10,
+            expires_at: 1_000,
+            status_policy: StatusPolicyInput::ExpiryOnly,
+        };
+        let mut input = template_input(None);
+        input.approver_anchors = APPROVERS.iter().map(|name| approver_input(name)).collect();
+        input.approval_requirements = vec![ApprovalRequirementInput {
+            approvers: APPROVERS.iter().map(|name| (*name).to_owned()).collect(),
+            threshold: 2,
+        }];
+        let built = build_trusted_context_template_native(input).unwrap();
+
+        let anchors: Vec<TrustAnchor> = template_input(None)
+            .trust_anchors
+            .into_iter()
+            .map(|anchor| trust_anchor(anchor).unwrap())
+            .collect();
+        let mut builder = auths_sdk::TrustedContextBuilder::new(
+            VerifierConfigurationId::new(self_contained_v1_configuration().unwrap()),
+            CompositionRequirement::new(None, 2, 2, 2).unwrap(),
+            anchors.clone(),
+            AssurancePolicy::new(
+                AssurancePolicyId::parse("raw-key-baseline").unwrap(),
+                vec![AssuranceRequirement::new(
+                    ParticipantRole::Actor,
+                    AssuranceQuantifier::Every,
+                    AssuranceClaimId::parse("self-certifying-identifier").unwrap(),
+                    None,
+                )],
+            )
+            .unwrap(),
+        )
+        .unwrap()
+        .with_approvals(
+            APPROVERS
+                .iter()
+                .map(|name| approver_anchor(approver_input(name)).unwrap())
+                .collect(),
+            vec![
+                ApprovalRequirement::new(
+                    APPROVERS
+                        .iter()
+                        .map(|name| PrincipalId::parse(name).unwrap())
+                        .collect(),
+                    2,
+                )
+                .unwrap(),
+            ],
+        )
+        .unwrap();
+        for profile in anchors.iter().flat_map(TrustAnchor::profiles) {
+            if shipped_budget_expression(profile) == ProfileBudgetExpression::Inexpressible {
+                builder = builder.declare_budget_free_profile(profile.clone());
+            }
+        }
+        let expected = builder
+            .with_channel_policy(ChannelBindingId::parse("none-v1").unwrap())
+            .accept_evidence_type(EvidenceTypeId::parse("raw-key-v1").unwrap())
+            .accept_critical_extension(ExtensionId::parse("bounded-policy-commitment-v1").unwrap())
+            .build()
+            .unwrap();
+        assert_eq!(
+            built,
+            auths_codec::encode_verifier_context(&expected).unwrap()
+        );
+        let decoded = auths_codec::decode_verifier_context(&built).unwrap();
+        assert_eq!(decoded.approver_anchors().len(), 3);
+        assert_eq!(decoded.approval_requirements()[0].threshold(), 2);
+
+        let mut impossible = template_input(None);
+        impossible.approval_requirements = vec![ApprovalRequirementInput {
+            approvers: vec![APPROVERS[0].to_owned()],
+            threshold: 2,
+        }];
+        assert!(build_trusted_context_template_native(impossible).is_err());
     }
 
     #[test]

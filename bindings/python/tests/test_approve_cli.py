@@ -15,7 +15,6 @@ import pytest
 
 from auths import _native
 from auths.authoring import (
-    ApprovalMember,
     ApprovalProposal,
     approval_requests,
     collect_approvals,
@@ -23,7 +22,8 @@ from auths.authoring import (
 )
 from auths.self_hosted import ExactMcpTool, IntegerField, StringField
 
-SEEDS = {"agent": 0x11, "manager-a": 0xA1, "manager-b": 0xB2}
+SEEDS = {"agent": 0x11, "manager-a": 0xA1, "manager-b": 0xB2, "manager-c": 0xC3}
+MANAGERS = ("manager-a", "manager-b", "manager-c")
 
 
 @dataclass(frozen=True)
@@ -51,9 +51,10 @@ def _proposal() -> ApprovalProposal[Refund]:
     return propose_mcp_approval(
         contract=TOOL,
         command=Refund(1500, "pi_cli_0001"),
-        required=3,
-        approvers=[ApprovalMember(_principal(name)) for name in SEEDS],
-        requester=_principal("agent"),
+        required=2,
+        approvers=[_principal(name) for name in MANAGERS],
+        actor=_principal("agent"),
+        actor_grant=None,
         challenge=bytes([0x63]) * 32,
         evaluation_time=int(time.time()) - 5,
     )
@@ -139,9 +140,11 @@ def test_an_interactive_yes_approves_and_prints_only_the_review(
     assert "Auths V1 · MCP approval" in result.stderr
     assert '  Arguments: {"amount":1500,"payment_intent":"pi_cli_0001"}' in result.stderr
     assert f"  {_principal('manager-a')} (you)" in result.stderr
+    assert "Approvals required: any 2 of 3" in result.stderr
+    assert f"Requested by: {_principal('agent')}" in result.stderr
     assert "Signer: development custody" in result.stderr
     assert "Approve this action? [y/N]" in result.stderr
-    assert out.read_text().startswith("auths-as1-")
+    assert out.read_text().startswith("auths-as2-")
     assert _status(proposal, out) == "approved"
 
 
@@ -214,3 +217,21 @@ def test_a_tampered_request_is_refused_before_anything_is_signed(
     assert "approval.action-mismatch" in result.stderr
     assert "Approve this action?" not in result.stderr
     assert not out.exists()
+
+
+def test_a_signer_file_listing_grants_is_refused(
+    workspace: tuple[Path, ApprovalProposal[Refund]],
+) -> None:
+    directory, proposal = workspace
+    signer = directory / "manager-a.signer.json"
+    config = json.loads(signer.read_text())
+    config["grants"] = []
+    signer.write_text(json.dumps(config))
+    out = directory / "manager-a.response"
+    result = _run_without_terminal(
+        _command(directory, str(directory / "manager-a.request"), "--yes", "--out", str(out))
+    )
+    assert result.returncode == 1
+    assert "no grant chain" in result.stderr
+    assert not out.exists()
+    assert _status(proposal, None) == "pending"

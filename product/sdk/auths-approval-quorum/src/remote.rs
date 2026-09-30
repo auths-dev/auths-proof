@@ -617,7 +617,7 @@ pub struct PendingDecline {
 
 impl PendingDecline {
     /// Returns the bytes the approver signs:
-    /// `SHA-256("auths.approval-decline/1\0" || request_id || decided_at_be64)`.
+    /// `SHA-256("auths.approval-decline/2\0" || request_id || decided_at_be64)`.
     #[must_use]
     pub const fn signing_preimage(&self) -> &[u8; 32] {
         &self.preimage

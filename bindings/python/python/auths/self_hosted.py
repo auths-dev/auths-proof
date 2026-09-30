@@ -29,6 +29,8 @@ from typing import (
 
 from . import _native
 from ._operator import (
+    ApprovalRequirement,
+    ApproverAnchor,
     SignerFile,
     TrustAnchor,
     TrustedContextRequest,
@@ -580,6 +582,8 @@ def _unique_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
 
 
 __all__ = [
+    "ApprovalRequirement",
+    "ApproverAnchor",
     "ArrayField",
     "AssurancePolicy",
     "AssuranceRequirement",

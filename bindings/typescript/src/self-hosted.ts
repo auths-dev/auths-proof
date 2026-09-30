@@ -3,7 +3,7 @@
 import { createVerifier, type VerificationResult } from "./verify.js";
 import { loadPackagedWorkflowEngine } from "./verifier/wasm.js";
 import { checkedValidity } from "./internal/action-validity.js";
-import type { CustodySigner, PublicControlEvidence, SigningRequest } from "./adapters.js";
+import type { CustodySigner, PublicControlEvidence, ReviewField, SigningRequest } from "./adapters.js";
 
 export interface StringField {
   readonly kind: "string";
@@ -683,172 +683,342 @@ export async function authorMcpProof<Fields extends FieldMap>(input: Readonly<{
   }
 }
 
-/** One member asked to approve; `grants` is empty when it is a trust anchor. */
-export interface QuorumApprover {
-  readonly signer: CustodySigner;
-  readonly grants?: readonly GrantEvidence[];
-}
-
-/** Projection of the native threshold plan every approval signed. */
-export interface QuorumPlan {
+/**
+ * Projection of the native approval requirement every approval binds: any
+ * `required` of the listed `approvers`, whoever responds. The verifier's
+ * trusted context must carry the same requirement; a proof never sets its
+ * own threshold.
+ */
+export interface QuorumRequirement {
   readonly required: number;
+  /** The listed approvers in ascending order. */
   readonly approvers: readonly string[];
-  readonly planId: Uint8Array;
-  readonly canonicalPlan: Uint8Array;
-  readonly proofReferences: readonly Uint8Array[];
-  /** Every approval is valid from `validFrom` through `validUntil` inclusive. */
+  readonly requirementId: Uint8Array;
+  /** The action and every approval are valid from `validFrom` through `validUntil` inclusive. */
   readonly validFrom: bigint;
   readonly validUntil: bigint;
 }
 
 export interface AuthoredMcpQuorumProof<Command> extends AuthoredMcpProof<Command> {
-  readonly plan: QuorumPlan;
+  readonly requirement: QuorumRequirement;
+}
+
+const MAX_QUORUM_APPROVERS = 16;
+const MAX_APPROVAL_EVIDENCE = 4;
+
+type Engine = Awaited<ReturnType<typeof loadPackagedWorkflowEngine>>;
+type NativeQuorum = ReturnType<Engine["prepareMcpQuorumV1"]>;
+type SigningSource = Readonly<{
+  objectKind: string;
+  requestId: string;
+  objectId: Uint8Array;
+  transactionDigest: Uint8Array;
+  signingPreimage: Uint8Array;
+}>;
+
+interface QuorumInputs {
+  readonly service: string;
+  readonly name: string;
+  readonly encoded: unknown;
+  readonly approvers: readonly string[];
+  readonly required: number;
+  readonly actor: string;
+  readonly actorGrant: Uint8Array | undefined;
+  readonly challenge: Uint8Array;
+  readonly evaluationTime: bigint;
+  readonly validitySeconds: number | undefined;
+}
+
+function checkedQuorum(approvers: unknown, required: unknown): readonly string[] {
+  if (!Array.isArray(approvers) || approvers.length < 1 || approvers.length > MAX_QUORUM_APPROVERS) {
+    throw new RangeError("approval requirement lists 1 to 16 approvers");
+  }
+  if (typeof required !== "number" || !Number.isInteger(required) || required < 1 ||
+      required > approvers.length) {
+    throw new RangeError("approval threshold is outside 1 to the approver count");
+  }
+  return Object.freeze(approvers.map((approver) => checkedText(approver, "approver")));
+}
+
+function checkedRequest(challenge: unknown, evaluationTime: unknown): void {
+  if (!(challenge instanceof Uint8Array) || challenge.length !== 32 ||
+      typeof evaluationTime !== "bigint" || evaluationTime < 0n || evaluationTime > MAX_UINT64) {
+    throw new RangeError("challenge or evaluation time is outside bounds");
+  }
+}
+
+function checkedGrants(grants: readonly GrantEvidence[]): readonly GrantEvidence[] {
+  if (!Array.isArray(grants) || grants.length > 16) {
+    throw new RangeError("actor grant chain is outside bounds");
+  }
+  for (const grant of grants) {
+    if (!(grant?.signedGrant instanceof Uint8Array) || grant.signedGrant.length < 1 ||
+        grant.signedGrant.length > 262_144 || !Array.isArray(grant.evidence) ||
+        grant.evidence.length < 1 || grant.evidence.length > 32) {
+      throw new RangeError("grant or its control evidence is outside bounds");
+    }
+  }
+  return grants;
+}
+
+function custodyOf(signer: CustodySigner): CustodySigner["descriptor"] {
+  const descriptor = signer?.descriptor;
+  if (descriptor?.contract !== "signer-custody/2") {
+    throw new TypeError("signer does not implement the custody contract");
+  }
+  return descriptor;
+}
+
+function prepareQuorum(engine: Engine, inputs: QuorumInputs): NativeQuorum {
+  return engine.prepareMcpQuorumV1(
+    inputs.service, inputs.name, inputs.encoded, inputs.required, inputs.approvers,
+    inputs.actor, inputs.actorGrant, inputs.challenge, inputs.evaluationTime,
+    inputs.validitySeconds,
+  );
+}
+
+function withQuorum<T>(engine: Engine, inputs: QuorumInputs, use: (quorum: NativeQuorum) => T): T {
+  const quorum = prepareQuorum(engine, inputs);
+  try {
+    return use(quorum);
+  } finally {
+    quorum.free?.();
+  }
+}
+
+function requirementOf(quorum: NativeQuorum): QuorumRequirement {
+  const validity = quorum.validity;
+  if (validity.length !== 2) throw new TypeError("native quorum validity is inconsistent");
+  return Object.freeze({
+    required: quorum.required,
+    approvers: Object.freeze([...quorum.approvers]),
+    requirementId: quorum.requirementId.slice(),
+    validFrom: validity[0]!,
+    validUntil: validity[1]!,
+  });
+}
+
+function hex(bytes: Uint8Array): string {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function quorumDisplay(service: string, name: string, quorum: NativeQuorum): readonly ReviewField[] {
+  return Object.freeze([
+    { label: "service", value: service },
+    { label: "tool", value: name },
+    { label: "arguments", value: new TextDecoder("utf-8", { fatal: true }).decode(quorum.argumentsJson) },
+    { label: "action digest", value: quorum.displayDigestHex },
+    { label: "actor", value: quorum.actor },
+    { label: "approvals required", value: `any ${quorum.required} of ${quorum.approvers.length}` },
+    { label: "approval requirement", value: hex(quorum.requirementId) },
+  ].map((field) => Object.freeze(field)));
 }
 
 /**
- * Collect one signature per approver over one exact action and assemble a
- * `required`-of-N threshold proof. Each signature commits to the whole
- * approver set, so every listed approver must sign. The threshold the
- * verifier enforces comes from the operator's trusted context, never from
- * the proof. Every approval is valid from `evaluationTime` for
+ * Sends one exact native signing request to custody and returns the
+ * signature and its evidence once the response binds that request.
+ */
+async function signExactly(
+  signer: CustodySigner,
+  native: SigningSource,
+  objectKind: SigningRequest["objectKind"],
+  expiresAtUnixSeconds: bigint,
+  display: readonly ReviewField[],
+  signal: AbortSignal,
+  maximumEvidence: number,
+): Promise<Readonly<{ signature: Uint8Array; evidence: readonly PublicControlEvidence[] }>> {
+  const descriptor = signer.descriptor;
+  const signature = descriptor.signature;
+  const requestId = native.requestId;
+  const objectId = native.objectId.slice();
+  const transactionDigest = native.transactionDigest.slice();
+  if (native.objectKind !== objectKind) throw new TypeError("native signing request kind is inconsistent");
+  const outcome = await signer.sign({
+    requestId, objectKind, objectId: objectId.slice(), descriptor,
+    transactionDigest: transactionDigest.slice(),
+    signingPreimage: native.signingPreimage.slice(),
+    expiresAtUnixSeconds, display, signal,
+  });
+  if (outcome.kind !== "signed") {
+    throw new AuthoringUnsuccessful(
+      outcome.kind === "rejected" ? "rejected" : "indeterminate", outcome.failure,
+    );
+  }
+  const response = outcome.response;
+  if (response.requestId !== requestId ||
+      !bytesEqual(response.objectId, objectId) ||
+      !bytesEqual(response.transactionDigest, transactionDigest) ||
+      response.principal !== descriptor.principal ||
+      response.providerKeyVersion !== descriptor.keyVersion ||
+      response.descriptor.principalMethod !== signature.principalMethod ||
+      response.descriptor.verificationMethod !== signature.verificationMethod ||
+      response.descriptor.suite !== signature.suite ||
+      response.evidence.length < 1 || response.evidence.length > maximumEvidence) {
+    throw new TypeError("custody response does not bind the exact signing request");
+  }
+  return Object.freeze({ signature: response.signature.slice(), evidence: response.evidence });
+}
+
+/**
+ * The actor's signed envelope with its grant chain (root first; empty when
+ * the actor is a trust anchor) and the public evidence controlling its
+ * signature, as `signApprovalAction` returns it.
+ */
+export interface ApprovalAction {
+  readonly signedAction: Uint8Array;
+  readonly grants: readonly GrantEvidence[];
+  readonly evidence: readonly PublicControlEvidence[];
+}
+
+type NativeAction = InstanceType<Engine["McpQuorumActionV1"]>;
+
+function nativeAction(engine: Engine, action: ApprovalAction): NativeAction {
+  if (!(action?.signedAction instanceof Uint8Array) || action.signedAction.length < 1 ||
+      action.signedAction.length > 262_144 || !Array.isArray(action.evidence) ||
+      action.evidence.length < 1 || action.evidence.length > 32) {
+    throw new RangeError("signed action or its control evidence is outside bounds");
+  }
+  const grants = checkedGrants(action.grants);
+  const native = new engine.McpQuorumActionV1(action.signedAction);
+  try {
+    for (const grant of grants) {
+      const index = native.pushGrant(grant.signedGrant);
+      for (const evidence of grant.evidence) {
+        native.bindGrantEvidence(index, evidence.type, evidence.mediaType, evidence.bytes);
+      }
+    }
+    for (const evidence of action.evidence) {
+      native.bindActionEvidence(evidence.type, evidence.mediaType, evidence.bytes);
+    }
+    return native;
+  } catch (error) {
+    native.free?.();
+    throw error;
+  }
+}
+
+/**
+ * Author one exact action approved by any `required` of the listed
+ * `approvers`. `actor` signs one action envelope under its own grant chain
+ * `grants`, root first (omitted when the actor is itself a trust anchor);
+ * each of `signers` signs one approval statement bound to the action, the
+ * audience and challenge, and the approval requirement. `signers` are the
+ * custody signers of the approvers who approve: each a distinct listed
+ * approver, at least `required` of them. The actor is never an approver.
+ * The actor and the approvers are asked concurrently; no signer is closed. Approvers carry no
+ * grants: the verifier's trusted context names them with approver anchors
+ * and carries the requirement, so the threshold never comes from the proof.
+ * The action and every approval are valid from `evaluationTime` for
  * `validitySeconds` (the native quorum default when omitted, bounded
- * natively), cut to the earliest approver grant expiry; every approval must
- * be collected and verified inside that window, and each custody request
- * stays valid for the whole window.
+ * natively), cut to the actor's terminal-grant expiry; each custody request
+ * stays valid for the whole window. The assembled proof is verified locally
+ * against `trustedContextTemplate`; a denial raises `AuthoringUnsuccessful`
+ * with the verifier's code. A declining signer raises `AuthoringUnsuccessful`;
+ * malformed input raises `TypeError` or `RangeError` before any signature is
+ * requested.
  */
 export async function authorMcpQuorumProof<Fields extends FieldMap>(input: Readonly<{
   contract: ExactMcpTool<Fields>;
   command: CommandOf<Fields>;
+  actor: CustodySigner;
+  grants?: readonly GrantEvidence[];
   required: number;
-  approvers: readonly QuorumApprover[];
+  approvers: readonly string[];
+  signers: readonly CustodySigner[];
   trustedContextTemplate: Uint8Array;
   challenge: Uint8Array;
   evaluationTime: bigint;
   validitySeconds?: number;
   signal?: AbortSignal;
 }>): Promise<AuthoredMcpQuorumProof<CommandOf<Fields>>> {
-  const approvers = input.approvers;
-  if (!Number.isInteger(input.required) || input.required < 1 ||
-      input.required > approvers.length || approvers.length > 16) {
-    throw new RangeError("quorum threshold or approver count is outside bounds");
+  const approvers = checkedQuorum(input.approvers, input.required);
+  checkedRequest(input.challenge, input.evaluationTime);
+  const actor = custodyOf(input.actor);
+  const grants = checkedGrants(input.grants ?? []);
+  const signers = input.signers;
+  if (!Array.isArray(signers) || signers.length < input.required || signers.length > approvers.length) {
+    throw new RangeError("signers must be at least the required number of listed approvers");
   }
-  if (input.challenge.length !== 32 || input.evaluationTime < 0n ||
-      input.evaluationTime >= 1n << 64n) {
-    throw new RangeError("challenge or evaluation time is outside bounds");
+  const approving = new Set<string>();
+  for (const signer of signers) {
+    const principal = custodyOf(signer).principal;
+    if (!approvers.includes(principal)) throw new TypeError("a signer is not a listed approver");
+    if (approving.has(principal)) throw new TypeError("an approver appears twice among the signers");
+    approving.add(principal);
   }
   const validitySeconds = checkedValidity(input.validitySeconds);
-  for (const approver of approvers) {
-    if (approver.signer.descriptor.contract !== "signer-custody/2") {
-      throw new TypeError("signer does not implement the custody contract");
-    }
-    const grants = approver.grants ?? [];
-    if (grants.length > 16) throw new RangeError("approver grant chain is outside bounds");
-    for (const grant of grants) {
-      if (grant.signedGrant.length < 1 || grant.signedGrant.length > 262_144 ||
-          grant.evidence.length < 1 || grant.evidence.length > 32) {
-        throw new RangeError("grant or its control evidence is outside bounds");
-      }
-    }
-  }
   const engine = await loadPackagedWorkflowEngine();
-  const encoded = input.contract.encode(input.command);
-  const set = new engine.McpQuorumApproversV1();
-  let quorum;
-  try {
-    for (const approver of approvers) {
-      const grants = approver.grants ?? [];
-      set.addApprover(approver.signer.descriptor.principal, grants.at(-1)?.signedGrant);
-    }
-    quorum = set.prepare(
-      input.contract.service, input.contract.name, encoded, input.required,
-      input.challenge, input.evaluationTime, validitySeconds,
-    );
-  } finally {
-    set.free?.();
-  }
+  const quorum = prepareQuorum(engine, {
+    service: input.contract.service,
+    name: input.contract.name,
+    encoded: input.contract.encode(input.command),
+    approvers,
+    required: input.required,
+    actor: actor.principal,
+    actorGrant: grants.at(-1)?.signedGrant,
+    challenge: input.challenge,
+    evaluationTime: input.evaluationTime,
+    validitySeconds,
+  });
   try {
     const action = quorum.canonicalActionCbor.slice();
-    const validity = quorum.validity;
-    if (validity.length !== 2) throw new TypeError("native quorum validity is inconsistent");
-    const validFrom = validity[0]!;
-    const validUntil = validity[1]!;
+    const requirement = requirementOf(quorum);
     const context = engine.bindTrustedContextRequestV1(
       input.trustedContextTemplate, quorum.audience, input.challenge, input.evaluationTime,
     );
-    const planId = quorum.planId.slice();
-    const display = Object.freeze([
-      { label: "service", value: input.contract.service },
-      { label: "tool", value: input.contract.name },
-      { label: "arguments", value: new TextDecoder("utf-8", { fatal: true }).decode(quorum.argumentsJson) },
-      { label: "action digest", value: quorum.displayDigestHex },
-      { label: "approval quorum", value: `${input.required} of ${approvers.length}` },
-      { label: "quorum plan", value: Array.from(planId, (byte) => byte.toString(16).padStart(2, "0")).join("") },
-    ]);
+    const display = quorumDisplay(input.contract.service, input.contract.name, quorum);
     const signal = input.signal ?? new AbortController().signal;
-    const signed = await Promise.all(approvers.map(async (approver, index) => {
-      const descriptor = approver.signer.descriptor;
-      const signature = descriptor.signature;
-      const envelope = quorum.actionEnvelopeCbor(index);
-      const request = engine.prepareActionSigningV1(
-        envelope, signature.principalMethod, signature.verificationMethod, signature.suite,
+    const envelope = quorum.actionEnvelopeCbor.slice();
+    const signature = actor.signature;
+    const actorRequest = engine.prepareActionSigningV1(
+      envelope, signature.principalMethod, signature.verificationMethod, signature.suite,
+    );
+    const approvalRequests = signers.map((signer) => {
+      const method = signer.descriptor.signature;
+      return quorum.prepareApprovalSigning(
+        signer.descriptor.principal, method.principalMethod, method.verificationMethod, method.suite,
       );
-      const requestId = request.requestId;
-      const objectId = request.objectId.slice();
-      const transactionDigest = request.transactionDigest.slice();
-      let outcome: Awaited<ReturnType<CustodySigner["sign"]>>;
-      try {
-        outcome = await approver.signer.sign({
-          requestId, objectKind: "action", objectId: objectId.slice(), descriptor,
-          transactionDigest: transactionDigest.slice(),
-          signingPreimage: request.signingPreimage.slice(),
-          expiresAtUnixSeconds: validUntil, display, signal,
-        });
-      } finally {
-        request.free?.();
-      }
-      if (outcome.kind !== "signed") {
-        throw new AuthoringUnsuccessful(
-          outcome.kind === "rejected" ? "rejected" : "indeterminate", outcome.failure,
-        );
-      }
-      const response = outcome.response;
-      if (response.requestId !== requestId ||
-          !bytesEqual(response.objectId, objectId) ||
-          !bytesEqual(response.transactionDigest, transactionDigest) ||
-          response.principal !== descriptor.principal ||
-          response.providerKeyVersion !== descriptor.keyVersion ||
-          response.descriptor.principalMethod !== signature.principalMethod ||
-          response.descriptor.verificationMethod !== signature.verificationMethod ||
-          response.descriptor.suite !== signature.suite ||
-          response.evidence.length < 1 || response.evidence.length > 32) {
-        throw new TypeError("custody response does not bind the exact signing request");
-      }
-      return {
-        action: engine.completeActionSigningV1(
-          envelope, signature.principalMethod, signature.verificationMethod,
-          signature.suite, response.signature,
-        ),
-        evidence: response.evidence,
-      };
-    }));
+    });
+    let signedAction: Readonly<{ signature: Uint8Array; evidence: readonly PublicControlEvidence[] }>;
+    let signedApprovals: Readonly<{ signature: Uint8Array; evidence: readonly PublicControlEvidence[] }>[];
+    try {
+      [signedAction, signedApprovals] = await Promise.all([
+        signExactly(input.actor, actorRequest, "action", requirement.validUntil, display, signal, 32),
+        Promise.all(signers.map((signer, index) => signExactly(
+          signer, approvalRequests[index]!, "approval", requirement.validUntil, display, signal,
+          MAX_APPROVAL_EVIDENCE,
+        ))),
+      ]);
+    } finally {
+      actorRequest.free?.();
+      for (const request of approvalRequests) request.free?.();
+    }
+    const native = nativeAction(engine, {
+      signedAction: engine.completeActionSigningV1(
+        envelope, signature.principalMethod, signature.verificationMethod, signature.suite,
+        signedAction.signature,
+      ),
+      grants,
+      evidence: signedAction.evidence,
+    });
     const builder = new engine.McpQuorumProofBuilderV1();
     let proof: Uint8Array;
     try {
-      signed.forEach((approval, index) => {
-        const slot = builder.addApproval(approval.action);
-        for (const grant of approvers[index]!.grants ?? []) {
-          const grantIndex = builder.pushGrant(slot, grant.signedGrant);
-          for (const evidence of grant.evidence) {
-            builder.bindGrantEvidence(slot, grantIndex, evidence.type, evidence.mediaType, evidence.bytes);
-          }
-        }
+      signers.forEach((signer, index) => {
+        const method = signer.descriptor.signature;
+        const approval = signedApprovals[index]!;
+        const slot = builder.addApproval(
+          signer.descriptor.principal, method.principalMethod, method.verificationMethod,
+          method.suite, approval.signature,
+        );
         for (const evidence of approval.evidence) {
-          builder.bindActionEvidence(slot, evidence.type, evidence.mediaType, evidence.bytes);
+          builder.bindApprovalEvidence(slot, evidence.type, evidence.mediaType, evidence.bytes);
         }
       });
-      proof = builder.finish(quorum).slice();
+      proof = builder.finish(quorum, native).slice();
     } finally {
       builder.free?.();
+      native.free?.();
     }
     const decision = await verifyCommand({
       contract: input.contract, proof, action, trustedContext: context,
@@ -858,24 +1028,9 @@ export async function authorMcpQuorumProof<Fields extends FieldMap>(input: Reado
         decision.kind === "denied" ? "rejected" : "indeterminate", decision.code,
       );
     }
-    const references = quorum.proofReferences;
     return Object.freeze({
       command: decision.command, proof, action, trustedContext: context.slice(),
-      actionCommitment: decision.actionCommitment,
-      plan: Object.freeze({
-        required: quorum.required,
-        approvers: Object.freeze(Array.from(
-          { length: quorum.approverCount }, (_, index) => quorum.approver(index),
-        )),
-        planId,
-        canonicalPlan: quorum.planCbor.slice(),
-        proofReferences: Object.freeze(Array.from(
-          { length: quorum.approverCount },
-          (_, index) => references.slice(index * 32, (index + 1) * 32),
-        )),
-        validFrom,
-        validUntil,
-      }),
+      actionCommitment: decision.actionCommitment, requirement,
     });
   } finally {
     quorum.free?.();
@@ -905,23 +1060,15 @@ function refusals<T>(run: () => T): T {
 }
 
 /**
- * One approver named in a remote proposal. `terminalGrant` is the canonical
- * signed grant its authority descends from; omit it for a trust anchor.
- */
-export interface ApprovalMember {
-  readonly principal: string;
-  readonly terminalGrant?: Uint8Array;
-}
-
-/**
- * One exact action, its envelopes, and the threshold plan, built by the
- * requester. `action` is the canonical action the assembled proof carries.
+ * One exact action and its approval requirement, built for approvers on
+ * their own devices. `action` is the canonical action the assembled proof
+ * carries; `actor` signs it with `signApprovalAction`.
  */
 export interface ApprovalProposal<Command> {
   readonly command: Command;
   readonly action: Uint8Array;
-  readonly requester: string;
-  readonly plan: QuorumPlan;
+  readonly actor: string;
+  readonly requirement: QuorumRequirement;
 }
 
 /** One request, addressed to one approver, as bytes and printable text. */
@@ -935,7 +1082,7 @@ export interface ApprovalRequest {
 /**
  * A request that passed every native check. `title`, `fields`, and
  * `displayDigestHex` are the profile's review of the exact canonical action;
- * render them and nothing else.
+ * render them and nothing else. `requester` is the actor.
  */
 export interface ApprovalReview {
   readonly title: string;
@@ -965,53 +1112,29 @@ export interface ApproverStatus {
 }
 
 /**
- * Where each listed approver stands, in proposal order. `unattributed` lists
- * responses matched to no approver, by input index.
+ * Where each listed approver stands, in ascending approver order.
+ * `unattributed` lists responses matched to no approver, by input index.
+ * `approved` counts the listed approvers whose approvals match.
  */
 export interface ApprovalCollection {
   readonly statuses: readonly ApproverStatus[];
   readonly unattributed: readonly (readonly [number, string])[];
-  /** The proof once every listed approver approved; throws `ApprovalRefused` otherwise. */
-  assemble(): Uint8Array;
-}
-
-type Engine = Awaited<ReturnType<typeof loadPackagedWorkflowEngine>>;
-type NativeQuorum = ReturnType<InstanceType<Engine["McpQuorumApproversV1"]>["prepare"]>;
-
-interface ProposalInputs {
-  readonly service: string;
-  readonly name: string;
-  readonly encoded: unknown;
-  readonly approvers: readonly ApprovalMember[];
+  readonly approved: number;
   readonly required: number;
-  readonly challenge: Uint8Array;
-  readonly evaluationTime: bigint;
-  readonly validitySeconds: number | undefined;
+  readonly isComplete: boolean;
+  /**
+   * The proof from the actor's signed action and every matching approval;
+   * throws `ApprovalRefused` with `approval.incomplete` while fewer than
+   * `required` listed approvers have approved, `approval.action-mismatch`
+   * for another action, and `approval.oversized` for material outside bounds.
+   */
+  assemble(action: ApprovalAction): Uint8Array;
 }
 
-const proposals = new WeakMap<object, ProposalInputs>();
+const proposals = new WeakMap<object, QuorumInputs>();
 const reviews = new WeakMap<object, Readonly<{ data: Uint8Array; now: bigint }>>();
 
-function withQuorum<T>(engine: Engine, inputs: ProposalInputs, use: (quorum: NativeQuorum) => T): T {
-  const set = new engine.McpQuorumApproversV1();
-  let quorum: NativeQuorum;
-  try {
-    for (const approver of inputs.approvers) set.addApprover(approver.principal, approver.terminalGrant);
-    quorum = set.prepare(
-      inputs.service, inputs.name, inputs.encoded, inputs.required,
-      inputs.challenge, inputs.evaluationTime, inputs.validitySeconds,
-    );
-  } finally {
-    set.free?.();
-  }
-  try {
-    return use(quorum);
-  } finally {
-    quorum.free?.();
-  }
-}
-
-function proposalInputs(proposal: object): ProposalInputs {
+function proposalInputs(proposal: object): QuorumInputs {
   const inputs = proposals.get(proposal);
   if (inputs === undefined) throw new TypeError("approval proposal was not built by proposeMcpApproval");
   return inputs;
@@ -1028,68 +1151,59 @@ function unixNow(): bigint {
 }
 
 /**
- * Build a `required`-of-N proposal for approvers on their own devices. Every
- * listed approver must approve; `requester` is the listed approver building
- * the proposal. The window follows `authorMcpQuorumProof`.
+ * Build a proposal for any `required` of the listed `approvers`, approving on
+ * their own devices. `actor` is the principal that will sign the action with
+ * `signApprovalAction`; `actorGrant` is the canonical terminal grant its
+ * authority descends from, omitted when the actor is a trust anchor. The
+ * actor is never an approver. The window follows `authorMcpQuorumProof`.
  */
 export async function proposeMcpApproval<Fields extends FieldMap>(input: Readonly<{
   contract: ExactMcpTool<Fields>;
   command: CommandOf<Fields>;
   required: number;
-  approvers: readonly ApprovalMember[];
-  requester: string;
+  approvers: readonly string[];
+  actor: string;
+  actorGrant?: Uint8Array;
   challenge: Uint8Array;
   evaluationTime: bigint;
   validitySeconds?: number;
 }>): Promise<ApprovalProposal<CommandOf<Fields>>> {
+  const approvers = checkedQuorum(input.approvers, input.required);
+  checkedRequest(input.challenge, input.evaluationTime);
+  if (input.actorGrant !== undefined && (!(input.actorGrant instanceof Uint8Array) ||
+      input.actorGrant.length < 1 || input.actorGrant.length > 262_144)) {
+    throw new RangeError("actor grant is outside bounds");
+  }
   const engine = await loadPackagedWorkflowEngine();
-  const inputs: ProposalInputs = Object.freeze({
+  const inputs: QuorumInputs = Object.freeze({
     service: input.contract.service,
     name: input.contract.name,
     encoded: input.contract.encode(input.command),
-    approvers: Object.freeze(input.approvers.map((approver) => Object.freeze({
-      principal: approver.principal,
-      ...(approver.terminalGrant === undefined ? {} : { terminalGrant: approver.terminalGrant.slice() }),
-    }))),
+    approvers,
     required: input.required,
+    actor: checkedText(input.actor, "actor"),
+    actorGrant: input.actorGrant?.slice(),
     challenge: input.challenge.slice(),
     evaluationTime: input.evaluationTime,
     validitySeconds: checkedValidity(input.validitySeconds),
   });
-  const proposal = withQuorum(engine, inputs, (quorum) => {
-    const validity = quorum.validity;
-    const references = quorum.proofReferences;
-    return Object.freeze({
-      command: input.command,
-      action: quorum.canonicalActionCbor.slice(),
-      requester: input.requester,
-      plan: Object.freeze({
-        required: quorum.required,
-        approvers: Object.freeze(Array.from(
-          { length: quorum.approverCount }, (_, index) => quorum.approver(index),
-        )),
-        planId: quorum.planId.slice(),
-        canonicalPlan: quorum.planCbor.slice(),
-        proofReferences: Object.freeze(Array.from(
-          { length: quorum.approverCount },
-          (_, index) => references.slice(index * 32, (index + 1) * 32),
-        )),
-        validFrom: validity[0]!,
-        validUntil: validity[1]!,
-      }),
-    });
-  });
+  const proposal = withQuorum(engine, inputs, (quorum) => Object.freeze({
+    command: input.command,
+    action: quorum.canonicalActionCbor.slice(),
+    actor: quorum.actor,
+    requirement: requirementOf(quorum),
+  }));
   proposals.set(proposal, inputs);
   return proposal;
 }
 
-/** One request per listed approver, in proposal order. */
+/** One request per listed approver, in ascending approver order. */
 export async function approvalRequests<Command>(
   proposal: ApprovalProposal<Command>,
 ): Promise<readonly ApprovalRequest[]> {
   const engine = await loadPackagedWorkflowEngine();
   return withQuorum(engine, proposalInputs(proposal), (quorum) => {
-    const issued = refusals(() => engine.approvalRequestsV1(quorum, proposal.requester));
+    const issued = refusals(() => engine.approvalRequestsV1(quorum));
     try {
       return Object.freeze(Array.from({ length: issued.count }, (_, index) => Object.freeze({
         approver: issued.approver(index),
@@ -1100,6 +1214,63 @@ export async function approvalRequests<Command>(
     } finally {
       issued.free?.();
     }
+  });
+}
+
+/**
+ * The actor signs the proposal's action envelope with `signer`, whose
+ * custody request shows the action and the requirement and expires at the
+ * window's end. `grants` is the actor's chain, root first; it must end in the
+ * proposal's `actorGrant` and is empty when the actor is a trust anchor. The
+ * signer is not closed.
+ */
+export async function signApprovalAction<Command>(
+  proposal: ApprovalProposal<Command>,
+  signer: CustodySigner,
+  options: Readonly<{ grants?: readonly GrantEvidence[]; signal?: AbortSignal }> = {},
+): Promise<ApprovalAction> {
+  const inputs = proposalInputs(proposal);
+  const descriptor = custodyOf(signer);
+  if (descriptor.principal !== inputs.actor) throw new TypeError("signer is not the proposal's actor");
+  const grants = checkedGrants(options.grants ?? []);
+  const terminal = grants.at(-1)?.signedGrant;
+  if ((terminal === undefined) !== (inputs.actorGrant === undefined) ||
+      (terminal !== undefined && !bytesEqual(terminal, inputs.actorGrant!))) {
+    throw new TypeError("grant chain does not end in the proposal's actor grant");
+  }
+  const engine = await loadPackagedWorkflowEngine();
+  const signature = descriptor.signature;
+  const { envelope, display, validUntil } = withQuorum(engine, inputs, (quorum) => ({
+    envelope: quorum.actionEnvelopeCbor.slice(),
+    display: quorumDisplay(inputs.service, inputs.name, quorum),
+    validUntil: requirementOf(quorum).validUntil,
+  }));
+  const request = engine.prepareActionSigningV1(
+    envelope, signature.principalMethod, signature.verificationMethod, signature.suite,
+  );
+  let signed: Readonly<{ signature: Uint8Array; evidence: readonly PublicControlEvidence[] }>;
+  try {
+    signed = await signExactly(
+      signer, request, "action", validUntil, display,
+      options.signal ?? new AbortController().signal, 32,
+    );
+  } finally {
+    request.free?.();
+  }
+  return Object.freeze({
+    signedAction: engine.completeActionSigningV1(
+      envelope, signature.principalMethod, signature.verificationMethod, signature.suite,
+      signed.signature,
+    ).slice(),
+    grants: Object.freeze(grants.map((grant) => Object.freeze({
+      signedGrant: grant.signedGrant.slice(),
+      evidence: Object.freeze(grant.evidence.map((item) => Object.freeze({
+        type: item.type, mediaType: item.mediaType, bytes: item.bytes.slice(),
+      }))),
+    }))),
+    evidence: Object.freeze(signed.evidence.map((item) => Object.freeze({
+      type: item.type, mediaType: item.mediaType, bytes: item.bytes.slice(),
+    }))),
   });
 }
 
@@ -1141,53 +1312,18 @@ type NativePending = ReturnType<ReturnType<Engine["openApprovalRequestV1"]>["pre
 async function answer(
   pending: NativePending,
   signer: CustodySigner,
-  grants: readonly GrantEvidence[],
   signal: AbortSignal,
 ): Promise<ApprovalResponse> {
-  const descriptor = signer.descriptor;
-  const signature = descriptor.signature;
-  const requestId = pending.requestId;
-  const objectId = pending.objectId.slice();
-  const transactionDigest = pending.transactionDigest.slice();
   const decision = pending.decision;
-  const outcome = await signer.sign({
-    requestId,
-    objectKind: pending.objectKind as SigningRequest["objectKind"],
-    objectId: objectId.slice(),
-    descriptor,
-    transactionDigest: transactionDigest.slice(),
-    signingPreimage: pending.signingPreimage.slice(),
-    expiresAtUnixSeconds: pending.expiresAt,
-    display: Object.freeze(pending.display.map(([label, value]) => Object.freeze({ label, value }))),
-    signal,
-  });
-  if (outcome.kind !== "signed") {
-    throw new AuthoringUnsuccessful(
-      outcome.kind === "rejected" ? "rejected" : "indeterminate", outcome.failure,
-    );
+  const signed = await signExactly(
+    signer, pending, pending.objectKind as SigningRequest["objectKind"], pending.expiresAt,
+    Object.freeze(pending.display.map(([label, value]) => Object.freeze({ label, value }))),
+    signal, MAX_APPROVAL_EVIDENCE,
+  );
+  for (const evidence of signed.evidence) {
+    refusals(() => pending.bindEvidence(evidence.type, evidence.mediaType, evidence.bytes));
   }
-  const response = outcome.response;
-  if (response.requestId !== requestId ||
-      !bytesEqual(response.objectId, objectId) ||
-      !bytesEqual(response.transactionDigest, transactionDigest) ||
-      response.principal !== descriptor.principal ||
-      response.providerKeyVersion !== descriptor.keyVersion ||
-      response.descriptor.principalMethod !== signature.principalMethod ||
-      response.descriptor.verificationMethod !== signature.verificationMethod ||
-      response.descriptor.suite !== signature.suite ||
-      response.evidence.length < 1 || response.evidence.length > 32) {
-    throw new TypeError("custody response does not bind the exact signing request");
-  }
-  for (const grant of grants) {
-    const index = pending.pushGrant(grant.signedGrant);
-    for (const evidence of grant.evidence) {
-      pending.bindGrantEvidence(index, evidence.type, evidence.mediaType, evidence.bytes);
-    }
-  }
-  for (const evidence of response.evidence) {
-    pending.bindActionEvidence(evidence.type, evidence.mediaType, evidence.bytes);
-  }
-  const completed = refusals(() => pending.complete(response.signature));
+  const completed = refusals(() => pending.complete(signed.signature));
   try {
     return Object.freeze({ decision, data: completed.data.slice(), text: completed.text });
   } finally {
@@ -1198,13 +1334,10 @@ async function answer(
 async function respond(
   reviewed: ApprovalReview,
   signer: CustodySigner,
-  grants: readonly GrantEvidence[],
   signal: AbortSignal,
   prepare: (native: ReturnType<Engine["openApprovalRequestV1"]>) => NativePending,
 ): Promise<ApprovalResponse> {
-  if (signer?.descriptor?.contract !== "signer-custody/2") {
-    throw new TypeError("signer does not implement the custody contract");
-  }
+  custodyOf(signer);
   const opened = reviews.get(reviewed);
   if (opened === undefined) throw new TypeError("request was not opened by openApprovalRequest");
   const engine = await loadPackagedWorkflowEngine();
@@ -1212,7 +1345,7 @@ async function respond(
   let pending: NativePending | undefined;
   try {
     pending = refusals(() => prepare(native));
-    return await answer(pending, signer, grants, signal);
+    return await answer(pending, signer, signal);
   } finally {
     pending?.free?.();
     native.free?.();
@@ -1220,18 +1353,18 @@ async function respond(
 }
 
 /**
- * Sign the reviewed envelope with `signer`, whose custody request shows the
- * same review and expires at the window's end. `grants` is the approver's
- * grant chain, root first. The signer is not closed.
+ * Sign the reviewed approval statement with `signer`, whose custody request
+ * shows the same review and expires at the window's end. An approver carries
+ * no grants. The signer is not closed.
  */
 export async function approve(
   reviewed: ApprovalReview,
   signer: CustodySigner,
-  options: Readonly<{ grants?: readonly GrantEvidence[]; signal?: AbortSignal }> = {},
+  options: Readonly<{ signal?: AbortSignal }> = {},
 ): Promise<ApprovalResponse> {
   const signature = signer?.descriptor?.signature;
   return respond(
-    reviewed, signer, options.grants ?? [], options.signal ?? new AbortController().signal,
+    reviewed, signer, options.signal ?? new AbortController().signal,
     (native) => native.prepareApproval(
       signer.descriptor.principal, signature.principalMethod,
       signature.verificationMethod, signature.suite,
@@ -1240,18 +1373,18 @@ export async function approve(
 }
 
 /**
- * Sign a refusal at `now`. A decline carries no authority; it stops the
- * collector and records who refused.
+ * Sign a refusal at `now`. A decline carries no authority; it records who
+ * refused.
  */
 export async function decline(
   reviewed: ApprovalReview,
   signer: CustodySigner,
-  options: Readonly<{ now?: bigint; grants?: readonly GrantEvidence[]; signal?: AbortSignal }> = {},
+  options: Readonly<{ now?: bigint; signal?: AbortSignal }> = {},
 ): Promise<ApprovalResponse> {
   const signature = signer?.descriptor?.signature;
   const now = options.now ?? unixNow();
   return respond(
-    reviewed, signer, options.grants ?? [], options.signal ?? new AbortController().signal,
+    reviewed, signer, options.signal ?? new AbortController().signal,
     (native) => native.prepareDecline(
       signer.descriptor.principal, signature.principalMethod,
       signature.verificationMethod, signature.suite, now,
@@ -1267,45 +1400,65 @@ export async function collectApprovals<Command>(
   proposal: ApprovalProposal<Command>,
   responses: readonly (Uint8Array | string)[],
 ): Promise<ApprovalCollection> {
+  const inputs = proposalInputs(proposal);
+  if (!Array.isArray(responses) || responses.length > 4 * MAX_QUORUM_APPROVERS) {
+    throw new RangeError("too many approval responses");
+  }
+  const received = Object.freeze(responses.map(message));
   const engine = await loadPackagedWorkflowEngine();
-  return withQuorum(engine, proposalInputs(proposal), (quorum) => {
-    const collector = new engine.ApprovalCollectorV1();
-    let collection: ReturnType<typeof collector.collect> | undefined;
+  const collector = (): InstanceType<Engine["ApprovalCollectorV1"]> => {
+    const value = new engine.ApprovalCollectorV1();
     try {
-      for (const response of responses) collector.add(message(response));
-      collection = refusals(() => collector.collect(quorum));
-      const native = collection;
-      const statuses = Object.freeze(Array.from({ length: native.count }, (_, index) => {
-        const status = native.status(index) as ApproverStatus["status"];
+      for (const response of received) value.add(response);
+      return value;
+    } catch (error) {
+      value.free?.();
+      throw error;
+    }
+  };
+  return withQuorum(engine, inputs, (quorum) => {
+    const gathered = collector();
+    let native: ReturnType<typeof gathered.collect> | undefined;
+    try {
+      native = refusals(() => gathered.collect(quorum));
+      const collection = native;
+      const statuses = Object.freeze(Array.from({ length: collection.count }, (_, index) => {
+        const status = collection.status(index) as ApproverStatus["status"];
         return Object.freeze({
-          approver: native.approver(index),
+          approver: collection.approver(index),
           status,
-          ...(status === "rejected" ? { code: native.code(index) } : {}),
-          ...(status === "declined" ? { decidedAt: native.decidedAt(index) } : {}),
+          ...(status === "rejected" ? { code: collection.code(index) } : {}),
+          ...(status === "declined" ? { decidedAt: collection.decidedAt(index) } : {}),
         });
       }));
       const unattributed = Object.freeze(Array.from(
-        { length: native.unattributedCount },
-        (_, index) => Object.freeze([native.unattributedIndex(index), native.unattributedCode(index)] as const),
+        { length: collection.unattributedCount },
+        (_, index) => Object.freeze([collection.unattributedIndex(index), collection.unattributedCode(index)] as const),
       ));
-      let proof: Uint8Array | ApprovalRefused;
-      try {
-        proof = refusals(() => native.assemble()).slice();
-      } catch (error) {
-        if (!(error instanceof ApprovalRefused)) throw error;
-        proof = error;
-      }
       return Object.freeze({
         statuses,
         unattributed,
-        assemble(): Uint8Array {
-          if (proof instanceof ApprovalRefused) throw new ApprovalRefused(proof.code);
-          return proof.slice();
+        approved: collection.approved,
+        required: collection.required,
+        isComplete: collection.isComplete,
+        assemble(action: ApprovalAction): Uint8Array {
+          return withQuorum(engine, inputs, (current) => {
+            const answers = collector();
+            let staged: NativeAction | undefined;
+            try {
+              staged = nativeAction(engine, action);
+              const signedAction = staged;
+              return refusals(() => answers.assemble(current, signedAction)).slice();
+            } finally {
+              staged?.free?.();
+              answers.free?.();
+            }
+          });
         },
       });
     } finally {
-      collection?.free?.();
-      collector.free?.();
+      native?.free?.();
+      gathered.free?.();
     }
   });
 }
@@ -1330,6 +1483,28 @@ export interface TrustAnchor {
   readonly assurancePolicy: string;
 }
 
+/**
+ * One principal the operator lets approve, and how the verifier checks its
+ * signatures. An approver anchor is not a trust anchor: it grants no
+ * authority and carries no grant chain. Approver anchors use expiry-only
+ * status.
+ */
+export interface ApproverAnchor {
+  readonly principal: string;
+  readonly acceptedMethods: readonly string[];
+  readonly notBefore: bigint;
+  readonly expiresAt: bigint;
+}
+
+/**
+ * Approvals every verified action needs: any `threshold` distinct principals
+ * of `approvers`, whoever responds. An actor's own approval never counts.
+ */
+export interface ApprovalRequirement {
+  readonly approvers: readonly string[];
+  readonly threshold: number;
+}
+
 /** Assurance claims the verifier requires of each participant role. */
 export interface AssurancePolicy {
   readonly id: string;
@@ -1350,7 +1525,9 @@ const MAX_UINT64 = (1n << 64n) - 1n;
  * context pins: pass the one `auths-gateway review` prints to install trust in
  * that gateway, or omit it to pin this package's own verifier, which the local
  * check in `authorMcpProof` and `authorMcpQuorumProof` uses. The composition
- * minimums default to 1. With `request`, the context is bound to one audience,
+ * minimums default to 1. `approverAnchors` and `approvalRequirements` install
+ * native K-of-N approvals: each requirement must be met by approvals from
+ * listed approvers that the anchors name. With `request`, the context is bound to one audience,
  * challenge, and evaluation time, as a gateway installation needs; without it
  * the unbound template is returned. Throws `TypeError` or `RangeError` for
  * malformed or unbounded input before native code runs, and the native error
@@ -1366,6 +1543,8 @@ export async function compileTrustedContext(input: Readonly<{
   evidenceTypes?: readonly string[];
   criticalExtensions?: readonly string[];
   channelPolicy?: string;
+  approverAnchors?: readonly ApproverAnchor[];
+  approvalRequirements?: readonly ApprovalRequirement[];
   request?: Readonly<{ audience: string; challenge: Uint8Array; evaluationTime: bigint }>;
 }>): Promise<Uint8Array> {
   if (!Array.isArray(input.anchors) || input.anchors.length < 1 || input.anchors.length > 32) {
@@ -1420,10 +1599,29 @@ export async function compileTrustedContext(input: Readonly<{
     ? undefined : checkedText(input.channelPolicy, "channel policy");
   const evidenceTypes = checkedTexts(input.evidenceTypes ?? [], "evidence types", 64);
   const criticalExtensions = checkedTexts(input.criticalExtensions ?? [], "critical extensions", 64);
+  const approverAnchors = input.approverAnchors ?? [];
+  if (!Array.isArray(approverAnchors) || approverAnchors.length > 64) {
+    throw new RangeError("approver anchors must be a list of at most 64 entries");
+  }
+  const approvalRequirements = input.approvalRequirements ?? [];
+  if (!Array.isArray(approvalRequirements) || approvalRequirements.length > 64) {
+    throw new RangeError("approval requirements must be a list of at most 64 entries");
+  }
+  const approvers = approverAnchors.map((anchor) => ({
+    principal: checkedText(anchor?.principal, "approver principal"),
+    acceptedMethods: checkedTexts(anchor.acceptedMethods, "approver accepted methods", 16),
+    notBefore: checkedU64(anchor.notBefore, "approver validity"),
+    expiresAt: checkedU64(anchor.expiresAt, "approver validity"),
+    statusPolicy: { mode: "expiry-only" },
+  }));
+  const requirements = approvalRequirements.map((requirement) => ({
+    approvers: checkedTexts(requirement?.approvers, "requirement approvers", 16),
+    threshold: checkedU16(requirement.threshold, "approval threshold"),
+  }));
   const engine = await loadPackagedWorkflowEngine();
   const compiled = engine.buildTrustedContextTemplateV1(
     input.configuration?.slice(), composition, anchors, policy, channelPolicy,
-    evidenceTypes, criticalExtensions,
+    evidenceTypes, criticalExtensions, approvers, requirements,
   ).slice();
   if (request === undefined) return compiled;
   return engine.bindTrustedContextRequestV1(

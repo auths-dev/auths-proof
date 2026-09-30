@@ -19,13 +19,12 @@ from .authoring import (
     ApprovalRefused,
     ApprovalReview,
     AuthoringUnsuccessful,
-    GrantEvidence,
     approve,
     decline,
     open_approval_request,
 )
 
-_REQUEST_PREFIX = "auths-ar1-"
+_REQUEST_PREFIX = "auths-ar2-"
 _MAX_INPUT_BYTES = 131_072
 
 
@@ -38,7 +37,7 @@ def _render(review: ApprovalReview) -> str:
     lines.extend(f"  {label}: {value}" for label, value in review.fields)
     lines.append(f"Display digest: {review.display_digest_hex}")
     lines.append(f"Requested by: {review.requester}")
-    lines.append(f"Approvals required: {review.required} of {len(review.approvers)}")
+    lines.append(f"Approvals required: any {review.required} of {len(review.approvers)}")
     lines.extend(
         f"  {approver}{' (you)' if approver == review.approver else ''}"
         for approver in review.approvers
@@ -63,7 +62,7 @@ def _read_request(value: str) -> bytes:
 async def _run(args: argparse.Namespace, interactive: bool) -> int:
     loaded = load_signer_file(args.signer)
     try:
-        return await _answer(args, interactive, loaded.signer, loaded.grants, loaded.development)
+        return await _answer(args, interactive, loaded.signer, loaded.development)
     finally:
         await loaded.signer.aclose()
 
@@ -72,7 +71,6 @@ async def _answer(
     args: argparse.Namespace,
     interactive: bool,
     signer: CustodySigner,
-    grants: tuple[GrantEvidence, ...],
     development: bool,
 ) -> int:
     try:
@@ -101,9 +99,9 @@ async def _answer(
         return 1
     try:
         if args.decline:
-            response = await decline(review, signer, grants=grants)
+            response = await decline(review, signer)
         else:
-            response = await approve(review, signer, grants=grants)
+            response = await approve(review, signer)
     except ApprovalRefused as refused:
         print(f"auths: refused: {refused.code}; nothing was signed", file=sys.stderr)
         return 1
@@ -123,7 +121,7 @@ def approve_main(argv: Sequence[str]) -> int:
         prog="auths approve",
         description="Review one approval request and answer it with your own custody.",
     )
-    parser.add_argument("request", help="request file, or the auths-ar1- text itself")
+    parser.add_argument("request", help="request file, or the auths-ar2- text itself")
     parser.add_argument("--signer", type=Path, required=True, help="custody configuration file")
     parser.add_argument("--decline", action="store_true", help="sign a decline instead")
     parser.add_argument("--yes", action="store_true", help="answer without a prompt")

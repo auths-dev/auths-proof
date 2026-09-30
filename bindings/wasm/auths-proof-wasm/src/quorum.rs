@@ -1,155 +1,130 @@
 //! Thin projection of `auths-approval-quorum` for one exact MCP action.
+//!
+//! The actor signs one action envelope; each listed approver signs one
+//! approval statement bound to the action and the approval requirement. Any
+//! `required` distinct listed approvers suffice. Every check is native.
 
-use super::{EngineError, addressed_evidence, js_error, mcp_arguments_from_js};
-use auths_approval_quorum::{
-    MAX_APPROVAL_GRANTS, MAX_APPROVERS, MAX_STATEMENT_EVIDENCE, QuorumApproval, QuorumApprover,
-    QuorumProposal,
+use super::{
+    AuthoringSigningRequestV1, EngineError, addressed_evidence, js_error, mcp_arguments_from_js,
+    signing_descriptor, signing_request,
 };
-use auths_model::{EvidenceObject, PrincipalId, SignedAction, SignedGrant, VerifierLimits};
+use auths_approval_quorum::{
+    MAX_ACTOR_GRANTS, MAX_APPROVER_EVIDENCE, MAX_APPROVERS, MAX_STATEMENT_EVIDENCE, QuorumAction,
+    QuorumActor, QuorumError, QuorumProposal,
+};
+use auths_model::{
+    EvidenceObject, PrincipalId, SignatureBytes, SignatureDescriptor, SignatureEnvelope,
+    SignedAction, SignedApproval, SignedGrant, VerifierLimits,
+};
 use auths_profile_api::ActionProfile;
 use auths_profile_mcp::{McpProfile, McpToolCall};
 use wasm_bindgen::prelude::*;
 
-/// Ordered approver set collected before one quorum is prepared.
-#[wasm_bindgen]
-pub struct McpQuorumApproversV1 {
-    approvers: Vec<QuorumApprover>,
+/// Prepares the actor's envelope and one approval statement per listed
+/// approver for a `required`-of-N requirement, valid from `evaluation_time`
+/// for `validity_seconds` (the native default when omitted), cut to the
+/// actor's terminal-grant expiry. Omit the grant when the actor is itself a
+/// trust anchor of the verifier's installation.
+///
+/// # Errors
+///
+/// Rejects malformed arguments, an impossible threshold, a repeated
+/// approver, the actor listed as an approver, or a validity outside the
+/// native bounds.
+#[allow(
+    clippy::too_many_arguments,
+    clippy::needless_pass_by_value,
+    reason = "wasm-bindgen passes string arrays and optional byte arrays only by value"
+)]
+#[wasm_bindgen(js_name = prepareMcpQuorumV1)]
+pub fn prepare_mcp_quorum_v1(
+    service: &str,
+    name: &str,
+    arguments: &JsValue,
+    required: u16,
+    approvers: Vec<String>,
+    actor: &str,
+    actor_terminal_grant_cbor: Option<Vec<u8>>,
+    challenge: &[u8],
+    evaluation_time: u64,
+    validity_seconds: Option<u32>,
+) -> Result<McpQuorumV1, JsValue> {
+    prepare_native(
+        service,
+        name,
+        arguments,
+        required,
+        &approvers,
+        actor,
+        actor_terminal_grant_cbor.as_deref(),
+        challenge,
+        evaluation_time,
+        validity_seconds.map(u64::from),
+    )
+    .map_err(js_error)
 }
 
-#[wasm_bindgen]
-impl McpQuorumApproversV1 {
-    #[wasm_bindgen(constructor)]
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            approvers: Vec::new(),
-        }
+#[allow(clippy::too_many_arguments)]
+fn prepare_native(
+    service: &str,
+    name: &str,
+    arguments: &JsValue,
+    required: u16,
+    approvers: &[String],
+    actor: &str,
+    actor_terminal_grant_cbor: Option<&[u8]>,
+    challenge: &[u8],
+    evaluation_time: u64,
+    validity_seconds: Option<u64>,
+) -> Result<McpQuorumV1, EngineError> {
+    if approvers.is_empty() || approvers.len() > MAX_APPROVERS {
+        return Err(QuorumError::InvalidQuorum.into());
     }
-
-    /// Appends one approver. Omit the grant when the approver is itself a
-    /// trust anchor of the verifier's installation.
-    ///
-    /// # Errors
-    ///
-    /// Rejects an invalid principal, a malformed grant, or a full set.
-    #[wasm_bindgen(js_name = addApprover)]
-    #[allow(
-        clippy::needless_pass_by_value,
-        reason = "wasm-bindgen passes an optional byte array only by value"
-    )]
-    pub fn add_approver(
-        &mut self,
-        actor: &str,
-        terminal_grant_cbor: Option<Vec<u8>>,
-    ) -> Result<(), JsValue> {
-        self.add_native(actor, terminal_grant_cbor.as_deref())
-            .map_err(js_error)
-    }
-
-    /// Prepares one envelope per approver under a `required`-of-N plan,
-    /// valid from `evaluation_time` for `validity_seconds` (the native
-    /// default when omitted), cut to the earliest approver grant expiry.
-    ///
-    /// # Errors
-    ///
-    /// Rejects malformed arguments, an impossible threshold, a repeated
-    /// approver, or a validity outside the native bounds.
-    #[allow(clippy::too_many_arguments)]
-    pub fn prepare(
-        &self,
-        service: &str,
-        name: &str,
-        arguments: &JsValue,
-        required: u16,
-        challenge: &[u8],
-        evaluation_time: u64,
-        validity_seconds: Option<u32>,
-    ) -> Result<McpQuorumV1, JsValue> {
-        self.prepare_native(
-            service,
-            name,
-            arguments,
-            required,
-            challenge,
-            evaluation_time,
-            validity_seconds.map(u64::from),
-        )
-        .map_err(js_error)
-    }
+    let approvers = approvers
+        .iter()
+        .map(|approver| PrincipalId::parse(approver))
+        .collect::<Result<Vec<_>, _>>()?;
+    let grant = actor_terminal_grant_cbor
+        .map(|bytes| auths_codec::decode_signed_grant(bytes, &VerifierLimits::default_deployment()))
+        .transpose()?;
+    let actor = QuorumActor::new(PrincipalId::parse(actor)?, grant.as_ref())?;
+    let call = McpToolCall::new(service, name, mcp_arguments_from_js(arguments)?)?;
+    let canonical = McpProfile.canonicalize(&call.canonical_bytes()?)?;
+    let display = McpProfile.review_display(&canonical)?;
+    let challenge: [u8; 32] = challenge
+        .try_into()
+        .map_err(|_| EngineError::Abi("challenge must contain exactly 32 bytes"))?;
+    let canonical_action_cbor = auths_codec::encode_canonical_action(&canonical)?;
+    let resource = canonical.permission().resource().to_string();
+    let audience = call.audience()?;
+    let proposal = QuorumProposal::new(
+        canonical,
+        &audience,
+        challenge,
+        evaluation_time,
+        validity_seconds,
+        required,
+        &approvers,
+        &actor,
+    )?;
+    Ok(McpQuorumV1 {
+        envelope_cbor: auths_codec::encode_action_envelope(proposal.envelope())?,
+        proposal,
+        canonical_action_cbor,
+        arguments_json: serde_json_canonicalizer::to_vec(call.arguments())
+            .map_err(|_| EngineError::Abi("MCP arguments could not be canonicalized"))?,
+        audience: audience.to_string(),
+        resource,
+        display_digest_hex: display.canonical_digest_hex().to_owned(),
+    })
 }
 
-impl Default for McpQuorumApproversV1 {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl McpQuorumApproversV1 {
-    fn add_native(
-        &mut self,
-        actor: &str,
-        terminal_grant_cbor: Option<&[u8]>,
-    ) -> Result<(), EngineError> {
-        if self.approvers.len() >= MAX_APPROVERS {
-            return Err(EngineError::Abi("approval quorum approver set is full"));
-        }
-        let grant = terminal_grant_cbor
-            .map(|bytes| {
-                auths_codec::decode_signed_grant(bytes, &VerifierLimits::default_deployment())
-            })
-            .transpose()?;
-        self.approvers.push(QuorumApprover::new(
-            PrincipalId::parse(actor)?,
-            grant.as_ref(),
-        )?);
-        Ok(())
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn prepare_native(
-        &self,
-        service: &str,
-        name: &str,
-        arguments: &JsValue,
-        required: u16,
-        challenge: &[u8],
-        evaluation_time: u64,
-        validity_seconds: Option<u64>,
-    ) -> Result<McpQuorumV1, EngineError> {
-        let call = McpToolCall::new(service, name, mcp_arguments_from_js(arguments)?)?;
-        let canonical = McpProfile.canonicalize(&call.canonical_bytes()?)?;
-        let display = McpProfile.review_display(&canonical)?;
-        let challenge: [u8; 32] = challenge
-            .try_into()
-            .map_err(|_| EngineError::Abi("challenge must contain exactly 32 bytes"))?;
-        let canonical_action_cbor = auths_codec::encode_canonical_action(&canonical)?;
-        let resource = canonical.permission().resource().to_string();
-        let audience = call.audience()?;
-        let proposal = QuorumProposal::new(
-            canonical,
-            &audience,
-            challenge,
-            evaluation_time,
-            validity_seconds,
-            required,
-            &self.approvers,
-        )?;
-        Ok(McpQuorumV1 {
-            proposal,
-            canonical_action_cbor,
-            arguments_json: serde_json_canonicalizer::to_vec(call.arguments())
-                .map_err(|_| EngineError::Abi("MCP arguments could not be canonicalized"))?,
-            audience: audience.to_string(),
-            resource,
-            display_digest_hex: display.canonical_digest_hex().to_owned(),
-        })
-    }
-}
-
-/// Exact envelopes and threshold plan for one MCP action.
+/// The actor's envelope, the approval requirement, and one approval
+/// statement per listed approver for one MCP action.
 #[wasm_bindgen]
 pub struct McpQuorumV1 {
     proposal: QuorumProposal,
+    envelope_cbor: Vec<u8>,
     canonical_action_cbor: Vec<u8>,
     arguments_json: Vec<u8>,
     audience: String,
@@ -159,60 +134,36 @@ pub struct McpQuorumV1 {
 
 #[wasm_bindgen]
 impl McpQuorumV1 {
+    /// Returns the threshold: how many listed approvers must approve.
     #[must_use]
     #[wasm_bindgen(getter)]
     pub fn required(&self) -> u16 {
         self.proposal.required()
     }
 
+    /// Returns the listed approvers in ascending order.
     #[must_use]
-    #[wasm_bindgen(getter, js_name = approverCount)]
-    pub fn approver_count(&self) -> u32 {
-        u32::try_from(self.proposal.envelopes().len()).unwrap_or(u32::MAX)
-    }
-
-    /// Returns the approver at `index`, in approver order.
-    ///
-    /// # Errors
-    ///
-    /// Rejects an index outside the approver set.
-    pub fn approver(&self, index: u32) -> Result<String, JsValue> {
-        self.envelope(index)
-            .map(|envelope| envelope.actor().as_str().to_owned())
-            .map_err(js_error)
-    }
-
-    /// Returns the core plan identifier every envelope commits to.
-    ///
-    /// # Errors
-    ///
-    /// Returns a JavaScript error only if canonical encoding fails.
-    #[wasm_bindgen(getter, js_name = planId)]
-    pub fn plan_id(&self) -> Result<Vec<u8>, JsValue> {
-        auths_codec::plan_id(self.proposal.plan())
-            .map(|id| id.as_bytes().to_vec())
-            .map_err(js_error)
-    }
-
-    /// Returns the canonical threshold plan.
-    ///
-    /// # Errors
-    ///
-    /// Returns a JavaScript error only if canonical encoding fails.
-    #[wasm_bindgen(getter, js_name = planCbor)]
-    pub fn plan_cbor(&self) -> Result<Vec<u8>, JsValue> {
-        auths_codec::encode_authorization_plan(self.proposal.plan()).map_err(js_error)
-    }
-
-    /// Returns the concatenated 32-byte proof references in approver order.
-    #[must_use]
-    #[wasm_bindgen(getter, js_name = proofReferences)]
-    pub fn proof_references(&self) -> Vec<u8> {
+    #[wasm_bindgen(getter)]
+    pub fn approvers(&self) -> Vec<String> {
         self.proposal
-            .envelopes()
+            .approvers()
             .iter()
-            .flat_map(|envelope| *envelope.proof_ref().as_bytes())
+            .map(|approver| approver.as_str().to_owned())
             .collect()
+    }
+
+    /// Returns the actor that signs the action envelope.
+    #[must_use]
+    #[wasm_bindgen(getter)]
+    pub fn actor(&self) -> String {
+        self.proposal.actor().as_str().to_owned()
+    }
+
+    /// Returns the approval requirement's identifier every statement binds.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = requirementId)]
+    pub fn requirement_id(&self) -> Vec<u8> {
+        self.proposal.requirement_id().as_bytes().to_vec()
     }
 
     #[must_use]
@@ -239,19 +190,13 @@ impl McpQuorumV1 {
         self.resource.clone()
     }
 
-    /// Returns the shared envelope validity as `[notBefore, expiresAt]`.
+    /// Returns the shared validity as `[notBefore, expiresAt]`, both
+    /// inclusive.
     #[must_use]
     #[wasm_bindgen(getter)]
     pub fn validity(&self) -> Vec<u64> {
-        self.proposal
-            .envelopes()
-            .first()
-            .map_or_else(Vec::new, |envelope| {
-                vec![
-                    envelope.validity().not_before().get(),
-                    envelope.validity().expires_at().get(),
-                ]
-            })
+        let validity = self.proposal.envelope().validity();
+        vec![validity.not_before().get(), validity.expires_at().get()]
     }
 
     #[must_use]
@@ -260,15 +205,28 @@ impl McpQuorumV1 {
         self.display_digest_hex.clone()
     }
 
-    /// Returns the unsigned envelope the approver at `index` signs.
+    /// Returns the unsigned envelope the actor signs.
+    #[must_use]
+    #[wasm_bindgen(getter, js_name = actionEnvelopeCbor)]
+    pub fn action_envelope_cbor(&self) -> Vec<u8> {
+        self.envelope_cbor.clone()
+    }
+
+    /// Prepares the custody request for `approver`'s approval statement.
     ///
     /// # Errors
     ///
-    /// Rejects an index outside the approver set.
-    #[wasm_bindgen(js_name = actionEnvelopeCbor)]
-    pub fn action_envelope_cbor(&self, index: u32) -> Result<Vec<u8>, JsValue> {
-        self.envelope(index)
-            .and_then(|envelope| Ok(auths_codec::encode_action_envelope(envelope)?))
+    /// Rejects an approver the requirement does not list or a malformed
+    /// signature descriptor.
+    #[wasm_bindgen(js_name = prepareApprovalSigning)]
+    pub fn prepare_approval_signing(
+        &self,
+        approver: &str,
+        principal_method: &str,
+        verification_method: &str,
+        suite: &str,
+    ) -> Result<AuthoringSigningRequestV1, JsValue> {
+        self.prepare_approval_native(approver, principal_method, verification_method, suite)
             .map_err(js_error)
     }
 }
@@ -278,21 +236,134 @@ impl McpQuorumV1 {
         &self.proposal
     }
 
-    fn envelope(&self, index: u32) -> Result<&auths_model::ActionEnvelope, EngineError> {
-        usize::try_from(index)
-            .ok()
-            .and_then(|index| self.proposal.envelopes().get(index))
-            .ok_or(EngineError::Abi("approver index is out of range"))
+    fn prepare_approval_native(
+        &self,
+        approver: &str,
+        principal_method: &str,
+        verification_method: &str,
+        suite: &str,
+    ) -> Result<AuthoringSigningRequestV1, EngineError> {
+        let statement = self
+            .proposal
+            .statement(&PrincipalId::parse(approver)?)
+            .ok_or(QuorumError::UnknownApproval)?;
+        let request = auths_author::prepare_approval(
+            statement.clone(),
+            signing_descriptor(principal_method, verification_method, suite)?,
+            self.proposal.canonical().profile(),
+        )?;
+        Ok(signing_request(&request))
     }
 }
 
-struct StagedApproval {
+/// The actor's signed envelope with its grant chain (root first) and the
+/// public control evidence of each grant and of the signature.
+#[wasm_bindgen]
+pub struct McpQuorumActionV1 {
     action: SignedAction,
     grants: Vec<(SignedGrant, Vec<EvidenceObject>)>,
     action_evidence: Vec<EvidenceObject>,
 }
 
-/// Bounded collector of signed approvals and their public control evidence.
+#[wasm_bindgen]
+impl McpQuorumActionV1 {
+    /// Stages the actor's canonical signed action.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a malformed signed action.
+    #[wasm_bindgen(constructor)]
+    pub fn new(signed_action_cbor: &[u8]) -> Result<Self, JsValue> {
+        let action = auths_codec::decode_signed_action(
+            signed_action_cbor,
+            &VerifierLimits::default_deployment(),
+        )
+        .map_err(js_error)?;
+        Ok(Self {
+            action,
+            grants: Vec::new(),
+            action_evidence: Vec::new(),
+        })
+    }
+
+    /// Appends one grant of the actor's chain, root first.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a malformed grant or a full chain.
+    #[wasm_bindgen(js_name = pushGrant)]
+    pub fn push_grant(&mut self, signed_grant_cbor: &[u8]) -> Result<u32, JsValue> {
+        self.push_grant_native(signed_grant_cbor).map_err(js_error)
+    }
+
+    /// Binds public control evidence to one staged grant.
+    ///
+    /// # Errors
+    ///
+    /// Rejects an unknown grant, invalid evidence, or a full collection.
+    #[wasm_bindgen(js_name = bindGrantEvidence)]
+    pub fn bind_grant_evidence(
+        &mut self,
+        grant: u32,
+        evidence_type: &str,
+        media_type: &str,
+        bytes: &[u8],
+    ) -> Result<(), JsValue> {
+        let evidence = addressed_evidence(evidence_type, media_type, bytes).map_err(js_error)?;
+        let (_, objects) = usize::try_from(grant)
+            .ok()
+            .and_then(|index| self.grants.get_mut(index))
+            .ok_or_else(|| js_error(EngineError::Abi("grant index is out of range")))?;
+        push_bounded(objects, evidence, MAX_STATEMENT_EVIDENCE).map_err(js_error)
+    }
+
+    /// Binds public control evidence to the actor's signature.
+    ///
+    /// # Errors
+    ///
+    /// Rejects invalid evidence or a full collection.
+    #[wasm_bindgen(js_name = bindActionEvidence)]
+    pub fn bind_action_evidence(
+        &mut self,
+        evidence_type: &str,
+        media_type: &str,
+        bytes: &[u8],
+    ) -> Result<(), JsValue> {
+        let evidence = addressed_evidence(evidence_type, media_type, bytes).map_err(js_error)?;
+        push_bounded(&mut self.action_evidence, evidence, MAX_STATEMENT_EVIDENCE).map_err(js_error)
+    }
+}
+
+impl McpQuorumActionV1 {
+    fn push_grant_native(&mut self, signed_grant_cbor: &[u8]) -> Result<u32, EngineError> {
+        if self.grants.len() >= MAX_ACTOR_GRANTS {
+            return Err(EngineError::Abi("actor grant chain is full"));
+        }
+        let grant = auths_codec::decode_signed_grant(
+            signed_grant_cbor,
+            &VerifierLimits::default_deployment(),
+        )?;
+        self.grants.push((grant, Vec::new()));
+        Ok(u32::try_from(self.grants.len() - 1)?)
+    }
+
+    pub(crate) fn native(&self) -> Result<QuorumAction, QuorumError> {
+        QuorumAction::new(
+            self.action.clone(),
+            self.grants.clone(),
+            self.action_evidence.clone(),
+        )
+    }
+}
+
+struct StagedApproval {
+    approver: PrincipalId,
+    descriptor: SignatureDescriptor,
+    signature: SignatureBytes,
+    evidence: Vec<EvidenceObject>,
+}
+
+/// Bounded collector of approver signatures for one in-process quorum.
 #[wasm_bindgen]
 pub struct McpQuorumProofBuilderV1 {
     approvals: Vec<StagedApproval>,
@@ -308,77 +379,67 @@ impl McpQuorumProofBuilderV1 {
         }
     }
 
-    /// Appends one signed envelope and returns its approval index.
+    /// Appends one approver's custody signature over its approval statement
+    /// and returns the approval index.
     ///
     /// # Errors
     ///
-    /// Rejects a malformed signed action or a full collector.
+    /// Rejects a malformed principal, descriptor, or signature, or a full
+    /// collector.
     #[wasm_bindgen(js_name = addApproval)]
-    pub fn add_approval(&mut self, signed_action_cbor: &[u8]) -> Result<u32, JsValue> {
-        self.add_native(signed_action_cbor).map_err(js_error)
+    pub fn add_approval(
+        &mut self,
+        approver: &str,
+        principal_method: &str,
+        verification_method: &str,
+        suite: &str,
+        signature: &[u8],
+    ) -> Result<u32, JsValue> {
+        self.add_native(
+            approver,
+            principal_method,
+            verification_method,
+            suite,
+            signature,
+        )
+        .map_err(js_error)
     }
 
-    /// Appends one grant of an approval's chain, root first.
+    /// Binds public control evidence to one approval's signature.
     ///
     /// # Errors
     ///
-    /// Rejects an unknown approval, a malformed grant, or an oversized chain.
-    #[wasm_bindgen(js_name = pushGrant)]
-    pub fn push_grant(&mut self, approval: u32, signed_grant_cbor: &[u8]) -> Result<u32, JsValue> {
-        self.push_grant_native(approval, signed_grant_cbor)
-            .map_err(js_error)
-    }
-
-    /// Binds public control evidence to one grant of one approval.
-    ///
-    /// # Errors
-    ///
-    /// Rejects an unknown index, invalid evidence, or an oversized set.
-    #[wasm_bindgen(js_name = bindGrantEvidence)]
-    pub fn bind_grant_evidence(
+    /// Rejects an unknown approval, invalid evidence, or a full collection.
+    #[wasm_bindgen(js_name = bindApprovalEvidence)]
+    pub fn bind_approval_evidence(
         &mut self,
         approval: u32,
-        grant: u32,
         evidence_type: &str,
         media_type: &str,
         bytes: &[u8],
     ) -> Result<(), JsValue> {
         let evidence = addressed_evidence(evidence_type, media_type, bytes).map_err(js_error)?;
-        let staged = self.staged(approval).map_err(js_error)?;
-        let (_, objects) = usize::try_from(grant)
+        let staged = usize::try_from(approval)
             .ok()
-            .and_then(|index| staged.grants.get_mut(index))
-            .ok_or_else(|| js_error(EngineError::Abi("grant index is out of range")))?;
-        push_bounded(objects, evidence).map_err(js_error)
+            .and_then(|index| self.approvals.get_mut(index))
+            .ok_or_else(|| js_error(EngineError::Abi("approval index is out of range")))?;
+        push_bounded(&mut staged.evidence, evidence, MAX_APPROVER_EVIDENCE).map_err(js_error)
     }
 
-    /// Binds public control evidence to one approval's signed action.
+    /// Assembles the canonical proof from the actor's signed action and the
+    /// approvals of at least `required` distinct listed approvers.
     ///
     /// # Errors
     ///
-    /// Rejects an unknown approval, invalid evidence, or an oversized set.
-    #[wasm_bindgen(js_name = bindActionEvidence)]
-    pub fn bind_action_evidence(
-        &mut self,
-        approval: u32,
-        evidence_type: &str,
-        media_type: &str,
-        bytes: &[u8],
-    ) -> Result<(), JsValue> {
-        let evidence = addressed_evidence(evidence_type, media_type, bytes).map_err(js_error)?;
-        let staged = self.staged(approval).map_err(js_error)?;
-        push_bounded(&mut staged.action_evidence, evidence).map_err(js_error)
-    }
-
-    /// Assembles the canonical proof; every approver of `quorum` must appear
-    /// exactly once.
-    ///
-    /// # Errors
-    ///
-    /// Rejects an approval outside the quorum, a repeated approval, a missing
-    /// approver, or material outside collection bounds.
-    pub fn finish(&self, quorum: &McpQuorumV1) -> Result<Vec<u8>, JsValue> {
-        self.finish_native(quorum).map_err(js_error)
+    /// Rejects an action that is not `quorum`'s envelope, an approval by an
+    /// approver `quorum` does not list, a repeated approver, fewer approvals
+    /// than the threshold, or material outside collection bounds.
+    pub fn finish(
+        &self,
+        quorum: &McpQuorumV1,
+        action: &McpQuorumActionV1,
+    ) -> Result<Vec<u8>, JsValue> {
+        self.finish_native(quorum, action).map_err(js_error)
     }
 }
 
@@ -389,60 +450,48 @@ impl Default for McpQuorumProofBuilderV1 {
 }
 
 impl McpQuorumProofBuilderV1 {
-    fn add_native(&mut self, signed_action_cbor: &[u8]) -> Result<u32, EngineError> {
+    fn add_native(
+        &mut self,
+        approver: &str,
+        principal_method: &str,
+        verification_method: &str,
+        suite: &str,
+        signature: &[u8],
+    ) -> Result<u32, EngineError> {
         if self.approvals.len() >= MAX_APPROVERS {
             return Err(EngineError::Abi("approval quorum collector is full"));
         }
-        let action = auths_codec::decode_signed_action(
-            signed_action_cbor,
-            &VerifierLimits::default_deployment(),
-        )?;
         self.approvals.push(StagedApproval {
-            action,
-            grants: Vec::new(),
-            action_evidence: Vec::new(),
+            approver: PrincipalId::parse(approver)?,
+            descriptor: signing_descriptor(principal_method, verification_method, suite)?,
+            signature: SignatureBytes::new(signature.to_vec())?,
+            evidence: Vec::new(),
         });
         Ok(u32::try_from(self.approvals.len() - 1)?)
     }
 
-    fn push_grant_native(
-        &mut self,
-        approval: u32,
-        signed_grant_cbor: &[u8],
-    ) -> Result<u32, EngineError> {
-        let grant = auths_codec::decode_signed_grant(
-            signed_grant_cbor,
-            &VerifierLimits::default_deployment(),
-        )?;
-        let staged = self.staged(approval)?;
-        if staged.grants.len() >= MAX_APPROVAL_GRANTS {
-            return Err(EngineError::Abi("approval grant chain is full"));
-        }
-        staged.grants.push((grant, Vec::new()));
-        Ok(u32::try_from(staged.grants.len() - 1)?)
-    }
-
-    fn staged(&mut self, approval: u32) -> Result<&mut StagedApproval, EngineError> {
-        usize::try_from(approval)
-            .ok()
-            .and_then(|index| self.approvals.get_mut(index))
-            .ok_or(EngineError::Abi("approval index is out of range"))
-    }
-
-    fn finish_native(&self, quorum: &McpQuorumV1) -> Result<Vec<u8>, EngineError> {
+    fn finish_native(
+        &self,
+        quorum: &McpQuorumV1,
+        action: &McpQuorumActionV1,
+    ) -> Result<Vec<u8>, EngineError> {
         let approvals = self
             .approvals
             .iter()
             .map(|staged| {
-                QuorumApproval::new(
-                    staged.action.clone(),
-                    staged.grants.clone(),
-                    staged.action_evidence.clone(),
-                )
+                let statement = quorum
+                    .proposal
+                    .statement(&staged.approver)
+                    .ok_or(QuorumError::UnknownApproval)?;
+                Ok(SignedApproval::new(
+                    statement.clone(),
+                    SignatureEnvelope::new(staged.descriptor.clone(), staged.signature.clone()),
+                    staged.evidence.clone(),
+                )?)
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, EngineError>>()?;
         Ok(auths_codec::encode_bundle(
-            &quorum.proposal.assemble(&approvals)?,
+            &quorum.proposal.assemble(&action.native()?, &approvals)?,
         )?)
     }
 }
@@ -450,8 +499,9 @@ impl McpQuorumProofBuilderV1 {
 fn push_bounded(
     objects: &mut Vec<EvidenceObject>,
     evidence: EvidenceObject,
+    limit: usize,
 ) -> Result<(), EngineError> {
-    if objects.len() >= MAX_STATEMENT_EVIDENCE {
+    if objects.len() >= limit {
         return Err(EngineError::Abi("evidence collection is full"));
     }
     objects.push(evidence);
