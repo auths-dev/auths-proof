@@ -273,8 +273,9 @@ async def _submit(options: argparse.Namespace) -> Dict[str, Any]:
     statuses = {names.get(item.approver, item.approver): item for item in collection.statuses}
     approved = sorted(name for name, item in statuses.items() if item.status == "approved")
     declined = sorted(name for name, item in statuses.items() if item.status == "declined")
-    pending = sum(item.status == "pending" for item in statuses.values())
-    record.update(approved=approved, required=collection.required)
+    silent = sorted(name for name, item in statuses.items() if item.status == "pending")
+    pending = len(silent)
+    record.update(approved=approved, pending=silent, required=collection.required)
     if declined:
         record["declined"] = declined
     if collection.approved < collection.required:

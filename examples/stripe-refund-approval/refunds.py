@@ -22,7 +22,8 @@ says who decided it in ``decided_by``: ``gateway``, ``approver``, or
 
 ``python refunds.py grant --state DIR --agent NAME --max-count N`` issues one
 more agent its own grant with the same limits and another count; the journey
-uses it for the refusals that consume a count slot.
+uses it for the refusals that consume a count slot. Naming a manager gives
+that manager's key an agent grant, for the self-approval case.
 
 The agent writes one approval request per manager; any manager may answer
 with ``auths approve`` on their own machine, and the agent collects whatever
@@ -392,14 +393,19 @@ def setup(args: argparse.Namespace) -> None:
 def grant(args: argparse.Namespace) -> None:
     """Issues one more agent its own grant: the setup's limits with
     ``--max-count`` refunds per window, counted apart from every other
-    agent's."""
+    agent's. Naming a manager gives that manager's own key an agent grant,
+    the operator error the self-approval case exercises: the manager may then
+    act, but its approval of its own action never counts."""
     state: Path = args.state
     facts = json.loads((state / "setup.json").read_text())
     name: str = args.agent
-    if name in facts["principals"] or (state / "agents" / f"{name}.json").exists():
+    if (state / "agents" / f"{name}.json").exists() or (
+        name in facts["principals"] and name not in MANAGERS
+    ):
         raise SystemExit(f"{name} already exists")
     bound = _bound(args.gateway, facts["limits"], args.max_count)
-    _private_write(state / "keys" / f"{name}.seed", os.urandom(32))
+    if name not in MANAGERS:
+        _private_write(state / "keys" / f"{name}.seed", os.urandom(32))
     principal = _signer(state, name).key.principal
     _private_write(state / f"{name}.grant.cbor", _root_grant(state, facts, principal, bound))
     record = {"principal": principal, "max_count": bound["max_count"]}
@@ -570,8 +576,9 @@ async def _submit(args: argparse.Namespace) -> Dict[str, Any]:
     statuses = {names.get(item.approver, item.approver): item for item in collection.statuses}
     approved = sorted(name for name, item in statuses.items() if item.status == "approved")
     declined = sorted(name for name, item in statuses.items() if item.status == "declined")
-    pending = sum(item.status == "pending" for item in statuses.values())
-    record.update(approved=approved, required=collection.required)
+    silent = sorted(name for name, item in statuses.items() if item.status == "pending")
+    pending = len(silent)
+    record.update(approved=approved, pending=silent, required=collection.required)
     if declined:
         record["declined"] = declined
     if collection.approved < collection.required:
@@ -653,7 +660,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     prepare.add_argument("--currencies", default="eur,usd", help="comma-separated currencies")
     prepare.add_argument("--connect-account", default=CONNECT_ACCOUNT, help="the account in scope")
     prepare.add_argument("--days", type=int, default=30, help="trust and grant validity")
-    another = commands.add_parser("grant", help="issue one more agent its own grant")
+    another = commands.add_parser(
+        "grant", help="issue one more agent, or a manager's own key, an agent grant"
+    )
     another.add_argument("--state", type=Path, required=True)
     another.add_argument("--gateway", default="auths-gateway")
     another.add_argument("--agent", required=True)

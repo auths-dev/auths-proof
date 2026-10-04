@@ -365,6 +365,42 @@ def expect_not_submitted(
     expect(not submit_frames(frames), f"{case}: the witness saw a submit frame: {frames}")
 
 
+def _cbor_head(data: bytes, at: int) -> tuple[int, int, int]:
+    """(major type, argument, offset after the head) of the definite-length
+    CBOR item at ``at``; enough to read an approval response."""
+    initial = data[at]
+    major, info = initial >> 5, initial & 0x1F
+    if info < 24:
+        return major, info, at + 1
+    width = {24: 1, 25: 2, 26: 4, 27: 8}[info]
+    return major, int.from_bytes(data[at + 1 : at + 1 + width], "big"), at + 1 + width
+
+
+def signed_approval(response_text: str) -> bytes:
+    """The signed approval an ``auths-as2-`` approve response carries: the
+    byte string under key 4 of its five-key map."""
+    data = unb64(response_text.strip()[len("auths-as2-") :])
+    major, count, at = _cbor_head(data, 0)
+    expect(major == 5 and count == 5, "an approval response is a five-key map")
+    for _ in range(count):
+        _, key, at = _cbor_head(data, at)
+        major, length, at = _cbor_head(data, at)
+        value, at = data[at : at + length], at + length
+        if key == 4:
+            expect(major == 2, "an approval response's body is a byte string")
+            return value
+    raise SystemExit("journey check failed: an approval response carries no body")
+
+
+def with_approvals(proof: bytes, approvals: List[bytes]) -> bytes:
+    """``proof`` with its empty approval list (bundle key 10, always last)
+    replaced by ``approvals`` in ascending digest order, as a hostile client
+    that bypasses the SDK would write it."""
+    expect(proof.endswith(b"\x0a\x80") and len(approvals) < 24, "a single-proof bundle ends with no approvals")
+    ordered = sorted(approvals, key=lambda value: hashlib.sha256(value).digest())
+    return proof[:-1] + bytes([0x80 | len(ordered)]) + b"".join(ordered)
+
+
 def resubmit(journey: Journey, operation: str) -> Dict[str, Any]:
     """Submits the recorded proof and action of ``operation`` again,
     unchanged, as a client retrying after the gateway lost its state would."""
@@ -449,6 +485,22 @@ def main() -> int:
                     "--connect-account",
                     args.connect_account,
                 ).stdout
+            ),
+        )
+        journey.step(
+            "manager-a's own key given an agent grant (1 per window), for the self-approval case",
+            lambda: journey.run(
+                PYTHON,
+                "refunds.py",
+                "grant",
+                "--state",
+                str(journey.state),
+                "--gateway",
+                args.gateway,
+                "--agent",
+                "manager-a",
+                "--max-count",
+                "1",
             ),
         )
         journey.step(
@@ -663,6 +715,91 @@ def main() -> int:
             # The CLI prints the gateway's submit result unchanged.
             return {"decided_by": "gateway", **json.loads(sent.stdout)}
 
+        def self_approval() -> Dict[str, Any]:
+            """Manager A, given an agent grant, submits a refund as the actor,
+            and managers A and B approve it. The SDK refuses to author a
+            proposal whose actor is a listed approver, so this builds the proof
+            as a hostile client would: A signs its own action under its own
+            grant, and the two approvals, collected through `auths approve`,
+            are added to the bundle by hand. A is in the proof's authority
+            chain, so only B's approval counts."""
+            from auths import _native
+            from auths.authoring import propose_mcp_approval
+
+            import refunds
+
+            operation = "refund-self-approval"
+            folder, requested = journey.request(operation, 1_400, pi)
+            requests[operation] = requested
+            for manager in ("manager-a", "manager-b"):
+                answered = journey.answer(folder, manager)
+                expect(answered.returncode == 0, f"{manager}: {answered.stderr.strip()}")
+            state = journey.state
+            principals = facts["principals"]
+            command = refunds._proposal(state, operation).command
+            grant_bytes = (state / "manager-a.grant.cbor").read_bytes()
+            challenge = bytes.fromhex(facts["challenge_hex"])
+            try:
+                propose_mcp_approval(
+                    contract=refunds.CONTRACT,
+                    command=command,
+                    required=facts["approvals_required"],
+                    approvers=[principals[name] for name in MANAGERS],
+                    actor=principals["manager-a"],
+                    actor_grant=grant_bytes,
+                    challenge=challenge,
+                    evaluation_time=int(time.time()),
+                )
+                sdk = "authored"
+            except ValueError:
+                sdk = "refused"
+            manager_a, root = refunds._signer(state, "manager-a"), refunds._signer(state, "root")
+            key = manager_a.key
+            grant = _native.parse_signed("grant", grant_bytes)
+            prepared = refunds.CONTRACT.prepare(
+                command,
+                actor=_native.Principal(key.principal),
+                terminal_grant=grant,
+                challenge=challenge,
+                evaluation_time=int(time.time()),
+                validity_seconds=300,
+            )
+            signing = _native.prepare_signing(
+                prepared.action.unsigned, key.principal_method, key.verification_method, key.suite
+            )
+            evidence = lambda signer: (  # noqa: E731
+                signer.evidence.evidence_type,
+                signer.evidence.media_type,
+                bytes(signer.evidence.bytes),
+            )
+            proof, action, _ = _native.assemble_mcp_proof(
+                prepared.action,
+                signing.complete(key.sign(signing.signing_preimage)),
+                [grant],
+                [[evidence(root)]],
+                [evidence(manager_a)],
+                _native.parse_trusted_context((state / "trust" / "gateway.context.cbor").read_bytes()),
+            )
+            expect(bytes(action) == unb64(requested["action_b64"]), "manager A signed another refund")
+            approvals = [
+                signed_approval((folder / f"{manager}.response").read_text())
+                for manager in ("manager-a", "manager-b")
+            ]
+            proof_path, action_path = journey.work / "self.proof", journey.work / "self.action"
+            proof_path.write_bytes(with_approvals(bytes(proof), approvals))
+            action_path.write_bytes(bytes(action))
+            sent = journey.run(
+                args.gateway,
+                "submit",
+                "--app-socket",
+                str(journey.witness_socket),
+                "--proof",
+                str(proof_path),
+                "--action",
+                str(action_path),
+            )
+            return {"decided_by": "gateway", "sdk": sdk, **json.loads(sent.stdout)}
+
         # The hostile table: every case the gateway must decide, in order.
         # Each is checked by the guard: the record says the gateway decided,
         # and the witness saw exactly one submit frame with that answer.
@@ -670,6 +807,7 @@ def main() -> int:
         before_lease = {
             "refund-2-lowered-threshold": ("denied", "approval-threshold-not-met"),
             "refund-6-lowered-two-approvals": ("denied", "approval-threshold-not-met"),
+            "refund-self-approval": ("denied", "approval-threshold-not-met"),
             "refund-3-over-ceiling": ("not-entered", "gateway.policy.above-ceiling"),
             "refund-other-account": ("not-entered", "gateway.policy.scope-denied"),
             "refund-over-sum": ("not-entered", "gateway.policy.sum-exhausted"),
@@ -763,6 +901,10 @@ def main() -> int:
             shutil.copy(folder / "manager-a.response", folder / "manager-a-again.response")
             return journey.submit("refund-7-repeated", folder)
 
+        journey.step(
+            "hostile: manager-a, given an agent grant, submits a refund it approves itself with manager-b",
+            lambda: watched("refund-self-approval", self_approval),
+        )
         journey.step(
             "repeated: manager-a's response twice counts for nobody, nothing is submitted",
             lambda: watched("refund-7-repeated", repeated_response),
@@ -868,6 +1010,7 @@ def main() -> int:
         expect(observed["bundle"] == "appended", f"refund-1: {observed}")
         expect(
             observed["approved"] == ["manager-a", "manager-b"]
+            and observed["pending"] == ["manager-c"]
             and "declined" not in observed
             and sorted(requests["refund-1"]["requests"]) == list(MANAGERS),
             f"refund-1: one request per manager, approved by two: {observed} {requests['refund-1']}",
@@ -939,11 +1082,13 @@ def main() -> int:
                 "code": code,
                 "submit_frames": len(submit_frames(frames[case])),
             }
-        # Only the reused-approvals case is sent by the journey itself, which
-        # asks for no signed outcome.
+        # The reused-approvals and self-approval cases are sent by the
+        # journey itself, which asks for no signed outcome.
+        for case in ("refund-8-reuse", "refund-self-approval"):
+            expect(len(frames[case]) == 1, f"{case}: the witness saw {frames[case]}")
         expect(
-            len(frames["refund-8-reuse"]) == 1,
-            f"refund-8-reuse: the witness saw {frames['refund-8-reuse']}",
+            results["refund-self-approval"]["sdk"] == "refused",
+            f"the SDK authored a proposal whose actor is a listed approver: {results['refund-self-approval']}",
         )
         for case in ("refund-2-lowered-threshold", "refund-6-lowered-two-approvals"):
             expect(
@@ -1141,12 +1286,14 @@ def main() -> int:
         }
         # One bundle entry per operation ID: the replay left refund-1's
         # alone, the retry replaced refund-2-lowered-threshold's unsigned one,
-        # and the journey's own reused-approvals submission has none.
+        # and the journey's own reused-approvals and self-approval submissions
+        # have none.
         bundled = [entry["operation_id"] for entry in exported["entries"]]
         audited_refusals = {
             operation: code
             for operation, (_, code) in expected_refusals.items()
-            if operation not in ("refund-1-replay", "refund-8-reuse", "refund-2-retry")
+            if operation
+            not in ("refund-1-replay", "refund-8-reuse", "refund-self-approval", "refund-2-retry")
         }
         audited_refusals["refund-2-lowered-threshold"] = expected_refusals["refund-2-retry"][1]
         expect(len(bundled) == len(set(bundled)), f"bundle repeats an operation ID: {bundled}")

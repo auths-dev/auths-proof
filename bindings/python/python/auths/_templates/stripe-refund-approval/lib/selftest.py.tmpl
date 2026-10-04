@@ -19,6 +19,10 @@ runs as its own process and records each exchange. It then checks:
   ``--allow-unverified-refusals`` so that only the tampering can fail it; a
   ninth, an entry whose outcome was removed and whose proof was then altered,
   passes as the documented limit of that option;
+- manager A, given an agent grant, submits a refund that managers A and B
+  approve; the SDK refuses to author it, so it is the one refund built
+  outside the project's commands, as a hostile client would, with the
+  operator's and manager A's development keys. The gateway counts only B;
 - a second ``bin/install-gateway`` is refused as already installed;
 - the key in ``AUTHS_SELFTEST_KEY_FILE``, read only for this scan, appears
   in no file outside ``enforcement/gateway/``: none in the project, and none
@@ -30,6 +34,7 @@ It writes ``audit/selftest.json`` and prints the same report.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import base64
 import hashlib
 import json
@@ -44,11 +49,13 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from common import (  # noqa: E402
+    ASSURANCE,
     PROJECT,
     RUN,
     STATE,
     CommandFailed,
     checked_config,
+    gateway_json,
     main,
     pid_alive,
     private_directory,
@@ -88,6 +95,7 @@ MIN_WINDOW_SECONDS = 3_600
 BEFORE_LEASE = {
     "refund-2-lowered-threshold": ("denied", "approval-threshold-not-met"),
     "refund-6-lowered-two-approvals": ("denied", "approval-threshold-not-met"),
+    "refund-self-approval": ("denied", "approval-threshold-not-met"),
     "refund-3-over-ceiling": ("not-entered", "gateway.policy.above-ceiling"),
     "refund-other-account": ("not-entered", "gateway.policy.scope-denied"),
     "refund-over-sum": ("not-entered", "gateway.policy.sum-exhausted"),
@@ -109,6 +117,42 @@ class SelftestFailed(Exception):
 def expect(condition: bool, message: str) -> None:
     if not condition:
         raise SelftestFailed(message)
+
+
+def _cbor_head(data: bytes, at: int) -> Tuple[int, int, int]:
+    """(major type, argument, offset after the head) of the definite-length
+    CBOR item at ``at``; enough to read an approval response."""
+    initial = data[at]
+    major, info = initial >> 5, initial & 0x1F
+    if info < 24:
+        return major, info, at + 1
+    width = {24: 1, 25: 2, 26: 4, 27: 8}[info]
+    return major, int.from_bytes(data[at + 1 : at + 1 + width], "big"), at + 1 + width
+
+
+def signed_approval(response_text: str) -> bytes:
+    """The signed approval an ``auths-as2-`` approve response carries: the
+    byte string under key 4 of its five-key map."""
+    data = unb64(response_text.strip()[len("auths-as2-") :])
+    major, count, at = _cbor_head(data, 0)
+    expect(major == 5 and count == 5, "an approval response is a five-key map")
+    for _ in range(count):
+        _, key, at = _cbor_head(data, at)
+        major, length, at = _cbor_head(data, at)
+        value, at = data[at : at + length], at + length
+        if key == 4:
+            expect(major == 2, "an approval response's body is a byte string")
+            return value
+    raise SelftestFailed("an approval response carries no body")
+
+
+def with_approvals(proof: bytes, approvals: List[bytes]) -> bytes:
+    """``proof`` with its empty approval list (bundle key 10, always last)
+    replaced by ``approvals`` in ascending digest order, as a hostile client
+    that bypasses the SDK would write it."""
+    expect(proof.endswith(b"\x0a\x80") and len(approvals) < 24, "a single-proof bundle ends with no approvals")
+    ordered = sorted(approvals, key=lambda value: hashlib.sha256(value).digest())
+    return proof[:-1] + bytes([0x80 | len(ordered)]) + b"".join(ordered)
 
 
 def unb64(value: str) -> bytes:
@@ -588,6 +632,148 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
         expect(status == 0, f"refund-7-repeated: bin/submit: {record} {submit_stderr}")
         return record
 
+    def self_approval() -> Dict[str, Any]:
+        """Manager A, given an agent grant, submits a refund as the actor, and
+        managers A and B approve it with ``bin/approve``. The SDK refuses to
+        author a proposal whose actor is a listed approver, so A signs its
+        own action under its own grant and the approvals are added to the
+        bundle by hand. A is in the proof's authority chain, so only B's
+        approval counts."""
+        sys.path.insert(0, str(PROJECT / "app"))
+        import refund_client  # noqa: PLC0415
+        from auths import _native  # noqa: PLC0415
+        from auths.adapters.custody import ReviewField, SigningObjectKind, SigningRequest  # noqa: PLC0415
+        from auths.authoring import propose_mcp_approval  # noqa: PLC0415
+        from auths.self_hosted import Permission, Profile, author_root_grant, load_signer_file  # noqa: PLC0415
+
+        operation = "refund-self-approval"
+        requested, _ = request(operation, 1_400)
+        requests[operation] = requested
+        folder = Path(requested["folder"])
+        for manager in (manager_a, manager_b):
+            status, answered, answer_stderr = commands.run(
+                "approve", manager, str(folder / f"{manager}.request"), "--yes"
+            )
+            expect(status == 0, f"{operation}: {manager} could not answer: {answered} {answer_stderr}")
+        principals = facts["principals"]
+        limits = facts["limits"]
+        bound = gateway_json(
+            config,
+            "bound-extension",
+            "--argument",
+            "amount",
+            "--ceiling",
+            str(limits["ceiling"]),
+            "--window-seconds",
+            str(limits["window_seconds"]),
+            "--max-count",
+            "1",
+            "--sum-limit",
+            str(limits["sum_limit"]),
+            "--partition",
+            "currency=" + ",".join(limits["currencies"]),
+            "--scope",
+            "connect_account=" + limits["connect_account"],
+        )
+        root = load_signer_file(PROJECT / "operator" / "signer.json")
+        actor = load_signer_file(PROJECT / "managers" / manager_a / "signer.json")
+        now = int(time.time())
+        audience = facts["audience"]
+        grant = asyncio.run(
+            author_root_grant(
+                signer=root.signer,
+                subject=principals[manager_a],
+                profile=Profile("auths.mcp", 2),
+                permissions=[Permission("tools/call", f"{audience}/tools/{facts['tool']}")],
+                audiences=[audience],
+                not_before=facts["not_before"],
+                expires_at=facts["expires_at"],
+                remaining_depth=0,
+                assurance_floor=ASSURANCE,
+                requested_at=now,
+                critical_extensions=[(bound["extension_id"], bytes.fromhex(bound["extension_body_hex"]))],
+            )
+        )
+        command = refund_client._proposal(facts, operation).command
+        challenge = bytes.fromhex(facts["challenge_hex"])
+        try:
+            propose_mcp_approval(
+                contract=refund_client.CONTRACT,
+                command=command,
+                required=facts["approvals_required"],
+                approvers=[principals[name] for name in facts["managers"]],
+                actor=principals[manager_a],
+                actor_grant=grant.signed_grant,
+                challenge=challenge,
+                evaluation_time=now,
+            )
+            sdk = "authored"
+        except ValueError:
+            sdk = "refused"
+        signed_grant = _native.parse_signed("grant", grant.signed_grant)
+        prepared = refund_client.CONTRACT.prepare(
+            command,
+            actor=_native.Principal(principals[manager_a]),
+            terminal_grant=signed_grant,
+            challenge=challenge,
+            evaluation_time=now,
+            validity_seconds=300,
+        )
+        descriptor = actor.signer.descriptor
+        signing = _native.prepare_signing(
+            prepared.action.unsigned,
+            descriptor.signature.principal_method,
+            descriptor.signature.verification_method,
+            descriptor.signature.suite,
+        )
+        outcome = asyncio.run(
+            actor.signer.sign(
+                SigningRequest(
+                    signing.request_id,
+                    SigningObjectKind.ACTION,
+                    bytes(signing.object_id),
+                    descriptor,
+                    bytes(signing.transaction_digest),
+                    bytes(signing.signing_preimage),
+                    now + 300,
+                    tuple(ReviewField(label, value) for label, value in prepared.review_fields),
+                )
+            )
+        )
+        response = getattr(outcome, "response", None)
+        expect(response is not None, f"{operation}: manager A's custody did not sign: {outcome}")
+        proof, action, _ = _native.assemble_mcp_proof(
+            prepared.action,
+            signing.complete(bytes(response.signature)),
+            [signed_grant],
+            [[(item.evidence_type, item.media_type, bytes(item.bytes)) for item in grant.evidence]],
+            [(item.evidence_type, item.media_type, bytes(item.bytes)) for item in response.evidence],
+            _native.parse_trusted_context((PROJECT / "agent" / "trust" / "gateway.context.cbor").read_bytes()),
+        )
+        expect(bytes(action) == unb64(requested["action_b64"]), f"{operation}: manager A signed another refund")
+        approvals = [signed_approval((folder / f"{manager}.response").read_text()) for manager in (manager_a, manager_b)]
+        proof_path, action_path = RUN / "self.proof", RUN / "self.action"
+        write_file(proof_path, with_approvals(bytes(proof), approvals), replace=True)
+        write_file(action_path, bytes(action), replace=True)
+        sent = subprocess.run(
+            [
+                config["gateway"]["path"],
+                "submit",
+                "--app-socket",
+                str(WITNESS_SOCKET),
+                "--proof",
+                str(proof_path),
+                "--action",
+                str(action_path),
+            ],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            cwd=PROJECT,
+        )
+        expect(sent.returncode == 0, f"{operation}: {sent.stderr.strip()}")
+        return {"decided_by": "gateway", "sdk": sdk, **json.loads(sent.stdout)}
+
     # The refunds, in order. Each hostile one must be decided by the gateway.
     # Every request goes to every manager; only the managers named answer.
     submit("refund-1", 1_500, f"{manager_a},{manager_b}")
@@ -600,6 +786,7 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
     watched("refund-tampered", tampered_case)
     submit("refund-2-lowered-threshold", 1_200, manager_a, required="1")
     submit("refund-6-lowered-two-approvals", 1_100, f"{manager_a},{manager_b}", required="1")
+    watched("refund-self-approval", self_approval)
     watched("refund-7-repeated", repeated_response)
     submit("refund-3-over-ceiling", 9_000, f"{manager_a},{manager_b}")
     submit("refund-other-account", 1_000, f"{manager_a},{manager_c}", connect_account=OTHER_ACCOUNT)
@@ -636,6 +823,7 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
     expect(results["refund-1"].get("bundle") == "appended", f"refund-1: {results['refund-1']}")
     expect(
         results["refund-1"].get("approved") == sorted([manager_a, manager_b])
+        and results["refund-1"].get("pending") == [manager_c]
         and "declined" not in results["refund-1"]
         and sorted(requests["refund-1"]["requests"]) == sorted(facts["managers"]),
         f"refund-1: one request per manager, approved by two: {results['refund-1']} {requests['refund-1']}",
@@ -693,8 +881,14 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
             "code": code,
             "submit_frames": len(submit_frames(frames[case])),
         }
-    # Only the reused-approvals case is sent without asking for an outcome.
-    expect(len(frames["refund-8-reuse"]) == 1, f"refund-8-reuse: the witness saw {frames['refund-8-reuse']}")
+    # The reused-approvals and self-approval cases are sent without asking
+    # for an outcome.
+    for case in ("refund-8-reuse", "refund-self-approval"):
+        expect(len(frames[case]) == 1, f"{case}: the witness saw {frames[case]}")
+    expect(
+        results["refund-self-approval"].get("sdk") == "refused",
+        f"the SDK authored a proposal whose actor is a listed approver: {results['refund-self-approval']}",
+    )
     for case in ("refund-2-lowered-threshold", "refund-6-lowered-two-approvals"):
         expect(
             requests[case].get("required") == 1
@@ -762,7 +956,7 @@ def _run(config: Dict[str, Any], report: Dict[str, Any], key_file: Path, started
     audited = {
         operation: code
         for operation, (_, code) in BEFORE_LEASE.items()
-        if operation not in ("refund-1-replay", "refund-8-reuse", "refund-2-retry")
+        if operation not in ("refund-1-replay", "refund-8-reuse", "refund-self-approval", "refund-2-retry")
     }
     # One entry per operation ID: refund-2-lowered-threshold is audited
     # through its retry.

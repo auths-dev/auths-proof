@@ -1,30 +1,35 @@
 /**
- * Stripe refunds an AI agent may request only with two of three manager
- * approvals and inside a per-agent limit, submitted through the Auths gateway,
+ * Stripe refunds an AI agent may make only once any two of three managers
+ * approved them, inside a per-agent limit, submitted through the Auths gateway,
  * from the npm package. The commands and state directory match ../refunds.py:
  *
  *   node build/refunds.js setup   --state DIR --gateway auths-gateway
  *   node build/refunds.js request --state DIR --operation-id ID --payment-intent PI \
- *                                 --amount CENTS --approvers a,b --out REQUESTS \
+ *                                 --amount CENTS --out REQUESTS \
  *                                 [--currency usd] [--connect-account acct_...] [--precheck]
  *   npx auths approve REQUESTS/manager-a.request \
  *                                 --signer DIR/signers/manager-a.json --out REQUESTS/manager-a.response
  *   node build/refunds.js submit  --state DIR --socket SOCK --operation-id ID --responses REQUESTS
  *   node build/refunds.js export  --state DIR --out audit-bundle.json
  *
- * `submit` sends every assembled proof to the gateway: only the gateway decides
- * the approval threshold, the ceiling, the per-window count, and whether an
- * operation ID may run again. `request --precheck` is an opt-in, client-side
+ * `submit` has the agent sign its refund and sends the assembled proof to the
+ * gateway once two managers approved: only the gateway decides the approval
+ * threshold, the ceiling, the per-window count, and whether an operation ID
+ * may run again. `request --precheck` is an opt-in, client-side
  * pre-check and not an enforcement boundary. Every outcome record says who
  * decided it in `decided_by`: `gateway`, `approver`, or `client`.
  *
  * `node build/refunds.js grant --state DIR --agent NAME --max-count N` issues
  * one more agent its own grant with the same limits and another count; the
- * journey uses it for the refusals that consume a count slot.
+ * journey uses it for the refusals that consume a count slot. Naming a manager
+ * gives that manager's key an agent grant, for the self-approval case.
  *
- * The agent writes one approval request per manager; each manager answers with
- * `auths approve` on their own machine, and the agent collects the
- * response files. Everything here uses development keys stored under DIR/keys
+ * The agent writes one approval request per manager; any manager may answer
+ * with `auths approve` on their own machine, and the agent collects whatever
+ * response files exist. Whoever answers first counts: the third manager need
+ * not answer. The agent's own approval never counts. `request --required N`
+ * lowers the threshold the requests name; it is a hostile lever for the
+ * journey, and the gateway refuses what it produces. Everything here uses development keys stored under DIR/keys
  * so one person can play every role; they are development custody. In
  * production the root and each manager sign through their own custody
  * adapters, and the agent never holds the managers' keys.
@@ -45,9 +50,10 @@ import type {
 } from "@auths-dev/sdk/adapters";
 import { GatewayClient, GatewayEndpoint } from "@auths-dev/sdk/gateway";
 import {
-  approvalRequests, approve, authorRootGrant, collectApprovals, compileTrustedContext,
-  openApprovalRequest, proposeMcpApproval,
-  type ApprovalProposal, type AssurancePolicy, type GrantEvidence, type TrustAnchor,
+  approvalRequests, authorRootGrant, collectApprovals, compileTrustedContext, proposeMcpApproval,
+  signApprovalAction,
+  type ApprovalProposal, type ApprovalRequirement, type ApproverAnchor, type AssurancePolicy,
+  type GrantEvidence, type TrustAnchor,
 } from "@auths-dev/sdk/self-hosted";
 import { developmentEd25519Key, type DevelopmentEd25519Key } from "@auths-dev/sdk/testkit";
 
@@ -58,9 +64,9 @@ export const EXAMPLE = resolve(dirname(fileURLToPath(import.meta.url)), "../..")
 const RECIPE = join(EXAMPLE, "recipe.json");
 const PROFILE_LOCK = join(EXAMPLE, "profile.lock.json");
 export const MANAGERS = ["manager-a", "manager-b", "manager-c"] as const;
-// The gateway's trusted context requires this many authorized approvals from
-// as many distinct actors and roots: the agent and two managers.
-const APPROVALS_REQUIRED = 3;
+// The gateway's trusted context requires approvals from this many of the
+// three managers, any of them.
+const APPROVALS_REQUIRED = 2;
 const ROLES = ["root", "agent", ...MANAGERS] as const;
 const DAY = 86_400n;
 // The test connected account the grant's scope lists; the gateway sends it as
@@ -103,6 +109,7 @@ export interface SetupFacts {
   readonly trusted_context_sha256: string;
   readonly principals: Readonly<Record<string, string>>;
   readonly approvals_required: number;
+  readonly approvers: readonly string[];
   readonly connect_account: string;
   readonly limits: Limits;
   readonly bound: Readonly<Record<string, unknown>> & { readonly ceiling: number };
@@ -240,30 +247,34 @@ export function developmentSigner(name: string, key: DevelopmentEd25519Key): Cus
   };
 }
 
-async function roleKey(state: string, name: string): Promise<DevelopmentEd25519Key> {
+export async function roleKey(state: string, name: string): Promise<DevelopmentEd25519Key> {
   return developmentEd25519Key(new Uint8Array(readFileSync(join(state, "keys", `${name}.seed`))));
 }
 
 /**
- * `required` authorized approvals from as many distinct actors and distinct
- * roots under `anchors`, bound to one audience, challenge, and time.
+ * One authorized branch from one actor under one root, and approvals from any
+ * `threshold` of the approvers `requirement` names, bound to one audience,
+ * challenge, and time.
  */
 export function trustedContext(input: Readonly<{
   configuration?: Uint8Array;
   anchors: readonly TrustAnchor[];
+  approvers: readonly ApproverAnchor[];
+  requirement: ApprovalRequirement;
   audience: string;
   challenge: Uint8Array;
   now: bigint;
-  required: number;
   extension: string;
 }>): Promise<Uint8Array> {
   return compileTrustedContext({
     ...(input.configuration === undefined ? {} : { configuration: input.configuration }),
     anchors: input.anchors,
     assurance: ASSURANCE,
-    minimumAuthorizedBranches: input.required,
-    minimumDistinctActors: input.required,
-    minimumDistinctRoots: input.required,
+    minimumAuthorizedBranches: 1,
+    minimumDistinctActors: 1,
+    minimumDistinctRoots: 1,
+    approverAnchors: input.approvers,
+    approvalRequirements: [input.requirement],
     channelPolicy: "none-v1",
     evidenceTypes: ["raw-key-v1"],
     criticalExtensions: [input.extension],
@@ -271,7 +282,7 @@ export function trustedContext(input: Readonly<{
   });
 }
 
-/** One trust anchor for `name`: the root may delegate once, managers approve directly. */
+/** One trust anchor for `name` that may delegate `depth` times. */
 export function anchor(
   name: string, principal: string, audience: string, tool: string,
   depth: number, notBefore: bigint, expiresAt: bigint,
@@ -308,7 +319,9 @@ async function setup(options: Readonly<{
     connect_account: options.connectAccount,
   };
   const bound = boundExtension(options.gateway, limits, options.maxCount);
-  for (const name of ROLES) privateWrite(join(state, "keys", `${name}.seed`), randomBytes(32));
+  for (const name of ROLES) {
+    privateWrite(join(state, "keys", `${name}.seed`), new Uint8Array(randomBytes(32)));
+  }
   // What each manager passes to `auths approve --signer`.
   for (const name of MANAGERS) {
     privateWrite(join(state, "signers", `${name}.json`), JSON.stringify({
@@ -324,14 +337,17 @@ async function setup(options: Readonly<{
   const tool = review.tool;
   const audience = `mcp://${review.service}`;
   const challenge = new Uint8Array(randomBytes(32));
-  const anchors = [
-    anchor("root", principals.root!, audience, tool, 1, notBefore, expiresAt),
-    ...MANAGERS.map((name) => anchor(name, principals[name]!, audience, tool, 0, notBefore, expiresAt)),
-  ];
+  // The root is the only trust anchor and may delegate once, to the agent.
+  // The managers are approver anchors: they approve and hold no authority.
+  const anchors = [anchor("root", principals.root!, audience, tool, 1, notBefore, expiresAt)];
+  const approvers: ApproverAnchor[] = MANAGERS.map((name) => ({
+    principal: principals[name]!, acceptedMethods: ["raw-key-v1"], notBefore, expiresAt,
+  }));
+  const requirement: ApprovalRequirement = {
+    approvers: MANAGERS.map((name) => principals[name]!), threshold: APPROVALS_REQUIRED,
+  };
   const extension = bound.extension_id;
-  // Three authorized approvals from three distinct roots: the agent's
-  // authority descends from the root and counts once, so two must be managers.
-  const common = { anchors, audience, challenge, now, required: APPROVALS_REQUIRED, extension };
+  const common = { anchors, approvers, requirement, audience, challenge, now, extension };
   const gatewayContext = await trustedContext({
     ...common, configuration: hexBytes(review.verifier_configuration),
   });
@@ -351,6 +367,7 @@ async function setup(options: Readonly<{
     trusted_context_sha256: createHash("sha256").update(gatewayContext).digest("hex"),
     principals,
     approvals_required: APPROVALS_REQUIRED,
+    approvers: [...MANAGERS],
     connect_account: options.connectAccount,
     limits,
     bound: {
@@ -369,7 +386,10 @@ async function setup(options: Readonly<{
 
 /**
  * Issues one more agent its own grant: the setup's limits with `maxCount`
- * refunds per window, counted apart from every other agent's.
+ * refunds per window, counted apart from every other agent's. Naming a manager
+ * gives that manager's own key an agent grant, the operator error the
+ * self-approval case exercises: the manager may then act, but its approval of
+ * its own action never counts.
  */
 async function grant(options: Readonly<{
   state: string; gateway: string; agent: string; maxCount: number;
@@ -377,11 +397,14 @@ async function grant(options: Readonly<{
   const state = options.state;
   const facts = JSON.parse(readFileSync(join(state, "setup.json"), "utf8")) as SetupFacts;
   const name = options.agent;
-  if (name in facts.principals || existsSync(join(state, "agents", `${name}.json`))) {
+  const manager = (MANAGERS as readonly string[]).includes(name);
+  if (existsSync(join(state, "agents", `${name}.json`)) || (name in facts.principals && !manager)) {
     fail(`${name} already exists`);
   }
   const bound = boundExtension(options.gateway, facts.limits, options.maxCount);
-  privateWrite(join(state, "keys", `${name}.seed`), randomBytes(32));
+  if (!manager) {
+    privateWrite(join(state, "keys", `${name}.seed`), new Uint8Array(randomBytes(32)));
+  }
   const principal = (await roleKey(state, name)).principal;
   privateWrite(join(state, `${name}.grant.cbor`), await rootGrant(state, facts, principal, bound));
   const record = { principal, max_count: bound.max_count };
@@ -391,7 +414,7 @@ async function grant(options: Readonly<{
 
 interface Pending {
   readonly agent: string;
-  readonly managers: readonly string[];
+  readonly required: number;
   readonly payment_intent: string;
   readonly amount: number;
   readonly currency: string;
@@ -407,7 +430,6 @@ async function proposal(state: string, operation: string): Promise<ApprovalPropo
   const facts = JSON.parse(readFileSync(join(state, "setup.json"), "utf8")) as SetupFacts;
   const principals = principalsOf(state, facts);
   const pending = JSON.parse(readFileSync(join(state, "pending", `${operation}.json`), "utf8")) as Pending;
-  const requester = principals[pending.agent]!;
   return proposeMcpApproval({
     contract: CONTRACT,
     command: {
@@ -419,16 +441,11 @@ async function proposal(state: string, operation: string): Promise<ApprovalPropo
       connect_account: pending.connect_account,
       currency: pending.currency,
     },
-    // The agent and every listed manager approve the same exact refund.
-    required: 1 + pending.managers.length,
-    approvers: [
-      {
-        principal: requester,
-        terminalGrant: new Uint8Array(readFileSync(join(state, `${pending.agent}.grant.cbor`))),
-      },
-      ...pending.managers.map((name) => ({ principal: principals[name]! })),
-    ],
-    requester,
+    // Any `required` of the three managers approve the agent's exact refund.
+    required: pending.required,
+    approvers: MANAGERS.map((name) => principals[name]!),
+    actor: principals[pending.agent]!,
+    actorGrant: new Uint8Array(readFileSync(join(state, `${pending.agent}.grant.cbor`))),
     challenge: hexBytes(facts.challenge_hex),
     evaluationTime: BigInt(pending.evaluation_time),
     validitySeconds: APPROVAL_WINDOW,
@@ -447,9 +464,8 @@ const PRECHECK_NOTE = "client-side pre-check; not an enforcement boundary. " +
  * The rule a request breaks by what setup.json states, if any. It checks no
  * signature, window count, or operation ID: only the gateway decides those.
  */
-function precheckRule(facts: SetupFacts, listed: readonly string[], amount: number): string | null {
-  if (new Set(listed).size !== listed.length) return "repeated-approver";
-  if (1 + new Set(listed).size < facts.approvals_required) return "approvals-below-threshold";
+function precheckRule(facts: SetupFacts, required: number, amount: number): string | null {
+  if (required < facts.approvals_required) return "approvals-below-threshold";
   if (amount > facts.bound.ceiling) return "above-ceiling";
   return null;
 }
@@ -474,21 +490,19 @@ function writePending(state: string, operation: string, data: string): void {
 }
 
 async function request(options: Readonly<{
-  state: string; operationId: string; paymentIntent: string; amount: number; approvers: string; out: string;
-  currency: string; connectAccount: string | undefined; agent: string; precheck: boolean;
+  state: string; operationId: string; paymentIntent: string; amount: number; required: number | undefined;
+  out: string; currency: string; connectAccount: string | undefined; agent: string; precheck: boolean;
 }>): Promise<Record<string, unknown>> {
   const state = options.state;
   const facts = JSON.parse(readFileSync(join(state, "setup.json"), "utf8")) as SetupFacts;
   const principals = principalsOf(state, facts);
-  const listed = options.approvers.split(",").filter((name) => name.length > 0);
-  const unknown = [...new Set(listed.filter((name) => !(MANAGERS as readonly string[]).includes(name)))].sort();
-  if (unknown.length > 0) fail(`approvers must be names from ${MANAGERS.join(", ")}; got ${unknown.join(", ")}`);
   if ((MANAGERS as readonly string[]).includes(options.agent) || options.agent === "root" ||
       !(options.agent in principals)) {
     fail(`${options.agent} is not an agent of ${state}`);
   }
+  const threshold = options.required ?? facts.approvals_required;
   if (options.precheck) {
-    const rule = precheckRule(facts, listed, options.amount);
+    const rule = precheckRule(facts, threshold, options.amount);
     if (rule !== null) {
       return {
         operation_id: options.operationId, outcome: "not-submitted", decided_by: "client",
@@ -496,19 +510,14 @@ async function request(options: Readonly<{
       };
     }
   }
-  const managers: string[] = [];
-  for (const name of listed) {
-    if (managers.includes(name)) {
-      process.stderr.write(
-        `dropped the repeated approver ${name}: a proposal cannot name one approver twice; ` +
-        "the gateway decides the threshold for the approvers that remain\n",
-      );
-      continue;
-    }
-    managers.push(name);
+  if (threshold !== facts.approvals_required) {
+    process.stderr.write(
+      `the requests name a threshold of ${threshold}, not the ${facts.approvals_required} ` +
+      "the trust installs; the gateway decides whether the approvals count\n",
+    );
   }
   const pending: Pending = {
-    agent: options.agent, managers, payment_intent: options.paymentIntent, amount: options.amount,
+    agent: options.agent, required: threshold, payment_intent: options.paymentIntent, amount: options.amount,
     currency: options.currency, connect_account: options.connectAccount ?? facts.connect_account,
     evaluation_time: Math.floor(Date.now() / 1000),
   };
@@ -519,20 +528,14 @@ async function request(options: Readonly<{
   const written: Record<string, string> = {};
   for (const item of await approvalRequests(built)) {
     const name = names.get(item.approver)!;
-    if (name === options.agent) {
-      // The agent approves its own request like any other approver.
-      const review = await openApprovalRequest(item.data);
-      const response = await approve(review, developmentSigner(name, await roleKey(state, name)), {
-        grants: await agentGrants(state, name),
-      });
-      writeFileSync(join(options.out, "agent.response"), `${response.text}\n`);
-      continue;
-    }
     const path = join(options.out, `${name}.request`);
     writeFileSync(path, `${item.text}\n`);
     written[name] = path;
   }
-  return { operation_id: options.operationId, requests: written, action_b64: b64(built.action) };
+  return {
+    operation_id: options.operationId, required: built.requirement.required, requests: written,
+    action_b64: b64(built.action),
+  };
 }
 
 interface Entry {
@@ -582,25 +585,39 @@ async function submit(options: Readonly<{
       `${JSON.stringify({ operation_id: options.operationId, response: text })}\n`, { mode: 0o600 });
   }
   const collection = await collectApprovals(built, texts);
-  const declined = collection.statuses.filter((item) => item.status === "declined")
-    .map((item) => names.get(item.approver) ?? item.approver).sort();
-  if (declined.length > 0) {
-    return { ...record, outcome: "not-submitted", decided_by: "approver", reason: "approver-declined", declined };
-  }
-  const waiting = Object.fromEntries(collection.statuses.filter((item) => item.status !== "approved")
-    .map((item) => [names.get(item.approver) ?? item.approver, item.code ?? item.status]));
-  if (Object.keys(waiting).length > 0) {
-    // No proof exists until every listed approver approved this exact
-    // request, so nothing can be sent; this is not a policy refusal.
+  const statuses = new Map(collection.statuses.map((item) => [names.get(item.approver) ?? item.approver, item]));
+  const named = [...statuses.entries()];
+  const approved = named.filter(([, item]) => item.status === "approved").map(([name]) => name).sort();
+  const declined = named.filter(([, item]) => item.status === "declined").map(([name]) => name).sort();
+  const silent = named.filter(([, item]) => item.status === "pending").map(([name]) => name).sort();
+  const pendingCount = silent.length;
+  Object.assign(record, { approved, pending: silent, required: collection.required });
+  if (declined.length > 0) record.declined = declined;
+  if (collection.approved < collection.required) {
+    if (declined.length > 0 && collection.approved + pendingCount < collection.required) {
+      // Too many managers declined for any later answer to make a quorum.
+      return { ...record, outcome: "not-submitted", decided_by: "approver", reason: "approvers-declined" };
+    }
+    // No proof exists until `required` managers approved this exact request,
+    // so nothing can be sent; this is not a policy refusal.
     return {
-      ...record, outcome: "not-submitted", decided_by: "client", reason: "approvals-incomplete", waiting,
+      ...record, outcome: "not-submitted", decided_by: "client", reason: "approvals-incomplete",
+      waiting: Object.fromEntries(named.filter(([, item]) => item.status !== "approved")
+        .map(([name, item]) => [name, item.code ?? item.status] as const)
+        .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))),
       unattributed: collection.unattributed.map(([index, code]) => [index, code]),
     };
   }
-  // Every assembled proof goes to the gateway. Collection checks every
-  // envelope byte for byte; only the gateway decides the threshold, the
-  // ceiling, the count, and whether the operation ID may run.
-  const proof = collection.assemble();
+  // The agent signs its exact refund only now, and every assembled proof goes
+  // to the gateway. Collection checks every approval statement byte for byte;
+  // only the gateway decides the threshold, the ceiling, the count, and
+  // whether the operation ID may run.
+  const agent = (JSON.parse(readFileSync(join(state, "pending", `${options.operationId}.json`), "utf8")) as Pending)
+    .agent;
+  const action = await signApprovalAction(built, developmentSigner(agent, await roleKey(state, agent)), {
+    grants: await agentGrants(state, agent),
+  });
+  const proof = collection.assemble(action);
   const gateway = new GatewayClient(new GatewayEndpoint(resolve(options.socket)));
   Object.assign(record, await gateway.submit({ proof, action: built.action }), { decided_by: "gateway" });
   const observation = await gateway.observeOutcome(options.operationId);
@@ -625,9 +642,9 @@ function exportBundle(options: Readonly<{ state: string; out: string }>): void {
     : [];
   const bundle = {
     schema: "auths.gateway-audit-bundle/2",
-    recipe_b64: b64(readFileSync(RECIPE)),
-    profile_lock_b64: b64(readFileSync(PROFILE_LOCK)),
-    trusted_context_b64: b64(readFileSync(join(options.state, "trust", "gateway.context.cbor"))),
+    recipe_b64: b64(new Uint8Array(readFileSync(RECIPE))),
+    profile_lock_b64: b64(new Uint8Array(readFileSync(PROFILE_LOCK))),
+    trusted_context_b64: b64(new Uint8Array(readFileSync(join(options.state, "trust", "gateway.context.cbor")))),
     entries,
     approval_responses: responses,
   };
@@ -647,16 +664,13 @@ function required(value: string | undefined, name: string): string {
   return value;
 }
 
-function present(value: string | undefined, name: string): string {
-  if (value === undefined) fail(`--${name} is required`);
-  return value;
-}
-
 const USAGE = [
   "usage: refunds.js setup|grant|request|submit|export --state DIR ...",
+  "  request --required N: the threshold the requests name; defaults to the installed one. A lower value",
+  "    is a hostile lever: approvals of it never count toward the installed threshold.",
   "  request --precheck: client-side pre-check, not an enforcement boundary: refuse before writing any",
-  "    request when the approvers are fewer than the threshold, one repeats, or the amount is above the",
-  "    ceiling that setup.json records. The gateway enforces these rules whether or not the pre-check runs.",
+  "    request when --required is below the threshold or the amount is above the ceiling that",
+  "    setup.json records. The gateway enforces these rules whether or not the pre-check runs.",
 ].join("\n");
 
 async function main(): Promise<void> {
@@ -678,7 +692,7 @@ async function main(): Promise<void> {
       "operation-id": { type: "string" },
       "payment-intent": { type: "string" },
       amount: { type: "string" },
-      approvers: { type: "string" },
+      required: { type: "string" },
       responses: { type: "string" },
       out: { type: "string" },
       precheck: { type: "boolean", default: false },
@@ -718,7 +732,7 @@ async function main(): Promise<void> {
         operationId: required(values["operation-id"], "operation-id"),
         paymentIntent: required(values["payment-intent"], "payment-intent"),
         amount: integer(values.amount, "amount"),
-        approvers: present(values.approvers, "approvers"),
+        required: values.required === undefined ? undefined : integer(values.required, "required"),
         out: resolve(required(values.out, "out")),
         currency: values.currency!,
         connectAccount: values["connect-account"],

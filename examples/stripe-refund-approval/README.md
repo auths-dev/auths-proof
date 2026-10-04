@@ -205,8 +205,9 @@ ID. It prints the gateway's result with `"decided_by": "gateway"`, here
 "bundle": "appended", ...}`: the gateway checked the key and the
 PaymentIntent (60.00 received, so at most 30.00 refundable here), sent the
 refund, and found its echo token in the refund it read back. The ledger has
-one write. The record lists the managers who approved (`"approved"`) and any
-who declined (`"declined"`). One decline beside two approvals does not stop
+one write. The record lists the managers who approved (`"approved"`), those
+who have not answered (`"pending"`, here manager C), and any who declined
+(`"declined"`). One decline beside two approvals does not stop
 the refund. When too many managers declined for two approvals to remain
 possible, or fewer than two approved so far, no proof exists and nothing is
 sent: `submit` prints `"outcome": "not-submitted"` with
@@ -220,6 +221,7 @@ gateway code.
 | --- | --- | --- | --- |
 | The agent lowers the threshold (`request --required 1`); only manager A approves | gateway | `denied` `approval-threshold-not-met` | 0 |
 | The agent lowers the threshold to 1; managers A and B both approve it | gateway: each approval is bound to the requirement it was asked for, so none counts toward the installed one | `denied` `approval-threshold-not-met` | 0 |
+| Manager A, also given an agent grant (`refunds.py grant --agent manager-a`), submits a refund that managers A and B approve | gateway: A is in the proof's authority chain, so its approval never counts and only B's does. The SDK refuses to author this proposal at all; the journey builds the bundle by hand, as a hostile client would. The denial comes before any claim, so it uses no count slot | `denied` `approval-threshold-not-met` | 0 |
 | 90.00, above the 50.00 ceiling | gateway | `not-entered` `gateway.policy.above-ceiling` | 0 |
 | `--connect-account acct_1AuthsOtherAcct`, which the grant does not list | gateway | `not-entered` `gateway.policy.scope-denied` | 0 |
 | 50.00 when 45.00 of the day's 60.00 USD is left | gateway | `not-entered` `gateway.policy.sum-exhausted` | 0 |
@@ -343,9 +345,10 @@ python journey.py --gateway "$(command -v auths-gateway)"
 ```
 
 This runs steps 3–9 with every manager answering through `auths approve`:
-refund 1 approved by two managers while the third never answers, refund 4
-approved by another pair beside a decline, two declined managers, a response
-collected twice, a tampered request, a key without `rk_test_` refused at
+refund 1 approved by two managers while the third never answers (its
+status stays `pending` and the refund is authorized), refund 4
+approved by another pair beside a decline, two declined managers, a manager
+approving its own refund, a response collected twice, a tampered request, a key without `rk_test_` refused at
 install, every refusal of step 7 before and after the credential lease, the
 audit with and without `--allow-unverified-refusals`, five tampering cases,
 and one case that shows the limit of that option. Every submission goes
